@@ -256,16 +256,16 @@ public class SparkUtil {
   // Lenient ISO parser accepting either a date (e.g. "2021-01-01") or a date-time
   // (e.g. "2021-01-01T12:34:56"), defaulting any missing time fields to zero.
   private static final DateTimeFormatter LENIENT_ISO_DATE_TIME =
-          new DateTimeFormatterBuilder()
-                  .append(DateTimeFormatter.ISO_LOCAL_DATE)
-                  .optionalStart()
-                  .appendLiteral('T')
-                  .append(DateTimeFormatter.ISO_LOCAL_TIME)
-                  .optionalEnd()
-                  .parseDefaulting(ChronoField.HOUR_OF_DAY, 0)
-                  .parseDefaulting(ChronoField.MINUTE_OF_HOUR, 0)
-                  .parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
-                  .toFormatter();
+      new DateTimeFormatterBuilder()
+          .append(DateTimeFormatter.ISO_LOCAL_DATE)
+          .optionalStart()
+          .appendLiteral('T')
+          .append(DateTimeFormatter.ISO_LOCAL_TIME)
+          .optionalEnd()
+          .parseDefaulting(ChronoField.HOUR_OF_DAY, 0)
+          .parseDefaulting(ChronoField.MINUTE_OF_HOUR, 0)
+          .parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
+          .toFormatter();
 
   private static long parseToEpochMillis(String value) {
     LocalDateTime dateTime = LocalDateTime.parse(value, LENIENT_ISO_DATE_TIME);
