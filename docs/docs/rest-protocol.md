@@ -57,30 +57,33 @@ default set of namespace and table endpoints. For older servers that support
 views but predate endpoint discovery, set `view-endpoints-supported=true`
 (see [REST catalog properties](rest-catalog.md#configuration)).
 
-## Multi-table transactions
+## Commit protocol
 
-The REST protocol can commit changes to multiple tables in one atomic
-operation (`POST /v1/{prefix}/transactions/commit`). Each participating table
-contributes its update requirements and metadata updates; the server validates
-all requirements and applies all updates atomically, so either every table
-commit succeeds or none does.
+Unlike client-side catalogs, a REST client never writes a metadata file and
+swaps a pointer itself. To commit, it sends the server the list of changes it
+wants to make (`POST /v1/{prefix}/namespaces/{namespace}/tables/{table}`),
+expressed as two parts:
 
-In Java, this is exposed as `RESTCatalog.commitTransaction`:
+- **Requirements** state what must still be true of the table's current
+  metadata for the commit to be valid — for example, that a branch still
+  points at the snapshot the change was based on, or that the table's UUID
+  matches.
+- **Updates** are the metadata changes themselves, such as adding a snapshot,
+  setting a branch reference, or updating the schema.
 
-```java
-import org.apache.iceberg.catalog.TableCommit;
+The server validates every requirement against the table's current metadata
+and, if all of them hold, applies the updates and writes the new metadata. If
+a requirement fails, the commit is rejected and the client refreshes the
+table and reapplies its changes before retrying. Because the server owns this
+validation, all engines get the same conflict detection, and the server can
+resolve conflicts or reject invalid changes centrally.
 
-// derive requirements and updates from each table's base and updated metadata
-TableCommit commit1 = TableCommit.create(identifier1, baseMetadata1, updatedMetadata1);
-TableCommit commit2 = TableCommit.create(identifier2, baseMetadata2, updatedMetadata2);
-
-catalog.commitTransaction(commit1, commit2);
-```
-
-Multi-table commits are optional on both sides: the server must support the
-transactions endpoint, and a server may restrict which operations can
-participate in a transaction. Engines generally do not expose multi-table
-commits through SQL today, so this is primarily a Java API feature.
+The protocol also defines an optional endpoint for committing changes to
+multiple tables in one atomic operation
+(`POST /v1/{prefix}/transactions/commit`), exposed in Java as
+`RESTCatalog.commitTransaction`. Engines commit tables individually today, so
+this is primarily a Java API feature, and servers are not required to support
+it.
 
 ## Storage access delegation
 
@@ -92,11 +95,14 @@ server may supply access through either or both:
 ### Credential vending
 
 The server returns short-lived, table-scoped storage credentials
-(`storage-credentials`) in the load-table response. The client applies them
-automatically when it creates the table's `FileIO`, so reads and writes of
-data and metadata files use the vended credentials without any client-side
-configuration. Because each credential is scoped to a table's storage
-prefixes, the catalog becomes the single point of access control.
+(`storage-credentials`) in the load-table response. When they are present, the
+client applies them when it creates the table's `FileIO`, so reads and writes
+of data and metadata files use the vended credentials. Because each credential
+is scoped to a table's storage prefixes, the catalog becomes the single point
+of access control.
+
+Whether credentials are vended is up to the server. Some servers only vend
+credentials when the request carries the `X-Iceberg-Access-Delegation` header.
 
 Vended credentials expire; the spec's dedicated credentials endpoint
 (`GET /v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials`) lets
