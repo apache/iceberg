@@ -250,12 +250,9 @@ public class DataGenerators {
       genericRecord.put("time_field", HOUR_8_IN_MILLI);
       // Now that AvroToRowDataConverters correctly supports microseconds,
       // we must inject correct microsecond scale values into the Avro data.
+      genericRecord.put("ts_with_zone_field", MILLIS_20220110 * 1000L + MICROS_OF_MILLI_20220110);
       genericRecord.put(
-          "ts_with_zone_field",
-          MILLIS_20220110 * 1000L + MICROS_OF_MILLI_20220110);
-      genericRecord.put(
-          "ts_without_zone_field",
-          MILLIS_20220110 * 1000L + MICROS_OF_MILLI_20220110);
+          "ts_without_zone_field", MILLIS_20220110 * 1000L + MICROS_OF_MILLI_20220110);
       genericRecord.put("ts_ns_with_zone_field", ICEBERG_MAX_NANOS_EPOCH);
       genericRecord.put("ts_ns_without_zone_field", ICEBERG_MAX_NANOS_EPOCH);
 
