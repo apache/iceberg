@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import java.util.Comparator;
 import java.util.List;
 import org.apache.iceberg.geospatial.BoundingBox;
 import org.apache.iceberg.geospatial.GeospatialBound;
@@ -33,13 +32,19 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  * <p>The contract a caller must reason about:
  *
  * <ul>
- *   <li>{@link #build()} returns {@code null} for empty input.
- *   <li>A single out-of-range coordinate turns bounds off permanently, so {@code build()} then
- *       returns {@code null} for the whole file: a coordinate off the sphere has no meaning.
+ *   <li>{@link #build()} returns {@code null} for empty input, or when either dimension never
+ *       received a non-{@code NaN} ordinate.
+ *   <li>A {@code NaN} ordinate is skipped per dimension, matching empty WKB values such as {@code
+ *       POINT EMPTY}; it does not turn bounds off for the rest of the file.
+ *   <li>A single out-of-range or infinite coordinate turns bounds off permanently, so {@code
+ *       build()} then returns {@code null} for the whole file: a coordinate off the sphere has no
+ *       meaning.
  *   <li>An ambiguous antipodal edge, whose great-circle plane is undetermined, yields world bounds
  *       ({@code [-180, 180]} x {@code [-90, 90]}) rather than a tighter box.
  *   <li>The longitude interval may wrap across the antimeridian, so the box can have {@code west >
  *       east}; a point then matches when its longitude is {@code >= west} OR {@code <= east}.
+ *   <li>A pole vertex still contributes its stored longitude. The spec's geography X predicate is
+ *       numeric, so dropping that X would under-cover a value present in the file.
  *   <li>Latitude extrema are deliberately widened by a small margin, so a bound is guaranteed to
  *       cover its edge but is not tight.
  * </ul>
@@ -50,6 +55,7 @@ class SphericalGeographyBoundsBuilder {
   private static final double MIN_LATITUDE = -90.0;
   private static final double MAX_LATITUDE = 90.0;
   private static final double LONGITUDE_SPAN = MAX_LONGITUDE - MIN_LONGITUDE;
+  private static final int MAX_LONGITUDE_INTERVALS = 64;
 
   // For unit endpoints, |point1 x point2| = sin(central angle). A tiny normal means
   // the endpoints are nearly coincident or antipodal, so normalizing the great-circle
@@ -78,44 +84,34 @@ class SphericalGeographyBoundsBuilder {
   // under-covering bound; the result is then clamped to [-90, 90].
   private static final double LATITUDE_SCALING_FACTOR = 1.0000001;
 
+  // Disjoint non-wrapping segments, merged and compacted as they accumulate so memory use does
+  // not scale with a file's vertex count.
   private final List<LongitudeInterval> longitudeIntervals = Lists.newArrayList();
+  private boolean fullLongitude = false;
   private double minLatitude = Double.POSITIVE_INFINITY;
   private double maxLatitude = Double.NEGATIVE_INFINITY;
   private State state = State.EMPTY;
 
   void addPoint(double longitude, double latitude) {
-    if (!prepareToAccumulate(coordinatesAreValid(longitude, latitude))) {
-      return;
-    }
-
-    includeLatitude(latitude);
-    // All meridians meet at a pole, so a vertex there has no single longitude that constrains
-    // the box; it contributes latitude only. A geography consisting solely of pole vertices
-    // leaves longitude unconstrained, which build() reports as the full range.
-    if (!isPole(latitude)) {
-      longitudeIntervals.add(new LongitudeInterval(longitude, longitude));
-    }
+    includeCoordinate(longitude, latitude);
   }
 
   void addEdge(double longitude1, double latitude1, double longitude2, double latitude2) {
-    if (!prepareToAccumulate(
-        coordinatesAreValid(longitude1, latitude1) && coordinatesAreValid(longitude2, latitude2))) {
+    boolean firstIsComplete = includeCoordinate(longitude1, latitude1);
+    boolean secondIsComplete = includeCoordinate(longitude2, latitude2);
+    if (!firstIsComplete || !secondIsComplete || state != State.ACTIVE) {
       return;
     }
 
-    includeLatitude(latitude1);
-    includeLatitude(latitude2);
-
-    if (addEdgeWithPole(longitude1, latitude1, longitude2, latitude2)) {
+    if (addEdgeWithPole(latitude1, latitude2)) {
       return;
     }
 
-    longitudeIntervals.add(minimumLongitudeInterval(longitude1, longitude2));
+    addLongitudeInterval(minimumLongitudeInterval(longitude1, longitude2));
     addInteriorLatitudeExtrema(longitude1, latitude1, longitude2, latitude2);
   }
 
-  private boolean addEdgeWithPole(
-      double longitude1, double latitude1, double longitude2, double latitude2) {
+  private boolean addEdgeWithPole(double latitude1, double latitude2) {
     boolean firstIsPole = isPole(latitude1);
     boolean secondIsPole = isPole(latitude2);
     if (firstIsPole && secondIsPole) {
@@ -124,15 +120,9 @@ class SphericalGeographyBoundsBuilder {
       }
 
       return true;
-    } else if (firstIsPole) {
-      longitudeIntervals.add(new LongitudeInterval(longitude2, longitude2));
-      return true;
-    } else if (secondIsPole) {
-      longitudeIntervals.add(new LongitudeInterval(longitude1, longitude1));
-      return true;
     }
 
-    return false;
+    return firstIsPole || secondIsPole;
   }
 
   private void addInteriorLatitudeExtrema(
@@ -185,6 +175,14 @@ class SphericalGeographyBoundsBuilder {
       return null;
     }
 
+    if (state == State.FULL_WORLD) {
+      return worldBounds();
+    }
+
+    if (!hasLatitude() || !hasLongitude()) {
+      return null;
+    }
+
     LongitudeInterval longitudeBounds = longitudeBounds();
     return new BoundingBox(
         GeospatialBound.createXY(longitudeBounds.west, minLatitude),
@@ -196,64 +194,145 @@ class SphericalGeographyBoundsBuilder {
     maxLatitude = Math.max(maxLatitude, latitude);
   }
 
+  private boolean hasLatitude() {
+    return minLatitude <= maxLatitude;
+  }
+
+  private boolean hasLongitude() {
+    return fullLongitude || !longitudeIntervals.isEmpty();
+  }
+
   private void includeFullWorld() {
     minLatitude = MIN_LATITUDE;
     maxLatitude = MAX_LATITUDE;
     longitudeIntervals.clear();
+    fullLongitude = true;
     state = State.FULL_WORLD;
   }
 
+  private static BoundingBox worldBounds() {
+    return new BoundingBox(
+        GeospatialBound.createXY(MIN_LONGITUDE, MIN_LATITUDE),
+        GeospatialBound.createXY(MAX_LONGITUDE, MAX_LATITUDE));
+  }
+
+  private boolean includeCoordinate(double longitude, double latitude) {
+    if (state == State.INVALID) {
+      return false;
+    }
+
+    boolean longitudeNaN = Double.isNaN(longitude);
+    boolean latitudeNaN = Double.isNaN(latitude);
+    if (!longitudeNaN && !isInLongitudeRange(longitude)) {
+      state = State.INVALID;
+      return false;
+    }
+
+    if (!latitudeNaN && !isInLatitudeRange(latitude)) {
+      state = State.INVALID;
+      return false;
+    }
+
+    if (state == State.FULL_WORLD) {
+      return false;
+    }
+
+    if (!latitudeNaN) {
+      includeLatitude(latitude);
+      state = State.ACTIVE;
+    }
+
+    if (!longitudeNaN) {
+      addLongitudeInterval(new LongitudeInterval(longitude, longitude));
+      state = State.ACTIVE;
+    }
+
+    return !longitudeNaN && !latitudeNaN;
+  }
+
+  private void addLongitudeInterval(LongitudeInterval interval) {
+    if (fullLongitude) {
+      return;
+    }
+
+    if (interval.west <= interval.east) {
+      insertSegment(interval.west, interval.east);
+    } else {
+      insertSegment(interval.west, MAX_LONGITUDE);
+      insertSegment(MIN_LONGITUDE, interval.east);
+    }
+  }
+
+  private void insertSegment(double west, double east) {
+    if (fullLongitude) {
+      return;
+    }
+
+    int index = 0;
+    while (index < longitudeIntervals.size() && longitudeIntervals.get(index).east < west) {
+      index += 1;
+    }
+
+    double mergedWest = west;
+    double mergedEast = east;
+    int mergeFrom = index;
+    while (index < longitudeIntervals.size() && longitudeIntervals.get(index).west <= mergedEast) {
+      LongitudeInterval existing = longitudeIntervals.get(index);
+      mergedWest = Math.min(mergedWest, existing.west);
+      mergedEast = Math.max(mergedEast, existing.east);
+      index += 1;
+    }
+
+    longitudeIntervals.subList(mergeFrom, index).clear();
+    if (mergedWest <= MIN_LONGITUDE && mergedEast >= MAX_LONGITUDE) {
+      fullLongitude = true;
+      longitudeIntervals.clear();
+      return;
+    }
+
+    longitudeIntervals.add(mergeFrom, new LongitudeInterval(mergedWest, mergedEast));
+    compactLongitudeIntervals();
+  }
+
+  private void compactLongitudeIntervals() {
+    while (longitudeIntervals.size() > MAX_LONGITUDE_INTERVALS) {
+      int mergeIndex = 1;
+      double smallestGap = Double.POSITIVE_INFINITY;
+      for (int index = 1; index < longitudeIntervals.size(); index += 1) {
+        double gap = longitudeIntervals.get(index).west - longitudeIntervals.get(index - 1).east;
+        if (gap < smallestGap) {
+          mergeIndex = index;
+          smallestGap = gap;
+        }
+      }
+
+      LongitudeInterval previous = longitudeIntervals.get(mergeIndex - 1);
+      LongitudeInterval next = longitudeIntervals.remove(mergeIndex);
+      longitudeIntervals.set(mergeIndex - 1, new LongitudeInterval(previous.west, next.east));
+    }
+  }
+
   private LongitudeInterval longitudeBounds() {
-    if (state == State.FULL_WORLD || longitudeIntervals.isEmpty()) {
+    if (fullLongitude) {
       return new LongitudeInterval(MIN_LONGITUDE, MAX_LONGITUDE);
     }
 
     // The minimum covering circular interval is the complement of the largest uncovered gap.
-    List<LongitudeEvent> events = Lists.newArrayListWithExpectedSize(2 * longitudeIntervals.size());
-    for (LongitudeInterval interval : longitudeIntervals) {
-      if (interval.west > interval.east) {
-        events.add(new LongitudeEvent(MIN_LONGITUDE, true));
-        events.add(new LongitudeEvent(interval.east, false));
-        events.add(new LongitudeEvent(interval.west, true));
-        events.add(new LongitudeEvent(MAX_LONGITUDE, false));
-      } else {
-        events.add(new LongitudeEvent(interval.west, true));
-        events.add(new LongitudeEvent(interval.east, false));
+    LongitudeInterval first = longitudeIntervals.get(0);
+    LongitudeInterval last = longitudeIntervals.get(longitudeIntervals.size() - 1);
+    double largestGap = LONGITUDE_SPAN + first.west - last.east;
+    LongitudeInterval bounds = new LongitudeInterval(first.west, last.east);
+    for (int index = 1; index < longitudeIntervals.size(); index += 1) {
+      LongitudeInterval previous = longitudeIntervals.get(index - 1);
+      LongitudeInterval next = longitudeIntervals.get(index);
+      double gap = next.west - previous.east;
+      if (gap > largestGap) {
+        largestGap = gap;
+        bounds = new LongitudeInterval(next.west, previous.east);
       }
     }
 
-    events.sort(
-        Comparator.comparingDouble((LongitudeEvent event) -> event.longitude)
-            .thenComparing(event -> !event.start));
-
-    double largestGapStart = 0.0;
-    double largestGapEnd = -1.0;
-    int overlapCount = 0;
-    for (int i = 0; i < events.size(); i += 1) {
-      LongitudeEvent event = events.get(i);
-      if (event.start) {
-        if (overlapCount == 0 && i > 0) {
-          double gapStart = events.get(i - 1).longitude;
-          if (event.longitude - gapStart > largestGapEnd - largestGapStart) {
-            largestGapStart = gapStart;
-            largestGapEnd = event.longitude;
-          }
-        }
-
-        overlapCount += 1;
-      } else {
-        overlapCount -= 1;
-      }
-    }
-
-    double firstLongitude = events.get(0).longitude;
-    double lastLongitude = events.get(events.size() - 1).longitude;
-    double antimeridianGap = LONGITUDE_SPAN + firstLongitude - lastLongitude;
-    if (antimeridianGap >= largestGapEnd - largestGapStart) {
-      return new LongitudeInterval(firstLongitude, lastLongitude);
-    }
-
-    return new LongitudeInterval(largestGapEnd, largestGapStart);
+    return bounds;
   }
 
   private static LongitudeInterval minimumLongitudeInterval(double longitude1, double longitude2) {
@@ -271,27 +350,12 @@ class SphericalGeographyBoundsBuilder {
         : new LongitudeInterval(east, west);
   }
 
-  private static boolean coordinatesAreValid(double longitude, double latitude) {
-    return Double.isFinite(longitude)
-        && Double.isFinite(latitude)
-        && longitude >= MIN_LONGITUDE
-        && longitude <= MAX_LONGITUDE
-        && latitude >= MIN_LATITUDE
-        && latitude <= MAX_LATITUDE;
+  private static boolean isInLongitudeRange(double longitude) {
+    return Double.isFinite(longitude) && longitude >= MIN_LONGITUDE && longitude <= MAX_LONGITUDE;
   }
 
-  private boolean prepareToAccumulate(boolean validCoordinates) {
-    if (!validCoordinates) {
-      state = State.INVALID;
-      return false;
-    }
-
-    if (state == State.INVALID || state == State.FULL_WORLD) {
-      return false;
-    }
-
-    state = State.ACTIVE;
-    return true;
+  private static boolean isInLatitudeRange(double latitude) {
+    return Double.isFinite(latitude) && latitude >= MIN_LATITUDE && latitude <= MAX_LATITUDE;
   }
 
   private static boolean isPole(double latitude) {
@@ -363,16 +427,6 @@ class SphericalGeographyBoundsBuilder {
     private LongitudeInterval(double west, double east) {
       this.west = west;
       this.east = east;
-    }
-  }
-
-  private static class LongitudeEvent {
-    private final double longitude;
-    private final boolean start;
-
-    private LongitudeEvent(double longitude, boolean start) {
-      this.longitude = longitude;
-      this.start = start;
     }
   }
 }
