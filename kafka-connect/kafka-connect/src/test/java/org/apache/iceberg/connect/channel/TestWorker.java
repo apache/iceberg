@@ -44,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
@@ -81,11 +82,17 @@ public class TestWorker extends ChannelTestBase {
       SinkWriter sinkWriter = mock(SinkWriter.class);
       when(sinkWriter.completeWrite()).thenReturn(sinkWriterResult);
 
+      // Worker now uses consumer.assign() (not subscribe()) for the control topic, so the mock
+      // consumer needs partition metadata available before start() is called, rather than a
+      // post-hoc rebalance() simulation.
+      TopicPartition tp = new TopicPartition(CTL_TOPIC_NAME, 0);
+      consumer.updatePartitions(
+          CTL_TOPIC_NAME,
+          ImmutableList.of(new PartitionInfo(CTL_TOPIC_NAME, 0, null, null, null)));
+      consumer.updateBeginningOffsets(ImmutableMap.of(tp, 0L));
+
       Worker worker = new Worker(config, clientFactory, sinkWriter, context);
       worker.start();
-
-      // init consumer after subscribe()
-      initConsumer();
 
       // save a record
       Map<String, Object> value = ImmutableMap.of();

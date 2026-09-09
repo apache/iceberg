@@ -19,6 +19,7 @@
 package org.apache.iceberg.connect.channel;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +37,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
@@ -146,6 +148,18 @@ abstract class Channel {
     return controlTopicOffsets;
   }
 
+  protected String controlTopic() {
+    return controlTopic;
+  }
+
+  protected List<PartitionInfo> controlTopicPartitions() {
+    return consumer.partitionsFor(controlTopic);
+  }
+
+  protected void assignControlTopicPartitions(Collection<TopicPartition> partitions) {
+    consumer.assign(partitions);
+  }
+
   /**
    * Commit consumer offsets. Only commits offsets if it has not committed offsets before or the
    * value is greater than the cached offset.
@@ -185,10 +199,20 @@ abstract class Channel {
   }
 
   void start() {
-    consumer.subscribe(ImmutableList.of(controlTopic));
+    subscribeToControlTopic();
 
     // initial poll with longer duration so the consumer will initialize...
     consumeAvailable(Duration.ofSeconds(1));
+  }
+
+  /**
+   * Subscribes this channel's consumer to the control topic. Coordinator relies on real
+   * consumer-group membership (a stable, shared group id) so the broker's rebalance protocol
+   * can help detect/evict a stale coordinator. Worker overrides this with manual assignment
+   * instead, since its group is single-member and never reused -- see the override for why.
+   */
+  protected void subscribeToControlTopic() {
+    consumer.subscribe(ImmutableList.of(controlTopic));
   }
 
   void stop() {
