@@ -101,6 +101,9 @@ public class AuthManagers {
       case AuthProperties.AUTH_TYPE_OAUTH2:
         impl = AuthProperties.AUTH_MANAGER_IMPL_OAUTH2;
         break;
+      case AuthProperties.AUTH_TYPE_ALIYUN:
+        impl = AuthProperties.AUTH_MANAGER_IMPL_ALIYUN;
+        break;
       default:
         impl = authType;
     }

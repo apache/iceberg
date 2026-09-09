@@ -76,11 +76,28 @@ public class AliyunProperties implements Serializable {
    */
   public static final String OSS_STAGING_DIRECTORY = "oss.staging-dir";
 
+  public static final String REST_SIGNING_NAME = "aliyun.auth.signing-name";
+  public static final String REST_ACCESS_KEY_ID = "aliyun.auth.access-key-id";
+  public static final String REST_ACCESS_KEY_SECRET = "aliyun.auth.access-key-secret";
+  public static final String REST_STS_TOKEN = "aliyun.auth.sts-token";
+  public static final String REST_SIGNING_REGION = "aliyun.auth.region";
+
+  public static final String ENV_ACCESS_KEY_ID = "ALIBABA_CLOUD_ACCESS_KEY_ID";
+  public static final String ENV_ACCESS_KEY_SECRET = "ALIBABA_CLOUD_ACCESS_KEY_SECRET";
+  public static final String ENV_STS_TOKEN = "ALIBABA_CLOUD_SECURITY_TOKEN";
+  public static final String ENV_REGION = "ALIBABA_CLOUD_REGION_ID";
+
   private final String ossEndpoint;
   private final String accessKeyId;
   private final String accessKeySecret;
   private final String securityToken;
   private final String ossStagingDirectory;
+
+  private final String restSigningName;
+  private final String restAccessKeyId;
+  private final String restAccessKeySecret;
+  private final String restStsToken;
+  private final String restSigningRegion;
 
   public AliyunProperties() {
     this(ImmutableMap.of());
@@ -96,6 +113,13 @@ public class AliyunProperties implements Serializable {
     this.ossStagingDirectory =
         PropertyUtil.propertyAsString(
             properties, OSS_STAGING_DIRECTORY, System.getProperty("java.io.tmpdir"));
+
+    this.restSigningName = properties.getOrDefault(REST_SIGNING_NAME, "");
+    this.restAccessKeyId = resolveProperty(properties, REST_ACCESS_KEY_ID, ENV_ACCESS_KEY_ID);
+    this.restAccessKeySecret =
+        resolveProperty(properties, REST_ACCESS_KEY_SECRET, ENV_ACCESS_KEY_SECRET);
+    this.restStsToken = resolveProperty(properties, REST_STS_TOKEN, ENV_STS_TOKEN);
+    this.restSigningRegion = resolveProperty(properties, REST_SIGNING_REGION, ENV_REGION);
   }
 
   public String ossEndpoint() {
@@ -116,5 +140,34 @@ public class AliyunProperties implements Serializable {
 
   public String ossStagingDirectory() {
     return ossStagingDirectory;
+  }
+
+  public String restSigningName() {
+    return restSigningName;
+  }
+
+  public String restAccessKeyId() {
+    return restAccessKeyId;
+  }
+
+  public String restAccessKeySecret() {
+    return restAccessKeySecret;
+  }
+
+  public String restStsToken() {
+    return restStsToken;
+  }
+
+  public String restSigningRegion() {
+    return restSigningRegion;
+  }
+
+  private static String resolveProperty(
+      Map<String, String> properties, String propertyKey, String envVar) {
+    String value = properties.get(propertyKey);
+    if (value == null || value.isEmpty()) {
+      value = System.getenv(envVar);
+    }
+    return value;
   }
 }
