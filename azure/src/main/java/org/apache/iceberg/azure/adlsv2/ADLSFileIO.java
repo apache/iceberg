@@ -315,6 +315,7 @@ public class ADLSFileIO implements DelegateFileIO, SupportsStorageCredentials {
     }
 
     storageCredentials.stream()
+        .filter(c -> c.prefix().startsWith(ROOT_PREFIX))
         .map(
             cred ->
                 cred.config()

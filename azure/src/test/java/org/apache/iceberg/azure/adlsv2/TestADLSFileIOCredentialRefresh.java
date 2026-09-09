@@ -19,6 +19,7 @@
 package org.apache.iceberg.azure.adlsv2;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockserver.integration.ClientAndServer.startClientAndServer;
 import static org.mockserver.model.HttpRequest.request;
 import static org.mockserver.model.HttpResponse.response;
@@ -365,6 +366,78 @@ class TestADLSFileIOCredentialRefresh {
 
       DataLakeFileSystemClient clientAfterRefresh = fileIO.client(path);
       assertThat(clientAfterRefresh).isNotSameAs(clientBeforeRefresh);
+    }
+  }
+
+  @Test
+  void credentialRefreshIgnoresCredentialsForOtherStorageSchemes() {
+    String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
+
+    // ResolvingFileIO hands every SupportsStorageCredentials instance the full, unfiltered
+    // credential list, so a credential for another storage scheme must not break ADLSFileIO
+    StorageCredential nonAdlsCredential =
+        StorageCredential.create("s3://bucket/dir", ImmutableMap.of("s3.access-key-id", "keyId"));
+
+    StorageCredential adlsCredential =
+        StorageCredential.create(
+            CREDENTIAL_PREFIX,
+            ImmutableMap.of(
+                AzureProperties.ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT,
+                "initialSasToken",
+                AzureProperties.ADLS_SAS_TOKEN_EXPIRES_AT_MS_PREFIX + STORAGE_ACCOUNT,
+                nearExpiryMs));
+
+    String refreshedExpiryMs =
+        Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
+    LoadCredentialsResponse refreshResponse =
+        ImmutableLoadCredentialsResponse.builder()
+            .addCredentials(
+                ImmutableCredential.builder()
+                    .prefix(CREDENTIAL_PREFIX)
+                    .config(
+                        ImmutableMap.of(
+                            AzureProperties.ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT,
+                            "refreshedSasToken",
+                            AzureProperties.ADLS_SAS_TOKEN_EXPIRES_AT_MS_PREFIX + STORAGE_ACCOUNT,
+                            refreshedExpiryMs))
+                    .build())
+            .build();
+
+    HttpRequest mockRequest = request("/v1/credentials").withMethod("GET");
+    HttpResponse mockResponse =
+        response(LoadCredentialsResponseParser.toJson(refreshResponse)).withStatusCode(200);
+    mockServer.when(mockRequest).respond(mockResponse);
+
+    Map<String, String> properties =
+        ImmutableMap.of(
+            AzureProperties.ADLS_REFRESH_CREDENTIALS_ENDPOINT,
+            credentialsUri,
+            CatalogProperties.URI,
+            catalogUri);
+
+    try (ADLSFileIO fileIO = new ADLSFileIO()) {
+      fileIO.initialize(properties);
+      fileIO.setCredentials(List.of(nonAdlsCredential, adlsCredential));
+
+      // scheduling the refresh must not fail while parsing the non-ADLS prefix
+      assertThatCode(() -> fileIO.client("abfss://container@account1.dfs.core.windows.net/file"))
+          .doesNotThrowAnyException();
+
+      Awaitility.await()
+          .atMost(10, TimeUnit.SECONDS)
+          .untilAsserted(() -> mockServer.verify(mockRequest, VerificationTimes.atLeast(1)));
+
+      Awaitility.await()
+          .atMost(10, TimeUnit.SECONDS)
+          .untilAsserted(
+              () -> {
+                List<StorageCredential> credentials = fileIO.credentials();
+                assertThat(credentials).hasSize(1);
+                assertThat(credentials.get(0).config())
+                    .containsEntry(
+                        AzureProperties.ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT,
+                        "refreshedSasToken");
+              });
     }
   }
 }
