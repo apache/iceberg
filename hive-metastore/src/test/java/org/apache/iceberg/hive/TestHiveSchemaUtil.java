@@ -33,6 +33,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -210,6 +211,44 @@ public class TestHiveSchemaUtil {
     Schema schema = new Schema(optional(0, "variant_field", Types.VariantType.get()));
     List<FieldSchema> hiveSchema = HiveSchemaUtil.convert(schema);
     assertThat(hiveSchema).containsExactly(new FieldSchema("variant_field", "unknown", null));
+  }
+
+  @Test
+  public void testGeometryTypeConvertToHiveSchema() {
+    Schema schema = new Schema(optional(0, "geometry_field", Types.GeometryType.crs84()));
+    List<FieldSchema> hiveSchema = HiveSchemaUtil.convert(schema);
+    assertThat(hiveSchema).containsExactly(new FieldSchema("geometry_field", "binary", null));
+  }
+
+  @Test
+  public void testGeometryTypeWithCustomCrsConvertToHiveSchema() {
+    Schema schema = new Schema(optional(0, "geometry_field", Types.GeometryType.of("EPSG:3857")));
+    List<FieldSchema> hiveSchema = HiveSchemaUtil.convert(schema);
+    assertThat(hiveSchema).containsExactly(new FieldSchema("geometry_field", "binary", null));
+  }
+
+  @Test
+  public void testGeographyTypeConvertToHiveSchema() {
+    Schema schema = new Schema(optional(0, "geography_field", Types.GeographyType.crs84()));
+    List<FieldSchema> hiveSchema = HiveSchemaUtil.convert(schema);
+    assertThat(hiveSchema).containsExactly(new FieldSchema("geography_field", "binary", null));
+  }
+
+  @Test
+  public void testGeographyTypeWithCustomCrsConvertToHiveSchema() {
+    Schema schema = new Schema(optional(0, "geography_field", Types.GeographyType.of("EPSG:4326")));
+    List<FieldSchema> hiveSchema = HiveSchemaUtil.convert(schema);
+    assertThat(hiveSchema).containsExactly(new FieldSchema("geography_field", "binary", null));
+  }
+
+  @Test
+  public void testGeographyTypeWithVincentyAlgorithmConvertToHiveSchema() {
+    Schema schema =
+        new Schema(
+            optional(
+                0, "geography_field", Types.GeographyType.of("OGC:CRS84", EdgeAlgorithm.VINCENTY)));
+    List<FieldSchema> hiveSchema = HiveSchemaUtil.convert(schema);
+    assertThat(hiveSchema).containsExactly(new FieldSchema("geography_field", "binary", null));
   }
 
   protected List<FieldSchema> getSupportedFieldSchemas() {
