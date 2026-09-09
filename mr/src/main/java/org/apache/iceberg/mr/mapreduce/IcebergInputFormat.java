@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputFormat;
@@ -45,6 +46,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.GenericDeleteFilter;
+import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -63,6 +65,7 @@ import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.SerializationUtil;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -313,6 +316,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           encryptionManager.decrypt(
               EncryptedFiles.encryptedInput(io.newInputFile(file.location()), file.keyMetadata()));
 
+      Map<Integer, ?> partition =
+          PartitionUtil.constantsMap(currentTask, IdentityPartitionConverters::convertConstant);
+
       ReadBuilder<Record, ?> readBuilder =
           FormatModelRegistry.readBuilder(file.format(), Record.class, inputFile);
 
@@ -328,6 +334,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           (CloseableIterable<T>)
               readBuilder
                   .project(readSchema)
+                  .idToConstant(partition)
                   .split(currentTask.start(), currentTask.length())
                   .caseSensitive(caseSensitive)
                   .filter(currentTask.residual())
