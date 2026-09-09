@@ -300,7 +300,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
       for (InternalRow row : positionDeleteRows) {
         String path = row.getString(0);
         long pos = row.getLong(1);
-        positionDelete.set(path, pos, null);
+        positionDelete.set(path, pos);
         closeableWriter.write(positionDelete, unpartitionedSpec, null);
       }
     }
@@ -339,7 +339,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
       for (InternalRow row : positionDeleteRows) {
         String path = row.getString(0);
         long pos = row.getLong(1);
-        positionDelete.set(path, pos, null);
+        positionDelete.set(path, pos);
         closeableWriter.write(positionDelete, unpartitionedSpec, null);
       }
     }
@@ -379,7 +379,7 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
       for (InternalRow row : shuffledPositionDeleteRows) {
         String path = row.getString(0);
         long pos = row.getLong(1);
-        positionDelete.set(path, pos, null);
+        positionDelete.set(path, pos);
         closeableWriter.write(positionDelete, unpartitionedSpec, null);
       }
     }

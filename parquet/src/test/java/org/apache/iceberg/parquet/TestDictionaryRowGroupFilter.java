@@ -462,12 +462,17 @@ public class TestDictionaryRowGroupFilter {
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("some_nulls", "some"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
-    assertThat(shouldRead).as("Should skip: no match in dictionary").isFalse();
+    assertThat(shouldRead).as("Should read: null values do not start with the prefix").isTrue();
 
     shouldRead =
         new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("no_nulls", "xxx"))
             .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
     assertThat(shouldRead).as("Should read: dictionary contains a matching entry").isTrue();
+
+    shouldRead =
+        new ParquetDictionaryRowGroupFilter(SCHEMA, notStartsWith("no_nulls", ""))
+            .shouldRead(parquetSchema, rowGroupMetadata, dictionaryStore);
+    assertThat(shouldRead).as("Should skip: no match in dictionary and no nulls").isFalse();
   }
 
   @TestTemplate

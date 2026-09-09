@@ -62,7 +62,6 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -1371,10 +1370,12 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
                     && planResp.planStatus() == PlanStatus.COMPLETED) {
                   return castResponse(
                       responseType,
-                      PlanTableScanResponse.builder()
+                      planResp.toBuilder()
                           .withPlanStatus(PlanStatus.FAILED)
                           .withErrorResponse(serverError)
-                          .withSpecsById(planResp.specsById())
+                          .withPlanId(null)
+                          .withFileScanTasks(null)
+                          .withPlanTasks(null)
                           .build());
                 }
                 if (response instanceof FetchPlanningResultResponse) {
@@ -1474,39 +1475,24 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     if (response instanceof PlanTableScanResponse resp
         && PlanStatus.COMPLETED == resp.planStatus()) {
       return (T)
-          PlanTableScanResponse.builder()
-              .withPlanStatus(resp.planStatus())
-              .withPlanId(resp.planId())
-              .withPlanTasks(resp.planTasks())
-              .withFileScanTasks(resp.fileScanTasks())
+          resp.toBuilder()
               .withCredentials(
-                  ImmutableList.<Credential>builder()
-                      .addAll(resp.credentials())
-                      .add(
-                          ImmutableCredential.builder()
-                              .prefix("dummy")
-                              .putConfig("dummyKey", "dummyVal")
-                              .build())
-                      .build())
-              .withSpecsById(resp.specsById())
+                  ImmutableList.of(
+                      ImmutableCredential.builder()
+                          .prefix("dummy")
+                          .putConfig("dummyKey", "dummyVal")
+                          .build()))
               .build();
     } else if (response instanceof FetchPlanningResultResponse resp
         && PlanStatus.COMPLETED == resp.planStatus()) {
       return (T)
-          FetchPlanningResultResponse.builder()
-              .withPlanStatus(resp.planStatus())
-              .withFileScanTasks(resp.fileScanTasks())
-              .withPlanTasks(resp.planTasks())
-              .withSpecsById(resp.specsById())
+          resp.toBuilder()
               .withCredentials(
-                  ImmutableList.<Credential>builder()
-                      .addAll(resp.credentials())
-                      .add(
-                          ImmutableCredential.builder()
-                              .prefix("dummy")
-                              .putConfig("dummyKey", "dummyVal")
-                              .build())
-                      .build())
+                  ImmutableList.of(
+                      ImmutableCredential.builder()
+                          .prefix("dummy")
+                          .putConfig("dummyKey", "dummyVal")
+                          .build()))
               .build();
     }
 

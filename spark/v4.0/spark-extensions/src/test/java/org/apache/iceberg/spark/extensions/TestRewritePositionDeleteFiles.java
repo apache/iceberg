@@ -339,7 +339,7 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
     PositionDelete<Record> posDelete = PositionDelete.create();
     try (Closeable toClose = writer) {
       for (Pair<CharSequence, Long> delete : deletes) {
-        writer.write(posDelete.set(delete.first(), delete.second(), null));
+        writer.write(posDelete.set(delete.first(), delete.second()));
       }
     }
 

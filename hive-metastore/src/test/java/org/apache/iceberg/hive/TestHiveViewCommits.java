@@ -28,6 +28,8 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
@@ -41,6 +43,7 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -50,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
+import org.apache.iceberg.view.ImmutableViewVersion;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.thrift.TException;
@@ -214,6 +218,55 @@ public class TestHiveViewCommits {
             "New metadata files should still exist, new location not in history but"
                 + " the commit may still succeed")
         .isEqualTo(2);
+  }
+
+  /** Pretends we throw an unclear error while persisting a create-view commit for a new view. */
+  @Test
+  public void testThriftExceptionUnknownStateOnCreateCommitWhenViewNeverPersisted()
+      throws TException, InterruptedException {
+    TableIdentifier createIdentifier = TableIdentifier.of(NS, "create_commit_failed_view");
+    HiveViewOperations ops = (HiveViewOperations) catalog.newViewOps(createIdentifier);
+    HiveViewOperations spyOps = spy(ops);
+
+    failCommitAndThrowException(spyOps);
+
+    Path createLocation = new Path(viewLocation.getParent(), "create_commit_failed_view");
+    ViewMetadata metadata =
+        ViewMetadata.builder()
+            .setLocation(createLocation.toString())
+            .setProperties(
+                ImmutableMap.of(
+                    TableProperties.COMMIT_NUM_STATUS_CHECKS, "1",
+                    TableProperties.COMMIT_STATUS_CHECKS_MIN_WAIT_MS, "1",
+                    TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS, "10",
+                    TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS, "100"))
+            .setCurrentVersion(
+                ImmutableViewVersion.builder()
+                    .versionId(1)
+                    .schemaId(SCHEMA.schemaId())
+                    .timestampMillis(System.currentTimeMillis())
+                    .defaultNamespace(NS)
+                    .putSummary("operation", "create")
+                    .addRepresentations(
+                        ImmutableSQLViewRepresentation.builder()
+                            .sql(VIEW_QUERY)
+                            .dialect("hive")
+                            .build())
+                    .build(),
+                SCHEMA)
+            .build();
+
+    assertThatThrownBy(() -> spyOps.commit(null, metadata))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageStartingWith("Datacenter on fire");
+
+    assertThat(catalog.viewExists(createIdentifier))
+        .as("The view should not have been created")
+        .isFalse();
+
+    // the configured status check must run to completion: once from current(), once from
+    // inside checkCurrentMetadataLocation, which resolves the null metadata instead of throwing
+    verify(spyOps, times(2)).refresh();
   }
 
   /** Pretends we throw an error while persisting that actually does commit serverside. */

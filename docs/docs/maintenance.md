@@ -21,7 +21,7 @@ title: Maintenance
 # Maintenance
 
 !!! info
-    Maintenance operations require the `Table` instance. Please refer [Java API quickstart](java-api-quickstart.md#create-a-table) page to refer how to load an existing table.
+    Maintenance operations require the `Table` instance. Please refer to the [Java API quickstart](java-api-quickstart.md#create-a-table) page to learn how to load an existing table.
 
 ## Recommended Maintenance
 
