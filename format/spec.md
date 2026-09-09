@@ -147,10 +147,11 @@ Version 4 of the Iceberg spec adds support for relative locations in metadata, e
 * **Schema** -- Names and types of fields in a table.
 * **Partition spec** -- A definition of how partition values are derived from data fields.
 * **Snapshot** -- The state of a table at some point in time, including the set of all data files.
+* **Snapshot root** -- The per-snapshot file that tracks a snapshot's manifests; a manifest list (v1-v3) or a root manifest (v4).
 * **Manifest list** -- (v1-v3 only) A file that lists manifest files; one per snapshot.
 * **Root Manifest** -- (v4+) A manifest that can reference data files, delete files, and other data and delete manifests; one per snapshot. Replaces manifest lists in v4.
 * **Data manifest** -- A file that lists data files; a subset of a snapshot.
-* **Delete manifest** -- (v1-v3 only) A file that lists delete files; a subset of a snapshot.
+* **Delete manifest** -- A file that lists delete files to be associated with data files at planning time.
 * **Data file** -- A file that contains rows of a table.
 * **Delete file** -- A file that encodes rows of a table that are deleted by position or data values.
 * **Absolute path** -- A path string that includes a [URI](https://datatracker.ietf.org/doc/html/rfc3986#section-3.1) scheme and can be used directly.
@@ -551,7 +552,7 @@ Note that:
 
 ### Partitioning
 
-Data files are stored in manifests with partition values that are used in scans to filter out files that cannot contain records that match the scan’s filter predicate. Partition values for a data file must be the same for all records stored in the data file. In v1-v3, manifests store data files from any partition, as long as the partition spec is the same for the data files. In v4, manifests can store data files from different partition specs.
+Data files are stored in manifests with a tuple of partition values that are used in scans to filter out files that cannot contain records that match the scan’s filter predicate. Partition values for a data file must be the same for all records stored in the data file. Manifests store data files from any partition. v4 manifests may store partitions from any spec, but manifests in v3 and earlier store files for a single spec.
 
 Tables are configured with a **partition spec** that defines how to produce a tuple of partition values from a record. A partition spec has a list of fields that consist of:
 
@@ -661,7 +662,7 @@ A data or delete file is associated with a sort order by the sort order's id wit
 
 ### Manifests
 
-A manifest is an immutable file that lists data files or delete files, along with each file’s partition data, metrics, and tracking information. One or more manifest files are used to store a [snapshot](#snapshots), which tracks all of the files in a table at some point in time. In v1-v3, manifests are tracked by a [manifest list](#manifest-lists) for each table snapshot. In v4, a single root manifest per snapshot can directly reference data files, delete files, and other data and delete manifests.
+A manifest is an immutable file that lists data files or delete files, along with each file’s partition data, metrics, and tracking information. One or more manifest files are used to store a [snapshot](#snapshots), which tracks all of the files in a table at some point in time. Manifests are tracked by a snapshot root for each table snapshot. In v4, the snapshot root is a root manifest that may track data files in addition to leaf manifest files.
 
 A manifest is a valid Iceberg data file: files must use valid Iceberg formats, schemas, and column projection.
 
@@ -669,8 +670,10 @@ A manifest may store either data files or delete files, but not both because man
 
 **Partition Spec Binding:**
 
-- v1-v3: A manifest stores files for a single partition spec. When a table’s partition spec changes, old files remain in the older manifest and newer files are written to a new manifest. This is required because a manifest file’s schema is based on its partition spec. The partition spec of each manifest is used to transform predicates on the table’s data rows into predicates on partition values during job planning.
+- v1-v3: A manifest stores files for a single partition spec. When a table’s partition spec changes, old files remain in the older manifest and newer files are written to a new manifest. This is required because a manifest file’s schema is based on its partition spec.
 - v4: Manifests are not bound to a single partition spec.
+
+The partition spec used when writing each data file is used to transform predicates on the table’s data rows into predicates on partition values during job planning. In v3, the same partition spec is used for all data files in a manifest.
 
 #### Manifest File Format
 
