@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.data.vectorized;
 
 import java.util.Arrays;
+import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
@@ -64,6 +65,13 @@ public class ColumnarBatchUtil {
     }
 
     PositionDeleteIndex deletedPositions = deletes.deletedRowPositions();
+
+    // positions in a batch form a contiguous ascending range, so the index can be traversed once
+    // for the whole range instead of being probed once per row
+    if (deletedPositions != null && !deletes.hasEqDeletes()) {
+      return buildRowIdMapping(deletedPositions, deletes, rowStartPosInBatch, batchSize);
+    }
+
     Predicate<InternalRow> eqDeleteFilter = deletes.eqDeletedRowFilter();
     ColumnarBatchRow row = new ColumnarBatchRow(columnVectors);
     int[] rowIdMapping = new int[batchSize];
@@ -81,6 +89,27 @@ public class ColumnarBatchUtil {
     }
 
     return liveRowId == batchSize ? null : Pair.of(rowIdMapping, liveRowId);
+  }
+
+  // builds the mapping from the deleted positions in the batch range, without probing per row
+  private static Pair<int[], Integer> buildRowIdMapping(
+      PositionDeleteIndex deletedPositions,
+      DeleteFilter<InternalRow> deletes,
+      long rowStartPosInBatch,
+      int batchSize) {
+    RowIdMappingBuilder builder = new RowIdMappingBuilder(rowStartPosInBatch, batchSize);
+    deletedPositions.forEachInRange(rowStartPosInBatch, batchSize, builder);
+    int liveRowId = builder.build();
+
+    if (liveRowId == batchSize) {
+      return null;
+    }
+
+    for (int index = liveRowId; index < batchSize; index++) {
+      deletes.incrementDeleteCount();
+    }
+
+    return Pair.of(builder.rowIdMapping(), liveRowId);
   }
 
   /**
@@ -119,6 +148,16 @@ public class ColumnarBatchUtil {
     }
 
     PositionDeleteIndex deletedPositions = deletes.deletedRowPositions();
+
+    if (deletedPositions != null && !deletes.hasEqDeletes()) {
+      IsDeletedBuilder builder = new IsDeletedBuilder(isDeleted, rowStartPosInBatch);
+      deletedPositions.forEachInRange(rowStartPosInBatch, batchSize, builder);
+      for (int index = 0; index < builder.deletedRowCount(); index++) {
+        deletes.incrementDeleteCount();
+      }
+      return isDeleted;
+    }
+
     Predicate<InternalRow> eqDeleteFilter = deletes.eqDeletedRowFilter();
     ColumnarBatchRow row = new ColumnarBatchRow(columnVectors);
 
@@ -176,6 +215,70 @@ public class ColumnarBatchUtil {
       return Arrays.copyOf(columnVectors, expectedColumnSize);
     } else {
       return columnVectors;
+    }
+  }
+
+  /**
+   * Consumes deleted positions in ascending order, filling the gaps between them with live row IDs.
+   */
+  private static class RowIdMappingBuilder implements LongConsumer {
+    private final long rowStartPosInBatch;
+    private final int batchSize;
+    private final int[] rowIdMapping;
+    private int nextRowId = 0;
+    private int liveRowId = 0;
+
+    RowIdMappingBuilder(long rowStartPosInBatch, int batchSize) {
+      this.rowStartPosInBatch = rowStartPosInBatch;
+      this.batchSize = batchSize;
+      this.rowIdMapping = new int[batchSize];
+    }
+
+    @Override
+    public void accept(long pos) {
+      int deletedRowId = (int) (pos - rowStartPosInBatch);
+      for (int rowId = nextRowId; rowId < deletedRowId; rowId++) {
+        rowIdMapping[liveRowId] = rowId;
+        liveRowId++;
+      }
+
+      this.nextRowId = deletedRowId + 1;
+    }
+
+    /** Appends the live rows after the last deleted position and returns the live row count. */
+    int build() {
+      for (int rowId = nextRowId; rowId < batchSize; rowId++) {
+        rowIdMapping[liveRowId] = rowId;
+        liveRowId++;
+      }
+
+      return liveRowId;
+    }
+
+    int[] rowIdMapping() {
+      return rowIdMapping;
+    }
+  }
+
+  /** Consumes deleted positions in a batch range, marking them in the given array. */
+  private static class IsDeletedBuilder implements LongConsumer {
+    private final boolean[] isDeleted;
+    private final long rowStartPosInBatch;
+    private int deletedRowCount = 0;
+
+    IsDeletedBuilder(boolean[] isDeleted, long rowStartPosInBatch) {
+      this.isDeleted = isDeleted;
+      this.rowStartPosInBatch = rowStartPosInBatch;
+    }
+
+    @Override
+    public void accept(long pos) {
+      isDeleted[(int) (pos - rowStartPosInBatch)] = true;
+      this.deletedRowCount++;
+    }
+
+    int deletedRowCount() {
+      return deletedRowCount;
     }
   }
 }

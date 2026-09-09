@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.deletes;
 
+import java.util.function.LongConsumer;
+
 class EmptyPositionDeleteIndex implements PositionDeleteIndex {
 
   private static final EmptyPositionDeleteIndex INSTANCE = new EmptyPositionDeleteIndex();
@@ -47,6 +49,9 @@ class EmptyPositionDeleteIndex implements PositionDeleteIndex {
   public boolean isEmpty() {
     return true;
   }
+
+  @Override
+  public void forEachInRange(long posStart, int length, LongConsumer consumer) {}
 
   @Override
   public String toString() {

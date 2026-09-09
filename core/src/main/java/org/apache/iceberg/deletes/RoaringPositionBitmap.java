@@ -54,6 +54,7 @@ class RoaringPositionBitmap {
   private static final RoaringBitmap[] EMPTY_BITMAP_ARRAY = new RoaringBitmap[0];
   private static final long BITMAP_COUNT_SIZE_BYTES = 8L;
   private static final long BITMAP_KEY_SIZE_BYTES = 4L;
+  private static final long MAX_POS_32_BITS = 0xFFFFFFFFL;
 
   private RoaringBitmap[] bitmaps;
 
@@ -189,6 +190,38 @@ class RoaringPositionBitmap {
   public void forEach(LongConsumer consumer) {
     for (int key = 0; key < bitmaps.length; key++) {
       forEach(key, bitmaps[key], consumer);
+    }
+  }
+
+  /**
+   * Iterates over the positions set within the given range, in ascending order.
+   *
+   * <p>The range is resolved to at most two underlying 32-bit bitmaps, each of which is traversed
+   * once. This avoids the per-position key extraction, bounds check and container lookup that
+   * {@link #contains(long)} performs on every call.
+   *
+   * @param posStart the first position in the range, inclusive
+   * @param length the number of positions in the range
+   * @param consumer a consumer for the positions that are set within the range
+   */
+  public void forEachInRange(long posStart, int length, LongConsumer consumer) {
+    if (length <= 0) {
+      return;
+    }
+
+    long posEnd = posStart + length - 1; // inclusive
+    validatePosition(posStart);
+    validatePosition(posEnd);
+
+    int startKey = key(posStart);
+    int endKey = key(posEnd);
+
+    // the range spans at most two keys because the length is bound by Integer.MAX_VALUE,
+    // which is smaller than the number of positions a single key covers
+    for (int key = startKey; key <= endKey && key < bitmaps.length; key++) {
+      long lowStart = key == startKey ? Integer.toUnsignedLong(pos32Bits(posStart)) : 0L;
+      long lowEnd = key == endKey ? Integer.toUnsignedLong(pos32Bits(posEnd)) : MAX_POS_32_BITS;
+      forEachInRange(key, bitmaps[key], (int) lowStart, (int) (lowEnd - lowStart + 1), consumer);
     }
   }
 
@@ -337,6 +370,13 @@ class RoaringPositionBitmap {
   // iterates over 64-bit positions, reconstructing them from keys and 32-bit positions
   private static void forEach(int key, RoaringBitmap bitmap, LongConsumer consumer) {
     bitmap.forEach((int pos32Bits) -> consumer.accept(toPosition(key, pos32Bits)));
+  }
+
+  // iterates over a range of 32-bit positions within one bitmap, reconstructing 64-bit positions
+  private static void forEachInRange(
+      int key, RoaringBitmap bitmap, int start, int length, LongConsumer consumer) {
+    bitmap.forEachInRange(
+        start, length, (int pos32Bits) -> consumer.accept(toPosition(key, pos32Bits)));
   }
 
   private static void validatePosition(long pos) {
