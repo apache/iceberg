@@ -23,6 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -50,9 +51,15 @@ import org.apache.iceberg.connect.data.SchemaUpdate.AddColumn;
 import org.apache.iceberg.connect.data.SchemaUpdate.UpdateType;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -77,7 +84,6 @@ import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.iceberg.types.Types.VariantType;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantValue;
@@ -280,7 +286,44 @@ public class TestRecordConverter {
         ImmutableMap.<String, Object>builder().put("uuid", UUID_VAL.toString()).build();
 
     Record record = converter.convert(data);
-    assertThat(record.getField("uuid")).isEqualTo(UUIDUtil.convert(UUID_VAL));
+    assertThat(record.getField("uuid")).isEqualTo(UUID_VAL);
+  }
+
+  @Test
+  public void testUUIDParquetWriteRoundTrip() throws IOException {
+    org.apache.iceberg.Schema schema =
+        new org.apache.iceberg.Schema(NestedField.required(1, "uuid", UUIDType.get()));
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(schema);
+    when(config.writeProps())
+        .thenReturn(
+            ImmutableMap.of(
+                TableProperties.DEFAULT_FILE_FORMAT,
+                FileFormat.PARQUET.name().toLowerCase(Locale.ROOT)));
+
+    RecordConverter converter = new RecordConverter(table, config);
+    Record record =
+        converter.convert(
+            ImmutableMap.<String, Object>builder().put("uuid", UUID_VAL.toString()).build());
+
+    InMemoryOutputFile output = new InMemoryOutputFile();
+    try (FileAppender<Record> appender =
+        Parquet.write(output)
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      appender.add(record);
+    }
+
+    try (CloseableIterable<Record> reader =
+        Parquet.read(output.toInputFile())
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build()) {
+      List<Record> rows = Lists.newArrayList(reader);
+      assertThat(rows).hasSize(1);
+      assertThat(rows.get(0).getField("uuid")).isEqualTo(UUID_VAL);
+    }
   }
 
   @Test
