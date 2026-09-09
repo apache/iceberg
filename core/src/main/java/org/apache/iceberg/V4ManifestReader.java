@@ -42,7 +42,7 @@ import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructProjection;
 
-/** Reader that reads a v4 manifest file as {@link TrackedFile}s. */
+/** Reader that reads a v4+ manifest file as {@link TrackedFile}s. */
 class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile> {
   private static final int SUPPORTED_FORMAT_VERSION = 4;
 
