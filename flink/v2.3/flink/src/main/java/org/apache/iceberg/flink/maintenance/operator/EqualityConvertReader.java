@@ -26,15 +26,12 @@ import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
-import org.apache.iceberg.Accessor;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.BaseDeleteLoader;
 import org.apache.iceberg.data.DeleteLoader;
@@ -43,13 +40,9 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.formats.FormatModelRegistry;
-import org.apache.iceberg.formats.ReadBuilder;
-import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.slf4j.Logger;
@@ -80,6 +73,8 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
   // representation (e.g. days for DATE, micros for TIMESTAMP).
   private transient InternalRecordWrapper keyWrapper;
   private transient DeleteLoader deleteLoader;
+  private transient EqualityKeyReader keyReader;
+  private transient DeletionVectorHelper deletionVectorHelper;
 
   public EqualityConvertReader(
       TableLoader tableLoader, Set<Integer> eqFieldIds, boolean stagingOnTargetBranch) {
@@ -108,6 +103,8 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
     fieldSerializer = new StructLikeSerializer();
     keyWrapper = new InternalRecordWrapper(keySchema.asStruct());
     deleteLoader = new BaseDeleteLoader(deleteFile -> table.io().newInputFile(deleteFile));
+    keyReader = new EqualityKeyReader(table.io(), table.schema(), eqFieldIds);
+    deletionVectorHelper = new DeletionVectorHelper(table);
   }
 
   @Override
@@ -155,11 +152,10 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
     PositionDeleteIndex existingDeletes = loadExistingDVs(task, file.location());
 
     int specId = file.specId();
-    StructLike partition = file.partition();
     // Use the planner-serialized task spec, not the reader's table, which is loaded once and may
     // lack specs added after startup.
     Types.StructType partitionType = task.spec().partitionType();
-    byte[] partitionBytes = fieldSerializer.encodePartition(partition, partitionType);
+    byte[] partitionBytes = keyReader.encodePartition(file.partition(), partitionType);
 
     InputFile input = table.io().newInputFile(file.location());
     ReadBuilder<Record, Schema> builder =
@@ -269,10 +265,6 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
       }
     }
 
-    if (dvs.isEmpty()) {
-      return null;
-    }
-
-    return deleteLoader.loadPositionDeletes(dvs, dataFilePath);
+    return deletionVectorHelper.load(dataFilePath, dvs);
   }
 }
