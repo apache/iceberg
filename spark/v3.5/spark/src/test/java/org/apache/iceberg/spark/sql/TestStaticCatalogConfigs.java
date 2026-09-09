@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 public class TestStaticCatalogConfigs extends CustomSparkTestBase {
 
   @Test
-  public void sessionCatalogPicksUpDefaultDatabaseConfig() throws Exception {
+  public void sessionCatalogPicksUpDefaultDatabaseConfig() {
     Map<String, String> overrides =
         ImmutableMap.of(
             "spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog",
