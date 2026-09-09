@@ -137,9 +137,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     Preconditions.checkArgument(
         format != null, "Cannot determine format of manifest: %s", file.location());
 
-    if (manifest.content() == ManifestContent.DATA) {
-      scanMetrics.scannedDataManifests().increment();
-    }
+    scanMetrics.scannedDataManifests().increment();
 
     CloseableIterable<TrackedFile> reader =
         InternalData.read(format, file)
@@ -213,6 +211,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           "Cannot read manifest with format version %s: only %s is supported",
           formatVersion,
           SUPPORTED_FORMAT_VERSION);
+      if (manifest.content() == ManifestContent.DELETES) {
+        throw new UnsupportedOperationException(
+            "Cannot read a delete manifest: " + manifest.path());
+      }
+
       if (manifest.manifestDeletionVector() != null) {
         throw new UnsupportedOperationException(
             "Cannot read manifest with a deletion vector: " + manifest.path());
