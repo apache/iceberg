@@ -60,15 +60,23 @@ import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.DistributionMode;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
@@ -85,7 +93,9 @@ import org.apache.iceberg.flink.maintenance.api.MaintenanceTaskBuilder;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFiles;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
 import org.apache.iceberg.flink.maintenance.api.TableMaintenance;
+import org.apache.iceberg.flink.maintenance.operator.DVPosition;
 import org.apache.iceberg.flink.maintenance.operator.LockFactoryBuilder;
+import org.apache.iceberg.flink.maintenance.operator.StructLikeSerializer;
 import org.apache.iceberg.flink.maintenance.operator.TableChange;
 import org.apache.iceberg.flink.sink.shuffle.DataStatisticsOperatorFactory;
 import org.apache.iceberg.flink.sink.shuffle.RangePartitioner;
@@ -93,12 +103,13 @@ import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecord;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecordTypeInformation;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
-import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -111,12 +122,11 @@ import org.slf4j.LoggerFactory;
  *   <li>{@link SupportsPreWriteTopology} which redistributes the data to the writers based on the
  *       {@link DistributionMode}
  *   <li>{@link org.apache.flink.api.connector.sink2.SinkWriter} which writes data/delete files, and
- *       generates the {@link org.apache.iceberg.io.WriteResult} objects for the files
+ *       generates the {@link SinkWriteResult} objects for the files
  *   <li>{@link SupportsPreCommitTopology} which we use to place the {@link
  *       org.apache.iceberg.flink.sink.IcebergWriteAggregator} which merges the individual {@link
- *       org.apache.flink.api.connector.sink2.SinkWriter}'s {@link
- *       org.apache.iceberg.io.WriteResult}s to a single {@link
- *       org.apache.iceberg.flink.sink.IcebergCommittable}
+ *       org.apache.flink.api.connector.sink2.SinkWriter}'s {@link SinkWriteResult}s to a single
+ *       {@link org.apache.iceberg.flink.sink.IcebergCommittable}
  *   <li>{@link org.apache.iceberg.flink.sink.IcebergCommitter} which commits the incoming{@link
  *       org.apache.iceberg.flink.sink.IcebergCommittable}s to the Iceberg table
  *   <li>{@link SupportsPostCommitTopology} we could use for incremental compaction later. This is
@@ -148,10 +158,14 @@ public class IcebergSink
     implements Sink<RowData>,
         SupportsPreWriteTopology<RowData>,
         SupportsCommitter<IcebergCommittable>,
-        SupportsPreCommitTopology<WriteResult, IcebergCommittable>,
+        SupportsPreCommitTopology<SinkWriteResult, IcebergCommittable>,
         SupportsPostCommitTopology<IcebergCommittable>,
         SupportsConcurrentExecutionAttempts {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSink.class);
+
+  /** Minimum table format version that supports deletion vectors. */
+  private static final int MIN_FORMAT_VERSION_DV = 3;
+
   private final TableLoader tableLoader;
   private final Map<String, String> snapshotProperties;
   private final String uidSuffix;
@@ -162,6 +176,7 @@ public class IcebergSink
   private final transient FlinkWriteConf flinkWriteConf;
   private final Set<Integer> equalityFieldIds;
   private final boolean upsertMode;
+  private final boolean dvOnlyMode;
   private final FileFormat dataFileFormat;
   private final long targetDataFileSize;
   private final String branch;
@@ -203,6 +218,7 @@ public class IcebergSink
     this.overwriteMode = overwriteMode;
     this.table = table;
     this.upsertMode = flinkWriteConf.upsertMode();
+    this.dvOnlyMode = flinkWriteConf.dvOnlyMode();
     this.dataFileFormat = flinkWriteConf.dataFileFormat();
     this.targetDataFileSize = flinkWriteConf.targetDataFileSize();
     this.workerPoolSize = flinkWriteConf.workerPoolSize();
@@ -226,7 +242,8 @@ public class IcebergSink
             dataFileFormat,
             writeProperties,
             equalityFieldIds,
-            upsertMode);
+            upsertMode,
+            dvOnlyMode);
     IcebergStreamWriterMetrics metrics =
         new IcebergStreamWriterMetrics(context.metricGroup(), table.name());
     return new IcebergSinkWriter(
@@ -250,6 +267,8 @@ public class IcebergSink
         sinkId,
         metrics,
         maintenanceEnabled,
+        dvOnlyMode,
+        equalityFieldIds,
         context.getRestoredCheckpointId().isPresent(),
         context.getTaskInfo().getIndexOfThisSubtask());
   }
@@ -314,20 +333,22 @@ public class IcebergSink
 
   @Override
   public DataStream<CommittableMessage<IcebergCommittable>> addPreCommitTopology(
-      DataStream<CommittableMessage<WriteResult>> writeResults) {
+      DataStream<CommittableMessage<SinkWriteResult>> writeResults) {
     TypeInformation<CommittableMessage<IcebergCommittable>> typeInformation =
         CommittableMessageTypeInfo.of(this::getCommittableSerializer);
 
     String suffix = defaultSuffix(uidSuffix, table.name());
     String preCommitAggregatorUid = String.format("Sink pre-commit aggregator: %s", suffix);
 
-    // global forces all output records send to subtask 0 of the downstream committer operator.
-    // This is to ensure commit only happen in one committer subtask.
-    // Once upstream Flink provides the capability of setting committer operator
-    // parallelism to 1, this can be removed.
-    return writeResults
+    DataStream<CommittableMessage<SinkWriteResult>> aggregatorInput =
+        dvOnlyMode ? resolveEqualityDeletes(writeResults, suffix) : writeResults;
+
+    return aggregatorInput
         .global()
-        .transform(preCommitAggregatorUid, typeInformation, new IcebergWriteAggregator(tableLoader))
+        .transform(
+            preCommitAggregatorUid,
+            typeInformation,
+            new IcebergWriteAggregator(tableLoader, dvOnlyMode))
         .uid(preCommitAggregatorUid)
         .setParallelism(1)
         .setMaxParallelism(1)
@@ -335,12 +356,88 @@ public class IcebergSink
         // This is to ensure commit only happen in one committer subtask.
         // Once upstream Flink provides the capability of setting committer operator
         // parallelism to 1, this can be removed.
+
         .global();
   }
 
+  private DataStream<CommittableMessage<SinkWriteResult>> resolveEqualityDeletes(
+      DataStream<CommittableMessage<SinkWriteResult>> writeResults, String suffix) {
+    String coordinatorUid = String.format("Sink pre-commit index coordinator: %s", suffix);
+    String explodeUid = String.format("Sink pre-commit explode: %s", suffix);
+    String fileIndexUid = String.format("Sink pre-commit file index: %s", suffix);
+    String resolveUid = String.format("Sink pre-commit resolve: %s", suffix);
+    String dvWriterUid = String.format("Sink pre-commit dv writer: %s", suffix);
+
+    // The index restored on startup is only usable while the equality fields keep the same ids and
+    // types, which is what the key fingerprint captures.
+    String keyFingerprint =
+        StructLikeSerializer.keyFingerprint(
+            TypeUtil.select(table.schema(), equalityFieldIds).asStruct());
+
+    SingleOutputStreamOperator<DvOnlyRecord> exploded =
+        writeResults
+            .transform(
+                explodeUid, TypeInformation.of(DvOnlyRecord.class), new DvOnlyExplodeOperator())
+            .uid(explodeUid)
+            .setParallelism(writeResults.getParallelism());
+
+    // The coordinator only needs to see the checkpoints go by, so it is fed the stream without the
+    // per-row payload rather than the writer results, which carry all of it.
+    SingleOutputStreamOperator<DvOnlyRecord> commands =
+        exploded
+            .getSideOutput(DvOnlyExplodeOperator.FILES_STREAM)
+            .transform(
+                coordinatorUid,
+                TypeInformation.of(DvOnlyRecord.class),
+                new DvOnlyCoordinator(tableLoader, branch, keyFingerprint, workerPoolSize))
+            .uid(coordinatorUid)
+            .setParallelism(1)
+            .setMaxParallelism(1);
+
+    Integer configuredParallelism = flinkWriteConf.dvOnlyResolveParallelism();
+    int resolveParallelism =
+        configuredParallelism != null ? configuredParallelism : writeResults.getParallelism();
+
+    SingleOutputStreamOperator<DvOnlyRecord> indexedRows =
+        exploded
+            .union(commands)
+            .keyBy(DvOnlyRecord::filePath)
+            .connect(commands.getSideOutput(DvOnlyCoordinator.CLEANUP_STREAM).broadcast())
+            .transform(
+                fileIndexUid,
+                TypeInformation.of(DvOnlyRecord.class),
+                new DvOnlyFileIndexOperator(tableLoader, equalityFieldIds))
+            .uid(fileIndexUid)
+            .setParallelism(resolveParallelism);
+
+    SingleOutputStreamOperator<DVPosition> positions =
+        indexedRows
+            .union(exploded.getSideOutput(DvOnlyExplodeOperator.DELETES_STREAM))
+            .keyBy(DvOnlyRecord::key)
+            .transform(
+                resolveUid, TypeInformation.of(DVPosition.class), new DvOnlyResolveOperator())
+            .uid(resolveUid)
+            .setParallelism(resolveParallelism);
+
+    DataStream<CommittableMessage<SinkWriteResult>> deletionVectors =
+        positions
+            .union(exploded.getSideOutput(DvOnlyExplodeOperator.POSITIONS_STREAM))
+            .keyBy(DVPosition::dataFilePath)
+            .transform(
+                dvWriterUid,
+                CommittableMessageTypeInfo.of(this::getWriteResultSerializer),
+                new DvOnlyDeletionVectorWriterOperator(tableLoader, branch))
+            .uid(dvWriterUid)
+            .setParallelism(resolveParallelism);
+
+    return exploded
+        .getSideOutput(DvOnlyExplodeOperator.FILES_STREAM)
+        .union(deletionVectors, commands.getSideOutput(DvOnlyCoordinator.BASELINE_STREAM));
+  }
+
   @Override
-  public SimpleVersionedSerializer<WriteResult> getWriteResultSerializer() {
-    return new WriteResultSerializer();
+  public SimpleVersionedSerializer<SinkWriteResult> getWriteResultSerializer() {
+    return dvOnlyMode ? SinkWriteResultSerializer.dvOnly() : SinkWriteResultSerializer.filesOnly();
   }
 
   public static class Builder implements IcebergSinkBuilder<Builder> {
@@ -744,6 +841,38 @@ public class IcebergSink
       return this;
     }
 
+    /**
+     * Resolves equality deletes to deletion vectors inside the sink, so that no equality delete is
+     * ever committed to the table. Deletes that cannot be matched against rows written in the same
+     * checkpoint are resolved against a primary key index when the checkpoint barrier arrives; only
+     * data files and deletion vectors are committed.
+     *
+     * <p>Requires equality field columns (upsert or CDC) and a table with format version 3 or
+     * later. Cannot be combined with {@link #convertEqualityDeletes()}, which is the post-commit
+     * alternative, or with overwrite mode. The branch written to must not contain equality deletes
+     * or position delete files that are not deletion vectors.
+     *
+     * <p>The job has to run in streaming mode, with aligned exactly-once checkpoints.
+     */
+    @Experimental
+    public Builder dvOnly() {
+      writeOptions.put(FlinkWriteOptions.DV_ONLY_ENABLE.key(), "true");
+      return this;
+    }
+
+    /**
+     * Resolves equality deletes to deletion vectors inside the sink.
+     *
+     * @param config additional configuration, see {@link FlinkWriteOptions#DV_ONLY_ENABLE} and
+     *     {@link FlinkWriteOptions#DV_ONLY_RESOLVE_PARALLELISM}
+     */
+    @Experimental
+    public Builder dvOnly(Map<String, String> config) {
+      dvOnly();
+      writeOptions.putAll(config);
+      return this;
+    }
+
     @Override
     public Builder toBranch(String branch) {
       writeOptions.put(FlinkWriteOptions.BRANCH.key(), branch);
@@ -825,6 +954,10 @@ public class IcebergSink
         addConvertEqualityDeletesTask(flinkWriteConf, flinkMaintenanceConfig, equalityFieldIds);
       }
 
+      if (flinkWriteConf.dvOnlyMode()) {
+        checkDvOnlyMode(flinkWriteConf, equalityFieldIds);
+      }
+
       Set<String> equalityFieldColumnsSet =
           equalityFieldColumns != null ? Sets.newHashSet(equalityFieldColumns) : null;
 
@@ -873,6 +1006,88 @@ public class IcebergSink
               .config(convertEqualityDeletesConfig));
     }
 
+    private void checkDvOnlyMode(FlinkWriteConf flinkWriteConf, Set<Integer> equalityFieldIds) {
+      Preconditions.checkState(
+          !equalityFieldIds.isEmpty(),
+          "Equality field columns must be set to resolve equality deletes to deletion vectors.");
+      Preconditions.checkState(
+          !flinkWriteConf.convertEqualityDeletesMode(),
+          "%s and %s cannot be enabled together: the former resolves equality deletes in the sink, "
+              + "the latter converts them after the commit.",
+          FlinkWriteOptions.DV_ONLY_ENABLE.key(),
+          FlinkWriteOptions.CONVERT_EQUALITY_DELETES_ENABLE.key());
+      Preconditions.checkState(
+          !flinkWriteConf.overwriteMode(),
+          "%s cannot be combined with %s: an overwrite cannot carry deletion vectors",
+          FlinkWriteOptions.DV_ONLY_ENABLE.key(),
+          FlinkWriteOptions.OVERWRITE_MODE.key());
+
+      int formatVersion = TableUtil.formatVersion(table);
+      Preconditions.checkState(
+          formatVersion >= MIN_FORMAT_VERSION_DV,
+          "%s requires table format version %s or later (deletion vectors), but table '%s' is version %s",
+          FlinkWriteOptions.DV_ONLY_ENABLE.key(),
+          MIN_FORMAT_VERSION_DV,
+          table.name(),
+          formatVersion);
+
+      checkNoEqualityDeletes(flinkWriteConf.branch());
+      checkNoPositionDeleteFiles(flinkWriteConf.branch());
+    }
+
+    private void checkNoEqualityDeletes(String branch) {
+      Snapshot snapshot = table.snapshot(branch);
+      if (snapshot == null) {
+        return;
+      }
+
+      long equalityDeletes =
+          PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.TOTAL_EQ_DELETES_PROP, 0);
+      Preconditions.checkState(
+          equalityDeletes == 0,
+          "Cannot enable %s on branch '%s' of table '%s': it still has %s equality delete record(s). "
+              + "Convert them first by running the sink with %s=true, wait until '%s' reaches 0, "
+              + "then restart with %s=true.",
+          FlinkWriteOptions.DV_ONLY_ENABLE.key(),
+          branch,
+          table.name(),
+          equalityDeletes,
+          FlinkWriteOptions.CONVERT_EQUALITY_DELETES_ENABLE.key(),
+          SnapshotSummary.TOTAL_EQ_DELETES_PROP,
+          FlinkWriteOptions.DV_ONLY_ENABLE.key());
+    }
+
+    private void checkNoPositionDeleteFiles(String branch) {
+      Snapshot snapshot = table.snapshot(branch);
+      if (snapshot == null
+          || PropertyUtil.propertyAsLong(
+                  snapshot.summary(), SnapshotSummary.TOTAL_POS_DELETES_PROP, -1)
+              == 0) {
+        return;
+      }
+
+      for (ManifestFile manifest : snapshot.deleteManifests(table.io())) {
+        try (ManifestReader<DeleteFile> reader =
+            ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
+          for (DeleteFile deleteFile : reader) {
+            Preconditions.checkState(
+                deleteFile.content() != FileContent.POSITION_DELETES
+                    || ContentFileUtil.isDV(deleteFile),
+                "Cannot enable %s on branch '%s' of table '%s': it still has position delete file "
+                    + "%s, which is not a deletion vector. Rewrite the data files it applies to "
+                    + "first, then restart with %s=true.",
+                FlinkWriteOptions.DV_ONLY_ENABLE.key(),
+                branch,
+                table.name(),
+                deleteFile.location(),
+                FlinkWriteOptions.DV_ONLY_ENABLE.key());
+          }
+        } catch (IOException e) {
+          throw new UncheckedIOException("Failed to read delete manifest " + manifest.path(), e);
+        }
+      }
+    }
+
     /**
      * Append the iceberg sink operators to write records to iceberg table.
      *
@@ -883,6 +1098,11 @@ public class IcebergSink
       IcebergSink sink = build();
       String suffix = defaultSuffix(sink.uidSuffix, table.name());
       DataStream<RowData> rowDataInput = inputCreator.apply(suffix);
+      if (sink.dvOnlyMode) {
+        // A configuration changed after this point is caught when the operators start.
+        DvOnlyExecution.checkSupported(rowDataInput.getExecutionEnvironment());
+      }
+
       // Please note that V2 sink framework will apply the uid here to the framework created
       // operators like writer,
       // committer. E.g. "Sink writer: <uidSuffix>

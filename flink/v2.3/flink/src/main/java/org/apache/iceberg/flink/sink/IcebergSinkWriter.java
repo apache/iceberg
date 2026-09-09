@@ -34,10 +34,10 @@ import org.slf4j.LoggerFactory;
 /**
  * Iceberg writer implementation for the {@link SinkWriter} interface. Used by the {@link
  * org.apache.iceberg.flink.sink.IcebergSink} (SinkV2). Writes out the data to the final place, and
- * emits a single {@link WriteResult} at every checkpoint for every data/delete file created by this
- * writer.
+ * emits a single {@link SinkWriteResult} at every checkpoint for every data/delete file created by
+ * this writer.
  */
-class IcebergSinkWriter implements CommittingSinkWriter<RowData, WriteResult> {
+class IcebergSinkWriter implements CommittingSinkWriter<RowData, SinkWriteResult> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSinkWriter.class);
 
   private final String fullTableName;
@@ -96,9 +96,10 @@ class IcebergSinkWriter implements CommittingSinkWriter<RowData, WriteResult> {
   }
 
   @Override
-  public Collection<WriteResult> prepareCommit() throws IOException {
+  public Collection<SinkWriteResult> prepareCommit() throws IOException {
     long startNano = System.nanoTime();
-    WriteResult result = writer.complete();
+    TaskWriter<RowData> completing = writer;
+    WriteResult result = completing.complete();
     this.writer = taskWriterFactory.create();
     metrics.updateFlushResult(result);
     metrics.flushDuration(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
@@ -108,6 +109,23 @@ class IcebergSinkWriter implements CommittingSinkWriter<RowData, WriteResult> {
         attemptId,
         result.dataFiles().length,
         result.deleteFiles().length);
-    return Lists.newArrayList(result);
+    return Lists.newArrayList(toSinkWriteResult(completing, result));
+  }
+
+  /**
+   * Attaches the unresolved deletes and row locations produced by the DV-only writer. Any other
+   * writer contributes files only.
+   */
+  private static SinkWriteResult toSinkWriteResult(
+      TaskWriter<RowData> completed, WriteResult result) {
+    if (completed instanceof DvOnlyDeltaWriter dvOnlyWriter) {
+      return new SinkWriteResult(
+          result,
+          Lists.newArrayList(dvOnlyWriter.deleteKeys()),
+          Lists.newArrayList(dvOnlyWriter.liveRows()),
+          Lists.newArrayList(dvOnlyWriter.positionDeletes()));
+    }
+
+    return new SinkWriteResult(result);
   }
 }
