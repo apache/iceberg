@@ -52,6 +52,13 @@ public class ColumnVector implements AutoCloseable {
   private final ArrowVectorAccessor<?, String, ?, ?> accessor;
   private final NullabilityHolder nullabilityHolder;
 
+  /**
+   * Lazily materialized by {@link #getArrowVector()}. For a dictionary encoded column this is a
+   * newly allocated vector that this class owns, for every other column it is the holder's vector,
+   * which is owned by the reader.
+   */
+  private FieldVector arrowVector;
+
   ColumnVector(VectorHolder vectorHolder) {
     this.vectorHolder = vectorHolder;
     this.nullabilityHolder = vectorHolder.nullabilityHolder();
@@ -73,7 +80,11 @@ public class ColumnVector implements AutoCloseable {
    * @return instance of {@link FieldVector}
    */
   public FieldVector getArrowVector() {
-    return DictEncodedArrowConverter.toArrowVector(vectorHolder, accessor);
+    if (arrowVector == null) {
+      this.arrowVector = DictEncodedArrowConverter.toArrowVector(vectorHolder, accessor);
+    }
+
+    return arrowVector;
   }
 
   public boolean hasNull() {
@@ -86,7 +97,21 @@ public class ColumnVector implements AutoCloseable {
 
   @Override
   public void close() {
+    closeArrowVector();
     accessor.close();
+  }
+
+  /**
+   * Releases the vector materialized by {@link #getArrowVector()} if it was allocated by the
+   * dictionary decoding, which is the only case where this class owns it. The holder's vector
+   * belongs to the reader and is left alone.
+   */
+  void closeArrowVector() {
+    if (arrowVector != null && vectorHolder.isDictionaryEncoded()) {
+      arrowVector.close();
+    }
+
+    this.arrowVector = null;
   }
 
   public boolean isNullAt(int rowId) {
