@@ -53,7 +53,8 @@ public class SparkFormatModels {
             StructType.class,
             SparkParquetWriters::buildWriter,
             (icebergSchema, fileSchema, engineSchema, idToConstant) ->
-                SparkParquetReaders.buildReader(icebergSchema, fileSchema, idToConstant),
+                SparkParquetReaders.buildReader(
+                    icebergSchema, fileSchema, engineSchema, idToConstant),
             new SparkVariantShreddingAnalyzer(),
             (Function<StructType, UnaryOperator<InternalRow>>) unused -> InternalRow::copy));
 
