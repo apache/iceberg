@@ -164,4 +164,14 @@ public interface DataFile extends ContentFile<DataFile> {
   default List<Integer> equalityFieldIds() {
     return null;
   }
+
+  /**
+   * Returns the deletion vector co-located or tracked with this data file, or null if there isn't
+   * one.
+   *
+   * <p>A delete manifest can contain a deletion vector even if this co-located DV is null.
+   */
+  default DeletionVector deletionVector() {
+    return null;
+  }
 }

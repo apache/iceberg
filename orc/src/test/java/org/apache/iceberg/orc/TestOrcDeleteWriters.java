@@ -19,6 +19,7 @@
 package org.apache.iceberg.orc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -107,59 +108,17 @@ public class TestOrcDeleteWriters {
   }
 
   @Test
-  public void testPositionDeleteWriter() throws IOException {
-    Schema deleteSchema =
-        new Schema(
-            MetadataColumns.DELETE_FILE_PATH,
-            MetadataColumns.DELETE_FILE_POS,
-            Types.NestedField.optional(
-                MetadataColumns.DELETE_FILE_ROW_FIELD_ID, "row", SCHEMA.asStruct()));
-
-    String deletePath = "s3://bucket/path/file.orc";
-    GenericRecord posDelete = GenericRecord.create(deleteSchema);
-    List<Record> expectedDeleteRecords = Lists.newArrayList();
-
-    OutputFile out = Files.localOutput(temp);
-    PositionDeleteWriter<Record> deleteWriter =
-        ORC.writeDeletes(out)
-            .createWriterFunc(GenericOrcWriter::buildWriter)
-            .overwrite()
-            .rowSchema(SCHEMA)
-            .withSpec(PartitionSpec.unpartitioned())
-            .buildPositionWriter();
-
-    PositionDelete<Record> positionDelete = PositionDelete.create();
-    try (PositionDeleteWriter<Record> writer = deleteWriter) {
-      for (int i = 0; i < records.size(); i += 1) {
-        int pos = i * 3 + 2;
-        positionDelete.set(deletePath, pos, records.get(i));
-        writer.write(positionDelete);
-        expectedDeleteRecords.add(
-            posDelete.copy(
-                ImmutableMap.of(
-                    "file_path", deletePath, "pos", (long) pos, "row", records.get(i))));
-      }
-    }
-
-    DeleteFile metadata = deleteWriter.toDeleteFile();
-    assertThat(metadata.format()).isEqualTo(FileFormat.ORC);
-    assertThat(metadata.content()).isEqualTo(FileContent.POSITION_DELETES);
-    assertThat(metadata.recordCount()).isEqualTo(records.size());
-    assertThat(metadata.partition().size()).isEqualTo(0);
-    assertThat(metadata.keyMetadata()).isNull();
-
-    List<Record> deletedRecords;
-    try (CloseableIterable<Record> reader =
-        ORC.read(out.toInputFile())
-            .project(deleteSchema)
-            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(deleteSchema, fileSchema))
-            .build()) {
-      deletedRecords = Lists.newArrayList(reader);
-    }
-
-    assertThat(deletedRecords)
-        .as("Deleted records should match expected")
-        .isEqualTo(expectedDeleteRecords);
+  public void testPositionDeleteWriterRejectsRowSchema() {
+    assertThatThrownBy(
+            () ->
+                ORC.writeDeletes(Files.localOutput(temp))
+                    .createWriterFunc(GenericOrcWriter::buildWriter)
+                    .overwrite()
+                    .rowSchema(SCHEMA)
+                    .withSpec(PartitionSpec.unpartitioned())
+                    .buildPositionWriter())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Position delete writer does not support row data");
   }
 
   @Test
@@ -177,17 +136,13 @@ public class TestOrcDeleteWriters {
             .createWriterFunc(GenericOrcWriter::buildWriter)
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
-            .transformPaths(
-                path -> {
-                  throw new RuntimeException("Should not be called for performance reasons");
-                })
             .buildPositionWriter();
 
     PositionDelete<Void> positionDelete = PositionDelete.create();
     try (PositionDeleteWriter<Void> writer = deleteWriter) {
       for (int i = 0; i < records.size(); i += 1) {
         int pos = i * 3 + 2;
-        positionDelete.set(deletePath, pos, null);
+        positionDelete.set(deletePath, pos);
         writer.write(positionDelete);
         expectedDeleteRecords.add(
             posDelete.copy(ImmutableMap.of("file_path", deletePath, "pos", (long) pos)));

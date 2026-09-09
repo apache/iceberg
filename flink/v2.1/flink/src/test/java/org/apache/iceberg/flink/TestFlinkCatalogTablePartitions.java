@@ -47,16 +47,16 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
   @Parameter(index = 3)
   private Boolean cacheEnabled;
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, cacheEnabled={3}")
+  @Parameters(name = "catalogType={0}, baseNamespace={1}, format={2}, cacheEnabled={3}")
   protected static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
         new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
       for (Boolean cacheEnabled : new Boolean[] {true, false}) {
         for (Object[] catalogParams : CatalogTestBase.parameters()) {
-          String catalogName = (String) catalogParams[0];
+          CatalogType catalogType = (CatalogType) catalogParams[0];
           Namespace baseNamespace = (Namespace) catalogParams[1];
-          parameters.add(new Object[] {catalogName, baseNamespace, format, cacheEnabled});
+          parameters.add(new Object[] {catalogType, baseNamespace, format, cacheEnabled});
         }
       }
     }

@@ -516,7 +516,6 @@ public class ORC {
     private EncryptionKeyMetadata keyMetadata = null;
     private int[] equalityFieldIds = null;
     private SortOrder sortOrder;
-    private Function<CharSequence, ?> pathTransformFunc = Function.identity();
 
     private DeleteWriteBuilder(OutputFile file) {
       this.appenderBuilder = write(file);
@@ -596,11 +595,6 @@ public class ORC {
       return this;
     }
 
-    public DeleteWriteBuilder transformPaths(Function<CharSequence, ?> newPathTransformFunc) {
-      this.pathTransformFunc = newPathTransformFunc;
-      return this;
-    }
-
     public DeleteWriteBuilder withSortOrder(SortOrder newSortOrder) {
       this.sortOrder = newSortOrder;
       return this;
@@ -651,30 +645,19 @@ public class ORC {
       Preconditions.checkArgument(
           spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
-      Preconditions.checkArgument(
-          rowSchema == null || createWriterFunc != null,
-          "Create function should be provided if we write row data");
+      if (rowSchema != null) {
+        throw new UnsupportedOperationException("Position delete writer does not support row data");
+      }
 
       meta("delete-type", "position");
 
-      if (rowSchema != null && createWriterFunc != null) {
-        Schema deleteSchema = DeleteSchemaUtil.posDeleteSchema(rowSchema);
-        appenderBuilder.schema(deleteSchema);
+      appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 
-        appenderBuilder.createWriterFunc(
-            (schema, typeDescription) ->
-                GenericOrcWriters.positionDelete(
-                    createWriterFunc.apply(deleteSchema, typeDescription), pathTransformFunc));
-      } else {
-        appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
-
-        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not
-        // write row data itself
-        appenderBuilder.createWriterFunc(
-            (schema, typeDescription) ->
-                GenericOrcWriters.positionDelete(
-                    GenericOrcWriter.buildWriter(schema, typeDescription), Function.identity()));
-      }
+      // the createWriterFunc is ignored, since only the path and position are written
+      appenderBuilder.createWriterFunc(
+          (schema, typeDescription) ->
+              GenericOrcWriters.positionDelete(
+                  GenericOrcWriter.buildWriter(schema, typeDescription), Function.identity()));
 
       appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 

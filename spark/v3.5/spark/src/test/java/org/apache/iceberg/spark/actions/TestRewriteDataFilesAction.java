@@ -2501,7 +2501,7 @@ public class TestRewriteDataFilesAction extends TestBase {
               .newPositionDeleteWriter(encrypt(outputFile), table.spec(), partition);
 
       PositionDelete<Record> posDelete = PositionDelete.create();
-      posDeleteWriter.write(posDelete.set(path, rowPosition, null));
+      posDeleteWriter.write(posDelete.set(path, rowPosition));
       try {
         posDeleteWriter.close();
       } catch (IOException e) {
@@ -2545,7 +2545,7 @@ public class TestRewriteDataFilesAction extends TestBase {
       for (int position = file * positionsPerDeleteFile;
           position < (file + 1) * positionsPerDeleteFile;
           position++) {
-        posDeleteWriter.write(posDelete.set(path, position, null));
+        posDeleteWriter.write(posDelete.set(path, position));
       }
 
       try {
@@ -2646,15 +2646,26 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testExecutorCacheForDeleteFilesDisabled() {
+  void cacheDeleteFilesOnExecutorsDisabledByDefault() {
     Table table = createTablePartitioned(1, 1);
     RewriteDataFilesSparkAction action = SparkActions.get(spark).rewriteDataFiles(table);
+    action.init(0L);
 
-    // The constructor should have set the configuration to false
     SparkReadConf readConf = new SparkReadConf(action.spark(), table, Collections.emptyMap());
-    assertThat(readConf.cacheDeleteFilesOnExecutors())
-        .as("Executor cache for delete files should be disabled in RewriteDataFilesSparkAction")
-        .isFalse();
+    assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
+  }
+
+  @TestTemplate
+  void cacheDeleteFilesOnExecutorsEnabledByOption() {
+    Table table = createTablePartitioned(1, 1);
+    RewriteDataFilesSparkAction action =
+        SparkActions.get(spark)
+            .rewriteDataFiles(table)
+            .option(RewriteDataFilesSparkAction.CACHE_DELETE_FILES, "true");
+    action.init(0L);
+
+    SparkReadConf readConf = new SparkReadConf(action.spark(), table, Collections.emptyMap());
+    assertThat(readConf.cacheDeleteFilesOnExecutors()).isTrue();
   }
 
   @TestTemplate

@@ -30,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.data.GenericRecord;
@@ -39,7 +40,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.Pair;
@@ -263,7 +263,7 @@ public class PartitionStatsHandler {
   private static PartitionMap<PartitionStatistics> computeStats(
       Table table, List<ManifestFile> manifests, boolean incremental) {
     StructType partitionType = Partitioning.partitionType(table);
-    Queue<PartitionMap<PartitionStatistics>> statsByManifest = Queues.newConcurrentLinkedQueue();
+    Queue<PartitionMap<PartitionStatistics>> statsByManifest = new ConcurrentLinkedQueue<>();
     Tasks.foreach(manifests)
         .stopOnFailure()
         .throwFailureWhenFinished()
