@@ -324,6 +324,11 @@ public class TestCommitService extends TestBase {
     public boolean equals(Object other) {
       return this == other;
     }
+
+    @Override
+    public String toString() {
+      return "BlockingHashCodeGroup";
+    }
   }
 
   private static class ThrowingHashCodeCommitService
