@@ -199,7 +199,7 @@ class SparkZOrderFileRewriteRunner extends SparkShufflingFileRewriteRunner {
         LOG.warn("Ignoring '{}' as such values are constant within a partition", colName);
       } else {
         // use the resolved name so a case-insensitive match is not carried through as-is
-        validZOrderColNames.add(field.name());
+        validZOrderColNames.add(schema.findColumnName(field.fieldId()));
       }
     }
 
