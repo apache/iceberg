@@ -94,12 +94,13 @@ PyIceberg has begun using the [File Format API](https://iceberg.apache.org/blog/
 - [Glue `create_table` support](https://github.com/apache/iceberg-python/pull/3058) for S3 Tables federated databases
 - An [`iceberg_type` column](https://github.com/apache/iceberg-python/pull/3263) for `SqlCatalog`, so Iceberg tables can be distinguished from other entries, [with filtering fixed](https://github.com/apache/iceberg-python/pull/3709) for existing catalogs
 - [Catalog properties for the shared catalog test suite](https://github.com/apache/iceberg-python/pull/2982) and [coverage for nonexistent tables and namespaces](https://github.com/apache/iceberg-python/pull/2990)
+- Renamed `rest-scan-planning-enabled` to [`scan-planning-mode`](https://github.com/apache/iceberg-python/pull/3376)
 
 ### CLI
 
-- [`--warehouse` flag](https://github.com/apache/iceberg-python/pull/3080) for the REST catalog, replacing the short-lived `--prefix` flag added earlier in this cycle
+- [`--warehouse` flag](https://github.com/apache/iceberg-python/pull/3080) for the REST catalog
 - [`--version` flag](https://github.com/apache/iceberg-python/pull/3206), deprecating the `version` subcommand, which now also [skips catalog loading](https://github.com/apache/iceberg-python/pull/3146)
-- [`--purge` option](https://github.com/apache/iceberg-python/pull/3718) for `drop table`
+- [`--purge` option](https://github.com/apache/iceberg-python/pull/3718) for `drop table`, to request that the catalog purge the underlying table files
 
 ## Bug Fixes
 
@@ -122,15 +123,6 @@ Notable correctness fixes in this release:
 - [Handled zero-byte files](https://github.com/apache/iceberg-python/pull/3353) in fsspec `__len__`, [extracted the ADLS `account_name` from the URI hostname](https://github.com/apache/iceberg-python/pull/3005), and [parsed S3 virtual addressing as a boolean](https://github.com/apache/iceberg-python/pull/3492)
 - [Stopped reusing `TSaslClientTransport`](https://github.com/apache/iceberg-python/pull/3357) to eliminate server-side SASL noise
 - [Rejected unsupported identity transform types](https://github.com/apache/iceberg-python/pull/3517), [empty `source-ids`](https://github.com/apache/iceberg-python/pull/3411), and [decimal precision outside the valid range](https://github.com/apache/iceberg-python/pull/3585)
-
-### Catalog and REST Improvements
-
-- [REST loadCredentials support](https://github.com/apache/iceberg-python/pull/3499) and [storage-credentials in `LoadTableResult`](https://github.com/apache/iceberg-python/pull/3042)
-- [Pagination support](https://github.com/apache/iceberg-python/pull/3347) for `list_namespaces` and [`list_tables`](https://github.com/apache/iceberg-python/pull/3348), with a [shared `page-size` option](https://github.com/apache/iceberg-python/pull/3377)
-- Renamed `rest-scan-planning-enabled` to [`scan-planning-mode`](https://github.com/apache/iceberg-python/pull/3376)
-- [`overwrite` option](https://github.com/apache/iceberg-python/pull/3290) for `register_table`
-- [S3 server-side encryption configs](https://github.com/apache/iceberg-python/pull/3173) for `FsspecFileIO`
-- [SigV4 retry configuration defaults](https://github.com/apache/iceberg-python/pull/3063) for REST
 
 ## Breaking Changes
 
