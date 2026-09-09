@@ -69,11 +69,15 @@ public class CustomSparkTestBase {
         .enableHiveSupport();
   }
 
-  protected void withCustomSpark(Map<String, String> overrides, Consumer<SparkSession> test)
-      throws Exception {
-    assertThat(SparkSession.getActiveSession().isEmpty())
+  protected void withCustomSpark(Map<String, String> overrides, Consumer<SparkSession> test) {
+    // Needed in v3.5 because getActiveSession is less strict than in Spark v4+
+    boolean hasValidActiveSession =
+        SparkSession.getActiveSession()
+            .fold(() -> false, session -> !session.sparkContext().isStopped());
+    assertThat(hasValidActiveSession)
         .withFailMessage("A Spark session is already active!")
-        .isTrue();
+        .isFalse();
+
     SparkSession.Builder sparkBuilder = baseBuilder();
     overrides.forEach((sparkBuilder::config));
     try (var sparkSession = sparkBuilder.getOrCreate()) {
