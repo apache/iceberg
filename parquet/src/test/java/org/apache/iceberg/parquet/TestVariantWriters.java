@@ -53,6 +53,7 @@ import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.Type;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -64,6 +65,15 @@ public class TestVariantWriters {
           Types.NestedField.required(2, "var", Types.VariantType.get()));
 
   private static final GenericRecord RECORD = GenericRecord.create(SCHEMA);
+
+  private static final Schema SCHEMA_TWO_VARIANTS =
+      new Schema(
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.required(2, "var1", Types.VariantType.get()),
+          Types.NestedField.required(3, "var2", Types.VariantType.get()));
+
+  private static final GenericRecord RECORD_TWO_VARIANTS =
+      GenericRecord.create(SCHEMA_TWO_VARIANTS);
 
   private static final ByteBuffer TEST_METADATA_BUFFER =
       VariantTestUtil.createMetadata(ImmutableList.of("a", "b", "c", "d", "e"), true);
@@ -261,6 +271,98 @@ public class TestVariantWriters {
     }
   }
 
+  @Test
+  public void testPartialShreddingWithShreddedObject() throws IOException {
+    VariantMetadata metadata = Variants.metadata("id", "name", "city");
+
+    List<Record> records = Lists.newArrayList();
+    for (int i = 0; i < 3; i++) {
+      ShreddedObject obj = Variants.object(metadata);
+      obj.put("id", Variants.of(1000L + i));
+      obj.put("name", Variants.of("user_" + i));
+      obj.put("city", Variants.of("city_" + i));
+
+      Variant variant = Variant.of(metadata, obj);
+      Record record = RECORD.copy("id", i, "var", variant);
+      records.add(record);
+    }
+
+    VariantShreddingFunction partialShredding = (id, name) -> shredOnly("id");
+
+    List<Record> actual = writeAndRead(SCHEMA, partialShredding, records, "var");
+
+    assertThat(actual).hasSameSizeAs(records);
+    for (int i = 0; i < records.size(); i++) {
+      Record expected = records.get(i);
+      Record read = actual.get(i);
+
+      InternalTestHelpers.assertEquals(SCHEMA.asStruct(), expected, read);
+
+      Variant readVariant = (Variant) read.getField("var");
+      VariantObject readObj = readVariant.value().asObject();
+      assertThat(readObj.numFields()).isEqualTo(3);
+      assertThat(readObj.get("id").asPrimitive().get()).isEqualTo(1000L + i);
+      assertThat(readObj.get("name").asPrimitive().get()).isEqualTo("user_" + i);
+      assertThat(readObj.get("city").asPrimitive().get()).isEqualTo("city_" + i);
+    }
+  }
+
+  @Test
+  public void testPartialShreddingMultipleColumns() throws IOException {
+    VariantMetadata metadata1 = Variants.metadata("id", "name", "city");
+    VariantMetadata metadata2 = Variants.metadata("key", "val", "extra");
+
+    List<Record> records = Lists.newArrayList();
+    for (int i = 0; i < 3; i++) {
+      ShreddedObject object1 = Variants.object(metadata1);
+      object1.put("id", Variants.of(1000L + i));
+      object1.put("name", Variants.of("user_" + i));
+      object1.put("city", Variants.of("city_" + i));
+
+      ShreddedObject object2 = Variants.object(metadata2);
+      object2.put("key", Variants.of(2000L + i));
+      object2.put("val", Variants.of("val_" + i));
+      object2.put("extra", Variants.of("extra_" + i));
+
+      records.add(
+          RECORD_TWO_VARIANTS.copy(
+              "id", i,
+              "var1", Variant.of(metadata1, object1),
+              "var2", Variant.of(metadata2, object2)));
+    }
+
+    VariantShreddingFunction partialShredding =
+        (id, name) -> {
+          if (name.equals("var1")) {
+            return shredOnly("id");
+          } else if (name.equals("var2")) {
+            return shredOnly("key");
+          }
+          return null;
+        };
+
+    List<Record> actual =
+        writeAndRead(SCHEMA_TWO_VARIANTS, partialShredding, records, "var1", "var2");
+
+    assertThat(actual).hasSameSizeAs(records);
+    for (int i = 0; i < records.size(); i++) {
+      InternalTestHelpers.assertEquals(
+          SCHEMA_TWO_VARIANTS.asStruct(), records.get(i), actual.get(i));
+
+      VariantObject readObject1 = ((Variant) actual.get(i).getField("var1")).value().asObject();
+      assertThat(readObject1.numFields()).isEqualTo(3);
+      assertThat(readObject1.get("id").asPrimitive().get()).isEqualTo(1000L + i);
+      assertThat(readObject1.get("name").asPrimitive().get()).isEqualTo("user_" + i);
+      assertThat(readObject1.get("city").asPrimitive().get()).isEqualTo("city_" + i);
+
+      VariantObject readObject2 = ((Variant) actual.get(i).getField("var2")).value().asObject();
+      assertThat(readObject2.numFields()).isEqualTo(3);
+      assertThat(readObject2.get("key").asPrimitive().get()).isEqualTo(2000L + i);
+      assertThat(readObject2.get("val").asPrimitive().get()).isEqualTo("val_" + i);
+      assertThat(readObject2.get("extra").asPrimitive().get()).isEqualTo("extra_" + i);
+    }
+  }
+
   private static Record writeAndRead(VariantShreddingFunction shreddingFunc, Record record)
       throws IOException {
     return Iterables.getOnlyElement(writeAndRead(shreddingFunc, List.of(record)));
@@ -268,35 +370,58 @@ public class TestVariantWriters {
 
   private static List<Record> writeAndRead(
       VariantShreddingFunction shreddingFunc, List<Record> records) throws IOException {
+    return writeAndRead(SCHEMA, shreddingFunc, records);
+  }
+
+  private static List<Record> writeAndRead(
+      Schema schema, VariantShreddingFunction shreddingFunc, List<Record> records)
+      throws IOException {
+    return writeAndRead(schema, shreddingFunc, records, new String[0]);
+  }
+
+  private static List<Record> writeAndRead(
+      Schema schema,
+      VariantShreddingFunction shreddingFunc,
+      List<Record> records,
+      String... shreddedColumns)
+      throws IOException {
     OutputFile outputFile = new InMemoryOutputFile();
 
     try (FileAppender<Record> writer =
         Parquet.write(outputFile)
-            .schema(SCHEMA)
+            .schema(schema)
             .variantShreddingFunc(shreddingFunc)
-            .createWriterFunc(fileSchema -> InternalWriter.create(SCHEMA.asStruct(), fileSchema))
+            .createWriterFunc(fileSchema -> InternalWriter.create(schema.asStruct(), fileSchema))
             .build()) {
       for (Record record : records) {
         writer.add(record);
       }
     }
 
+    List<String> expectedShredded = ImmutableList.copyOf(shreddedColumns);
     try (ParquetFileReader reader =
         ParquetFileReader.open(ParquetIO.file(outputFile.toInputFile()))) {
-      MessageType schema = reader.getFileMetaData().getSchema();
-      for (Types.NestedField column : SCHEMA.columns()) {
+      MessageType parquetSchema = reader.getFileMetaData().getSchema();
+      for (Types.NestedField column : schema.columns()) {
         if (column.type() == Types.VariantType.get()) {
-          int fieldIndex = schema.getFieldIndex(column.name());
-          assertThat(schema.getFields().get(fieldIndex).getLogicalTypeAnnotation())
+          int fieldIndex = parquetSchema.getFieldIndex(column.name());
+          assertThat(parquetSchema.getFields().get(fieldIndex).getLogicalTypeAnnotation())
               .isEqualTo(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION));
+          if (expectedShredded.contains(column.name())) {
+            assertThat(containsTypedValue(parquetSchema.getType(column.name())))
+                .as(
+                    "Expected shredded variant column %s to have a typed_value subtree",
+                    column.name())
+                .isTrue();
+          }
         }
       }
     }
 
     try (CloseableIterable<Record> reader =
         Parquet.read(outputFile.toInputFile())
-            .project(SCHEMA)
-            .createReaderFunc(fileSchema -> InternalReader.create(SCHEMA, fileSchema))
+            .project(schema)
+            .createReaderFunc(fileSchema -> InternalReader.create(schema, fileSchema))
             .build()) {
       return Lists.newArrayList(reader);
     }
@@ -311,52 +436,21 @@ public class TestVariantWriters {
     return arr;
   }
 
-  @Test
-  public void testPartialShreddingWithShreddedObject() throws IOException {
-    // Test for issue #15086: partial shredding with ShreddedObject created using put()
-    // Create a ShreddedObject with multiple fields, then partially shred it
-    VariantMetadata metadata = Variants.metadata("id", "name", "city");
+  private static Type shredOnly(String field) {
+    ShreddedObject shredded = Variants.object(Variants.metadata(field));
+    shredded.put(field, Variants.of(0L));
+    return ParquetVariantUtil.toParquetSchema(shredded);
+  }
 
-    // Create objects using ShreddedObject.put() instead of serialized buffers
-    List<Record> records = Lists.newArrayList();
-    for (int i = 0; i < 3; i++) {
-      ShreddedObject obj = Variants.object(metadata);
-      obj.put("id", Variants.of(1000L + i));
-      obj.put("name", Variants.of("user_" + i));
-      obj.put("city", Variants.of("city_" + i));
-
-      Variant variant = Variant.of(metadata, obj);
-      Record record = RECORD.copy("id", i, "var", variant);
-      records.add(record);
+  private static boolean containsTypedValue(Type type) {
+    if (type.isPrimitive()) {
+      return false;
     }
-
-    // Shredding function that only shreds the "id" field
-    VariantShreddingFunction partialShredding =
-        (id, name) -> {
-          VariantMetadata shreddedMetadata = Variants.metadata("id");
-          ShreddedObject shreddedObject = Variants.object(shreddedMetadata);
-          shreddedObject.put("id", Variants.of(1234L));
-          return ParquetVariantUtil.toParquetSchema(shreddedObject);
-        };
-
-    // Write and read back
-    List<Record> actual = writeAndRead(partialShredding, records);
-
-    // Verify all records match
-    assertThat(actual).hasSameSizeAs(records);
-    for (int i = 0; i < records.size(); i++) {
-      Record expected = records.get(i);
-      Record read = actual.get(i);
-
-      InternalTestHelpers.assertEquals(SCHEMA.asStruct(), expected, read);
-
-      // Also verify the variant object has all fields intact
-      Variant readVariant = (Variant) read.getField("var");
-      VariantObject readObj = readVariant.value().asObject();
-      assertThat(readObj.numFields()).isEqualTo(3);
-      assertThat(readObj.get("id").asPrimitive().get()).isEqualTo(1000L + i);
-      assertThat(readObj.get("name").asPrimitive().get()).isEqualTo("user_" + i);
-      assertThat(readObj.get("city").asPrimitive().get()).isEqualTo("city_" + i);
+    for (Type child : type.asGroupType().getFields()) {
+      if (child.getName().equals("typed_value") || containsTypedValue(child)) {
+        return true;
+      }
     }
+    return false;
   }
 }
