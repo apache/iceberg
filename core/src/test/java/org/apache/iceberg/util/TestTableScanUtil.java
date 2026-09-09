@@ -343,15 +343,19 @@ public class TestTableScanUtil {
   }
 
   @Test
-  public void testSplitSkipsOffsetsWhenFileFitsSingleSplit() {
-    // Even when a file has valid row-group/stripe offsets, there is no reason to split it into
-    // per-offset tasks if the whole file already fits within the target split size.
+  public void testSplitUsesOffsetsWhenFileFitsSingleSplit() {
+    // A splittable file with valid row-group/stripe offsets is split into one task per offset,
+    // even when the whole file fits within the target split size. The short-circuit must not
+    // bypass OffsetsAwareSplitScanTaskIterator, which preserves row-group-aligned splits.
     BaseFileScanTask task = newScanTask(FileFormat.PARQUET, 64L, ImmutableList.of(0L, 32L));
 
     List<FileScanTask> splits = ImmutableList.copyOf(task.split(128L));
 
-    assertThat(splits).hasSize(1);
-    assertThat(splits.get(0)).isSameAs(task);
+    assertThat(splits).hasSize(2);
+    assertThat(splits.get(0).start()).isEqualTo(0L);
+    assertThat(splits.get(0).length()).isEqualTo(32L);
+    assertThat(splits.get(1).start()).isEqualTo(32L);
+    assertThat(splits.get(1).length()).isEqualTo(32L);
   }
 
   @Test
@@ -379,6 +383,30 @@ public class TestTableScanUtil {
     assertThat(splits.get(0).length()).isEqualTo(128L);
     assertThat(splits.get(1).start()).isEqualTo(128L);
     assertThat(splits.get(1).length()).isEqualTo(128L);
+  }
+
+  @Test
+  public void testSplitPreservesOldBehaviorForEmptyFileWithOffsets() {
+    // A zero-length file's split offsets are not "well defined" (the last offset 0 is not less
+    // than the file size 0), so they are ignored and the file falls through to
+    // FixedSizeSplitScanTaskIterator, yielding zero splits just like the no-offsets empty file.
+    BaseFileScanTask task = newScanTask(FileFormat.PARQUET, 0L, ImmutableList.of(0L));
+
+    List<FileScanTask> splits = ImmutableList.copyOf(task.split(128L));
+
+    assertThat(splits).isEmpty();
+  }
+
+  @Test
+  public void testSplitSkipsWrapWhenOffsetsNotStrictlyAscending() {
+    // Offsets that are not strictly ascending are not usable, so the file is treated as having no
+    // usable offsets. Since it fits in a single split, split() returns the task itself.
+    BaseFileScanTask task = newScanTask(FileFormat.PARQUET, 64L, ImmutableList.of(32L, 0L));
+
+    List<FileScanTask> splits = ImmutableList.copyOf(task.split(128L));
+
+    assertThat(splits).hasSize(1);
+    assertThat(splits.get(0)).isSameAs(task);
   }
 
   private BaseFileScanTask newScanTask(
