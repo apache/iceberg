@@ -110,4 +110,12 @@ public class FlinkConfigOptions {
                           SplitAssignerType.SIMPLE
                               + ": simple assigner that doesn't provide any guarantee on order or locality."))
                   .build());
+
+  public static final ConfigOption<Boolean> TABLE_EXEC_ICEBERG_AGGREGATE_PUSH_DOWN_ENABLED =
+      ConfigOptions.key("table.exec.iceberg.aggregate-push-down-enabled")
+          .booleanType()
+          .defaultValue(false)
+          .withDescription(
+              "Enables pushdown of aggregate functions (COUNT, MAX, MIN) to the Iceberg source "
+                  + "for batch queries that aggregate the whole table.");
 }

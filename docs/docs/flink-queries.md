@@ -77,6 +77,28 @@ SET table.exec.iceberg.use-flip27-source = false;
 
 All other SQL settings and options documented above are applicable to the FLIP-27 source.
 
+### Batch aggregate push down
+
+A batch query that aggregates the whole table without `GROUP BY` or `LIMIT` can be answered from
+file-level metrics without reading any data files when the following option is enabled:
+
+```sql
+SET table.exec.iceberg.aggregate-push-down-enabled = true;
+```
+
+Only `COUNT`, `MAX` and `MIN` can be derived from file metrics. The push down is skipped, and the
+query falls back to a regular scan, when:
+
+* the query uses `GROUP BY` or `LIMIT`;
+* a filter does not select whole partitions;
+* the query reads a metadata table;
+* the table has row-level deletes;
+* a time travel or ref read option is set, such as `snapshot-id`, `as-of-timestamp`, `branch`,
+  `tag`, `start-snapshot-id`, or `end-snapshot-id`;
+* the metrics mode is `none` or `counts` (`write.metadata.metrics.default`), which does not collect
+  the bounds needed for `MIN`/`MAX`; or
+* `MIN`/`MAX` targets a `STRING` or `BINARY` column, since those bounds may be truncated.
+
 ### Reading branches and tags with SQL
 Branch and tags can be read via SQL by specifying options. For more details
 refer to [Flink Configuration](flink-configuration.md#read-options)
