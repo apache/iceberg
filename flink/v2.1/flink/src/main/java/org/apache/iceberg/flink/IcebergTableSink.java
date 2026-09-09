@@ -25,12 +25,14 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
+import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.table.catalog.Column;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.catalog.UniqueConstraint;
 import org.apache.flink.table.connector.ChangelogMode;
 import org.apache.flink.table.connector.sink.DataStreamSinkProvider;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
+import org.apache.flink.table.connector.sink.SinkV2Provider;
 import org.apache.flink.table.connector.sink.abilities.SupportsOverwrite;
 import org.apache.flink.table.connector.sink.abilities.SupportsPartitioning;
 import org.apache.flink.table.data.RowData;
@@ -47,8 +49,12 @@ import org.apache.iceberg.flink.sink.dynamic.TableCreator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning, SupportsOverwrite {
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergTableSink.class);
+
   private final TableLoader tableLoader;
   private final CatalogLoader catalogLoader;
 
@@ -124,12 +130,17 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     this.useDynamicSink = true;
   }
 
-  @SuppressWarnings("deprecation")
   @Override
   public SinkRuntimeProvider getSinkRuntimeProvider(Context context) {
     Preconditions.checkState(
         !overwrite || context.isBounded(),
         "Unbounded data stream doesn't support overwrite operation.");
+
+    if (canProvideSinkV2()) {
+      IcebergSink sink = buildIcebergSink();
+      Integer parallelism = sink.writeParallelism();
+      return parallelism != null ? SinkV2Provider.of(sink, parallelism) : SinkV2Provider.of(sink);
+    }
 
     return (DataStreamSinkProvider)
         (providerContext, dataStream) -> {
@@ -137,34 +148,119 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
             return createDynamicIcebergSink(dataStream);
           }
 
-          ResolvedSchema physicalColumnsOnlySchema = null;
-          List<String> equalityColumns;
-          if (resolvedSchema != null) {
-            physicalColumnsOnlySchema =
-                ResolvedSchema.of(
-                    resolvedSchema.getColumns().stream()
-                        .filter(Column::isPhysical)
-                        .collect(Collectors.toList()));
-
-            equalityColumns =
-                physicalColumnsOnlySchema
-                    .getPrimaryKey()
-                    .map(UniqueConstraint::getColumns)
-                    .orElseGet(ImmutableList::of);
-          } else {
-            equalityColumns =
-                tableSchema
-                    .getPrimaryKey()
-                    .map(org.apache.flink.table.legacy.api.constraints.UniqueConstraint::getColumns)
-                    .orElseGet(ImmutableList::of);
-          }
-
+          ResolvedSchema physicalColumnsOnlySchema = physicalColumnsOnlySchema();
+          List<String> equalityColumns = equalityColumns(physicalColumnsOnlySchema);
           if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK)) {
             return createIcebergSink(dataStream, equalityColumns, physicalColumnsOnlySchema);
-          } else {
-            return createLegacySink(dataStream, equalityColumns, physicalColumnsOnlySchema);
           }
+
+          return createLegacySink(dataStream, equalityColumns, physicalColumnsOnlySchema);
         };
+  }
+
+  /**
+   * Whether the sink can be exposed as a {@link SinkV2Provider}, which is what it takes to report
+   * sink lineage: the planner reads a FLIP-314 vertex off the {@code Sink} object (see {@code
+   * CommonExecSink}), whereas a {@code DataStreamSinkProvider} only hands it a built
+   * transformation. Requires {@link IcebergSink}, the only sink that reports lineage.
+   *
+   * <p>Also requires {@code TABLE_EXEC_UID_GENERATION=ALWAYS}. {@link IcebergSink}'s custom commit
+   * topology puts explicit uids on its operators, so Flink demands one on the sink transformation
+   * too ({@code SinkTransformationTranslator.SinkExpander}). The planner only sets it under {@code
+   * ALWAYS} — under the default {@code PLAN_ONLY} only for a compiled plan, which a connector
+   * cannot detect — so taking this path otherwise would fail job submission outright.
+   */
+  private boolean canProvideSinkV2() {
+    if (useDynamicSink || !readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK)) {
+      return false;
+    }
+
+    ExecutionConfigOptions.UidGeneration uidGeneration =
+        readableConfig.get(ExecutionConfigOptions.TABLE_EXEC_UID_GENERATION);
+    if (uidGeneration != ExecutionConfigOptions.UidGeneration.ALWAYS) {
+      LOG.info(
+          "Writing without sink lineage: {} is {}, and IcebergSink can only be exposed as a "
+              + "SinkV2Provider when it is ALWAYS.",
+          ExecutionConfigOptions.TABLE_EXEC_UID_GENERATION.key(),
+          uidGeneration);
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * The physical columns of {@link #resolvedSchema}, or null when this sink was built from the
+   * deprecated {@code tableSchema} instead.
+   */
+  private ResolvedSchema physicalColumnsOnlySchema() {
+    if (resolvedSchema == null) {
+      return null;
+    }
+    return ResolvedSchema.of(
+        resolvedSchema.getColumns().stream()
+            .filter(Column::isPhysical)
+            .collect(Collectors.toList()));
+  }
+
+  /** The primary-key columns used as Iceberg equality-delete fields. */
+  @SuppressWarnings("deprecation")
+  private List<String> equalityColumns(ResolvedSchema physicalColumnsOnlySchema) {
+    if (physicalColumnsOnlySchema != null) {
+      return physicalColumnsOnlySchema
+          .getPrimaryKey()
+          .map(UniqueConstraint::getColumns)
+          .orElseGet(ImmutableList::of);
+    }
+    return tableSchema
+        .getPrimaryKey()
+        .map(org.apache.flink.table.legacy.api.constraints.UniqueConstraint::getColumns)
+        .orElseGet(ImmutableList::of);
+  }
+
+  /**
+   * The sink with no input stream attached, for the planner to wire up itself. Unlike {@link
+   * #createIcebergSink} this builds no topology, which is what lets the planner read the sink's
+   * lineage vertex. See {@link #canProvideSinkV2()}.
+   */
+  private IcebergSink buildIcebergSink() {
+    ResolvedSchema physicalColumnsOnlySchema = physicalColumnsOnlySchema();
+    return icebergSinkBuilder(
+            IcebergSink.builder(),
+            equalityColumns(physicalColumnsOnlySchema),
+            physicalColumnsOnlySchema)
+        .build();
+  }
+
+  /** Appends the {@link IcebergSink} operators to {@code dataStream}. */
+  private DataStreamSink<?> createIcebergSink(
+      DataStream<RowData> dataStream,
+      List<String> equalityColumns,
+      ResolvedSchema physicalColumnsOnlySchema) {
+    return icebergSinkBuilder(
+            IcebergSink.forRowData(dataStream), equalityColumns, physicalColumnsOnlySchema)
+        .append();
+  }
+
+  /** The configuration both {@link IcebergSink} paths share. */
+  @SuppressWarnings("deprecation")
+  private IcebergSink.Builder icebergSinkBuilder(
+      IcebergSink.Builder sinkBuilder,
+      List<String> equalityColumns,
+      ResolvedSchema physicalColumnsOnlySchema) {
+    IcebergSink.Builder builder =
+        sinkBuilder
+            .tableLoader(tableLoader)
+            .equalityFieldColumns(equalityColumns)
+            .overwrite(overwrite)
+            .setAll(writeProps)
+            .flinkConf(readableConfig);
+
+    if (physicalColumnsOnlySchema != null) {
+      return builder.resolvedSchema(physicalColumnsOnlySchema);
+    }
+
+    return builder.tableSchema(tableSchema);
   }
 
   @Override
@@ -203,27 +299,6 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
       ResolvedSchema physicalColumnsOnlySchema) {
     FlinkSink.Builder builder =
         FlinkSink.forRowData(dataStream)
-            .tableLoader(tableLoader)
-            .equalityFieldColumns(equalityColumns)
-            .overwrite(overwrite)
-            .setAll(writeProps)
-            .flinkConf(readableConfig);
-
-    if (physicalColumnsOnlySchema != null) {
-      builder = builder.resolvedSchema(physicalColumnsOnlySchema);
-    } else {
-      builder = builder.tableSchema(tableSchema);
-    }
-
-    return builder.append();
-  }
-
-  private DataStreamSink<?> createIcebergSink(
-      DataStream<RowData> dataStream,
-      List<String> equalityColumns,
-      ResolvedSchema physicalColumnsOnlySchema) {
-    IcebergSink.Builder builder =
-        IcebergSink.forRowData(dataStream)
             .tableLoader(tableLoader)
             .equalityFieldColumns(equalityColumns)
             .overwrite(overwrite)
