@@ -22,6 +22,7 @@ import static org.apache.hadoop.hdfs.web.oauth2.OAuth2Constants.BEARER;
 import static org.apache.hadoop.hdfs.web.oauth2.OAuth2Constants.CLIENT_CREDENTIALS;
 import static org.apache.hadoop.hdfs.web.oauth2.OAuth2Constants.GRANT_TYPE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -29,6 +30,9 @@ import static org.mockito.ArgumentMatchers.argThat;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.PlainJWT;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -36,6 +40,7 @@ import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
 public class TestOAuth2Util {
@@ -251,6 +256,98 @@ public class TestOAuth2Util {
               anyMap(),
               any());
     }
+  }
+
+  @Test
+  void fromTokenFileReadsInitialToken(@TempDir Path tempDir) throws IOException {
+    String token = tokenWithExp(7200);
+    Path tokenFile = tempDir.resolve("token");
+    Files.writeString(tokenFile, token);
+
+    AuthSession parent = new AuthSession(Map.of(), AuthConfig.builder().build());
+    AuthSession session = AuthSession.fromTokenFile(null, tokenFile.toString(), 300_000L, parent);
+
+    assertThat(session.token()).isEqualTo(token);
+    assertThat(session.expiresAtMillis()).isEqualTo(TimeUnit.SECONDS.toMillis(7200));
+    assertThat(session.headers()).containsEntry("Authorization", "Bearer " + token);
+  }
+
+  @Test
+  void fromTokenFileTrimsWhitespace(@TempDir Path tempDir) throws IOException {
+    String token = tokenWithExp(7200);
+    Path tokenFile = tempDir.resolve("token");
+    Files.writeString(tokenFile, token + "\n");
+
+    AuthSession parent = new AuthSession(Map.of(), AuthConfig.builder().build());
+    AuthSession session = AuthSession.fromTokenFile(null, tokenFile.toString(), 300_000L, parent);
+
+    assertThat(session.token()).isEqualTo(token);
+  }
+
+  @Test
+  void fromTokenFileMissingFileThrows(@TempDir Path tempDir) {
+    Path missing = tempDir.resolve("does-not-exist");
+    AuthSession parent = new AuthSession(Map.of(), AuthConfig.builder().build());
+
+    assertThatThrownBy(() -> AuthSession.fromTokenFile(null, missing.toString(), 300_000L, parent))
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessageContaining("Failed to read token file: " + missing);
+  }
+
+  @Test
+  void refreshFromFilePicksUpRotatedToken(@TempDir Path tempDir) throws IOException {
+    String initialToken = tokenWithExp(7200);
+    Path tokenFile = tempDir.resolve("token");
+    Files.writeString(tokenFile, initialToken);
+
+    AuthSession parent = new AuthSession(Map.of(), AuthConfig.builder().build());
+    AuthSession session = AuthSession.fromTokenFile(null, tokenFile.toString(), 300_000L, parent);
+
+    String rotatedToken = tokenWithExp(500);
+    Files.writeString(tokenFile, rotatedToken);
+
+    Long newExpiresAtMillis = session.refreshFromFile();
+
+    assertThat(newExpiresAtMillis).isEqualTo(TimeUnit.SECONDS.toMillis(500));
+    assertThat(session.token()).isEqualTo(rotatedToken);
+    assertThat(session.expiresAtMillis()).isEqualTo(TimeUnit.SECONDS.toMillis(500));
+    assertThat(session.headers()).containsEntry("Authorization", "Bearer " + rotatedToken);
+  }
+
+  @Test
+  void refreshFromFileOpaqueTokenFallsBackToDefaultExpiry(@TempDir Path tempDir)
+      throws IOException {
+    Path tokenFile = tempDir.resolve("token");
+    Files.writeString(tokenFile, "opaque-token");
+
+    AuthSession parent = new AuthSession(Map.of(), AuthConfig.builder().build());
+    AuthSession session = AuthSession.fromTokenFile(null, tokenFile.toString(), 300_000L, parent);
+
+    long before = System.currentTimeMillis();
+    Long expiresAtMillis = session.refreshFromFile();
+    long after = System.currentTimeMillis();
+
+    assertThat(expiresAtMillis)
+        .isBetween(
+            before + OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT,
+            after + OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
+  }
+
+  @Test
+  void refreshFromFileTransientFailureKeepsStaleToken(@TempDir Path tempDir) throws IOException {
+    String token = tokenWithExp(7200);
+    Path tokenFile = tempDir.resolve("token");
+    Files.writeString(tokenFile, token);
+
+    AuthSession parent = new AuthSession(Map.of(), AuthConfig.builder().build());
+    AuthSession session = AuthSession.fromTokenFile(null, tokenFile.toString(), 300_000L, parent);
+
+    Files.delete(tokenFile);
+
+    Long result = session.refreshFromFile();
+
+    assertThat(result).isNull();
+    assertThat(session.token()).isEqualTo(token);
   }
 
   private static AuthSession parentSession(long expSeconds) {

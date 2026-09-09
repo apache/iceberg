@@ -56,6 +56,7 @@ public class OAuth2Manager implements AuthManager {
   private static final Set<String> TABLE_SESSION_ALLOW_LIST =
       ImmutableSet.<String>builder()
           .add(OAuth2Properties.TOKEN)
+          .add(OAuth2Properties.TOKEN_PATH)
           .addAll(TOKEN_PREFERENCE_ORDER)
           .build();
 
@@ -99,6 +100,9 @@ public class OAuth2Manager implements AuthManager {
     } else if (config.token() != null) {
       return OAuth2Util.AuthSession.fromAccessToken(
           initClient, null, config.token(), null, session);
+    } else if (config.tokenPath() != null) {
+      return OAuth2Util.AuthSession.fromTokenFile(
+          null, config.tokenPath(), config.tokenPathRefreshBufferMillis(), session);
     }
     return session;
   }
@@ -122,6 +126,9 @@ public class OAuth2Manager implements AuthManager {
       // If both a token and a credential are provided, prefer the token.
       return OAuth2Util.AuthSession.fromAccessToken(
           refreshClient, refreshExecutor(), config.token(), config.expiresAtMillis(), session);
+    } else if (config.tokenPath() != null) {
+      return OAuth2Util.AuthSession.fromTokenFile(
+          refreshExecutor(), config.tokenPath(), config.tokenPathRefreshBufferMillis(), session);
     } else if (config.credential() != null && !config.credential().isEmpty()) {
       OAuthTokenResponse response =
           OAuth2Util.fetchToken(
@@ -196,6 +203,11 @@ public class OAuth2Manager implements AuthManager {
           cacheKey, k -> newSessionFromAccessToken(config.token(), properties, parent));
     }
 
+    if (config.tokenPath() != null) {
+      String cacheKey = oauth2ServerUri + ":path:" + config.tokenPath();
+      return sessionCache.cachedSession(cacheKey, k -> newSessionFromTokenFile(config, parent));
+    }
+
     if (config.credential() != null && !config.credential().isEmpty()) {
       String cacheKey = oauth2ServerUri + ":" + config.credential();
       return sessionCache.cachedSession(cacheKey, k -> newSessionFromTokenResponse(config, parent));
@@ -258,6 +270,12 @@ public class OAuth2Manager implements AuthManager {
     Long expiresAtMillis = AuthConfig.fromProperties(properties).expiresAtMillis();
     return OAuth2Util.AuthSession.fromAccessToken(
         refreshClient, refreshExecutor(), token, expiresAtMillis, parent);
+  }
+
+  protected OAuth2Util.AuthSession newSessionFromTokenFile(
+      AuthConfig config, OAuth2Util.AuthSession parent) {
+    return OAuth2Util.AuthSession.fromTokenFile(
+        refreshExecutor(), config.tokenPath(), config.tokenPathRefreshBufferMillis(), parent);
   }
 
   protected OAuth2Util.AuthSession newSessionFromCredential(

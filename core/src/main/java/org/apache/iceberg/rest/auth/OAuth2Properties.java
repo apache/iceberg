@@ -24,6 +24,23 @@ public class OAuth2Properties {
   /** A Bearer token which will be used for interaction with the server. */
   public static final String TOKEN = "token";
 
+  /**
+   * Path to a file whose contents are a Bearer token to use for interaction with the server, as an
+   * alternative to {@link #TOKEN}. The file is periodically re-read so that a token rotated in
+   * place (for example, a Kubernetes projected service account token) is picked up without
+   * restarting the process. Mutually exclusive with {@link #TOKEN}.
+   */
+  public static final String TOKEN_PATH = "token-path";
+
+  /**
+   * Time in milliseconds before a {@link #TOKEN_PATH}-sourced token's expiration at which the file
+   * is re-read to pick up a rotated token. By default, the file is re-read 5 minutes before the
+   * current token expires.
+   */
+  public static final String TOKEN_PATH_REFRESH_BUFFER_MS = "token-path-refresh-buffer-ms";
+
+  public static final long TOKEN_PATH_REFRESH_BUFFER_MS_DEFAULT = 300_000; // 5 minutes
+
   /** A credential to exchange for a token in the OAuth2 client credentials flow. */
   public static final String CREDENTIAL = "credential";
 
