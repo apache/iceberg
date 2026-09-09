@@ -22,6 +22,7 @@ import static org.apache.iceberg.gcp.GCPProperties.GCS_NO_AUTH;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_TOKEN_CREDENTIAL_PROVIDER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
@@ -48,6 +49,51 @@ public class TestGCPProperties {
     gcpProperties = new GCPProperties(ImmutableMap.of(GCS_NO_AUTH, "true"));
     assertThat(gcpProperties.noAuth()).isTrue();
     assertThat(gcpProperties.oauth2Token()).isNotPresent();
+  }
+
+  @Test
+  public void testTokenCredentialProviderWithNoAuth() {
+    assertThatIllegalStateException()
+        .isThrownBy(
+            () ->
+                new GCPProperties(
+                    ImmutableMap.of(
+                        GCS_TOKEN_CREDENTIAL_PROVIDER,
+                        "org.example.Provider",
+                        GCS_NO_AUTH,
+                        "true")))
+        .withMessage(
+            String.format(
+                "Invalid auth settings: must not configure %s and %s",
+                GCS_NO_AUTH, GCS_TOKEN_CREDENTIAL_PROVIDER));
+  }
+
+  @Test
+  public void testTokenCredentialProviderWithOAuth2Token() {
+    // Provider and oauth2 token may coexist (the vended case) - construction must not throw;
+    // PrefixedStorage resolves precedence.
+    GCPProperties gcpProperties =
+        new GCPProperties(
+            ImmutableMap.of(
+                GCS_TOKEN_CREDENTIAL_PROVIDER, "org.example.Provider", GCS_OAUTH2_TOKEN, "oauth"));
+    assertThat(gcpProperties.tokenCredentialProvider())
+        .isPresent()
+        .get()
+        .isEqualTo("org.example.Provider");
+    assertThat(gcpProperties.oauth2Token()).isPresent().get().isEqualTo("oauth");
+    assertThat(gcpProperties.noAuth()).isFalse();
+  }
+
+  @Test
+  public void testTokenCredentialProviderSet() {
+    GCPProperties gcpProperties =
+        new GCPProperties(ImmutableMap.of(GCS_TOKEN_CREDENTIAL_PROVIDER, "org.example.Provider"));
+    assertThat(gcpProperties.tokenCredentialProvider())
+        .isPresent()
+        .get()
+        .isEqualTo("org.example.Provider");
+    assertThat(gcpProperties.oauth2Token()).isNotPresent();
+    assertThat(gcpProperties.noAuth()).isFalse();
   }
 
   @Test
