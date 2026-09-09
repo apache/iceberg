@@ -585,14 +585,14 @@ class TestV4ManifestReader {
   }
 
   @Test
-  public void deleteManifestIsUnsupported() {
+  public void deleteManifestThrows() {
     ManifestFile manifest = v4Manifest("s3://bucket/manifest.parquet");
     when(manifest.content()).thenReturn(ManifestContent.DELETES);
 
     assertThatThrownBy(
             () -> V4ManifestReader.builder(manifest, io, UNPARTITIONED_SPECS, TABLE_LOCATION))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot read a delete manifest: s3://bucket/manifest.parquet");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid manifest with delete content: s3://bucket/manifest.parquet");
   }
 
   @ParameterizedTest
