@@ -26,12 +26,10 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -48,6 +46,8 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.io.TempDir;
@@ -77,13 +77,13 @@ class TestBaseDeleteLoader {
   @ParameterizedTest
   @MethodSource("formatsAndCaching")
   void nestedDeleteKeysRemainStable(FileFormat format, boolean cached) throws Exception {
-    List<Record> records = new ArrayList<>();
+    List<Record> records = Lists.newArrayList();
     for (int i = 0; i < KEY_COUNT; i++) {
       records.add(row(i * 2L));
     }
     records.add(GenericRecord.create(SCHEMA));
     DeleteFile file = writeDeletes(format, records);
-    Map<String, Object> cache = new ConcurrentHashMap<>();
+    Map<String, Object> cache = Maps.newConcurrentMap();
     StructLikeSet first =
         loader(file, cached, cache).loadEqualityDeletes(Collections.singletonList(file), SCHEMA);
     assertThat(first).hasSize(KEY_COUNT + 1);
@@ -108,7 +108,7 @@ class TestBaseDeleteLoader {
 
     ExecutorService threads = Executors.newFixedThreadPool(8);
     CountDownLatch start = new CountDownLatch(1);
-    List<Future<?>> futures = new ArrayList<>();
+    List<Future<?>> futures = Lists.newArrayList();
     try {
       for (int i = 0; i < 8; i++) {
         futures.add(
@@ -145,7 +145,7 @@ class TestBaseDeleteLoader {
     assertThat(Long.hashCode(1L)).isEqualTo(Long.hashCode(1L << 32));
     DeleteFile file = writeDeletes(format, List.of(first, second));
     StructLikeSet keys =
-        loader(file, cached, new ConcurrentHashMap<>())
+        loader(file, cached, Maps.newConcurrentMap())
             .loadEqualityDeletes(Collections.singletonList(file), SCHEMA);
     assertThat(keys).hasSize(2);
     InternalRecordWrapper wrapper = new InternalRecordWrapper(SCHEMA.asStruct());
