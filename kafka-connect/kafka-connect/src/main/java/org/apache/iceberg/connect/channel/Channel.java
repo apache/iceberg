@@ -52,6 +52,7 @@ abstract class Channel {
   private final SinkTaskContext context;
   private final Admin admin;
   private final Map<Integer, Long> controlTopicOffsets = Maps.newHashMap();
+  private final Map<Integer, Long> committedOffsets = Maps.newHashMap();
   private final String producerId;
 
   Channel(
@@ -122,8 +123,11 @@ abstract class Channel {
       records.forEach(
           record -> {
             // the consumer stores the offsets that corresponds to the next record to consume,
-            // so increment the record offset by one
-            controlTopicOffsets.put(record.partition(), record.offset() + 1);
+            // so increment the record offset by one. Keep the highest position seen for the
+            // partition: a re-read of the control topic, e.g. after a rebalance resumes from the
+            // last committed offsets, would otherwise move the tracked position backwards and
+            // commit a consumer offset behind records that were already handled.
+            controlTopicOffsets.merge(record.partition(), record.offset() + 1, Long::max);
 
             Event event = AvroUtil.decode(record.value());
 
@@ -142,13 +146,42 @@ abstract class Channel {
     return controlTopicOffsets;
   }
 
+  /**
+   * Commit consumer offsets. Only commits offsets if it has not committed offsets before or the
+   * value is greater than the cached offset.
+   *
+   * <p>Note: there is a risk that two parallel coordinators may overwrite each other's offsets.
+   */
   protected void commitConsumerOffsets() {
     Map<TopicPartition, OffsetAndMetadata> offsetsToCommit = Maps.newHashMap();
+    Map<Integer, Long> skippedOffsets = Maps.newHashMap();
     controlTopicOffsets()
         .forEach(
-            (k, v) ->
-                offsetsToCommit.put(new TopicPartition(controlTopic, k), new OffsetAndMetadata(v)));
-    consumer.commitSync(offsetsToCommit);
+            (partition, offsetToCommit) -> {
+              Long lastCommittedOffset = committedOffsets.get(partition);
+              if (lastCommittedOffset == null || offsetToCommit > lastCommittedOffset) {
+                TopicPartition topicPartition = new TopicPartition(controlTopic, partition);
+                offsetsToCommit.put(topicPartition, new OffsetAndMetadata(offsetToCommit));
+              } else {
+                skippedOffsets.put(partition, offsetToCommit);
+              }
+            });
+
+    if (!skippedOffsets.isEmpty()) {
+      LOG.debug(
+          "Skipping consumer offset commit for partitions with non-increasing offsets; "
+              + "local offsets {} are less than or equal to committed offsets {}",
+          skippedOffsets,
+          committedOffsets);
+    }
+
+    if (!offsetsToCommit.isEmpty()) {
+      LOG.debug("Committing consumer offsets: {}", offsetsToCommit);
+      consumer.commitSync(offsetsToCommit);
+      offsetsToCommit.forEach(
+          (topicPartition, metadata) ->
+              committedOffsets.put(topicPartition.partition(), metadata.offset()));
+    }
   }
 
   void start() {
