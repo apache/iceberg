@@ -20,8 +20,8 @@ package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.HashMap;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
 class TestSerializationUtil {
@@ -36,7 +36,7 @@ class TestSerializationUtil {
 
   @Test
   void bytesRoundTripPreservesMapContents() {
-    Map<String, Integer> original = new HashMap<>();
+    Map<String, Integer> original = Maps.newHashMap();
     original.put("added-records", 42);
     original.put("total-files", 7);
 
