@@ -388,32 +388,22 @@ public class ExpressionUtil {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(UnboundPredicate<T> pred) {
-      switch (pred.op()) {
-        case IS_NULL:
-        case NOT_NULL:
-        case IS_NAN:
-        case NOT_NAN:
-          // unary predicates don't need to be sanitized
-          return pred;
-        case LT:
-        case LT_EQ:
-        case GT:
-        case GT_EQ:
-        case EQ:
-        case NOT_EQ:
-        case STARTS_WITH:
-        case NOT_STARTS_WITH:
-          return new UnboundPredicate<>(
-              pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
-        case IN:
-        case NOT_IN:
+      return switch (pred.op()) {
+        case IS_NULL, NOT_NULL, IS_NAN, NOT_NAN ->
+            // unary predicates don't need to be sanitized
+            pred;
+        case LT, LT_EQ, GT, GT_EQ, EQ, NOT_EQ, STARTS_WITH, NOT_STARTS_WITH ->
+            new UnboundPredicate<>(
+                pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
+        case IN, NOT_IN -> {
           Iterable<T> iter =
               () -> pred.literals().stream().map(lit -> (T) sanitize(lit, now, today)).iterator();
-          return new UnboundPredicate<>(pred.op(), pred.term(), iter);
-        default:
-          throw new UnsupportedOperationException(
-              "Cannot sanitize unsupported predicate type: " + pred.op());
-      }
+          yield new UnboundPredicate<>(pred.op(), pred.term(), iter);
+        }
+        default ->
+            throw new UnsupportedOperationException(
+                "Cannot sanitize unsupported predicate type: " + pred.op());
+      };
     }
   }
 
@@ -460,105 +450,82 @@ public class ExpressionUtil {
     @Override
     public <T> String predicate(BoundPredicate<T> pred) {
       String term = describe(pred.term());
-      switch (pred.op()) {
-        case IS_NULL:
-          return term + " IS NULL";
-        case NOT_NULL:
-          return term + " IS NOT NULL";
-        case IS_NAN:
-          return "is_nan(" + term + ")";
-        case NOT_NAN:
-          return "not_nan(" + term + ")";
-        case LT:
-          return term + " < " + value((BoundLiteralPredicate<?>) pred);
-        case LT_EQ:
-          return term + " <= " + value((BoundLiteralPredicate<?>) pred);
-        case GT:
-          return term + " > " + value((BoundLiteralPredicate<?>) pred);
-        case GT_EQ:
-          return term + " >= " + value((BoundLiteralPredicate<?>) pred);
-        case EQ:
-          return term + " = " + value((BoundLiteralPredicate<?>) pred);
-        case NOT_EQ:
-          return term + " != " + value((BoundLiteralPredicate<?>) pred);
-        case IN:
-          return term
-              + " IN "
-              + abbreviateValues(
-                      pred.asSetPredicate().literalSet().stream()
-                          .map(lit -> sanitize((Literal<?>) lit, nowMicros, today))
-                          .collect(Collectors.toList()))
-                  .stream()
-                  .collect(Collectors.joining(", ", "(", ")"));
-        case NOT_IN:
-          return term
-              + " NOT IN "
-              + abbreviateValues(
-                      pred.asSetPredicate().literalSet().stream()
-                          .map(lit -> sanitize((Literal<?>) lit, nowMicros, today))
-                          .collect(Collectors.toList()))
-                  .stream()
-                  .collect(Collectors.joining(", ", "(", ")"));
-        case STARTS_WITH:
-          return term + " STARTS WITH " + value((BoundLiteralPredicate<?>) pred);
-        case NOT_STARTS_WITH:
-          return term + " NOT STARTS WITH " + value((BoundLiteralPredicate<?>) pred);
-        default:
-          throw new UnsupportedOperationException(
-              "Cannot sanitize unsupported predicate type: " + pred.op());
-      }
+      return switch (pred.op()) {
+        case IS_NULL -> term + " IS NULL";
+        case NOT_NULL -> term + " IS NOT NULL";
+        case IS_NAN -> "is_nan(" + term + ")";
+        case NOT_NAN -> "not_nan(" + term + ")";
+        case LT -> term + " < " + value((BoundLiteralPredicate<?>) pred);
+        case LT_EQ -> term + " <= " + value((BoundLiteralPredicate<?>) pred);
+        case GT -> term + " > " + value((BoundLiteralPredicate<?>) pred);
+        case GT_EQ -> term + " >= " + value((BoundLiteralPredicate<?>) pred);
+        case EQ -> term + " = " + value((BoundLiteralPredicate<?>) pred);
+        case NOT_EQ -> term + " != " + value((BoundLiteralPredicate<?>) pred);
+        case IN ->
+            term
+                + " IN "
+                + abbreviateValues(
+                        pred.asSetPredicate().literalSet().stream()
+                            .map(lit -> sanitize((Literal<?>) lit, nowMicros, today))
+                            .collect(Collectors.toList()))
+                    .stream()
+                    .collect(Collectors.joining(", ", "(", ")"));
+        case NOT_IN ->
+            term
+                + " NOT IN "
+                + abbreviateValues(
+                        pred.asSetPredicate().literalSet().stream()
+                            .map(lit -> sanitize((Literal<?>) lit, nowMicros, today))
+                            .collect(Collectors.toList()))
+                    .stream()
+                    .collect(Collectors.joining(", ", "(", ")"));
+        case STARTS_WITH -> term + " STARTS WITH " + value((BoundLiteralPredicate<?>) pred);
+        case NOT_STARTS_WITH -> term + " NOT STARTS WITH " + value((BoundLiteralPredicate<?>) pred);
+        default ->
+            throw new UnsupportedOperationException(
+                "Cannot sanitize unsupported predicate type: " + pred.op());
+      };
     }
 
     @Override
     public <T> String predicate(UnboundPredicate<T> pred) {
       String term = describe(pred.term());
-      switch (pred.op()) {
-        case IS_NULL:
-          return term + " IS NULL";
-        case NOT_NULL:
-          return term + " IS NOT NULL";
-        case IS_NAN:
-          return "is_nan(" + term + ")";
-        case NOT_NAN:
-          return "not_nan(" + term + ")";
-        case LT:
-          return term + " < " + sanitize(pred.literal(), nowMicros, today);
-        case LT_EQ:
-          return term + " <= " + sanitize(pred.literal(), nowMicros, today);
-        case GT:
-          return term + " > " + sanitize(pred.literal(), nowMicros, today);
-        case GT_EQ:
-          return term + " >= " + sanitize(pred.literal(), nowMicros, today);
-        case EQ:
-          return term + " = " + sanitize(pred.literal(), nowMicros, today);
-        case NOT_EQ:
-          return term + " != " + sanitize(pred.literal(), nowMicros, today);
-        case IN:
-          return term
-              + " IN "
-              + abbreviateValues(
-                      pred.literals().stream()
-                          .map(lit -> sanitize(lit, nowMicros, today))
-                          .collect(Collectors.toList()))
-                  .stream()
-                  .collect(Collectors.joining(", ", "(", ")"));
-        case NOT_IN:
-          return term
-              + " NOT IN "
-              + abbreviateValues(
-                      pred.literals().stream()
-                          .map(lit -> sanitize(lit, nowMicros, today))
-                          .collect(Collectors.toList()))
-                  .stream()
-                  .collect(Collectors.joining(", ", "(", ")"));
-        case STARTS_WITH:
-          return term + " STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
-        case NOT_STARTS_WITH:
-          return term + " NOT STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
-        default:
-          throw new UnsupportedOperationException(
-              "Cannot sanitize unsupported predicate type: " + pred.op());
-      }
+      return switch (pred.op()) {
+        case IS_NULL -> term + " IS NULL";
+        case NOT_NULL -> term + " IS NOT NULL";
+        case IS_NAN -> "is_nan(" + term + ")";
+        case NOT_NAN -> "not_nan(" + term + ")";
+        case LT -> term + " < " + sanitize(pred.literal(), nowMicros, today);
+        case LT_EQ -> term + " <= " + sanitize(pred.literal(), nowMicros, today);
+        case GT -> term + " > " + sanitize(pred.literal(), nowMicros, today);
+        case GT_EQ -> term + " >= " + sanitize(pred.literal(), nowMicros, today);
+        case EQ -> term + " = " + sanitize(pred.literal(), nowMicros, today);
+        case NOT_EQ -> term + " != " + sanitize(pred.literal(), nowMicros, today);
+        case IN ->
+            term
+                + " IN "
+                + abbreviateValues(
+                        pred.literals().stream()
+                            .map(lit -> sanitize(lit, nowMicros, today))
+                            .collect(Collectors.toList()))
+                    .stream()
+                    .collect(Collectors.joining(", ", "(", ")"));
+        case NOT_IN ->
+            term
+                + " NOT IN "
+                + abbreviateValues(
+                        pred.literals().stream()
+                            .map(lit -> sanitize(lit, nowMicros, today))
+                            .collect(Collectors.toList()))
+                    .stream()
+                    .collect(Collectors.joining(", ", "(", ")"));
+        case STARTS_WITH -> term + " STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
+        case NOT_STARTS_WITH ->
+            term + " NOT STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
+        default ->
+            throw new UnsupportedOperationException(
+                "Cannot sanitize unsupported predicate type: " + pred.op());
+      };
     }
   }
 
@@ -725,38 +692,19 @@ public class ExpressionUtil {
       VariantValue fieldValue, PhysicalType fieldType, long now, int today) {
     StringBuilder builder = new StringBuilder();
     switch (fieldType) {
-      case INT8:
-      case INT16:
-      case INT32:
-      case INT64:
-      case FLOAT:
-      case DOUBLE:
-      case DECIMAL4:
-      case DECIMAL8:
-      case DECIMAL16:
-        builder.append(sanitizeNumber((Number) fieldValue.asPrimitive().get(), fieldType.name()));
-        break;
-      case DATE:
-        builder.append(sanitizeDate(((Number) fieldValue.asPrimitive().get()).intValue(), today));
-        break;
-      case TIMESTAMPTZ:
-      case TIMESTAMPNTZ:
-      case TIMESTAMPTZ_NANOS:
-      case TIMESTAMPNTZ_NANOS:
-        builder.append(
-            sanitizeTimestamp(((Number) fieldValue.asPrimitive().get()).longValue(), now));
-        break;
-      case TIME:
+      case INT8, INT16, INT32, INT64, FLOAT, DOUBLE, DECIMAL4, DECIMAL8, DECIMAL16 ->
+          builder.append(sanitizeNumber((Number) fieldValue.asPrimitive().get(), fieldType.name()));
+      case DATE ->
+          builder.append(sanitizeDate(((Number) fieldValue.asPrimitive().get()).intValue(), today));
+      case TIMESTAMPTZ, TIMESTAMPNTZ, TIMESTAMPTZ_NANOS, TIMESTAMPNTZ_NANOS ->
+          builder.append(
+              sanitizeTimestamp(((Number) fieldValue.asPrimitive().get()).longValue(), now));
+      case TIME -> {
         return "(time)";
-      case ARRAY:
-        builder.append(sanitizeVariantArray((VariantArray) fieldValue, now, today));
-        break;
-      case OBJECT:
-        builder.append(sanitizeVariantObject((VariantObject) fieldValue, now, today));
-        break;
-      default:
-        builder.append(sanitizeSimpleString(fieldValue.toString()));
-        break;
+      }
+      case ARRAY -> builder.append(sanitizeVariantArray((VariantArray) fieldValue, now, today));
+      case OBJECT -> builder.append(sanitizeVariantObject((VariantObject) fieldValue, now, today));
+      default -> builder.append(sanitizeSimpleString(fieldValue.toString()));
     }
     return builder.toString();
   }

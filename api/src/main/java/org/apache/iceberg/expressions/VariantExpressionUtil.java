@@ -57,98 +57,91 @@ class VariantExpressionUtil {
       return (T) value.asPrimitive().get();
     }
 
-    switch (type.typeId()) {
-      case INTEGER:
-        switch (value.type()) {
-          case INT8:
-          case INT16:
-            return (T) (Integer) ((Number) value.asPrimitive().get()).intValue();
-        }
-
-        break;
-      case LONG:
-        switch (value.type()) {
-          case INT8:
-          case INT16:
-          case INT32:
-            return (T) (Long) ((Number) value.asPrimitive().get()).longValue();
-        }
-
-        break;
-      case DOUBLE:
+    return switch (type.typeId()) {
+      case INTEGER ->
+          switch (value.type()) {
+            case INT8, INT16 -> (T) (Integer) ((Number) value.asPrimitive().get()).intValue();
+            default -> null;
+          };
+      case LONG ->
+          switch (value.type()) {
+            case INT8, INT16, INT32 -> (T) (Long) ((Number) value.asPrimitive().get()).longValue();
+            default -> null;
+          };
+      case DOUBLE -> {
         if (value.type() == PhysicalType.FLOAT) {
-          return (T) (Double) ((Number) value.asPrimitive().get()).doubleValue();
+          yield (T) (Double) ((Number) value.asPrimitive().get()).doubleValue();
         }
-
-        break;
-      case FIXED:
+        yield null;
+      }
+      case FIXED -> {
         Types.FixedType fixedType = (Types.FixedType) type;
         if (value.type() == PhysicalType.BINARY) {
           ByteBuffer buffer = (ByteBuffer) value.asPrimitive().get();
           if (buffer.remaining() == fixedType.length()) {
-            return (T) buffer;
+            yield (T) buffer;
           }
         }
-
-        break;
-      case DECIMAL:
+        yield null;
+      }
+      case DECIMAL -> {
         Types.DecimalType decimalType = (Types.DecimalType) type;
-        switch (value.type()) {
-          case DECIMAL4:
-          case DECIMAL8:
-          case DECIMAL16:
+        yield switch (value.type()) {
+          case DECIMAL4, DECIMAL8, DECIMAL16 -> {
             BigDecimal decimalValue = (BigDecimal) value.asPrimitive().get();
             if (decimalValue.scale() == decimalType.scale()) {
-              return (T) decimalValue;
+              yield (T) decimalValue;
             }
-        }
-
-        break;
-      case BOOLEAN:
-        switch (value.type()) {
-          case BOOLEAN_FALSE:
-            return (T) Boolean.FALSE;
-          case BOOLEAN_TRUE:
-            return (T) Boolean.TRUE;
-        }
-
-        break;
-      case TIMESTAMP:
+            yield null;
+          }
+          default -> null;
+        };
+      }
+      case BOOLEAN ->
+          switch (value.type()) {
+            case BOOLEAN_FALSE -> (T) Boolean.FALSE;
+            case BOOLEAN_TRUE -> (T) Boolean.TRUE;
+            default -> null;
+          };
+      case TIMESTAMP -> {
         if (value.type() == PhysicalType.TIMESTAMPTZ_NANOS
             || value.type() == PhysicalType.TIMESTAMPNTZ_NANOS) {
-          return (T)
+          yield (T)
               (Long) DateTimeUtil.nanosToMicros(((Number) value.asPrimitive().get()).longValue());
         } else if (value.type() == PhysicalType.DATE) {
-          return (T)
+          yield (T)
               (Long)
                   DateTimeUtil.microsFromTimestamp(
                       DateTimeUtil.dateFromDays(((Number) value.asPrimitive().get()).intValue())
                           .atStartOfDay());
         }
-        break;
-      case TIMESTAMP_NANO:
+        yield null;
+      }
+      case TIMESTAMP_NANO -> {
         if (value.type() == PhysicalType.TIMESTAMPTZ || value.type() == PhysicalType.TIMESTAMPNTZ) {
-          return (T)
+          yield (T)
               (Long) DateTimeUtil.microsToNanos(((Number) value.asPrimitive().get()).longValue());
         } else if (value.type() == PhysicalType.DATE) {
-          return (T)
+          yield (T)
               (Long)
                   DateTimeUtil.nanosFromTimestamp(
                       DateTimeUtil.dateFromDays(((Number) value.asPrimitive().get()).intValue())
                           .atStartOfDay());
         }
-        break;
-      case DATE:
+        yield null;
+      }
+      case DATE -> {
         if (value.type() == PhysicalType.TIMESTAMPTZ || value.type() == PhysicalType.TIMESTAMPNTZ) {
-          return (T)
+          yield (T)
               (Integer) DateTimeUtil.microsToDays(((Number) value.asPrimitive().get()).longValue());
         } else if (value.type() == PhysicalType.TIMESTAMPTZ_NANOS
             || value.type() == PhysicalType.TIMESTAMPNTZ_NANOS) {
-          return (T)
+          yield (T)
               (Integer) DateTimeUtil.nanosToDays(((Number) value.asPrimitive().get()).longValue());
         }
-    }
-
-    return null;
+        yield null;
+      }
+      default -> null;
+    };
   }
 }

@@ -253,25 +253,20 @@ class Literals {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
-      switch (type.typeId()) {
-        case INTEGER:
-          return (Literal<T>) this;
-        case LONG:
-          return (Literal<T>) new LongLiteral(value().longValue());
-        case FLOAT:
-          return (Literal<T>) new FloatLiteral(value().floatValue());
-        case DOUBLE:
-          return (Literal<T>) new DoubleLiteral(value().doubleValue());
-        case DATE:
-          return (Literal<T>) new DateLiteral(value());
-        case DECIMAL:
+      return switch (type.typeId()) {
+        case INTEGER -> (Literal<T>) this;
+        case LONG -> (Literal<T>) new LongLiteral(value().longValue());
+        case FLOAT -> (Literal<T>) new FloatLiteral(value().floatValue());
+        case DOUBLE -> (Literal<T>) new DoubleLiteral(value().doubleValue());
+        case DATE -> (Literal<T>) new DateLiteral(value());
+        case DECIMAL -> {
           int scale = ((Types.DecimalType) type).scale();
           // rounding mode isn't necessary, but pass one to avoid warnings
-          return (Literal<T>)
+          yield (Literal<T>)
               new DecimalLiteral(BigDecimal.valueOf(value()).setScale(scale, RoundingMode.HALF_UP));
-        default:
-          return null;
-      }
+        }
+        default -> null;
+      };
     }
 
     @Override
@@ -288,42 +283,39 @@ class Literals {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
-      switch (type.typeId()) {
-        case INTEGER:
+      return switch (type.typeId()) {
+        case INTEGER -> {
           if ((long) Integer.MAX_VALUE < value()) {
-            return aboveMax();
+            yield aboveMax();
           } else if ((long) Integer.MIN_VALUE > value()) {
-            return belowMin();
+            yield belowMin();
           }
-          return (Literal<T>) new IntegerLiteral(value().intValue());
-        case LONG:
-          return (Literal<T>) this;
-        case FLOAT:
-          return (Literal<T>) new FloatLiteral(value().floatValue());
-        case DOUBLE:
-          return (Literal<T>) new DoubleLiteral(value().doubleValue());
-        case TIME:
-          return (Literal<T>) new TimeLiteral(value());
-        case TIMESTAMP:
-          return (Literal<T>) new TimestampLiteral(value());
-        case TIMESTAMP_NANO:
-          // assume micros and convert to nanos to match the behavior in the timestamp case above
-          return new TimestampLiteral(value()).to(type);
-        case DATE:
+          yield (Literal<T>) new IntegerLiteral(value().intValue());
+        }
+        case LONG -> (Literal<T>) this;
+        case FLOAT -> (Literal<T>) new FloatLiteral(value().floatValue());
+        case DOUBLE -> (Literal<T>) new DoubleLiteral(value().doubleValue());
+        case TIME -> (Literal<T>) new TimeLiteral(value());
+        case TIMESTAMP -> (Literal<T>) new TimestampLiteral(value());
+        case TIMESTAMP_NANO ->
+            // assume micros and convert to nanos to match the behavior in the timestamp case above
+            new TimestampLiteral(value()).to(type);
+        case DATE -> {
           if ((long) Integer.MAX_VALUE < value()) {
-            return aboveMax();
+            yield aboveMax();
           } else if ((long) Integer.MIN_VALUE > value()) {
-            return belowMin();
+            yield belowMin();
           }
-          return (Literal<T>) new DateLiteral(value().intValue());
-        case DECIMAL:
+          yield (Literal<T>) new DateLiteral(value().intValue());
+        }
+        case DECIMAL -> {
           int scale = ((Types.DecimalType) type).scale();
           // rounding mode isn't necessary, but pass one to avoid warnings
-          return (Literal<T>)
+          yield (Literal<T>)
               new DecimalLiteral(BigDecimal.valueOf(value()).setScale(scale, RoundingMode.HALF_UP));
-        default:
-          return null;
-      }
+        }
+        default -> null;
+      };
     }
 
     @Override
@@ -340,18 +332,16 @@ class Literals {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
-      switch (type.typeId()) {
-        case FLOAT:
-          return (Literal<T>) this;
-        case DOUBLE:
-          return (Literal<T>) new DoubleLiteral(value().doubleValue());
-        case DECIMAL:
+      return switch (type.typeId()) {
+        case FLOAT -> (Literal<T>) this;
+        case DOUBLE -> (Literal<T>) new DoubleLiteral(value().doubleValue());
+        case DECIMAL -> {
           int scale = ((Types.DecimalType) type).scale();
-          return (Literal<T>)
+          yield (Literal<T>)
               new DecimalLiteral(BigDecimal.valueOf(value()).setScale(scale, RoundingMode.HALF_UP));
-        default:
-          return null;
-      }
+        }
+        default -> null;
+      };
     }
 
     @Override
@@ -368,25 +358,25 @@ class Literals {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
-      switch (type.typeId()) {
-        case FLOAT:
+      return switch (type.typeId()) {
+        case FLOAT -> {
           if ((double) Float.MAX_VALUE < value()) {
-            return aboveMax();
+            yield aboveMax();
           } else if ((double) -Float.MAX_VALUE > value()) {
             // Compare with -Float.MAX_VALUE because it is the most negative float value.
             // Float.MIN_VALUE is the smallest non-negative floating point value.
-            return belowMin();
+            yield belowMin();
           }
-          return (Literal<T>) new FloatLiteral(value().floatValue());
-        case DOUBLE:
-          return (Literal<T>) this;
-        case DECIMAL:
+          yield (Literal<T>) new FloatLiteral(value().floatValue());
+        }
+        case DOUBLE -> (Literal<T>) this;
+        case DECIMAL -> {
           int scale = ((Types.DecimalType) type).scale();
-          return (Literal<T>)
+          yield (Literal<T>)
               new DecimalLiteral(BigDecimal.valueOf(value()).setScale(scale, RoundingMode.HALF_UP));
-        default:
-          return null;
-      }
+        }
+        default -> null;
+      };
     }
 
     @Override
@@ -443,16 +433,13 @@ class Literals {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
-      switch (type.typeId()) {
-        case TIMESTAMP:
-          return (Literal<T>) this;
-        case DATE:
-          return (Literal<T>) new DateLiteral(DateTimeUtil.microsToDays(value()));
-        case TIMESTAMP_NANO:
-          return (Literal<T>) new TimestampNanoLiteral(DateTimeUtil.microsToNanos(value()));
-        default:
-      }
-      return null;
+      return switch (type.typeId()) {
+        case TIMESTAMP -> (Literal<T>) this;
+        case DATE -> (Literal<T>) new DateLiteral(DateTimeUtil.microsToDays(value()));
+        case TIMESTAMP_NANO ->
+            (Literal<T>) new TimestampNanoLiteral(DateTimeUtil.microsToNanos(value()));
+        default -> null;
+      };
     }
 
     @Override
@@ -469,16 +456,12 @@ class Literals {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
-      switch (type.typeId()) {
-        case DATE:
-          return (Literal<T>) new DateLiteral(DateTimeUtil.nanosToDays(value()));
-        case TIMESTAMP:
-          return (Literal<T>) new TimestampLiteral(DateTimeUtil.nanosToMicros(value()));
-        case TIMESTAMP_NANO:
-          return (Literal<T>) this;
-        default:
-      }
-      return null;
+      return switch (type.typeId()) {
+        case DATE -> (Literal<T>) new DateLiteral(DateTimeUtil.nanosToDays(value()));
+        case TIMESTAMP -> (Literal<T>) new TimestampLiteral(DateTimeUtil.nanosToMicros(value()));
+        case TIMESTAMP_NANO -> (Literal<T>) this;
+        default -> null;
+      };
     }
 
     @Override
@@ -495,13 +478,12 @@ class Literals {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
-      switch (type.typeId()) {
-        case DECIMAL:
-          // do not change decimal scale
-          return (Literal<T>) this;
-        default:
-          return null;
-      }
+      return switch (type.typeId()) {
+        case DECIMAL ->
+            // do not change decimal scale
+            (Literal<T>) this;
+        default -> null;
+      };
     }
 
     @Override
@@ -518,12 +500,10 @@ class Literals {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
-      switch (type.typeId()) {
-        case VARIANT:
-          return (Literal<T>) this;
-        default:
-          return null;
-      }
+      return switch (type.typeId()) {
+        case VARIANT -> (Literal<T>) this;
+        default -> null;
+      };
     }
 
     @Override
@@ -548,76 +528,71 @@ class Literals {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
-      switch (type.typeId()) {
-        case DATE:
+      return switch (type.typeId()) {
+        case DATE -> {
           int date =
               (int)
                   ChronoUnit.DAYS.between(
                       EPOCH_DAY, LocalDate.parse(value(), DateTimeFormatter.ISO_LOCAL_DATE));
-          return (Literal<T>) new DateLiteral(date);
-
-        case TIME:
+          yield (Literal<T>) new DateLiteral(date);
+        }
+        case TIME -> {
           long timeMicros =
               LocalTime.parse(value(), DateTimeFormatter.ISO_LOCAL_TIME).toNanoOfDay() / 1000;
-          return (Literal<T>) new TimeLiteral(timeMicros);
-
-        case TIMESTAMP:
+          yield (Literal<T>) new TimeLiteral(timeMicros);
+        }
+        case TIMESTAMP -> {
           if (((Types.TimestampType) type).shouldAdjustToUTC()) {
             long timestampMicros = DateTimeUtil.isoTimestamptzToMicros(value().toString());
-            return (Literal<T>) new TimestampLiteral(timestampMicros);
+            yield (Literal<T>) new TimestampLiteral(timestampMicros);
           } else {
             long timestampMicros = DateTimeUtil.isoTimestampToMicros(value().toString());
-            return (Literal<T>) new TimestampLiteral(timestampMicros);
+            yield (Literal<T>) new TimestampLiteral(timestampMicros);
           }
-
-        case TIMESTAMP_NANO:
+        }
+        case TIMESTAMP_NANO -> {
           if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
-            return (Literal<T>)
+            yield (Literal<T>)
                 new TimestampNanoLiteral(DateTimeUtil.isoTimestamptzToNanos(value()));
           } else {
-            return (Literal<T>) new TimestampNanoLiteral(DateTimeUtil.isoTimestampToNanos(value()));
+            yield (Literal<T>) new TimestampNanoLiteral(DateTimeUtil.isoTimestampToNanos(value()));
           }
-
-        case STRING:
-          return (Literal<T>) this;
-
-        case UUID:
-          return (Literal<T>) new UUIDLiteral(UUID.fromString(value().toString()));
-
-        case DECIMAL:
+        }
+        case STRING -> (Literal<T>) this;
+        case UUID -> (Literal<T>) new UUIDLiteral(UUID.fromString(value().toString()));
+        case DECIMAL -> {
           // do not change decimal scale
           BigDecimal decimal = new BigDecimal(value().toString());
-          return (Literal<T>) new DecimalLiteral(decimal);
-
-        case FIXED:
+          yield (Literal<T>) new DecimalLiteral(decimal);
+        }
+        case FIXED -> {
           try {
             ByteBuffer buffer =
                 ByteBuffer.wrap(
                     BASE16_ENCODING.decode(value().toString().toUpperCase(Locale.ROOT)));
             Types.FixedType fixed = (Types.FixedType) type;
             if (buffer.remaining() == fixed.length()) {
-              return (Literal<T>) new FixedLiteral(buffer);
+              yield (Literal<T>) new FixedLiteral(buffer);
             }
-            return null;
+            yield null;
           } catch (IllegalArgumentException e) {
             // Invalid hex string
-            return null;
+            yield null;
           }
-
-        case BINARY:
+        }
+        case BINARY -> {
           try {
-            return (Literal<T>)
+            yield (Literal<T>)
                 new BinaryLiteral(
                     ByteBuffer.wrap(
                         BASE16_ENCODING.decode(value().toString().toUpperCase(Locale.ROOT))));
           } catch (IllegalArgumentException e) {
             // Invalid hex string
-            return null;
+            yield null;
           }
-
-        default:
-          return null;
-      }
+        }
+        default -> null;
+      };
     }
 
     @Override
@@ -667,18 +642,17 @@ class Literals {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
-      switch (type.typeId()) {
-        case FIXED:
+      return switch (type.typeId()) {
+        case FIXED -> {
           Types.FixedType fixed = (Types.FixedType) type;
           if (value().remaining() == fixed.length()) {
-            return (Literal<T>) this;
+            yield (Literal<T>) this;
           }
-          return null;
-        case BINARY:
-          return (Literal<T>) new BinaryLiteral(value());
-        default:
-          return null;
-      }
+          yield null;
+        }
+        case BINARY -> (Literal<T>) new BinaryLiteral(value());
+        default -> null;
+      };
     }
 
     @Override
@@ -713,18 +687,17 @@ class Literals {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Literal<T> to(Type type) {
-      switch (type.typeId()) {
-        case FIXED:
+      return switch (type.typeId()) {
+        case FIXED -> {
           Types.FixedType fixed = (Types.FixedType) type;
           if (value().remaining() == fixed.length()) {
-            return (Literal<T>) new FixedLiteral(value());
+            yield (Literal<T>) new FixedLiteral(value());
           }
-          return null;
-        case BINARY:
-          return (Literal<T>) this;
-        default:
-          return null;
-      }
+          yield null;
+        }
+        case BINARY -> (Literal<T>) this;
+        default -> null;
+      };
     }
 
     @Override

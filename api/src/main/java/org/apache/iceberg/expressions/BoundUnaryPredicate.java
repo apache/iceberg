@@ -42,18 +42,14 @@ public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
 
   @Override
   public boolean test(T value) {
-    switch (op()) {
-      case IS_NULL:
-        return value == null;
-      case NOT_NULL:
-        return value != null;
-      case IS_NAN:
-        return NaNUtil.isNaN(value);
-      case NOT_NAN:
-        return !NaNUtil.isNaN(value);
-      default:
-        throw new IllegalStateException("Invalid operation for BoundUnaryPredicate: " + op());
-    }
+    return switch (op()) {
+      case IS_NULL -> value == null;
+      case NOT_NULL -> value != null;
+      case IS_NAN -> NaNUtil.isNaN(value);
+      case NOT_NAN -> !NaNUtil.isNaN(value);
+      default ->
+          throw new IllegalStateException("Invalid operation for BoundUnaryPredicate: " + op());
+    };
   }
 
   @Override
@@ -67,17 +63,12 @@ public class BoundUnaryPredicate<T> extends BoundPredicate<T> {
 
   @Override
   public String toString() {
-    switch (op()) {
-      case IS_NULL:
-        return "is_null(" + term() + ")";
-      case NOT_NULL:
-        return "not_null(" + term() + ")";
-      case IS_NAN:
-        return "is_nan(" + term() + ")";
-      case NOT_NAN:
-        return "not_nan(" + term() + ")";
-      default:
-        return "Invalid unary predicate: operation = " + op();
-    }
+    return switch (op()) {
+      case IS_NULL -> "is_null(" + term() + ")";
+      case NOT_NULL -> "not_null(" + term() + ")";
+      case IS_NAN -> "is_nan(" + term() + ")";
+      case NOT_NAN -> "not_nan(" + term() + ")";
+      default -> "Invalid unary predicate: operation = " + op();
+    };
   }
 }
