@@ -106,6 +106,27 @@ public class TestParquet {
   }
 
   @Test
+  public void testRowGroupSizeLargerThanIntegerMax() throws IOException {
+    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("intCol", 1);
+
+    // Values above Integer.MAX_VALUE used to fail in PropertyUtil.propertyAsInt.
+    File file = createTempFile(temp);
+    write(
+        file,
+        schema,
+        ImmutableMap.of(PARQUET_ROW_GROUP_SIZE_BYTES, Long.toString(4L * 1024 * 1024 * 1024)),
+        ParquetAvroWriter::buildWriter,
+        record);
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(file)))) {
+      assertThat(reader.getRowGroups()).hasSize(1);
+    }
+  }
+
+  @Test
   public void testRowGroupSizeConfigurableWithWriter() throws IOException {
     // Explicit writer function supports PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT
     // and PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT configs.
