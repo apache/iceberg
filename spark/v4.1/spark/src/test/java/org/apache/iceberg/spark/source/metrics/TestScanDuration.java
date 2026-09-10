@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Locale;
 import org.junit.jupiter.api.Test;
 
 public class TestScanDuration {
@@ -34,5 +35,18 @@ public class TestScanDuration {
     assertThat(metric.aggregateTaskMetrics(new long[] {1_000_000L, 500_000L})).isEqualTo("1 ms");
     assertThat(metric.aggregateTaskMetrics(new long[] {1_500_000_000L, 1_000_000_000L}))
         .isEqualTo("2.5 s");
+  }
+
+  @Test
+  public void testAggregateTaskMetricsIsLocaleIndependent() {
+    Locale previous = Locale.getDefault();
+    try {
+      // a comma-decimal locale would render "2,5 s" without an explicit Locale.ROOT
+      Locale.setDefault(Locale.GERMANY);
+      assertThat(new ScanDuration().aggregateTaskMetrics(new long[] {2_500_000_000L}))
+          .isEqualTo("2.5 s");
+    } finally {
+      Locale.setDefault(previous);
+    }
   }
 }
