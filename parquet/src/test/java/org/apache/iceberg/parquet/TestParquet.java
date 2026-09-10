@@ -20,6 +20,7 @@ package org.apache.iceberg.parquet;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
@@ -54,10 +55,12 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -106,7 +109,7 @@ public class TestParquet {
   }
 
   @Test
-  public void testRowGroupSizeLargerThanIntegerMax() throws IOException {
+  public void rowGroupSizeLargerThanIntegerMax() throws IOException {
     Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
     GenericData.Record record = new GenericData.Record(avroSchema);
@@ -120,6 +123,32 @@ public class TestParquet {
         ImmutableMap.of(PARQUET_ROW_GROUP_SIZE_BYTES, Long.toString(4L * 1024 * 1024 * 1024)),
         ParquetAvroWriter::buildWriter,
         record);
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(file)))) {
+      assertThat(reader.getRowGroups()).hasSize(1);
+    }
+  }
+
+  @Test
+  public void deleteRowGroupSizeLargerThanIntegerMax() throws IOException {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+    Record record = org.apache.iceberg.data.GenericRecord.create(schema);
+    record.setField("id", 1L);
+
+    File file = createTempFile(temp);
+    EqualityDeleteWriter<Record> deleteWriter =
+        Parquet.writeDeletes(Files.localOutput(file))
+            .createWriterFunc(GenericParquetWriter::create)
+            .set(DELETE_PARQUET_ROW_GROUP_SIZE_BYTES, Long.toString(4L * 1024 * 1024 * 1024))
+            .overwrite()
+            .rowSchema(schema)
+            .withSpec(PartitionSpec.unpartitioned())
+            .equalityFieldIds(1)
+            .buildEqualityWriter();
+
+    try (EqualityDeleteWriter<Record> writer = deleteWriter) {
+      writer.write(record);
+    }
 
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(file)))) {
       assertThat(reader.getRowGroups()).hasSize(1);
