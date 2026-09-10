@@ -18,30 +18,50 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
-/** Base class for metrics that sum nanosecond durations reported by tasks. */
+/** Base class for metrics that report nanosecond durations accumulated by tasks. */
 abstract class NanoDurationMetric extends CustomSumMetric {
 
   @Override
   public String aggregateTaskMetrics(long[] taskMetrics) {
+    if (taskMetrics.length == 0) {
+      return format(0L);
+    }
+
     long totalNanos = 0L;
     for (long taskMetric : taskMetrics) {
       totalNanos += taskMetric;
     }
 
+    // sort a copy: Spark reuses the array it hands us
+    long[] sorted = Arrays.copyOf(taskMetrics, taskMetrics.length);
+    Arrays.sort(sorted);
+
+    // mirrors MetricUtils.stringValue for Spark's own timing metrics, so a straggler task is
+    // visible instead of being hidden by the total
+    return String.format(
+        Locale.ROOT,
+        "total (min, med, max)\n%s (%s, %s, %s)",
+        format(totalNanos),
+        format(sorted[0]),
+        format(sorted[sorted.length / 2]),
+        format(sorted[sorted.length - 1]));
+  }
+
+  private String format(long nanos) {
     // raw nanos are unreadable on the UI, scale to the largest meaningful unit
-    if (totalNanos < TimeUnit.MICROSECONDS.toNanos(1)) {
-      return totalNanos + " ns";
-    } else if (totalNanos < TimeUnit.MILLISECONDS.toNanos(1)) {
-      return TimeUnit.NANOSECONDS.toMicros(totalNanos) + " us";
-    } else if (totalNanos < TimeUnit.SECONDS.toNanos(1)) {
-      return TimeUnit.NANOSECONDS.toMillis(totalNanos) + " ms";
+    if (nanos < TimeUnit.MICROSECONDS.toNanos(1)) {
+      return nanos + " ns";
+    } else if (nanos < TimeUnit.MILLISECONDS.toNanos(1)) {
+      return TimeUnit.NANOSECONDS.toMicros(nanos) + " us";
+    } else if (nanos < TimeUnit.SECONDS.toNanos(1)) {
+      return TimeUnit.NANOSECONDS.toMillis(nanos) + " ms";
     } else {
-      return String.format(
-          Locale.ROOT, "%.1f s", totalNanos / (double) TimeUnit.SECONDS.toNanos(1));
+      return String.format(Locale.ROOT, "%.1f s", nanos / (double) TimeUnit.SECONDS.toNanos(1));
     }
   }
 }
