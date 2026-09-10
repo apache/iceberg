@@ -147,6 +147,37 @@ public class InMemoryMetricsReporter implements MetricsReporter {
 
 The [catalog property](catalog-properties.md) `metrics-reporter-impl` allows registering a given [`MetricsReporter`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReporter.java) by specifying its fully-qualified class name, e.g. `metrics-reporter-impl=org.apache.iceberg.metrics.InMemoryMetricsReporter`.
 
+### Filtering which tables are reported
+
+Reports forwarded to the configured `MetricsReporter` can be filtered on two levels, either of which may be used on its own:
+
+| Property | Effect |
+|---|---|
+| `metrics-reporter.namespace.include` | Forward only reports for tables whose namespace matches; drop the rest. |
+| `metrics-reporter.namespace.exclude` | Drop reports for tables whose namespace matches; forward the rest. |
+| `metrics-reporter.table-name.include` | Forward only reports whose table name matches; drop the rest. |
+| `metrics-reporter.table-name.exclude` | Drop reports whose table name matches; forward the rest. |
+
+Each property accepts a comma-separated list of Java regular expressions. Namespace patterns are matched against the table's namespace levels joined by dots, with the catalog name removed; table-name patterns are matched against `ScanReport.tableName()` and `CommitReport.tableName()`, which include the catalog name.
+
+Patterns are matched against the **entire** namespace or table name rather than any substring of it. This matters in practice: `prod\..*` matches `prod.db.table` but not `production.db.table` or `prod_sandbox.db.table`, which a substring match would wrongly accept.
+
+An `exclude` match always wins over an `include` match, and the two levels are applied independently — a report must survive both to be forwarded. When no property is set, behavior is identical to today: every report is forwarded, and no wrapper is instantiated. Empty values are treated as not set, to avoid accidentally silencing all metrics on misconfiguration.
+
+Filtering by namespace is less error-prone than filtering by table name, because a namespace is part of a table's identity rather than a naming convention: a table added to an included namespace later is picked up automatically, and no table outside that namespace can match by accident. Table-name patterns remain available for cases a namespace cannot express, such as excluding a few noisy tables inside an otherwise interesting namespace.
+
+For example, to report on the `prod` and `analytics` namespaces while dropping benchmark tables anywhere:
+
+```
+metrics-reporter-impl=org.apache.iceberg.metrics.LoggingMetricsReporter
+metrics-reporter.namespace.include=prod,analytics
+metrics-reporter.table-name.exclude=.*\.bench_.*
+```
+
+The filter applies uniformly to all `MetricsReporter` implementations (`LoggingMetricsReporter`, `RESTMetricsReporter`, and custom user-supplied ones). Reports whose subtype does not identify a table (i.e. anything other than `ScanReport` and `CommitReport`) are forwarded without filtering.
+
+Namespace filtering requires the catalog name, which the catalog supplies when it loads the reporter. Configuring a namespace filter where no catalog name is available fails at initialization with a clear error rather than silently dropping reports.
+
 ### Via the Java API during Scan planning
 
 Independently of the [`MetricsReporter`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/MetricsReporter.java) being registered at the catalog level via the `metrics-reporter-impl` property, it is also possible to supply additional reporters during scan planning as shown below:
