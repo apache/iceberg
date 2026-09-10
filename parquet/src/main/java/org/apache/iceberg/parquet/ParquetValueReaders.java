@@ -264,7 +264,9 @@ public class ParquetValueReaders {
         presenceColumn(
             fileSchema, structPath, constantDefinitionLevel, expectedFields, readersById);
 
-    return presence == null ? reader : withPresence(reader, presence);
+    return presence == null
+        ? reader
+        : withPresence(reader, presence, fileSchema.getMaxRepetitionLevel(structPath));
   }
 
   private static ParquetValueReader<?> defaultReader(
@@ -313,8 +315,8 @@ public class ParquetValueReaders {
   }
 
   private static <T> ParquetValueReader<T> withPresence(
-      ParquetValueReader<T> reader, ColumnDescriptor presence) {
-    return new PresenceReader<>(reader, presence);
+      ParquetValueReader<T> reader, ColumnDescriptor presence, int repetitionLevel) {
+    return new PresenceReader<>(reader, presence, repetitionLevel);
   }
 
   private static class NullReader<T> implements ParquetValueReader<T> {
@@ -377,11 +379,14 @@ public class ParquetValueReaders {
     private final ParquetValueReader<T> reader;
     private final ColumnDescriptor desc;
     private final ColumnIterator<?> presence;
+    private final int repetitionLevel;
     private final List<TripleIterator<?>> children;
 
-    private PresenceReader(ParquetValueReader<T> reader, ColumnDescriptor desc) {
+    private PresenceReader(
+        ParquetValueReader<T> reader, ColumnDescriptor desc, int repetitionLevel) {
       this.reader = reader;
       this.desc = desc;
+      this.repetitionLevel = repetitionLevel;
       this.presence = ColumnIterator.newIterator(desc, "");
       this.children =
           ImmutableList.<TripleIterator<?>>builder().add(presence).addAll(reader.columns()).build();
@@ -389,8 +394,10 @@ public class ParquetValueReaders {
 
     @Override
     public T read(T reuse) {
-      // only the definition level is used, so the value is skipped
-      presence.nextNull();
+      // drain the row's repeated values; only the definition level is used
+      do {
+        presence.nextNull();
+      } while (presence.currentRepetitionLevel() > repetitionLevel);
       return reader.read(reuse);
     }
 

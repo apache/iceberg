@@ -18,14 +18,13 @@
  */
 package org.apache.iceberg.parquet;
 
-import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -185,26 +184,15 @@ public class ParquetSchemaUtil {
     }
   }
 
-  /**
-   * First leaf under path with one value per occurrence of the struct at path (no LIST/MAP in
-   * between).
-   */
+  /** Shallowest leaf under path; its definition level shows whether the struct is present. */
   static ColumnDescriptor selectPresenceColumn(MessageType fileSchema, String[] path) {
     if (fileSchema.getMaxDefinitionLevel(path) <= 0) {
       return null;
     }
 
-    int structRepetitionLevel = fileSchema.getMaxRepetitionLevel(path);
-    ColumnDescriptor presence =
-        leafColumns(fileSchema, path).stream()
-            .filter(leaf -> leaf.getMaxRepetitionLevel() == structRepetitionLevel)
-            .findFirst()
-            .orElse(null);
-    Preconditions.checkArgument(
-        presence == null || presence.getMaxRepetitionLevel() == structRepetitionLevel,
-        "Invalid presence column, repetition level does not match struct at %s",
-        Arrays.toString(path));
-    return presence;
+    return leafColumns(fileSchema, path).stream()
+        .min(Comparator.comparingInt(ColumnDescriptor::getMaxRepetitionLevel))
+        .orElse(null);
   }
 
   /** Returns the leaf columns with ids under the given path. */

@@ -1054,6 +1054,45 @@ public abstract class ReadFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
+  void testNestedDefaultValueWhenParentStructWithOnlyListIsNull(FileFormat fileFormat)
+      throws IOException {
+    assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
+
+    Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
+    Types.NestedField nestedField =
+        Types.NestedField.optional("nested")
+            .withId(2)
+            .ofType(
+                Types.StructType.of(
+                    Types.NestedField.optional(
+                        3, "tags", Types.ListType.ofRequired(4, Types.StringType.get()))))
+            .build();
+    Schema writeSchema = new Schema(idField, nestedField);
+    Types.StructType nestedType = nestedField.type().asStructType();
+
+    List<Record> genericRecords = Lists.newArrayList();
+    for (int i = 0; i < 5; i += 1) {
+      Record record = GenericRecord.create(writeSchema);
+      record.setField("id", (long) i);
+      if (i % 2 == 0) {
+        Record nested = GenericRecord.create(nestedType);
+        nested.setField("tags", IntStream.range(0, i).mapToObj(j -> "tag-" + j).toList());
+        record.setField("nested", nested);
+      }
+
+      genericRecords.add(record);
+    }
+
+    writeGenericRecords(fileFormat, writeSchema, genericRecords);
+
+    Schema expectedSchema = schemaWithOnlyDefaultedNestedField();
+
+    readAndAssertEngineRecords(
+        fileFormat, expectedSchema, genericRecords, defaultedNestedRecord(expectedSchema));
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
   void testNestedProjectionWithoutDefaultWhenParentStructIsNull(FileFormat fileFormat)
       throws IOException {
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
