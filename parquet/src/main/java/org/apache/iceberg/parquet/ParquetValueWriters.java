@@ -729,8 +729,6 @@ public class ParquetValueWriters {
           return pathTransformFunc.apply(delete.path());
         case 1:
           return delete.pos();
-        case 2:
-          return delete.row();
       }
       throw new IllegalArgumentException("Cannot get value for invalid index: " + index);
     }

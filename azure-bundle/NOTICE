@@ -307,3 +307,10 @@ This product bundles Netty with the following in its NOTICE file:
 |     * license/LICENSE.brotli4j.txt (Apache License 2.0)
 |   * HOMEPAGE:
 |     * https://github.com/hyperxpro/Brotli4j
+
+--------------------------------------------------------------------------------
+
+This product bundles Project Reactor (reactor-core, reactor-netty-core and
+reactor-netty-http), which is available under the Apache License, Version 2.0,
+with the following copyright notice:
+| Copyright (c) 2011-2025 VMware, Inc. or its affiliates. All Rights Reserved.

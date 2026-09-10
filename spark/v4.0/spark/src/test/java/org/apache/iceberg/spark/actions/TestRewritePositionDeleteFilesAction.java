@@ -63,11 +63,13 @@ import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -127,6 +129,37 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
   public void cleanup() {
     validationCatalog.dropTable(TableIdentifier.of("default", TABLE_NAME));
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @TestTemplate
+  void rewriteRejectsPositionDeletesWithRowData() throws Exception {
+    Table table = createTableUnpartitioned(1, SCALE);
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    assertThat(dataFiles).hasSize(1);
+
+    GenericRecord row = GenericRecord.create(table.schema());
+    GenericRecord posDeleteWithRow =
+        GenericRecord.create(DeleteSchemaUtil.posDeleteSchema(table.schema()));
+    posDeleteWithRow.set(0, dataFiles.get(0).location());
+    posDeleteWithRow.set(1, 0L);
+    posDeleteWithRow.set(2, row);
+
+    OutputFile out =
+        table.io().newOutputFile(table.location() + "/data/legacy-row-deletes.parquet");
+    DeleteFile legacyDeletes =
+        FileHelpers.testOnlyPosDeleteFileWithRow(
+            table, out, null, ImmutableList.of(posDeleteWithRow));
+    table.newRowDelta().addDeletes(legacyDeletes).commit();
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get(spark)
+                    .rewritePositionDeletes(table)
+                    .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
+                    .execute())
+        .rootCause()
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot rewrite position deletes with row data for data file");
   }
 
   @TestTemplate

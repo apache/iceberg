@@ -254,10 +254,10 @@ public abstract class IcebergSourceDeleteBenchmark extends IcebergSourceBenchmar
     PositionDelete<InternalRow> positionDelete = PositionDelete.create();
     try (ClusteredPositionDeleteWriter<InternalRow> closeableWriter = writer) {
       for (Long pos : deletedPos) {
-        positionDelete.set(path, pos, null);
+        positionDelete.set(path, pos);
         closeableWriter.write(positionDelete, unpartitionedSpec, null);
         for (int i = 0; i < numNoise; i++) {
-          positionDelete.set(noisePath(path), pos, null);
+          positionDelete.set(noisePath(path), pos);
           closeableWriter.write(positionDelete, unpartitionedSpec, null);
         }
       }

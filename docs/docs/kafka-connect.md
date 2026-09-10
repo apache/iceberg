@@ -275,7 +275,7 @@ PARTITIONED BY (hours(ts))
 
 #### Connector config
 
-This example config connects to a Iceberg REST catalog.
+This example config connects to an Iceberg REST catalog.
 ```json
 {
   "name": "events-sink",
