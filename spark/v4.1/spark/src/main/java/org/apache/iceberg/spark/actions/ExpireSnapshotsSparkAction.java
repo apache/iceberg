@@ -73,6 +73,10 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   public static final String STREAM_RESULTS = "stream-results";
   public static final boolean STREAM_RESULTS_DEFAULT = false;
 
+  public static final String BEST_EFFORT = "best-effort-on-missing-metadata";
+
+  public static final boolean BEST_EFFORT_DEFAULT = false;
+
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsSparkAction.class);
 
   private final Table table;
@@ -86,15 +90,13 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   private Dataset<FileInfo> expiredFileDS = null;
   private Boolean cleanExpiredMetadata = null;
 
-  private final Set<String> missingManifestListLocations = Sets.newConcurrentHashSet();
-  private final CollectionAccumulator<String> missingManifests;
+  private Set<String> missingManifestListLocations = null;
+  private CollectionAccumulator<String> missingManifests = null;
 
   ExpireSnapshotsSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
-    this.missingManifests =
-        spark.sparkContext().collectionAccumulator("expire-snapshots-missing-manifests");
 
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
@@ -232,14 +234,22 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   }
 
   private ExpireSnapshots.Result doExecute() {
-    ExpireSnapshots.Result result;
-    if (streamResults()) {
-      result = deleteFiles(expireFiles().toLocalIterator());
-    } else {
-      result = deleteFiles(expireFiles().collectAsList().iterator());
+    boolean bestEffort = bestEffort();
+    Dataset<FileInfo> expiredFiles = expireFiles();
+    if (bestEffort) {
+      missingManifests.reset();
     }
 
-    failIfMissingFiles();
+    ExpireSnapshots.Result result;
+    if (streamResults()) {
+      result = deleteFiles(expiredFiles.toLocalIterator());
+    } else {
+      result = deleteFiles(expiredFiles.collectAsList().iterator());
+    }
+
+    if (bestEffort) {
+      failIfMissingFiles();
+    }
 
     return result;
   }
@@ -261,6 +271,10 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     return PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
   }
 
+  private boolean bestEffort() {
+    return PropertyUtil.propertyAsBoolean(options(), BEST_EFFORT, BEST_EFFORT_DEFAULT);
+  }
+
   private Dataset<FileInfo> fileDS(TableMetadata metadata) {
     Table staticTable = newStaticTable(metadata, table.io());
     return contentFileDS(staticTable)
@@ -271,29 +285,38 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
   private Dataset<FileInfo> deleteCandidateFileDS(
       TableMetadata metadata, Set<Long> deletedSnapshotIds) {
-    List<Snapshot> expiredSnapshots =
-        deletedSnapshotIds.stream().map(metadata::snapshot).collect(Collectors.toList());
-
-    Set<Long> resolvableSnapshotIds = Sets.newConcurrentHashSet();
-    Tasks.foreach(expiredSnapshots)
-        .executeWith(ThreadPools.getWorkerPool())
-        .run(
-            snapshot -> {
-              long snapshotId = snapshot.snapshotId();
-              String manifestListLocation = snapshot.manifestListLocation();
-              if (manifestListLocation != null
-                  && !table.io().newInputFile(manifestListLocation).exists()) {
-                LOG.warn(
-                    "Manifest list {} of expired snapshot {} is missing; skipping its files",
-                    manifestListLocation,
-                    snapshotId);
-                missingManifestListLocations.add(manifestListLocation);
-              } else {
-                resolvableSnapshotIds.add(snapshotId);
-              }
-            });
-
     Table staticTable = newStaticTable(metadata, table.io());
+
+    Set<Long> resolvableSnapshotIds;
+    if (bestEffort()) {
+      this.missingManifestListLocations = Sets.newConcurrentHashSet();
+      this.missingManifests =
+          spark().sparkContext().collectionAccumulator("expire-snapshots-missing-manifests");
+
+      Set<Long> resolvable = Sets.newConcurrentHashSet();
+      Tasks.foreach(
+              deletedSnapshotIds.stream().map(metadata::snapshot).collect(Collectors.toList()))
+          .executeWith(ThreadPools.getWorkerPool())
+          .run(
+              snapshot -> {
+                long snapshotId = snapshot.snapshotId();
+                String manifestListLocation = snapshot.manifestListLocation();
+                if (manifestListLocation != null
+                    && !table.io().newInputFile(manifestListLocation).exists()) {
+                  LOG.warn(
+                      "Manifest list {} of expired snapshot {} is missing; skipping its files",
+                      manifestListLocation,
+                      snapshotId);
+                  missingManifestListLocations.add(manifestListLocation);
+                } else {
+                  resolvable.add(snapshotId);
+                }
+              });
+      resolvableSnapshotIds = resolvable;
+    } else {
+      resolvableSnapshotIds = deletedSnapshotIds;
+    }
+
     return contentFileDS(staticTable, resolvableSnapshotIds, missingManifests)
         .union(manifestDS(staticTable, resolvableSnapshotIds))
         .union(manifestListDS(staticTable, resolvableSnapshotIds))
