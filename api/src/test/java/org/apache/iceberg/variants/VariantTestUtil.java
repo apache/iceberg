@@ -246,7 +246,10 @@ public class VariantTestUtil {
     // write field IDs, values, and offsets
     int nextOffset = 0;
     int index = 0;
-    List<String> sortedFieldNames = data.keySet().stream().sorted().collect(Collectors.toList());
+    List<String> sortedFieldNames =
+        data.keySet().stream()
+            .sorted(VariantMetadata.FIELD_NAME_ORDER)
+            .collect(Collectors.toList());
     for (String fieldName : sortedFieldNames) {
       int id = metadata.id(fieldName);
       ByteBuffers.writeLittleEndianUnsigned(

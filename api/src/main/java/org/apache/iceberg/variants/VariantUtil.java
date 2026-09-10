@@ -21,7 +21,7 @@ package org.apache.iceberg.variants;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.function.Function;
+import java.util.function.IntFunction;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -99,7 +99,7 @@ class VariantUtil {
     }
   }
 
-  static int find(int size, String key, Function<Integer, String> resolve) {
+  static int find(int size, String key, IntFunction<String> resolve) {
     int low = 0;
     int high = size - 1;
     while (low <= high) {

@@ -20,6 +20,7 @@ package org.apache.iceberg.variants;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -56,5 +57,20 @@ public class TestVariantMetadataFieldOrdering {
     // lookups still succeed via the unsorted (linear) path, at their input positions
     assertThat(metadata.id(NAME_4_BYTE)).isEqualTo(0);
     assertThat(metadata.id(NAME_3_BYTE)).isEqualTo(1);
+  }
+
+  @Test
+  public void utf16OrderedDictionaryFlaggedSortedMissesLookup() {
+    // a dictionary can be flagged sorted_strings yet be laid out in UTF-16 order; the UTF-8 search
+    // then misses the out-of-order name and returns -1 rather than a wrong value
+    ByteBuffer buffer =
+        VariantTestUtil.createMetadata(ImmutableList.of(NAME_4_BYTE, NAME_3_BYTE), false);
+    buffer.put(0, (byte) (buffer.get(0) | 0b10000));
+
+    SerializedMetadata metadata = SerializedMetadata.from(buffer);
+
+    assertThat(metadata.isSorted()).isTrue();
+    assertThat(metadata.id(NAME_3_BYTE)).isEqualTo(-1);
+    assertThat(metadata.id(NAME_4_BYTE)).isEqualTo(0);
   }
 }
