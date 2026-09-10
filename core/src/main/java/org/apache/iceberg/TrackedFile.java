@@ -158,7 +158,7 @@ interface TrackedFile {
   /** Returns partition for this file as a {@link StructLike}, or null. */
   StructLike partition();
 
-  /** Returns the content stats for this entry. */
+  /** Returns the content stats for this entry, or null. */
   ContentStats contentStats();
 
   /** Returns the ID of the sort order for this file, or null. */

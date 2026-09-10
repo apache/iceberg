@@ -186,6 +186,16 @@ public interface ManifestFile {
   /** Returns the total number of rows in all files with status DELETED in the manifest file. */
   Long deletedRowsCount();
 
+  /** Returns the number of files with status REPLACED in the manifest file. */
+  default Integer replacedFilesCount() {
+    return 0;
+  }
+
+  /** Returns the total number of rows in all files with status REPLACED in the manifest file. */
+  default Long replacedRowsCount() {
+    return 0L;
+  }
+
   /**
    * Returns a list of {@link PartitionFieldSummary partition field summaries}.
    *
@@ -213,6 +223,11 @@ public interface ManifestFile {
   /** Returns the manifest deletion vector, or null if absent. */
   default ManifestBitmap manifestDeletionVector() {
     return null;
+  }
+
+  /** Returns the format version of the manifest file, or 0 for pre-v4 manifests. */
+  default int formatVersion() {
+    return 0;
   }
 
   /**
