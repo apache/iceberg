@@ -458,7 +458,7 @@ public class BaseTransaction implements Transaction {
     Set<String> committedFiles = Sets.newHashSet();
 
     for (Snapshot snap : snapshots) {
-      committedFiles.add(snap.manifestListLocation());
+      committedFiles.add(snap.rootLocation());
       snap.allManifests(io).forEach(manifest -> committedFiles.add(manifest.path()));
     }
 
