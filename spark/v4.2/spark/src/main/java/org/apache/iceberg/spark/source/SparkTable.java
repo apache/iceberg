@@ -48,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableProperties;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
@@ -55,13 +56,18 @@ import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.spark.TimeTravel;
 import org.apache.iceberg.spark.TimeTravel.AsOfTimestamp;
 import org.apache.iceberg.spark.TimeTravel.AsOfVersion;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.connector.catalog.SupportsDeleteV2;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations;
+import org.apache.spark.sql.connector.catalog.SupportsSchemaEvolution;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
+import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.constraints.Constraint;
 import org.apache.spark.sql.connector.catalog.constraints.Constraint.ValidationStatus;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
@@ -70,6 +76,7 @@ import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.RowLevelOperationBuilder;
 import org.apache.spark.sql.connector.write.RowLevelOperationInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,7 +87,11 @@ import org.slf4j.LoggerFactory;
  * <p>Note the table state (e.g. schema, snapshot) is pinned upon loading and must not change.
  */
 public class SparkTable extends BaseSparkTable
-    implements SupportsRead, SupportsWrite, SupportsDeleteV2, SupportsRowLevelOperations {
+    implements SupportsRead,
+        SupportsWrite,
+        SupportsDeleteV2,
+        SupportsRowLevelOperations,
+        SupportsSchemaEvolution {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
@@ -156,6 +167,60 @@ public class SparkTable extends BaseSparkTable
   @Override
   public Set<TableCapability> capabilities() {
     return capabilities;
+  }
+
+  @Override
+  public boolean supportsColumnChange(TableChange.ColumnChange change) {
+    if (change instanceof TableChange.AddColumn) {
+      TableChange.AddColumn add = (TableChange.AddColumn) change;
+      return add.isNullable() && add.defaultValue() == null && canConvert(add.dataType());
+    } else if (change instanceof TableChange.UpdateColumnType) {
+      return supportsTypeUpdate((TableChange.UpdateColumnType) change);
+    } else if (change instanceof TableChange.UpdateColumnNullability) {
+      return ((TableChange.UpdateColumnNullability) change).nullable();
+    } else if (change instanceof TableChange.DeleteColumn) {
+      return supportsDeleteColumn((TableChange.DeleteColumn) change);
+    } else {
+      return change instanceof TableChange.RenameColumn
+          || change instanceof TableChange.UpdateColumnComment
+          || change instanceof TableChange.UpdateColumnPosition;
+    }
+  }
+
+  private boolean supportsTypeUpdate(TableChange.UpdateColumnType update) {
+    Types.NestedField field = schema.findField(String.join(".", update.fieldNames()));
+    if (field == null) {
+      return false;
+    }
+
+    Type newType = tryConvert(update.newDataType());
+    return newType != null
+        && newType.isPrimitiveType()
+        && TypeUtil.isPromotionAllowed(field.type(), newType.asPrimitiveType());
+  }
+
+  private boolean supportsDeleteColumn(TableChange.DeleteColumn delete) {
+    Types.NestedField field = schema.findField(String.join(".", delete.fieldNames()));
+    if (field == null) {
+      return false;
+    }
+
+    // Iceberg rejects dropping an identifier field or a field whose subtree contains one
+    Set<Integer> identifierFieldIds = schema.identifierFieldIds();
+    return TypeUtil.indexById(Types.StructType.of(field)).keySet().stream()
+        .noneMatch(identifierFieldIds::contains);
+  }
+
+  private boolean canConvert(DataType sparkType) {
+    return tryConvert(sparkType) != null;
+  }
+
+  private Type tryConvert(DataType sparkType) {
+    try {
+      return SparkSchemaUtil.convert(sparkType);
+    } catch (IllegalArgumentException | UnsupportedOperationException e) {
+      return null;
+    }
   }
 
   @Override
