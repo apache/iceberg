@@ -52,7 +52,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
@@ -199,7 +198,7 @@ public class RewritePositionDeleteFilesSparkAction
     ExecutorService rewriteService = rewriteService();
 
     ConcurrentLinkedQueue<RewritePositionDeletesGroup> rewrittenGroups =
-        Queues.newConcurrentLinkedQueue();
+        new ConcurrentLinkedQueue<>();
 
     Tasks.Builder<RewritePositionDeletesGroup> rewriteTaskBuilder =
         Tasks.foreach(plan.groups())
