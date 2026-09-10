@@ -368,6 +368,9 @@ public class TestTableEncryption extends CatalogTestBase {
       checkMetadataFileEncryption(localInput(manifest.path()));
     }
 
+    // The action commits through a separate catalog instance.
+    sql("REFRESH TABLE %s", tableName);
+
     List<Object[]> expected =
         ImmutableList.of(
             row(1L, "a", 1.0F),
