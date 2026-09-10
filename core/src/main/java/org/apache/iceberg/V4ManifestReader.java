@@ -132,7 +132,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   private CloseableIterable<TrackedFile> open() {
-    InputFile file = ManifestFiles.newInputFile(io, manifest);
+    InputFile file = io.newInputFile(manifest);
     FileFormat format = FileFormat.fromFileName(file.location());
     Preconditions.checkArgument(
         format != null, "Cannot determine format of manifest: %s", file.location());

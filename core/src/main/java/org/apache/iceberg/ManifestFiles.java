@@ -529,7 +529,7 @@ public class ManifestFiles {
     return writer.toManifestFile();
   }
 
-  static InputFile newInputFile(FileIO io, ManifestFile manifest) {
+  private static InputFile newInputFile(FileIO io, ManifestFile manifest) {
     InputFile input = io.newInputFile(manifest);
     if (cachingEnabled(io)) {
       return contentCache(io).tryCache(input);
