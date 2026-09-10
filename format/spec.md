@@ -62,6 +62,7 @@ The full set of changes are listed in [Appendix E](#version-3).
 Version 4 of the Iceberg spec restructures metadata for improved performance and new capabilities:
 
 * Support for [relative locations](#file-locations-in-metadata) in metadata fields
+* New data type: `file`
 
 The full set of changes are listed in [Appendix E](#version-4).
 
@@ -228,7 +229,7 @@ When the `location` field is present in table metadata, it is used directly as t
 
 ### Schemas and Data Types
 
-A table's **schema** is a list of named columns. Data types are primitive, nested, or semi-structured. Nested types are maps, lists, or structs. A table schema is also a struct type.
+A table's **schema** is a list of named columns. Data types are primitive, nested, or semi-structured. Nested types are maps, lists, structs, or files. A table schema is also a struct type.
 
 For the representations of these types in Avro, ORC, and Parquet file formats, see Appendix A.
 
@@ -239,6 +240,8 @@ A **`struct`** is a tuple of typed values. Each field in the tuple is named and 
 A **`list`** is a collection of values with some element type. The element field has an integer id that is unique in the table schema. Elements can be either optional or required. Element types may be any type.
 
 A **`map`** is a collection of key-value pairs with a key type and a value type. Both the key field and value field each have an integer id that is unique in the table schema. Map keys are required and map values can be either optional or required. Both map keys and map values may be any type, including nested types.
+
+A **`file`** is a tuple with explicitly defined [nested fields](#file-type) representing a range of bytes stored inline as a value or in an external file. The structure of this type is immutable. Nested fields are referenced by offset from the field ID assigned to the enclosing type, not represented directly in the schema.
 
 #### Semi-structured Types
 
@@ -321,6 +324,36 @@ For `geography` types, an additional parameter A specifies an algorithm for inte
 * `andoyer`: Thomas, Paul D. Mathematical models for navigation systems. US Naval Oceanographic Office, 1965.
 * `karney`: [Karney, Charles FF. "Algorithms for geodesics." Journal of Geodesy 87 (2013): 43-55](https://link.springer.com/content/pdf/10.1007/s00190-012-0578-z.pdf), and [GeographicLib](https://geographiclib.sourceforge.io/)
 
+#### File Type
+
+A **`file`** represents a range of bytes that may be stored inline as a value or in an external file. The `file` type and its value semantics are defined by the `FILE` logical type in the [Parquet project](https://github.com/apache/parquet-format/blob/master/LogicalTypes.md#file).
+
+A `file` value has a fixed set of sub-fields. The sub-fields are implicit: they are not represented in the Iceberg schema and cannot be added, removed, reordered, or promoted. Their names, types, and field-ID offsets are:
+
+| Sub-field      | ID offset | Type     |
+|----------------|-----------|----------|
+| `uri`          | +1        | `string` |
+| `offset`       | +2        | `long`   |
+| `size`         | +3        | `long`   |
+| `content_type` | +4        | `string` |
+| `checksum`     | +5        | `string` |
+| `inline`       | +6        | `binary` |
+
+Adding a `file` field reserves the root field's ID plus six consecutive IDs for its sub-fields, assigned by the offsets above. Writers must advance `last-column-id` past all seven IDs and must not assign these IDs to any other field.
+
+The `uri` field may contain absolute or relative references. Relative resolution within a URI (e.g. `.` and `..`) and other file system navigation conventions are not supported. Implementations that receive a relative path should resolve the path against the table location (see [Path Resolution](#path-resolution)).
+
+A `file` value has no whole-value statistics. Each sub-field's statistics are tracked in `content_stats` under the sub-field's reserved ID, as for any field of the sub-field's type.  Writers should produce statistics for `uri`, `content_type`, and `inline` fields; other fields may be omitted.
+
+A `file` column is subject to the following restrictions:
+
+* Non-null values for `initial-default` or `write-default` are invalid.
+* No type promotion to or from `file` is defined.
+* Whole-value equality, ordering, and hashing are not defined.
+* A `file` column cannot be an identifier field or a source for partition or sort transforms.
+* A `file` is not interchangeable with a `struct`; a `struct` with the same sub-fields is not equivalent to a `file`.
+* The behavior for a `file` entry that references a non-existent file is not defined.
+
 #### Default values
 
 Default values can be tracked for struct fields (both nested structs and the top-level schema's struct). There can be two defaults with a field:
@@ -332,7 +365,7 @@ The `initial-default` is set only when a field is added to an existing schema. T
 
 The `initial-default` and `write-default` produce SQL default value behavior, without rewriting data files. SQL default value behavior when a field is added handles all existing rows as though the rows were written with the new field's default value. Default value changes may only affect future records and all known fields are written into data files. Omitting a known field when writing a data file is never allowed. The write default for a field must be written if a field is not supplied to a write. If the write default for a required field is not set, the writer must fail.
 
-All columns of `unknown`, `variant`, `geometry`, and `geography` types must default to null. Non-null values for `initial-default` or `write-default` are invalid.
+All columns of `unknown`, `variant`, `geometry`, `geography`, and `file` types must default to null. Non-null values for `initial-default` or `write-default` are invalid.
 
 Default values for the fields of a struct are tracked as `initial-default` and `write-default` at the field level. Default values for fields that are nested structs must not contain default values for the struct's fields (sub-fields). Sub-field defaults are tracked in sub-field's metadata. As a result, the default stored for a nested struct may be either null or a non-null struct with no field values. The effective default value is produced by setting each fields' default in a new struct.
 
@@ -1508,6 +1541,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`variant`**|`record` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. |Shredding is not supported in Avro.|
 |**`geometry`**|`bytes`|WKB format, see [Appendix G](#appendix-g-geospatial-notes)|
 |**`geography`**|`bytes`|WKB format, see [Appendix G](#appendix-g-geospatial-notes)|
+|**`file`**|`record` with the `file` sub-fields. |See [File Type](#file-type). Avro has no `FILE` logical type; type identity comes from the Iceberg schema.|
 
 Notes:
 
@@ -1563,6 +1597,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`variant`**      | `group` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. | `VARIANT`                                   | See Parquet docs for [Variant encoding](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md) and [Variant shredding encoding](https://github.com/apache/parquet-format/blob/master/VariantShredding.md). |
 | **`geometry`**     | `binary`                                                                                                                                     | `GEOMETRY`                                  | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
 | **`geography`**    | `binary`                                                                                                                                     | `GEOGRAPHY`                                 | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
+| **`file`**         | `group` with the `file` sub-fields. Sub-fields must be assigned field IDs.                                | `FILE`                                      | See Parquet docs for the [`FILE` type](https://github.com/apache/parquet-format/pull/585) and [File Type](#file-type). |
 
 When reading an `unknown` column, any corresponding column must be ignored and replaced with `null` values.
 
@@ -1570,31 +1605,32 @@ When reading an `unknown` column, any corresponding column must be ignored and r
 
 **Data Type Mappings**
 
-| Type               | ORC type            | ORC type attributes                                  | Notes                                                                                   |
-|--------------------|---------------------|------------------------------------------------------|-----------------------------------------------------------------------------------------|
-| **`unknown`**      | None                |                                                      | Omit from data files                                                                    |
-| **`boolean`**      | `boolean`           |                                                      |                                                                                         |
-| **`int`**          | `int`               |                                                      | ORC `tinyint` and `smallint` would also map to **`int`**.                               |
-| **`long`**         | `long`              |                                                      |                                                                                         |
-| **`float`**        | `float`             |                                                      |                                                                                         |
-| **`double`**       | `double`            |                                                      |                                                                                         |
-| **`decimal(P,S)`** | `decimal`           |                                                      |                                                                                         |
-| **`date`**         | `date`              |                                                      |                                                                                         |
-| **`time`**         | `long`              | `iceberg.long-type`=`TIME`                           | Stores microseconds from midnight.                                                      |
-| **`timestamp`**    | `timestamp`         | `iceberg.timestamp-unit`=`MICROS`                    | Stores microseconds from 2015-01-01 00:00:00.000000. [1], [2]                           |
-| **`timestamptz`**  | `timestamp_instant` | `iceberg.timestamp-unit`=`MICROS`                    | Stores microseconds from 2015-01-01 00:00:00.000000 UTC. [1], [2]                       |
-| **`timestamp_ns`** | `timestamp`         | `iceberg.timestamp-unit`=`NANOS`                     | Stores nanoseconds from 2015-01-01 00:00:00.000000000. [1]                              |
-| **`timestamptz_ns`** | `timestamp_instant` | `iceberg.timestamp-unit`=`NANOS`                   | Stores nanoseconds from 2015-01-01 00:00:00.000000000 UTC. [1]                          |
-| **`string`**       | `string`            |                                                      | ORC `varchar` and `char` would also map to **`string`**.                                |
-| **`uuid`**         | `binary`            | `iceberg.binary-type`=`UUID`                         |                                                                                         |
-| **`fixed(L)`**     | `binary`            | `iceberg.binary-type`=`FIXED` & `iceberg.length`=`L` | The length would not be checked by the ORC reader and should be checked by the adapter. |
-| **`binary`**       | `binary`            |                                                      |                                                                                         |
-| **`struct`**       | `struct`            |                                                      |                                                                                         |
-| **`list`**         | `array`             |                                                      |                                                                                         |
-| **`map`**          | `map`               |                                                      |                                                                                         |
+| Type               | ORC type                                                                                            | ORC type attributes                                  | Notes                                                                                   |
+|--------------------|-----------------------------------------------------------------------------------------------------|------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| **`unknown`**      | None                                                                                                |                                                      | Omit from data files                                                                    |
+| **`boolean`**      | `boolean`                                                                                           |                                                      |                                                                                         |
+| **`int`**          | `int`                                                                                               |                                                      | ORC `tinyint` and `smallint` would also map to **`int`**.                               |
+| **`long`**         | `long`                                                                                              |                                                      |                                                                                         |
+| **`float`**        | `float`                                                                                             |                                                      |                                                                                         |
+| **`double`**       | `double`                                                                                            |                                                      |                                                                                         |
+| **`decimal(P,S)`** | `decimal`                                                                                           |                                                      |                                                                                         |
+| **`date`**         | `date`                                                                                              |                                                      |                                                                                         |
+| **`time`**         | `long`                                                                                              | `iceberg.long-type`=`TIME`                           | Stores microseconds from midnight.                                                      |
+| **`timestamp`**    | `timestamp`                                                                                         | `iceberg.timestamp-unit`=`MICROS`                    | Stores microseconds from 2015-01-01 00:00:00.000000. [1], [2]                           |
+| **`timestamptz`**  | `timestamp_instant`                                                                                 | `iceberg.timestamp-unit`=`MICROS`                    | Stores microseconds from 2015-01-01 00:00:00.000000 UTC. [1], [2]                       |
+| **`timestamp_ns`** | `timestamp`                                                                                         | `iceberg.timestamp-unit`=`NANOS`                     | Stores nanoseconds from 2015-01-01 00:00:00.000000000. [1]                              |
+| **`timestamptz_ns`** | `timestamp_instant`                                                                                 | `iceberg.timestamp-unit`=`NANOS`                   | Stores nanoseconds from 2015-01-01 00:00:00.000000000 UTC. [1]                          |
+| **`string`**       | `string`                                                                                            |                                                      | ORC `varchar` and `char` would also map to **`string`**.                                |
+| **`uuid`**         | `binary`                                                                                            | `iceberg.binary-type`=`UUID`                         |                                                                                         |
+| **`fixed(L)`**     | `binary`                                                                                            | `iceberg.binary-type`=`FIXED` & `iceberg.length`=`L` | The length would not be checked by the ORC reader and should be checked by the adapter. |
+| **`binary`**       | `binary`                                                                                            |                                                      |                                                                                         |
+| **`struct`**       | `struct`                                                                                            |                                                      |                                                                                         |
+| **`list`**         | `array`                                                                                             |                                                      |                                                                                         |
+| **`map`**          | `map`                                                                                               |                                                      |                                                                                         |
 | **`variant`**      | `struct` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs. |  `iceberg.struct-type`=`VARIANT`   | Shredding is not supported in ORC.                                                 |
-| **`geometry`**     | `binary`            | `iceberg.binary-type`=`GEOMETRY`                     | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
-| **`geography`**    | `binary`            | `iceberg.binary-type`=`GEOGRAPHY`                     | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
+| **`geometry`**     | `binary`                                                                                            | `iceberg.binary-type`=`GEOMETRY`                     | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
+| **`geography`**    | `binary`                                                                                            | `iceberg.binary-type`=`GEOGRAPHY`                     | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
+| **`file`**         | `struct` with the `file` sub-fields. Sub-fields must be assigned and accessed by field IDs.         | `iceberg.struct-type`=`FILE`     | See [File Type](#file-type).                                                            |
 
 Notes:
 
@@ -1691,6 +1727,7 @@ Types are serialized according to this table:
 | **`variant`**| `JSON string: "variant"`|`"variant"`|
 | **`geometry(C)`** |`JSON string: "geometry(<C>)"`|`"geometry(srid:4326)"`|
 | **`geography(C, A)`** |`JSON string: "geography(<C>, <A>)"`|`"geography(srid:4326, spherical)"`|
+| **`file`**| `JSON string: "file"`|`"file"`|
 
 The schema JSON type strings in this table are the canonical serialized forms. Readers should accept optional whitespace around parameters and separators in parameterized type strings.
 
@@ -1850,6 +1887,7 @@ This serialization scheme is for storing single values as individual binary valu
 | **`variant`**                | Not supported                                                                                                |
 | **`geometry`**               | WKB format, see [Appendix G](#appendix-g-geospatial-notes)                                                   |
 | **`geography`**              | WKB format, see [Appendix G](#appendix-g-geospatial-notes)                                                   |
+| **`file`**                   | Not supported                                                                                               |
 
 ### Bound serialization
 
@@ -1892,6 +1930,8 @@ The binary single-value serialization can be used to store the lower and upper b
 ## Appendix E: Format version changes
 
 ### Version 4
+
+The `file` type is added in v4. Writing `file` into a v3 or earlier schema is invalid. 
 
 Relative path support is added in v4.
 
