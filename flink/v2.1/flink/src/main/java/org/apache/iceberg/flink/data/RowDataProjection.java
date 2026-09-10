@@ -98,6 +98,10 @@ public class RowDataProjection implements RowData {
     }
   }
 
+  private RowDataProjection(RowData.FieldGetter[] getters) {
+    this.getters = getters;
+  }
+
   private static RowData.FieldGetter createFieldGetter(
       RowType rowType, int position, Types.NestedField rowField, Types.NestedField projectField) {
     Preconditions.checkArgument(
@@ -109,7 +113,6 @@ public class RowDataProjection implements RowData {
     switch (projectField.type().typeId()) {
       case STRUCT:
         RowType nestedRowType = (RowType) rowType.getTypeAt(position);
-        // Build the nested projection once instead of recreating it on every row.
         RowDataProjection nestedProjection =
             RowDataProjection.create(
                 nestedRowType, rowField.type().asStructType(), projectField.type().asStructType());
@@ -120,7 +123,8 @@ public class RowDataProjection implements RowData {
             return null;
           }
 
-          return nestedProjection.wrap(row.getRow(position, nestedFieldCount));
+          // a new wrapper per access keeps nested rows valid after the parent is re-wrapped
+          return nestedProjection.copyFor(row.getRow(position, nestedFieldCount));
         };
 
       case MAP:
@@ -169,6 +173,10 @@ public class RowDataProjection implements RowData {
     Preconditions.checkArgument(row != null, "Invalid row data: null");
     this.rowData = row;
     return this;
+  }
+
+  private RowData copyFor(RowData row) {
+    return new RowDataProjection(getters).wrap(row);
   }
 
   private Object getValue(int pos) {
