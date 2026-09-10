@@ -52,6 +52,11 @@ abstract class BaseChangelogContentScanTask<
   }
 
   @Override
+  public Long rowId() {
+    return file().firstRowId();
+  }
+
+  @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("change_ordinal", changeOrdinal)
@@ -90,6 +95,11 @@ abstract class BaseChangelogContentScanTask<
     @Override
     public long commitSnapshotId() {
       return parentTask.commitSnapshotId();
+    }
+
+    @Override
+    public Long rowId() {
+      return parentTask.rowId();
     }
 
     @Override
