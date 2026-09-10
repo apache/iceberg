@@ -179,7 +179,8 @@ public class FlinkFileSystemFileIO implements DelegateFileIO {
     if (executorService == null) {
       synchronized (FlinkFileSystemFileIO.class) {
         if (executorService == null) {
-          executorService = ThreadPools.newWorkerPool(DELETE_FILE_POOL_NAME, deleteThreads());
+          executorService =
+              ThreadPools.newExitingWorkerPool(DELETE_FILE_POOL_NAME, deleteThreads());
         }
       }
     }
