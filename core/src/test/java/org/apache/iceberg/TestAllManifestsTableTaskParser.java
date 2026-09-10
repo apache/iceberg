@@ -148,8 +148,7 @@ public class TestAllManifestsTableTaskParser {
 
     assertThat(actual.specsById()).isEqualTo(expected.specsById());
     assertThat(actual.manifestList().location()).isEqualTo(expected.manifestList().location());
-    assertThat(actual.manifestList().encryptionKeyID())
-        .isEqualTo(expected.manifestList().encryptionKeyID());
+    assertThat(actual.manifestList().keyId()).isEqualTo(expected.manifestList().keyId());
     assertThat(actual.residual().toString()).isEqualTo(expected.residual().toString());
     assertThat(actual.referenceSnapshotId()).isEqualTo(expected.referenceSnapshotId());
   }

@@ -18,28 +18,23 @@
  */
 package org.apache.iceberg;
 
-import java.io.Serializable;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionUtil;
 
-class BaseManifestListFile implements ManifestListFile, Serializable {
-  private final String location;
-  private final String encryptionKeyID;
+/**
+ * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link BaseFileWithKeyId} instead.
+ */
+@Deprecated
+class BaseManifestListFile extends BaseFileWithKeyId implements ManifestListFile {
 
   BaseManifestListFile(String location, String encryptionKeyID) {
-    this.location = location;
-    this.encryptionKeyID = encryptionKeyID;
-  }
-
-  @Override
-  public String location() {
-    return location;
+    super(location, encryptionKeyID);
   }
 
   @Override
   public String encryptionKeyID() {
-    return encryptionKeyID;
+    return keyId();
   }
 
   @Override
