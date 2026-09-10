@@ -224,7 +224,12 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
 
     // the value the UI renders, read back from the SQL status store
     assertThat(lastExecutedMetricValue(spark, new ScanDuration().description()))
-        .containsPattern("\\d+(\\.\\d+)? (ns|us|ms|s)");
+        .containsPattern(
+            "total \\(min, med, max\\)\\R"
+                + "\\d+(\\.\\d+)? (ns|us|ms|s) "
+                + "\\(\\d+(\\.\\d+)? (ns|us|ms|s), "
+                + "\\d+(\\.\\d+)? (ns|us|ms|s), "
+                + "\\d+(\\.\\d+)? (ns|us|ms|s)\\)");
   }
 
   @TestTemplate
