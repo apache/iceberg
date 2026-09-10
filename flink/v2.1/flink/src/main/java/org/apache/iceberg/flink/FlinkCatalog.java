@@ -20,6 +20,8 @@ package org.apache.iceberg.flink;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +47,7 @@ import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotEmptyException;
 import org.apache.flink.table.catalog.exceptions.DatabaseNotExistException;
 import org.apache.flink.table.catalog.exceptions.FunctionNotExistException;
+import org.apache.flink.table.catalog.exceptions.PartitionNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotPartitionedException;
@@ -70,6 +73,8 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.flink.util.FlinkAlterTableUtil;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.CloseableIterable;
@@ -80,6 +85,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.transforms.Transform;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -725,8 +734,140 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public void dropPartition(
       ObjectPath tablePath, CatalogPartitionSpec partitionSpec, boolean ignoreIfNotExists)
-      throws CatalogException {
-    throw new UnsupportedOperationException();
+      throws PartitionNotExistException, CatalogException {
+    Table table;
+    try {
+      table = loadIcebergTable(tablePath);
+    } catch (TableNotExistException e) {
+      if (ignoreIfNotExists) {
+        return;
+      }
+      throw new PartitionNotExistException(getName(), tablePath, partitionSpec, e);
+    }
+
+    if (table.spec().isUnpartitioned()) {
+      if (ignoreIfNotExists) {
+        return;
+      }
+      throw new PartitionNotExistException(getName(), tablePath, partitionSpec);
+    }
+
+    org.apache.iceberg.expressions.Expression filter;
+    try {
+      filter = toPartitionFilter(table, partitionSpec);
+    } catch (RuntimeException e) {
+      throw new CatalogException(
+          String.format("Invalid partition spec %s for table %s", partitionSpec, tablePath), e);
+    }
+
+    boolean partitionExists;
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().filter(filter).planFiles()) {
+      partitionExists = tasks.iterator().hasNext();
+    } catch (IOException e) {
+      throw new CatalogException(
+          String.format("Failed to check partition %s of table %s", partitionSpec, tablePath), e);
+    } catch (RuntimeException e) {
+      throw new CatalogException(
+          String.format("Failed to check partition %s of table %s", partitionSpec, tablePath), e);
+    }
+
+    if (!partitionExists) {
+      if (ignoreIfNotExists) {
+        return;
+      }
+      throw new PartitionNotExistException(getName(), tablePath, partitionSpec);
+    }
+
+    try {
+      table.newDelete().deleteFromRowFilter(filter).commit();
+    } catch (RuntimeException e) {
+      throw new CatalogException(
+          String.format("Failed to drop partition %s from table %s", partitionSpec, tablePath), e);
+    }
+  }
+
+  private static org.apache.iceberg.expressions.Expression toPartitionFilter(
+      Table table, CatalogPartitionSpec partitionSpec) {
+    Map<String, String> values = partitionSpec.getPartitionSpec();
+    List<PartitionField> fields = table.spec().fields();
+
+    Preconditions.checkArgument(
+        values.size() == fields.size(),
+        "Partition spec %s does not match the partition fields of table %s",
+        partitionSpec,
+        table.name());
+
+    org.apache.iceberg.expressions.Expression filter = null;
+    for (PartitionField field : fields) {
+      Preconditions.checkArgument(
+          field.transform().isIdentity(),
+          "Dropping partitions with transform %s is not supported for field %s",
+          field.transform(),
+          field.name());
+
+      Preconditions.checkArgument(
+          values.containsKey(field.name()),
+          "Partition spec %s is missing partition field %s",
+          partitionSpec,
+          field.name());
+
+      Type sourceType = table.schema().findType(field.sourceId());
+      Preconditions.checkArgument(
+          sourceType != null,
+          "Cannot find source field %s for partition field %s",
+          field.sourceId(),
+          field.name());
+
+      String value = values.get(field.name());
+      Object parsedValue = fromPartitionString(sourceType, value);
+      org.apache.iceberg.expressions.Expression fieldFilter =
+          parsedValue == null
+              ? Expressions.isNull(table.schema().findColumnName(field.sourceId()))
+              : Expressions.equal(
+                  table.schema().findColumnName(field.sourceId()), parsedValue);
+      filter = filter == null ? fieldFilter : Expressions.and(filter, fieldFilter);
+    }
+
+    return filter;
+  }
+
+  private static Object fromPartitionString(Type type, String value) {
+    if (value == null || "__HIVE_DEFAULT_PARTITION__".equals(value)) {
+      return null;
+    }
+
+    try {
+      switch (type.typeId()) {
+        case BOOLEAN:
+          Preconditions.checkArgument(
+              "true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value),
+              "Invalid boolean partition value: %s",
+              value);
+          return Boolean.valueOf(value);
+        case TIME:
+        case TIMESTAMP:
+        case TIMESTAMP_NANO:
+          Literal<?> literal = Literal.of(value).to(type);
+          Preconditions.checkArgument(
+              literal != null, "Cannot convert partition value %s to type %s", value, type);
+          return literal.value();
+        case BINARY:
+        case FIXED:
+          byte[] bytes = Base64.getDecoder().decode(value);
+          if (type instanceof Types.FixedType) {
+            Preconditions.checkArgument(
+                bytes.length == ((Types.FixedType) type).length(),
+                "Invalid fixed partition value length: %s",
+                bytes.length);
+          }
+          return ByteBuffer.wrap(bytes);
+        default:
+          return Conversions.fromPartitionString(type, value);
+      }
+    } catch (RuntimeException e) {
+      throw new IllegalArgumentException(
+          String.format("Cannot convert partition value %s to type %s", value, type), e);
+    }
   }
 
   @Override
@@ -825,7 +966,13 @@ public class FlinkCatalog extends AbstractCatalog {
         StructLike structLike = dataFile.partition();
         PartitionSpec spec = table.specs().get(dataFile.specId());
         for (int i = 0; i < structLike.size(); i++) {
-          map.put(spec.fields().get(i).name(), String.valueOf(structLike.get(i, Object.class)));
+          PartitionField field = spec.fields().get(i);
+          Type sourceType = table.schema().findType(field.sourceId());
+          Type partitionType = field.transform().getResultType(sourceType);
+          Object value = structLike.get(i, partitionType.typeId().javaClass());
+          map.put(
+              field.name(),
+              value == null ? null : toHumanString(field.transform(), partitionType, value));
         }
         set.add(new CatalogPartitionSpec(map));
       }
@@ -835,6 +982,11 @@ public class FlinkCatalog extends AbstractCatalog {
     }
 
     return Lists.newArrayList(set);
+  }
+
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  private static String toHumanString(Transform transform, Type type, Object value) {
+    return transform.toHumanString(type, value);
   }
 
   @Override
