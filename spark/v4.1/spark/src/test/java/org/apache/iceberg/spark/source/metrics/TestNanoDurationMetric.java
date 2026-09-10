@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Locale;
 import org.apache.spark.sql.connector.metric.CustomSumMetric;
 import org.junit.jupiter.api.Test;
 
@@ -45,6 +46,18 @@ public class TestNanoDurationMetric {
     assertThat(metric.aggregateTaskMetrics(new long[] {1_000_000L})).isEqualTo("1 ms");
     assertThat(metric.aggregateTaskMetrics(new long[] {999_999_999L})).isEqualTo("999 ms");
     assertThat(metric.aggregateTaskMetrics(new long[] {1_000_000_000L})).isEqualTo("1.0 s");
+  }
+
+  @Test
+  public void testAggregateTaskMetricsIsLocaleIndependent() {
+    Locale previous = Locale.getDefault();
+    try {
+      // a comma-decimal locale would render "2,5 s" without an explicit Locale.ROOT
+      Locale.setDefault(Locale.GERMANY);
+      assertThat(metric.aggregateTaskMetrics(new long[] {2_500_000_000L})).isEqualTo("2.5 s");
+    } finally {
+      Locale.setDefault(previous);
+    }
   }
 
   @Test
