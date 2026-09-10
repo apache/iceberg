@@ -737,8 +737,8 @@ Notes:
 
     | Field id | Name | Type | Required | Description |
     |----------|------|------|----------|-------------|
-    | 134 | **`content_type`** | `int` (0: DATA, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | *required* | Type of content stored in the entry. Value 1 (POSITION_DELETES) and value 2 (EQUALITY DELETES) are omitted (see below). Content types 3 and 4 are only valid in root manifests. |
-    | 157 | **`format_version`** | `int` (0: PRE-V4, 4: V4) | *required* | Writer format version. v4 writers must produce `format_version` 4. |
+    | 134 | **`content_type`** | `int` (0: DATA, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | *required* | Type of content stored in the entry. |
+    | 157 | **`format_version`** | `int` (0: PRE-V4, 4: V4) | *required* | Writer format version. |
     | 100 | **`location`** | `string` | *required* | Location of the file or manifest. |
     | 101 | **`file_format`** | `string` | *required* | String file format name: `avro`, `orc`, `parquet`, or `puffin` |
     | 147 | **`tracking`** | `tracking` struct | *required* | Groups status, snapshot, and sequence number. See tracking struct below. |
@@ -755,7 +755,7 @@ Notes:
 
     Writers must not produce `content_type` 1 (POSITION_DELETES) or `content_type` 2 (EQUALITY DELETES) in v4.
 
-    v4 leaf manifests must only contain entries with `content_type` 0 (DATA). A root manifest may reference v1-v3 manifests; v1-v3 leaf manifest references must have `format_version` set to 0.
+    v4 leaf manifests must only contain entries with `content_type` 0 (DATA). A root manifest may reference v1-v3 manifests; v1-v3 leaf manifest references must have `format_version` set to 0, and other v4 entries must have `format_version` set to 4.
 
     The following constraints apply based on `content_type`:
 
@@ -765,20 +765,23 @@ Notes:
     - `sort_order_id` must be null when `content_type` is 3 or 4 (manifests).
     - `split_offsets` must be null when `content_type` is 3 or 4 (manifests).
     - `tracking.deleted_positions` and `tracking.replaced_positions` must be null when `content_type` is not 3 or 4.
+    - `tracking.sequence_number` must equal `tracking.file_sequence_number` when `content_type` is 3 or 4.
 
     **`tracking` struct (field 147)**
 
     | Field id | Name | Type | Required | Description |
     |----------|------|------|----------|-------------|
-    | 0 | **`status`** | `int` (0: EXISTING, 1: ADDED, 2: DELETED, 3: REPLACED, 4: MODIFIED) | *required* | Used to track additions, deletions, replacements, and modifications. When a data file's `deletion_vector` or `column_files` change, REPLACED marks the prior version of the entry and MODIFIED marks the new, live version. For leaf manifest entries, MODIFIED marks a live manifest whose `dv` changed. Deletes are not used in scans. |
-    | 1 | **`snapshot_id`** | `long` | *optional* | Snapshot ID where the file was added or deleted. Inherited when null. Optional for leaf manifests, required for root. |
-    | 5 | **`dv_snapshot_id`** | `long` | *optional* | Snapshot ID where the deletion vector was added. Must be null when `deletion_vector` is null and `dv` is null. |
-    | 160 | **`latest_column_file_snapshot_id`** | `long` | *optional* | Snapshot ID where the latest column file was added. Inherited when null. Must be null when `column_files` is null. |
-    | 3 | **`sequence_number`** | `long` | *optional* | Data sequence number of the file. Inherited when null and status is 1 (ADDED). Must equal `file_sequence_number` if `content_type` is 3 or 4. Optional for leaf manifests, required for root. |
-    | 4 | **`file_sequence_number`** | `long` | *optional* | File sequence number indicating when the file was added. Inherited when null and status is ADDED. Must equal `sequence_number` if `content_type` is 3 or 4. |
+    | 0 | **`status`** | `int` (0: EXISTING, 1: ADDED, 2: DELETED, 3: REPLACED, 4: MODIFIED) | *required* | Used to track additions, deletions, replacements, and modifications. Deletes are not used in scans. |
+    | 1 | **`snapshot_id`** | `long` | *optional* | Snapshot ID where the file was added or deleted. Inherited when null. |
+    | 5 | **`dv_snapshot_id`** | `long` | *optional* | Snapshot ID where the deletion vector was added. |
+    | 160 | **`latest_column_file_snapshot_id`** | `long` | *optional* | Snapshot ID where the latest column file was added. |
+    | 3 | **`sequence_number`** | `long` | *optional* | Data sequence number of the file. Inherited when null and status is 1 (ADDED). |
+    | 4 | **`file_sequence_number`** | `long` | *optional* | File sequence number indicating when the file was added. Inherited when null and status is ADDED. |
     | 142 | **`first_row_id`** | `long` | *optional* | The `_row_id` for the first row in the data file if `content_type` is 0. If `content_type` is 3, this is the starting `_row_id` to assign to rows added by ADDED data files. See [First Row ID Inheritance](#first-row-id-inheritance). |
     | 6 | **`deleted_positions`** | `binary` | *optional* | Positions deleted in the referenced leaf manifest this snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
     | 7 | **`replaced_positions`** | `binary` | *optional* | Positions replaced in the referenced leaf manifest this snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
+
+    `snapshot_id` and `sequence_number` are optional for entries in leaf manifests and required for entries in the root manifest. `dv_snapshot_id` must be null when `deletion_vector` is null and `dv` is null. `latest_column_file_snapshot_id` must be null when `column_files` is null.
 
     **`deletion_vector` struct (field 148)**
 
@@ -806,7 +809,9 @@ Notes:
     | 525 | **`modified_rows_count`** | `long` | *required* | Total number of rows in MODIFIED entries. |
     | 516 | **`min_sequence_number`** | `long` | *required* | Minimum data sequence number of all live entries in the manifest. |
     | 522 | **`dv`** | `binary` | *optional* | Positions in the referenced leaf manifest that are not live. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
-    | 523 | **`dv_cardinality`** | `long` | *optional* | Cardinality of the manifest deletion vector. Must be set when `dv` is non-null; must be null otherwise. |
+    | 523 | **`dv_cardinality`** | `long` | *optional* | Cardinality of the manifest deletion vector. |
+
+    `dv_cardinality` must be set when `dv` is non-null; must be null otherwise.
 
     **`column_file` struct (element 159 of `column_files`, field 158)**
 
@@ -822,7 +827,7 @@ Notes:
 
     When a file is added to the dataset, its content entry must set status to ADDED (1) and store the snapshot ID in which the file was added.
 
-    When a data file's deletion vector or column files are updated, the writer records a MODIFIED (4) entry for the live version and marks the prior version as replaced, either with a REPLACED (3) entry or in a [manifest deletion vector](#manifest-deletion-vectors).
+    When a data file's deletion vector or column files are updated, the writer records a MODIFIED (4) entry for the live version and marks the prior version as replaced, either with a REPLACED (3) entry or in a [manifest deletion vector](#manifest-deletion-vectors). For leaf manifest entries, MODIFIED marks a live manifest whose `dv` changed.
 
     The MODIFIED entry carries forward the prior version's `tracking` and records the change in `dv_snapshot_id` and/or `latest_column_file_snapshot_id` (defined below). A REPLACED entry, when written, carries forward the prior version's `tracking` and sets `snapshot_id` to the snapshot in which the file was replaced.
 
