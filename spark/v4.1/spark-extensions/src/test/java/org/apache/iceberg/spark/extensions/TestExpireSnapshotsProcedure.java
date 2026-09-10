@@ -154,6 +154,69 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testExpireSnapshotsWithMetadataOnlyCleanupLevel() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT OVERWRITE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.snapshots()).as("Should be 2 snapshots").hasSize(2);
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots("
+                + "table => '%s', older_than => TIMESTAMP '%s', cleanup_level => 'metadata_only')",
+            catalogName, tableIdent, currentTimestamp);
+    assertEquals(
+        "Should not delete data files", ImmutableList.of(row(0L, 0L, 0L, 1L, 1L, 0L)), output);
+
+    table.refresh();
+    assertThat(table.snapshots()).as("Should expire one snapshot").hasSize(1);
+  }
+
+  @TestTemplate
+  public void testExpireSnapshotsWithNoneCleanupLevel() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT OVERWRITE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.snapshots()).as("Should be 2 snapshots").hasSize(2);
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.expire_snapshots("
+                + "table => '%s', older_than => TIMESTAMP '%s', cleanup_level => 'none')",
+            catalogName, tableIdent, currentTimestamp);
+    assertEquals(
+        "Should not delete any files", ImmutableList.of(row(0L, 0L, 0L, 0L, 0L, 0L)), output);
+
+    table.refresh();
+    assertThat(table.snapshots()).as("Should expire one snapshot").hasSize(1);
+  }
+
+  @TestTemplate
+  public void testExpireSnapshotsWithInvalidCleanupLevel() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.expire_snapshots(table => '%s', cleanup_level => 'invalid')",
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid cleanup level: invalid");
+  }
+
+  @TestTemplate
   public void testExpireSnapshotsGCDisabled() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 

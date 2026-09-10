@@ -20,6 +20,7 @@ package org.apache.iceberg.actions;
 
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import org.apache.iceberg.ExpireSnapshots.CleanupLevel;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.io.SupportsBulkOperations;
 
@@ -110,6 +111,25 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
    */
   default ExpireSnapshots cleanExpiredMetadata(boolean clean) {
     throw new UnsupportedOperationException("cleanExpiredMetadata is not supported");
+  }
+
+  /**
+   * Configures the cleanup level for expired files.
+   *
+   * <p>Identical to {@link org.apache.iceberg.ExpireSnapshots#cleanupLevel(CleanupLevel)}, but the
+   * files are determined and deleted using a query engine.
+   *
+   * <p>Consider {@link CleanupLevel#METADATA_ONLY} when data files are shared across tables or when
+   * using procedures like add-files that may reference the same data files. Content files are not
+   * listed at all in that case, so the manifests of expired snapshots do not have to be read.
+   *
+   * <p>Consider {@link CleanupLevel#NONE} to expire snapshots without deleting any files.
+   *
+   * @param level the cleanup level to use for expired snapshots
+   * @return this for method chaining
+   */
+  default ExpireSnapshots cleanupLevel(CleanupLevel level) {
+    throw new UnsupportedOperationException("cleanupLevel is not supported");
   }
 
   /** The action result that contains a summary of the execution. */

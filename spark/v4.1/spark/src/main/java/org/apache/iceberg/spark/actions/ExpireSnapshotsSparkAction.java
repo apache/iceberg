@@ -81,6 +81,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   private ExecutorService deleteExecutorService = null;
   private Dataset<FileInfo> expiredFileDS = null;
   private Boolean cleanExpiredMetadata = null;
+  private CleanupLevel cleanupLevel = CleanupLevel.ALL;
 
   ExpireSnapshotsSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -137,6 +138,13 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     return this;
   }
 
+  @Override
+  public ExpireSnapshotsSparkAction cleanupLevel(CleanupLevel level) {
+    Preconditions.checkArgument(null != level, "Invalid cleanup level: null");
+    this.cleanupLevel = level;
+    return this;
+  }
+
   /**
    * Expires snapshots and commits the changes to the table, returning a Dataset of files to delete.
    *
@@ -170,7 +178,14 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
         expireSnapshots.cleanExpiredMetadata(cleanExpiredMetadata);
       }
 
+      // cleanup is always performed by this action, never by the core operation
       expireSnapshots.cleanupLevel(CleanupLevel.NONE).commit();
+
+      if (CleanupLevel.NONE == cleanupLevel) {
+        LOG.info("Skipping file cleanup for {} because the cleanup level is NONE", table.name());
+        this.expiredFileDS = spark().emptyDataset(FileInfo.ENCODER);
+        return expiredFileDS;
+      }
 
       // fetch valid files after expiration
       TableMetadata updatedMetadata = ops.refresh();
@@ -218,6 +233,10 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
       options.add("clean_expired_metadata=" + cleanExpiredMetadata);
     }
 
+    if (CleanupLevel.ALL != cleanupLevel) {
+      options.add("cleanup_level=" + cleanupLevel);
+    }
+
     return String.format("Expiring snapshots (%s) in %s", COMMA_JOINER.join(options), table.name());
   }
 
@@ -239,10 +258,17 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
 
   private Dataset<FileInfo> fileDS(TableMetadata metadata, Set<Long> snapshotIds) {
     Table staticTable = newStaticTable(metadata, table.io());
-    return contentFileDS(staticTable, snapshotIds)
-        .union(manifestDS(staticTable, snapshotIds))
-        .union(manifestListDS(staticTable, snapshotIds))
-        .union(statisticsFileDS(staticTable, snapshotIds));
+    Dataset<FileInfo> metadataFileDS =
+        manifestDS(staticTable, snapshotIds)
+            .union(manifestListDS(staticTable, snapshotIds))
+            .union(statisticsFileDS(staticTable, snapshotIds));
+
+    // listing content files requires reading every manifest, so skip it unless it is needed
+    if (CleanupLevel.METADATA_ONLY == cleanupLevel) {
+      return metadataFileDS;
+    }
+
+    return contentFileDS(staticTable, snapshotIds).union(metadataFileDS);
   }
 
   private Set<Long> findExpiredSnapshotIds(

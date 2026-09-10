@@ -19,8 +19,10 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * API for removing old {@link Snapshot snapshots} from a table.
@@ -45,7 +47,17 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
     /** Clean up only metadata files (manifests, manifest lists, statistics), retain data files. */
     METADATA_ONLY,
     /** Clean up both metadata and data files (default). */
-    ALL
+    ALL;
+
+    public static CleanupLevel fromString(String levelAsString) {
+      Preconditions.checkArgument(levelAsString != null, "Invalid cleanup level: null");
+      try {
+        return CleanupLevel.valueOf(levelAsString.toUpperCase(Locale.ROOT));
+      } catch (IllegalArgumentException e) {
+        throw new IllegalArgumentException(
+            String.format("Invalid cleanup level: %s", levelAsString), e);
+      }
+    }
   }
 
   /**

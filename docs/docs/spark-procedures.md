@@ -260,6 +260,9 @@ and their files which are no longer needed.
 This procedure will remove old snapshots and data files which are uniquely required by those old snapshots. This means
 the `expire_snapshots` procedure will never remove files which are still required by a non-expired snapshot.
 
+Use `cleanup_level` to narrow which files are deleted. This is useful when data files are not solely owned by the table,
+for example when they are shared with another table or were added with [`add_files`](#add_files).
+
 #### Usage
 
 | Argument Name | Required? | Type | Description |
@@ -271,6 +274,7 @@ the `expire_snapshots` procedure will never remove files which are still require
 | `stream_results` |    | boolean       | When true, deletion files will be sent to Spark driver by RDD partition (by default, all the files will be sent to Spark driver). This option is recommended to set to `true` to prevent Spark driver OOM from large file size |
 | `snapshot_ids` |   | array of long       | Array of snapshot IDs to expire. |
 | `clean_expired_metadata` |   | boolean       | When true, cleans up metadata such as partition specs and schemas that are no longer referenced by snapshots. |
+| `cleanup_level` |   | string       | Which files to delete: `ALL` (default) deletes both metadata and data files, `METADATA_ONLY` deletes manifests, manifest lists and statistics files while retaining data files, and `NONE` removes the snapshots from table metadata without deleting any files. |
 
 If `older_than` and `retain_last` are omitted, the table's [expiration properties](configuration.md#table-behavior-properties) will be used.
 Snapshots that are still referenced by branches or tags won't be removed. By default, branches and tags never expire, but their retention policy can be changed with the table property `history.expire.max-ref-age-ms`. The `main` branch never expires.
@@ -298,6 +302,12 @@ Remove snapshots with snapshot ID `123` (note that this snapshot ID should not b
 
 ```sql
 CALL hive_prod.system.expire_snapshots(table => 'db.sample', snapshot_ids => ARRAY(123));
+```
+
+Remove snapshots older than specific day and time, but keep the data files they reference:
+
+```sql
+CALL hive_prod.system.expire_snapshots(table => 'db.sample', older_than => TIMESTAMP '2021-06-30 00:00:00.000', cleanup_level => 'METADATA_ONLY');
 ```
 
 ### `remove_orphan_files`
