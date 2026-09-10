@@ -22,7 +22,6 @@ import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -222,7 +221,7 @@ public class SparkCatalog extends BaseCatalog {
     // properties and sort order, then let user-specified LIKE options (in tableInfo) take
     // precedence.
     Schema icebergSchema = SparkSchemaUtil.convert(tableInfo.schema());
-    Map<String, String> properties = new HashMap<>();
+    Map<String, String> properties = Maps.newHashMap();
     SortOrder sortOrder = SortOrder.unsorted();
 
     if (sourceTable instanceof SparkTable) {
