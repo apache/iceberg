@@ -124,4 +124,5 @@ nav:
     - Puffin spec: puffin-spec.md
     - AES GCM Stream spec: gcm-stream-spec.md
     - UDF spec: udf-spec.md
+    - Expressions spec: expressions-spec.md
     - Implementation status: status.md

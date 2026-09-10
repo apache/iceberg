@@ -24,7 +24,6 @@ This document defines the structure and behavior of expressions for use in Icebe
 
 Stored expressions are needed for use cases like data validations (`CHECK` constraints) and default values (for instance, `current_timestamp()`). Expressions are exchanged in use cases like server-side scan planning in the catalog protocol.
 
-
 ## Overview
 
 The goal of this specification is to define a simple expression structure and avoid complexity.
@@ -39,7 +38,6 @@ This specification covers the structure of Iceberg expressions and includes appe
 
 [udf-spec]: https://iceberg.apache.org/udf-spec
 
-
 ## Structure
 
 Iceberg expressions have two types:
@@ -47,18 +45,15 @@ Iceberg expressions have two types:
 * **Value expressions** represent data values and transformations of values (function calls) that produce any Iceberg type
 * **Predicates** represent comparisons of value expressions as well as combinations of predicates with boolean logic (and, or, not)
 
-
 ### Value expressions
 
 A value expression is an expression that produces a typed value.
 
 Value expressions can be one of three types: a constant value, a field reference, or a function applied to zero or more value expressions.
 
-
 #### Constant values
 
 A constant or literal is the simplest type of value expression that represents a specific typed value.
-
 
 #### Field reference
 
@@ -71,7 +66,6 @@ ID references are used for stored expressions, where the identity of the column 
 Named references are used when the identity of the column is determined when the expression is evaluated. For example, query filters are resolved each time a query runs so server-side planning uses unbound named references.
 
 The context in which an expression is used determines the type of references that are valid. Iceberg specifications should document whether ID references, named references, or both are allowed.
-
 
 #### Apply function
 
@@ -93,7 +87,6 @@ Engines may document and use a catalog name to identify their built-in functions
 
 Function references are unambiguous and are not interpreted using session context. Producers are responsible for resolving catalog, namespace, and name if the session is relevant. For example, if a SQL engine uses its current catalog and namespace to find a function, the resolved catalog and namespace must be used to produce an unambiguous function reference.
 
-
 #### Value expression types
 
 The type produced by a value expression may change. For example, an ID reference may produce a widened type after the underlying column's type is promoted.
@@ -104,7 +97,6 @@ Function calls may produce different types when function definitions change, and
 
 If types are incompatible at runtime, implementations binding or evaluating expressions may apply type promotion to align types for predicates and to resolve functions. Implementations may choose when to promote values to accommodate engines that differ in casting behavior. However, implementations must fail rather than insert unsafe casts.
 
-
 ### Predicates
 
 A predicate is a boolean expression that produces true or false.
@@ -112,7 +104,6 @@ A predicate is a boolean expression that produces true or false.
 Predicates can be constants (true or false), tests of a value expression, comparisons of value expressions, or logical combinations of predicates (AND, OR, NOT).
 
 Value expressions are not valid predicates, even when the expression is expected to return a boolean value. Value expressions must be compared or tested to produce a predicate. For example, `is_empty(str_col)` is not a valid predicate because it may produce `null`, but `is_empty(str_col) = true` is a valid predicate.
-
 
 #### Tests
 
@@ -128,7 +119,6 @@ Tests are predicates that test a single value expression, optionally using a con
 | `NOT STARTS WITH const` | string        | string        | true iff the constant is not a prefix of the value |
 | `IN (constant set)`     | any primitive | same as value | true iff the value is equal to any constant |
 | `NOT IN (constant set)` | any primitive | same as value | true iff the value is not equal to any constant |
-
 
 #### Comparisons
 
@@ -184,7 +174,6 @@ For floating point values, comparison with NaN behaves similarly to comparison o
 * `a < b` and `a > b` are false when either operand is NaN; otherwise the IEEE 754 order is used
 * `a <= b` is `(a = b) OR (a < b)`; `a >= b` is `(a = b) OR (a > b)`; both are true when both operands are NaN and false when only one operand is NaN
 
-
 #### Boolean logic
 
 Predicates must use 2-valued boolean logic. Evaluation of all predicates must produce `true` or `false`.
@@ -192,7 +181,6 @@ Predicates must use 2-valued boolean logic. Evaluation of all predicates must pr
 Engines that implement SQL 3-valued boolean logic must add `IS NULL` and `IS NOT NULL` to produce the 2-valued equivalent. This avoids bugs in engines and languages that do not natively implement 3-valued logic. For example, the SQL predicate `x < 10` should be passed as `x < 10 AND x IS NOT NULL` for a SQL `WHERE` condition (or `x < 10`; see null-safe comparisons below). For a `CHECK` constraint, the expression is passed as `x < 10 OR x IS NULL`. This ensures that implementations will make the correct determination, rather than depending on context to interpret a null result (`WHERE` vs `CHECK`).
 
 Logical combinations are boolean operators applied to predicates. `AND` and `OR` are binary operations and `NOT` is a unary operation. `AND`, `OR`, and `NOT` do not accept null values because predicates cannot produce them.
-
 
 ### Compatibility with REST catalog expressions
 
@@ -207,7 +195,6 @@ The deprecated expressions were passed in 3 places:
 Both server-side scan planning and the report endpoint should continue to accept filters from older clients by parsing term-based expressions (see [Appendix B: JSON serialization](#backward-compatibility)).
 
 Residuals passed from services back to clients that do not use the new syntax would cause clients to fail. Services are allowed to omit the residual so that it is calculated on the client side (intended to avoid duplicating large IN filters). For compatibility, REST services should omit residuals from tasks, but may include them if the service detects support for newer predicates (for example, via client version).
-
 
 ## Appendix A: Iceberg functions
 
@@ -240,7 +227,6 @@ Note that `year`, `month`, and `hour` transforms produce ordinal values and not 
 
 [bucket-ref]: spec/#bucket-transform-details
 [truncate-ref]: spec/#truncate-transform-details
-
 
 ## Appendix B: JSON serialization
 
