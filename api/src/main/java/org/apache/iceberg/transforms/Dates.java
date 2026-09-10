@@ -50,16 +50,12 @@ enum Dates implements Transform<Integer, Integer> {
         return null;
       }
 
-      switch (granularity) {
-        case YEARS:
-          return DateTimeUtil.daysToYears(days);
-        case MONTHS:
-          return DateTimeUtil.daysToMonths(days);
-        case DAYS:
-          return days;
-        default:
-          throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
-      }
+      return switch (granularity) {
+        case YEARS -> DateTimeUtil.daysToYears(days);
+        case MONTHS -> DateTimeUtil.daysToMonths(days);
+        case DAYS -> days;
+        default -> throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+      };
     }
   }
 
@@ -199,16 +195,12 @@ enum Dates implements Transform<Integer, Integer> {
       return "null";
     }
 
-    switch (granularity) {
-      case YEARS:
-        return TransformUtil.humanYear(value);
-      case MONTHS:
-        return TransformUtil.humanMonth(value);
-      case DAYS:
-        return TransformUtil.humanDay(value);
-      default:
-        throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
-    }
+    return switch (granularity) {
+      case YEARS -> TransformUtil.humanYear(value);
+      case MONTHS -> TransformUtil.humanMonth(value);
+      case DAYS -> TransformUtil.humanDay(value);
+      default -> throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+    };
   }
 
   @Override
