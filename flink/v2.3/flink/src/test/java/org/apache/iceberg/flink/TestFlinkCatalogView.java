@@ -29,6 +29,7 @@ import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -274,6 +275,50 @@ public class TestFlinkCatalogView extends CatalogTestBase {
     assertThat(sql("DESCRIBE %s", VIEW_NAME))
         .extracting(row -> row.getField(0))
         .containsExactly("id", "data");
+  }
+
+  @TestTemplate
+  public void testViewWithDifferentDefaultNamespaceIsRejected() {
+    viewCatalog()
+        .buildView(TableIdentifier.of(icebergNamespace, VIEW_NAME))
+        .withSchema(VIEW_SCHEMA)
+        .withDefaultNamespace(Namespace.of("some_other_db"))
+        .withQuery("flink", "SELECT id, data FROM test_table")
+        .create();
+
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", VIEW_NAME))
+        .rootCause()
+        .hasMessageContaining("default-namespace")
+        .hasMessageContaining("some_other_db");
+  }
+
+  @TestTemplate
+  public void testViewWithDifferentDefaultCatalogIsRejected() {
+    viewCatalog()
+        .buildView(TableIdentifier.of(icebergNamespace, VIEW_NAME))
+        .withSchema(VIEW_SCHEMA)
+        .withDefaultCatalog("some_other_catalog")
+        .withDefaultNamespace(icebergNamespace)
+        .withQuery("flink", "SELECT id, data FROM test_table")
+        .create();
+
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", VIEW_NAME))
+        .rootCause()
+        .hasMessageContaining("default-catalog")
+        .hasMessageContaining("some_other_catalog");
+  }
+
+  @TestTemplate
+  public void testViewWithMatchingDefaultsIsReadable() {
+    viewCatalog()
+        .buildView(TableIdentifier.of(icebergNamespace, VIEW_NAME))
+        .withSchema(VIEW_SCHEMA)
+        .withDefaultCatalog(catalogName)
+        .withDefaultNamespace(icebergNamespace)
+        .withQuery("flink", "SELECT id, data FROM test_table")
+        .create();
+
+    assertSameElements(expectedRows(), sql("SELECT * FROM %s", VIEW_NAME));
   }
 
   @TestTemplate

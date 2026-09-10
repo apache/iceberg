@@ -86,6 +86,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewProperties;
+import org.apache.iceberg.view.ViewVersion;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -382,7 +383,7 @@ public class FlinkCatalog extends AbstractCatalog {
 
       try {
         View view = asViewCatalog.loadView(toIdentifier(tablePath));
-        return toCatalogView(view);
+        return toCatalogView(tablePath, view);
       } catch (NoSuchViewException viewException) {
         e.addSuppressed(viewException);
         throw e;
@@ -739,9 +740,30 @@ public class FlinkCatalog extends AbstractCatalog {
     return toCatalogTableWithProps(table, table.properties());
   }
 
-  private CatalogView toCatalogView(View view) {
+  private CatalogView toCatalogView(ObjectPath tablePath, View view) {
     SQLViewRepresentation sqlRepresentation = view.sqlFor(FLINK_DIALECT);
     Preconditions.checkState(sqlRepresentation != null, "Cannot load SQL for view %s", view.name());
+
+    // Flink resolves against the view's location; mismatched stored defaults risk wrong results
+    ViewVersion currentVersion = view.currentVersion();
+    String defaultCatalog = currentVersion.defaultCatalog();
+    if (defaultCatalog != null && !defaultCatalog.equals(getName())) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Cannot read view %s: its default-catalog '%s' does not match the catalog '%s' it is read through, "
+                  + "and Flink resolves references against the view's own catalog",
+              tablePath, defaultCatalog, getName()));
+    }
+
+    Namespace defaultNamespace = currentVersion.defaultNamespace();
+    Namespace viewNamespace = appendLevel(baseNamespace, tablePath.getDatabaseName());
+    if (!defaultNamespace.isEmpty() && !defaultNamespace.equals(viewNamespace)) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Cannot read view %s: its default-namespace '%s' does not match the view's namespace '%s', "
+                  + "and Flink resolves references against the view's own namespace",
+              tablePath, defaultNamespace, viewNamespace));
+    }
 
     ResolvedSchema resolvedSchema = FlinkSchemaUtil.toResolvedSchema(view.schema());
     org.apache.flink.table.api.Schema schema =
