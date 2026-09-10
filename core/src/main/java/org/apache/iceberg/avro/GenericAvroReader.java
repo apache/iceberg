@@ -21,6 +21,7 @@ package org.apache.iceberg.avro;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
@@ -30,12 +31,38 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 
 public class GenericAvroReader<T>
     implements DatumReader<T>, SupportsRowPosition, SupportsCustomRecords {
+
+  // Restricts record-name-based class resolution to a known-safe set. Record names come from
+  // Avro schemas, which can originate from untrusted input (e.g. AvroEncoderUtil.decode);
+  // without this check, any class name that happens to match something already on the classpath
+  // would be loaded and constructed. See https://github.com/apache/iceberg/issues/17802.
+  //
+  // NOTE: Kafka Connect's classes are listed by name (not Class literal) because iceberg-core
+  // cannot depend on iceberg-kafka-connect-events. Keep this in sync with that module's
+  // AvroUtil.FIELD_ID_TO_CLASS if either changes.
+  private static final Set<String> ALLOWED_RECORD_CLASSES =
+      ImmutableSet.of(
+          "org.apache.iceberg.GenericManifestFile",
+          "org.apache.iceberg.GenericPartitionFieldSummary",
+          "org.apache.iceberg.encryption.StandardKeyMetadata",
+          "org.apache.iceberg.PartitionData",
+          "org.apache.iceberg.GenericDataFile",
+          "org.apache.iceberg.GenericDeleteFile",
+          "org.apache.iceberg.connect.events.Event",
+          "org.apache.iceberg.connect.events.StartCommit",
+          "org.apache.iceberg.connect.events.DataWritten",
+          "org.apache.iceberg.connect.events.DataComplete",
+          "org.apache.iceberg.connect.events.CommitToTable",
+          "org.apache.iceberg.connect.events.CommitComplete",
+          "org.apache.iceberg.connect.events.TopicPartitionOffset",
+          "org.apache.iceberg.connect.events.TableReference");
 
   private final Types.StructType expectedType;
   private ClassLoader loader = Thread.currentThread().getContextClassLoader();
@@ -123,7 +150,7 @@ public class GenericAvroReader<T>
     private ValueReader<?> recordReader(
         List<Pair<Integer, ValueReader<?>>> readPlan, Schema avroSchema, String recordName) {
       String className = renames.getOrDefault(recordName, recordName);
-      if (className != null) {
+      if (className != null && ALLOWED_RECORD_CLASSES.contains(className)) {
         try {
           Class<?> recordClass = DynClasses.builder().loader(loader).impl(className).buildChecked();
           if (IndexedRecord.class.isAssignableFrom(recordClass)) {
