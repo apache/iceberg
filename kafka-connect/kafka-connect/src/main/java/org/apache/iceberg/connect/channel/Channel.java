@@ -56,8 +56,8 @@ abstract class Channel {
   private final String producerId;
 
   Channel(
-      String name,
       String consumerGroupId,
+      String transactionalId,
       IcebergSinkConfig config,
       KafkaClientFactory clientFactory,
       SinkTaskContext context) {
@@ -65,7 +65,6 @@ abstract class Channel {
     this.connectGroupId = config.connectGroupId();
     this.context = context;
 
-    String transactionalId = config.transactionalPrefix() + name + config.transactionalSuffix();
     this.producer = clientFactory.createProducer(transactionalId);
     this.consumer = clientFactory.createConsumer(consumerGroupId);
     this.admin = clientFactory.createAdmin();
@@ -147,10 +146,11 @@ abstract class Channel {
   }
 
   /**
-   * Commit consumer offsets. Only commits offsets if it has not committed offsets before or the
-   * value is greater than the cached offset.
-   *
-   * <p>Note: there is a risk that two parallel coordinators may overwrite each other's offsets.
+   * Commits consumer offsets through the coordinator's transactional producer, committing a
+   * partition's offset only when it advances past the last committed value. The producer uses a
+   * connector-stable {@code transactional.id}, so a newly elected coordinator's {@code
+   * initTransactions()} bumps the producer epoch and fences a superseded coordinator, whose commit
+   * then fails with a {@link org.apache.kafka.common.errors.ProducerFencedException}.
    */
   protected void commitConsumerOffsets() {
     Map<TopicPartition, OffsetAndMetadata> offsetsToCommit = Maps.newHashMap();
@@ -177,7 +177,20 @@ abstract class Channel {
 
     if (!offsetsToCommit.isEmpty()) {
       LOG.debug("Committing consumer offsets: {}", offsetsToCommit);
-      consumer.commitSync(offsetsToCommit);
+      synchronized (producer) {
+        producer.beginTransaction();
+        try {
+          producer.sendOffsetsToTransaction(offsetsToCommit, consumer.groupMetadata());
+          producer.commitTransaction();
+        } catch (Exception e) {
+          try {
+            producer.abortTransaction();
+          } catch (Exception ex) {
+            LOG.warn("Error aborting producer transaction", ex);
+          }
+          throw e;
+        }
+      }
       offsetsToCommit.forEach(
           (topicPartition, metadata) ->
               committedOffsets.put(topicPartition.partition(), metadata.offset()));

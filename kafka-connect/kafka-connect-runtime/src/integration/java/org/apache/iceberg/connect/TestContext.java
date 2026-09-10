@@ -119,6 +119,19 @@ public class TestContext {
         new StringSerializer());
   }
 
+  public KafkaProducer<String, String> initLocalTransactionalProducer(String transactionalId) {
+    return new KafkaProducer<>(
+        ImmutableMap.of(
+            ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
+            BOOTSTRAP_SERVERS,
+            ProducerConfig.CLIENT_ID_CONFIG,
+            UUID.randomUUID().toString(),
+            ProducerConfig.TRANSACTIONAL_ID_CONFIG,
+            transactionalId),
+        new StringSerializer(),
+        new StringSerializer());
+  }
+
   public Admin initLocalAdmin() {
     return Admin.create(
         ImmutableMap.of(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP_SERVERS));

@@ -443,6 +443,16 @@ public class IcebergSinkConfig extends AbstractConfig {
     return "";
   }
 
+  /**
+   * The transactional ID for the coordinator's producer: scoped to the coordinator role, stable
+   * across coordinator instances and task restarts within a connector, and unique across
+   * connectors. Its stability lets an incoming coordinator's {@code initTransactions()} bump the
+   * producer epoch and fence a stale coordinator.
+   */
+  public String coordinatorTransactionalId() {
+    return transactionalPrefix() + connectGroupId() + "-coordinator";
+  }
+
   public String hadoopConfDir() {
     return getString(HADOOP_CONF_DIR_PROP);
   }
