@@ -701,11 +701,11 @@ A manifest file must store metadata as properties in the file’s key-value meta
 
 Within a snapshot, each content file must be referenced by at most one live manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers should not produce multiple manifest entries for the same content file in a snapshot (for example, both ADDED and DELETED entries for the same file). Writers are not required to validate uniqueness at commit time.
 
-The schema of a manifest file is defined by the `manifest_entry` struct (v1-v3) or `content_entry` struct (v4), described in the following section.
+The schema of a manifest file is defined by the `manifest_entry` struct (v1-v3) or `tracked_file` struct (v4), described in the following section.
 
 #### Entries in Manifests
 
-In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, entries are called content entries and are described by the `content_entry` struct. In v4, `data_file` struct fields are flattened directly into the content entry, and tracking fields are grouped into a nested `tracking` struct.
+In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, entries are called tracked files and are described by the `tracked_file` struct. In v4, `data_file` struct fields are flattened directly into the tracked file, and tracking fields are grouped into a nested `tracking` struct.
 
 === "v1 - v3"
     | v1         | v2 and v3  | Field id, name                | Type                                                      | Description |
@@ -733,7 +733,7 @@ Notes:
 2. Manifest list files are required in v2, so that the `sequence_number` and `snapshot_id` to inherit are always available.
 
 === "v4"
-    **Content Entries**
+    **Tracked Files**
 
     | Field id | Name | Type | Required | Description |
     |----------|------|------|----------|-------------|
@@ -825,7 +825,7 @@ Notes:
     | 167 | **`key_metadata`** | `binary` | *optional* | Implementation-specific key metadata for encryption. |
     | 168 | **`split_offsets`** | `list<169: long>` | *optional* | Split offsets for the column file. Must be sorted ascending. |
 
-    When a file is added to the dataset, its content entry must set status to ADDED (1) and store the snapshot ID in which the file was added.
+    When a file is added to the dataset, its tracked file must set status to ADDED (1) and store the snapshot ID in which the file was added.
 
     When a data file's deletion vector or column files are updated, the writer records a MODIFIED (4) entry for the live version and marks the prior version as replaced, either with a REPLACED (3) entry or in a [manifest deletion vector](#manifest-deletion-vectors). For leaf manifest entries, MODIFIED marks a live manifest whose `dv` changed.
 
@@ -835,7 +835,7 @@ Notes:
 
     When column files are added or changed for a data file or a leaf manifest, the MODIFIED entry's `latest_column_file_snapshot_id` must be set to the snapshot ID of that change.
 
-    When a file is deleted from the dataset, its content entry must set status to DELETED (2) and store the snapshot ID in which the file was deleted. Writers must include DELETED entries in the manifest for the snapshot that deletes the file. The next manifest written for those entries must omit the DELETED entries. The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected.
+    When a file is deleted from the dataset, its tracked file must set status to DELETED (2) and store the snapshot ID in which the file was deleted. Writers must include DELETED entries in the manifest for the snapshot that deletes the file. The next manifest written for those entries must omit the DELETED entries. The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected.
 
 ##### Data File Fields
 
@@ -1234,7 +1234,7 @@ In general, deletes are applied only to data files that are older and in the sam
 
 A scan reads the live entries of the root manifest and, for each live leaf manifest it references, the live entries within that manifest. An entry is not live if its status is DELETED (2) or REPLACED (3). A leaf-manifest entry is also not live if its position is set in the referencing root manifest entry's `manifest_info.dv` (see [Manifest Deletion Vectors](#manifest-deletion-vectors)).
 
-A data file's deletion vector is colocated on its content entry and applies to that data file directly. The scope rules above are used only for deletion vectors and delete files tracked by referenced v1–v3 manifests.
+A data file's deletion vector is colocated on its tracked file and applies to that data file directly. The scope rules above are used only for deletion vectors and delete files tracked by referenced v1–v3 manifests.
 
 Notes:
 
