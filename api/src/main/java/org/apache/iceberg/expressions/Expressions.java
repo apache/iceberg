@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.List;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -315,6 +316,55 @@ public class Expressions {
    */
   public static <T> UnboundTerm<T> transform(String name, Transform<?, T> transform) {
     return new UnboundTransform<>(ref(name), transform);
+  }
+
+  /**
+   * Create a reference to a function by identifier, in the catalog of the referencing object.
+   *
+   * <p>Identifier parts are used as given and are never parsed or split. A part that contains dots
+   * is a single part, not a namespace followed by a function name.
+   *
+   * @param identifier namespace names followed by the function name
+   * @return a function reference
+   */
+  public static FunctionReference function(String... identifier) {
+    return new FunctionReference(null, Lists.newArrayList(identifier));
+  }
+
+  /**
+   * Create a reference to a function by identifier, in the catalog of the referencing object.
+   *
+   * @param identifier namespace names followed by the function name
+   * @return a function reference
+   */
+  public static FunctionReference function(List<String> identifier) {
+    return new FunctionReference(null, identifier);
+  }
+
+  /**
+   * Create a reference to a function in a specific catalog.
+   *
+   * @param catalog a catalog name
+   * @param identifier namespace names followed by the function name
+   * @return a function reference
+   */
+  public static FunctionReference function(String catalog, List<String> identifier) {
+    return new FunctionReference(catalog, identifier);
+  }
+
+  /**
+   * Create an expression that applies a function to zero or more arguments.
+   *
+   * <p>Each argument must be a value expression ({@link Term}), a predicate ({@link Expression}),
+   * or a constant. Constants are converted to {@link Literal}.
+   *
+   * @param function a function reference
+   * @param arguments value expressions, predicates, or constants passed to the function
+   * @param <T> the Java type of this term
+   * @return an unbound apply expression
+   */
+  public static <T> UnboundApply<T> apply(FunctionReference function, List<Object> arguments) {
+    return new UnboundApply<>(function, arguments);
   }
 
   /**

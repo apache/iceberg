@@ -106,7 +106,7 @@ public class TestFileScanTaskParser {
         + "{\"spec-id\":0,\"content\":\"equality-deletes\",\"file-path\":\"/path/to/data-a2-deletes.parquet\","
         + "\"file-format\":\"parquet\",\"partition\":[0],\"file-size-in-bytes\":10,"
         + "\"record-count\":1,\"equality-ids\":[1],\"sort-order-id\":0}],"
-        + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}";
+        + "\"residual-filter\":{\"type\":\"eq\",\"left\":{\"type\":\"reference\",\"name\":\"id\"},\"right\":1}}";
   }
 
   private String fileScanTaskJson() {
@@ -126,7 +126,7 @@ public class TestFileScanTaskParser {
         + "{\"spec-id\":0,\"content\":\"equality-deletes\",\"file-path\":\"/path/to/data-a2-deletes.parquet\","
         + "\"file-format\":\"parquet\",\"partition\":[0],\"file-size-in-bytes\":10,"
         + "\"record-count\":1,\"equality-ids\":[1],\"sort-order-id\":0}],"
-        + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}";
+        + "\"residual-filter\":{\"type\":\"eq\",\"left\":{\"type\":\"reference\",\"name\":\"id\"},\"right\":1}}";
   }
 
   private String fileScanTaskFieldIdPartitionMapJson() {
@@ -146,7 +146,7 @@ public class TestFileScanTaskParser {
         + "{\"spec-id\":0,\"content\":\"equality-deletes\",\"file-path\":\"/path/to/data-a2-deletes.parquet\","
         + "\"file-format\":\"parquet\",\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,"
         + "\"record-count\":1,\"equality-ids\":[1],\"sort-order-id\":0}],"
-        + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}";
+        + "\"residual-filter\":{\"type\":\"eq\",\"left\":{\"type\":\"reference\",\"name\":\"id\"},\"right\":1}}";
   }
 
   private static void assertFileScanTaskEquals(
