@@ -126,24 +126,24 @@ class CommitState {
     return false;
   }
 
-  boolean isCommitReady(int expectedPartitionCount) {
+  boolean isCommitReady(Set<TopicPartition> expectedPartitions) {
     if (!isCommitInProgress()) {
       return false;
     }
 
-    if (reportedPartitions.size() >= expectedPartitionCount) {
+    if (reportedPartitions.containsAll(expectedPartitions)) {
       LOG.info(
-          "Commit {} ready, received responses for all {} partitions",
+          "Commit {} ready, received responses for all {} expected partitions",
           currentCommitId,
-          reportedPartitions.size());
+          expectedPartitions.size());
       return true;
     }
 
     LOG.info(
-        "Commit {} not ready, received responses for {} of {} partitions, waiting for more",
+        "Commit {} not ready, received responses for {} of {} expected partitions, waiting for more",
         currentCommitId,
-        reportedPartitions.size(),
-        expectedPartitionCount);
+        Sets.intersection(reportedPartitions, expectedPartitions).size(),
+        expectedPartitions.size());
 
     return false;
   }

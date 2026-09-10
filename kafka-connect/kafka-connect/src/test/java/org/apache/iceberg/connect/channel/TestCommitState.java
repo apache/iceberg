@@ -23,21 +23,55 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.events.DataComplete;
 import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.Payload;
 import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.kafka.common.TopicPartition;
 import org.junit.jupiter.api.Test;
 
 public class TestCommitState {
   private static TopicPartitionOffset partition(int partition) {
+    return partition("src-topic", partition);
+  }
+
+  private static TopicPartitionOffset partition(String topic, int partition) {
     TopicPartitionOffset tp = mock(TopicPartitionOffset.class);
-    when(tp.topic()).thenReturn("src-topic");
+    when(tp.topic()).thenReturn(topic);
     when(tp.partition()).thenReturn(partition);
     return tp;
+  }
+
+  private static Set<TopicPartition> topicPartitions(TopicPartitionOffset... assignments) {
+    return Arrays.stream(assignments)
+        .map(assignment -> new TopicPartition(assignment.topic(), assignment.partition()))
+        .collect(Collectors.toSet());
+  }
+
+  @Test
+  void readinessRequiresActiveCommit() {
+    CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
+
+    assertThat(commitState.isCommitReady(topicPartitions())).isFalse();
+
+    commitState.startNewCommit();
+    commitState.endCurrentCommit();
+
+    assertThat(commitState.isCommitReady(topicPartitions())).isFalse();
+  }
+
+  @Test
+  void emptyAssignmentIsReadyDuringCommit() {
+    CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
+    commitState.startNewCommit();
+
+    assertThat(commitState.isCommitReady(topicPartitions())).isTrue();
   }
 
   @Test
@@ -65,8 +99,8 @@ public class TestCommitState {
     commitState.addReady(wrapInEnvelope(payload2));
     commitState.addReady(wrapInEnvelope(payload3));
 
-    assertThat(commitState.isCommitReady(3)).isTrue();
-    assertThat(commitState.isCommitReady(4)).isFalse();
+    assertThat(commitState.isCommitReady(topicPartitions(tp0, tp1, tp2))).isTrue();
+    assertThat(commitState.isCommitReady(topicPartitions(tp0, tp1, tp2, tp3))).isFalse();
   }
 
   @Test
@@ -76,6 +110,8 @@ public class TestCommitState {
 
     // one worker owning source partition 0 reports; a control-topic replay redelivers it
     TopicPartitionOffset tp0 = partition(0);
+    TopicPartitionOffset tp1 = partition(1);
+    Set<TopicPartition> expectedPartitions = topicPartitions(tp0, tp1);
     DataComplete payload = mock(DataComplete.class);
     when(payload.commitId()).thenReturn(commitState.currentCommitId());
     when(payload.assignments()).thenReturn(ImmutableList.of(tp0));
@@ -83,18 +119,17 @@ public class TestCommitState {
     commitState.addReady(wrapInEnvelope(payload));
     commitState.addReady(wrapInEnvelope(payload));
 
-    assertThat(commitState.isCommitReady(2))
+    assertThat(commitState.isCommitReady(expectedPartitions))
         .as("a redelivered response must not stand in for a partition that never reported")
         .isFalse();
 
     // the partition that was actually missing reports
-    TopicPartitionOffset tp1 = partition(1);
     DataComplete second = mock(DataComplete.class);
     when(second.commitId()).thenReturn(commitState.currentCommitId());
     when(second.assignments()).thenReturn(ImmutableList.of(tp1));
     commitState.addReady(wrapInEnvelope(second));
 
-    assertThat(commitState.isCommitReady(2)).isTrue();
+    assertThat(commitState.isCommitReady(expectedPartitions)).isTrue();
   }
 
   @Test
@@ -105,6 +140,9 @@ public class TestCommitState {
     // during a rebalance two workers can transiently claim the same source partition
     TopicPartitionOffset tp0 = partition(0);
     TopicPartitionOffset alsoTp0 = partition(0);
+    TopicPartitionOffset otherTopicPartition = partition("other-topic", 0);
+    TopicPartitionOffset missing = partition(1);
+    Set<TopicPartition> expectedPartitions = topicPartitions(tp0, otherTopicPartition);
 
     DataComplete leaving = mock(DataComplete.class);
     when(leaving.commitId()).thenReturn(commitState.currentCommitId());
@@ -117,9 +155,42 @@ public class TestCommitState {
     commitState.addReady(wrapInEnvelope(leaving));
     commitState.addReady(wrapInEnvelope(arriving));
 
-    assertThat(commitState.isCommitReady(2))
+    assertThat(commitState.isCommitReady(expectedPartitions))
         .as("two claims on one partition cover one partition, not two")
         .isFalse();
+
+    DataComplete otherTopic = mock(DataComplete.class);
+    when(otherTopic.commitId()).thenReturn(commitState.currentCommitId());
+    when(otherTopic.assignments()).thenReturn(ImmutableList.of(otherTopicPartition));
+    commitState.addReady(wrapInEnvelope(otherTopic));
+
+    assertThat(commitState.isCommitReady(expectedPartitions)).isTrue();
+    assertThat(commitState.isCommitReady(topicPartitions(tp0, otherTopicPartition, missing)))
+        .isFalse();
+  }
+
+  @Test
+  void unexpectedPartitionsDoNotSatisfyReadiness() {
+    CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
+    commitState.startNewCommit();
+
+    TopicPartitionOffset first = partition(0);
+    TopicPartitionOffset unexpected = partition("other-topic", 0);
+    TopicPartitionOffset missing = partition(1);
+    Set<TopicPartition> expectedPartitions = topicPartitions(first, missing);
+    DataComplete payload = mock(DataComplete.class);
+    when(payload.commitId()).thenReturn(commitState.currentCommitId());
+    when(payload.assignments()).thenReturn(ImmutableList.of(first, unexpected));
+    commitState.addReady(wrapInEnvelope(payload));
+
+    assertThat(commitState.isCommitReady(expectedPartitions)).isFalse();
+
+    DataComplete missingPayload = mock(DataComplete.class);
+    when(missingPayload.commitId()).thenReturn(commitState.currentCommitId());
+    when(missingPayload.assignments()).thenReturn(ImmutableList.of(missing));
+    commitState.addReady(wrapInEnvelope(missingPayload));
+
+    assertThat(commitState.isCommitReady(expectedPartitions)).isTrue();
   }
 
   @Test
@@ -134,25 +205,26 @@ public class TestCommitState {
     when(firstPayload.commitId()).thenReturn(commitState.currentCommitId());
     when(firstPayload.assignments()).thenReturn(ImmutableList.of(tp, other));
     commitState.addReady(wrapInEnvelope(firstPayload));
-    assertThat(commitState.isCommitReady(2)).isTrue();
+    assertThat(commitState.isCommitReady(topicPartitions(tp, other))).isTrue();
 
     commitState.endCurrentCommit();
     commitState.startNewCommit();
 
-    assertThat(commitState.isCommitReady(1)).isFalse();
+    assertThat(commitState.isCommitReady(topicPartitions(tp))).isFalse();
 
     DataComplete secondPayload = mock(DataComplete.class);
     when(secondPayload.commitId()).thenReturn(commitState.currentCommitId());
     when(secondPayload.assignments()).thenReturn(ImmutableList.of(tp));
     commitState.addReady(wrapInEnvelope(secondPayload));
 
-    assertThat(commitState.isCommitReady(1)).isTrue();
-    assertThat(commitState.isCommitReady(2)).isFalse();
+    assertThat(commitState.isCommitReady(topicPartitions(tp))).isTrue();
+    assertThat(commitState.isCommitReady(topicPartitions(tp, other))).isFalse();
   }
 
   @Test
   public void testIsCommitReadyIgnoresZombieCoordinatorPayloads() {
     TopicPartitionOffset tp = partition(0);
+    TopicPartitionOffset missing = partition(1);
 
     CommitState commitState = new CommitState(mock(IcebergSinkConfig.class));
     commitState.startNewCommit();
@@ -160,18 +232,27 @@ public class TestCommitState {
     // Stale DataComplete from a zombie Coordinator that started a different commit.
     DataComplete zombiePayload = mock(DataComplete.class);
     when(zombiePayload.commitId()).thenReturn(UUID.randomUUID());
-    when(zombiePayload.assignments()).thenReturn(ImmutableList.of(tp, tp));
+    when(zombiePayload.assignments()).thenReturn(ImmutableList.of(missing));
 
     DataComplete currentPayload = mock(DataComplete.class);
     when(currentPayload.commitId()).thenReturn(commitState.currentCommitId());
     when(currentPayload.assignments()).thenReturn(ImmutableList.of(tp));
 
     commitState.addReady(wrapInEnvelope(zombiePayload));
+    assertThat(commitState.isCommitReady(topicPartitions(missing))).isFalse();
+
     commitState.addReady(wrapInEnvelope(currentPayload));
 
     // Only the current commit's payload counts toward readiness.
-    assertThat(commitState.isCommitReady(1)).isTrue();
-    assertThat(commitState.isCommitReady(2)).isFalse();
+    assertThat(commitState.isCommitReady(topicPartitions(tp))).isTrue();
+    assertThat(commitState.isCommitReady(topicPartitions(tp, missing))).isFalse();
+
+    DataComplete missingPayload = mock(DataComplete.class);
+    when(missingPayload.commitId()).thenReturn(commitState.currentCommitId());
+    when(missingPayload.assignments()).thenReturn(ImmutableList.of(missing));
+    commitState.addReady(wrapInEnvelope(missingPayload));
+
+    assertThat(commitState.isCommitReady(topicPartitions(tp, missing))).isTrue();
   }
 
   @Test
