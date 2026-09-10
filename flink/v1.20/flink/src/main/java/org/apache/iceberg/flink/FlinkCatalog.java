@@ -85,10 +85,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.transforms.Transform;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -823,8 +823,7 @@ public class FlinkCatalog extends AbstractCatalog {
       org.apache.iceberg.expressions.Expression fieldFilter =
           parsedValue == null
               ? Expressions.isNull(table.schema().findColumnName(field.sourceId()))
-              : Expressions.equal(
-                  table.schema().findColumnName(field.sourceId()), parsedValue);
+              : Expressions.equal(table.schema().findColumnName(field.sourceId()), parsedValue);
       filter = filter == null ? fieldFilter : Expressions.and(filter, fieldFilter);
     }
 

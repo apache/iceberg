@@ -154,9 +154,7 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
 
     FlinkCatalog flinkCatalog = flinkCatalog();
     flinkCatalog.dropPartition(
-        objectPath,
-        new CatalogPartitionSpec(ImmutableMap.of("id", "1", "data", "a")),
-        false);
+        objectPath, new CatalogPartitionSpec(ImmutableMap.of("id", "1", "data", "a")), false);
 
     assertThat(flinkCatalog.listPartitions(objectPath))
         .containsExactlyInAnyOrder(
@@ -194,9 +192,7 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
 
     FlinkCatalog flinkCatalog = flinkCatalog();
     flinkCatalog.dropPartition(
-        objectPath,
-        new CatalogPartitionSpec(Collections.singletonMap("data", null)),
-        false);
+        objectPath, new CatalogPartitionSpec(Collections.singletonMap("data", null)), false);
 
     assertThat(flinkCatalog.listPartitions(objectPath))
         .containsExactly(new CatalogPartitionSpec(ImmutableMap.of("data", "null")));
@@ -292,9 +288,7 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
             () ->
                 flinkCatalog()
                     .dropPartition(
-                        objectPath,
-                        new CatalogPartitionSpec(ImmutableMap.of("data", "a")),
-                        true))
+                        objectPath, new CatalogPartitionSpec(ImmutableMap.of("data", "a")), true))
         .doesNotThrowAnyException();
   }
 
