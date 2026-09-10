@@ -212,6 +212,44 @@ public class TestExponentialHttpRequestRetryStrategy {
     assertThat(retryStrategy.retryRequest(response, 3, null)).isFalse();
   }
 
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "ThrottlingException",
+        "ThrottlingException:http://internal.amazon.com/coral/com.amazon.coral.availability/",
+        "com.amazon.coral.availability#ThrottlingException",
+        "com.amazon.coral.availability#ThrottlingException:http://internal.amazon.com/coral/",
+        "TooManyRequestsException",
+        "SlowDown",
+        "Throttling"
+      })
+  public void testRetryOnAwsThrottlingErrorType(String errorType) {
+    BasicHttpResponse response = new BasicHttpResponse(HttpStatus.SC_BAD_REQUEST, "Bad Request");
+    response.addHeader(new BasicHeader("x-amzn-errortype", errorType));
+    HttpClientContext context = HttpClientContext.create();
+    context.setRequest(new BasicHttpRequest("POST", "/"));
+
+    assertThat(retryStrategy.retryRequest(response, 3, context)).isTrue();
+    assertThat(retryStrategy.retryRequest(response, 6, context)).isFalse();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"ValidationException", "AccessDeniedException"})
+  public void testNoRetryOnAwsNonThrottlingErrorType(String errorType) {
+    BasicHttpResponse response = new BasicHttpResponse(HttpStatus.SC_BAD_REQUEST, "Bad Request");
+    response.addHeader(new BasicHeader("x-amzn-errortype", errorType));
+
+    assertThat(retryStrategy.retryRequest(response, 3, null)).isFalse();
+  }
+
+  @Test
+  public void testNoRetryOnSuccessWithAwsThrottlingErrorType() {
+    BasicHttpResponse response = new BasicHttpResponse(HttpStatus.SC_OK, "OK");
+    response.addHeader(new BasicHeader("x-amzn-errortype", "ThrottlingException"));
+
+    assertThat(retryStrategy.retryRequest(response, 3, null)).isFalse();
+  }
+
   @Test
   public void testRetryHappensWith503WithRetryAfterHeader() {
     BasicHttpResponse response =

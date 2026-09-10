@@ -74,11 +74,21 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
  *   <li>SC_REQUEST_TIMEOUT (408)
  * </ul>
  *
- * Most code and behavior is taken from {@link
+ * A response is also considered retriable, regardless of status code, when the {@code
+ * x-amzn-errortype} header reports a throttling error. AWS services can signal throttling with a
+ * 400 status instead of 429, for example the AWS Glue Iceberg REST endpoint. A throttled request
+ * was rejected before execution, so retrying is safe for non-idempotent requests as well.
+ *
+ * <p>Most code and behavior is taken from {@link
  * org.apache.hc.client5.http.impl.DefaultHttpRequestRetryStrategy}, with minor modifications to
  * {@link #getRetryInterval(HttpResponse, int, HttpContext)} to achieve exponential backoff.
  */
 class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
+  private static final String AWS_ERROR_TYPE_HEADER = "x-amzn-errortype";
+  // subset of the error codes that the AWS SDK classifies as throttling
+  private static final Set<String> AWS_THROTTLING_ERROR_TYPES =
+      ImmutableSet.of("Throttling", "ThrottlingException", "TooManyRequestsException", "SlowDown");
+
   private final int maxRetries;
   private final Set<Class<? extends IOException>> nonRetriableExceptions;
   private final Set<Integer> retriableCodes;
@@ -145,14 +155,42 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
 
     // A retry is permitted if all the following conditions are met:
     // 1. The maximum retry count has not been exceeded.
-    // 2. The response code is considered retryable, for one of the following reasons:
-    //    - It's in a predefined list of retriable codes.
+    // 2. The response is considered retryable, for one of the following reasons:
+    //    - The response code is in a predefined list of retriable codes.
     //    - The request is idempotent, and the response code indicates a retry is safe.
     //    - The response code is '503 Service Unavailable' and includes a 'Retry-After' header.
+    //    - The response reports an AWS throttling error, which can use a 400 response code.
     return execCount <= maxRetries
         && (retriableCodes.contains(response.getCode())
             || shouldRetryIdempotent(request, response.getCode())
-            || is503Retryable);
+            || is503Retryable
+            || isAwsThrottling(response));
+  }
+
+  private boolean isAwsThrottling(HttpResponse response) {
+    if (response.getCode() < HttpStatus.SC_BAD_REQUEST) {
+      return false;
+    }
+
+    Header header = response.getFirstHeader(AWS_ERROR_TYPE_HEADER);
+    if (header == null || header.getValue() == null) {
+      return false;
+    }
+
+    // the header value may be formatted as 'ErrorType', 'ErrorType:uri', 'namespace#ErrorType',
+    // or 'namespace#ErrorType:uri'
+    String errorType = header.getValue();
+    int colon = errorType.indexOf(':');
+    if (colon >= 0) {
+      errorType = errorType.substring(0, colon);
+    }
+
+    int hash = errorType.lastIndexOf('#');
+    if (hash >= 0) {
+      errorType = errorType.substring(hash + 1);
+    }
+
+    return AWS_THROTTLING_ERROR_TYPES.contains(errorType);
   }
 
   @Override
