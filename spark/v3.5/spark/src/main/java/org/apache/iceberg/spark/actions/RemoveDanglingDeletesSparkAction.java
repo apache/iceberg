@@ -25,9 +25,9 @@ import java.util.List;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
@@ -77,25 +77,26 @@ class RemoveDanglingDeletesSparkAction
     return withJobGroupInfo(newJobGroupInfo("REMOVE-DELETES", desc), action::execute);
   }
 
-  private List<DeleteFile> findDanglingDeletes(Snapshot snapshot) {
+  private List<DeleteFile> findDanglingDeletes(
+      long snapshotId, List<ManifestFile> deleteManifests) {
     Broadcast<Table> tableBroadcast =
         sparkContext().broadcast(SerializableTableWithSize.copyOf(table));
 
     JavaPairRDD<DeleteFileKey, Void> referencedKeys =
         sparkContext()
-            .parallelize(ImmutableList.of(snapshot.snapshotId()), 1)
+            .parallelize(ImmutableList.of(snapshotId), 1)
             .flatMap(
-                snapshotId -> {
-                  TableScan scan = tableBroadcast.value().newScan().useSnapshot(snapshotId);
+                snapshot -> {
+                  TableScan scan = tableBroadcast.value().newScan().useSnapshot(snapshot);
                   return new ClosingIterator<>(new DeleteFileKeyIterator(scan.planFiles()));
                 })
             .mapToPair(key -> new Tuple2<>(key, (Void) null));
 
-    List<ManifestFileBean> deleteManifests =
-        snapshot.deleteManifests(table.io()).stream().map(ManifestFileBean::fromManifest).toList();
     JavaPairRDD<DeleteFileKey, DeleteFile> allDeletes =
         sparkContext()
-            .parallelize(deleteManifests, deleteManifests.size())
+            .parallelize(
+                deleteManifests.stream().map(ManifestFileBean::fromManifest).toList(),
+                deleteManifests.size())
             .flatMap(
                 manifest -> {
                   ManifestReader<DeleteFile> reader =

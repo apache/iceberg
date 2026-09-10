@@ -23,7 +23,7 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
@@ -54,7 +54,7 @@ public class RemoveDanglingDeleteFilesAction
           .build();
 
   private final Table table;
-  private final Function<Snapshot, Collection<DeleteFile>> findDanglingDeletes;
+  private final BiFunction<Long, List<ManifestFile>, Collection<DeleteFile>> findDanglingDeletes;
   private String branch = SnapshotRef.MAIN_BRANCH;
 
   public RemoveDanglingDeleteFilesAction(Table table) {
@@ -63,7 +63,8 @@ public class RemoveDanglingDeleteFilesAction
   }
 
   public RemoveDanglingDeleteFilesAction(
-      Table table, Function<Snapshot, Collection<DeleteFile>> findDanglingDeletes) {
+      Table table,
+      BiFunction<Long, List<ManifestFile>, Collection<DeleteFile>> findDanglingDeletes) {
     this.table = table;
     this.findDanglingDeletes = findDanglingDeletes;
   }
@@ -95,7 +96,13 @@ public class RemoveDanglingDeleteFilesAction
       return EMPTY_RESULT;
     }
 
-    Collection<DeleteFile> danglingDeletes = findDanglingDeletes.apply(snapshot);
+    List<ManifestFile> deleteManifests = snapshot.deleteManifests(table.io());
+    if (deleteManifests.isEmpty()) {
+      return EMPTY_RESULT;
+    }
+
+    Collection<DeleteFile> danglingDeletes =
+        findDanglingDeletes.apply(snapshot.snapshotId(), deleteManifests);
     if (danglingDeletes.isEmpty()) {
       return EMPTY_RESULT;
     }
@@ -121,9 +128,10 @@ public class RemoveDanglingDeleteFilesAction
    *   <li>Collect all delete file entries skipping files from the previous step.
    * </ol>
    */
-  private List<DeleteFile> findDanglingDeletes(Snapshot snapshot) {
+  private List<DeleteFile> findDanglingDeletes(
+      long snapshotId, List<ManifestFile> deleteManifests) {
     Set<DeleteFileKey> referencedKeys = Sets.newHashSet();
-    TableScan scan = table.newScan().useSnapshot(snapshot.snapshotId());
+    TableScan scan = table.newScan().useSnapshot(snapshotId);
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       for (FileScanTask task : tasks) {
         for (DeleteFile deleteFile : task.deletes()) {
@@ -135,7 +143,7 @@ public class RemoveDanglingDeleteFilesAction
     }
 
     List<DeleteFile> danglingDeletes = Lists.newArrayList();
-    for (ManifestFile manifest : snapshot.deleteManifests(table.io())) {
+    for (ManifestFile manifest : deleteManifests) {
       try (ManifestReader<DeleteFile> reader =
           ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
         for (DeleteFile deleteFile : reader) {
