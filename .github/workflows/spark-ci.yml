@@ -36,7 +36,7 @@ on:
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/hive-ci.yml'
     - '.github/workflows/java-ci.yml'
-    - '.github/workflows/jmh-benchmarks-ci.yml'
+    - '.github/workflows/jmh-benchmarks.yml'
     - '.github/workflows/kafka-connect-ci.yml'
     - '.github/workflows/cve-scan.yml'
     - '.github/workflows/labeler.yml'
@@ -81,6 +81,8 @@ jobs:
       # Keep matrix <= 20 jobs; exceeding it queues a second wave and slows CI.
       max-parallel: 20
       matrix:
+        # Spark 3.5 is the first version not failing on Java 21 (https://issues.apache.org/jira/browse/SPARK-42369)
+        # Full Java 21 support is coming in Spark 4 (https://issues.apache.org/jira/browse/SPARK-43831)
         jvm: [17, 21]
         event_name: ['${{ github.event_name }}']
         spark: ['3.5', '4.0', '4.1', '4.2']
@@ -89,8 +91,7 @@ jobs:
         # so they run as concurrent jobs rather than serially in one job.
         tests: [core, extensions]
         exclude:
-          # Spark 3.5 is the first version not failing on Java 21 (https://issues.apache.org/jira/browse/SPARK-42369)
-          # Full Java 21 support is coming in Spark 4 (https://issues.apache.org/jira/browse/SPARK-43831)
+          # Spark 4.0+ only supports Scala 2.13.
           - spark: '4.0'
             scala: '2.12'
           - spark: '4.1'
