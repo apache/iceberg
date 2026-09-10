@@ -95,9 +95,9 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
         tableName, format.name());
     sql("INSERT INTO %s SELECT 1,'a'", tableName);
 
-    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
+    ObjectPath tablePath = new ObjectPath(DATABASE, tableName);
     FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(catalogName).get();
-    assertThatThrownBy(() -> flinkCatalog.listPartitions(objectPath))
+    assertThatThrownBy(() -> flinkCatalog.listPartitions(tablePath))
         .isInstanceOf(TableNotPartitionedException.class)
         .hasMessageStartingWith("Table db.test_table in catalog")
         .hasMessageEndingWith("is not partitioned.");
@@ -113,9 +113,9 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
     sql("INSERT INTO %s SELECT 1,'a'", tableName);
     sql("INSERT INTO %s SELECT 2,'b'", tableName);
 
-    ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
+    ObjectPath tablePath = new ObjectPath(DATABASE, tableName);
     FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(catalogName).get();
-    List<CatalogPartitionSpec> list = flinkCatalog.listPartitions(objectPath);
+    List<CatalogPartitionSpec> list = flinkCatalog.listPartitions(tablePath);
     assertThat(list).hasSize(2);
     List<CatalogPartitionSpec> expected = Lists.newArrayList();
     CatalogPartitionSpec partitionSpec1 = new CatalogPartitionSpec(ImmutableMap.of("data", "a"));
@@ -264,7 +264,8 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
         new CatalogPartitionSpec(ImmutableMap.of("data", "missing"));
 
     assertThatThrownBy(() -> flinkCatalog().dropPartition(objectPath, partitionSpec, false))
-        .isInstanceOf(PartitionNotExistException.class);
+        .isInstanceOf(PartitionNotExistException.class)
+        .hasMessageContaining("does not exist");
   }
 
   @TestTemplate
@@ -277,7 +278,8 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
     CatalogPartitionSpec partitionSpec = new CatalogPartitionSpec(ImmutableMap.of("data", "a"));
 
     assertThatThrownBy(() -> flinkCatalog().dropPartition(objectPath, partitionSpec, false))
-        .isInstanceOf(PartitionNotExistException.class);
+        .isInstanceOf(PartitionNotExistException.class)
+        .hasMessageContaining("does not exist");
   }
 
   @TestTemplate
@@ -317,7 +319,8 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
                         new ObjectPath(DATABASE, "missing_table"),
                         new CatalogPartitionSpec(ImmutableMap.of("data", "a")),
                         false))
-        .isInstanceOf(PartitionNotExistException.class);
+        .isInstanceOf(PartitionNotExistException.class)
+        .hasMessageContaining("does not exist");
   }
 
   private FlinkCatalog flinkCatalog() {
