@@ -62,6 +62,8 @@ import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.GenericBlobMetadata;
+import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.HistoryEntry;
 import org.apache.iceberg.MetadataUpdate;
@@ -1121,6 +1123,75 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(LoadTableResponse.class),
             any(),
             any());
+  }
+
+  @Test
+  public void testTableSnapshotLoadingWithStatisticsOnHistoricalSnapshot() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
+            SnapshotMode.REFS.name()));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Table table = catalog.createTable(TABLE, SCHEMA);
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/data-a.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(2)
+                .build())
+        .commit();
+
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+
+    // add a statistics file to the first snapshot
+    table
+        .updateStatistics()
+        .setStatistics(
+            new GenericStatisticsFile(
+                firstSnapshotId,
+                "/path/to/stats.puffin",
+                100,
+                42,
+                ImmutableList.of(
+                    new GenericBlobMetadata(
+                        "some-stats", firstSnapshotId, 1, ImmutableList.of(1), ImmutableMap.of()))))
+        .commit();
+
+    // second snapshot makes the first snapshot historical (unreferenced)
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/data-b.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(2)
+                .build())
+        .commit();
+
+    Table refsTable = catalog.loadTable(TABLE);
+
+    assertThat(((BaseTable) refsTable).operations().current())
+        .extracting("snapshots")
+        .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
+        .hasSize(1);
+
+    assertThat(refsTable.currentSnapshot()).isEqualTo(table.currentSnapshot());
+    assertThat(refsTable.statisticsFiles()).isEmpty();
   }
 
   @ParameterizedTest
