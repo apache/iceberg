@@ -164,12 +164,11 @@ public class ParquetSchemaUtil {
       }
 
       String[] path = currentPath();
+      List<ColumnDescriptor> leaves = leafColumns(fileSchema, path);
       // add a presence column only if no real leaf under the struct is already read
-      boolean readsRealLeaf =
-          leafColumns(fileSchema, path).stream()
-              .anyMatch(leaf -> selectedIds.contains(leafId(leaf)));
+      boolean readsRealLeaf = leaves.stream().anyMatch(leaf -> selectedIds.contains(leafId(leaf)));
       if (!readsRealLeaf) {
-        ColumnDescriptor presence = selectPresenceColumn(fileSchema, path);
+        ColumnDescriptor presence = selectPresenceColumn(fileSchema, path, leaves);
         if (presence != null) {
           selectedIds.add(leafId(presence));
         }
@@ -186,11 +185,16 @@ public class ParquetSchemaUtil {
 
   /** Shallowest leaf under path; its definition level shows whether the struct is present. */
   static ColumnDescriptor selectPresenceColumn(MessageType fileSchema, String[] path) {
+    return selectPresenceColumn(fileSchema, path, leafColumns(fileSchema, path));
+  }
+
+  private static ColumnDescriptor selectPresenceColumn(
+      MessageType fileSchema, String[] path, List<ColumnDescriptor> leaves) {
     if (fileSchema.getMaxDefinitionLevel(path) <= 0) {
       return null;
     }
 
-    return leafColumns(fileSchema, path).stream()
+    return leaves.stream()
         .min(Comparator.comparingInt(ColumnDescriptor::getMaxRepetitionLevel))
         .orElse(null);
   }
