@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** Adapts {@link TrackedFile} entries to the {@link DataFile} and {@link DeleteFile} APIs. */
+/** Adapts {@link TrackedFile} entries to their read APIs, for example {@link DataFile}. */
 class TrackedFileAdapters {
 
   private TrackedFileAdapters() {}
@@ -53,7 +53,16 @@ class TrackedFileAdapters {
     return new TrackedEqualityDeleteFile(file, resolveSpec(file, specsById));
   }
 
-  /** Shared base for all tracked file adapters. */
+  static ManifestFile asManifestFile(TrackedFile file) {
+    Preconditions.checkArgument(
+        file.contentType() == FileContent.DATA_MANIFEST
+            || file.contentType() == FileContent.DELETE_MANIFEST,
+        "Invalid content type for ManifestFile: %s",
+        file.contentType());
+    return new TrackedManifestFile(file);
+  }
+
+  /** Shared base for data and delete file adapters. */
   private abstract static class TrackedFileAdapter<F extends ContentFile<F>>
       implements ContentFile<F> {
     private final TrackedFile file;
@@ -412,6 +421,134 @@ class TrackedFileAdapters {
     @Override
     public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
       return copy();
+    }
+  }
+
+  /** Adapts a TrackedFile to {@link ManifestFile}. */
+  private static class TrackedManifestFile implements ManifestFile {
+    private final TrackedFile file;
+
+    private TrackedManifestFile(TrackedFile file) {
+      this.file = file;
+    }
+
+    @Override
+    public String path() {
+      return file.location();
+    }
+
+    @Override
+    public long length() {
+      return file.fileSizeInBytes();
+    }
+
+    @Override
+    public int partitionSpecId() {
+      throw new UnsupportedOperationException(
+          "v4 manifests are not bound to a single partition spec");
+    }
+
+    @Override
+    public ManifestContent content() {
+      switch (file.contentType()) {
+        case DATA_MANIFEST:
+          return ManifestContent.DATA;
+        case DELETE_MANIFEST:
+          return ManifestContent.DELETES;
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported content type for manifests: " + file.contentType());
+      }
+    }
+
+    @Override
+    public long sequenceNumber() {
+      return file.tracking().dataSequenceNumber();
+    }
+
+    @Override
+    public long minSequenceNumber() {
+      return file.manifestInfo().minSequenceNumber();
+    }
+
+    @Override
+    public Long snapshotId() {
+      return file.tracking().snapshotId();
+    }
+
+    @Override
+    public Integer addedFilesCount() {
+      return file.manifestInfo().addedFilesCount();
+    }
+
+    @Override
+    public Long addedRowsCount() {
+      return file.manifestInfo().addedRowsCount();
+    }
+
+    @Override
+    public Integer existingFilesCount() {
+      return file.manifestInfo().existingFilesCount();
+    }
+
+    @Override
+    public Long existingRowsCount() {
+      return file.manifestInfo().existingRowsCount();
+    }
+
+    @Override
+    public Integer deletedFilesCount() {
+      return file.manifestInfo().deletedFilesCount();
+    }
+
+    @Override
+    public Long deletedRowsCount() {
+      return file.manifestInfo().deletedRowsCount();
+    }
+
+    @Override
+    public List<PartitionFieldSummary> partitions() {
+      return null;
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return file.keyMetadata();
+    }
+
+    @Override
+    public Long firstRowId() {
+      return file.tracking().firstRowId();
+    }
+
+    @Override
+    public ManifestBitmap manifestDeletionVector() {
+      ByteBuffer dv = file.manifestInfo().dv();
+      if (dv == null) {
+        return null;
+      }
+
+      return new ManifestBitmap() {
+        @Override
+        public int cardinality() {
+          throw new UnsupportedOperationException("Bitmap decoding has not been implemented");
+        }
+
+        @Override
+        public boolean isSet(int position) {
+          throw new UnsupportedOperationException("Bitmap decoding has not been implemented");
+        }
+
+        @Override
+        public ByteBuffer buffer() {
+          return dv;
+        }
+      };
+    }
+
+    @Override
+    public ManifestFile copy() {
+      return new TrackedManifestFile(file.copy());
     }
   }
 
