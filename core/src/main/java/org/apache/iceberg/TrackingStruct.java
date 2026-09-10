@@ -41,6 +41,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
           Tracking.FIRST_ROW_ID,
           Tracking.DELETED_POSITIONS,
           Tracking.REPLACED_POSITIONS,
+          Tracking.LATEST_COLUMN_FILE_SNAPSHOT_ID,
           MetadataColumns.ROW_POSITION);
 
   // tracking fields read on the scan path; row_position backs manifestPos.
@@ -62,6 +63,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   private Long firstRowId = null;
   private byte[] deletedPositions = null;
   private byte[] replacedPositions = null;
+  private Long latestColumnFileSnapshotId = null;
 
   // set by manifest readers, not written to manifests
   private String manifestLocation = null;
@@ -92,6 +94,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         toCopy.replacedPositions != null
             ? Arrays.copyOf(toCopy.replacedPositions, toCopy.replacedPositions.length)
             : null;
+    this.latestColumnFileSnapshotId = toCopy.latestColumnFileSnapshotId;
     this.manifestLocation = toCopy.manifestLocation;
     this.manifestPos = toCopy.manifestPos;
   }
@@ -104,7 +107,8 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
       Long dvSnapshotId,
       Long firstRowId,
       byte[] deletedPositions,
-      byte[] replacedPositions) {
+      byte[] replacedPositions,
+      Long latestColumnFileSnapshotId) {
     super(BASE_TYPE.fields().size());
     this.status = status;
     this.snapshotId = snapshotId;
@@ -114,6 +118,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     this.firstRowId = firstRowId;
     this.deletedPositions = deletedPositions;
     this.replacedPositions = replacedPositions;
+    this.latestColumnFileSnapshotId = latestColumnFileSnapshotId;
   }
 
   void inheritFrom(Tracking manifestTracking) {
@@ -130,11 +135,13 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
           manifestTracking.dataSequenceNumber(),
           manifestTracking.fileSequenceNumber());
 
-      if (status == EntryStatus.ADDED) {
+      if (status == EntryStatus.ADDED || status == EntryStatus.MODIFIED) {
         if (dataSequenceNumber == null) {
           this.dataSequenceNumber = manifestTracking.fileSequenceNumber();
         }
+      }
 
+      if (status == EntryStatus.ADDED) {
         if (fileSequenceNumber == null) {
           this.fileSequenceNumber = manifestTracking.fileSequenceNumber();
         }
@@ -187,6 +194,11 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   }
 
   @Override
+  public Long latestColumnFileSnapshotId() {
+    return latestColumnFileSnapshotId;
+  }
+
+  @Override
   public String manifestLocation() {
     return manifestLocation;
   }
@@ -207,62 +219,37 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   }
 
   private Object getByPos(int pos) {
-    switch (pos) {
-      case 0:
-        return status != null ? status.id() : null;
-      case 1:
-        return snapshotId();
-      case 2:
-        return dataSequenceNumber();
-      case 3:
-        return fileSequenceNumber();
-      case 4:
-        return dvSnapshotId;
-      case 5:
-        return firstRowId;
-      case 6:
-        return deletedPositions();
-      case 7:
-        return replacedPositions();
-      case 8:
-        return manifestPos;
-      default:
-        throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
-    }
+    return switch (pos) {
+      case 0 -> status != null ? status.id() : null;
+      case 1 -> snapshotId();
+      case 2 -> dataSequenceNumber();
+      case 3 -> fileSequenceNumber();
+      case 4 -> dvSnapshotId;
+      case 5 -> firstRowId;
+      case 6 -> deletedPositions();
+      case 7 -> replacedPositions();
+      case 8 -> latestColumnFileSnapshotId;
+      case 9 -> manifestPos;
+      default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
+    };
   }
 
   @Override
   protected <T> void internalSet(int pos, T value) {
     switch (pos) {
-      case 0:
-        this.status = EntryStatus.fromId((Integer) value);
-        break;
-      case 1:
-        this.snapshotId = (Long) value;
-        break;
-      case 2:
-        this.dataSequenceNumber = (Long) value;
-        break;
-      case 3:
-        this.fileSequenceNumber = (Long) value;
-        break;
-      case 4:
-        this.dvSnapshotId = (Long) value;
-        break;
-      case 5:
-        this.firstRowId = (Long) value;
-        break;
-      case 6:
-        this.deletedPositions = ByteBuffers.toByteArray((ByteBuffer) value);
-        break;
-      case 7:
-        this.replacedPositions = ByteBuffers.toByteArray((ByteBuffer) value);
-        break;
-      case 8:
-        this.manifestPos = (long) value;
-        break;
-      default:
+      case 0 -> this.status = EntryStatus.fromId((Integer) value);
+      case 1 -> this.snapshotId = (Long) value;
+      case 2 -> this.dataSequenceNumber = (Long) value;
+      case 3 -> this.fileSequenceNumber = (Long) value;
+      case 4 -> this.dvSnapshotId = (Long) value;
+      case 5 -> this.firstRowId = (Long) value;
+      case 6 -> this.deletedPositions = ByteBuffers.toByteArray((ByteBuffer) value);
+      case 7 -> this.replacedPositions = ByteBuffers.toByteArray((ByteBuffer) value);
+      case 8 -> this.latestColumnFileSnapshotId = (Long) value;
+      case 9 -> this.manifestPos = (long) value;
+      default -> {
         // ignore the object, it must be from a newer version of the format
+      }
     }
   }
 
@@ -277,6 +264,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         .add("first_row_id", firstRowId)
         .add("deleted_positions", deletedPositions == null ? "null" : "(binary)")
         .add("replaced_positions", replacedPositions == null ? "null" : "(binary)")
+        .add("latest_column_file_snapshot_id", latestColumnFileSnapshotId)
         .toString();
   }
 }
