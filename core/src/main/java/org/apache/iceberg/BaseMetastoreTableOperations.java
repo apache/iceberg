@@ -27,6 +27,7 @@ import org.apache.iceberg.BaseMetastoreOperations.CommitStatus;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
@@ -195,7 +196,9 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
           .retry(numRetries)
           .exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
           .throwFailureWhenFinished()
-          .stopRetryOn(NotFoundException.class) // overridden if shouldRetry is non-null
+          .stopRetryOn(
+              NotFoundException.class,
+              ForbiddenException.class) // overridden if shouldRetry is non-null
           .shouldRetryTest(shouldRetry)
           .run(metadataLocation -> newMetadata.set(metadataLoader.apply(metadataLocation)));
 
