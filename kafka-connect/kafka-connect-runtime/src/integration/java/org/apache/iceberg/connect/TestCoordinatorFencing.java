@@ -94,7 +94,8 @@ public class TestCoordinatorFencing {
       awaitCommittedOffset(NEW_COORDINATOR_OFFSET);
 
       assertThatThrownBy(() -> commitOffset(staleCoordinator, NEXT_STALE_OFFSET))
-          .isInstanceOf(ProducerFencedException.class);
+          .isInstanceOf(ProducerFencedException.class)
+          .hasMessageContaining("fence");
 
       assertThat(committedOffset())
           .as("fenced coordinator must not clobber the new coordinator's committed offset")

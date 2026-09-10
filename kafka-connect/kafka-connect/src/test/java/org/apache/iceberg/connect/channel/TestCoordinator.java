@@ -348,7 +348,8 @@ public class TestCoordinator extends ChannelTestBase {
     coordinator.controlTopicOffsets().put(0, 150L);
     assertThatThrownBy(coordinator::commitConsumerOffsets)
         .as("a fenced coordinator must not be able to commit offsets")
-        .isInstanceOf(ProducerFencedException.class);
+        .isInstanceOf(ProducerFencedException.class)
+        .hasMessageContaining("fenced");
 
     assertThat(lastCommittedOffset(0))
         .as("the fenced coordinator's offset must never reach the offset store")
