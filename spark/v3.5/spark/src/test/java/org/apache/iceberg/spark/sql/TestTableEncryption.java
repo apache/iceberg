@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
@@ -35,6 +34,7 @@ import org.apache.iceberg.encryption.Ciphers;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.actions.SparkActions;
@@ -45,7 +45,7 @@ import org.junit.jupiter.api.TestTemplate;
 // TODO: Port the remaining TestTableEncryption and TestCTASEncryption tests from Spark 4.0.
 class TestTableEncryption extends CatalogTestBase {
   private static Map<String, String> appendCatalogEncryptionProperties(Map<String, String> props) {
-    Map<String, String> newProps = new HashMap<>(props);
+    Map<String, String> newProps = Maps.newHashMap(props);
     newProps.put(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
     return newProps;
   }
