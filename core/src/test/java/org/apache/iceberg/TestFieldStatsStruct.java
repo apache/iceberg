@@ -317,6 +317,10 @@ public class TestFieldStatsStruct {
     assertThat(copy.fieldId()).isEqualTo(stats.fieldId());
     assertThat(copy.type()).isEqualTo(stats.type());
     assertThat(comparator.compare(copy, stats)).isEqualTo(0);
+
+    // readers reuse bounding boxes across entries, so the bounds must be deep-copied
+    assertThat(copy.lowerBound()).isNotSameAs(lowerBound);
+    assertThat(copy.upperBound()).isNotSameAs(upperBound);
   }
 
   // Variant is not Serializable so this does not test Java serialization

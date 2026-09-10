@@ -22,6 +22,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -32,11 +35,14 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructProjection;
@@ -68,8 +74,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   static Builder builder(
-      InputFile file, Map<Integer, PartitionSpec> specsById, String tableLocation) {
-    return new Builder(file, specsById, tableLocation);
+      InputFile file,
+      Schema tableSchema,
+      Map<Integer, PartitionSpec> specsById,
+      String tableLocation) {
+    return new Builder(file, tableSchema, specsById, tableLocation);
   }
 
   /** Returns copies of the tracked files that match this reader's configured filters. */
@@ -127,7 +136,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     Preconditions.checkArgument(
         format != null, "Cannot determine format of manifest: %s", file.location());
 
-    CloseableIterable<TrackedFile> reader =
+    InternalData.ReadBuilder readBuilder =
         InternalData.read(format, file)
             .project(readSchema)
             .setRootType(TrackedFileStruct.class)
@@ -135,8 +144,18 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
             .setCustomType(TrackedFile.DELETION_VECTOR.fieldId(), DeletionVectorStruct.class)
             .setCustomType(TrackedFile.MANIFEST_INFO.fieldId(), ManifestInfoStruct.class)
             .setCustomType(TrackedFile.PARTITION_ID, PartitionData.class)
-            .reuseContainers()
-            .build();
+            .reuseContainers();
+
+    // content_stats is missing from the read schema when no stats are read
+    Types.NestedField statsField = readSchema.findField(TrackedFile.CONTENT_STATS_ID);
+    if (statsField != null) {
+      readBuilder.setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsStruct.class);
+      for (Types.NestedField fieldStats : statsField.type().asStructType().fields()) {
+        readBuilder.setCustomType(fieldStats.fieldId(), FieldStatsStruct.class);
+      }
+    }
+
+    CloseableIterable<TrackedFile> reader = readBuilder.build();
     addCloseable(reader);
     return reader;
   }
@@ -174,9 +193,9 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   static class Builder {
     private final InputFile file;
+    private final Schema tableSchema;
     private final Types.StructType unionPartitionType;
     private final Map<Integer, PartitionSpec> specsById;
-    private final Schema fullSchema;
     private final String tableLocation;
     private Expression rowFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
@@ -184,19 +203,22 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private boolean scanPlanning = false;
     private Collection<String> columns = null;
     private Schema requestedProjection = null;
+    private Set<Integer> fieldIdsWithRequestedStats = null;
+    private MetricsConfig metricsConfig = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
 
-    private Builder(InputFile file, Map<Integer, PartitionSpec> specsById, String tableLocation) {
+    private Builder(
+        InputFile file,
+        Schema tableSchema,
+        Map<Integer, PartitionSpec> specsById,
+        String tableLocation) {
+      Preconditions.checkArgument(tableSchema != null, "Invalid table schema: null");
       Preconditions.checkArgument(tableLocation != null, "Invalid table location: null");
       this.file = file;
+      this.tableSchema = tableSchema;
       this.specsById = specsById;
       this.tableLocation = tableLocation;
       this.unionPartitionType = Partitioning.unionPartitionTypes(specsById.values());
-      Schema base = TrackedFile.schema(unionPartitionType, Types.StructType.of());
-      // the read schema carries row_position (via BASE_TYPE) so the reader can fill manifestPos
-      this.fullSchema =
-          TypeUtil.replaceFieldTypes(
-              base, ImmutableMap.of(TrackedFile.TRACKING.fieldId(), TrackingStruct.BASE_TYPE));
     }
 
     /** Sets a filter; files that cannot match the expression are skipped. */
@@ -252,6 +274,39 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return this;
     }
 
+    /**
+     * Reads content stats for the given table field IDs instead of for every field. Stats for
+     * fields referenced by the {@link #filter(Expression) filter} are always read.
+     *
+     * <p>Passing no field IDs reads only the stats that the filter needs.
+     */
+    Builder projectStats(int... fieldIds) {
+      Preconditions.checkArgument(fieldIds != null, "Invalid field IDs: null");
+      return projectStats(ArrayUtil.toIntList(fieldIds));
+    }
+
+    /**
+     * Reads content stats for the given table field IDs instead of for every field. Stats for
+     * fields referenced by the {@link #filter(Expression) filter} are always read.
+     *
+     * <p>Passing an empty iterable reads only the stats that the filter needs.
+     */
+    Builder projectStats(Iterable<Integer> fieldIds) {
+      Preconditions.checkArgument(fieldIds != null, "Invalid field IDs: null");
+      this.fieldIdsWithRequestedStats = ImmutableSet.copyOf(fieldIds);
+      return this;
+    }
+
+    /**
+     * Sets the metrics config that determines which stats the manifest holds. Defaults to the
+     * config produced by the table's default metrics properties.
+     */
+    Builder metricsConfig(MetricsConfig newMetricsConfig) {
+      Preconditions.checkArgument(newMetricsConfig != null, "Invalid metrics config: null");
+      this.metricsConfig = newMetricsConfig;
+      return this;
+    }
+
     Builder scanMetrics(ScanMetrics newScanMetrics) {
       Preconditions.checkArgument(newScanMetrics != null, "Invalid scan metrics: null");
       this.scanMetrics = newScanMetrics;
@@ -283,26 +338,128 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     private Schema readSchema(boolean hasPartitionFilter) {
+      Types.StructType requiredStatsType =
+          StatsUtil.statsReadSchema(
+              tableSchema,
+              fieldIdsWithRequiredStats(
+                  tableSchema, fieldIdsWithRequestedStats, rowFilter, caseSensitive));
+      Schema fullSchema = fullSchema(contentStatsType(requiredStatsType));
       if (scanPlanning) {
         // scan planning does not read the change-tracking fields omitted by SCAN_TYPE
         return TypeUtil.replaceFieldTypes(
             fullSchema, ImmutableMap.of(TrackedFile.TRACKING.fieldId(), TrackingStruct.SCAN_TYPE));
       }
 
+      Types.StructType partitionType = hasPartitionFilter ? unionPartitionType : null;
       if (columns != null) {
         Schema selected =
             caseSensitive ? fullSchema.select(columns) : fullSchema.caseInsensitiveSelect(columns);
-        return addRequiredColumns(selected, hasPartitionFilter);
+        return addRequiredColumns(
+            fullSchema, selected, requiredStatsType, partitionType, rowFilter);
       }
 
       if (requestedProjection != null) {
-        return addRequiredColumns(requestedProjection, hasPartitionFilter);
+        return addRequiredColumns(
+            fullSchema, requestedProjection, requiredStatsType, partitionType, rowFilter);
       }
 
       return fullSchema;
     }
 
-    private Schema addRequiredColumns(Schema projection, boolean hasPartitionFilter) {
+    /** Returns the schema of everything this reader may read, including content stats. */
+    private Schema fullSchema(Types.StructType contentStatsType) {
+      Schema base = TrackedFile.schema(unionPartitionType, contentStatsType);
+      if (contentStatsType.fields().isEmpty()) {
+        // the schema uses the unknown type for empty stats, but readers fail to pair the stats
+        // struct stored in the manifest with unknown, so drop the field instead of projecting it
+        base = TypeUtil.selectNot(base, ImmutableSet.of(TrackedFile.CONTENT_STATS_ID));
+      }
+
+      // the read schema carries row_position (via BASE_TYPE) so the reader can fill manifestPos
+      return TypeUtil.replaceFieldTypes(
+          base, ImmutableMap.of(TrackedFile.TRACKING.fieldId(), TrackingStruct.BASE_TYPE));
+    }
+
+    /**
+     * Returns the stats type to read, which is empty when no stats are needed.
+     *
+     * <p>Stats for every field the manifest holds are read unless the caller narrows them with
+     * {@link #forScanPlanning()}, {@link #projectStats(Iterable)}, or a {@link #project(Schema)
+     * projection} that carries its own stats, because copying entries into a new manifest needs all
+     * of them. A {@link #filter(Expression) filter} therefore never narrows the stats that are
+     * read; it only widens a set the caller has already narrowed.
+     */
+    private Types.StructType contentStatsType(Types.StructType requiredStatsType) {
+      if (scanPlanning || fieldIdsWithRequestedStats != null) {
+        return requiredStatsType;
+      }
+
+      if (requestedProjection != null) {
+        return union(requiredStatsType, projectedStatsType(requestedProjection));
+      }
+
+      return StatsUtil.statsWriteSchema(tableSchema, metricsConfig());
+    }
+
+    private MetricsConfig metricsConfig() {
+      if (metricsConfig == null) {
+        this.metricsConfig = MetricsConfig.from(ImmutableMap.of(), tableSchema, null);
+      }
+
+      return metricsConfig;
+    }
+
+    /** Returns the requested field IDs, plus the field IDs referenced by the row filter. */
+    private static Set<Integer> fieldIdsWithRequiredStats(
+        Schema tableSchema,
+        Set<Integer> fieldIdsWithRequestedStats,
+        Expression rowFilter,
+        boolean caseSensitive) {
+      Set<Integer> fieldIds = Sets.newHashSet();
+      if (fieldIdsWithRequestedStats != null) {
+        fieldIds.addAll(fieldIdsWithRequestedStats);
+      }
+
+      if (rowFilter != Expressions.alwaysTrue()) {
+        fieldIds.addAll(
+            Binder.boundReferences(
+                tableSchema.asStruct(), ImmutableList.of(rowFilter), caseSensitive));
+      }
+
+      return fieldIds;
+    }
+
+    /** Returns the fields of both stats structs */
+    private static Types.StructType union(
+        Types.StructType statsType, Types.StructType otherStatsType) {
+      if (otherStatsType.fields().isEmpty()) {
+        return statsType;
+      }
+
+      return Types.StructType.of(
+          Stream.concat(
+                  statsType.fields().stream(),
+                  otherStatsType.fields().stream()
+                      .filter(field -> statsType.field(field.fieldId()) == null))
+              .collect(Collectors.toList()));
+    }
+
+    /** Returns the content stats struct carried by the projection, which may be empty. */
+    private static Types.StructType projectedStatsType(Schema projection) {
+      Types.NestedField statsField = projection.findField(TrackedFile.CONTENT_STATS_ID);
+      if (statsField == null || !statsField.type().isStructType()) {
+        return Types.StructType.of();
+      }
+
+      return statsField.type().asStructType();
+    }
+
+    private static Schema addRequiredColumns(
+        Schema fullSchema,
+        Schema projection,
+        Types.StructType requiredStatsType,
+        Types.StructType partitionType,
+        Expression rowFilter) {
       Set<Integer> projectedIds = Sets.newHashSet(TypeUtil.getProjectedIds(projection));
 
       // fields the reader consumes internally: status for liveness filtering, row_position for
@@ -315,12 +472,13 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         projectedIds.add(TrackedFile.RECORD_COUNT.fieldId());
       }
 
-      // add the partition tuple only when it is needed to evaluate a partition filter
-      if (hasPartitionFilter) {
+      if (partitionType != null) {
         projectedIds.add(TrackedFile.SPEC_ID.fieldId());
         projectedIds.add(TrackedFile.PARTITION_ID);
-        projectedIds.addAll(TypeUtil.getProjectedIds(unionPartitionType));
+        projectedIds.addAll(TypeUtil.getProjectedIds(partitionType));
       }
+
+      projectedIds.addAll(TypeUtil.getProjectedIds(requiredStatsType));
 
       // project instead of select to preserve narrow struct projections from the caller
       return TypeUtil.project(fullSchema, projectedIds);
