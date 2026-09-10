@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source.metrics;
 
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import org.apache.spark.sql.connector.metric.CustomSumMetric;
 
@@ -39,7 +40,8 @@ abstract class NanoDurationMetric extends CustomSumMetric {
     } else if (totalNanos < TimeUnit.SECONDS.toNanos(1)) {
       return TimeUnit.NANOSECONDS.toMillis(totalNanos) + " ms";
     } else {
-      return String.format("%.1f s", totalNanos / (double) TimeUnit.SECONDS.toNanos(1));
+      return String.format(
+          Locale.ROOT, "%.1f s", totalNanos / (double) TimeUnit.SECONDS.toNanos(1));
     }
   }
 }
