@@ -196,7 +196,7 @@ public class ParquetSchemaUtil {
   }
 
   /** Returns the leaf columns with ids under the given path. */
-  static List<ColumnDescriptor> leafColumns(MessageType fileSchema, String[] path) {
+  private static List<ColumnDescriptor> leafColumns(MessageType fileSchema, String[] path) {
     List<ColumnDescriptor> columns = Lists.newArrayList();
     for (ColumnDescriptor column : fileSchema.getColumns()) {
       // a presence column is kept in the read set by id, so a leaf without one cannot be used

@@ -266,7 +266,7 @@ public class ParquetValueReaders {
 
     return presence == null
         ? reader
-        : withPresence(reader, presence, fileSchema.getMaxRepetitionLevel(structPath));
+        : new PresenceReader<>(reader, presence, fileSchema.getMaxRepetitionLevel(structPath));
   }
 
   private static ParquetValueReader<?> defaultReader(
@@ -312,11 +312,6 @@ public class ParquetValueReaders {
 
   private static boolean hasInitialDefault(List<Types.NestedField> fields) {
     return fields.stream().anyMatch(field -> field.initialDefault() != null);
-  }
-
-  private static <T> ParquetValueReader<T> withPresence(
-      ParquetValueReader<T> reader, ColumnDescriptor presence, int repetitionLevel) {
-    return new PresenceReader<>(reader, presence, repetitionLevel);
   }
 
   private static class NullReader<T> implements ParquetValueReader<T> {
