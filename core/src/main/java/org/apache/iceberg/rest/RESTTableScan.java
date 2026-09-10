@@ -24,27 +24,20 @@ import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataTableScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.TableScanContext;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
@@ -52,7 +45,6 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,7 +55,6 @@ class RESTTableScan extends DataTableScan {
   private static final long MAX_SLEEP_MS = 60 * 1000; // Max backoff delay (1 minute)
   private static final int MAX_RETRIES = 10; // Max number of poll retries
   private static final double SCALE_FACTOR = 2.0; // Exponential scale factor
-  private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   private static final Cache<RESTTableScan, FileIO> FILEIO_TRACKER =
       Caffeine.newBuilder()
           .weakKeys()
@@ -77,14 +68,9 @@ class RESTTableScan extends DataTableScan {
           .build();
 
   private final RESTClient client;
-  private final Map<String, String> headers;
-  private final TableOperations operations;
-  private final ResourcePaths resourcePaths;
-  private final TableIdentifier tableIdentifier;
-  private final Set<Endpoint> supportedEndpoints;
-  private final ParserContext parserContext;
-  private final Map<String, String> catalogProperties;
-  private final Object hadoopConf;
+  private final Supplier<Map<String, String>> headers;
+  private final TableResource tableResource;
+  private volatile ParserContext lazyParserContext;
   private String planId = null;
   private FileIO scanFileIO = null;
   private boolean useSnapshotSchema = false;
@@ -94,27 +80,23 @@ class RESTTableScan extends DataTableScan {
       Schema schema,
       TableScanContext context,
       RESTClient client,
-      Map<String, String> headers,
-      TableOperations operations,
-      TableIdentifier tableIdentifier,
-      ResourcePaths resourcePaths,
-      Set<Endpoint> supportedEndpoints,
-      Map<String, String> catalogProperties,
-      Object hadoopConf) {
+      Supplier<Map<String, String>> headers,
+      TableResource tableResource) {
     super(table, schema, context);
     this.client = client;
     this.headers = headers;
-    this.operations = operations;
-    this.tableIdentifier = tableIdentifier;
-    this.resourcePaths = resourcePaths;
-    this.supportedEndpoints = supportedEndpoints;
-    this.parserContext =
-        ParserContext.builder()
-            .add("specsById", table.specs())
-            .add("caseSensitive", context().caseSensitive())
-            .build();
-    this.catalogProperties = catalogProperties;
-    this.hadoopConf = hadoopConf;
+    this.tableResource = tableResource;
+  }
+
+  private ParserContext lazyParserContext() {
+    if (lazyParserContext == null) {
+      this.lazyParserContext =
+          ParserContext.builder()
+              .add("specsById", table().specs())
+              .add("caseSensitive", context().caseSensitive())
+              .build();
+    }
+    return lazyParserContext;
   }
 
   @Override
@@ -122,17 +104,7 @@ class RESTTableScan extends DataTableScan {
       Table refinedTable, Schema refinedSchema, TableScanContext refinedContext) {
     RESTTableScan scan =
         new RESTTableScan(
-            refinedTable,
-            refinedSchema,
-            refinedContext,
-            client,
-            headers,
-            operations,
-            tableIdentifier,
-            resourcePaths,
-            supportedEndpoints,
-            catalogProperties,
-            hadoopConf);
+            refinedTable, refinedSchema, refinedContext, client, headers, tableResource);
     scan.useSnapshotSchema = useSnapshotSchema;
     return scan;
   }
@@ -199,13 +171,13 @@ class RESTTableScan extends DataTableScan {
   private CloseableIterable<FileScanTask> planTableScan(PlanTableScanRequest planTableScanRequest) {
     PlanTableScanResponse response =
         client.post(
-            resourcePaths.planTableScan(tableIdentifier),
+            tableResource.planPath(),
             planTableScanRequest,
             PlanTableScanResponse.class,
-            headers,
+            headers.get(),
             ErrorHandlers.tableErrorHandler(),
             stringStringMap -> {},
-            parserContext);
+            lazyParserContext());
 
     this.planId = response.planId();
     PlanStatus planStatus = response.planStatus();
@@ -216,7 +188,10 @@ class RESTTableScan extends DataTableScan {
       case COMPLETED:
         return scanTasksIterable(response.planTasks(), response.fileScanTasks());
       case SUBMITTED:
-        Endpoint.check(supportedEndpoints, Endpoint.V1_FETCH_TABLE_SCAN_PLAN);
+        Preconditions.checkState(
+            tableResource.supportsAsync(),
+            "Invalid plan status %s: server does not support async scan planning",
+            PlanStatus.SUBMITTED);
         return fetchPlanningResult();
       case FAILED:
         throw new IllegalStateException(failureMessage(planId, response.errorResponse()));
@@ -226,32 +201,14 @@ class RESTTableScan extends DataTableScan {
     }
   }
 
-  private FileIO scanFileIO(List<Credential> storageCredentials) {
-    ImmutableMap.Builder<String, String> builder =
-        ImmutableMap.<String, String>builder().putAll(catalogProperties);
-    if (null != planId) {
-      builder.put(RESTCatalogProperties.REST_SCAN_PLAN_ID, planId);
-    }
-
-    Map<String, String> properties = builder.buildKeepingLast();
-    FileIO ioForScan =
-        CatalogUtil.loadFileIO(
-            catalogProperties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL),
-            properties,
-            hadoopConf,
-            storageCredentials.stream()
-                .map(c -> StorageCredential.create(c.prefix(), c.config()))
-                .collect(Collectors.toList()));
+  private FileIO scanFileIO(List<Credential> credentials) {
+    FileIO ioForScan = tableResource.createFileIO(credentials, planId);
     FILEIO_TRACKER.put(this, ioForScan);
     return ioForScan;
   }
 
   private CloseableIterable<FileScanTask> fetchPlanningResult() {
-    long maxWaitTimeMs =
-        PropertyUtil.propertyAsLong(
-            catalogProperties,
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS,
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS_DEFAULT);
+    long maxWaitTimeMs = tableResource.pollTimeoutMs();
     Preconditions.checkArgument(
         maxWaitTimeMs > 0,
         "Invalid value for %s: %s (must be positive)",
@@ -274,12 +231,12 @@ class RESTTableScan extends DataTableScan {
               id -> {
                 FetchPlanningResultResponse response =
                     client.get(
-                        resourcePaths.plan(tableIdentifier, id),
-                        headers,
+                        tableResource.planPath(id),
+                        headers.get(),
                         FetchPlanningResultResponse.class,
-                        headers,
+                        headers.get(),
                         ErrorHandlers.planErrorHandler(),
-                        parserContext);
+                        lazyParserContext());
 
                 switch (response.planStatus()) {
                   case COMPLETED:
@@ -339,20 +296,15 @@ class RESTTableScan extends DataTableScan {
 
   private CloseableIterable<FileScanTask> scanTasksIterable(
       List<String> planTasks, List<FileScanTask> fileScanTasks) {
-    if (planTasks != null && !planTasks.isEmpty()) {
-      Endpoint.check(supportedEndpoints, Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
-    }
-
     return CloseableIterable.whenComplete(
         new ScanTaskIterable(
             planTasks,
             fileScanTasks == null ? List.of() : fileScanTasks,
             client,
-            resourcePaths,
-            tableIdentifier,
+            tableResource.fetchPath(),
             headers,
             planExecutor(),
-            parserContext),
+            lazyParserContext()),
         this::cancelPlan);
   }
 
@@ -366,16 +318,16 @@ class RESTTableScan extends DataTableScan {
   @VisibleForTesting
   @SuppressWarnings("checkstyle:RegexpMultiline")
   public boolean cancelPlan() {
-    if (planId == null || !supportedEndpoints.contains(Endpoint.V1_CANCEL_TABLE_SCAN_PLAN)) {
+    if (planId == null || !tableResource.supportsCancel()) {
       return false;
     }
 
     try {
       client.delete(
-          resourcePaths.plan(tableIdentifier, planId),
+          tableResource.planPath(planId),
           Map.of(),
           null,
-          headers,
+          headers.get(),
           ErrorHandlers.planErrorHandler());
       this.planId = null;
       return true;
