@@ -44,6 +44,12 @@ public abstract class FilterIterator<T> implements CloseableIterator<T> {
 
   protected abstract boolean shouldKeep(T item);
 
+  /** Invoked exactly once for each element accepted by {@link #shouldKeep(Object)}. */
+  protected void onKeep(T item) {}
+
+  /** Invoked exactly once for each element rejected by {@link #shouldKeep(Object)}. */
+  protected void onSkip(T item) {}
+
   @Override
   public boolean hasNext() {
     return nextReady || advance();
@@ -56,6 +62,7 @@ public abstract class FilterIterator<T> implements CloseableIterator<T> {
     }
 
     this.nextReady = false;
+    onKeep(next);
 
     return next;
   }
@@ -67,6 +74,7 @@ public abstract class FilterIterator<T> implements CloseableIterator<T> {
         this.nextReady = true;
         return true;
       }
+      onSkip(next);
     }
 
     close();
