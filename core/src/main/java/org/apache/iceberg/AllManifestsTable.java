@@ -142,7 +142,7 @@ public class AllManifestsTable extends BaseMetadataTable {
                       io,
                       schema(),
                       specs,
-                      new BaseManifestListFile(snap.manifestListLocation(), snap.keyId()),
+                      new BaseFileWithKeyId(snap.manifestListLocation(), snap.keyId()),
                       residual,
                       snap.snapshotId());
                 } else {

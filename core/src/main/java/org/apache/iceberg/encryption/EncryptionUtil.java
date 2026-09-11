@@ -25,7 +25,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.FileWithKeyId;
 import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
@@ -142,7 +141,7 @@ public class EncryptionUtil {
    * @param em the table's EncryptionManager
    * @return a decrypted key metadata buffer
    * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link
-   *     #decryptKeyMetadata(FileWithKeyId, EncryptionManager)} instead.
+   *     EncryptionManager#decryptKeyMetadata(String)} instead.
    */
   @Deprecated
   public static ByteBuffer decryptManifestListKeyMetadata(
@@ -151,20 +150,16 @@ public class EncryptionUtil {
   }
 
   /**
-   * Decrypt the key metadata of an encryptable file.
+   * Decrypt the key metadata referred by key ID using an encryption manager.
    *
-   * @param file a FileWithKeyId
+   * @param encryptionKeyId the key ID of the encrypted key metadata
    * @param em the table's EncryptionManager
    * @return a decrypted key metadata buffer
    */
-  public static ByteBuffer decryptKeyMetadata(FileWithKeyId file, EncryptionManager em) {
-    return decryptKeyMetadata(file.keyId(), em);
-  }
-
   static ByteBuffer decryptKeyMetadata(String encryptionKeyId, EncryptionManager em) {
     Preconditions.checkState(
         em instanceof StandardEncryptionManager,
-        "Snapshot key metadata encryption requires a StandardEncryptionManager");
+        "Key metadata decryption requires a StandardEncryptionManager");
     StandardEncryptionManager sem = (StandardEncryptionManager) em;
     Map<String, EncryptedKey> encryptionKeys = sem.encryptionKeys();
     EncryptedKey encryptionKey = encryptionKeys.get(encryptionKeyId);
@@ -200,22 +195,22 @@ public class EncryptionUtil {
   }
 
   /**
-   * Encrypts the key metadata for a manifest list.
+   * Encrypts an encryption key metadata.
    *
    * @param key key encryption key bytes
    * @param keyTimestamp timestamp of the key encryption key
-   * @param mlkMetadata manifest list key metadata
+   * @param keyMetadata key metadata
    * @return encrypted key metadata
    */
-  static ByteBuffer encryptManifestListKeyMetadata(
-      ByteBuffer key, String keyTimestamp, EncryptionKeyMetadata mlkMetadata) {
+  static ByteBuffer encryptKeyMetadata(
+      ByteBuffer key, String keyTimestamp, EncryptionKeyMetadata keyMetadata) {
     Ciphers.AesGcmEncryptor encryptor = new Ciphers.AesGcmEncryptor(ByteBuffers.toByteArray(key));
-    byte[] mlkMetadataBytes = ByteBuffers.toByteArray(mlkMetadata.buffer());
+    byte[] keyMetadataBytes = ByteBuffers.toByteArray(keyMetadata.buffer());
 
     // Use key encryption key timestamp as AES GCM signature (AAD) of encryption - in order to
     // prevent timestamp tampering attacks
     byte[] encryptedKeyMetadata =
-        encryptor.encrypt(mlkMetadataBytes, keyTimestamp.getBytes(StandardCharsets.UTF_8));
+        encryptor.encrypt(keyMetadataBytes, keyTimestamp.getBytes(StandardCharsets.UTF_8));
 
     return ByteBuffer.wrap(encryptedKeyMetadata);
   }
