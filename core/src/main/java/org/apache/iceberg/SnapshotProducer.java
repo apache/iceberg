@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CleanableFailure;
@@ -625,8 +624,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     String manifestFileLocation =
         ops.metadataFileLocation(
             manifestFormat.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement()));
-    return EncryptingFileIO.combine(ops.io(), ops.encryption())
-        .newEncryptingOutputFile(manifestFileLocation);
+    OutputFile rawOutputFile = ops.io().newOutputFile(manifestFileLocation);
+    return ops.encryption().encrypt(rawOutputFile);
   }
 
   protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {

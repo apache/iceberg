@@ -22,14 +22,21 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
+/** Utility for dynamically loading a class by trying candidate implementations by name. */
 public class DynClasses {
 
   private DynClasses() {}
 
+  /**
+   * Constructs a new builder for loading a class dynamically.
+   *
+   * @return a Builder for finding a class
+   */
   public static Builder builder() {
     return new Builder();
   }
 
+  /** Builder for resolving a class from a set of candidate names. */
   public static class Builder {
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private Class<?> foundClass = null;

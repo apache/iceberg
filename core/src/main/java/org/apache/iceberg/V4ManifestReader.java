@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
@@ -30,6 +29,7 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -44,7 +44,10 @@ import org.apache.iceberg.util.StructProjection;
 
 /** Reader that reads a v4+ manifest file as {@link TrackedFile}s. */
 class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile> {
-  private final InputFile file;
+  private static final int SUPPORTED_FORMAT_VERSION = 4;
+
+  private final ManifestFile manifest;
+  private final FileIO io;
   private final Schema readSchema;
   private final boolean includeAll;
   private final ScanMetrics scanMetrics;
@@ -54,13 +57,15 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters;
 
   private V4ManifestReader(
-      InputFile file,
+      ManifestFile manifest,
+      FileIO io,
       Schema readSchema,
       Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters,
       boolean includeAll,
       ScanMetrics scanMetrics,
       String tableLocation) {
-    this.file = file;
+    this.manifest = manifest;
+    this.io = io;
     this.readSchema = readSchema;
     this.partitionFilters = partitionFilters;
     this.includeAll = includeAll;
@@ -69,8 +74,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   static Builder builder(
-      InputFile file, Map<Integer, PartitionSpec> specsById, String tableLocation) {
-    return new Builder(file, specsById, tableLocation);
+      ManifestFile manifest,
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById,
+      String tableLocation) {
+    return new Builder(manifest, io, specsById, tableLocation);
   }
 
   /** Returns copies of the tracked files that match this reader's configured filters. */
@@ -124,9 +132,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   private CloseableIterable<TrackedFile> open() {
+    InputFile file = io.newInputFile(manifest);
     FileFormat format = FileFormat.fromFileName(file.location());
     Preconditions.checkArgument(
         format != null, "Cannot determine format of manifest: %s", file.location());
+
+    scanMetrics.scannedDataManifests().increment();
 
     CloseableIterable<TrackedFile> reader =
         InternalData.read(format, file)
@@ -146,7 +157,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     Tracking tracking = trackedFile.tracking();
     // manifestLocation is not stored in the manifest; the reader fills it in
     if (tracking instanceof TrackingStruct) {
-      ((TrackingStruct) tracking).setManifestLocation(file.location());
+      ((TrackingStruct) tracking).setManifestLocation(manifest.path());
     }
 
     return trackedFile;
@@ -174,7 +185,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   static class Builder {
-    private final InputFile file;
+    private final ManifestFile manifest;
+    private final FileIO io;
     private final Types.StructType unionPartitionType;
     private final Map<Integer, PartitionSpec> specsById;
     private final Schema fullSchema;
@@ -186,11 +198,32 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private Collection<String> columns = null;
     private Schema requestedProjection = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
-    private ByteBuffer manifestDv = null;
 
-    private Builder(InputFile file, Map<Integer, PartitionSpec> specsById, String tableLocation) {
+    private Builder(
+        ManifestFile manifest,
+        FileIO io,
+        Map<Integer, PartitionSpec> specsById,
+        String tableLocation) {
       Preconditions.checkArgument(tableLocation != null, "Invalid table location: null");
-      this.file = file;
+      int formatVersion = manifest.formatVersion();
+      Preconditions.checkArgument(
+          formatVersion == SUPPORTED_FORMAT_VERSION,
+          "Cannot read manifest with format version %s: only %s is supported",
+          formatVersion,
+          SUPPORTED_FORMAT_VERSION);
+      Preconditions.checkState(
+          manifest.content() == ManifestContent.DATA,
+          "Cannot read manifest with content %s: only data manifests are supported: %s",
+          manifest.content(),
+          manifest.path());
+
+      if (manifest.manifestDeletionVector() != null) {
+        throw new UnsupportedOperationException(
+            "Cannot read manifest with a deletion vector: " + manifest.path());
+      }
+
+      this.manifest = manifest;
+      this.io = io;
       this.specsById = specsById;
       this.tableLocation = tableLocation;
       this.unionPartitionType = Partitioning.unionPartitionTypes(specsById.values());
@@ -260,18 +293,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return this;
     }
 
-    /** Sets the deletion vector that marks manifest entries deleted by position. */
-    Builder manifestDv(ByteBuffer dv) {
-      this.manifestDv = dv;
-      return this;
-    }
-
     V4ManifestReader build() {
-      if (manifestDv != null) {
-        throw new UnsupportedOperationException(
-            "Cannot apply manifest deletion vector: " + file.location());
-      }
-
       Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters = Maps.newHashMap();
       if (rowFilter != Expressions.alwaysTrue() && !unionPartitionType.fields().isEmpty()) {
         for (PartitionSpec spec : specsById.values()) {
@@ -287,7 +309,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
       boolean hasPartitionFilter = !partitionFilters.isEmpty();
       return new V4ManifestReader(
-          file,
+          manifest,
+          io,
           readSchema(hasPartitionFilter),
           partitionFilters,
           includeAll,
