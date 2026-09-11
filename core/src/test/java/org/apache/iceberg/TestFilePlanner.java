@@ -250,7 +250,7 @@ class TestFilePlanner {
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     FilePlanner planner =
-        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS, TABLE_LOCATION)
+        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS).tableLocation(TABLE_LOCATION)
             .scanMetrics(metrics)
             .build();
     // the root is read eagerly to route its entries; leaf readers open lazily, so closing the plan
@@ -317,7 +317,7 @@ class TestFilePlanner {
 
     // delete content is only produced by upgraded trees; that path is not yet implemented
     FilePlanner planner =
-        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS, TABLE_LOCATION).build();
+        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS).tableLocation(TABLE_LOCATION).build();
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("v3 and earlier deletes are not yet supported");
@@ -337,7 +337,7 @@ class TestFilePlanner {
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
 
     FilePlanner planner =
-        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS, TABLE_LOCATION).build();
+        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS).tableLocation(TABLE_LOCATION).build();
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unsupported file type in leaf manifest: DELETE_MANIFEST");
@@ -354,7 +354,7 @@ class TestFilePlanner {
 
     // a leaf holds only data entries in a two-level tree; a nested manifest is rejected
     FilePlanner planner =
-        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS, TABLE_LOCATION).build();
+        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS).tableLocation(TABLE_LOCATION).build();
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unsupported file type in leaf manifest: DATA_MANIFEST");
@@ -454,7 +454,7 @@ class TestFilePlanner {
       throws IOException {
     FilePlanner planner =
         configure
-            .apply(FilePlanner.builder(fileIO, asManifest(root), specsById, TABLE_LOCATION))
+            .apply(FilePlanner.builder(fileIO, asManifest(root), specsById).tableLocation(TABLE_LOCATION))
             .build();
     try (CloseableIterable<FileScanTask> tasks = planner.planFiles()) {
       return Lists.newArrayList(tasks);
