@@ -340,7 +340,7 @@ class TestFilePlanner {
         FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS).tableLocation(TABLE_LOCATION).build();
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported file type in leaf manifest: DELETE_MANIFEST");
+        .hasMessage("Invalid content type for DataFile: DELETE_MANIFEST");
   }
 
   @ParameterizedTest
@@ -357,7 +357,7 @@ class TestFilePlanner {
         FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS).tableLocation(TABLE_LOCATION).build();
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Unsupported file type in leaf manifest: DATA_MANIFEST");
+        .hasMessage("Invalid content type for DataFile: DATA_MANIFEST");
   }
 
   @Test
