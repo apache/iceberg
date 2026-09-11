@@ -20,7 +20,14 @@ package org.apache.iceberg.actions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,12 +36,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -42,9 +51,12 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -55,6 +67,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -257,11 +270,15 @@ public class TestRemoveDanglingDeleteFilesAction {
   }
 
   private void setupPartitionedTable() {
+    setupPartitionedTable(formatVersion);
+  }
+
+  private void setupPartitionedTable(int tableFormatVersion) {
     this.table =
         TABLES.create(
             SCHEMA,
             SPEC,
-            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(tableFormatVersion)),
             tableLocation);
   }
 
@@ -297,7 +314,11 @@ public class TestRemoveDanglingDeleteFilesAction {
   }
 
   protected RemoveDanglingDeleteFiles removeDanglingDeleteFiles() {
-    return new RemoveDanglingDeleteFilesAction(table);
+    return removeDanglingDeleteFiles(table);
+  }
+
+  protected RemoveDanglingDeleteFiles removeDanglingDeleteFiles(Table actionTable) {
+    return new RemoveDanglingDeleteFilesAction(actionTable);
   }
 
   @TestTemplate
@@ -497,6 +518,104 @@ public class TestRemoveDanglingDeleteFilesAction {
             Pair.of(2L, FILE_C.location()),
             Pair.of(2L, fileADeletes.location()));
     assertThat(actualAfter).containsExactlyInAnyOrderElementsOf(expectedAfter);
+  }
+
+  @TestTemplate
+  public void testEmptyTable() {
+    setupPartitionedTable();
+
+    RemoveDanglingDeleteFiles.Result result = removeDanglingDeleteFiles().execute();
+
+    assertThat(result.removedDeleteFiles()).isEmpty();
+    assertThat(table.currentSnapshot()).isNull();
+  }
+
+  @Test
+  public void testPlanningUsesStartingSnapshot() {
+    setupPartitionedTable(2);
+    DeleteFile deletes = FILE_A_POS_DELETES;
+    long originalSnapshotId = prepareDanglingDeletes(deletes);
+    long rewrittenSnapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().rollbackTo(originalSnapshotId).commit();
+    Table actionTable = spy(table);
+    doAnswer(
+            invocation -> {
+              Object snapshot = invocation.callRealMethod();
+              table.manageSnapshots().setCurrentSnapshot(rewrittenSnapshotId).commit();
+              return snapshot;
+            })
+        .when(actionTable)
+        .snapshot(anyString());
+
+    RemoveDanglingDeleteFiles.Result result = removeDanglingDeleteFiles(actionTable).execute();
+
+    assertThat(result.removedDeleteFiles()).isEmpty();
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(rewrittenSnapshotId);
+  }
+
+  @Test
+  public void testRollbackBeforeCommit() {
+    setupPartitionedTable(2);
+    DeleteFile deletes = FILE_A_POS_DELETES;
+    long rollbackSnapshotId = prepareDanglingDeletes(deletes);
+    long planningSnapshotId = table.currentSnapshot().snapshotId();
+    Table actionTable = spy(table);
+    doAnswer(
+            invocation -> {
+              table.manageSnapshots().rollbackTo(rollbackSnapshotId).commit();
+              return invocation.callRealMethod();
+            })
+        .when(actionTable)
+        .newRewrite();
+
+    assertThatThrownBy(() -> removeDanglingDeleteFiles(actionTable).execute())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Cannot remove dangling deletes: current snapshot changed from %s to %s",
+            planningSnapshotId, rollbackSnapshotId);
+
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(rollbackSnapshotId);
+    assertThat(liveEntries())
+        .extracting(Pair::second)
+        .contains(FILE_A.location(), deletes.location());
+  }
+
+  @Test
+  public void testRollbackDuringCommitRetry() {
+    setupPartitionedTable(2);
+    DeleteFile deletes = FILE_A_POS_DELETES;
+    long rollbackSnapshotId = prepareDanglingDeletes(deletes);
+    long planningSnapshotId = table.currentSnapshot().snapshotId();
+    TableOperations ops = spy(((HasTableOperations) table).operations());
+    Table actionTable = new BaseTable(ops, table.name());
+    doAnswer(
+            invocation -> {
+              table.manageSnapshots().rollbackTo(rollbackSnapshotId).commit();
+              throw new CommitFailedException("Injected concurrent rollback");
+            })
+        .doCallRealMethod()
+        .when(ops)
+        .commit(any(), any());
+
+    assertThatThrownBy(() -> removeDanglingDeleteFiles(actionTable).execute())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Cannot remove dangling deletes: current snapshot changed from %s to %s",
+            planningSnapshotId, rollbackSnapshotId);
+
+    verify(ops, times(1)).commit(any(), any());
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(rollbackSnapshotId);
+    assertThat(liveEntries())
+        .extracting(Pair::second)
+        .contains(FILE_A.location(), deletes.location());
+  }
+
+  private long prepareDanglingDeletes(DeleteFile deletes) {
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newRowDelta().addDeletes(deletes).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.newRewrite().validateFromSnapshot(snapshotId).deleteFile(FILE_A).commit();
+    return snapshotId;
   }
 
   private List<Pair<Long, String>> liveEntries() {
