@@ -335,7 +335,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
    *
    * @param committed the set of manifest files that were committed
    */
-  void cleanUncommitted(Set<ManifestFile> committed) {
+  void cleanUncommitted(Set<String> committed) {
     // iterate over a copy of entries to avoid concurrent modification
     List<Map.Entry<ManifestFile, ManifestFile>> filterEntries =
         Lists.newArrayList(filteredManifests.entrySet());
@@ -344,7 +344,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       // remove any new filtered manifests that aren't in the committed list
       ManifestFile manifest = entry.getKey();
       ManifestFile filtered = entry.getValue();
-      if (!committed.contains(filtered)) {
+      if (!committed.contains(filtered.path())) {
         // only delete if the filtered copy was created (manifest was replaced)
         if (!manifest.equals(filtered)) {
           deleteFile(filtered.path());
