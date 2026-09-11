@@ -60,4 +60,31 @@ class TestParquetValueWriters {
     assertThat(metrics.nullValueCount()).isEqualTo(1);
     assertThat(metrics.avgValueSizeInBytes()).isEqualTo(31);
   }
+
+  @Test
+  void geometryValueSizeMetricsExcludeNulls() {
+    Schema schema = new Schema(optional(2, "geom", Types.GeometryType.crs84()));
+    MessageType parquetSchema = ParquetSchemaUtil.convert(schema, "table");
+    Type parquetType = parquetSchema.getType("geom");
+    ColumnDescriptor desc = parquetSchema.getColumnDescription(new String[] {"geom"});
+    ParquetValueWriter<ByteBuffer> writer =
+        ParquetValueWriters.option(
+            parquetType,
+            parquetSchema.getMaxDefinitionLevel(new String[] {"geom"}),
+            ParquetValueWriters.geometry(desc, Types.GeometryType.crs84()));
+
+    ColumnWriteStore columnStore = mock(ColumnWriteStore.class);
+    when(columnStore.getColumnWriter(desc)).thenReturn(mock(ColumnWriter.class));
+    writer.setColumnStore(columnStore);
+    writer.write(0, ByteBuffer.allocate(21));
+    writer.write(0, ByteBuffer.allocate(42));
+    writer.write(0, null);
+
+    // the geometry writer adds bounds but must keep the same average WKB size metric as the
+    // counts-only geospatial writer: the average is over the two non-null values, (21 + 42) / 2
+    FieldMetrics<?> metrics = writer.metrics().findFirst().orElseThrow();
+    assertThat(metrics.valueCount()).isEqualTo(3);
+    assertThat(metrics.nullValueCount()).isEqualTo(1);
+    assertThat(metrics.avgValueSizeInBytes()).isEqualTo(31);
+  }
 }
