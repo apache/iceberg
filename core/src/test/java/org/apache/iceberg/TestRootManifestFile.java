@@ -62,12 +62,16 @@ class TestRootManifestFile {
   @Test
   void copyPreservesValues() {
     ByteBuffer keyMetadata = ByteBuffer.wrap(new byte[] {9, 8, 7});
-    ManifestFile copy = new RootManifestFile(file, SNAPSHOT_ID, keyMetadata).copy();
+    RootManifestFile original = new RootManifestFile(file, SNAPSHOT_ID, keyMetadata);
+    ManifestFile copy = original.copy();
 
     assertThat(copy.path()).isEqualTo(LOCATION);
     assertThat(copy.length()).isEqualTo(CONTENTS.length);
     assertThat(copy.snapshotId()).isEqualTo(SNAPSHOT_ID);
     assertThat(copy.keyMetadata()).isEqualTo(keyMetadata);
+    assertThat(copy.keyMetadata().array())
+        .as("copy should not share the key metadata backing array")
+        .isNotSameAs(original.keyMetadata().array());
   }
 
   @Test
