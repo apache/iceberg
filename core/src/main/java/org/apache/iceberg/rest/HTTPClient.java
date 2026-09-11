@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -81,6 +83,7 @@ public class HTTPClient extends BaseHTTPClient {
   static final String CLIENT_GIT_COMMIT_SHORT_HEADER = "X-Client-Git-Commit-Short";
 
   private static final String REST_MAX_RETRIES = "rest.client.max-retries";
+  static final String REST_IDEMPOTENCY_KEY_LIFETIME = "rest.client.idempotency-key-lifetime";
   static final String REST_MAX_CONNECTIONS = "rest.client.max-connections";
   static final int REST_MAX_CONNECTIONS_DEFAULT = 100;
   static final String REST_MAX_CONNECTIONS_PER_ROUTE = "rest.client.connections-per-route";
@@ -125,7 +128,9 @@ public class HTTPClient extends BaseHTTPClient {
     clientBuilder.setConnectionManager(connectionManager);
 
     int maxRetries = PropertyUtil.propertyAsInt(properties, REST_MAX_RETRIES, 5);
-    clientBuilder.setRetryStrategy(new ExponentialHttpRequestRetryStrategy(maxRetries));
+    Duration keyLifetime = parseKeyLifetime(properties.get(REST_IDEMPOTENCY_KEY_LIFETIME));
+    clientBuilder.setRetryStrategy(
+        new ExponentialHttpRequestRetryStrategy(maxRetries, keyLifetime));
 
     String userAgent = PropertyUtil.propertyAsString(properties, REST_USER_AGENT, null);
     if (userAgent != null) {
@@ -162,6 +167,18 @@ public class HTTPClient extends BaseHTTPClient {
   public HTTPClient withAuthSession(AuthSession session) {
     Preconditions.checkNotNull(session, "Invalid auth session: null");
     return new HTTPClient(this, session);
+  }
+
+  private static Duration parseKeyLifetime(String lifetime) {
+    if (lifetime == null) {
+      return null;
+    }
+    try {
+      return Duration.parse(lifetime);
+    } catch (DateTimeParseException e) {
+      LOG.warn("Ignoring malformed idempotency-key lifetime: {}", lifetime, e);
+      return null;
+    }
   }
 
   private static String extractResponseBodyAsString(ClassicHttpResponse response) {

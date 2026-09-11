@@ -213,11 +213,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     // build the final configuration and set up the catalog's auth
-    Map<String, String> mergedProps = config.merge(props);
+    Map<String, String> mergedProps = Maps.newHashMap(config.merge(props));
 
     // Enable Idempotency-Key header for mutation endpoints if the server advertises support
     if (config.idempotencyKeyLifetime() != null) {
       this.mutationHeaders = RESTUtil::idempotencyHeaders;
+      // Pass the advertised key lifetime to the client so it stops retrying a keyed request before
+      // the key expires (a late retry would be treated as a brand-new mutation by the server).
+      mergedProps.put(HTTPClient.REST_IDEMPOTENCY_KEY_LIFETIME, config.idempotencyKeyLifetime());
     }
 
     if (config.endpoints().isEmpty()) {
