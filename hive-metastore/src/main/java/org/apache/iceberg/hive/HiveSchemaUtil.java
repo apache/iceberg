@@ -141,51 +141,88 @@ public final class HiveSchemaUtil {
   }
 
   private static String convertToTypeString(Type type) {
+    StringBuilder sb = new StringBuilder();
+    appendTypeString(sb, type);
+    return sb.toString();
+  }
+
+  private static void appendTypeString(StringBuilder sb, Type type) {
     switch (type.typeId()) {
       case BOOLEAN:
-        return "boolean";
+        sb.append("boolean");
+        return;
       case INTEGER:
-        return "int";
+        sb.append("int");
+        return;
       case LONG:
-        return "bigint";
+        sb.append("bigint");
+        return;
       case FLOAT:
-        return "float";
+        sb.append("float");
+        return;
       case DOUBLE:
-        return "double";
+        sb.append("double");
+        return;
       case DATE:
-        return "date";
+        sb.append("date");
+        return;
       case TIME:
       case STRING:
       case UUID:
-        return "string";
+        sb.append("string");
+        return;
       case TIMESTAMP:
         Types.TimestampType timestampType = (Types.TimestampType) type;
         if (HiveVersion.min(HiveVersion.HIVE_3) && timestampType.shouldAdjustToUTC()) {
-          return "timestamp with local time zone";
+          sb.append("timestamp with local time zone");
+        } else {
+          sb.append("timestamp");
         }
-        return "timestamp";
+        return;
       case FIXED:
       case BINARY:
-        return "binary";
+        sb.append("binary");
+        return;
       case VARIANT:
-        return "unknown";
+        sb.append("unknown");
+        return;
       case DECIMAL:
-        final Types.DecimalType decimalType = (Types.DecimalType) type;
-        return String.format("decimal(%s,%s)", decimalType.precision(), decimalType.scale());
+        Types.DecimalType decimalType = (Types.DecimalType) type;
+        sb.append("decimal(")
+            .append(decimalType.precision())
+            .append(',')
+            .append(decimalType.scale())
+            .append(')');
+        return;
       case STRUCT:
-        final Types.StructType structType = type.asStructType();
-        final String nameToType =
-            structType.fields().stream()
-                .map(f -> String.format("%s:%s", f.name(), convert(f.type())))
-                .collect(Collectors.joining(","));
-        return String.format("struct<%s>", nameToType);
+        // Recurse via appendTypeString rather than convert(Type): the latter would parse each
+        // nested type string into a Hive TypeInfo only to stringify it straight back, allocating a
+        // throwaway TypeInfo tree at every nesting level.
+        List<Types.NestedField> fields = type.asStructType().fields();
+        sb.append("struct<");
+        for (int i = 0; i < fields.size(); i++) {
+          if (i > 0) {
+            sb.append(',');
+          }
+          Types.NestedField field = fields.get(i);
+          sb.append(field.name()).append(':');
+          appendTypeString(sb, field.type());
+        }
+        sb.append('>');
+        return;
       case LIST:
-        final Types.ListType listType = type.asListType();
-        return String.format("array<%s>", convert(listType.elementType()));
+        sb.append("array<");
+        appendTypeString(sb, type.asListType().elementType());
+        sb.append('>');
+        return;
       case MAP:
-        final Types.MapType mapType = type.asMapType();
-        return String.format(
-            "map<%s,%s>", convert(mapType.keyType()), convert(mapType.valueType()));
+        Types.MapType mapType = type.asMapType();
+        sb.append("map<");
+        appendTypeString(sb, mapType.keyType());
+        sb.append(',');
+        appendTypeString(sb, mapType.valueType());
+        sb.append('>');
+        return;
       default:
         throw new UnsupportedOperationException(type + " is not supported");
     }
