@@ -1426,7 +1426,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             RESTCatalogProperties.SCAN_PLANNING_MODE,
             RESTCatalogProperties.ScanPlanningMode.SERVER.modeName(),
             RESTCatalogProperties.REST_SCAN_PLANNING_POLL_NUM_RETRIES,
-            "25"));
+            "2"));
 
     RESTTable table = restTableFor(catalog, "custom_retries_success");
     setParserContext(table);

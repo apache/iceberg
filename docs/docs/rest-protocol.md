@@ -135,8 +135,8 @@ ID that the client polls until planning finishes. Large results are returned
 in batches of plan tasks that the client fetches separately. The client
 cancels a plan it no longer needs, and gives up after
 `rest-scan-planning.poll-timeout-ms` (default 5 minutes) or
-`rest-scan-planning.poll-num-retries` (default 10) poll attempts, whichever
-comes first.
+the initial fetch plus `rest-scan-planning.poll-num-retries` retry attempts
+(default 10), whichever limit is reached first.
 
 The planning mode is controlled by the `scan-planning-mode` catalog property
 (`client`, the default, or `server`), and the server can override the mode per
