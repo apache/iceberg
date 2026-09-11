@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -1006,6 +1007,91 @@ public class TestTransaction extends TestBase {
     assertThat(readMetadata().ref("branch").snapshotId()).isEqualTo(branchSnapshot.snapshotId());
     assertThat(readMetadata().snapshot(branchSnapshot.snapshotId()).allManifests(table.io()))
         .hasSize(2);
+  }
+
+  @TestTemplate
+  public void testCommitTransactionDoesNotReadCommittedManifestLists() throws IOException {
+    File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    String tableName = "txnNoManifestListReread";
+    List<String> openedInputFiles = Lists.newArrayList();
+    TestTables.TestTable txnTable =
+        TestTables.create(
+            location,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(
+                tableName, location, countingFileIO(openedInputFiles)));
+
+    Transaction txn = txnTable.newTransaction();
+    txn.newAppend().appendFile(FILE_A).commit();
+    txn.newAppend().appendFile(FILE_B).commit();
+
+    openedInputFiles.clear();
+    txn.commitTransaction();
+
+    List<String> manifestLists = Lists.newArrayList();
+    for (Snapshot snapshot : txnTable.snapshots()) {
+      manifestLists.add(snapshot.manifestListLocation());
+    }
+    assertThat(manifestLists).hasSize(2);
+    assertThat(openedInputFiles).doesNotContainAnyElementsOf(manifestLists);
+  }
+
+  @TestTemplate
+  public void testCommitTransactionRetryKeepsConcurrentSnapshotManifests() throws IOException {
+    File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    String tableName = "txnRetryConcurrentSnapshot";
+    List<String> openedInputFiles = Lists.newArrayList();
+    TestTables.TestTable txnTable =
+        TestTables.create(
+            location,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(
+                tableName, location, countingFileIO(openedInputFiles)));
+    txnTable
+        .updateProperties()
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
+        .set("random-snapshot-ids", "true")
+        .commit();
+
+    Transaction txn = txnTable.newTransaction();
+    txn.newAppend().appendFile(FILE_A).commit();
+
+    // a concurrent commit forces the transaction to re-apply its update on top of a new snapshot
+    TestTables.load(location, tableName).newAppend().appendFile(FILE_B).commit();
+    Snapshot concurrent = TestTables.load(location, tableName).currentSnapshot();
+
+    openedInputFiles.clear();
+    txn.commitTransaction();
+    List<String> openedDuringCommit = Lists.newArrayList(openedInputFiles);
+
+    Snapshot committed = txnTable.currentSnapshot();
+    assertThat(committed.parentId()).isEqualTo(concurrent.snapshotId());
+    for (Snapshot snapshot : txnTable.snapshots()) {
+      assertThat(snapshot.allManifests(txnTable.io()))
+          .allSatisfy(manifest -> assertThat(new File(manifest.path())).exists());
+    }
+
+    // the concurrent snapshot's manifest list is read for cleanup, the transaction's own is not
+    assertThat(openedDuringCommit).contains(concurrent.manifestListLocation());
+    assertThat(openedDuringCommit).doesNotContain(committed.manifestListLocation());
+  }
+
+  private static TestTables.LocalFileIO countingFileIO(List<String> openedInputFiles) {
+    return new TestTables.LocalFileIO() {
+      @Override
+      public InputFile newInputFile(String path) {
+        openedInputFiles.add(path);
+        return super.newInputFile(path);
+      }
+    };
   }
 
   private static class AppendToBranchTransaction extends BaseTransaction {

@@ -616,12 +616,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    * producer wrote that manifest list.
    */
   private List<ManifestFile> committedManifests(Snapshot saved) {
-    List<ManifestFile> manifests = manifestsByManifestList.get(saved.manifestListLocation());
+    List<ManifestFile> manifests = writtenManifests(saved.manifestListLocation());
     if (manifests != null) {
       return manifests;
     }
 
     return saved.allManifests(ops.io());
+  }
+
+  /**
+   * Returns the manifests written to the given manifest list, or null if not written by this
+   * producer.
+   */
+  List<ManifestFile> writtenManifests(String manifestListLocation) {
+    return manifestsByManifestList.get(manifestListLocation);
   }
 
   protected void deleteFile(String path) {
