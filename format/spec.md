@@ -1218,7 +1218,8 @@ Statistics files metadata within `statistics` table metadata field is a struct w
     | _required_ | _required_ | **`statistics-path`**           | `string`              | Path of the statistics file. See [Puffin file format](puffin-spec.md). |
     | _required_ | _required_ | **`file-size-in-bytes`**        | `long`                | Size of the statistics file. |
     | _required_ | _required_ | **`file-footer-size-in-bytes`** | `long`                | Total size of the statistics file's footer (not the footer payload size). See [Puffin file format](puffin-spec.md) for footer definition. |
-    | _optional_ | _optional_ | **`key-metadata`**              |                       | Base64-encoded implementation-specific key metadata for encryption. |
+    | _optional_ | _optional_ | **`key-metadata`**              | `string`              | Base64-encoded implementation-specific key metadata for encryption. (**Deprecated**: use `key-id` instead) |
+    | _optional_ | _optional_ | **`key-id`**                    | `string`              | ID of the encryption key that encrypts the statistics file key metadata |
     | _required_ | _required_ | **`blob-metadata`**             | `list<blob metadata>` (see below) | A list of the blob metadata for statistics contained in the file with structure described below. |
 
 Blob metadata is a struct with the following fields:
@@ -1248,6 +1249,7 @@ Partition statistics file must be registered in the table metadata file to be co
     | _required_ | _required_ | _required_ | **`snapshot-id`**        | `long`   | ID of the Iceberg table's snapshot the partition statistics file is associated with. |
     | _required_ | _required_ | _required_ | **`statistics-path`**    | `string` | Path of the partition statistics file. See [Partition statistics file](#partition-statistics-file). |
     | _required_ | _required_ | _required_ | **`file-size-in-bytes`** | `long`   | Size of the partition statistics file. |
+    | _optional_ | _optional_ | _optional_ | **`key-id`**             | `string` | ID of the encryption key that encrypts the partition statistics file key metadata |
 
 ##### Partition Statistics File
 
