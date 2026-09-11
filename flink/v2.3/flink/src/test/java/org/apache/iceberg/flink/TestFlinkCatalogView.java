@@ -525,6 +525,66 @@ public class TestFlinkCatalogView extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testAlterViewAsWithUnqualifiedCrossDatabaseReferenceFails() {
+    // ALTER VIEW ... AS stores a new query the same way CREATE VIEW does, so the same
+    // session-dependence check applies
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+    sql("CREATE DATABASE %s.db2", catalogName);
+    sql("USE db2");
+    try {
+      sql("CREATE TABLE alter_cross_t (id BIGINT)");
+      assertThatThrownBy(
+              () ->
+                  sql(
+                      "ALTER VIEW %s.%s.%s AS SELECT id FROM alter_cross_t",
+                      catalogName, DATABASE, VIEW_NAME))
+          .hasMessageContaining("Could not execute")
+          .cause()
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessageContaining("unqualified name");
+    } finally {
+      sql("USE %s", DATABASE);
+      sql("DROP TABLE IF EXISTS %s.db2.alter_cross_t", catalogName);
+      dropDatabase(catalogName + ".db2", true);
+    }
+  }
+
+  @TestTemplate
+  public void testAlterViewNotSupportedByCatalog() throws Exception {
+    // reaching the no-view-catalog branch of alterTable requires the catalog API: a view can
+    // never exist in a Hadoop catalog, so SQL cannot get this far
+    String noViewCatalog = catalogName + "_alter_nv";
+    sql(
+        "CREATE CATALOG %s WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='file://%s/alter_nv')",
+        noViewCatalog, warehouseRoot());
+    try {
+      CatalogView newView =
+          CatalogView.of(
+              org.apache.flink.table.api.Schema.newBuilder()
+                  .fromResolvedSchema(FlinkSchemaUtil.toResolvedSchema(VIEW_SCHEMA))
+                  .build(),
+              null,
+              "SELECT 1",
+              "SELECT 1",
+              Maps.newHashMap());
+      assertThatThrownBy(
+              () ->
+                  getTableEnv()
+                      .getCatalog(noViewCatalog)
+                      .get()
+                      .alterTable(
+                          new ObjectPath(DATABASE, VIEW_NAME),
+                          new ResolvedCatalogView(
+                              newView, FlinkSchemaUtil.toResolvedSchema(VIEW_SCHEMA)),
+                          false))
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessageContaining("Altering a view is not supported");
+    } finally {
+      dropCatalog(noViewCatalog, true);
+    }
+  }
+
+  @TestTemplate
   public void testAlterViewAsPreservesProperties() {
     sql("CREATE VIEW %s COMMENT 'keep me' AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
     sql("ALTER VIEW %s AS SELECT id FROM %s", VIEW_NAME, TABLE_NAME);
