@@ -186,6 +186,28 @@ public class TestContentStatsStruct {
 
   @Test
   @SuppressWarnings("unchecked")
+  public void copyWithNullFieldStats() {
+    FieldStats<Long> idStats = Mockito.mock(FieldStats.class);
+    FieldStats<Long> idStatsCopy = Mockito.mock(FieldStats.class);
+    Mockito.when(idStats.fieldId()).thenReturn(1);
+    Mockito.when(idStats.copy()).thenReturn(idStatsCopy);
+
+    ContentStatsStruct stats = new ContentStatsStruct(CONTENT_STATS_STRUCT);
+    stats.setStats(1, idStats);
+    // when a manifest has no stats for a projected column, the reader leaves that column's
+    // stats null via set(pos, null), so the copy path must tolerate a null entry
+    stats.set(2, null);
+
+    ContentStats copy = stats.copy();
+
+    assertThat(copy).isInstanceOf(ContentStatsStruct.class).isNotSameAs(stats);
+    assertThat(copy.statsFor(1)).isSameAs(idStatsCopy);
+    assertThat(copy.statsFor(2)).isNull();
+    assertThat(copy.statsFor(3)).isNull();
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
   public void filteredCopy() {
     FieldStats<Long> idStats = Mockito.mock(FieldStats.class);
     FieldStats<Long> idStatsCopy = Mockito.mock(FieldStats.class);
