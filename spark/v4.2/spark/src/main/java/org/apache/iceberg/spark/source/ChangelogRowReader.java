@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -30,6 +31,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.DeletedDataFileScanTask;
 import org.apache.iceberg.DeletedRowsScanTask;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -39,18 +41,25 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.BoundReference;
+import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.JoinedRow;
+import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.connector.catalog.Changelog;
 import org.apache.spark.sql.connector.read.PartitionReader;
 import org.apache.spark.unsafe.types.UTF8String;
+import scala.jdk.javaapi.CollectionConverters;
 
 class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     implements PartitionReader<InternalRow> {
 
   private final SparkChangelogReadMode readMode;
+  private final UnsafeProjection projection;
 
   ChangelogRowReader(SparkInputPartition partition) {
     this(
@@ -73,13 +82,35 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
         table,
         fileIO,
         taskGroup,
-        dataSchema(table, expectedSchema),
+        dataSchema(expectedSchema),
         caseSensitive,
         cacheDeleteFilesOnExecutors);
     this.readMode =
-        expectedSchema.findField(SparkChangelogTable.COMMIT_VERSION) != null
+        expectedSchema.findField(SparkChangelogTable.COMMIT_VERSION_ID) != null
             ? SparkChangelogReadMode.SPARK_CDC
             : SparkChangelogReadMode.ICEBERG_CHANGELOG;
+    List<Integer> metadataIds =
+        readMode.isSparkCdc()
+            ? List.of(
+                MetadataColumns.CHANGE_TYPE.fieldId(),
+                SparkChangelogTable.COMMIT_VERSION_ID,
+                SparkChangelogTable.COMMIT_TIMESTAMP_ID)
+            : List.of(
+                MetadataColumns.CHANGE_TYPE.fieldId(),
+                MetadataColumns.CHANGE_ORDINAL.fieldId(),
+                MetadataColumns.COMMIT_SNAPSHOT_ID.fieldId());
+    List<Integer> fieldIds = new ArrayList<>();
+    dataSchema(expectedSchema).columns().forEach(field -> fieldIds.add(field.fieldId()));
+    fieldIds.addAll(metadataIds);
+    List<Expression> expressions = new ArrayList<>();
+    for (Types.NestedField field : expectedSchema.columns()) {
+      expressions.add(
+          new BoundReference(
+              fieldIds.indexOf(field.fieldId()),
+              SparkSchemaUtil.convert(field.type()),
+              field.isOptional()));
+    }
+    this.projection = UnsafeProjection.create(CollectionConverters.asScala(expressions).toSeq());
   }
 
   @Override
@@ -89,33 +120,39 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     cdcRow.withRight(changelogMetadata(task));
 
     CloseableIterable<InternalRow> rows = openChangelogScanTask(task);
-    CloseableIterable<InternalRow> cdcRows = CloseableIterable.transform(rows, cdcRow::withLeft);
+    CloseableIterable<InternalRow> cdcRows =
+        CloseableIterable.transform(rows, row -> projection.apply(cdcRow.withLeft(row)));
 
     return cdcRows.iterator();
   }
 
   private InternalRow changelogMetadata(ChangelogScanTask task) {
-    InternalRow metadataRow = new GenericInternalRow(3);
-
+    Object[] values;
     if (readMode.isSparkCdc()) {
       Snapshot snapshot = table().snapshot(task.commitSnapshotId());
       Preconditions.checkNotNull(
           snapshot, "Cannot find snapshot for changelog task: %s", task.commitSnapshotId());
-      metadataRow.update(0, UTF8String.fromString(changeType(task)));
-      metadataRow.update(1, snapshot.sequenceNumber());
-      metadataRow.update(2, snapshot.timestampMillis() * 1000);
+      values =
+          new Object[] {
+            UTF8String.fromString(changeType(task)),
+            snapshot.sequenceNumber(),
+            snapshot.timestampMillis() * 1000
+          };
     } else {
-      metadataRow.update(0, UTF8String.fromString(task.operation().name()));
-      metadataRow.update(1, task.changeOrdinal());
-      metadataRow.update(2, task.commitSnapshotId());
+      values =
+          new Object[] {
+            UTF8String.fromString(task.operation().name()),
+            task.changeOrdinal(),
+            task.commitSnapshotId()
+          };
     }
 
-    return metadataRow;
+    return new GenericInternalRow(values);
   }
 
-  private static Schema dataSchema(Table table, Schema expectedSchema) {
-    return expectedSchema.findField(SparkChangelogTable.COMMIT_VERSION) != null
-        ? SparkChangelogTable.cdcDataSchema(table)
+  private static Schema dataSchema(Schema expectedSchema) {
+    return expectedSchema.findField(SparkChangelogTable.COMMIT_VERSION_ID) != null
+        ? SparkChangelogTable.dropCdcMetadata(expectedSchema)
         : ChangelogUtil.dropChangelogMetadata(expectedSchema);
   }
 
