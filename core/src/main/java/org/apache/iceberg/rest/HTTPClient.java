@@ -337,8 +337,8 @@ public class HTTPClient extends BaseHTTPClient {
       Consumer<Map<String, String>> responseHeaders,
       ParserContext parserContext)
       throws IOException {
-    // Field names are case-insensitive (RFC 9110), and HTTP/2 requires them to be lowercase, so
-    // callers cannot rely on a server's chosen spelling to look a header up.
+    // Field names are case-insensitive (RFC 9110), so callers cannot rely on the spelling a
+    // server chose to look a header up.
     Map<String, String> respHeaders = Maps.newTreeMap(String.CASE_INSENSITIVE_ORDER);
     for (Header header : response.getHeaders()) {
       respHeaders.put(header.getName(), header.getValue());

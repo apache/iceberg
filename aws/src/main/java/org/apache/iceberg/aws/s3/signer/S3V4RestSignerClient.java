@@ -308,9 +308,7 @@ public abstract class S3V4RestSignerClient
       signedComponent = cachedSignedComponent;
     } else {
       // Case-insensitive because canBeCached looks Cache-Control up by its traditional spelling,
-      // while a server may hand the header over in any case and HTTP/2 requires lowercase.
-      // Case-insensitive because canBeCached looks Cache-Control up by its traditional spelling,
-      // while a server may hand the header over in any case and HTTP/2 requires lowercase.
+      // while a server may hand the header over in any case (RFC 9110).
       Map<String, String> responseHeaders = Maps.newTreeMap(String.CASE_INSENSITIVE_ORDER);
       Consumer<Map<String, String>> responseHeadersConsumer = responseHeaders::putAll;
       RemoteSignResponse remoteSignResponse =
