@@ -666,12 +666,21 @@ A manifest is an immutable file that lists data files or delete files, along wit
 
 A manifest is a valid Iceberg data file: files must use valid Iceberg formats, schemas, and column projection.
 
-A manifest may store either data files or delete files, but not both because manifests that contain delete files are scanned first during job planning. Whether a manifest is a data manifest or a delete manifest is stored in manifest metadata.
+Each manifest type contains the following content:
+
+| Manifest type | Contents |
+|----------------|----------|
+| v1-v3 data manifest | Data files |
+| v2-v3 delete manifest | Delete files |
+| v4 root manifest (snapshot root) | Data files, data manifests, delete manifests |
+| v4 data manifest | Data files and their colocated deletion vectors |
+
+In v2-v3, data and delete files are kept in separate manifests because manifests that contain delete files are scanned first during job planning. Whether a manifest is a data manifest or a delete manifest is stored in manifest metadata.
 
 **Partition Spec Binding:**
 
 - v1-v3: A manifest stores files for a single partition spec. When a table’s partition spec changes, old files remain in the older manifest and newer files are written to a new manifest. This is required because a manifest file’s schema is based on its partition spec.
-- v4: Manifests are not bound to a single partition spec.
+- v4: A manifest may store files written with different partition specs.
 
 The partition spec used when writing each data file is used to transform predicates on the table’s data rows into predicates on partition values during job planning. In v3, the same partition spec is used for all data files in a manifest.
 
@@ -773,7 +782,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | 101 | **`file_format`** | `string` | *required* | String file format name: `avro`, `orc`, `parquet`, or `puffin` |
     | 147 | **`tracking`** | `tracking` struct | *required* | Groups status, snapshot, and sequence number. See tracking struct below. |
     | 502 | **`spec_id`** | `int` | *optional* | ID of the partition spec used to write this manifest or data file. |
-    | 140 | **`sort_order_id`** | `int` | *optional* | ID representing sort order for this file. |
+    | 140 | **`sort_order_id`** | `int` | *optional* | ID representing sort order for this file. If missing or unknown, the order is assumed to be unsorted. |
     | 103 | **`record_count`** | `long` | *required* | Number of records in this file. |
     | 104 | **`file_size_in_bytes`** | `long` | *required* | Total file size in bytes. |
     | 146 | **`content_stats`** | `content_stats` struct | *optional* | Column stats. See [Content Stats](#content-stats). |
@@ -840,6 +849,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     **Tracked File Requirements**
 
     - `content_type` must not be 1 (POSITION_DELETES) or 2 (EQUALITY DELETES).
+    - `deletion_vector.offset` and `deletion_vector.size_in_bytes` must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
     - A leaf manifest may only contain data files.
     - A root manifest may reference v1-v3 manifests; a referenced v1-v3 leaf manifest must have `format_version` PRE-V4.
     - Other v4 tracked files must have `format_version` V4.
@@ -936,13 +946,17 @@ Each stats struct holds statistics for one table field. It may contain the follo
 
 | Requirement | Offset | Name                      | Type                      | Included for                                  | Description |
 |-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
-| _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types |
-| _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types |
+| _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types [1] |
+| _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types [1] |
 | _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry` and `geography` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
 | _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
 | _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`, `geometry`, `geography` | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
+
+Notes:
+
+1. For `float` and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate. NaNs are not permitted as lower or upper bounds.
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
