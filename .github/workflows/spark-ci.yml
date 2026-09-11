@@ -82,7 +82,6 @@ jobs:
       max-parallel: 20
       matrix:
         # Spark 3.5 is the first version not failing on Java 21 (https://issues.apache.org/jira/browse/SPARK-42369)
-        # Full Java 21 support is coming in Spark 4 (https://issues.apache.org/jira/browse/SPARK-43831)
         jvm: [17, 21]
         event_name: ['${{ github.event_name }}']
         spark: ['3.5', '4.0', '4.1', '4.2']
