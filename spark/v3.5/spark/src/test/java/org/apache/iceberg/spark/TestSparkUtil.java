@@ -43,7 +43,7 @@ public class TestSparkUtil {
           });
 
   @Test
-  public void testPartitionMapToExpressionWithOffset() {
+  public void partitionMapToExpressionWithOffset() {
     // an explicit, non-UTC offset must be respected regardless of the JVM default zone, matching
     // the previous Joda-based behavior
     long expectedMicros =
@@ -52,14 +52,14 @@ public class TestSparkUtil {
   }
 
   @Test
-  public void testPartitionMapToExpressionWithUtcOffset() {
+  public void partitionMapToExpressionWithUtcOffset() {
     long expectedMicros =
         OffsetDateTime.parse("2021-01-01T12:34:56Z").toInstant().toEpochMilli() * 1000;
     assertThat(timestampLiteralMicros("2021-01-01T12:34:56Z")).isEqualTo(expectedMicros);
   }
 
   @Test
-  public void testPartitionMapToExpressionWithoutOffset() {
+  public void partitionMapToExpressionWithoutOffset() {
     // without an offset the value is interpreted in the system default zone
     long expectedMicros =
         LocalDateTime.parse("2021-01-01T12:34:56")

@@ -58,11 +58,6 @@ import org.apache.iceberg.types.Types;
 public class DataGenerators {
 
   public static class Primitives implements DataGenerator {
-    private static final OffsetDateTime DATETIME_20220110 =
-        OffsetDateTime.of(2022, 1, 10, 0, 0, 0, 0, ZoneOffset.UTC);
-    private static final long MILLIS_20220110 = DATETIME_20220110.toInstant().toEpochMilli();
-    private static final int DAYS_BTW_EPOC_AND_20220110 =
-        (int) DATETIME_20220110.toLocalDate().toEpochDay();
     private static final int HOUR_8_IN_MILLI = (int) TimeUnit.HOURS.toMillis(8);
     private static final int MICROS_OF_MILLI_20220110 = 456;
 
@@ -70,6 +65,10 @@ public class DataGenerators {
     private static final LocalTime JAVA_LOCAL_TIME_HOUR8 = LocalTime.of(8, 0);
     private static final OffsetDateTime JAVA_OFFSET_DATE_TIME_20220110 =
         OffsetDateTime.of(2022, 1, 10, 0, 0, 0, 0, ZoneOffset.UTC);
+    private static final long MILLIS_20220110 =
+        JAVA_OFFSET_DATE_TIME_20220110.toInstant().toEpochMilli();
+    private static final int DAYS_BTW_EPOC_AND_20220110 =
+        (int) JAVA_OFFSET_DATE_TIME_20220110.toLocalDate().toEpochDay();
     private static final LocalDateTime JAVA_LOCAL_DATE_TIME_20220110 =
         LocalDateTime.of(2022, 1, 10, 0, 0, 0);
     private static final OffsetDateTime JAVA_OFFSET_DATE_TIME_MAX_NANO =
