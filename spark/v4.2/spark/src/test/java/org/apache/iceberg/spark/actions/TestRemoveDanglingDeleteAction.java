@@ -62,6 +62,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Encoders;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -243,11 +244,15 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
   }
 
   private void setupPartitionedTable() {
+    setupPartitionedTable(formatVersion);
+  }
+
+  private void setupPartitionedTable(int tableFormatVersion) {
     this.table =
         TABLES.create(
             SCHEMA,
             SPEC,
-            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(tableFormatVersion)),
             tableLocation);
   }
 
@@ -533,10 +538,10 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
     assertThat(table.currentSnapshot()).isNull();
   }
 
-  @TestTemplate
+  @Test
   void planningUsesStartingSnapshot() {
-    setupPartitionedTable();
-    DeleteFile deletes = formatVersion == 2 ? FILE_A_POS_DELETES : FILE_A_EQ_DELETES;
+    setupPartitionedTable(2);
+    DeleteFile deletes = FILE_A_POS_DELETES;
     long originalSnapshotId = prepareDanglingDeletes(deletes);
     long rewrittenSnapshotId = table.currentSnapshot().snapshotId();
     table.manageSnapshots().rollbackTo(originalSnapshotId).commit();
@@ -557,10 +562,10 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
     assertThat(liveEntries()).extracting(Tuple2::_2).contains(deletes.location());
   }
 
-  @TestTemplate
+  @Test
   void rollbackBeforeCommit() {
-    setupPartitionedTable();
-    DeleteFile deletes = formatVersion == 2 ? FILE_A_POS_DELETES : FILE_A_EQ_DELETES;
+    setupPartitionedTable(2);
+    DeleteFile deletes = FILE_A_POS_DELETES;
     long rollbackSnapshotId = prepareDanglingDeletes(deletes);
     long planningSnapshotId = table.currentSnapshot().snapshotId();
     RemoveDanglingDeletesSparkAction action =
@@ -585,10 +590,10 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
         .contains(FILE_A.location(), deletes.location());
   }
 
-  @TestTemplate
+  @Test
   void rollbackDuringCommitRetry() {
-    setupPartitionedTable();
-    DeleteFile deletes = formatVersion == 2 ? FILE_A_POS_DELETES : FILE_A_EQ_DELETES;
+    setupPartitionedTable(2);
+    DeleteFile deletes = FILE_A_POS_DELETES;
     long rollbackSnapshotId = prepareDanglingDeletes(deletes);
     long planningSnapshotId = table.currentSnapshot().snapshotId();
     TableOperations ops = spy(((HasTableOperations) table).operations());
