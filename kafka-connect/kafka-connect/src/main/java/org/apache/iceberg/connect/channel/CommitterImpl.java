@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.connect.channel;
 
+import java.time.Duration;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,6 +39,8 @@ import org.slf4j.LoggerFactory;
 public class CommitterImpl implements Committer {
 
   private static final Logger LOG = LoggerFactory.getLogger(CommitterImpl.class);
+
+  private static final Duration COORDINATOR_THREAD_JOIN_WAIT_DURATION = Duration.ofSeconds(10);
 
   private CoordinatorThread coordinatorThread;
   private Worker worker;
@@ -234,6 +237,13 @@ public class CommitterImpl implements Committer {
   private void stopCoordinator() {
     if (coordinatorThread != null) {
       coordinatorThread.terminate();
+      try {
+        LOG.info("Asking coordinator thread to join for task {}", taskId);
+        coordinatorThread.join(COORDINATOR_THREAD_JOIN_WAIT_DURATION.toMillis());
+        LOG.info("Coordinator thread joined for task {}", taskId);
+      } catch (InterruptedException e) {
+        LOG.warn("Coordinator thread join interrupted for task {}", taskId, e);
+      }
       coordinatorThread = null;
     }
   }
