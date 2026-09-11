@@ -107,7 +107,11 @@ Notes:
 Types are based on the [Iceberg Type](https://iceberg.apache.org/spec/#schemas-and-data-types).
 
 Primitive and semi-structured type strings are encoded based on [Iceberg Type JSON Representation][iceberg-type-json]
-(e.g., `int`, `string`, `timestamp`, `decimal(9,2)`, `variant`). Type strings must contain no spaces or quote characters.
+(e.g., `int`, `string`, `timestamp`, `decimal(9, 2)`, `variant`). Type strings must contain no quote characters.
+
+Type strings are used exactly as Iceberg serializes them. Parameterized types may contain spaces, either separating
+parameters (`decimal(9, 2)`, `geography(OGC:CRS84, spherical)`) or within a parameter value (`geometry(srid: 3857)`).
+Readers must not add or remove spaces in a type string.
 
 Nested types (`struct`, `list`, `map`) use the [Iceberg Type JSON Representation][iceberg-type-json] with the
 following fields required. Any other fields must be ignored.
@@ -118,19 +122,22 @@ following fields required. Any other fields must be ignored.
   e.g., `{ "type": "struct", "fields": [ { "name": "id", "type": "int" }, { "name": "name", "type": "string" } ] }`
 
 #### Definition ID
-The `definition-id` is a canonical string derived from the parameter types, formatted as a comma-separated list with no
-spaces. Each type uses the following string representation:
+The `definition-id` is a canonical string derived from the parameter types, formatted as a comma-separated list. The
+separators that this format adds must not be followed by a space. Each type uses the following string representation:
 
 * Primitives and semi-structured: the type name (e.g., `int`, `variant`)
 * List: `list<element-type>` (e.g., `list<int>`)
 * Map: `map<key-type,value-type>` (e.g., `map<string,int>`)
 * Struct: `struct<name1:type1,name2:type2,...>` with field names and types (e.g., `struct<id:int,name:string>`)
 
+A type string is embedded unchanged, so a parameterized type may still contribute spaces of its own (see [Types](#types)).
+
 Examples of complete definition-id signatures:
 
 * `int` – single int parameter
 * `int,string` – two parameters: int and string
 * `int,list<int>,struct<id:int,name:string>` – three parameters: an int, a list and a struct
+* `decimal(9, 2),geometry(srid: 3857)` – two parameterized parameters, each keeping its own spaces
 
 #### Specific Name
 
