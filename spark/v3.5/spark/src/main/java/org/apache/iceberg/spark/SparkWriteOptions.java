@@ -23,6 +23,9 @@ public class SparkWriteOptions {
 
   private SparkWriteOptions() {}
 
+  // Overrides the target branch for write operations
+  public static final String BRANCH = "branch";
+
   // Fileformat for write operations(default: Table write.format.default )
   public static final String WRITE_FORMAT = "write-format";
 
