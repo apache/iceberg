@@ -666,6 +666,9 @@ public class FlinkCatalog extends AbstractCatalog {
   private void alterIcebergView(
       ObjectPath tablePath, ResolvedCatalogView newView, boolean ignoreIfNotExists)
       throws TableNotExistException, CatalogException {
+    // a replaced query is stored the same way a created one is, so it gets the same check
+    validateViewReferences(tablePath, newView);
+
     View view;
     try {
       view = asViewCatalog.loadView(toIdentifier(tablePath));
