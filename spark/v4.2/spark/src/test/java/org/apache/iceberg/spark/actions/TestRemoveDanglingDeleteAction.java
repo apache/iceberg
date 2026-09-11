@@ -20,7 +20,13 @@ package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import java.io.File;
 import java.util.List;
@@ -28,20 +34,25 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -509,6 +520,107 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             Tuple2.apply(2L, FILE_C.location()),
             Tuple2.apply(2L, fileADeletes.location()));
     assertThat(actualAfter).containsExactlyInAnyOrderElementsOf(expectedAfter);
+  }
+
+  @TestTemplate
+  void emptyTable() {
+    setupPartitionedTable();
+
+    RemoveDanglingDeleteFiles.Result result =
+        SparkActions.get().removeDanglingDeleteFiles(table).execute();
+
+    assertThat(result.removedDeleteFiles()).isEmpty();
+    assertThat(table.currentSnapshot()).isNull();
+  }
+
+  @TestTemplate
+  void planningUsesStartingSnapshot() {
+    setupPartitionedTable();
+    DeleteFile deletes = formatVersion == 2 ? FILE_A_POS_DELETES : FILE_A_EQ_DELETES;
+    long originalSnapshotId = prepareDanglingDeletes(deletes);
+    long rewrittenSnapshotId = table.currentSnapshot().snapshotId();
+    table.manageSnapshots().rollbackTo(originalSnapshotId).commit();
+    Table actionTable = spy(table);
+    doAnswer(
+            invocation -> {
+              table.manageSnapshots().setCurrentSnapshot(rewrittenSnapshotId).commit();
+              return invocation.callRealMethod();
+            })
+        .when(actionTable)
+        .newRewrite();
+
+    RemoveDanglingDeleteFiles.Result result =
+        SparkActions.get().removeDanglingDeleteFiles(actionTable).execute();
+
+    assertThat(result.removedDeleteFiles()).isEmpty();
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(rewrittenSnapshotId);
+    assertThat(liveEntries()).extracting(Tuple2::_2).contains(deletes.location());
+  }
+
+  @TestTemplate
+  void rollbackBeforeCommit() {
+    setupPartitionedTable();
+    DeleteFile deletes = formatVersion == 2 ? FILE_A_POS_DELETES : FILE_A_EQ_DELETES;
+    long rollbackSnapshotId = prepareDanglingDeletes(deletes);
+    long planningSnapshotId = table.currentSnapshot().snapshotId();
+    RemoveDanglingDeletesSparkAction action =
+        spy(new RemoveDanglingDeletesSparkAction(spark, table));
+    doAnswer(
+            invocation -> {
+              table.manageSnapshots().rollbackTo(rollbackSnapshotId).commit();
+              return invocation.callRealMethod();
+            })
+        .when(action)
+        .commit(any());
+
+    assertThatThrownBy(action::execute)
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Cannot remove dangling deletes: current snapshot changed from %s to %s",
+            planningSnapshotId, rollbackSnapshotId);
+
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(rollbackSnapshotId);
+    assertThat(liveEntries())
+        .extracting(Tuple2::_2)
+        .contains(FILE_A.location(), deletes.location());
+  }
+
+  @TestTemplate
+  void rollbackDuringCommitRetry() {
+    setupPartitionedTable();
+    DeleteFile deletes = formatVersion == 2 ? FILE_A_POS_DELETES : FILE_A_EQ_DELETES;
+    long rollbackSnapshotId = prepareDanglingDeletes(deletes);
+    long planningSnapshotId = table.currentSnapshot().snapshotId();
+    TableOperations ops = spy(((HasTableOperations) table).operations());
+    Table actionTable = new BaseTable(ops, table.name());
+    doAnswer(
+            invocation -> {
+              table.manageSnapshots().rollbackTo(rollbackSnapshotId).commit();
+              throw new CommitFailedException("Injected concurrent rollback");
+            })
+        .doCallRealMethod()
+        .when(ops)
+        .commit(any(), any());
+
+    assertThatThrownBy(() -> SparkActions.get().removeDanglingDeleteFiles(actionTable).execute())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Cannot remove dangling deletes: current snapshot changed from %s to %s",
+            planningSnapshotId, rollbackSnapshotId);
+
+    verify(ops, times(1)).commit(any(), any());
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(rollbackSnapshotId);
+    assertThat(liveEntries())
+        .extracting(Tuple2::_2)
+        .contains(FILE_A.location(), deletes.location());
+  }
+
+  private long prepareDanglingDeletes(DeleteFile deletes) {
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newRowDelta().addDeletes(deletes).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.newRewrite().validateFromSnapshot(snapshotId).deleteFile(FILE_A).commit();
+    return snapshotId;
   }
 
   private List<Tuple2<Long, String>> liveEntries() {
