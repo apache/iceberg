@@ -1261,9 +1261,13 @@ project(':iceberg-bom') {
       def sparkScalaVersions = [
         "3.5": ["2.12", "2.13"],
       ]
+      // Projects that build a distribution rather than a Maven artifact disable their publishing
+      // tasks, so their POM is never published and the BOM must not reference it.
+      def unpublishedProjects = ['iceberg-kafka-connect-runtime']
       rootProject.allprojects.forEach {
         // Do not include ':iceberg-spark', the bom itself and the root project.
-        if (it.name != 'iceberg-bom' && it != rootProject && it.childProjects.isEmpty()) {
+        if (it.name != 'iceberg-bom' && it != rootProject && it.childProjects.isEmpty()
+            && !unpublishedProjects.contains(it.name)) {
           if (it.name.startsWith("iceberg-spark-")) {
             def sparkScalaMatcher = sparkScalaPattern.matcher(it.name)
             if (!sparkScalaMatcher.find()) {
