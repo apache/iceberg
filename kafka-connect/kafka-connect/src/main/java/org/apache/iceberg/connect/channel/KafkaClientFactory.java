@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.channel;
 
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -51,14 +52,31 @@ class KafkaClientFactory {
   }
 
   Consumer<String, byte[]> createConsumer(String consumerGroupId) {
+    return createConsumer(consumerGroupId, "latest");
+  }
+
+  /**
+   * Creates a control-topic consumer.
+   *
+   * @param autoOffsetReset default reset policy for partitions with no committed offset or an
+   *     offset that is out of range; an explicitly configured reset policy takes precedence
+   */
+  Consumer<String, byte[]> createConsumer(String consumerGroupId, String autoOffsetReset) {
+    return new KafkaConsumer<>(
+        consumerProps(consumerGroupId, autoOffsetReset),
+        new StringDeserializer(),
+        new ByteArrayDeserializer());
+  }
+
+  @VisibleForTesting
+  Map<String, Object> consumerProps(String consumerGroupId, String autoOffsetReset) {
     Map<String, Object> consumerProps = Maps.newHashMap(kafkaProps);
-    consumerProps.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+    consumerProps.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetReset);
     consumerProps.putIfAbsent(ConsumerConfig.CLIENT_ID_CONFIG, UUID.randomUUID().toString());
     consumerProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
     consumerProps.put(ConsumerConfig.ISOLATION_LEVEL_CONFIG, "read_committed");
     consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, consumerGroupId);
-    return new KafkaConsumer<>(
-        consumerProps, new StringDeserializer(), new ByteArrayDeserializer());
+    return consumerProps;
   }
 
   Admin createAdmin() {

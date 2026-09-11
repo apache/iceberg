@@ -100,6 +100,27 @@ By default the connector will attempt to use Kafka client config from the worker
 the control topic. If that config cannot be read for some reason, Kafka client settings
 can be set explicitly using `iceberg.kafka.*` properties.
 
+#### Control-topic recovery
+
+The coordinator uses a persistent consumer group and defaults to `auto.offset.reset=earliest`.
+When a partition has no committed offset or its offset is out of range, the coordinator reads
+from the earliest retained offset. This lets a replacement coordinator recover file announcements
+that its predecessor consumed but did not commit to Iceberg. Valid committed offsets take precedence
+over the reset policy. Worker control-topic consumers use transient groups and default to `latest`.
+An explicit `iceberg.kafka.auto.offset.reset` overrides both defaults; setting it to `latest`
+disables recovery of earlier announcements when a coordinator partition needs an offset reset.
+
+Recovery requires the uncommitted announcements to remain in the control topic. Filtering announcements
+that were already committed also requires the per-table offset boundary stored in a reachable snapshot
+summary. Commits by other writers do not automatically carry that property forward. If the snapshots
+containing the boundary expire and the coordinator replays retained history without a valid Kafka
+checkpoint, files can be registered again. Coordinate snapshot retention and control-topic retention
+to preserve the required boundary; the reset policy alone does not guarantee safe historical replay.
+
+The coordinator buffers historical responses during startup before applying the per-table boundaries.
+A large retained history can increase startup time and exhaust heap. This cost can recur whenever a
+checkpoint is unavailable; topic retention is not a bound on the memory required to replay it.
+
 #### Message format
 
 Messages should be converted to a struct or map using the appropriate Kafka Connect converter.
