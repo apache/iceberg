@@ -22,9 +22,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.AwsClientProperties;
@@ -568,6 +570,80 @@ public class TestS3FileIOProperties {
 
     RetryPolicy retryPolicy = builder.overrideConfiguration().retryPolicy().get();
     assertThat(retryPolicy.numRetries()).as("retries was not set").isEqualTo(999);
+  }
+
+  @Test
+  public void testApplyApiCallTimeoutConfigurationsNotSetByDefault() {
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(Maps.newHashMap());
+
+    S3ClientBuilder builder = S3Client.builder();
+    s3FileIOProperties.applyApiCallTimeoutConfigurations(builder);
+
+    assertThat(builder.overrideConfiguration().apiCallTimeout())
+        .as("api call timeout should be unset by default")
+        .isEmpty();
+    assertThat(builder.overrideConfiguration().apiCallAttemptTimeout())
+        .as("api call attempt timeout should be unset by default")
+        .isEmpty();
+  }
+
+  @Test
+  public void testApplyApiCallTimeoutConfigurations() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.S3_API_CALL_TIMEOUT_MS, "60000");
+    properties.put(S3FileIOProperties.S3_API_CALL_ATTEMPT_TIMEOUT_MS, "30000");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+
+    S3ClientBuilder builder = S3Client.builder();
+    s3FileIOProperties.applyApiCallTimeoutConfigurations(builder);
+
+    ClientOverrideConfiguration overrideConfiguration = builder.overrideConfiguration();
+    assertThat(overrideConfiguration.apiCallTimeout())
+        .as("api call timeout was not set")
+        .isEqualTo(Optional.of(Duration.ofMillis(60000)));
+    assertThat(overrideConfiguration.apiCallAttemptTimeout())
+        .as("api call attempt timeout was not set")
+        .isEqualTo(Optional.of(Duration.ofMillis(30000)));
+  }
+
+  @Test
+  public void testApplyApiCallTimeoutConfigurationsMustBePositive() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.S3_API_CALL_TIMEOUT_MS, "0");
+
+    assertThatThrownBy(() -> new S3FileIOProperties(properties))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("s3.api-call-timeout-ms must be positive, but was: 0");
+  }
+
+  @Test
+  public void testApplyApiCallAttemptTimeoutConfigurationsMustBePositive() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.S3_API_CALL_ATTEMPT_TIMEOUT_MS, "0");
+
+    assertThatThrownBy(() -> new S3FileIOProperties(properties))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("s3.api-call-attempt-timeout-ms must be positive, but was: 0");
+  }
+
+  @Test
+  public void testDefaultS3FileIOAwsClientFactoryAppliesApiCallTimeoutToAsyncClient() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.S3_CRT_ENABLED, "false");
+    properties.put(S3FileIOProperties.S3_API_CALL_TIMEOUT_MS, "60000");
+    properties.put(S3FileIOProperties.S3_API_CALL_ATTEMPT_TIMEOUT_MS, "30000");
+
+    DefaultS3FileIOAwsClientFactory factory = new DefaultS3FileIOAwsClientFactory();
+    factory.initialize(properties);
+
+    ClientOverrideConfiguration overrideConfiguration =
+        factory.s3Async().serviceClientConfiguration().overrideConfiguration();
+    assertThat(overrideConfiguration.apiCallTimeout())
+        .as("api call timeout was not applied to the async client")
+        .isEqualTo(Optional.of(Duration.ofMillis(60000)));
+    assertThat(overrideConfiguration.apiCallAttemptTimeout())
+        .as("api call attempt timeout was not applied to the async client")
+        .isEqualTo(Optional.of(Duration.ofMillis(30000)));
   }
 
   @Test

@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.TestHelpers;
@@ -40,6 +41,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.awscore.AwsClient;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.retries.internal.DefaultAdaptiveRetryStrategy;
@@ -111,6 +113,30 @@ public class TestAwsClientFactories {
                         "us-east-1"))
                 .s3Async())
         .isInstanceOf(DefaultS3CrtAsyncClient.class);
+  }
+
+  @Test
+  public void testAssumeRoleS3AsyncClientAppliesApiCallTimeoutConfigurations() {
+    ClientOverrideConfiguration overrideConfiguration =
+        ((S3AsyncClient)
+                AwsClientFactories.from(
+                        ImmutableMap.of(
+                            AwsProperties.CLIENT_FACTORY,
+                            AssumeRoleAwsClientFactory.class.getName(),
+                            AwsProperties.CLIENT_ASSUME_ROLE_ARN,
+                            "arn::test",
+                            AwsProperties.CLIENT_ASSUME_ROLE_REGION,
+                            "us-east-1",
+                            S3FileIOProperties.S3_CRT_ENABLED,
+                            "false",
+                            S3FileIOProperties.S3_API_CALL_TIMEOUT_MS,
+                            "60000"))
+                    .s3Async())
+            .serviceClientConfiguration()
+            .overrideConfiguration();
+    assertThat(overrideConfiguration.apiCallTimeout())
+        .as("api call timeout was not applied to the async client")
+        .isEqualTo(Optional.of(Duration.ofMillis(60000)));
   }
 
   @Test
