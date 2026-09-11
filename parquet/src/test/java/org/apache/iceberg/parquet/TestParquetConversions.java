@@ -20,28 +20,24 @@ package org.apache.iceberg.parquet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.StringType;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
+import org.apache.parquet.schema.Types;
 import org.junit.jupiter.api.Test;
 
-public class TestParquetConversions {
+class TestParquetConversions {
 
   private static PrimitiveType binaryWith(LogicalTypeAnnotation annotation) {
-    return org.apache.parquet.schema.Types.required(PrimitiveTypeName.BINARY)
-        .as(annotation)
-        .named("s");
+    return Types.required(PrimitiveTypeName.BINARY).as(annotation).named("s");
   }
 
   @Test
-  public void testStringConverterDecodesUtf8EnumAndJson() {
+  void stringConverterDecodesUtf8EnumAndJson() {
     Binary value = Binary.fromString("hello");
 
-    // UTF8, ENUM and JSON all map to Iceberg StringType (MessageTypeToType), so the converter must
-    // decode each to a CharSequence. Before the fix, ENUM/JSON fell through to the binary path and
-    // returned a ByteBuffer, which broke read-time row-group filtering with a ClassCastException.
     for (LogicalTypeAnnotation annotation :
         new LogicalTypeAnnotation[] {
           LogicalTypeAnnotation.stringType(),
@@ -49,7 +45,7 @@ public class TestParquetConversions {
           LogicalTypeAnnotation.jsonType()
         }) {
       Object converted =
-          ParquetConversions.converterFromParquet(binaryWith(annotation), Types.StringType.get())
+          ParquetConversions.converterFromParquet(binaryWith(annotation), StringType.get())
               .apply(value);
 
       assertThat(converted)
