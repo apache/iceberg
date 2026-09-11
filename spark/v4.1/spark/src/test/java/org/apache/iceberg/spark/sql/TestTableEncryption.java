@@ -19,6 +19,9 @@
 package org.apache.iceberg.spark.sql;
 
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
+import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,6 +31,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.ChecksumFileSystem;
@@ -42,22 +47,26 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.encryption.Ciphers;
 import org.apache.iceberg.encryption.UnitestKMS;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Tasks;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.spark.SparkException;
 import org.junit.jupiter.api.AfterEach;
@@ -195,6 +204,58 @@ public class TestTableEncryption extends CatalogTestBase {
 
     Table afterSecondReplace = validationCatalog.loadTable(tableIdent);
     assertThat(currentDataFiles(afterSecondReplace)).hasSize(1);
+  }
+
+  @TestTemplate
+  public void testConcurrentAppendsPreserveEncryptionKeys() throws IOException {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    // High retry ceiling so concurrent commits contending on one table lock do not exhaust retries.
+    table
+        .updateProperties()
+        .set(COMMIT_NUM_RETRIES, "500")
+        .set(COMMIT_MIN_RETRY_WAIT_MS, "25")
+        .set(COMMIT_MAX_RETRY_WAIT_MS, "25")
+        .commit();
+
+    List<DataFile> initialFiles = currentDataFiles(table);
+    int initialSnapshotCount = (int) Streams.stream(table.snapshots()).count();
+    DataFile file = initialFiles.get(0);
+
+    int threadCount = 4;
+    int commitsPerThread = 40;
+    Tasks.range(threadCount)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(
+            MoreExecutors.getExitingExecutorService(
+                (ThreadPoolExecutor) Executors.newFixedThreadPool(threadCount)))
+        .run(
+            index -> {
+              for (int i = 0; i < commitsPerThread; i++) {
+                table.newFastAppend().appendFile(file).commit();
+              }
+            });
+
+    Table reloaded = validationCatalog.loadTable(tableIdent);
+    assertThat(reloaded.snapshots()).hasSize(initialSnapshotCount + threadCount * commitsPerThread);
+
+    // Every committed snapshot must stay readable: a dropped key makes scan planning fail while
+    // decrypting the manifest list.
+    for (Snapshot snapshot : reloaded.snapshots()) {
+      assertThat(planSnapshot(reloaded, snapshot.snapshotId())).isNotEmpty();
+    }
+
+    assertThat(currentDataFiles(reloaded))
+        .hasSize(initialFiles.size() + threadCount * commitsPerThread);
+  }
+
+  private static List<FileScanTask> planSnapshot(Table table, long snapshotId) throws IOException {
+    try (CloseableIterable<FileScanTask> tasks =
+        table.newScan().useSnapshot(snapshotId).planFiles()) {
+      return ImmutableList.copyOf(tasks);
+    }
   }
 
   @TestTemplate
