@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 class TestRootManifestFile {
   private static final long SNAPSHOT_ID = 42L;
   private static final byte[] CONTENTS = new byte[] {1, 2, 3, 4, 5};
-  private static final String LOCATION = "s3://bucket/db/table/metadata/root.avro";
+  private static final String LOCATION = "s3://bucket/db/table/metadata/root.parquet";
 
   private final InputFile file = new InMemoryInputFile(LOCATION, CONTENTS);
 
