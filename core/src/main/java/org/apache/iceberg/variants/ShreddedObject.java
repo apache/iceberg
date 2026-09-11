@@ -61,7 +61,8 @@ public class ShreddedObject implements VariantObject, Serializable {
   }
 
   private Set<String> nameSet() {
-    Set<String> names = Sets.newTreeSet(shreddedFields.keySet());
+    Set<String> names = Sets.newTreeSet(VariantMetadata.FIELD_NAME_ORDER);
+    names.addAll(shreddedFields.keySet());
 
     if (unshredded != null) {
       Iterables.addAll(names, unshredded.fieldNames());
@@ -157,7 +158,7 @@ public class ShreddedObject implements VariantObject, Serializable {
         Set<String> removedFields) {
       this.fieldIdSize = VariantUtil.sizeOf(metadata.dictionarySize());
 
-      Map<String, Entry> sorted = Maps.newTreeMap();
+      Map<String, Entry> sorted = Maps.newTreeMap(VariantMetadata.FIELD_NAME_ORDER);
       int totalDataSize = 0;
 
       for (Map.Entry<String, VariantValue> field : shredded.entrySet()) {

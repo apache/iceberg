@@ -581,7 +581,9 @@ class RecordConverter {
     }
 
     List<String> sortedFieldNames =
-        collectFieldNames(value).stream().sorted().collect(Collectors.toList());
+        collectFieldNames(value).stream()
+            .sorted(VariantMetadata.FIELD_NAME_ORDER)
+            .collect(Collectors.toList());
     VariantMetadata metadata = Variants.metadata(sortedFieldNames);
     return Variant.of(metadata, objectToVariantValue(value, metadata, null));
   }
