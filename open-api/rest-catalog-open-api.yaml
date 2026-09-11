@@ -665,12 +665,12 @@ paths:
       tags:
         - Catalog API
       summary: Create a function in the given namespace
-      description:
+      description: >
         Create a function in the given namespace.
+
 
         The function is created with all of its definitions. The server assigns `function-uuid`,
         `format-version`, and `definition-log`, so those must not be sent in the request.
-
       operationId: createFunction
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
@@ -761,11 +761,11 @@ paths:
       tags:
         - Catalog API
       summary: Drop a function from the catalog
-      description:
+      description: >
         Remove a function from the catalog.
 
-        All definitions of the function are removed.
 
+        All definitions of the function are removed.
       operationId: dropFunction
       parameters:
         - $ref: '#/components/parameters/idempotency-key'
@@ -806,11 +806,20 @@ paths:
         204:
           description: Success, no content
         400:
-          description: Bad Request
+          $ref: '#/components/responses/BadRequestErrorResponse'
         401:
-          description: Unauthorized
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
         404:
-          description: Not Found
+          description: Not Found - NoSuchFunctionException, function not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                FunctionNotFound:
+                  $ref: '#/components/examples/NoSuchFunctionError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -5097,7 +5106,10 @@ components:
           description: The function's base location. This is used to store function metadata files.
         definitions:
           type: array
-          description: List of function definition entities.
+          description: >
+            List of function definition entities. The server assigns `definition-id`,
+            `current-version-id`, and the `version-id` and `timestamp-ms` of each version,
+            replacing any values sent by the client.
           items:
             $ref: '#/components/schemas/FunctionDefinition'
         properties:

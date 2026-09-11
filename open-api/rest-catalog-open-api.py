@@ -2115,7 +2115,8 @@ class CreateFunctionRequest(BaseModel):
         description="The function's base location. This is used to store function metadata files.",
     )
     definitions: list[FunctionDefinition] = Field(
-        ..., description='List of function definition entities.'
+        ...,
+        description='List of function definition entities. The server assigns `definition-id`, `current-version-id`, and the `version-id` and `timestamp-ms` of each version, replacing any values sent by the client.\n',
     )
     properties: dict[str, str] | None = Field(
         None, description='A string-to-string map of properties.'
