@@ -24,13 +24,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 
-/**
- * A {@link ManifestFile} for the root manifest of a v4 adaptive metadata tree.
- *
- * <p>The root is referenced by location (like a manifest list), spans partition specs, and does not
- * store per-manifest aggregates. Accessors for values it does not carry throw {@link
- * UnsupportedOperationException}.
- */
+/** A {@link ManifestFile} for the root manifest of an adaptive metadata tree. */
 class RootManifestFile implements ManifestFile {
   private static final int FORMAT_VERSION = 4;
 
