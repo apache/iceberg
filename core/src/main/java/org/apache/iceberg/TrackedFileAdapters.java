@@ -47,8 +47,6 @@ class TrackedFileAdapters {
   }
 
   static DeleteFile asDVDeleteFile(DataFile dataFile) {
-    // a DataFile produced by asDataFile is a wrapped TrackedFile; recover it rather than
-    // introducing a separate DataFile-backed deletion vector wrapper
     Preconditions.checkArgument(
         dataFile instanceof TrackedDataFile,
         "Cannot create DV delete file from DataFile: %s",
