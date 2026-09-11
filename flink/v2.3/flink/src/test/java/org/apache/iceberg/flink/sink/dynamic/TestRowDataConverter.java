@@ -286,9 +286,16 @@ class TestRowDataConverter {
   }
 
   private static RowData convert(RowData sourceData, Schema sourceSchema, Schema targetSchema) {
+    return convert(sourceData, sourceSchema, targetSchema, true);
+  }
+
+  private static RowData convert(
+      RowData sourceData, Schema sourceSchema, Schema targetSchema, boolean caseSensitive) {
     return (RowData)
         DataConverter.get(
-                FlinkSchemaUtil.convert(sourceSchema), FlinkSchemaUtil.convert(targetSchema))
+                FlinkSchemaUtil.convert(sourceSchema),
+                FlinkSchemaUtil.convert(targetSchema),
+                caseSensitive)
             .convert(sourceData);
   }
 }
