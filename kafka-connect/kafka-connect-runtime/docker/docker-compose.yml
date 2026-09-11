@@ -20,7 +20,7 @@ volumes:
 
 services:
   minio:
-    image: minio/minio
+    image: quay.io/minio/minio
     hostname: minio
     environment:
       - MINIO_ROOT_USER=minioadmin
@@ -33,7 +33,7 @@ services:
     command: server /data --console-address ":9001"
 
   create-bucket:
-    image: minio/mc
+    image: quay.io/minio/mc
     depends_on:
       - minio
     volumes:
