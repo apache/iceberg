@@ -141,7 +141,7 @@ public class SchemaParser {
   }
 
   static void toJson(Type type, JsonGenerator generator) throws IOException {
-    if (type.isPrimitiveType() || type.isVariantType()) {
+    if (type.isPrimitiveType() || type.isVariantType() || type.isFileType()) {
       generator.writeString(type.toString());
     } else {
       Type.NestedType nested = type.asNestedType();
@@ -176,8 +176,19 @@ public class SchemaParser {
   }
 
   private static Type typeFromJson(JsonNode json) {
+    return typeFromJson(json, null);
+  }
+
+  private static Type typeFromJson(JsonNode json, Integer enclosingId) {
     if (json.isTextual()) {
-      return Types.fromTypeName(json.asText());
+      String typeName = json.asText();
+      if (Types.FileType.NAME.equalsIgnoreCase(typeName)) {
+        Preconditions.checkArgument(
+            enclosingId != null, "Cannot parse file type without an enclosing field ID");
+        return Types.FileType.of(enclosingId);
+      }
+
+      return Types.fromTypeName(typeName);
     } else if (json.isObject()) {
       JsonNode typeObj = json.get(TYPE);
       if (typeObj != null) {
@@ -232,7 +243,7 @@ public class SchemaParser {
 
       int id = JsonUtil.getInt(ID, field);
       String name = JsonUtil.getString(NAME, field);
-      Type type = typeFromJson(JsonUtil.get(TYPE, field));
+      Type type = typeFromJson(JsonUtil.get(TYPE, field), id);
 
       Literal<?> initialDefault = defaultFromJson(INITIAL_DEFAULT, type, field);
       Literal<?> writeDefault = defaultFromJson(WRITE_DEFAULT, type, field);
@@ -254,7 +265,7 @@ public class SchemaParser {
 
   private static Types.ListType listFromJson(JsonNode json) {
     int elementId = JsonUtil.getInt(ELEMENT_ID, json);
-    Type elementType = typeFromJson(JsonUtil.get(ELEMENT, json));
+    Type elementType = typeFromJson(JsonUtil.get(ELEMENT, json), elementId);
     boolean isRequired = JsonUtil.getBool(ELEMENT_REQUIRED, json);
 
     if (isRequired) {
@@ -266,10 +277,10 @@ public class SchemaParser {
 
   private static Types.MapType mapFromJson(JsonNode json) {
     int keyId = JsonUtil.getInt(KEY_ID, json);
-    Type keyType = typeFromJson(JsonUtil.get(KEY, json));
+    Type keyType = typeFromJson(JsonUtil.get(KEY, json), keyId);
 
     int valueId = JsonUtil.getInt(VALUE_ID, json);
-    Type valueType = typeFromJson(JsonUtil.get(VALUE, json));
+    Type valueType = typeFromJson(JsonUtil.get(VALUE, json), valueId);
 
     boolean isRequired = JsonUtil.getBool(VALUE_REQUIRED, json);
 
