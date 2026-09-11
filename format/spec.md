@@ -772,7 +772,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | 100 | **`location`** | `string` | *required* | Location of the file or manifest. |
     | 101 | **`file_format`** | `string` | *required* | String file format name: `avro`, `orc`, `parquet`, or `puffin` |
     | 147 | **`tracking`** | `tracking` struct | *required* | Groups status, snapshot, and sequence number. See tracking struct below. |
-    | 141 | **`spec_id`** | `int` | *optional* | ID of the partition spec used to write this manifest or data file. |
+    | 502 | **`spec_id`** | `int` | *optional* | ID of the partition spec used to write this manifest or data file. |
     | 140 | **`sort_order_id`** | `int` | *optional* | ID representing sort order for this file. |
     | 103 | **`record_count`** | `long` | *required* | Number of records in this file. |
     | 104 | **`file_size_in_bytes`** | `long` | *required* | Total file size in bytes. |
