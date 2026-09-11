@@ -22,7 +22,6 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -129,8 +128,10 @@ public class GenericOrcReaders {
     @Override
     public OffsetDateTime nonNullRead(ColumnVector vector, int row) {
       TimestampColumnVector tcv = (TimestampColumnVector) vector;
-      return Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row])
-          .atOffset(ZoneOffset.UTC);
+      return OffsetDateTime.of(
+          LocalDateTime.ofEpochSecond(
+              Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row], ZoneOffset.UTC),
+          ZoneOffset.UTC);
     }
   }
 
@@ -164,9 +165,8 @@ public class GenericOrcReaders {
     @Override
     public LocalDateTime nonNullRead(ColumnVector vector, int row) {
       TimestampColumnVector tcv = (TimestampColumnVector) vector;
-      return Instant.ofEpochSecond(Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row])
-          .atOffset(ZoneOffset.UTC)
-          .toLocalDateTime();
+      return LocalDateTime.ofEpochSecond(
+          Math.floorDiv(tcv.time[row], 1_000), tcv.nanos[row], ZoneOffset.UTC);
     }
   }
 
