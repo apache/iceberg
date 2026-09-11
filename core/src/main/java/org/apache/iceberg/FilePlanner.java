@@ -109,7 +109,7 @@ class FilePlanner {
 
     List<CloseableIterable<TrackedFile>> leafPlanTasks = Lists.newArrayList();
     for (ManifestFile leaf : leafManifests) {
-      leafPlanTasks.add(leafPlanTask(leaf));
+      leafPlanTasks.add(reader(leaf));
     }
 
     CloseableIterable<TrackedFile> leafFiles =
@@ -125,18 +125,6 @@ class FilePlanner {
         CloseableIterable.transform(files, file -> TrackedFileAdapters.asDataFile(file, specsById));
 
     return CloseableIterable.transform(dataFiles, this::createTask);
-  }
-
-  private CloseableIterable<TrackedFile> leafPlanTask(ManifestFile leaf) {
-    return CloseableIterable.transform(
-        reader(leaf),
-        entry -> {
-          Preconditions.checkArgument(
-              entry.contentType() == FileContent.DATA,
-              "Unsupported file type in leaf manifest: %s",
-              entry.contentType());
-          return entry;
-        });
   }
 
   private CloseableIterable<TrackedFile> reader(ManifestFile manifest) {
