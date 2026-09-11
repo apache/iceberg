@@ -114,7 +114,7 @@ nav:
   - Community:
     - Community: community.md
     - Talks: talks.md
-    - Vendors: vendors.md
+    - Third-party ecosystem: vendors.md
   - Blog: blog/
   - Specification:
     - Terms: terms.md
