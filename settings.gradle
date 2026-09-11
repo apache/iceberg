@@ -18,6 +18,14 @@
  */
 
 rootProject.name = 'iceberg'
+
+// Projects that build a distribution rather than a Maven artifact. These disable their publishing
+// tasks, so their POM is never published and the BOM must not reference it. The set is declared
+// here, and added to beside the include that registers each such project, because the BOM
+// populates its constraints while the root project is configured, which is before subproject build
+// files are evaluated and long before publishing tasks exist.
+gradle.ext.unpublishedProjects = [] as Set
+
 include 'bom'
 include 'api'
 include 'common'
@@ -211,6 +219,8 @@ if (kafkaVersions.contains("3")) {
   include ":iceberg-kafka-connect:kafka-connect-runtime"
   project(":iceberg-kafka-connect:kafka-connect-runtime").projectDir = file('kafka-connect/kafka-connect-runtime')
   project(":iceberg-kafka-connect:kafka-connect-runtime").name = "iceberg-kafka-connect-runtime"
+  // Builds a distribution only, see kafka-connect/kafka-connect-runtime/build.gradle
+  gradle.ext.unpublishedProjects.add("iceberg-kafka-connect-runtime")
 
   include ":iceberg-kafka-connect:kafka-connect-transforms"
   project(":iceberg-kafka-connect:kafka-connect-transforms").projectDir = file('kafka-connect/kafka-connect-transforms')
