@@ -674,6 +674,12 @@ public class TestEvaluator {
     assertThat(charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abcd"))))
         .as("utf8(abcd) in [string(abc), string(abd)] => false")
         .isFalse();
+
+    StructType nullableStringStruct = StructType.of(optional(35, "s", Types.StringType.get()));
+    Evaluator nullStringEvaluator = new Evaluator(nullableStringStruct, in("s", "abc", "abd"));
+    assertThat(nullStringEvaluator.eval(TestHelpers.Row.of((String) null)))
+        .as("null in [abc, abd] => false")
+        .isFalse();
   }
 
   @Test
@@ -775,6 +781,12 @@ public class TestEvaluator {
         .isFalse();
     assertThat(charSeqEvaluator.eval(TestHelpers.Row.of(new Utf8("abcd"))))
         .as("utf8(abcd) not in [string(abc), string(abd)] => true")
+        .isTrue();
+
+    StructType nullableStringStruct = StructType.of(optional(35, "s", Types.StringType.get()));
+    Evaluator nullStringEvaluator = new Evaluator(nullableStringStruct, notIn("s", "abc", "abd"));
+    assertThat(nullStringEvaluator.eval(TestHelpers.Row.of((String) null)))
+        .as("null not in [abc, abd] => true")
         .isTrue();
   }
 

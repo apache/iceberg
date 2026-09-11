@@ -202,23 +202,29 @@ public class VariantWriterBuilder extends ParquetVariantVisitor<ParquetValueWrit
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
           writer =
-              ParquetVariantWriters.primitive(
+              ParquetVariantWriters.decimal(
                   ParquetValueWriters.decimalAsFixed(
                       desc, decimal.getPrecision(), decimal.getScale()),
+                  decimal.getPrecision(),
+                  decimal.getScale(),
                   PhysicalType.DECIMAL16);
           return Optional.of(writer);
         case INT64:
           writer =
-              ParquetVariantWriters.primitive(
+              ParquetVariantWriters.decimal(
                   ParquetValueWriters.decimalAsLong(
                       desc, decimal.getPrecision(), decimal.getScale()),
+                  decimal.getPrecision(),
+                  decimal.getScale(),
                   PhysicalType.DECIMAL8);
           return Optional.of(writer);
         case INT32:
           writer =
-              ParquetVariantWriters.primitive(
+              ParquetVariantWriters.decimal(
                   ParquetValueWriters.decimalAsInteger(
                       desc, decimal.getPrecision(), decimal.getScale()),
+                  decimal.getPrecision(),
+                  decimal.getScale(),
                   PhysicalType.DECIMAL4);
           return Optional.of(writer);
       }

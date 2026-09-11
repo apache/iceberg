@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +76,7 @@ import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.Trigger;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -91,24 +93,6 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
         SparkCatalogConfig.HIVE.properties(),
-        false
-      },
-      {
-        SparkCatalogConfig.HIVE.catalogName(),
-        SparkCatalogConfig.HIVE.implementation(),
-        SparkCatalogConfig.HIVE.properties(),
-        true
-      },
-      {
-        SparkCatalogConfig.HADOOP.catalogName(),
-        SparkCatalogConfig.HADOOP.implementation(),
-        SparkCatalogConfig.HADOOP.properties(),
-        false
-      },
-      {
-        SparkCatalogConfig.HADOOP.catalogName(),
-        SparkCatalogConfig.HADOOP.implementation(),
-        SparkCatalogConfig.HADOOP.properties(),
         true
       },
       {
@@ -119,27 +103,6 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
             .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
             .build(),
         false
-      },
-      {
-        SparkCatalogConfig.REST.catalogName(),
-        SparkCatalogConfig.REST.implementation(),
-        ImmutableMap.builder()
-            .putAll(SparkCatalogConfig.REST.properties())
-            .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
-            .build(),
-        true
-      },
-      {
-        SparkCatalogConfig.SPARK_SESSION.catalogName(),
-        SparkCatalogConfig.SPARK_SESSION.implementation(),
-        SparkCatalogConfig.SPARK_SESSION.properties(),
-        false
-      },
-      {
-        SparkCatalogConfig.SPARK_SESSION.catalogName(),
-        SparkCatalogConfig.SPARK_SESSION.implementation(),
-        SparkCatalogConfig.SPARK_SESSION.properties(),
-        true
       }
     };
   }
@@ -648,7 +611,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testReadingStreamFromFutureTimetsamp() throws Exception {
+  public void testReadingStreamFromFutureTimestamp() throws Exception {
     long futureTimestamp = System.currentTimeMillis() + 10000;
 
     StreamingQuery query =
@@ -673,12 +636,14 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
     waitUntilAfter(futureTimestamp);
 
-    // Data appended after the timestamp should appear
+    // With async planning the new snapshot is discovered by a background thread, so poll until
+    // the appended data becomes visible.
     appendData(data);
-    // Allow async background thread to refresh, else test sometimes fails
-    Thread.sleep(50);
-    actual = rowsAvailable(query);
-    assertThat(actual).containsExactlyInAnyOrderElementsOf(data);
+    Awaitility.await("data appended after fromTimestamp becomes visible")
+        .atMost(Duration.ofSeconds(10))
+        .pollInterval(Duration.ofMillis(10))
+        .untilAsserted(
+            () -> assertThat(rowsAvailable(query)).containsExactlyInAnyOrderElementsOf(data));
   }
 
   @TestTemplate

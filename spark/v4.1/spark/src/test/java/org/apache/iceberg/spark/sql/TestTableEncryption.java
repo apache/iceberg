@@ -39,12 +39,14 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.encryption.Ciphers;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.io.InputFile;
@@ -57,6 +59,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.spark.SparkException;
@@ -362,6 +365,43 @@ public class TestTableEncryption extends CatalogTestBase {
     if (!foundManifestListFile) {
       throw new RuntimeException("No manifest list files found for table " + tableName);
     }
+  }
+
+  @TestTemplate
+  public void rewriteManifestsOnEncryptedTables() throws IOException {
+    // append a second time, so that there is more than one manifest to rewrite
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0), (6, 'f', float('NaN'))", tableName);
+
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    RewriteManifests.Result result = SparkActions.get().rewriteManifests(table).execute();
+
+    // guard against the action short-circuiting
+    assertThat(result.rewrittenManifests()).hasSizeGreaterThan(1);
+    assertThat(result.addedManifests()).isNotEmpty();
+
+    for (ManifestFile manifest : result.addedManifests()) {
+      assertThat(manifest.keyMetadata()).isNotNull();
+      checkMetadataFileEncryption(localInput(manifest.path()));
+    }
+
+    // The action commits through a separate catalog instance.
+    sql("REFRESH TABLE %s", tableName);
+
+    List<Object[]> expected =
+        ImmutableList.of(
+            row(1L, "a", 1.0F),
+            row(2L, "b", 2.0F),
+            row(3L, "c", Float.NaN),
+            row(4L, "d", 4.0F),
+            row(5L, "e", 5.0F),
+            row(6L, "f", Float.NaN));
+
+    assertEquals(
+        "Should return all expected rows",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @TestTemplate

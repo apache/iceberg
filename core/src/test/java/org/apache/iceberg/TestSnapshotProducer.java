@@ -22,11 +22,14 @@ import static org.apache.iceberg.SnapshotSummary.PUBLISHED_WAP_ID_PROP;
 import static org.apache.iceberg.avro.AvroTestHelpers.readAvroCodec;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -227,7 +230,11 @@ public class TestSnapshotProducer extends TestBase {
   }
 
   @TestTemplate
-  public void testDefaultManifestCompression() throws IOException {
+  public void testDefaultAvroManifestCompression() throws IOException {
+    assumeThat(formatVersion)
+        .as("V4 uses Parquet manifests by default; Avro codec checks do not apply")
+        .isLessThan(TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS);
+
     table.newFastAppend().appendFile(FILE_A).commit();
 
     ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
@@ -235,12 +242,38 @@ public class TestSnapshotProducer extends TestBase {
   }
 
   @TestTemplate
-  public void testManifestCompressionFromTableProperty() throws IOException {
+  public void testAvroManifestCompressionFromTableProperty() throws IOException {
+    assumeThat(formatVersion)
+        .as("V4 uses Parquet manifests by default; Avro codec checks do not apply")
+        .isLessThan(TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS);
+
     table.updateProperties().set(TableProperties.MANIFEST_COMPRESSION, "snappy").commit();
 
     table.newFastAppend().appendFile(FILE_A).commit();
 
     ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
     assertThat(readAvroCodec(new File(manifest.path()))).isEqualTo("snappy");
+  }
+
+  @TestTemplate
+  public void testWriteManifestsWithNullExecutorThrows() {
+    assertThatThrownBy(() -> table.newAppend().writeManifestsWith(null, 4))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Executor service cannot be null");
+  }
+
+  @TestTemplate
+  public void testWriteManifestsWithInvalidParallelismThrows() {
+    ExecutorService executor = Executors.newFixedThreadPool(4);
+    try {
+      assertThatThrownBy(() -> table.newAppend().writeManifestsWith(executor, 0))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Parallelism must be greater than 0");
+      assertThatThrownBy(() -> table.newAppend().writeManifestsWith(executor, -1))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Parallelism must be greater than 0");
+    } finally {
+      executor.shutdownNow();
+    }
   }
 }

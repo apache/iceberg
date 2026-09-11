@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -82,6 +83,31 @@ public class TestManifestReader extends TestBase {
     assertThatThrownBy(() -> ManifestFiles.read(manifest, FILE_IO, table.specs()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot read from ManifestFile with null (unassigned) snapshot ID");
+  }
+
+  @TestTemplate
+  public void testReadPathsFromDataManifest() throws IOException {
+    ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B);
+    try (CloseableIterable<String> paths =
+        ManifestFiles.readPaths(manifest, FILE_IO, table.specs())) {
+      assertThat(paths).containsExactlyInAnyOrder(FILE_A.location(), FILE_B.location());
+    }
+  }
+
+  @TestTemplate
+  public void testReadPathsFromDeleteManifest() throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files are only supported in V2 and later")
+        .isGreaterThanOrEqualTo(2);
+
+    DeleteFile deletes = fileADeletes();
+    ManifestFile manifest = writeDeleteManifest(formatVersion, 1000L, deletes);
+    assertThat(manifest.content()).isEqualTo(ManifestContent.DELETES);
+
+    try (CloseableIterable<String> paths =
+        ManifestFiles.readPaths(manifest, FILE_IO, table.specs())) {
+      assertThat(paths).containsExactly(deletes.location());
+    }
   }
 
   @TestTemplate
@@ -219,6 +245,42 @@ public class TestManifestReader extends TestBase {
   }
 
   @TestTemplate
+  public void testReadCommitedManifestNullifiesEntryRowId() throws IOException {
+    long firstRowId = 42L;
+    DataFile fileWithRowId =
+        DataFiles.builder(SPEC).copy(FILE_A).withFirstRowId(firstRowId).build();
+    // the manifest has no manifest-level first_row_id (the v3+ entry still carries one)
+    ManifestFile manifest =
+        writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, fileWithRowId));
+    assertThat(manifest.firstRowId()).isNull();
+
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, table.specs())) {
+      assertThat(Iterables.getOnlyElement(reader).firstRowId()).isNull();
+    }
+  }
+
+  @TestTemplate
+  public void testReadUncommittedManifestPreservesEntryRowId() throws IOException {
+    assumeThat(formatVersion)
+        .as("first_row_id is only written in v3+ manifests")
+        .isGreaterThanOrEqualTo(3);
+
+    long firstRowId = 42L;
+    DataFile fileWithRowId =
+        DataFiles.builder(SPEC).copy(FILE_A).withFirstRowId(firstRowId).build();
+    // the manifest has no manifest-level first_row_id, but the entry has one
+    ManifestFile manifest =
+        writeManifest(1000L, manifestEntry(Status.EXISTING, 123L, fileWithRowId));
+    assertThat(manifest.firstRowId()).isNull();
+    assertThat(fileWithRowId.firstRowId()).isEqualTo(firstRowId);
+
+    try (ManifestReader<DataFile> reader =
+        ManifestFiles.read(manifest, FILE_IO, table.specs(), false /* isCommitted */)) {
+      assertThat(Iterables.getOnlyElement(reader).firstRowId()).isEqualTo(firstRowId);
+    }
+  }
+
+  @TestTemplate
   public void testDataFileSplitOffsetsNullWhenInvalid() throws IOException {
     DataFile invalidOffset =
         DataFiles.builder(SPEC)
@@ -234,11 +296,14 @@ public class TestManifestReader extends TestBase {
     }
   }
 
-  @SuppressWarnings("deprecation")
   @TestTemplate
-  public void testDeprecatedReadWithoutSpecsById() throws IOException {
+  public void readWithoutSpecsById() throws IOException {
+    assumeThat(formatVersion)
+        .as("Deprecated read without specsById requires Avro metadata; V4 uses Parquet")
+        .isLessThan(TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS);
+
     ManifestFile manifest = writeManifest(1000L, manifestEntry(Status.EXISTING, 1000L, FILE_A));
-    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO, null)) {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       assertThat(entry.status()).isEqualTo(Status.EXISTING);
       assertThat(entry.file().location()).isEqualTo(FILE_A.location());

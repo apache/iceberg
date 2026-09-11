@@ -19,6 +19,7 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,6 +34,10 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileInfo;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsPrefixOperations;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -241,5 +246,99 @@ public class TestFileSystemWalker {
     }
 
     assertThat(remainingDirs).isEmpty();
+  }
+
+  @Test
+  public void testListDirRecursivelyWithFileIOBucketRootBaseDir() {
+    assertThat(
+            listWithMockFileIO(
+                "s3://bucket/",
+                new FileInfo("s3://bucket/data/a.parquet", 1L, 0L),
+                new FileInfo("s3://bucket/data/b.parquet", 1L, 0L),
+                new FileInfo("s3://bucket/top.parquet", 1L, 0L)))
+        .containsExactlyInAnyOrder(
+            "s3://bucket/data/a.parquet", "s3://bucket/data/b.parquet", "s3://bucket/top.parquet");
+  }
+
+  /**
+   * Regression test: with a bucket-root base directory, files living under a hidden top-level
+   * directory (e.g. {@code _temporary}) must still be filtered out, and no NPE should occur.
+   */
+  @Test
+  public void testListDirRecursivelyWithFileIOBucketRootFiltersHiddenDir() {
+    assertThat(
+            listWithMockFileIO(
+                "s3://bucket/",
+                new FileInfo("s3://bucket/data/a.parquet", 1L, 0L),
+                new FileInfo("s3://bucket/_temporary/attempt_x/b.parquet", 1L, 0L),
+                new FileInfo("s3://bucket/.staging/c.parquet", 1L, 0L)))
+        .containsExactly("s3://bucket/data/a.parquet");
+  }
+
+  /**
+   * Regression test: when the base directory is passed without a trailing slash (e.g. {@code
+   * oss://bucket}), the walk should still work correctly without NPE.
+   */
+  @Test
+  public void testListDirRecursivelyWithFileIOBucketRootNoTrailingSlash() {
+    assertThat(
+            listWithMockFileIO(
+                "s3://bucket",
+                new FileInfo("s3://bucket/data/a.parquet", 1L, 0L),
+                new FileInfo("s3://bucket/_hidden/b.parquet", 1L, 0L)))
+        .containsExactly("s3://bucket/data/a.parquet");
+  }
+
+  @Test
+  public void testListDirRecursivelyWithFileIONullFileLocation() {
+    assertThatThrownBy(
+            () ->
+                listWithMockFileIO(
+                    "s3://bucket/",
+                    new FileInfo(null, 1L, 0L),
+                    new FileInfo("s3://bucket/data/a.parquet", 1L, 0L)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Can not create a Path from a null string");
+  }
+
+  private static List<String> listWithMockFileIO(String baseDir, FileInfo... entries) {
+    SupportsPrefixOperations mockIO = new StaticPrefixFileIO(ImmutableList.copyOf(entries));
+    List<String> foundFiles = Lists.newArrayList();
+    FileSystemWalker.listDirRecursivelyWithFileIO(
+        mockIO, baseDir, null, fileInfo -> true, foundFiles::add);
+    return foundFiles;
+  }
+
+  private static class StaticPrefixFileIO implements SupportsPrefixOperations {
+    private final Iterable<FileInfo> entries;
+
+    StaticPrefixFileIO(Iterable<FileInfo> entries) {
+      this.entries = entries;
+    }
+
+    @Override
+    public Iterable<FileInfo> listPrefix(String prefix) {
+      return entries;
+    }
+
+    @Override
+    public void deletePrefix(String prefix) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public InputFile newInputFile(String path) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void deleteFile(String path) {
+      throw new UnsupportedOperationException();
+    }
   }
 }

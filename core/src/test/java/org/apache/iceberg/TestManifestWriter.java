@@ -41,7 +41,7 @@ public class TestManifestWriter extends TestBase {
   public void testManifestStats() throws IOException {
     ManifestFile manifest =
         writeManifest(
-            "manifest.avro",
+            manifestFormat().addExtension("manifest"),
             manifestEntry(Status.ADDED, null, newFile(10)),
             manifestEntry(Status.ADDED, null, newFile(20)),
             manifestEntry(Status.ADDED, null, newFile(5)),
@@ -67,7 +67,7 @@ public class TestManifestWriter extends TestBase {
   public void testManifestPartitionStats() throws IOException {
     ManifestFile manifest =
         writeManifest(
-            "manifest.avro",
+            manifestFormat().addExtension("manifest"),
             manifestEntry(Status.ADDED, null, newFile(10, TestHelpers.Row.of(1))),
             manifestEntry(Status.EXISTING, null, newFile(15, TestHelpers.Row.of(2))),
             manifestEntry(Status.DELETED, null, newFile(2, TestHelpers.Row.of(3))));
@@ -92,7 +92,8 @@ public class TestManifestWriter extends TestBase {
   @TestTemplate
   public void testWriteManifestWithSequenceNumber() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
-    File manifestFile = temp.resolve("manifest" + System.nanoTime() + ".avro").toFile();
+    File manifestFile =
+        temp.resolve(manifestFormat().addExtension("manifest" + System.nanoTime())).toFile();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(formatVersion, table.spec(), outputFile, 1L);
@@ -119,7 +120,7 @@ public class TestManifestWriter extends TestBase {
 
     ManifestFile manifest =
         writeManifest(
-            "manifest.avro",
+            manifestFormat().addExtension("manifest"),
             manifestEntry(Status.ADDED, null, dataSequenceNumber, null, file1),
             manifestEntry(Status.ADDED, null, dataSequenceNumber, null, file2));
 
@@ -161,7 +162,7 @@ public class TestManifestWriter extends TestBase {
 
     ManifestFile newManifest =
         writeManifest(
-            "manifest.avro",
+            manifestFormat().addExtension("manifest"),
             manifestEntry(Status.EXISTING, appendSnapshotId, appendSequenceNumber, null, file1),
             manifestEntry(Status.EXISTING, appendSnapshotId, appendSequenceNumber, null, file2));
 

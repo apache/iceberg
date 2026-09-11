@@ -99,7 +99,7 @@ paths:
 
 
         Common catalog configuration settings are documented at
-        https://iceberg.apache.org/docs/latest/configuration/#catalog-properties
+        https://iceberg.apache.org/docs/latest/catalog-properties
 
 
         The catalog configuration also holds an optional `endpoints` field that contains information about the endpoints
@@ -622,6 +622,88 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/functions:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+
+    get:
+      tags:
+        - Catalog API
+      summary: List all functions underneath a given namespace
+      description: Return all function identifiers under this namespace
+      operationId: listFunctions
+      parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
+      responses:
+        200:
+          $ref: '#/components/responses/ListFunctionsResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The namespace specified does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/functions/{function}:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/function'
+
+    get:
+      tags:
+        - Catalog API
+      summary: Load a function from the catalog
+      description:
+        Load a function from the catalog.
+
+        All overloaded definitions are included in a single response.
+
+      operationId: loadFunction
+      responses:
+        200:
+          $ref: '#/components/responses/LoadFunctionResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - Function or namespace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NamespaceNotFound:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+                FunctionNotFound:
+                  $ref: '#/components/examples/NoSuchFunctionError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
   /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan:
     parameters:
       - $ref: '#/components/parameters/prefix'
@@ -969,6 +1051,16 @@ paths:
         table. The configuration key "token" is used to pass an access token to be used as a bearer token
         for table requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
+
+
+        The response may include a read-restrictions field. A reader that supports read
+        restrictions must fail any read against the loaded table that cannot apply a returned
+        restriction in full. This includes unrecognized action or expression types, and actions
+        whose definition cannot be loaded, parsed, or evaluated. These restrictions apply to every
+        read performed using this response (including subsequent planTableScan and fetchScanTasks
+        calls), but subsequent requests or requests made from a different authentication scope
+        may have different restrictions. The response should not be cached outside of the
+        authenticated scope.
       parameters:
         - $ref: '#/components/parameters/data-access'
         - name: If-None-Match
@@ -983,9 +1075,9 @@ paths:
         - in: query
           name: snapshots
           description:
-            The snapshots to return in the body of the metadata. Setting the value to `all` would
-            return the full set of snapshots currently valid for the table. Setting the value to
-            `refs` would load all snapshots referenced by branches or tags.
+            The snapshots to return in the body of the metadata via the `snapshots` field. Setting
+            the value to `all` would return the full set of snapshots currently valid for the table.
+            Setting the value to `refs` would load all snapshots referenced by branches or tags.
 
             Default if no param is provided is `all`.
           required: false
@@ -1209,6 +1301,56 @@ paths:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
                 TableToLoadDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/unregister:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Unregister a table without removing its data or metadata files
+      operationId: unregisterTable
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
+      description:
+        Unregister a table from the catalog. This is the opposite of
+        `registerTable`. The table no longer exists in the catalog, but the
+        underlying data and metadata files are left in place so that the table
+        can be registered in another catalog.
+
+
+        On success, this returns the table's last metadata location and the
+        corresponding table metadata. This table metadata must include all
+        commits that happened before the unregister operation. All attempted
+        commits after the unregister operation in this catalog must fail.
+      responses:
+        200:
+          $ref: '#/components/responses/UnregisterTableResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found - NoSuchTableException, table to unregister does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableToUnregisterDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
@@ -1980,6 +2122,15 @@ components:
         type: string
       example: "sales"
 
+    function:
+      name: function
+      in: path
+      description: A function name
+      required: true
+      schema:
+        type: string
+      example: "add_one"
+
     plan-id:
       name: plan-id
       in: path
@@ -2011,10 +2162,12 @@ components:
 
       required: false
       schema:
-        type: string
-        enum:
-          - vended-credentials
-          - remote-signing
+        type: array
+        items:
+          type: string
+          enum:
+            - vended-credentials
+            - remote-signing
       style: simple
       explode: false
       example: "vended-credentials,remote-signing"
@@ -2267,6 +2420,17 @@ components:
           type: string
           nullable: false
 
+    CatalogObjectIdentifier:
+      description:
+        Reference to a catalog object (for example, table, view, or namespace) as
+        an ordered list of hierarchical levels.
+        The object kind is determined by context (e.g. the endpoint or a
+        companion type discriminator), not by the identifier structure alone.
+      type: array
+      items:
+        type: string
+      example: [ "accounting", "tax", "paid" ]
+
     PrimitiveType:
       type: string
       example:
@@ -2274,6 +2438,10 @@ components:
         - "string"
         - "fixed[16]"
         - "decimal(10,2)"
+
+    VariantType:
+      type: string
+      const: "variant"
 
     StructField:
       type: object
@@ -2355,7 +2523,9 @@ components:
           type: boolean
 
     Type:
+      # Keep VariantType first, or the generated client resolves `variant` as PrimitiveType.
       oneOf:
+        - $ref: '#/components/schemas/VariantType'
         - $ref: '#/components/schemas/PrimitiveType'
         - $ref: '#/components/schemas/StructType'
         - $ref: '#/components/schemas/ListType'
@@ -2374,15 +2544,16 @@ components:
               items:
                 type: integer
 
-    Expression:
+    Predicate:
       oneOf:
+        - type: boolean
         - $ref: '#/components/schemas/TrueExpression'
         - $ref: '#/components/schemas/FalseExpression'
-        - $ref: '#/components/schemas/AndOrExpression'
-        - $ref: '#/components/schemas/NotExpression'
-        - $ref: '#/components/schemas/SetExpression'
-        - $ref: '#/components/schemas/LiteralExpression'
-        - $ref: '#/components/schemas/UnaryExpression'
+        - $ref: '#/components/schemas/AndOrPredicate'
+        - $ref: '#/components/schemas/NotPredicate'
+        - $ref: '#/components/schemas/UnaryPredicate'
+        - $ref: '#/components/schemas/ComparisonPredicate'
+        - $ref: '#/components/schemas/SetPredicate'
 
     ExpressionType:
       type: string
@@ -2407,7 +2578,18 @@ components:
         - "is-nan"
         - "not-nan"
 
+    ValueExpression:
+      description: >
+        A value expression: a literal, a field reference, or a function application.
+      oneOf:
+        - $ref: '#/components/schemas/Literal'
+        - $ref: '#/components/schemas/Reference'
+        - $ref: '#/components/schemas/Apply'
+
     TrueExpression:
+      deprecated: true
+      description: >
+        Deprecated. Use the bare boolean literal `true` as a predicate instead.
       type: object
       required:
         - type
@@ -2417,6 +2599,9 @@ components:
           const: "true"
 
     FalseExpression:
+      deprecated: true
+      description: >
+        Deprecated. Use the bare boolean literal `false` as a predicate instead.
       type: object
       required:
         - type
@@ -2425,7 +2610,7 @@ components:
           $ref: '#/components/schemas/ExpressionType'
           const: "false"
 
-    AndOrExpression:
+    AndOrPredicate:
       type: object
       required:
         - type
@@ -2436,11 +2621,11 @@ components:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["and", "or"]
         left:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
         right:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
 
-    NotExpression:
+    NotPredicate:
       type: object
       required:
         - type
@@ -2450,63 +2635,216 @@ components:
           $ref: '#/components/schemas/ExpressionType'
           const: "not"
         child:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
 
-    UnaryExpression:
+    UnaryPredicate:
+      description: >
+        A predicate that tests a single value expression. Accepts either
+        'child' (preferred) or 'term' (deprecated) to identify the operand.
       type: object
+      additionalProperties: false
       required:
         - type
-        - term
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["is-null", "not-null", "is-nan", "not-nan"]
+        child:
+          $ref: '#/components/schemas/ValueExpression'
         term:
+          deprecated: true
+          description: "Deprecated. Use 'child' instead."
           $ref: '#/components/schemas/Term'
 
-    LiteralExpression:
+    ComparisonPredicate:
+      description: >
+        A predicate that compares two value expressions. Accepts either
+        'left'/'right' (preferred) or 'term'/'value' (deprecated).
       type: object
+      additionalProperties: false
       required:
         - type
-        - term
-        - value
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["lt", "lt-eq", "gt", "gt-eq", "eq", "not-eq", "starts-with", "not-starts-with"]
+        left:
+          $ref: '#/components/schemas/ValueExpression'
+        right:
+          $ref: '#/components/schemas/ValueExpression'
         term:
+          deprecated: true
+          description: "Deprecated. Use 'left' instead."
           $ref: '#/components/schemas/Term'
         value:
-          $ref: '#/components/schemas/PrimitiveTypeValue'
+          deprecated: true
+          description: "Deprecated. Use 'right' instead."
+          $ref: '#/components/schemas/Literal'
 
-    SetExpression:
+    SetPredicate:
+      description: >
+        A predicate that tests whether a value is in a set of literals. Accepts
+        either 'child' (preferred) or 'term' (deprecated) to identify the operand.
       type: object
+      additionalProperties: false
       required:
         - type
-        - term
         - values
       properties:
         type:
           $ref: '#/components/schemas/ExpressionType'
           enum: ["in", "not-in"]
+        child:
+          $ref: '#/components/schemas/ValueExpression'
         term:
+          deprecated: true
+          description: "Deprecated. Use 'child' instead."
           $ref: '#/components/schemas/Term'
         values:
-          type: array
-          items:
-            $ref: '#/components/schemas/PrimitiveTypeValue'
+          $ref: '#/components/schemas/Literals'
 
-    Term:
+    Literal:
+      description: >
+        A literal is either a bare value, an untyped literal object, or a
+        typed literal object.
       oneOf:
-        - $ref: '#/components/schemas/Reference'
-        - $ref: '#/components/schemas/TransformTerm'
+        - $ref: '#/components/schemas/PrimitiveTypeValue'
+        - type: object
+          additionalProperties: false
+          required:
+            - type
+            - value
+          properties:
+            type:
+              type: string
+              const: "literal"
+            value:
+              $ref: '#/components/schemas/PrimitiveTypeValue'
+            data-type:
+              $ref: '#/components/schemas/PrimitiveType'
+
+    Literals:
+      description: >
+        Literals is either a bare array of literals or a typed object with
+        an explicit data-type applied to all values.
+      oneOf:
+        - type: array
+          items:
+            $ref: '#/components/schemas/Literal'
+        - type: object
+          additionalProperties: false
+          required:
+            - type
+            - values
+            - data-type
+          properties:
+            type:
+              type: string
+              const: "literals"
+            values:
+              type: array
+              items:
+                $ref: '#/components/schemas/PrimitiveTypeValue'
+            data-type:
+              $ref: '#/components/schemas/PrimitiveType'
 
     Reference:
+      description: >
+        A reference to a field. Either a bound reference (by field ID) or
+        an unbound reference (by name). The context in which an expression
+        is used determines which form is valid.
+      oneOf:
+        - $ref: '#/components/schemas/IdReference'
+        - $ref: '#/components/schemas/NamedReference'
+
+    IdReference:
+      description: A bound reference to a field by field ID.
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - id
+      properties:
+        type:
+          type: string
+          const: "reference"
+        id:
+          type: integer
+
+    NamedReference:
+      description: An unbound reference to a field by name.
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - name
+      properties:
+        type:
+          type: string
+          const: "reference"
+        name:
+          type: string
+
+    Apply:
+      description: >
+        A function application on zero or more value expressions or predicates.
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - function
+        - arguments
+      properties:
+        type:
+          type: string
+          const: "apply"
+        function:
+          oneOf:
+            - type: string
+              minLength: 1
+            - $ref: '#/components/schemas/CatalogObjectIdentifier'
+            - type: object
+              additionalProperties: false
+              required:
+                - identifier
+              properties:
+                catalog:
+                  type: string
+                identifier:
+                  $ref: '#/components/schemas/CatalogObjectIdentifier'
+        arguments:
+          type: array
+          items:
+            $ref: '#/components/schemas/FunctionArgument'
+
+    FunctionArgument:
+      anyOf:
+        - $ref: '#/components/schemas/ValueExpression'
+        - $ref: '#/components/schemas/Predicate'
+
+    Term:
+      deprecated: true
+      description: >
+        Deprecated. Legacy term form used by older REST predicates.
+        Use Reference or Apply instead.
+      oneOf:
+        - $ref: '#/components/schemas/TermReference'
+        - $ref: '#/components/schemas/TransformTerm'
+
+    TermReference:
+      deprecated: true
+      description: >
+        Deprecated string-form field reference used in older REST predicates.
+        Use Reference (IdReference or NamedReference) instead.
       type: string
       example:
         - "column-name"
 
     TransformTerm:
+      deprecated: true
+      description: >
+        Deprecated. Legacy transform-applied-to-a-term form.
+        Use Apply with a Reference argument instead.
       type: object
       required:
         - type
@@ -2519,7 +2857,7 @@ components:
         transform:
           $ref: '#/components/schemas/Transform'
         term:
-          $ref: '#/components/schemas/Reference'
+          $ref: '#/components/schemas/TermReference'
 
     Transform:
       type: string
@@ -2941,6 +3279,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - uuid
       properties:
         action:
@@ -2953,6 +3292,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - format-version
       properties:
         action:
@@ -2965,6 +3305,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - schema
       properties:
         action:
@@ -2986,6 +3327,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - schema-id
       properties:
         action:
@@ -2999,6 +3341,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - spec
       properties:
         action:
@@ -3011,6 +3354,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - spec-id
       properties:
         action:
@@ -3024,6 +3368,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - sort-order
       properties:
         action:
@@ -3036,6 +3381,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - sort-order-id
       properties:
         action:
@@ -3049,6 +3395,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot
       properties:
         action:
@@ -3062,6 +3409,7 @@ components:
         - $ref: '#/components/schemas/BaseUpdate'
         - $ref: '#/components/schemas/SnapshotReference'
       required:
+        - action
         - ref-name
       properties:
         action:
@@ -3074,6 +3422,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot-ids
       properties:
         action:
@@ -3089,6 +3438,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - ref-name
       properties:
         action:
@@ -3101,6 +3451,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - location
       properties:
         action:
@@ -3113,6 +3464,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - updates
       properties:
         action:
@@ -3127,6 +3479,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - removals
       properties:
         action:
@@ -3141,6 +3494,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - view-version
       properties:
         action:
@@ -3153,6 +3507,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - view-version-id
       properties:
         action:
@@ -3166,6 +3521,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - statistics
       properties:
         action:
@@ -3185,6 +3541,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot-id
       properties:
         action:
@@ -3198,6 +3555,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - partition-statistics
       properties:
         action:
@@ -3210,6 +3568,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - snapshot-id
       properties:
         action:
@@ -3223,6 +3582,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - spec-ids
       properties:
         action:
@@ -3237,6 +3597,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - schema-ids
       properties:
         action:
@@ -3251,6 +3612,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - encryption-key
       properties:
         action:
@@ -3263,6 +3625,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/BaseUpdate'
       required:
+        - action
         - key-id
       properties:
         action:
@@ -3361,6 +3724,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - ref
         - snapshot-id
       properties:
@@ -3380,6 +3744,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - last-assigned-field-id
       properties:
         type:
@@ -3394,6 +3759,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - current-schema-id
       properties:
         type:
@@ -3408,6 +3774,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - last-assigned-partition-id
       properties:
         type:
@@ -3422,6 +3789,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - default-spec-id
       properties:
         type:
@@ -3436,6 +3804,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/TableRequirement'
       required:
+        - type
         - default-sort-order-id
       properties:
         type:
@@ -3480,6 +3849,317 @@ components:
           additionalProperties:
             type: string
 
+    ReadRestrictions:
+      type: object
+      description: >
+          Read restrictions for a table.
+
+          A reader evaluates the row filter against original, untransformed column
+          values, then applies required-column-projections to the surviving rows.
+          Each action must produce a value of the same type as the input column.
+          If a reader that supports read-restrictions cannot apply any returned
+          restriction (a filter expression or an action), it must fail the query
+          and must not silently return raw, partial, or empty results.
+
+          A missing or empty ReadRestrictions object (no required-column-projections and no
+          required-row-filter) imposes no restrictions.
+      example:
+        required-column-projections:
+          - field-id: 4
+            action: show-last-4
+          - field-id: 6
+            action: replace-with-null
+          - field-id: 8
+            action: truncate-to-year
+          - field-id: 10
+            action: sha-256-global
+          - field-id: 12
+            action: mask-alphanum
+        required-row-filter:
+          type: eq
+          left:
+            type: reference
+            id: 14
+          right:
+            type: literal
+            value: "US"
+      properties:
+        required-column-projections:
+          description: >
+            A list of columns that require specific actions to be applied when reading.
+            A server must not return an action for a column whose type is not listed in
+            that action's "Applicable to" set. If absent or empty, no required actions
+            apply; columns not listed are not subject to any required action.
+
+            1. For each column listed, the reader must apply the specified action before
+              returning values for that column.
+
+            2. The reader must replace all output references to the column with the result
+              of the action, presenting the result under the original field-id. For
+              example, if the action for field-id `9` is mask-alphanum, the reader must
+              return the masked value as field-id `9` in the query output.
+
+            3. A server must not return more than one projection for the same field-id
+              in required-column-projections. If a duplicate field-id appears, the reader
+              must fail the query.
+
+            4. A server must not return a projection that targets a map's key field-id;
+              a reader that receives one must fail the query. Applying an action to keys
+              can produce duplicate or null keys, which readers silently coalesce or
+              reject, causing data loss.
+
+            5. A reader must enforce projections on the columns it is actually reading.
+              Projections referencing columns that are not being read do not apply.
+
+            6. A server must not return projections on both a nested-typed field
+              (struct, list, or map) and any field-id nested within it at any depth.
+              A reader that receives such a response must fail the query.
+          type: array
+          items:
+            $ref: '#/components/schemas/Action'
+        required-row-filter:
+          description: >
+            An expression that limits which rows the reader may return.
+
+            1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg predicates
+              never produce NULL). A reader must discard any row for which the filter
+              evaluates to FALSE, and no information derived from discarded rows may be
+              included in the query result.
+
+            2. If this property is absent, null, or always true then no mandatory filtering is required.
+
+            3. Column references within the expression must use field IDs (IdReference),
+              not column names. This ensures the filter remains valid across column renames,
+              consistent with required-column-projections which also reference columns by field-id.
+          allOf:
+            - $ref: '#/components/schemas/Predicate'
+
+    Action:
+      discriminator:
+        propertyName: action
+        mapping:
+          mask-alphanum: '#/components/schemas/MaskAlphanum'
+          mask-to-fixed-value: '#/components/schemas/MaskToFixedValue'
+          replace-with-null: '#/components/schemas/ReplaceWithNull'
+          show-first-4: '#/components/schemas/ShowFirst4'
+          show-last-4: '#/components/schemas/ShowLast4'
+          truncate-to-year: '#/components/schemas/TruncateToYear'
+          truncate-to-month: '#/components/schemas/TruncateToMonth'
+          sha-256-global: '#/components/schemas/Sha256Global'
+          sha-256-query-local: '#/components/schemas/Sha256QueryLocal'
+      type: object
+      required:
+        - action
+        - field-id
+      properties:
+        action:
+          type: string
+        field-id:
+          type: integer
+          description: Field ID of the column being projected.
+
+    MaskAlphanum:
+      description: >
+        Redacts the column value using the following rules to transform Unicode code points:
+
+        - Digits (U+0030–U+0039, 0-9) are replaced with 'n'
+        - The following punctuation characters are kept as-is:
+            U+0028 '('  LEFT PARENTHESIS
+            U+0029 ')'  RIGHT PARENTHESIS
+            U+002C ','  COMMA
+            U+002E '.'  FULL STOP
+            U+002D '-'  HYPHEN-MINUS
+            U+0040 '@'  COMMERCIAL AT
+        - All other Unicode characters (including letters, whitespace, and any punctuation
+          not listed above) are replaced with 'x'
+
+        For example: "iceberg16112018@apache.org" -> "xxxxxxxnnnnnnnn@xxxxxx.xxx"
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "mask-alphanum"
+
+    MaskToFixedValue:
+      description: >
+        Replaces the column value with a type-specific fixed value.
+        Readers must use exactly the values listed below to ensure consistency
+        across implementations.
+
+        Fixed values by type:
+        - boolean: false
+        - int: 0
+        - long: 0
+        - float: 0.0
+        - double: 0.0
+        - decimal(p, s): 0 (the unscaled value is 0)
+        - string: "XXXXXXXX"
+        - date: 1970-01-01
+        - time: 00:00:00
+        - timestamp: 1970-01-01T00:00:00
+        - timestamptz: 1970-01-01T00:00:00+00:00
+        - timestamp_ns: 1970-01-01T00:00:00.000000000
+        - timestamptz_ns: 1970-01-01T00:00:00.000000000+00:00
+        - uuid: 00000000-0000-0000-0000-000000000000
+        - fixed(n): n zero bytes
+        - binary: empty byte sequence
+        - variant: an empty variant object
+        - list: empty list []
+        - map: empty map {}
+        - struct: struct with each field set to its type-specific default (applied recursively)
+
+        NULL input is also replaced with the type-specific fixed value; NULL is not preserved.
+
+        Applicable to: the types with a fixed value defined above. A server must not
+        return mask-to-fixed-value for any other type.
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "mask-to-fixed-value"
+
+    ReplaceWithNull:
+      description: >
+        Replaces the column value with NULL. NULL input is preserved (NULL -> NULL).
+
+        Applicable to: all optional types. A server must not return replace-with-null for
+        a required (non-nullable) field; a reader that receives one must fail the query.
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "replace-with-null"
+
+    ShowFirst4:
+      description: >
+        Preserves the first 4 Unicode code points of the column value and redacts the remainder
+        using mask-alphanum rules (see MaskAlphanum for the exact character rules).
+        Values with 4 or fewer Unicode code points are returned unchanged.
+
+        For example: "iceberg16112018@apache.org" -> "icebxxxnnnnnnnn@xxxxxx.xxx"
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "show-first-4"
+
+    ShowLast4:
+      description: >
+        Redacts all Unicode code points except the last 4 using mask-alphanum rules
+        (see MaskAlphanum for the exact character rules).
+        Values with 4 or fewer Unicode code points are returned unchanged.
+
+        For example: "4111-1111-1111-4444" -> "nnnn-nnnn-nnnn-4444"
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "show-last-4"
+
+    TruncateToYear:
+      description: >
+        Truncates the column value to year precision, setting month, day, and time components
+        to their minimum values. The output type matches the input type.
+
+        For example: 2024-07-15 -> 2024-01-01
+        For timestamptz and timestamptz_ns, truncation is performed in UTC.
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "truncate-to-year"
+
+    TruncateToMonth:
+      description: >
+        Truncates the column value to year and month precision, setting day and time components
+        to their minimum values. The output type matches the input type.
+
+        For example: 2024-07-15 -> 2024-07-01
+        For timestamptz and timestamptz_ns, truncation is performed in UTC.
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "truncate-to-month"
+
+    Sha256Global:
+      description: |
+        Applies SHA-256. Deterministic across all queries
+        and readers: the same input always produces the same output.
+
+        Input-to-bytes encoding by type:
+        - string: UTF-8 encoded bytes
+        - int: 4 bytes, little-endian
+        - long: 8 bytes, little-endian
+        - binary: raw bytes as-is
+
+        Output encoding by type:
+        - string: 64-character lowercase hexadecimal string
+        - int: first 4 bytes of the digest, read as a little-endian int
+        - long: first 8 bytes of the digest, read as a little-endian long
+        - binary: the full 32-byte raw SHA-256 digest
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string, int, long, binary
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "sha-256-global"
+
+    Sha256QueryLocal:
+      description: |
+        Applies SHA-256 with a per-query random salt, making the output non-deterministic
+        across queries while remaining consistent within a single query. The definition
+        of a query is left to the implementation.
+
+        The reader must generate a cryptographically random salt of at least 16 bytes for each query.
+
+        For each column value, the reader must encode the value to bytes using
+        sha-256-global's input rules, prepend the per-query salt, and compute
+        SHA-256 over the result.
+
+        Output encoding follows the same rules as sha-256-global.
+
+        NULL input is preserved (NULL -> NULL).
+
+        Applicable to: string, int, long, binary
+      allOf:
+        - $ref: '#/components/schemas/Action'
+      properties:
+        action:
+          type: string
+          const: "sha-256-query-local"
+
     LoadCredentialsResponse:
       type: object
       required:
@@ -3489,6 +4169,48 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StorageCredential'
+
+    CatalogObjectLabels:
+      type: object
+      description: Flat key-value labels attached to the object (table, view, ...) as a whole.
+      additionalProperties:
+        type: string
+
+    FieldLabels:
+      type: object
+      description: Labels attached to a single field, identified by field-id.
+      required:
+        - field-id
+        - labels
+      properties:
+        field-id:
+          type: integer
+          description: Field ID from the schema of the table or view
+        labels:
+          type: object
+          description: Flat key-value labels for this field
+          additionalProperties:
+            type: string
+
+    Labels:
+      type: object
+      description: |
+        Catalog-provided metadata enrichment (for example ownership,
+        classification, or cost attribution) returned with a table or view.
+        Labels are catalog-provided and optional; clients may ignore them, and
+        may cache them following the response ETag.
+        The spec does not require how a catalog produces or stores labels, nor
+        whether they are persisted or versioned. `object-labels` carries
+        labels for the object as a whole; `fields` carries per-field labels,
+        each identified by field-id.
+      properties:
+        object-labels:
+          $ref: '#/components/schemas/CatalogObjectLabels'
+        fields:
+          type: array
+          description: Field-level labels. Each entry identifies its field by field-id.
+          items:
+            $ref: '#/components/schemas/FieldLabels'
 
     LoadTableResult:
       description: |
@@ -3528,9 +4250,16 @@ components:
 
         ## Remote Signing
 
-        If remote signing for a specific storage provider is enabled, clients must respect the following configurations when creating a remote signer client:
-         - `signer.endpoint`: the remote signer endpoint. Required. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
-         - `signer.uri`: the base URI to resolve `signer.endpoint` against. Optional. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
+        If remote signing for a specific storage provider is enabled, the server SHOULD use the `remote-signing-config`
+        field to communicate all signer client settings. When the `remote-signing-config` field is present, clients
+        SHOULD respect the provided configuration.
+
+        For backward compatibility, the following `config` properties are still supported but **DEPRECATED** and SHOULD NOT be used by clients able to consume the remote signing configuration:
+         - `signer.endpoint` **DEPRECATED**.: the remote signer endpoint. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
+         - `signer.uri` **DEPRECATED**.: the base URI to resolve `signer.endpoint` against. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
+        If any of these properties is present, clients SHOULD use them to compute the actual remote signing endpoint URI to contact.
+        If none of these properties is present, clients SHOULD contact the default remote signing endpoint using the catalog's base URI.
+
       type: object
       required:
         - metadata
@@ -3549,6 +4278,12 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/StorageCredential'
+        remote-signing-config:
+          $ref: '#/components/schemas/RemoteSigningConfig'
+        read-restrictions:
+          $ref: '#/components/schemas/ReadRestrictions'
+        labels:
+          $ref: '#/components/schemas/Labels'
 
     ScanTasks:
       type: object
@@ -3781,6 +4516,23 @@ components:
           type: boolean
           default: false
 
+    UnregisterTableResult:
+      description:
+        Last metadata location and the corresponding table metadata for the
+        table that was successfully unregistered and is no longer tracked by
+        the catalog.
+      type: object
+      required:
+        - metadata-location
+        - metadata
+      properties:
+        metadata-location:
+          type: string
+          description:
+            The last metadata location for the table at the time it was unregistered.
+        metadata:
+          $ref: '#/components/schemas/TableMetadata'
+
     CreateViewRequest:
       type: object
       required:
@@ -3831,6 +4583,8 @@ components:
           type: object
           additionalProperties:
             type: string
+        labels:
+          $ref: '#/components/schemas/Labels'
 
     RegisterViewRequest:
       type: object
@@ -4049,7 +4803,7 @@ components:
           type: integer
           format: int64
         filter:
-          $ref: '#/components/schemas/Expression'
+          $ref: '#/components/schemas/Predicate'
         schema-id:
           type: integer
         projected-field-ids:
@@ -4218,6 +4972,17 @@ components:
           items:
             $ref: '#/components/schemas/TableIdentifier'
 
+    ListFunctionsResponse:
+      type: object
+      properties:
+        next-page-token:
+          $ref: '#/components/schemas/PageToken'
+        identifiers:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/CatalogObjectIdentifier'
+
     ListNamespacesResponse:
       type: object
       properties:
@@ -4228,6 +4993,282 @@ components:
           uniqueItems: true
           items:
             $ref: '#/components/schemas/Namespace'
+
+    LoadFunctionResult:
+      description: |
+        Result returned when a function is loaded from the catalog.
+
+
+        The function metadata JSON is returned in the `metadata` field. The location of the metadata
+        file is returned in the `metadata-location` field, if available.
+      type: object
+      required:
+        - metadata
+      properties:
+        metadata-location:
+          type: string
+        metadata:
+          $ref: '#/components/schemas/FunctionMetadata'
+
+    FunctionMetadata:
+      description: |
+        Portable UDF metadata format.
+
+
+        Each function is represented by a self-contained metadata file. The `format-version` field
+        identifies the UDF metadata format.
+      type: object
+      required:
+        - function-uuid
+        - format-version
+        - definitions
+        - definition-log
+      properties:
+        function-uuid:
+          type: string
+          format: uuid
+          description: A UUID that identifies this UDF, generated once at creation.
+        format-version:
+          type: integer
+          description: UDF specification format version (must be 1).
+          minimum: 1
+          maximum: 1
+        definitions:
+          type: array
+          description: List of function definition entities.
+          items:
+            $ref: '#/components/schemas/FunctionDefinition'
+        definition-log:
+          type: array
+          description: History of versions within the function's definitions.
+          items:
+            $ref: '#/components/schemas/FunctionDefinitionLogEntry'
+        location:
+          type: string
+          description: The function's base location. This is used to store function metadata files.
+        properties:
+          type: object
+          description: A string-to-string map of properties.
+          additionalProperties:
+            type: string
+        secure:
+          type: boolean
+          description: Whether it is a secure function.
+          default: false
+        doc:
+          type: string
+          description: Documentation string.
+
+    FunctionDefinition:
+      type: object
+      required:
+        - definition-id
+        - parameters
+        - return-type
+        - versions
+        - current-version-id
+        - function-type
+      properties:
+        definition-id:
+          type: string
+          description: A canonical string derived from the parameter types, formatted as a comma-separated list with no spaces.
+        specific-name:
+          type: string
+          description: A user-assignable name for this definition that must be unique among all definitions within the UDF metadata.
+        parameters:
+          type: array
+          description: Ordered list of function parameters. Invocation order must match this list.
+          items:
+            $ref: '#/components/schemas/FunctionParameter'
+        return-type:
+          $ref: '#/components/schemas/FunctionDataType'
+        return-nullable:
+          type: boolean
+          description: A hint to indicate whether the return value is nullable or not.
+          default: true
+        versions:
+          type: array
+          description: Versioned implementations of this definition.
+          items:
+            $ref: '#/components/schemas/FunctionDefinitionVersion'
+        current-version-id:
+          type: integer
+          description: Identifier of the current version for this definition.
+        function-type:
+          type: string
+          description: Function type. When set to "udtf", "return-type" must be a struct describing the output schema.
+          enum: ["udf", "udtf"]
+        doc:
+          type: string
+          description: Documentation string.
+
+    FunctionParameter:
+      type: object
+      required:
+        - type
+        - name
+      properties:
+        type:
+          $ref: '#/components/schemas/FunctionDataType'
+        name:
+          type: string
+        doc:
+          type: string
+          description: Parameter documentation.
+
+    FunctionDataType:
+      description: >
+        A type for function parameters or return value. It is encoded either as a type string
+        or as a JSON object for nested types (struct, list, map) following the UDF spec Types section.
+
+
+        Primitive and semi-structured type strings are encoded based on the Iceberg type JSON
+        representation (e.g., "int", "string", "timestamp", "decimal(9,2)", "variant"). Type
+        strings must contain no spaces or quote characters.
+
+
+        Nested types are based on the Iceberg type JSON representation, but the UDF spec only
+        requires a subset of fields (e.g., list requires `type` and `element`; map requires `type`,
+        `key`, and `value`; struct requires `type` and `fields`). Any other fields must be ignored.
+      oneOf:
+        - type: string
+        - $ref: '#/components/schemas/FunctionListType'
+        - $ref: '#/components/schemas/FunctionMapType'
+        - $ref: '#/components/schemas/FunctionStructType'
+
+    FunctionListType:
+      description: UDF list type object.
+      type: object
+      required:
+        - type
+        - element
+      properties:
+        type:
+          type: string
+          const: "list"
+        element:
+          $ref: '#/components/schemas/FunctionDataType'
+
+    FunctionMapType:
+      description: UDF map type object.
+      type: object
+      required:
+        - type
+        - key
+        - value
+      properties:
+        type:
+          type: string
+          const: "map"
+        key:
+          $ref: '#/components/schemas/FunctionDataType'
+        value:
+          $ref: '#/components/schemas/FunctionDataType'
+
+    FunctionStructType:
+      description: UDF struct type object.
+      type: object
+      required:
+        - type
+        - fields
+      properties:
+        type:
+          type: string
+          const: "struct"
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FunctionStructField'
+
+    FunctionStructField:
+      description: UDF struct field.
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+        type:
+          $ref: '#/components/schemas/FunctionDataType'
+
+    FunctionDefinitionVersion:
+      type: object
+      required:
+        - version-id
+        - representations
+        - timestamp-ms
+      properties:
+        version-id:
+          type: integer
+          description: Monotonically increasing identifier of the definition version.
+        representations:
+          type: array
+          description: UDF implementations.
+          items:
+            $ref: '#/components/schemas/FunctionRepresentation'
+        deterministic:
+          type: boolean
+          description: Whether the function is deterministic.
+          default: false
+        on-null-input:
+          type: string
+          description: Defines how the UDF behaves when any input parameter is NULL.
+          enum: ["return-null", "call"]
+          default: "call"
+        timestamp-ms:
+          type: integer
+          format: int64
+          description: Creation timestamp of this version (unix epoch millis).
+
+    FunctionRepresentation:
+      description: UDF implementation representation.
+      oneOf:
+        - $ref: '#/components/schemas/FunctionSQLRepresentation'
+
+    FunctionSQLRepresentation:
+      type: object
+      required:
+        - type
+        - dialect
+        - sql
+      properties:
+        type:
+          type: string
+          const: "sql"
+        dialect:
+          type: string
+          description: SQL dialect identifier (e.g., "spark", "trino").
+        sql:
+          type: string
+          description: SQL expression text.
+
+    FunctionDefinitionLogEntry:
+      type: object
+      required:
+        - timestamp-ms
+        - definition-versions
+      properties:
+        timestamp-ms:
+          type: integer
+          format: int64
+          description: Timestamp when the function was updated to use the definition versions.
+        definition-versions:
+          type: array
+          description: Mapping of each definition to its selected version at this time.
+          items:
+            $ref: '#/components/schemas/FunctionDefinitionVersionRef'
+
+    FunctionDefinitionVersionRef:
+      type: object
+      required:
+        - definition-id
+        - version-id
+      properties:
+        definition-id:
+          type: string
+        version-id:
+          type: integer
 
     UpdateNamespacePropertiesResponse:
       type: object
@@ -4451,6 +5492,20 @@ components:
           "values": [ 100, 200 ]
         }
 
+    FieldStatistics:
+      type: object
+      properties:
+        avg-value-size-in-bytes:
+          type: integer
+          format: int32
+          description:
+            Avg value size in memory (uncompressed) in bytes over non-null
+            values to estimate memory consumption
+      example:
+        {
+          "avg-value-size-in-bytes": 8
+        }
+
     ValueMap:
       type: object
       properties:
@@ -4550,6 +5605,11 @@ components:
           description: "List of splittable offsets"
         sort-order-id:
           type: integer
+        content-stats:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/FieldStatistics'
+          description: Container struct for per-field metrics structs
 
     DataFile:
       allOf:
@@ -4648,8 +5708,8 @@ components:
             $ref: '#/components/schemas/FieldName'
         filter:
           description:
-            Expression used to filter the table data
-          $ref: '#/components/schemas/Expression'
+            Predicate used to filter the table data
+          $ref: '#/components/schemas/Predicate'
         min-rows-requested:
           description:
             The minimum number of rows requested for the scan. This is used as a hint
@@ -4739,7 +5799,7 @@ components:
             If the residual is not present, the client must produce the
             residual or use the original filter.
           allOf:
-            - $ref: '#/components/schemas/Expression'
+            - $ref: '#/components/schemas/Predicate'
 
     MultiValuedMap:
       description: A map of string keys where each key can map to multiple string values.
@@ -4793,6 +5853,24 @@ components:
           type: string
         headers:
           $ref: '#/components/schemas/MultiValuedMap'
+
+    RemoteSigningConfig:
+      description: Configuration for the remote signer client.
+      type: object
+      properties:
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+          description: >
+            Static key-value pairs the signer client MUST pass through unchanged in the `properties`
+            field of every `RemoteSignRequest` sent to the signing endpoint.
+        headers:
+          allOf:
+            - $ref: '#/components/schemas/MultiValuedMap'
+          description: >
+            Static headers the signer client MUST include unchanged in every request to the signing
+            endpoint.
 
   #############################
   # Reusable Response Objects #
@@ -4931,6 +6009,18 @@ components:
             ListTablesResponseEmpty:
               $ref: '#/components/examples/ListTablesEmptyExample'
 
+    ListFunctionsResponse:
+      description: A list of function identifiers
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ListFunctionsResponse'
+          examples:
+            ListFunctionsResponseNonEmpty:
+              $ref: '#/components/examples/ListFunctionsNonEmptyExample'
+            ListFunctionsResponseEmpty:
+              $ref: '#/components/examples/ListFunctionsEmptyExample'
+
     ListNamespacesResponse:
       description: A list of namespaces
       content:
@@ -5048,6 +6138,20 @@ components:
         etag:
           $ref: '#/components/parameters/etag'
 
+    UnregisterTableResponse:
+      description: Response when a table is successfully unregistered.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UnregisterTableResult'
+
+    LoadFunctionResponse:
+      description: Function metadata result when loading a function
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoadFunctionResult'
+
     LoadViewResponse:
       description: View metadata result when loading a view
       content:
@@ -5119,6 +6223,21 @@ components:
         ]
       }
 
+    ListFunctionsEmptyExample:
+      summary: An empty list for a namespace with no functions
+      value: {
+        "identifiers": [ ]
+      }
+
+    ListFunctionsNonEmptyExample:
+      summary: A non-empty list of function identifiers
+      value: {
+        "identifiers": [
+          ["analytics", "add_one"],
+          ["analytics", "to_celsius"]
+        ]
+      }
+
     MultipartNamespaceAsPathVariable:
       summary: A multi-part namespace, as represented in a path parameter
       value: "accounting%1Ftax"
@@ -5183,6 +6302,16 @@ components:
         "error": {
           "message": "The given warehouse does not exist",
           "type": "NoSuchWarehouseException",
+          "code": 404
+        }
+      }
+
+    NoSuchFunctionError:
+      summary: The requested function does not exist
+      value: {
+        "error": {
+          "message": "The requested function does not exist",
+          "type": "NoSuchFunctionException",
           "code": 404
         }
       }

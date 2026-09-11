@@ -54,12 +54,6 @@ project(":iceberg-aws-bundle") {
     archiveClassifier.set(null)
     zip64 true
 
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
-
     // relocate AWS-specific versions
     relocate 'org.apache.http', 'org.apache.iceberg.aws.shaded.org.apache.http'
     relocate 'io.netty', 'org.apache.iceberg.aws.shaded.io.netty'

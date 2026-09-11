@@ -101,6 +101,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     this.warehouseLocation = warehouse.replaceAll("/*$", "");
     this.io = CatalogUtil.loadFileIO(InMemoryFileIO.class.getName(), properties, null);
     this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(io);
     closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
   }
@@ -219,6 +220,13 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
         return false;
       }
 
+      List<Namespace> childNamespaces = listNamespaces(namespace);
+      if (!childNamespaces.isEmpty()) {
+        throw new NamespaceNotEmptyException(
+            "Namespace %s is not empty. Contains %d child namespace(s).",
+            namespace, childNamespaces.size());
+      }
+
       List<TableIdentifier> tableIdentifiers = listTables(namespace);
       if (!tableIdentifiers.isEmpty()) {
         throw new NamespaceNotEmptyException(
@@ -325,7 +333,9 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public void close() throws IOException {
-    closeableGroup.close();
+    if (closeableGroup != null) {
+      closeableGroup.close();
+    }
     namespaces.clear();
     tables.clear();
     views.clear();

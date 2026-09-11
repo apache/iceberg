@@ -24,9 +24,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import org.apache.iceberg.TestHelpers.RoundTripSerializer;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -36,6 +38,7 @@ import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestShreddedObject {
@@ -280,6 +283,102 @@ public class TestShreddedObject {
     assertThat(actual.get("b")).as("removed field must not be serialized").isNull();
   }
 
+  @Test
+  public void testPutAfterRemoveIsSerialized() {
+    ShreddedObject partial = createUnshreddedObject(FIELDS);
+    partial.remove("b");
+    partial.put("b", Variants.of("replaced"));
+
+    VariantValue value = roundTripMinimalBuffer(partial, partial.metadata());
+
+    SerializedObject actual = (SerializedObject) value;
+    assertThat(actual.numFields()).isEqualTo(3);
+    assertThat(actual.get("a")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("a").asPrimitive().get()).isEqualTo(34);
+    VariantTestUtil.assertVariantString(actual.get("b"), "replaced");
+    assertThat(actual.get("c")).isInstanceOf(VariantPrimitive.class);
+    assertThat(actual.get("c").asPrimitive().get()).isEqualTo(new BigDecimal("12.21"));
+  }
+
+  @Test
+  public void testEmptyObject() {
+    Set<String> names = Sets.newLinkedHashSet();
+    names.add("a");
+    names.add("b");
+    names.add("c");
+    ByteBuffer metadataBuffer = VariantTestUtil.createMetadata(names, false);
+    VariantMetadata metadata = Variants.metadata(metadataBuffer);
+    ShreddedObject object = new ShreddedObject(metadata);
+
+    assertThat(object.numFields()).isEqualTo(0);
+    assertThat(object.sizeInBytes()).isEqualTo(3);
+
+    VariantValue value = roundTripMinimalBuffer(object, metadata);
+    assertThat(value).isInstanceOf(SerializedObject.class);
+    assertThat(((SerializedObject) value).numFields()).isEqualTo(0);
+  }
+
+  @Test
+  public void testRepeatedWriteToProducesSameBytes() {
+    ShreddedObject object = createUnshreddedObject(FIELDS);
+    object.put("c", Variants.ofIsoDate("2024-10-12"));
+    object.remove("b");
+
+    int size = object.sizeInBytes();
+    ByteBuffer reference = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN);
+    object.writeTo(reference, 0);
+
+    for (int i = 0; i < 10; i++) {
+      ByteBuffer buf = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN);
+      int written = object.writeTo(buf, 0);
+      assertThat(written).as("iteration %d", i).isEqualTo(size);
+      assertThat(buf).as("iteration %d", i).isEqualTo(reference);
+    }
+  }
+
+  @Test
+  public void testPutAfterRemoveClearsRemoveMarker() {
+    ShreddedObject object = createShreddedObject(FIELDS);
+    VariantMetadata metadata = object.metadata();
+
+    object.remove("b");
+    assertThat(object.get("b")).as("removed field should be hidden from reads").isNull();
+
+    object.put("b", Variants.of("rewritten"));
+    assertThat(object.get("b")).as("put after remove should restore the field").isNotNull();
+    assertThat(object.get("b").asPrimitive().get()).isEqualTo("rewritten");
+    assertThat(object.numFields()).as("numFields should include the re-added field").isEqualTo(3);
+    assertThat(object.fieldNames()).contains("b");
+
+    // the query API and the serialized bytes must agree on which fields are present
+    VariantValue serialized = roundTripMinimalBuffer(object, metadata);
+    assertThat(serialized).isInstanceOf(SerializedObject.class);
+    SerializedObject actual = (SerializedObject) serialized;
+    assertThat(actual.numFields()).isEqualTo(3);
+    VariantTestUtil.assertVariantString(actual.get("b"), "rewritten");
+  }
+
+  @Test
+  public void testWriteToDisagreesWithSizeInBytes() {
+    ShreddedObject object = createUnshreddedObject(FIELDS);
+    VariantPrimitive<Integer> real = Variants.of(42);
+    int actualSize = real.sizeInBytes();
+    int reportedSize = actualSize - 1;
+    object.put("a", new MismatchedSizeVariantValue(real, reportedSize));
+    int fieldId = object.metadata().id("a");
+
+    ByteBuffer buf = ByteBuffer.allocate(object.sizeInBytes()).order(ByteOrder.LITTLE_ENDIAN);
+    assertThatThrownBy(() -> object.writeTo(buf, 0))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            String.format(
+                Locale.ROOT,
+                "Wrote %s bytes for field id %s but expected %s (writeTo and sizeInBytes disagree)",
+                actualSize,
+                fieldId,
+                reportedSize));
+  }
+
   @ParameterizedTest
   @ValueSource(ints = {300, 70_000, 16_777_300})
   public void testMultiByteOffsets(int len) {
@@ -451,5 +550,38 @@ public class TestShreddedObject {
         Variants.value(
             Variants.metadata(metadataBuffer),
             VariantTestUtil.createObject(metadataBuffer, fields));
+  }
+
+  private static final class MismatchedSizeVariantValue implements VariantValue {
+    private final VariantValue delegate;
+    private final int reportedSize;
+
+    MismatchedSizeVariantValue(VariantValue delegate, int reportedSize) {
+      this.delegate = delegate;
+      this.reportedSize = reportedSize;
+    }
+
+    @Override
+    public PhysicalType type() {
+      return delegate.type();
+    }
+
+    @Override
+    public int sizeInBytes() {
+      return reportedSize;
+    }
+
+    @Override
+    public int writeTo(ByteBuffer buffer, int offset) {
+      return delegate.writeTo(buffer, offset);
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testSerialization(RoundTripSerializer<ShreddedObject> serializer) throws Exception {
+    ShreddedObject object = createShreddedObject(FIELDS);
+
+    VariantTestUtil.assertEqual(object, serializer.apply(object));
   }
 }

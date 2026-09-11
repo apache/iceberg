@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.Snapshot;
@@ -61,6 +62,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   private Identifier backupIdent;
   private boolean dropBackup = false;
   private ExecutorService executorService;
+  private boolean ignoreMissingFiles = false;
 
   MigrateTableSparkAction(
       SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
@@ -117,6 +119,12 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   }
 
   @Override
+  public MigrateTableSparkAction ignoreMissingFiles() {
+    this.ignoreMissingFiles = true;
+    return this;
+  }
+
+  @Override
   public MigrateTable.Result execute() {
     String desc = String.format("Migrating table %s", destTableIdent().toString());
     JobGroupInfo info = newJobGroupInfo("MIGRATE-TABLE", desc);
@@ -146,7 +154,14 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
       String stagingLocation = getMetadataLocation(icebergTable);
       LOG.info("Generating Iceberg metadata for {} in {}", destTableIdent(), stagingLocation);
       SparkTableUtil.importSparkTable(
-          spark(), v1BackupIdent, icebergTable, stagingLocation, executorService);
+          spark(),
+          v1BackupIdent,
+          icebergTable,
+          stagingLocation,
+          Collections.emptyMap(),
+          false,
+          ignoreMissingFiles,
+          executorService);
 
       LOG.info("Committing staged changes to {}", destTableIdent());
       stagedTable.commitStagedChanges();

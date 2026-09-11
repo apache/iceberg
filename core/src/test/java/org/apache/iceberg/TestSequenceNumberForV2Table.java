@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.net.URI;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -316,7 +317,9 @@ public class TestSequenceNumberForV2Table extends TestBase {
     V2Assert.assertEquals(
         "Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
     V2Assert.assertEquals(
-        "Should be 1 manifest list", 1, listManifestLists(new File(table.location())).size());
+        "Should be 1 manifest list",
+        1,
+        listManifestLists(new File(URI.create(table.location()))).size());
 
     table.newAppend().appendFile(FILE_B).commit();
     Snapshot snap2 = table.currentSnapshot();
@@ -328,7 +331,9 @@ public class TestSequenceNumberForV2Table extends TestBase {
     V2Assert.assertEquals(
         "Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
     V2Assert.assertEquals(
-        "Should be 2 manifest lists", 2, listManifestLists(new File(table.location())).size());
+        "Should be 2 manifest lists",
+        2,
+        listManifestLists(new File(URI.create(table.location()))).size());
 
     Transaction txn = table.newTransaction();
     txn.expireSnapshots().expireSnapshotId(commitId1).commit();
@@ -338,7 +343,7 @@ public class TestSequenceNumberForV2Table extends TestBase {
     V2Assert.assertEquals(
         "Should be 1 manifest list as 1 was deleted",
         1,
-        listManifestLists(new File(table.location())).size());
+        listManifestLists(new File(URI.create(table.location()))).size());
   }
 
   @TestTemplate

@@ -43,12 +43,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.iceberg.util.NaNUtil;
 import org.apache.iceberg.util.UnicodeUtil;
 import org.apache.iceberg.variants.PhysicalType;
 import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
@@ -63,7 +65,65 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 class ParquetMetrics {
+  /**
+   * Sentinel for a null count that could not be determined. Parquet's {@link
+   * Statistics#getNumNulls()} returns -1 when {@code null_count} is missing from the footer, so the
+   * count must be reported as unknown rather than summed. {@link FieldMetrics} uses negative counts
+   * to mean unknown.
+   */
+  private static final long UNKNOWN_NULL_COUNT = -1L;
+
   private ParquetMetrics() {}
+
+  static Iterable<FieldMetrics<?>> fieldMetrics(
+      Schema schema,
+      MessageType type,
+      MetricsConfig metricsConfig,
+      ParquetMetadata metadata,
+      Stream<FieldMetrics<?>> fields) {
+    Multimap<ColumnPath, ColumnChunkMetaData> columns =
+        Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
+    for (BlockMetaData block : metadata.getBlocks()) {
+      for (ColumnChunkMetaData column : block.getColumns()) {
+        columns.put(column.getPath(), column);
+      }
+    }
+
+    Map<Integer, FieldMetrics<?>> metricsById =
+        fields.collect(Collectors.toMap(FieldMetrics::id, Function.identity()));
+
+    return TypeWithSchemaVisitor.visit(
+        schema.asStruct(), type, new MetricsVisitor(schema, metricsConfig, metricsById, columns));
+  }
+
+  private static long rowCount(ParquetMetadata metadata) {
+    long rowCount = 0L;
+    for (BlockMetaData block : metadata.getBlocks()) {
+      rowCount += block.getRowCount();
+    }
+
+    return rowCount;
+  }
+
+  private static Map<Integer, Long> columnSizes(
+      Schema schema, MessageType type, ParquetMetadata metadata, MetricsConfig metricsConfig) {
+    Map<Integer, Long> columnSizes = Maps.newHashMap();
+    for (BlockMetaData block : metadata.getBlocks()) {
+      for (ColumnChunkMetaData column : block.getColumns()) {
+        Type.ID id =
+            type.getColumnDescription(column.getPath().toArray()).getPrimitiveType().getId();
+        if (id != null) {
+          int fieldId = id.intValue();
+          MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+          if (mode != MetricsModes.None.get()) {
+            columnSizes.put(fieldId, columnSizes.getOrDefault(fieldId, 0L) + column.getTotalSize());
+          }
+        }
+      }
+    }
+
+    return columnSizes;
+  }
 
   static Metrics metrics(
       Schema schema,
@@ -71,46 +131,18 @@ class ParquetMetrics {
       MetricsConfig metricsConfig,
       ParquetMetadata metadata,
       Stream<FieldMetrics<?>> fields) {
-    long rowCount = 0L;
-    Map<Integer, Long> columnSizes = Maps.newHashMap();
-    Multimap<ColumnPath, ColumnChunkMetaData> columns =
-        Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
-    for (BlockMetaData block : metadata.getBlocks()) {
-      rowCount += block.getRowCount();
-      for (ColumnChunkMetaData column : block.getColumns()) {
-        columns.put(column.getPath(), column);
-
-        Type.ID id =
-            type.getColumnDescription(column.getPath().toArray()).getPrimitiveType().getId();
-        if (null == id) {
-          continue;
-        }
-
-        int fieldId = id.intValue();
-        MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
-        if (mode != MetricsModes.None.get()) {
-          columnSizes.put(fieldId, columnSizes.getOrDefault(fieldId, 0L) + column.getTotalSize());
-        }
-      }
-    }
-
-    Map<Integer, FieldMetrics<?>> metricsById =
-        fields.collect(Collectors.toMap(FieldMetrics::id, Function.identity()));
-
-    Iterable<FieldMetrics<ByteBuffer>> results =
-        TypeWithSchemaVisitor.visit(
-            schema.asStruct(),
-            type,
-            new MetricsVisitor(schema, metricsConfig, metricsById, columns));
+    long rowCount = rowCount(metadata);
+    Map<Integer, Long> columnSizes = columnSizes(schema, type, metadata, metricsConfig);
 
     Map<Integer, Long> valueCounts = Maps.newHashMap();
     Map<Integer, Long> nullValueCounts = Maps.newHashMap();
     Map<Integer, Long> nanValueCounts = Maps.newHashMap();
+    Map<Integer, Integer> avgValueSizes = Maps.newHashMap();
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
     Map<Integer, org.apache.iceberg.types.Type> originalTypes = Maps.newHashMap();
 
-    for (FieldMetrics<ByteBuffer> metrics : results) {
+    for (FieldMetrics<?> metrics : fieldMetrics(schema, type, metricsConfig, metadata, fields)) {
       int id = metrics.id();
       if (null != metrics.originalType()) {
         originalTypes.put(id, metrics.originalType());
@@ -128,12 +160,20 @@ class ParquetMetrics {
         nanValueCounts.put(id, metrics.nanValueCount());
       }
 
+      if (metrics.avgValueSizeInBytes() != null) {
+        avgValueSizes.put(id, metrics.avgValueSizeInBytes());
+      }
+
       if (metrics.lowerBound() != null) {
-        lowerBounds.put(id, metrics.lowerBound());
+        ByteBuffer lowerBound =
+            Conversions.toByteBuffer(metrics.originalType(), metrics.lowerBound());
+        lowerBounds.put(id, lowerBound);
       }
 
       if (metrics.upperBound() != null) {
-        upperBounds.put(id, metrics.upperBound());
+        ByteBuffer upperBound =
+            Conversions.toByteBuffer(metrics.originalType(), metrics.upperBound());
+        upperBounds.put(id, upperBound);
       }
     }
 
@@ -145,11 +185,11 @@ class ParquetMetrics {
         nanValueCounts,
         lowerBounds,
         upperBounds,
+        avgValueSizes.isEmpty() ? null : avgValueSizes,
         originalTypes);
   }
 
-  private static class MetricsVisitor
-      extends TypeWithSchemaVisitor<Iterable<FieldMetrics<ByteBuffer>>> {
+  private static class MetricsVisitor extends TypeWithSchemaVisitor<Iterable<FieldMetrics<?>>> {
     private final Schema schema;
     private final MetricsConfig metricsConfig;
     private final Map<Integer, FieldMetrics<?>> metricsById;
@@ -167,40 +207,38 @@ class ParquetMetrics {
     }
 
     @Override
-    public Iterable<FieldMetrics<ByteBuffer>> message(
+    public Iterable<FieldMetrics<?>> message(
         Types.StructType iStruct,
         MessageType message,
-        List<Iterable<FieldMetrics<ByteBuffer>>> fieldResults) {
+        List<Iterable<FieldMetrics<?>>> fieldResults) {
       return Iterables.concat(fieldResults);
     }
 
     @Override
-    public Iterable<FieldMetrics<ByteBuffer>> struct(
-        Types.StructType iStruct,
-        GroupType struct,
-        List<Iterable<FieldMetrics<ByteBuffer>>> fieldResults) {
+    public Iterable<FieldMetrics<?>> struct(
+        Types.StructType iStruct, GroupType struct, List<Iterable<FieldMetrics<?>>> fieldResults) {
       return Iterables.concat(fieldResults);
     }
 
     @Override
-    public Iterable<FieldMetrics<ByteBuffer>> list(
-        Types.ListType iList, GroupType array, Iterable<FieldMetrics<ByteBuffer>> elementResults) {
+    public Iterable<FieldMetrics<?>> list(
+        Types.ListType iList, GroupType array, Iterable<FieldMetrics<?>> elementResults) {
       // remove lower and upper bounds for repeated fields
       return ImmutableList.of();
     }
 
     @Override
-    public Iterable<FieldMetrics<ByteBuffer>> map(
+    public Iterable<FieldMetrics<?>> map(
         Types.MapType iMap,
         GroupType map,
-        Iterable<FieldMetrics<ByteBuffer>> keyResults,
-        Iterable<FieldMetrics<ByteBuffer>> valueResults) {
+        Iterable<FieldMetrics<?>> keyResults,
+        Iterable<FieldMetrics<?>> valueResults) {
       // repeated fields are not currently supported
       return ImmutableList.of();
     }
 
     @Override
-    public Iterable<FieldMetrics<ByteBuffer>> primitive(
+    public Iterable<FieldMetrics<?>> primitive(
         org.apache.iceberg.types.Type.PrimitiveType iPrimitive, PrimitiveType primitive) {
       Type.ID id = primitive.getId();
       if (null == id) {
@@ -215,7 +253,8 @@ class ParquetMetrics {
 
       int length = truncateLength(mode);
 
-      FieldMetrics<ByteBuffer> metrics = metricsFromFieldMetrics(fieldId, iPrimitive, length);
+      FieldMetrics<?> metrics =
+          metricsFromFieldMetrics(metricsById.get(fieldId), iPrimitive, length);
       if (metrics != null) {
         return ImmutableList.of(metrics);
       }
@@ -228,9 +267,10 @@ class ParquetMetrics {
       return ImmutableList.of();
     }
 
-    private FieldMetrics<ByteBuffer> metricsFromFieldMetrics(
-        int fieldId, org.apache.iceberg.types.Type.PrimitiveType icebergType, int truncateLength) {
-      FieldMetrics<?> fieldMetrics = metricsById.get(fieldId);
+    private <T> FieldMetrics<T> metricsFromFieldMetrics(
+        FieldMetrics<T> fieldMetrics,
+        org.apache.iceberg.types.Type.PrimitiveType icebergType,
+        int truncateLength) {
       if (null == fieldMetrics) {
         return null;
       } else if (truncateLength <= 0) {
@@ -238,40 +278,47 @@ class ParquetMetrics {
             fieldMetrics.id(),
             fieldMetrics.valueCount(),
             fieldMetrics.nullValueCount(),
-            fieldMetrics.nanValueCount());
+            fieldMetrics.nanValueCount(),
+            null,
+            null,
+            null,
+            fieldMetrics.avgValueSizeInBytes());
       } else {
-        Object lowerBound =
-            truncateLowerBound(icebergType, fieldMetrics.lowerBound(), truncateLength);
-        Object upperBound =
-            truncateUpperBound(icebergType, fieldMetrics.upperBound(), truncateLength);
-        ByteBuffer lower = Conversions.toByteBuffer(icebergType, lowerBound);
-        ByteBuffer upper = Conversions.toByteBuffer(icebergType, upperBound);
+        T lowerBound = truncateLowerBound(icebergType, fieldMetrics.lowerBound(), truncateLength);
+        T upperBound = truncateUpperBound(icebergType, fieldMetrics.upperBound(), truncateLength);
         return new FieldMetrics<>(
             fieldMetrics.id(),
             fieldMetrics.valueCount(),
             fieldMetrics.nullValueCount(),
             fieldMetrics.nanValueCount(),
-            lower,
-            upper,
-            icebergType);
+            lowerBound,
+            upperBound,
+            icebergType,
+            fieldMetrics.avgValueSizeInBytes());
       }
     }
 
-    private FieldMetrics<ByteBuffer> metricsFromFooter(
+    private <T> FieldMetrics<T> metricsFromFooter(
         int fieldId,
         org.apache.iceberg.types.Type.PrimitiveType icebergType,
         PrimitiveType primitive,
         int truncateLength) {
       if (primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
         return null;
-      } else if (truncateLength <= 0) {
+      } else if (truncateLength <= 0
+          || (icebergType != null && isGeospatial(icebergType.typeId()))) {
+        // Parquet lexicographic min/max is not meaningful for spatial WKB.
         return counts(fieldId);
       } else {
         return bounds(fieldId, icebergType, primitive, truncateLength);
       }
     }
 
-    private FieldMetrics<ByteBuffer> counts(int fieldId) {
+    private static boolean isGeospatial(TypeID typeId) {
+      return typeId == TypeID.GEOMETRY || typeId == TypeID.GEOGRAPHY;
+    }
+
+    private <T> FieldMetrics<T> counts(int fieldId) {
       ColumnPath path = ColumnPath.get(currentPath());
       long valueCount = 0;
       long nullCount = 0;
@@ -282,14 +329,14 @@ class ParquetMetrics {
           return null;
         }
 
-        nullCount += stats.getNumNulls();
+        nullCount = addNullCount(nullCount, stats);
         valueCount += column.getValueCount();
       }
 
       return new FieldMetrics<>(fieldId, valueCount, nullCount);
     }
 
-    private <T> FieldMetrics<ByteBuffer> bounds(
+    private <T> FieldMetrics<T> bounds(
         int fieldId,
         org.apache.iceberg.types.Type.PrimitiveType icebergType,
         PrimitiveType primitive,
@@ -311,7 +358,7 @@ class ParquetMetrics {
           return null;
         }
 
-        nullCount += stats.getNumNulls();
+        nullCount = addNullCount(nullCount, stats);
         valueCount += column.getValueCount();
 
         if (stats.hasNonNullValue()) {
@@ -336,16 +383,14 @@ class ParquetMetrics {
       lowerBound = truncateLowerBound(icebergType, lowerBound, truncateLength);
       upperBound = truncateUpperBound(icebergType, upperBound, truncateLength);
 
-      ByteBuffer lower = Conversions.toByteBuffer(icebergType, lowerBound);
-      ByteBuffer upper = Conversions.toByteBuffer(icebergType, upperBound);
-
-      return new FieldMetrics<>(fieldId, valueCount, nullCount, lower, upper, icebergType);
+      return new FieldMetrics<>(
+          fieldId, valueCount, nullCount, lowerBound, upperBound, icebergType);
     }
 
     @Override
     @SuppressWarnings("CyclomaticComplexity")
-    public Iterable<FieldMetrics<ByteBuffer>> variant(
-        Types.VariantType iVariant, GroupType variant, Iterable<FieldMetrics<ByteBuffer>> ignored) {
+    public Iterable<FieldMetrics<?>> variant(
+        Types.VariantType iVariant, GroupType variant, Iterable<FieldMetrics<?>> ignored) {
       Type.ID id = variant.getId();
       if (null == id) {
         return ImmutableList.of();
@@ -359,7 +404,8 @@ class ParquetMetrics {
 
       List<ParquetVariantUtil.VariantMetrics> results =
           Lists.newArrayList(
-              ParquetVariantVisitor.visit(variant, new MetricsVariantVisitor(currentPath())));
+              ParquetVariantVisitor.visit(
+                  variant, new MetricsVariantVisitor(currentPath(), truncateLength(mode))));
 
       if (results.isEmpty()) {
         return ImmutableList.of();
@@ -402,8 +448,8 @@ class ParquetMetrics {
               fieldId,
               metadataCounts.valueCount(),
               metadataCounts.nullCount(),
-              ParquetVariantUtil.toByteBuffer(metadata, lowerBounds),
-              ParquetVariantUtil.toByteBuffer(metadata, upperBounds),
+              Variant.of(metadata, lowerBounds),
+              Variant.of(metadata, upperBounds),
               Types.VariantType.get()));
     }
 
@@ -411,9 +457,11 @@ class ParquetMetrics {
         extends ParquetVariantVisitor<Iterable<ParquetVariantUtil.VariantMetrics>> {
       private final Deque<String> fieldNames = Lists.newLinkedList();
       private final String[] basePath;
+      private final int truncateLength;
 
-      private MetricsVariantVisitor(String[] basePath) {
+      private MetricsVariantVisitor(String[] basePath, int truncateLength) {
         this.basePath = basePath;
+        this.truncateLength = truncateLength;
       }
 
       @Override
@@ -475,6 +523,11 @@ class ParquetMetrics {
         if (null == valueResult) {
           // a value field was not present so the typed metrics can be used
           return typedResult;
+        }
+
+        if (Iterables.isEmpty(valueResult)) {
+          // missing value stats invalidate typed bounds
+          return ImmutableList.of();
         }
 
         ParquetVariantUtil.VariantMetrics valueMetrics = Iterables.getOnlyElement(valueResult);
@@ -540,7 +593,12 @@ class ParquetMetrics {
           }
 
           valueCount += column.getValueCount();
-          nullCount += hasOnlyNullVariants ? column.getValueCount() : stats.getNumNulls();
+          if (hasOnlyNullVariants) {
+            // every value is a null variant, so the count does not depend on footer null counts
+            nullCount = addKnownNullCount(nullCount, column.getValueCount());
+          } else {
+            nullCount = addNullCount(nullCount, stats);
+          }
         }
 
         return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount);
@@ -568,7 +626,7 @@ class ParquetMetrics {
             return null;
           }
 
-          nullCount += stats.getNumNulls();
+          nullCount = addNullCount(nullCount, stats);
           valueCount += column.getValueCount();
 
           if (stats.hasNonNullValue()) {
@@ -588,15 +646,45 @@ class ParquetMetrics {
           return null;
         }
 
-        if (lowerBound != null && upperBound != null) {
+        if (lowerBound != null && upperBound != null && truncateLength > 0) {
           VariantValue lower = Variants.of(variantType, lowerBound);
           VariantValue upper = Variants.of(variantType, upperBound);
-          return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount, lower, upper);
+          return new ParquetVariantUtil.VariantMetrics(
+              valueCount, nullCount, lower, upper, truncateLength);
         } else {
           return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount);
         }
       }
     }
+  }
+
+  /**
+   * Adds a column chunk's null count to a running total, propagating unknown.
+   *
+   * <p>A chunk that is missing {@code null_count} makes the total unknown because the nulls in that
+   * chunk cannot be counted. Note this is not caught by {@link Statistics#isEmpty()}, which is
+   * false whenever min/max are present.
+   */
+  private static long addNullCount(long nullCount, Statistics<?> stats) {
+    if (!stats.isNumNullsSet()) {
+      // the count is missing from the footer, so getNumNulls would return -1
+      return UNKNOWN_NULL_COUNT;
+    }
+
+    return addKnownNullCount(nullCount, stats.getNumNulls());
+  }
+
+  /**
+   * Adds a known null count to a running total, which may already be unknown because an earlier
+   * chunk was missing its count. Keeping the total unknown makes the result independent of the
+   * order in which chunks are visited.
+   */
+  private static long addKnownNullCount(long nullCount, long numNulls) {
+    if (nullCount == UNKNOWN_NULL_COUNT) {
+      return UNKNOWN_NULL_COUNT;
+    }
+
+    return nullCount + numNulls;
   }
 
   private static int truncateLength(MetricsModes.MetricsMode mode) {

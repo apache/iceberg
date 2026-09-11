@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogProperties;
 
 public final class RESTCatalogProperties {
 
@@ -95,4 +96,43 @@ public final class RESTCatalogProperties {
                   .collect(Collectors.joining(", "))));
     }
   }
+
+  /**
+   * The base URI of the remote signer endpoint. Optional, defaults to {@link
+   * CatalogProperties#URI}.
+   *
+   * @deprecated since 1.12.0, will be removed in 1.13.0; there is no replacement
+   */
+  @Deprecated public static final String SIGNER_URI = "signer.uri";
+
+  /**
+   * The endpoint path of the remote signer endpoint. If remote signing has been requested, this
+   * must be set.
+   *
+   * @deprecated since 1.12.0, will be removed in 1.13.0; there is no replacement
+   */
+  @Deprecated public static final String SIGNER_ENDPOINT = "signer.endpoint";
+
+  /**
+   * The remote signing endpoint path, as computed by {@link
+   * ResourcePaths#remoteSign(org.apache.iceberg.catalog.TableIdentifier)}.
+   *
+   * <p>This property is automatically set by the REST catalog client when creating table-scoped
+   * FileIO instances, and is intended for consumption by remote request signers.
+   *
+   * <p>Even if it's public, this field is not intended for user-facing configuration, and may be
+   * removed or changed in future releases without notice.
+   */
+  public static final String REMOTE_SIGNING_ENDPOINT = "rest.remote-signing.endpoint";
+
+  /**
+   * The {@link RemoteSigningConfig}, JSON-encoded.
+   *
+   * <p>This property is automatically set by the REST catalog client when creating table-scoped
+   * FileIO instances, and is intended for consumption by remote request signers.
+   *
+   * <p>Even if it's public, this field is not intended for user-facing configuration, and may be
+   * removed or changed in future releases without notice.
+   */
+  public static final String REMOTE_SIGNING_CONFIG = "rest.remote-signing.config";
 }

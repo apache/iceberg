@@ -99,6 +99,18 @@ public abstract class TestRowLevelOperationsWithLineage extends SparkRowLevelOpe
         "testhadoop",
         SparkCatalog.class.getName(),
         ImmutableMap.of("type", "hadoop"),
+        FileFormat.ORC,
+        false,
+        WRITE_DISTRIBUTION_MODE_HASH,
+        true,
+        null,
+        LOCAL,
+        3
+      },
+      {
+        "testhadoop",
+        SparkCatalog.class.getName(),
+        ImmutableMap.of("type", "hadoop"),
         FileFormat.PARQUET,
         true,
         WRITE_DISTRIBUTION_MODE_HASH,

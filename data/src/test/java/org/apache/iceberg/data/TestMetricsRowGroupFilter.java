@@ -61,6 +61,7 @@ import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
@@ -469,6 +470,179 @@ public class TestMetricsRowGroupFilter {
           .as("Should read when column is not in file (all nulls): " + expr)
           .isTrue();
     }
+  }
+
+  @TestTemplate
+  public void testColumnNotInFileWithInitialDefault() {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    Schema schemaWithDefault =
+        new Schema(
+            required(1, "id", IntegerType.get()),
+            Types.NestedField.optional("country")
+                .withId(99)
+                .ofType(StringType.get())
+                .withInitialDefault(Literal.of("US"))
+                .build());
+
+    Expression[] canMatch =
+        new Expression[] {
+          equal("country", "US"),
+          notNull("country"),
+          notEqual("country", "CA"),
+          in("country", "US", "MX"),
+          notIn("country", "CA", "MX"),
+          greaterThanOrEqual("country", "US"),
+          lessThan("country", "ZW"),
+          startsWith("country", "U"),
+          notStartsWith("country", "X")
+        };
+    for (Expression expr : canMatch) {
+      assertThat(shouldReadWithSchema(schemaWithDefault, expr))
+          .as("Should read: absent column reads as its initial-default 'US': " + expr)
+          .isTrue();
+    }
+
+    Expression[] cannotMatch =
+        new Expression[] {
+          equal("country", "CA"),
+          isNull("country"),
+          notEqual("country", "US"),
+          in("country", "CA", "MX"),
+          notIn("country", "US", "MX"),
+          lessThan("country", "AD"),
+          greaterThan("country", "US"),
+          startsWith("country", "X"),
+          notStartsWith("country", "U")
+        };
+    for (Expression expr : cannotMatch) {
+      assertThat(shouldReadWithSchema(schemaWithDefault, expr))
+          .as("Should skip: default 'US' cannot satisfy: " + expr)
+          .isFalse();
+    }
+  }
+
+  @TestTemplate
+  public void testDateColumnNotInFileWithInitialDefault() {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    Schema schemaWithDefault =
+        new Schema(
+            required(1, "id", IntegerType.get()),
+            Types.NestedField.optional("event_date")
+                .withId(100)
+                .ofType(Types.DateType.get())
+                .withInitialDefault(Literal.of(42))
+                .build());
+
+    Expression[] canMatch =
+        new Expression[] {
+          equal("event_date", 42), lessThan("event_date", 43), greaterThan("event_date", 41)
+        };
+    for (Expression expr : canMatch) {
+      assertThat(shouldReadWithSchema(schemaWithDefault, expr))
+          .as("Should read: absent date reads as its initial-default day 42: " + expr)
+          .isTrue();
+    }
+
+    Expression[] cannotMatch =
+        new Expression[] {
+          equal("event_date", 41), lessThan("event_date", 42), greaterThan("event_date", 42)
+        };
+    for (Expression expr : cannotMatch) {
+      assertThat(shouldReadWithSchema(schemaWithDefault, expr))
+          .as("Should skip: default day 42 cannot satisfy: " + expr)
+          .isFalse();
+    }
+  }
+
+  @TestTemplate
+  public void testDoubleColumnNotInFileWithInitialDefault() {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    Schema schemaWithDefault =
+        new Schema(
+            required(1, "id", IntegerType.get()),
+            Types.NestedField.optional("measurement")
+                .withId(101)
+                .ofType(DoubleType.get())
+                .withInitialDefault(Literal.of(12.5D))
+                .build());
+
+    assertThat(shouldReadWithSchema(schemaWithDefault, notNaN("measurement")))
+        .as("Should read: absent column reads as its non-NaN initial-default")
+        .isTrue();
+    assertThat(shouldReadWithSchema(schemaWithDefault, isNaN("measurement")))
+        .as("Should skip: non-NaN default cannot satisfy IS NAN")
+        .isFalse();
+  }
+
+  @TestTemplate
+  public void testNestedColumnMayReadAsDefaultOrNull() {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    Schema schemaWithNestedDefault =
+        new Schema(
+            required(1, "id", IntegerType.get()),
+            Types.NestedField.optional("location")
+                .withId(7)
+                .ofType(
+                    Types.StructType.of(
+                        required(8, "int_field", IntegerType.get()),
+                        Types.NestedField.optional("country")
+                            .withId(101)
+                            .ofType(StringType.get())
+                            .withInitialDefault(Literal.of("US"))
+                            .build()))
+                .build());
+
+    assertThat(shouldReadWithSchema(schemaWithNestedDefault, equal("location.country", "US")))
+        .as("Should read: nested field may read as its initial-default")
+        .isTrue();
+    assertThat(shouldReadWithSchema(schemaWithNestedDefault, notNull("location.country")))
+        .as("Should read: nested field may read as its non-null initial-default")
+        .isTrue();
+
+    assertThat(shouldReadWithSchema(schemaWithNestedDefault, equal("location.country", "CA")))
+        .as("Should skip: neither null nor 'US' can satisfy location.country = 'CA'")
+        .isFalse();
+    assertThat(shouldReadWithSchema(schemaWithNestedDefault, isNull("location.country")))
+        .as("Should read: nested field is null when its parent struct is null")
+        .isTrue();
+  }
+
+  @TestTemplate
+  public void testPresentColumnWithoutStatsIsNotEvaluatedAgainstDefault() {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
+    // no_stats_parquet (id 2) is present in the file but has no stats; it must be filtered on its
+    // real values
+    Schema schemaWithDefault =
+        new Schema(
+            required(1, "id", IntegerType.get()),
+            Types.NestedField.optional("no_stats_parquet")
+                .withId(2)
+                .ofType(StringType.get())
+                .withInitialDefault(Literal.of("US"))
+                .build());
+
+    Expression[] mustReadBecausePresent =
+        new Expression[] {
+          equal("no_stats_parquet", "CA"),
+          isNull("no_stats_parquet"),
+          notEqual("no_stats_parquet", "US"),
+          lessThan("no_stats_parquet", "A")
+        };
+    for (Expression expr : mustReadBecausePresent) {
+      assertThat(shouldReadWithSchema(schemaWithDefault, expr))
+          .as("Should read: present column must use stats, not the default: " + expr)
+          .isTrue();
+    }
+  }
+
+  private boolean shouldReadWithSchema(Schema schema, Expression expr) {
+    return new ParquetMetricsRowGroupFilter(schema, expr)
+        .shouldRead(parquetSchema, rowGroupMetadata);
   }
 
   @TestTemplate

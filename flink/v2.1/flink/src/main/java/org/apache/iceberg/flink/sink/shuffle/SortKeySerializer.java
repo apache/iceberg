@@ -159,6 +159,7 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
         case LONG:
         case TIME:
         case TIMESTAMP:
+        case TIMESTAMP_NANO:
           target.writeLong(record.get(i, Long.class));
           break;
         case FLOAT:
@@ -237,6 +238,7 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
         case LONG:
         case TIME:
         case TIMESTAMP:
+        case TIMESTAMP_NANO:
           reuse.set(i, source.readLong());
           break;
         case FLOAT:

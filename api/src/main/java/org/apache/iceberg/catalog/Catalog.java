@@ -326,6 +326,20 @@ public interface Catalog {
   Table loadTable(TableIdentifier identifier);
 
   /**
+   * Load a table, passing the context it is being loaded with.
+   *
+   * <p>The default implementation ignores the context.
+   *
+   * @param identifier a table identifier
+   * @param context context for this load
+   * @return instance of {@link Table} implementation referred by {@code identifier}
+   * @throws NoSuchTableException if the table does not exist
+   */
+  default Table loadTable(TableIdentifier identifier, LoadContext context) {
+    return loadTable(identifier);
+  }
+
+  /**
    * Invalidate cached table metadata from current catalog.
    *
    * <p>If the table is already loaded or cached, drop cached data. If the table does not exist or

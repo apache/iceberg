@@ -350,6 +350,56 @@ class TestTableMaintenance extends OperatorTestBase {
     checkSlotSharingGroupsAreSet(env, SLOT_SHARING_GROUP);
   }
 
+  @Test
+  void testUidSuffixUserProvidedIsUsedAsIs() throws IOException {
+    TableMaintenance.forChangeStream(
+            new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
+            tableLoader(),
+            LOCK_FACTORY)
+        .uidSuffix(UID_SUFFIX)
+        .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(1))
+        .append();
+
+    String tableName = table.name();
+    Transformation<?> triggerManager =
+        env.getTransformations().stream()
+            .filter(t -> t.getName().equals(TRIGGER_MANAGER_OPERATOR_NAME))
+            .findFirst()
+            .orElseThrow();
+    assertThat(triggerManager.getUid())
+        .isEqualTo(TRIGGER_MANAGER_OPERATOR_NAME + UID_SUFFIX)
+        .doesNotContain(tableName);
+  }
+
+  @Test
+  void testUidSuffixDefaultContainsTableName() throws IOException {
+    TableMaintenance.forChangeStream(
+            new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
+            tableLoader(),
+            LOCK_FACTORY)
+        .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(1))
+        .add(new MaintenanceTaskBuilderForTest(false).scheduleOnCommitCount(2))
+        .append();
+
+    String tableName = table.name();
+    String expectedSuffix = "TableMaintenance-" + tableName;
+
+    Transformation<?> triggerManager =
+        env.getTransformations().stream()
+            .filter(t -> t.getName().equals(TRIGGER_MANAGER_OPERATOR_NAME))
+            .findFirst()
+            .orElseThrow();
+    assertThat(triggerManager.getUid()).isEqualTo(TRIGGER_MANAGER_OPERATOR_NAME + expectedSuffix);
+  }
+
+  @Test
+  void testMonitorRatePerSecond() {
+    // Sub-second rate limits must not yield infinite (unthrottled) monitor rates.
+    assertThat(TableMaintenance.Builder.monitorRatePerSecond(50)).isEqualTo(20.0);
+    assertThat(TableMaintenance.Builder.monitorRatePerSecond(100)).isEqualTo(10.0);
+    assertThat(TableMaintenance.Builder.monitorRatePerSecond(60_000)).isEqualTo(1.0 / 60);
+  }
+
   /**
    * Sends the events though the {@link ManualSource} provided, and waits until the given number of
    * records are processed.
@@ -424,12 +474,12 @@ class TestTableMaintenance extends OperatorTestBase {
     @Override
     DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       String name = TASKS[id];
-      return trigger
-          .map(new DummyMaintenanceTask(success))
-          .name(name)
-          .uid(uidSuffix() + "-test-mapper-" + name + "-" + id)
-          .slotSharingGroup(slotSharingGroup())
-          .forceNonParallel();
+      return setSlotSharingGroup(
+          trigger
+              .map(new DummyMaintenanceTask(success))
+              .name(name)
+              .uid(uidSuffix() + "-test-mapper-" + name + "-" + id)
+              .forceNonParallel());
     }
   }
 

@@ -19,6 +19,10 @@
 package org.apache.iceberg.aliyun.oss;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.AdditionalAnswers.delegatesTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClient;
@@ -97,6 +101,29 @@ public class TestOSSFileIO extends AliyunOSSTestBase {
     assertThat(in.location()).as("Should have expected location").isEqualTo(location);
     assertThat(in.getLength()).as("Should have expected length").isEqualTo(dataSize);
     assertThat(inFileContent(in, dataSize)).as("Should have expected content").isEqualTo(data);
+  }
+
+  @Test
+  public void testNewInputFileWithLength() throws IOException {
+    String location = randomLocation();
+    int dataSize = 1024 * 10;
+    byte[] data = randomData(dataSize);
+    OutputFile out = fileIO().newOutputFile(location);
+    writeOSSData(out, data);
+
+    OSSURI uri = new OSSURI(location);
+    OSS ossMock = mock(OSS.class, delegatesTo(ossClient().get()));
+    try (FileIO io = new OSSFileIO(() -> ossMock)) {
+      InputFile in = io.newInputFile(location, dataSize);
+      assertThat(in.getLength()).as("Should return the known length").isEqualTo(dataSize);
+      verify(ossMock, times(0)).getSimplifiedObjectMeta(uri.bucket(), uri.key());
+
+      InputFile inWithoutLength = io.newInputFile(location);
+      assertThat(inWithoutLength.getLength())
+          .as("Should return the actual length")
+          .isEqualTo(dataSize);
+      verify(ossMock, times(1)).getSimplifiedObjectMeta(uri.bucket(), uri.key());
+    }
   }
 
   @Test

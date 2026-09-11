@@ -56,7 +56,7 @@ public class SortOrderParser {
   }
 
   private static String toJson(SortDirection direction) {
-    return direction.toString().toLowerCase(Locale.ENGLISH);
+    return direction.toString().toLowerCase(Locale.ROOT);
   }
 
   private static String toJson(NullOrder nullOrder) {
@@ -110,6 +110,10 @@ public class SortOrderParser {
 
   public static SortOrder fromJson(Schema schema, String json) {
     return fromJson(json).bind(schema);
+  }
+
+  public static SortOrder fromJson(Schema schema, String json, int defaultSortOrderId) {
+    return JsonUtil.parse(json, node -> fromJson(schema, node, defaultSortOrderId));
   }
 
   public static SortOrder fromJson(Schema schema, JsonNode json, int defaultSortOrderId) {

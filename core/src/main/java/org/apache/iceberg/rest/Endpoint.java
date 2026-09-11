@@ -66,6 +66,8 @@ public class Endpoint {
       Endpoint.create("POST", ResourcePaths.V1_TABLE_METRICS);
   public static final Endpoint V1_TABLE_CREDENTIALS =
       Endpoint.create("GET", ResourcePaths.V1_TABLE_CREDENTIALS);
+  public static final Endpoint V1_TABLE_REMOTE_SIGN =
+      Endpoint.create("POST", ResourcePaths.V1_TABLE_REMOTE_SIGN);
 
   // table scan plan endpoints
   public static final Endpoint V1_SUBMIT_TABLE_SCAN_PLAN =

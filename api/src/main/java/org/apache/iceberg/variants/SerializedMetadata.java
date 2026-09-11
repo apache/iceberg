@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.variants;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ByteBuffers;
 
-class SerializedMetadata implements VariantMetadata, Serialized {
+class SerializedMetadata implements VariantMetadata, Serialized, Serializable {
   private static final int HEADER_SIZE = 1;
   private static final int SUPPORTED_VERSION = 1;
   private static final int VERSION_MASK = 0b1111;
@@ -42,7 +44,7 @@ class SerializedMetadata implements VariantMetadata, Serialized {
   static SerializedMetadata from(ByteBuffer metadata) {
     Preconditions.checkArgument(
         metadata.order() == ByteOrder.LITTLE_ENDIAN, "Unsupported byte order: big endian");
-    int header = VariantUtil.readByte(metadata, 0);
+    int header = ByteBuffers.readByte(metadata, 0);
     int version = header & VERSION_MASK;
     Preconditions.checkArgument(SUPPORTED_VERSION == version, "Unsupported version: %s", version);
     return new SerializedMetadata(metadata, header);
@@ -58,15 +60,37 @@ class SerializedMetadata implements VariantMetadata, Serialized {
   private SerializedMetadata(ByteBuffer metadata, int header) {
     this.isSorted = (header & SORTED_STRINGS) == SORTED_STRINGS;
     this.offsetSize = 1 + ((header & OFFSET_SIZE_MASK) >> OFFSET_SIZE_SHIFT);
-    int dictSize = VariantUtil.readLittleEndianUnsigned(metadata, HEADER_SIZE, offsetSize);
-    this.dict = new String[dictSize];
+    Preconditions.checkArgument(
+        metadata.remaining() >= HEADER_SIZE + offsetSize,
+        "Invalid variant metadata: buffer too small for dictionary size field");
+    int dictSize = ByteBuffers.readLittleEndianUnsigned(metadata, HEADER_SIZE, offsetSize);
+    Preconditions.checkArgument(
+        dictSize >= 0, "Invalid variant metadata: negative dictionary size %s", dictSize);
+    Preconditions.checkArgument(
+        dictSize <= VariantUtil.MAX_ELEMENTS,
+        "Invalid variant metadata: dictionary size %s exceeds maximum %s",
+        dictSize,
+        VariantUtil.MAX_ELEMENTS);
     this.offsetListOffset = HEADER_SIZE + offsetSize;
-    this.dataOffset = offsetListOffset + ((1 + dictSize) * offsetSize);
-    int endOffset =
-        dataOffset
-            + VariantUtil.readLittleEndianUnsigned(
-                metadata, offsetListOffset + (offsetSize * dictSize), offsetSize);
-    if (endOffset < metadata.limit()) {
+    long offsetTableEnd = (long) offsetListOffset + ((long) dictSize + 1L) * offsetSize;
+    Preconditions.checkArgument(
+        offsetTableEnd <= metadata.remaining(),
+        "Invalid variant metadata: dictionary size %s exceeds buffer",
+        dictSize);
+    this.dict = new String[dictSize];
+    this.dataOffset = Math.toIntExact(offsetTableEnd);
+    int lastOffset =
+        ByteBuffers.readLittleEndianUnsigned(
+            metadata, offsetListOffset + (offsetSize * dictSize), offsetSize);
+    Preconditions.checkArgument(
+        lastOffset >= 0, "Invalid variant metadata: negative end offset %s", lastOffset);
+    long endOffsetLong = (long) dataOffset + lastOffset;
+    Preconditions.checkArgument(
+        endOffsetLong <= metadata.remaining(),
+        "Invalid variant metadata: end offset %s exceeds buffer",
+        endOffsetLong);
+    int endOffset = (int) endOffsetLong;
+    if (endOffset < metadata.remaining()) {
       this.metadata = VariantUtil.slice(metadata, 0, endOffset);
     } else {
       this.metadata = metadata;
@@ -106,11 +130,17 @@ class SerializedMetadata implements VariantMetadata, Serialized {
   public String get(int index) {
     if (null == dict[index]) {
       int offset =
-          VariantUtil.readLittleEndianUnsigned(
+          ByteBuffers.readLittleEndianUnsigned(
               metadata, offsetListOffset + (offsetSize * index), offsetSize);
       int next =
-          VariantUtil.readLittleEndianUnsigned(
+          ByteBuffers.readLittleEndianUnsigned(
               metadata, offsetListOffset + (offsetSize * (1 + index)), offsetSize);
+      Preconditions.checkArgument(
+          offset >= 0 && next >= offset && (long) dataOffset + next <= metadata.remaining(),
+          "Invalid variant metadata: dict entry %s offset range [%s, %s] invalid",
+          index,
+          offset,
+          next);
       dict[index] = VariantUtil.readString(metadata, dataOffset + offset, next - offset);
     }
     return dict[index];
@@ -129,12 +159,28 @@ class SerializedMetadata implements VariantMetadata, Serialized {
   @Override
   public int writeTo(ByteBuffer buffer, int offset) {
     ByteBuffer value = buffer();
-    VariantUtil.writeBufferAbsolute(buffer, offset, value);
+    buffer.put(offset, value, value.position(), value.remaining());
     return value.remaining();
   }
 
   @Override
   public String toString() {
     return VariantMetadata.asString(this);
+  }
+
+  private Object writeReplace() {
+    return new SerializationProxy(this);
+  }
+
+  private static class SerializationProxy implements Serializable {
+    private final byte[] metadataBytes;
+
+    private SerializationProxy(SerializedMetadata metadata) {
+      this.metadataBytes = ByteBuffers.toByteArray(metadata.buffer());
+    }
+
+    private Object readResolve() {
+      return SerializedMetadata.from(metadataBytes);
+    }
   }
 }

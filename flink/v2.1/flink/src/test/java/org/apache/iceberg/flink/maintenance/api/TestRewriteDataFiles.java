@@ -25,6 +25,7 @@ import static org.apache.iceberg.flink.maintenance.api.RewriteDataFiles.REWRITE_
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.ADDED_DATA_FILE_NUM_METRIC;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.ADDED_DATA_FILE_SIZE_METRIC;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.ERROR_COUNTER;
+import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.PLANNED_GROUPS_COUNTER;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.REMOVED_DATA_FILE_NUM_METRIC;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.REMOVED_DATA_FILE_SIZE_METRIC;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,6 +34,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.stream.StreamSupport;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
@@ -44,8 +46,14 @@ import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTe
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.FieldSource;
 
 class TestRewriteDataFiles extends MaintenanceTaskTestBase {
+
+  private static final FileFormat[] FILE_FORMATS =
+      new FileFormat[] {FileFormat.AVRO, FileFormat.PARQUET, FileFormat.ORC};
+
   @Test
   void testRewriteUnpartitioned() throws Exception {
     Table table = createTable();
@@ -83,13 +91,14 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             createRecord(4, "d")));
   }
 
-  @Test
-  void testRewriteUnpartitionedPreserveLineage() throws Exception {
-    Table table = createTable(3);
-    insert(table, 1, "a");
-    insert(table, 2, "b");
-    insert(table, 3, "c");
-    insert(table, 4, "d");
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testRewriteUnpartitionedPreserveLineage(FileFormat fileFormat) throws Exception {
+    Table table = createTable(3, fileFormat);
+    insert(table, 1, "a", fileFormat);
+    insert(table, 2, "b", fileFormat);
+    insert(table, 3, "c", fileFormat);
+    insert(table, 4, "d", fileFormat);
 
     assertFileNum(table, 4, 0);
 
@@ -123,15 +132,17 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
         schema);
   }
 
-  @Test
-  void testRewriteTheSameFilePreserveLineage() throws Exception {
-    Table table = createTable(3);
-    insert(table, 1, "a");
-    insert(table, 2, "b");
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testRewriteTheSameFilePreserveLineage(FileFormat fileFormat) throws Exception {
+    Table table = createTable(3, fileFormat);
+    insert(table, 1, "a", fileFormat);
+    insert(table, 2, "b", fileFormat);
     // Create a file with two lines of data to verify that the rowid is read correctly.
     insert(
         table,
-        ImmutableList.of(SimpleDataUtil.createRecord(3, "c"), SimpleDataUtil.createRecord(4, "d")));
+        ImmutableList.of(SimpleDataUtil.createRecord(3, "c"), SimpleDataUtil.createRecord(4, "d")),
+        fileFormat);
 
     assertFileNum(table, 3, 0);
 
@@ -167,13 +178,14 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
         schema);
   }
 
-  @Test
-  void testRewritePartitionedPreserveLineage() throws Exception {
-    Table table = createPartitionedTable(3);
-    insertPartitioned(table, 1, "p1");
-    insertPartitioned(table, 2, "p1");
-    insertPartitioned(table, 3, "p2");
-    insertPartitioned(table, 4, "p2");
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  void testRewritePartitionedPreserveLineage(FileFormat fileFormat) throws Exception {
+    Table table = createPartitionedTable(3, fileFormat);
+    insertPartitioned(table, 1, "p1", fileFormat);
+    insertPartitioned(table, 2, "p1", fileFormat);
+    insertPartitioned(table, 3, "p2", fileFormat);
+    insertPartitioned(table, 4, "p2", fileFormat);
 
     assertFileNum(table, 4, 0);
 
@@ -243,6 +255,14 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
                     DUMMY_TASK_NAME,
                     "0",
                     ERROR_COUNTER),
+                1L)
+            .put(
+                ImmutableList.of(
+                    PLANNER_TASK_NAME + "[0]",
+                    DUMMY_TABLE_NAME,
+                    DUMMY_TASK_NAME,
+                    "0",
+                    PLANNED_GROUPS_COUNTER),
                 1L)
             .put(
                 ImmutableList.of(
@@ -329,7 +349,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             0,
             tableLoader(),
             UID_SUFFIX,
-            StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
+            null,
             1)
         .sinkTo(infra.sink());
 
@@ -360,6 +380,14 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
                     "0",
                     ERROR_COUNTER),
                 0L)
+            .put(
+                ImmutableList.of(
+                    PLANNER_TASK_NAME + "[0]",
+                    DUMMY_TABLE_NAME,
+                    DUMMY_TASK_NAME,
+                    "0",
+                    PLANNED_GROUPS_COUNTER),
+                1L)
             .put(
                 ImmutableList.of(
                     REWRITE_TASK_NAME + "[0]",
@@ -441,6 +469,14 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
                 0L)
             .put(
                 ImmutableList.of(
+                    PLANNER_TASK_NAME + "[0]",
+                    DUMMY_TABLE_NAME,
+                    DUMMY_TASK_NAME,
+                    "0",
+                    PLANNED_GROUPS_COUNTER),
+                1L)
+            .put(
+                ImmutableList.of(
                     REWRITE_TASK_NAME + "[0]",
                     DUMMY_TABLE_NAME,
                     DUMMY_TASK_NAME,
@@ -510,7 +546,7 @@ class TestRewriteDataFiles extends MaintenanceTaskTestBase {
             .minFileSizeBytes(500_000L)
             .minInputFiles(2)
             // Only rewrite data files where id is 1 or 2 for testing rewrite
-            .filter(Expressions.in("id", 1, 2))
+            .filter(() -> Expressions.in("id", 1, 2))
             .partialProgressEnabled(true)
             .partialProgressMaxCommits(1)
             .maxRewriteBytes(100_000L)

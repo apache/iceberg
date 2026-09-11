@@ -43,11 +43,11 @@ Here are some examples.
 
 ### Spark
 
-For example, to use AWS features with Spark 3.4 (with scala 2.12) and AWS clients (which is packaged in the `iceberg-aws-bundle`), you can start the Spark SQL shell with:
+For example, to use AWS features with Spark 3.5 (with scala 2.12) and AWS clients (which is packaged in the `iceberg-aws-bundle`), you can start the Spark SQL shell with:
 
 ```sh
 # start Spark SQL client shell
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:{{ icebergVersion }} \
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:{{ icebergVersion }} \
     --conf spark.sql.defaultCatalog=my_catalog \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \
@@ -67,13 +67,13 @@ ICEBERG_VERSION={{ icebergVersion }}
 MAVEN_URL=https://repo1.maven.org/maven2
 ICEBERG_MAVEN_URL=$MAVEN_URL/org/apache/iceberg
 
-wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime/$ICEBERG_VERSION/iceberg-flink-runtime-$ICEBERG_VERSION.jar
+wget $ICEBERG_MAVEN_URL/iceberg-flink-runtime-{{ flinkVersionMajor }}/$ICEBERG_VERSION/iceberg-flink-runtime-{{ flinkVersionMajor }}-$ICEBERG_VERSION.jar
 
 wget $ICEBERG_MAVEN_URL/iceberg-aws-bundle/$ICEBERG_VERSION/iceberg-aws-bundle-$ICEBERG_VERSION.jar
 
 # start Flink SQL client shell
 /path/to/bin/sql-client.sh embedded \
-    -j iceberg-flink-runtime-$ICEBERG_VERSION.jar \
+    -j iceberg-flink-runtime-{{ flinkVersionMajor }}-$ICEBERG_VERSION.jar \
     -j iceberg-aws-bundle-$ICEBERG_VERSION.jar \
     shell
 ```
@@ -288,7 +288,7 @@ This feature requires the following lock related catalog properties:
 2. Set `lock.table` as the DynamoDB table name you would like to use. If the lock table with the given name does not exist in DynamoDB, a new table is created with billing mode set as [pay-per-request](https://aws.amazon.com/blogs/aws/amazon-dynamodb-on-demand-no-capacity-planning-and-pay-per-request-pricing).
 
 Other lock related catalog properties can also be used to adjust locking behaviors such as heartbeat interval.
-For more details, please refer to [Lock catalog properties](configuration.md#lock-catalog-properties).
+For more details, please refer to [Lock catalog properties](catalog-properties.md#lock-catalog-properties).
 
 ## S3 FileIO
 
@@ -483,7 +483,7 @@ sh spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkC
     --conf spark.sql.catalog.my_catalog.s3.write.table-tag-enabled=true \
     --conf spark.sql.catalog.my_catalog.s3.write.namespace-tag-enabled=true
 ```
-For more details on tag restrictions, please refer [User-Defined Tag Restrictions](https://docs.aws.amazon.com/AmazonS3/latest/userguide/tagging-managing.html).
+For more details on tag restrictions, please refer to [User-Defined Tag Restrictions](https://docs.aws.amazon.com/AmazonS3/latest/userguide/tagging-managing.html).
 
 ### S3 Access Points
 
@@ -507,7 +507,7 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
 For the above example, the objects in S3 on `my-bucket1` and `my-bucket2` buckets will use `arn:aws:s3::<ACCOUNT_ID>:accesspoint/<MRAP_ALIAS>`
 access-point for all S3 operations.
 
-For more details on using access-points, please refer [Using access points with compatible Amazon S3 operations](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points-usage-examples.html), [Sample notebook](https://github.com/aws-samples/quant-research/tree/main) .
+For more details on using access-points, please refer to [Using access points with compatible Amazon S3 operations](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points-usage-examples.html), [Sample notebook](https://github.com/aws-samples/quant-research/tree/main) .
 
 ### S3 Access Grants
 
@@ -657,7 +657,7 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
     --conf spark.sql.catalog.my_catalog.s3.dualstack-enabled=true
 ```
 
-For more details on using S3 Dual-stack, please refer [Using dual-stack endpoints from the AWS CLI and the AWS SDKs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html#dual-stack-endpoints-cli)
+For more details on using S3 Dual-stack, please refer to [Using dual-stack endpoints from the AWS CLI and the AWS SDKs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html#dual-stack-endpoints-cli)
 
 ## AWS Client Customization
 
@@ -685,7 +685,7 @@ The Glue, S3 and DynamoDB clients are then initialized with the assume-role cred
 Here is an example to start Spark shell with this client factory:
 
 ```shell
-spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:{{ icebergVersion }} \
+spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.apache.iceberg:iceberg-aws-bundle:{{ icebergVersion }} \
     --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket/my/key/prefix \    
     --conf spark.sql.catalog.my_catalog.type=glue \
@@ -693,6 +693,8 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.4_2.12:{{ iceber
     --conf spark.sql.catalog.my_catalog.client.assume-role.arn=arn:aws:iam::123456789:role/myRoleToAssume \
     --conf spark.sql.catalog.my_catalog.client.assume-role.region=ap-northeast-1
 ```
+
+When assume-role credential configurations are provided, [REST catalogs configured with the `sigv4` authentication mechanism](rest-catalog.md#sigv4-auth-properties) will also assume the role to sign REST Catalog requests.
 
 ### HTTP Client Configurations
 AWS clients support two types of HTTP Client, [URL Connection HTTP Client](https://mvnrepository.com/artifact/software.amazon.awssdk/url-connection-client)
@@ -777,7 +779,7 @@ LIB_PATH=/usr/share/aws/aws-java-sdk/
 
 ICEBERG_PACKAGES=(
   "iceberg-spark-runtime-3.5_2.12"
-  "iceberg-flink-runtime"
+  "iceberg-flink-runtime-{{ flinkVersionMajor }}"
   "iceberg-aws-bundle"
 )
 

@@ -22,7 +22,9 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -111,5 +113,96 @@ public class TestMetricsConfig {
     assertThat(MetricsConfig.limitFieldIds(schema, 2)).isEqualTo(Set.of(5, 3));
     assertThat(MetricsConfig.limitFieldIds(schema, 3)).isEqualTo(Set.of(5, 3, 4));
     assertThat(MetricsConfig.limitFieldIds(schema, 4)).isEqualTo(Set.of(5, 3, 4));
+  }
+
+  @Test
+  public void testColumnModeAndFieldIdsFromColumnConfig() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(2, "data", Types.StringType.get()),
+            optional(3, "category", Types.StringType.get()));
+
+    Map<String, String> props =
+        ImmutableMap.of(
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "full",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data", "none");
+
+    MetricsConfig config = MetricsConfig.from(props, schema, null);
+
+    assertThat(config.metricsFieldIds())
+        .as("Should track field ids for configured and defaulted columns")
+        .containsExactlyInAnyOrder(1, 2, 3);
+
+    assertThat(config.columnMode(1))
+        .as("Should return the configured mode for a tracked field id")
+        .isEqualTo(MetricsModes.Full.get());
+    assertThat(config.columnMode(2)).isEqualTo(MetricsModes.None.get());
+    assertThat(config.columnMode(3))
+        .as("Defaulted column should use the default mode")
+        .isEqualTo(MetricsModes.Truncate.withLength(16));
+  }
+
+  @Test
+  public void testAllDefaultedColumnsTracked() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(2, "data", Types.StringType.get()),
+            optional(3, "category", Types.StringType.get()));
+
+    MetricsConfig config = MetricsConfig.from(ImmutableMap.of(), schema, null);
+
+    assertThat(config.metricsFieldIds())
+        .as("Should track field ids for all columns that use the default mode")
+        .containsExactlyInAnyOrder(1, 2, 3);
+
+    assertThat(config.columnMode(1)).isEqualTo(MetricsModes.Truncate.withLength(16));
+    assertThat(config.columnMode(2)).isEqualTo(MetricsModes.Truncate.withLength(16));
+    assertThat(config.columnMode(3)).isEqualTo(MetricsModes.Truncate.withLength(16));
+  }
+
+  @Test
+  public void testLimitingMetricsFieldIds() {
+    Schema schema =
+        new Schema(
+            required(1, "a", Types.IntegerType.get()),
+            required(2, "b", Types.IntegerType.get()),
+            required(3, "c", Types.IntegerType.get()),
+            required(4, "d", Types.IntegerType.get()),
+            required(5, "e", Types.IntegerType.get()));
+
+    Map<String, String> limitedToTwo =
+        ImmutableMap.of(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "2");
+    MetricsConfig config = MetricsConfig.from(limitedToTwo, schema, null);
+
+    // only the fields within the inferred limit are tracked, matching limitFieldIds
+    assertThat(config.metricsFieldIds())
+        .as("Should track only the field ids within the inferred column limit")
+        .containsExactlyInAnyOrderElementsOf(MetricsConfig.limitFieldIds(schema, 2))
+        .containsExactlyInAnyOrder(1, 2);
+
+    // tracked fields keep metrics at the default mode
+    assertThat(config.columnMode(1)).isEqualTo(MetricsModes.Truncate.withLength(16));
+    assertThat(config.columnMode(2)).isEqualTo(MetricsModes.Truncate.withLength(16));
+    // fields past the limit are dropped from both id tracking and metrics
+    assertThat(config.columnMode(3))
+        .as("Field past the limit should not have metrics")
+        .isEqualTo(MetricsModes.None.get());
+    assertThat(config.columnMode(4)).isEqualTo(MetricsModes.None.get());
+    assertThat(config.columnMode(5)).isEqualTo(MetricsModes.None.get());
+
+    // raising the limit expands both the tracked ids and the columns with metrics
+    Map<String, String> limitedToThree =
+        ImmutableMap.of(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "3");
+    MetricsConfig wider = MetricsConfig.from(limitedToThree, schema, null);
+
+    assertThat(wider.metricsFieldIds())
+        .as("Raising the limit should track more field ids")
+        .containsExactlyInAnyOrder(1, 2, 3);
+    assertThat(wider.columnMode(3))
+        .as("Raising the limit should give the field metrics at the default mode")
+        .isEqualTo(MetricsModes.Truncate.withLength(16));
+    assertThat(wider.columnMode(4)).isEqualTo(MetricsModes.None.get());
   }
 }

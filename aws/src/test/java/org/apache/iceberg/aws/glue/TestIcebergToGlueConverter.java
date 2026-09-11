@@ -384,4 +384,57 @@ public class TestIcebergToGlueConverter {
         .as("Columns should match")
         .isEqualTo(expectedTableInput.storageDescriptor().columns());
   }
+
+  @Test
+  public void testDuplicateExistingColumnsKeepFirstComment() {
+    TableInput.Builder actualTableInputBuilder = TableInput.builder();
+    Schema schema = new Schema(Types.NestedField.required(1, "id", Types.StringType.get()));
+    PartitionSpec partitionSpec =
+        PartitionSpec.builderFor(schema).identity("id").withSpecId(1000).build();
+    TableMetadata tableMetadata =
+        TableMetadata.newTableMetadata(schema, partitionSpec, "s3://test", tableLocationProperties);
+
+    Table existingGlueTable =
+        Table.builder()
+            .storageDescriptor(
+                StorageDescriptor.builder()
+                    .columns(
+                        ImmutableList.of(
+                            Column.builder().name("id").comment("current comment").build(),
+                            Column.builder().name("id").comment("historical comment").build()))
+                    .build())
+            .build();
+
+    IcebergToGlueConverter.setTableInputInformation(
+        actualTableInputBuilder, tableMetadata, existingGlueTable);
+    TableInput actualTableInput = actualTableInputBuilder.build();
+
+    TableInput expectedTableInput =
+        TableInput.builder()
+            .storageDescriptor(
+                StorageDescriptor.builder()
+                    .location("s3://test")
+                    .additionalLocations(Sets.newHashSet(tableLocationProperties.values()))
+                    .columns(
+                        ImmutableList.of(
+                            Column.builder()
+                                .name("id")
+                                .type("string")
+                                .comment("current comment")
+                                .parameters(
+                                    ImmutableMap.of(
+                                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "1",
+                                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+                                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"))
+                                .build()))
+                    .build())
+            .build();
+
+    assertThat(actualTableInput.storageDescriptor())
+        .as("Storage descriptor should be set")
+        .isNotNull();
+    assertThat(actualTableInput.storageDescriptor().columns())
+        .as("Columns should match")
+        .isEqualTo(expectedTableInput.storageDescriptor().columns());
+  }
 }

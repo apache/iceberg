@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
@@ -97,6 +99,16 @@ class ParquetVariantWriters {
         typedDefinitionLevel,
         fieldDefinitionLevel,
         builder.build());
+  }
+
+  @SuppressWarnings("unchecked")
+  static ParquetValueWriter<VariantValue> decimal(
+      ParquetValueWriter<?> writer, int precision, int scale, PhysicalType... types) {
+    return new DecimalPrimitiveWriter(
+        (ParquetValueWriter<BigDecimal>) writer,
+        Sets.immutableEnumSet(Arrays.asList(types)),
+        precision,
+        scale);
   }
 
   @SuppressWarnings("unchecked")
@@ -220,6 +232,10 @@ class ParquetVariantWriters {
 
   private interface TypedWriter extends ParquetValueWriter<VariantValue> {
     Set<PhysicalType> types();
+
+    default boolean canWrite(VariantValue value) {
+      return true;
+    }
   }
 
   private static class PrimitiveWriter<T> implements TypedWriter {
@@ -274,7 +290,7 @@ class ParquetVariantWriters {
 
     @Override
     public void write(int repetitionLevel, VariantValue value) {
-      if (typedWriter.types().contains(value.type())) {
+      if (typedWriter.types().contains(value.type()) && typedWriter.canWrite(value)) {
         typedWriter.write(repetitionLevel, value);
         writeNull(valueWriter, repetitionLevel, valueDefinitionLevel);
       } else {
@@ -369,6 +385,49 @@ class ParquetVariantWriters {
       for (ParquetValueWriter<?> fieldWriter : typedWriters.values()) {
         fieldWriter.setColumnStore(columnStore);
       }
+    }
+  }
+
+  private static class DecimalPrimitiveWriter implements TypedWriter {
+    private final Set<PhysicalType> types;
+    private final ParquetValueWriter<BigDecimal> writer;
+    private final int precision;
+    private final int scale;
+
+    private DecimalPrimitiveWriter(
+        ParquetValueWriter<BigDecimal> writer, Set<PhysicalType> types, int precision, int scale) {
+      this.types = types;
+      this.writer = writer;
+      this.precision = precision;
+      this.scale = scale;
+    }
+
+    @Override
+    public Set<PhysicalType> types() {
+      return types;
+    }
+
+    @Override
+    public boolean canWrite(VariantValue value) {
+      BigDecimal decimal = (BigDecimal) value.asPrimitive().get();
+      int integerDigits = decimal.precision() - decimal.scale();
+      return decimal.scale() <= scale && integerDigits + scale <= precision;
+    }
+
+    @Override
+    public void write(int repetitionLevel, VariantValue value) {
+      BigDecimal decimal = (BigDecimal) value.asPrimitive().get();
+      writer.write(repetitionLevel, decimal.setScale(scale, RoundingMode.UNNECESSARY));
+    }
+
+    @Override
+    public List<TripleWriter<?>> columns() {
+      return writer.columns();
+    }
+
+    @Override
+    public void setColumnStore(ColumnWriteStore columnStore) {
+      writer.setColumnStore(columnStore);
     }
   }
 

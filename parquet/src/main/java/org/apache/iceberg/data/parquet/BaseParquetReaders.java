@@ -78,26 +78,8 @@ abstract class BaseParquetReaders<T> {
     }
   }
 
-  /**
-   * @deprecated will be removed in 1.12.0. Subclasses should override {@link
-   *     #createStructReader(List, Types.StructType, Integer)} instead
-   */
-  @Deprecated
-  protected ParquetValueReader<T> createStructReader(
-      List<ParquetValueReader<?>> fieldReaders, Types.StructType structType) {
-    throw new UnsupportedOperationException(
-        "Deprecated method is not used in this implementation, only createStructReader(list, Types.Struct, Integer) should be used");
-  }
-
-  /**
-   * This method can be overridden to provide a custom implementation which also uses the fieldId of
-   * the Schema when creating the struct reader
-   */
-  protected ParquetValueReader<T> createStructReader(
-      List<ParquetValueReader<?>> fieldReaders, Types.StructType structType, Integer fieldId) {
-    // Fallback to the signature without fieldId if not overridden
-    return createStructReader(fieldReaders, structType);
-  }
+  protected abstract ParquetValueReader<T> createStructReader(
+      List<ParquetValueReader<?>> fieldReaders, Types.StructType structType, Integer fieldId);
 
   protected abstract ParquetValueReader<?> fixedReader(ColumnDescriptor desc);
 
@@ -226,6 +208,20 @@ abstract class BaseParquetReaders<T> {
 
     @Override
     public Optional<ParquetValueReader<?>> visit(
+        LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryLogicalType) {
+      // geometry values are pure WKB stored in a BINARY column
+      return Optional.of(ParquetValueReaders.byteBuffers(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueReader<?>> visit(
+        LogicalTypeAnnotation.GeographyLogicalTypeAnnotation geographyLogicalType) {
+      // geography values are pure WKB stored in a BINARY column
+      return Optional.of(ParquetValueReaders.byteBuffers(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueReader<?>> visit(
         LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
       return Optional.of(ParquetValueReaders.uuids(desc));
     }
@@ -266,34 +262,14 @@ abstract class BaseParquetReaders<T> {
         }
       }
 
-      int constantDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
-      List<Types.NestedField> expectedFields = expected.fields();
-      List<ParquetValueReader<?>> reorderedFields =
-          Lists.newArrayListWithExpectedSize(expectedFields.size());
-
-      for (Types.NestedField field : expectedFields) {
-        int id = field.fieldId();
-        ParquetValueReader<?> reader =
-            ParquetValueReaders.replaceWithMetadataReader(
-                id, readersById.get(id), idToConstant, constantDefinitionLevel);
-        reorderedFields.add(defaultReader(field, reader, constantDefinitionLevel));
-      }
-
-      return createStructReader(reorderedFields, expected, fieldId(struct));
-    }
-
-    private ParquetValueReader<?> defaultReader(
-        Types.NestedField field, ParquetValueReader<?> reader, int constantDL) {
-      if (reader != null) {
-        return reader;
-      } else if (field.initialDefault() != null) {
-        return ParquetValueReaders.constant(
-            convertConstant(field.type(), field.initialDefault()), constantDL);
-      } else if (field.isOptional()) {
-        return ParquetValueReaders.nulls();
-      }
-
-      throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
+      return ParquetValueReaders.structReader(
+          type,
+          currentPath(),
+          expected.fields(),
+          readersById,
+          idToConstant,
+          BaseParquetReaders.this::convertConstant,
+          readers -> createStructReader(readers, expected, fieldId(struct)));
     }
 
     @Override

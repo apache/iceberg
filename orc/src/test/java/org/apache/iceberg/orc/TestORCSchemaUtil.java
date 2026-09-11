@@ -242,6 +242,32 @@ public class TestORCSchemaUtil {
   }
 
   @Test
+  public void testInvalidTimestampUnit() {
+    TypeDescription timestampCol = TypeDescription.createTimestamp();
+    timestampCol.setAttribute(ICEBERG_ID_ATTRIBUTE, "1");
+    timestampCol.setAttribute(ORCSchemaUtil.TIMESTAMP_UNIT, "SECONDS");
+    TypeDescription orcSchema =
+        TypeDescription.createStruct().addField("timestampCol", timestampCol);
+
+    assertThatThrownBy(() -> ORCSchemaUtil.convert(orcSchema))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid Timestamp type unit: SECONDS");
+  }
+
+  @Test
+  public void testInvalidTimestampInstantUnit() {
+    TypeDescription timestampTzCol = TypeDescription.createTimestampInstant();
+    timestampTzCol.setAttribute(ICEBERG_ID_ATTRIBUTE, "1");
+    timestampTzCol.setAttribute(ORCSchemaUtil.TIMESTAMP_UNIT, "SECONDS");
+    TypeDescription orcSchema =
+        TypeDescription.createStruct().addField("timestampTzCol", timestampTzCol);
+
+    assertThatThrownBy(() -> ORCSchemaUtil.convert(orcSchema))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid Timestamp type unit: SECONDS");
+  }
+
+  @Test
   public void testSkipNonIcebergColumns() {
     TypeDescription schema = TypeDescription.createStruct();
     TypeDescription intCol = TypeDescription.createInt();
@@ -559,5 +585,13 @@ public class TestORCSchemaUtil {
     }
 
     return true;
+  }
+
+  public static TypeDescription removeIds(TypeDescription type) {
+    return ORCSchemaUtil.removeIds(type);
+  }
+
+  public static boolean hasIds(TypeDescription orcSchema) {
+    return ORCSchemaUtil.hasIds(orcSchema);
   }
 }

@@ -142,7 +142,8 @@ import org.mockito.Mockito;
 public class TestRewriteDataFilesAction extends TestBase {
 
   @TempDir private File tableDir;
-  private static final int SCALE = 400000;
+  private static final int SCALE = 400;
+  private static final int LARGE_SCALE = 400000;
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA =
@@ -291,7 +292,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testBinPackAfterPartitionChange() {
     Table table = createTable();
 
-    writeRecords(20, SCALE, 20);
+    writeRecords(20, LARGE_SCALE, 20);
     table.refresh();
     shouldHaveFiles(table, 20);
     table.updateSpec().addField(Expressions.ref("c1")).commit();
@@ -936,7 +937,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackSplitLargeFile() {
-    Table table = createTable(1);
+    Table table = createTable(1, LARGE_SCALE);
     shouldHaveFiles(table, 1);
 
     List<Object[]> expectedRecords = currentData();
@@ -963,12 +964,12 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackCombineMixedFiles() {
-    Table table = createTable(1); // 400000
+    Table table = createTable(1, LARGE_SCALE); // 400000
     shouldHaveFiles(table, 1);
 
     // Add one more small file, and one large file
-    writeRecords(1, SCALE);
-    writeRecords(1, SCALE * 3);
+    writeRecords(1, LARGE_SCALE);
+    writeRecords(1, LARGE_SCALE * 3);
     table.refresh();
     shouldHaveFiles(table, 3);
 
@@ -1005,7 +1006,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackCombineMediumFiles() {
-    Table table = createTable(4);
+    Table table = createTable(4, LARGE_SCALE);
     shouldHaveFiles(table, 4);
 
     List<Object[]> expectedRecords = currentData();
@@ -1617,7 +1618,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testSortCustomSortOrderRequiresRepartition() throws IOException {
     int partitions = 4;
     Table table = createTable();
-    writeRecords(20, SCALE, partitions);
+    writeRecords(20, LARGE_SCALE, partitions);
     table.refresh();
     shouldHaveLastCommitUnsorted(table, "c3");
 
@@ -1684,7 +1685,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testAutoSortShuffleOutput() throws IOException {
-    Table table = createTable(20);
+    Table table = createTable(20, LARGE_SCALE);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, 20);
 
@@ -1776,7 +1777,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   @TestTemplate
   public void testZOrderSort() {
     int originalFiles = 20;
-    Table table = createTable(originalFiles);
+    Table table = createTable(originalFiles, LARGE_SCALE);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, originalFiles);
 
@@ -2070,6 +2071,49 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testUpgradePreservesDataSequence() throws NoSuchTableException {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    Table table = createTable();
+    writeRecords(2, 4);
+    table.refresh();
+    shouldHaveFiles(table, 2);
+    long committedDataSequence = table.currentSnapshot().sequenceNumber();
+
+    Result result = basicRewrite(table).execute();
+    assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
+    assertThat(result.addedDataFilesCount()).isOne();
+    table.refresh();
+    shouldHaveFiles(table, 1);
+
+    DataFile compactedFile = Iterables.getOnlyElement(currentDataFiles(table));
+    long dataSequenceNumber = compactedFile.dataSequenceNumber();
+    assertThat(dataSequenceNumber)
+        .as("Compaction must preserve the original data sequence number")
+        .isEqualTo(committedDataSequence);
+    assertThat(compactedFile.fileSequenceNumber())
+        .as("Compaction must bump the file sequence above the preserved data sequence")
+        .isGreaterThan(dataSequenceNumber);
+
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+    table.rewriteManifests().rewriteIf(manifest -> true).commit();
+    table.refresh();
+
+    List<Object[]> expectedLineage =
+        Lists.newArrayList(
+            row(0L, committedDataSequence, ANY, ANY, ANY),
+            row(1L, committedDataSequence, ANY, ANY, ANY),
+            row(2L, committedDataSequence, ANY, ANY, ANY),
+            row(3L, committedDataSequence, ANY, ANY, ANY));
+
+    assertEquals(
+        "First snapshot after upgrade to v3 assigns row IDs and inherits the committed data"
+            + " sequence as _last_updated_sequence_number",
+        expectedLineage,
+        currentDataWithLineage());
+  }
+
+  @TestTemplate
   public void testRewriteDataFilesPreservesLineage() throws NoSuchTableException {
     assumeThat(formatVersion).isGreaterThan(2);
 
@@ -2101,15 +2145,26 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testExecutorCacheForDeleteFilesDisabled() {
+  void cacheDeleteFilesOnExecutorsDisabledByDefault() {
     Table table = createTablePartitioned(1, 1);
     RewriteDataFilesSparkAction action = SparkActions.get(spark).rewriteDataFiles(table);
+    action.init(0L);
 
-    // The constructor should have set the configuration to false
     SparkReadConf readConf = new SparkReadConf(action.spark(), table, Collections.emptyMap());
-    assertThat(readConf.cacheDeleteFilesOnExecutors())
-        .as("Executor cache for delete files should be disabled in RewriteDataFilesSparkAction")
-        .isFalse();
+    assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
+  }
+
+  @TestTemplate
+  void cacheDeleteFilesOnExecutorsEnabledByOption() {
+    Table table = createTablePartitioned(1, 1);
+    RewriteDataFilesSparkAction action =
+        SparkActions.get(spark)
+            .rewriteDataFiles(table)
+            .option(RewriteDataFilesSparkAction.CACHE_DELETE_FILES, "true");
+    action.init(0L);
+
+    SparkReadConf readConf = new SparkReadConf(action.spark(), table, Collections.emptyMap());
+    assertThat(readConf.cacheDeleteFilesOnExecutors()).isTrue();
   }
 
   @TestTemplate
@@ -2121,6 +2176,23 @@ public class TestRewriteDataFilesAction extends TestBase {
             .withColumn(
                 "zorder_result",
                 zorderUDF.sortedLexicographically(col("test_col"), DataTypes.DateType));
+
+    assertThat(result.schema().apply("zorder_result").dataType()).isEqualTo(DataTypes.BinaryType);
+    List<Row> rows = result.collectAsList();
+    Row row = rows.get(0);
+    byte[] zorderBytes = row.getAs("zorder_result");
+    assertThat(zorderBytes).isNotNull().isNotEmpty();
+  }
+
+  @TestTemplate
+  public void testZOrderUDFWithTimestampNTZType() {
+    SparkZOrderUDF zorderUDF = new SparkZOrderUDF(1, 16, 1024);
+    Dataset<Row> result =
+        spark
+            .sql("SELECT timestamp_ntz '2025-01-01 12:00:00' as test_col")
+            .withColumn(
+                "zorder_result",
+                zorderUDF.sortedLexicographically(col("test_col"), DataTypes.TimestampNTZType));
 
     assertThat(result.schema().apply("zorder_result").dataType()).isEqualTo(DataTypes.BinaryType);
     List<Row> rows = result.collectAsList();
@@ -2338,8 +2410,12 @@ public class TestRewriteDataFilesAction extends TestBase {
    * @return the created table
    */
   protected Table createTable(int files) {
+    return createTable(files, SCALE);
+  }
+
+  protected Table createTable(int files, int numRecords) {
     Table table = createTable();
-    writeRecords(files, SCALE);
+    writeRecords(files, numRecords);
     table.refresh();
     return table;
   }
@@ -2486,7 +2562,7 @@ public class TestRewriteDataFilesAction extends TestBase {
               .newPositionDeleteWriter(encrypt(outputFile), table.spec(), partition);
 
       PositionDelete<Record> posDelete = PositionDelete.create();
-      posDeleteWriter.write(posDelete.set(path, rowPosition, null));
+      posDeleteWriter.write(posDelete.set(path, rowPosition));
       try {
         posDeleteWriter.close();
       } catch (IOException e) {
@@ -2530,7 +2606,7 @@ public class TestRewriteDataFilesAction extends TestBase {
       for (int position = file * positionsPerDeleteFile;
           position < (file + 1) * positionsPerDeleteFile;
           position++) {
-        posDeleteWriter.write(posDelete.set(path, position, null));
+        posDeleteWriter.write(posDelete.set(path, position));
       }
 
       try {

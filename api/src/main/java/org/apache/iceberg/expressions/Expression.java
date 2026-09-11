@@ -53,7 +53,7 @@ public interface Expression extends Serializable {
     public static Operation fromString(String operationType) {
       Preconditions.checkArgument(null != operationType, "Invalid operation type: null");
       try {
-        return Expression.Operation.valueOf(operationType.toUpperCase(Locale.ENGLISH));
+        return Expression.Operation.valueOf(operationType.toUpperCase(Locale.ROOT));
       } catch (IllegalArgumentException e) {
         throw new IllegalArgumentException(
             String.format("Invalid operation type: %s", operationType), e);

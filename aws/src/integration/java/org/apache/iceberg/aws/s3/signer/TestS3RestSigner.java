@@ -32,9 +32,10 @@ import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.MinioUtil;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.util.ThreadPools;
 import org.eclipse.jetty.compression.gzip.GzipCompression;
@@ -108,8 +109,10 @@ public class TestS3RestSigner {
             ImmutableS3V4RestSignerClient.builder()
                 .properties(
                     ImmutableMap.of(
-                        S3V4RestSignerClient.S3_SIGNER_URI,
+                        CatalogProperties.URI,
                         httpServer.getURI().toString(),
+                        RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                        S3SignerServlet.S3_SIGNER_ENDPOINT,
                         OAuth2Properties.CREDENTIAL,
                         "catalog:12345"))
                 .build(),
@@ -183,15 +186,7 @@ public class TestS3RestSigner {
   }
 
   private static Server initHttpServer() throws Exception {
-    S3SignerServlet.SignRequestValidator deleteObjectsWithBody =
-        new S3SignerServlet.SignRequestValidator(
-            (s3SignRequest) ->
-                "post".equalsIgnoreCase(s3SignRequest.method())
-                    && s3SignRequest.uri().getQuery().contains("delete"),
-            (s3SignRequest) -> s3SignRequest.body() != null && !s3SignRequest.body().isEmpty(),
-            "Sign request for delete objects should have a request body");
-    S3SignerServlet servlet =
-        new S3SignerServlet(S3ObjectMapper.mapper(), ImmutableList.of(deleteObjectsWithBody));
+    S3SignerServlet servlet = new S3SignerServlet();
     ServletContextHandler servletContext =
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
     servletContext.addServlet(new ServletHolder(servlet), "/*");

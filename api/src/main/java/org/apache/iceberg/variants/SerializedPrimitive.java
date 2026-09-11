@@ -18,14 +18,16 @@
  */
 package org.apache.iceberg.variants;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.UUIDUtil;
 
-class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
+class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue, Serializable {
   private static final int PRIMITIVE_TYPE_SHIFT = 2;
   private static final int PRIMITIVE_OFFSET = 1;
 
@@ -50,6 +52,56 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
   private SerializedPrimitive(ByteBuffer value, int header) {
     this.value = value;
     this.type = PhysicalType.from(header >> PRIMITIVE_TYPE_SHIFT);
+    long requiredBytes = PRIMITIVE_OFFSET + payloadSize(type, value);
+    Preconditions.checkArgument(
+        requiredBytes <= value.remaining(),
+        "Invalid variant primitive: %s payload extends past buffer",
+        type);
+  }
+
+  private static long payloadSize(PhysicalType type, ByteBuffer value) {
+    switch (type) {
+      case NULL:
+      case BOOLEAN_TRUE:
+      case BOOLEAN_FALSE:
+        return 0;
+      case INT8:
+        return 1;
+      case INT16:
+        return 2;
+      case INT32:
+      case DATE:
+      case FLOAT:
+        return 4;
+      case INT64:
+      case TIMESTAMPTZ:
+      case TIMESTAMPNTZ:
+      case TIME:
+      case TIMESTAMPTZ_NANOS:
+      case TIMESTAMPNTZ_NANOS:
+      case DOUBLE:
+        return 8;
+      case DECIMAL4:
+        return 5;
+      case DECIMAL8:
+        return 9;
+      case DECIMAL16:
+        return 17;
+      case UUID:
+        return 16;
+      case BINARY:
+      case STRING:
+        Preconditions.checkArgument(
+            PRIMITIVE_OFFSET + 4 <= value.remaining(),
+            "Invalid variant primitive: %s size field extends past buffer",
+            type);
+        int size = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
+        Preconditions.checkArgument(
+            size >= 0, "Invalid variant primitive: negative %s size %s", type, size);
+        return 4L + size;
+    }
+
+    throw new UnsupportedOperationException("Unsupported primitive type: " + type);
   }
 
   private Object read() {
@@ -61,52 +113,52 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
       case BOOLEAN_FALSE:
         return false;
       case INT8:
-        return VariantUtil.readLittleEndianInt8(value, PRIMITIVE_OFFSET);
+        return ByteBuffers.readLittleEndianInt8(value, PRIMITIVE_OFFSET);
       case INT16:
-        return VariantUtil.readLittleEndianInt16(value, PRIMITIVE_OFFSET);
+        return ByteBuffers.readLittleEndianInt16(value, PRIMITIVE_OFFSET);
       case INT32:
       case DATE:
-        return VariantUtil.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
+        return ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
       case INT64:
       case TIMESTAMPTZ:
       case TIMESTAMPNTZ:
       case TIME:
       case TIMESTAMPTZ_NANOS:
       case TIMESTAMPNTZ_NANOS:
-        return VariantUtil.readLittleEndianInt64(value, PRIMITIVE_OFFSET);
+        return ByteBuffers.readLittleEndianInt64(value, PRIMITIVE_OFFSET);
       case FLOAT:
         return VariantUtil.readFloat(value, PRIMITIVE_OFFSET);
       case DOUBLE:
         return VariantUtil.readDouble(value, PRIMITIVE_OFFSET);
       case DECIMAL4:
         {
-          int scale = VariantUtil.readByte(value, PRIMITIVE_OFFSET);
-          int unscaled = VariantUtil.readLittleEndianInt32(value, PRIMITIVE_OFFSET + 1);
+          int scale = ByteBuffers.readByte(value, PRIMITIVE_OFFSET);
+          int unscaled = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET + 1);
           return new BigDecimal(BigInteger.valueOf(unscaled), scale);
         }
       case DECIMAL8:
         {
-          int scale = VariantUtil.readByte(value, PRIMITIVE_OFFSET);
-          long unscaled = VariantUtil.readLittleEndianInt64(value, PRIMITIVE_OFFSET + 1);
+          int scale = ByteBuffers.readByte(value, PRIMITIVE_OFFSET);
+          long unscaled = ByteBuffers.readLittleEndianInt64(value, PRIMITIVE_OFFSET + 1);
           return new BigDecimal(BigInteger.valueOf(unscaled), scale);
         }
       case DECIMAL16:
         {
-          int scale = VariantUtil.readByte(value, PRIMITIVE_OFFSET);
+          int scale = ByteBuffers.readByte(value, PRIMITIVE_OFFSET);
           byte[] unscaled = new byte[16];
           for (int i = 0; i < 16; i += 1) {
-            unscaled[i] = (byte) VariantUtil.readByte(value, PRIMITIVE_OFFSET + 16 - i);
+            unscaled[i] = (byte) ByteBuffers.readByte(value, PRIMITIVE_OFFSET + 16 - i);
           }
           return new BigDecimal(new BigInteger(unscaled), scale);
         }
       case BINARY:
         {
-          int size = VariantUtil.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
+          int size = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
           return VariantUtil.slice(value, PRIMITIVE_OFFSET + 4, size);
         }
       case STRING:
         {
-          int size = VariantUtil.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
+          int size = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
           return VariantUtil.readString(value, PRIMITIVE_OFFSET + 4, size);
         }
       case UUID:
@@ -148,5 +200,21 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue {
   @Override
   public String toString() {
     return VariantPrimitive.asString(this);
+  }
+
+  private Object writeReplace() {
+    return new SerializationProxy(this);
+  }
+
+  private static class SerializationProxy implements Serializable {
+    private final byte[] valueBytes;
+
+    private SerializationProxy(SerializedPrimitive primitive) {
+      this.valueBytes = ByteBuffers.toByteArray(primitive.buffer());
+    }
+
+    private Object readResolve() {
+      return SerializedPrimitive.from(valueBytes);
+    }
   }
 }

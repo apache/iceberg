@@ -226,4 +226,8 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
 
     return append(sourceStream);
   }
+
+  <O> SingleOutputStreamOperator<O> setSlotSharingGroup(SingleOutputStreamOperator<O> operator) {
+    return slotSharingGroup == null ? operator : operator.slotSharingGroup(slotSharingGroup);
+  }
 }

@@ -27,6 +27,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SparkSession;
@@ -191,13 +192,18 @@ public class SparkReadConf {
   }
 
   public Long splitSizeOption() {
-    return confParser.longConf().option(SparkReadOptions.SPLIT_SIZE).parseOptional();
+    return confParser
+        .longConf()
+        .option(SparkReadOptions.SPLIT_SIZE)
+        .sessionConf(SparkSQLProperties.READ_SPLIT_SIZE)
+        .parseOptional();
   }
 
   public long splitSize() {
     return confParser
         .longConf()
         .option(SparkReadOptions.SPLIT_SIZE)
+        .sessionConf(SparkSQLProperties.READ_SPLIT_SIZE)
         .tableProperty(TableProperties.SPLIT_SIZE)
         .defaultValue(TableProperties.SPLIT_SIZE_DEFAULT)
         .parse();
@@ -314,6 +320,7 @@ public class SparkReadConf {
   public boolean adaptiveSplitSizeEnabled() {
     return confParser
         .booleanConf()
+        .sessionConf(SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_ENABLED)
         .tableProperty(TableProperties.ADAPTIVE_SPLIT_SIZE_ENABLED)
         .defaultValue(TableProperties.ADAPTIVE_SPLIT_SIZE_ENABLED_DEFAULT)
         .parse();
@@ -323,6 +330,17 @@ public class SparkReadConf {
     int defaultParallelism = spark.sparkContext().defaultParallelism();
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
     return Math.max(defaultParallelism, numShufflePartitions);
+  }
+
+  public int splitParallelism() {
+    int parallelism =
+        confParser
+            .intConf()
+            .sessionConf(SparkSQLProperties.READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM)
+            .defaultValue(parallelism())
+            .parse();
+    Preconditions.checkArgument(parallelism > 0, "Split parallelism must be > 0: %s", parallelism);
+    return parallelism;
   }
 
   public boolean distributedPlanningEnabled() {

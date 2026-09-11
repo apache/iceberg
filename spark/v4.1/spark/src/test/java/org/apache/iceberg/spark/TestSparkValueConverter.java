@@ -19,10 +19,13 @@
 package org.apache.iceberg.spark;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -81,6 +84,21 @@ public class TestSparkValueConverter {
             Types.NestedField.required(0, "id", Types.LongType.get()),
             Types.NestedField.optional(5, "location", Types.StringType.get()));
     assertCorrectNullConversion(schema);
+  }
+
+  @Test
+  public void testConvertToSparkComplexTypesThrow() {
+    Types.StructType struct =
+        Types.StructType.of(Types.NestedField.required(1, "lat", Types.FloatType.get()));
+    Types.ListType list = Types.ListType.ofOptional(1, Types.StringType.get());
+    Types.MapType map =
+        Types.MapType.ofOptional(1, 2, Types.StringType.get(), Types.StringType.get());
+
+    for (Type type : List.of(struct, list, map)) {
+      assertThatThrownBy(() -> SparkValueConverter.convertToSpark(type, "unused"))
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessageContaining("Complex types currently not supported");
+    }
   }
 
   private void assertCorrectNullConversion(Schema schema) {

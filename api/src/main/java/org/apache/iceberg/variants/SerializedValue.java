@@ -29,7 +29,7 @@ interface SerializedValue extends VariantValue, Serialized {
   @Override
   default int writeTo(ByteBuffer buffer, int offset) {
     ByteBuffer value = buffer();
-    VariantUtil.writeBufferAbsolute(buffer, offset, value);
+    buffer.put(offset, value, value.position(), value.remaining());
     return value.remaining();
   }
 }

@@ -31,6 +31,7 @@ import com.nimbusds.jwt.PlainJWT;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
@@ -202,6 +203,53 @@ public class TestOAuth2Util {
       assertThat(session.expiresAtMillis())
           .as("After refresh, session should use the refreshed token's exp")
           .isEqualTo(TimeUnit.SECONDS.toMillis(500));
+    }
+  }
+
+  @Test
+  void refreshExpiredTokenShouldIncludeOptionalOAuthParams() throws IOException {
+    assertRefreshIncludesOptionalOAuthParams(System.currentTimeMillis() - 10_000);
+  }
+
+  @Test
+  void refreshCurrentTokenNonExchangeShouldIncludeOptionalOAuthParams() throws IOException {
+    assertRefreshIncludesOptionalOAuthParams(System.currentTimeMillis() + 300_000);
+  }
+
+  private static void assertRefreshIncludesOptionalOAuthParams(long expiresAtMillis)
+      throws IOException {
+    String audience = "https://my-catalog.example.com";
+    AuthConfig authConfig =
+        ImmutableAuthConfig.builder()
+            .keepRefreshed(true)
+            .exchangeEnabled(false)
+            .token("token")
+            .credential("testClientId:testClientSecret")
+            .oauth2ServerUri("/v1/token")
+            .expiresAtMillis(expiresAtMillis)
+            .optionalOAuthParams(ImmutableMap.of("audience", audience, "scope", "catalog"))
+            .build();
+
+    OAuthTokenResponse response =
+        OAuthTokenResponse.builder().withToken("refreshed_token").withTokenType(BEARER).build();
+
+    try (RESTClient client = Mockito.mock(RESTClient.class);
+        OAuth2Util.AuthSession session = new OAuth2Util.AuthSession(Map.of(), authConfig)) {
+      Mockito.when(client.postForm(any(), anyMap(), any(), anyMap(), any())).thenReturn(response);
+
+      session.refresh(client);
+
+      Mockito.verify(client)
+          .postForm(
+              any(),
+              argThat(
+                  formData ->
+                      CLIENT_CREDENTIALS.equals(formData.get(GRANT_TYPE))
+                          && audience.equals(formData.get("audience"))
+                          && "catalog".equals(formData.get("scope"))),
+              Mockito.eq(OAuthTokenResponse.class),
+              anyMap(),
+              any());
     }
   }
 

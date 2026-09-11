@@ -19,13 +19,33 @@
 package org.apache.iceberg.spark.sql;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Files;
+import org.apache.iceberg.SnapshotChanges;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.TestBase;
+import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.Pair;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.types.variant.Variant;
 import org.apache.spark.unsafe.types.VariantVal;
 import org.junit.jupiter.api.AfterEach;
@@ -76,7 +96,6 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testVariantColumnProjection_singleVariant(boolean vectorized) {
-    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
     setVectorization(vectorized);
     Dataset<Row> df = spark.table(TABLE).select("id", "v1").orderBy("id");
     assertThat(df.schema().fieldNames()).containsExactly("id", "v1");
@@ -106,7 +125,6 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testVariantColumnProjectionNoVariant(boolean vectorized) {
-    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
     setVectorization(vectorized);
     Dataset<Row> df = spark.table(TABLE).select("id");
     assertThat(df.schema().fieldNames()).containsExactly("id");
@@ -117,7 +135,6 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testFilterOnVariantColumnOnWholeValue(boolean vectorized) {
-    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
     setVectorization(vectorized);
     sql("INSERT INTO %s SELECT 3, NULL, NULL", TABLE);
 
@@ -147,7 +164,6 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testVariantNullValueProjection(boolean vectorized) {
-    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
     setVectorization(vectorized);
 
     // insert a row with NULL variant values
@@ -164,8 +180,63 @@ public class TestSparkVariantRead extends TestBase {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
+  public void testVariantReadAfterDelete(boolean vectorized)
+      throws IOException, NoSuchTableException, ParseException {
+    String deleteTable = CATALOG + ".default.var_delete";
+
+    sql("DROP TABLE IF EXISTS %s", deleteTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, v1 VARIANT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        deleteTable);
+    setVectorization(deleteTable, vectorized);
+
+    spark
+        .sql(
+            "SELECT 1L AS id, parse_json('{\"a\":1}') AS v1 "
+                + "UNION ALL SELECT 2L, parse_json('{\"b\":2}')")
+        .coalesce(1)
+        .writeTo(deleteTable)
+        .append();
+
+    Table table = Spark3Util.loadIcebergTable(spark, deleteTable);
+    DataFile dataFile =
+        Iterables.getOnlyElement(SnapshotChanges.builderFor(table).build().addedDataFiles());
+
+    Pair<DeleteFile, CharSequenceSet> deletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(File.createTempFile("dv-", ".puffin")),
+            null,
+            Lists.newArrayList(Pair.of(dataFile.location(), 0L)),
+            3);
+
+    table
+        .newRowDelta()
+        .addDeletes(deletes.first())
+        .validateDataFilesExist(deletes.second())
+        .commit();
+
+    sql("REFRESH TABLE %s", deleteTable);
+
+    Dataset<Row> df = spark.table(deleteTable).select("id", "v1").orderBy("id");
+    List<Row> rows = df.collectAsList();
+
+    assertThat(rows).hasSize(1);
+    assertThat(rows.get(0).getLong(0)).isEqualTo(2L);
+
+    Variant v1 =
+        new Variant(
+            ((VariantVal) rows.get(0).get(1)).getValue(),
+            ((VariantVal) rows.get(0).get(1)).getMetadata());
+    assertThat(v1.getFieldByKey("b").getLong()).isEqualTo(2L);
+
+    sql("DROP TABLE IF EXISTS %s", deleteTable);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
   public void testNestedStructVariant(boolean vectorized) {
-    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
 
     String structTable = CATALOG + ".default.var_struct";
     sql("DROP TABLE IF EXISTS %s", structTable);
@@ -200,7 +271,6 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testNestedArrayVariant(boolean vectorized) {
-    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
 
     String arrayTable = CATALOG + ".default.var_array";
     sql("DROP TABLE IF EXISTS %s", arrayTable);
@@ -249,7 +319,6 @@ public class TestSparkVariantRead extends TestBase {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   public void testNestedMapVariant(boolean vectorized) {
-    assumeThat(vectorized).as("Variant vectorized Parquet read is not implemented yet").isFalse();
 
     String mapTable = CATALOG + ".default.var_map";
     sql("DROP TABLE IF EXISTS %s", mapTable);
@@ -302,6 +371,144 @@ public class TestSparkVariantRead extends TestBase {
     sql("DROP TABLE IF EXISTS %s", mapTable);
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testMergeIntoWithVariant(boolean vectorized) {
+    String mergeTable = CATALOG + ".default.var_merge";
+    sql("DROP TABLE IF EXISTS %s", mergeTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, data VARIANT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3')",
+        mergeTable);
+    setVectorization(mergeTable, vectorized);
+
+    sql(
+        "INSERT INTO %s VALUES "
+            + "(1, parse_json('{\"name\":\"alice\",\"age\":30}')), "
+            + "(2, parse_json('{\"name\":\"bob\",\"age\":25}'))",
+        mergeTable);
+
+    sql(
+        "MERGE INTO %s AS target "
+            + "USING (SELECT 1 AS id, parse_json('{\"name\":\"alice\",\"age\":31}') AS data) AS source "
+            + "ON target.id = source.id "
+            + "WHEN MATCHED THEN UPDATE SET target.data = source.data "
+            + "WHEN NOT MATCHED THEN INSERT *",
+        mergeTable);
+
+    List<Row> rows = spark.table(mergeTable).select("id", "data").orderBy("id").collectAsList();
+
+    assertThat(rows).hasSize(2);
+    assertThat(rows.get(0).getLong(0)).isEqualTo(1L);
+    Variant v1 =
+        new Variant(
+            ((VariantVal) rows.get(0).get(1)).getValue(),
+            ((VariantVal) rows.get(0).get(1)).getMetadata());
+    assertThat(v1.getFieldByKey("name").getString()).describedAs("v1.name").isEqualTo("alice");
+    assertThat(v1.getFieldByKey("age").getLong()).describedAs("v1.age").isEqualTo(31L);
+
+    assertThat(rows.get(1).getLong(0)).isEqualTo(2L);
+    Variant v2 =
+        new Variant(
+            ((VariantVal) rows.get(1).get(1)).getValue(),
+            ((VariantVal) rows.get(1).get(1)).getMetadata());
+    assertThat(v2.getFieldByKey("name").getString()).describedAs("v2.name").isEqualTo("bob");
+    assertThat(v2.getFieldByKey("age").getLong()).describedAs("v2.age").isEqualTo(25L);
+
+    sql("DROP TABLE IF EXISTS %s", mergeTable);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testReadShreddedAfterPropertyToggled(boolean vectorized)
+      throws IOException, NoSuchTableException, ParseException {
+    String toggleTable = CATALOG + ".default.var_toggle";
+    sql("DROP TABLE IF EXISTS %s", toggleTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'write.parquet.shred-variants'='true')",
+        toggleTable);
+
+    spark.conf().set("spark.sql.iceberg.shred-variants", "true");
+    try {
+      sql(
+          "INSERT INTO %s VALUES "
+              + "(1, parse_json('{\"name\":\"alice\",\"age\":30}')), "
+              + "(2, parse_json('{\"name\":\"bob\",\"age\":25}'))",
+          toggleTable);
+    } finally {
+      spark.conf().unset("spark.sql.iceberg.shred-variants");
+    }
+
+    Table table = Spark3Util.loadIcebergTable(spark, toggleTable);
+    assertHasTypedValueSubtree(table);
+
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('write.parquet.shred-variants'='false')", toggleTable);
+    setVectorization(toggleTable, vectorized);
+
+    List<Row> rows = spark.table(toggleTable).select("id", "v").orderBy("id").collectAsList();
+    assertThat(rows).hasSize(2);
+    Variant v1 =
+        new Variant(
+            ((VariantVal) rows.get(0).get(1)).getValue(),
+            ((VariantVal) rows.get(0).get(1)).getMetadata());
+    assertThat(v1.getFieldByKey("name").getString()).isEqualTo("alice");
+    assertThat(v1.getFieldByKey("age").getLong()).isEqualTo(30L);
+    Variant v2 =
+        new Variant(
+            ((VariantVal) rows.get(1).get(1)).getValue(),
+            ((VariantVal) rows.get(1).get(1)).getMetadata());
+    assertThat(v2.getFieldByKey("name").getString()).isEqualTo("bob");
+    assertThat(v2.getFieldByKey("age").getLong()).isEqualTo(25L);
+
+    sql("DROP TABLE IF EXISTS %s", toggleTable);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"none", "counts"})
+  public void testReadShreddedWithMetricsDisabled(String metricsMode)
+      throws IOException, NoSuchTableException, ParseException {
+    String noStatsTable = CATALOG + ".default.var_no_stats";
+    sql("DROP TABLE IF EXISTS %s", noStatsTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
+            + "TBLPROPERTIES ("
+            + "'format-version'='3', "
+            + "'write.parquet.shred-variants'='true', "
+            + "'write.metadata.metrics.default'='%s')",
+        noStatsTable, metricsMode);
+
+    spark.conf().set("spark.sql.iceberg.shred-variants", "true");
+    try {
+      sql(
+          "INSERT INTO %s VALUES "
+              + "(1, parse_json('{\"name\":\"alice\",\"age\":30}')), "
+              + "(2, parse_json('{\"name\":\"bob\",\"age\":25}'))",
+          noStatsTable);
+    } finally {
+      spark.conf().unset("spark.sql.iceberg.shred-variants");
+    }
+
+    Table table = Spark3Util.loadIcebergTable(spark, noStatsTable);
+    assertHasTypedValueSubtree(table);
+    setVectorization(noStatsTable, true);
+
+    List<Row> rows = spark.table(noStatsTable).select("id", "v").orderBy("id").collectAsList();
+    assertThat(rows).hasSize(2);
+    Variant v1 =
+        new Variant(
+            ((VariantVal) rows.get(0).get(1)).getValue(),
+            ((VariantVal) rows.get(0).get(1)).getMetadata());
+    assertThat(v1.getFieldByKey("name").getString()).isEqualTo("alice");
+    Variant v2 =
+        new Variant(
+            ((VariantVal) rows.get(1).get(1)).getValue(),
+            ((VariantVal) rows.get(1).get(1)).getMetadata());
+    assertThat(v2.getFieldByKey("name").getString()).isEqualTo("bob");
+
+    sql("DROP TABLE IF EXISTS %s", noStatsTable);
+  }
+
   private void setVectorization(boolean on) {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
@@ -312,5 +519,32 @@ public class TestSparkVariantRead extends TestBase {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('read.parquet.vectorization.enabled'='%s')",
         table, Boolean.toString(on));
+  }
+
+  private static void assertHasTypedValueSubtree(Table table) throws IOException {
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      assertThat(tasks).isNotEmpty();
+      for (FileScanTask task : tasks) {
+        HadoopInputFile inputFile =
+            HadoopInputFile.fromPath(new Path(task.file().location()), new Configuration());
+        try (ParquetFileReader reader = ParquetFileReader.open(inputFile)) {
+          assertThat(containsTypedValue(reader.getFileMetaData().getSchema()))
+              .as("Expected variant column to be shredded with a typed_value subtree")
+              .isTrue();
+        }
+      }
+    }
+  }
+
+  private static boolean containsTypedValue(org.apache.parquet.schema.Type type) {
+    if (type.isPrimitive()) {
+      return false;
+    }
+    for (org.apache.parquet.schema.Type child : type.asGroupType().getFields()) {
+      if (child.getName().equals("typed_value") || containsTypedValue(child)) {
+        return true;
+      }
+    }
+    return false;
   }
 }

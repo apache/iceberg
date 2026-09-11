@@ -91,6 +91,8 @@ public class InternalTestHelpers {
       case FIXED:
       case BINARY:
       case DECIMAL:
+      case GEOMETRY:
+      case GEOGRAPHY:
         assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         break;
       case STRUCT:

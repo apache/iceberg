@@ -33,11 +33,13 @@ import org.apache.iceberg.rest.credentials.Credential;
 public class PlanTableScanResponse extends BaseScanTaskResponse {
   private final PlanStatus planStatus;
   private final String planId;
+  private final ErrorResponse errorResponse;
   private final List<Credential> credentials;
 
   private PlanTableScanResponse(
       PlanStatus planStatus,
       String planId,
+      ErrorResponse errorResponse,
       List<String> planTasks,
       List<FileScanTask> fileScanTasks,
       List<DeleteFile> deleteFiles,
@@ -46,6 +48,7 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
     super(planTasks, fileScanTasks, deleteFiles, specsById);
     this.planStatus = planStatus;
     this.planId = planId;
+    this.errorResponse = errorResponse;
     this.credentials = credentials;
     validate();
   }
@@ -56,6 +59,10 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
 
   public String planId() {
     return planId;
+  }
+
+  public ErrorResponse errorResponse() {
+    return errorResponse;
   }
 
   public List<Credential> credentials() {
@@ -86,6 +93,10 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
         planStatus() == PlanStatus.COMPLETED || (planTasks() == null && fileScanTasks() == null),
         "Invalid response: tasks can only be defined when status is '%s'",
         PlanStatus.COMPLETED.status());
+    Preconditions.checkArgument(
+        planStatus() == PlanStatus.FAILED || errorResponse() == null,
+        "Invalid response: error can only be defined when status is '%s'",
+        PlanStatus.FAILED.status());
     if (null != planId()) {
       Preconditions.checkArgument(
           planStatus() == PlanStatus.SUBMITTED || planStatus() == PlanStatus.COMPLETED,
@@ -105,17 +116,37 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
     return new Builder();
   }
 
+  /**
+   * Returns a new builder pre-populated with the given partition specs map. Required for server
+   * responses that serialize {@code fileScanTasks} or {@code deleteFiles}; the specs are used only
+   * to serialize partition data and are never written to the response payload.
+   */
+  public static Builder builder(Map<Integer, PartitionSpec> specsById) {
+    return new Builder().withSpecsById(specsById);
+  }
+
+  /**
+   * Returns a builder pre-populated with this response's fields, suitable for producing a copy with
+   * one or more fields modified.
+   */
+  public Builder toBuilder() {
+    return new Builder()
+        .withPlanStatus(planStatus)
+        .withPlanId(planId)
+        .withErrorResponse(errorResponse)
+        .withPlanTasks(planTasks())
+        .withFileScanTasks(fileScanTasks())
+        .withCredentials(credentials())
+        .withSpecsById(specsById());
+  }
+
   public static class Builder extends BaseScanTaskResponse.Builder<Builder, PlanTableScanResponse> {
     private PlanStatus planStatus;
     private String planId;
+    private ErrorResponse errorResponse;
     private final List<Credential> credentials = Lists.newArrayList();
 
-    /**
-     * @deprecated since 1.11.0, visibility will be reduced in 1.12.0; use {@link
-     *     PlanTableScanResponse#builder()} instead.
-     */
-    @Deprecated
-    public Builder() {}
+    private Builder() {}
 
     public Builder withPlanStatus(PlanStatus status) {
       this.planStatus = status;
@@ -124,6 +155,11 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
 
     public Builder withPlanId(String id) {
       this.planId = id;
+      return this;
+    }
+
+    public Builder withErrorResponse(ErrorResponse response) {
+      this.errorResponse = response;
       return this;
     }
 
@@ -137,6 +173,7 @@ public class PlanTableScanResponse extends BaseScanTaskResponse {
       return new PlanTableScanResponse(
           planStatus,
           planId,
+          errorResponse,
           planTasks(),
           fileScanTasks(),
           deleteFiles(),

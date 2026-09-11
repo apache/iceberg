@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Literal
+from typing import Dict, Literal
 from uuid import UUID
 
 from pydantic import Base64Str, BaseModel, ConfigDict, Field, RootModel
@@ -106,8 +106,24 @@ class TableIdentifier(BaseModel):
     name: str
 
 
+class CatalogObjectIdentifier(RootModel[list[str]]):
+    """
+    Reference to a catalog object (for example, table, view, or namespace) as an ordered list of hierarchical levels. The object kind is determined by context (e.g. the endpoint or a companion type discriminator), not by the identifier structure alone.
+    """
+
+    root: list[str] = Field(
+        ...,
+        description='Reference to a catalog object (for example, table, view, or namespace) as an ordered list of hierarchical levels. The object kind is determined by context (e.g. the endpoint or a companion type discriminator), not by the identifier structure alone.',
+        examples=[['accounting', 'tax', 'paid']],
+    )
+
+
 class PrimitiveType(RootModel[str]):
     root: str = Field(..., examples=[['long', 'string', 'fixed[16]', 'decimal(10,2)']])
+
+
+class VariantType(RootModel[Literal['variant']]):
+    root: Literal['variant']
 
 
 class ExpressionType(RootModel[str]):
@@ -140,6 +156,11 @@ class ExpressionType(RootModel[str]):
 
 
 class TrueExpression(BaseModel):
+    """
+    Deprecated. Use the bare boolean literal `true` as a predicate instead.
+
+    """
+
     type: Literal['true'] = Field(
         ...,
         examples=[
@@ -169,6 +190,11 @@ class TrueExpression(BaseModel):
 
 
 class FalseExpression(BaseModel):
+    """
+    Deprecated. Use the bare boolean literal `false` as a predicate instead.
+
+    """
+
     type: Literal['false'] = Field(
         ...,
         examples=[
@@ -197,8 +223,49 @@ class FalseExpression(BaseModel):
     )
 
 
-class Reference(RootModel[str]):
-    root: str = Field(..., examples=[['column-name']])
+class IdReference(BaseModel):
+    """
+    A bound reference to a field by field ID.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['reference']
+    id: int
+
+
+class NamedReference(BaseModel):
+    """
+    An unbound reference to a field by name.
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['reference']
+    name: str
+
+
+class Function(RootModel[str]):
+    root: str = Field(..., min_length=1)
+
+
+class Function1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    catalog: str | None = None
+    identifier: CatalogObjectIdentifier
+
+
+class TermReference(RootModel[str]):
+    root: str = Field(
+        ...,
+        deprecated=True,
+        description='Deprecated string-form field reference used in older REST predicates. Use Reference (IdReference or NamedReference) instead.\n',
+        examples=[['column-name']],
+    )
 
 
 class Transform(RootModel[str]):
@@ -244,12 +311,22 @@ class SortOrder(BaseModel):
 
 class EncryptedKey(BaseModel):
     key_id: str = Field(..., alias='key-id')
-    encrypted_key_metadata: Base64Str = Field(..., alias='encrypted-key-metadata')
+    encrypted_key_metadata: Base64Str = Field(
+        ...,
+        alias='encrypted-key-metadata',
+        json_schema_extra={'contentEncoding': 'base64'},
+    )
     encrypted_by_id: str | None = Field(None, alias='encrypted-by-id')
     properties: dict[str, str] | None = None
 
 
 class Summary(BaseModel):
+    model_config = ConfigDict(
+        extra='allow',
+    )
+    __annotations__ = {
+        '__pydantic_extra__': Dict[str, str],
+    }
     operation: Literal['append', 'replace', 'overwrite', 'delete']
 
 
@@ -345,17 +422,17 @@ class AssignUUIDUpdate(BaseUpdate):
     Assigning a UUID to a table/view should only be done when creating the table/view. It is not safe to re-assign the UUID if a table/view already has a UUID assigned
     """
 
-    action: Literal['assign-uuid'] = 'assign-uuid'
+    action: Literal['assign-uuid']
     uuid: str
 
 
 class UpgradeFormatVersionUpdate(BaseUpdate):
-    action: Literal['upgrade-format-version'] = 'upgrade-format-version'
+    action: Literal['upgrade-format-version']
     format_version: int = Field(..., alias='format-version')
 
 
 class SetCurrentSchemaUpdate(BaseUpdate):
-    action: Literal['set-current-schema'] = 'set-current-schema'
+    action: Literal['set-current-schema']
     schema_id: int = Field(
         ...,
         alias='schema-id',
@@ -364,12 +441,12 @@ class SetCurrentSchemaUpdate(BaseUpdate):
 
 
 class AddPartitionSpecUpdate(BaseUpdate):
-    action: Literal['add-spec'] = 'add-spec'
+    action: Literal['add-spec']
     spec: PartitionSpec
 
 
 class SetDefaultSpecUpdate(BaseUpdate):
-    action: Literal['set-default-spec'] = 'set-default-spec'
+    action: Literal['set-default-spec']
     spec_id: int = Field(
         ...,
         alias='spec-id',
@@ -378,12 +455,12 @@ class SetDefaultSpecUpdate(BaseUpdate):
 
 
 class AddSortOrderUpdate(BaseUpdate):
-    action: Literal['add-sort-order'] = 'add-sort-order'
+    action: Literal['add-sort-order']
     sort_order: SortOrder = Field(..., alias='sort-order')
 
 
 class SetDefaultSortOrderUpdate(BaseUpdate):
-    action: Literal['set-default-sort-order'] = 'set-default-sort-order'
+    action: Literal['set-default-sort-order']
     sort_order_id: int = Field(
         ...,
         alias='sort-order-id',
@@ -392,47 +469,47 @@ class SetDefaultSortOrderUpdate(BaseUpdate):
 
 
 class AddSnapshotUpdate(BaseUpdate):
-    action: Literal['add-snapshot'] = 'add-snapshot'
+    action: Literal['add-snapshot']
     snapshot: Snapshot
 
 
 class SetSnapshotRefUpdate(BaseUpdate, SnapshotReference):
-    action: Literal['set-snapshot-ref'] = 'set-snapshot-ref'
+    action: Literal['set-snapshot-ref']
     ref_name: str = Field(..., alias='ref-name')
 
 
 class RemoveSnapshotsUpdate(BaseUpdate):
-    action: Literal['remove-snapshots'] = 'remove-snapshots'
+    action: Literal['remove-snapshots']
     snapshot_ids: list[int] = Field(..., alias='snapshot-ids')
 
 
 class RemoveSnapshotRefUpdate(BaseUpdate):
-    action: Literal['remove-snapshot-ref'] = 'remove-snapshot-ref'
+    action: Literal['remove-snapshot-ref']
     ref_name: str = Field(..., alias='ref-name')
 
 
 class SetLocationUpdate(BaseUpdate):
-    action: Literal['set-location'] = 'set-location'
+    action: Literal['set-location']
     location: str
 
 
 class SetPropertiesUpdate(BaseUpdate):
-    action: Literal['set-properties'] = 'set-properties'
+    action: Literal['set-properties']
     updates: dict[str, str]
 
 
 class RemovePropertiesUpdate(BaseUpdate):
-    action: Literal['remove-properties'] = 'remove-properties'
+    action: Literal['remove-properties']
     removals: list[str]
 
 
 class AddViewVersionUpdate(BaseUpdate):
-    action: Literal['add-view-version'] = 'add-view-version'
+    action: Literal['add-view-version']
     view_version: ViewVersion = Field(..., alias='view-version')
 
 
 class SetCurrentViewVersionUpdate(BaseUpdate):
-    action: Literal['set-current-view-version'] = 'set-current-view-version'
+    action: Literal['set-current-view-version']
     view_version_id: int = Field(
         ...,
         alias='view-version-id',
@@ -441,32 +518,32 @@ class SetCurrentViewVersionUpdate(BaseUpdate):
 
 
 class RemoveStatisticsUpdate(BaseUpdate):
-    action: Literal['remove-statistics'] = 'remove-statistics'
+    action: Literal['remove-statistics']
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
 class RemovePartitionStatisticsUpdate(BaseUpdate):
-    action: Literal['remove-partition-statistics'] = 'remove-partition-statistics'
+    action: Literal['remove-partition-statistics']
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
 class RemovePartitionSpecsUpdate(BaseUpdate):
-    action: Literal['remove-partition-specs'] = 'remove-partition-specs'
+    action: Literal['remove-partition-specs']
     spec_ids: list[int] = Field(..., alias='spec-ids')
 
 
 class RemoveSchemasUpdate(BaseUpdate):
-    action: Literal['remove-schemas'] = 'remove-schemas'
+    action: Literal['remove-schemas']
     schema_ids: list[int] = Field(..., alias='schema-ids')
 
 
 class AddEncryptionKeyUpdate(BaseUpdate):
-    action: Literal['add-encryption-key'] = 'add-encryption-key'
+    action: Literal['add-encryption-key']
     encryption_key: EncryptedKey = Field(..., alias='encryption-key')
 
 
 class RemoveEncryptionKeyUpdate(BaseUpdate):
-    action: Literal['remove-encryption-key'] = 'remove-encryption-key'
+    action: Literal['remove-encryption-key']
     key_id: str = Field(..., alias='key-id')
 
 
@@ -499,7 +576,7 @@ class AssertRefSnapshotId(TableRequirement):
 
     """
 
-    type: Literal['assert-ref-snapshot-id'] = 'assert-ref-snapshot-id'
+    type: Literal['assert-ref-snapshot-id']
     ref: str
     snapshot_id: int = Field(..., alias='snapshot-id')
 
@@ -509,7 +586,7 @@ class AssertLastAssignedFieldId(TableRequirement):
     The table's last assigned column id must match the requirement's `last-assigned-field-id`
     """
 
-    type: Literal['assert-last-assigned-field-id'] = 'assert-last-assigned-field-id'
+    type: Literal['assert-last-assigned-field-id']
     last_assigned_field_id: int = Field(..., alias='last-assigned-field-id')
 
 
@@ -518,7 +595,7 @@ class AssertCurrentSchemaId(TableRequirement):
     The table's current schema id must match the requirement's `current-schema-id`
     """
 
-    type: Literal['assert-current-schema-id'] = 'assert-current-schema-id'
+    type: Literal['assert-current-schema-id']
     current_schema_id: int = Field(..., alias='current-schema-id')
 
 
@@ -527,9 +604,7 @@ class AssertLastAssignedPartitionId(TableRequirement):
     The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
     """
 
-    type: Literal['assert-last-assigned-partition-id'] = (
-        'assert-last-assigned-partition-id'
-    )
+    type: Literal['assert-last-assigned-partition-id']
     last_assigned_partition_id: int = Field(..., alias='last-assigned-partition-id')
 
 
@@ -538,7 +613,7 @@ class AssertDefaultSpecId(TableRequirement):
     The table's default spec id must match the requirement's `default-spec-id`
     """
 
-    type: Literal['assert-default-spec-id'] = 'assert-default-spec-id'
+    type: Literal['assert-default-spec-id']
     default_spec_id: int = Field(..., alias='default-spec-id')
 
 
@@ -547,7 +622,7 @@ class AssertDefaultSortOrderId(TableRequirement):
     The table's default sort order id must match the requirement's `default-sort-order-id`
     """
 
-    type: Literal['assert-default-sort-order-id'] = 'assert-default-sort-order-id'
+    type: Literal['assert-default-sort-order-id']
     default_sort_order_id: int = Field(..., alias='default-sort-order-id')
 
 
@@ -568,9 +643,200 @@ class StorageCredential(BaseModel):
     config: dict[str, str]
 
 
+class Action(BaseModel):
+    action: str
+    field_id: int = Field(
+        ..., alias='field-id', description='Field ID of the column being projected.'
+    )
+
+
+class MaskAlphanum(Action):
+    """
+    Redacts the column value using the following rules to transform Unicode code points:
+    - Digits (U+0030–U+0039, 0-9) are replaced with 'n' - The following punctuation characters are kept as-is:
+        U+0028 '('  LEFT PARENTHESIS
+        U+0029 ')'  RIGHT PARENTHESIS
+        U+002C ','  COMMA
+        U+002E '.'  FULL STOP
+        U+002D '-'  HYPHEN-MINUS
+        U+0040 '@'  COMMERCIAL AT
+    - All other Unicode characters (including letters, whitespace, and any punctuation
+      not listed above) are replaced with 'x'
+
+    For example: "iceberg16112018@apache.org" -> "xxxxxxxnnnnnnnn@xxxxxx.xxx"
+    NULL input is preserved (NULL -> NULL).
+    Applicable to: string
+
+    """
+
+    action: Literal['mask-alphanum']
+
+
+class MaskToFixedValue(Action):
+    """
+    Replaces the column value with a type-specific fixed value. Readers must use exactly the values listed below to ensure consistency across implementations.
+    Fixed values by type: - boolean: false - int: 0 - long: 0 - float: 0.0 - double: 0.0 - decimal(p, s): 0 (the unscaled value is 0) - string: "XXXXXXXX" - date: 1970-01-01 - time: 00:00:00 - timestamp: 1970-01-01T00:00:00 - timestamptz: 1970-01-01T00:00:00+00:00 - timestamp_ns: 1970-01-01T00:00:00.000000000 - timestamptz_ns: 1970-01-01T00:00:00.000000000+00:00 - uuid: 00000000-0000-0000-0000-000000000000 - fixed(n): n zero bytes - binary: empty byte sequence - variant: an empty variant object - list: empty list [] - map: empty map {} - struct: struct with each field set to its type-specific default (applied recursively)
+    NULL input is also replaced with the type-specific fixed value; NULL is not preserved.
+    Applicable to: the types with a fixed value defined above. A server must not return mask-to-fixed-value for any other type.
+
+    """
+
+    action: Literal['mask-to-fixed-value']
+
+
+class ReplaceWithNull(Action):
+    """
+    Replaces the column value with NULL. NULL input is preserved (NULL -> NULL).
+    Applicable to: all optional types. A server must not return replace-with-null for a required (non-nullable) field; a reader that receives one must fail the query.
+
+    """
+
+    action: Literal['replace-with-null']
+
+
+class ShowFirst4(Action):
+    """
+    Preserves the first 4 Unicode code points of the column value and redacts the remainder using mask-alphanum rules (see MaskAlphanum for the exact character rules). Values with 4 or fewer Unicode code points are returned unchanged.
+    For example: "iceberg16112018@apache.org" -> "icebxxxnnnnnnnn@xxxxxx.xxx"
+    NULL input is preserved (NULL -> NULL).
+    Applicable to: string
+
+    """
+
+    action: Literal['show-first-4']
+
+
+class ShowLast4(Action):
+    """
+    Redacts all Unicode code points except the last 4 using mask-alphanum rules (see MaskAlphanum for the exact character rules). Values with 4 or fewer Unicode code points are returned unchanged.
+    For example: "4111-1111-1111-4444" -> "nnnn-nnnn-nnnn-4444"
+    NULL input is preserved (NULL -> NULL).
+    Applicable to: string
+
+    """
+
+    action: Literal['show-last-4']
+
+
+class TruncateToYear(Action):
+    """
+    Truncates the column value to year precision, setting month, day, and time components to their minimum values. The output type matches the input type.
+    For example: 2024-07-15 -> 2024-01-01 For timestamptz and timestamptz_ns, truncation is performed in UTC.
+    NULL input is preserved (NULL -> NULL).
+    Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
+
+    """
+
+    action: Literal['truncate-to-year']
+
+
+class TruncateToMonth(Action):
+    """
+    Truncates the column value to year and month precision, setting day and time components to their minimum values. The output type matches the input type.
+    For example: 2024-07-15 -> 2024-07-01 For timestamptz and timestamptz_ns, truncation is performed in UTC.
+    NULL input is preserved (NULL -> NULL).
+    Applicable to: date, timestamp, timestamptz, timestamp_ns, timestamptz_ns
+
+    """
+
+    action: Literal['truncate-to-month']
+
+
+class Sha256Global(Action):
+    """
+    Applies SHA-256. Deterministic across all queries
+    and readers: the same input always produces the same output.
+
+    Input-to-bytes encoding by type:
+    - string: UTF-8 encoded bytes
+    - int: 4 bytes, little-endian
+    - long: 8 bytes, little-endian
+    - binary: raw bytes as-is
+
+    Output encoding by type:
+    - string: 64-character lowercase hexadecimal string
+    - int: first 4 bytes of the digest, read as a little-endian int
+    - long: first 8 bytes of the digest, read as a little-endian long
+    - binary: the full 32-byte raw SHA-256 digest
+
+    NULL input is preserved (NULL -> NULL).
+
+    Applicable to: string, int, long, binary
+
+    """
+
+    action: Literal['sha-256-global']
+
+
+class Sha256QueryLocal(Action):
+    """
+    Applies SHA-256 with a per-query random salt, making the output non-deterministic
+    across queries while remaining consistent within a single query. The definition
+    of a query is left to the implementation.
+
+    The reader must generate a cryptographically random salt of at least 16 bytes for each query.
+
+    For each column value, the reader must encode the value to bytes using
+    sha-256-global's input rules, prepend the per-query salt, and compute
+    SHA-256 over the result.
+
+    Output encoding follows the same rules as sha-256-global.
+
+    NULL input is preserved (NULL -> NULL).
+
+    Applicable to: string, int, long, binary
+
+    """
+
+    action: Literal['sha-256-query-local']
+
+
 class LoadCredentialsResponse(BaseModel):
     storage_credentials: list[StorageCredential] = Field(
         ..., alias='storage-credentials'
+    )
+
+
+class CatalogObjectLabels(RootModel[dict[str, str]]):
+    """
+    Flat key-value labels attached to the object (table, view, ...) as a whole.
+    """
+
+    root: dict[str, str]
+
+
+class FieldLabels(BaseModel):
+    """
+    Labels attached to a single field, identified by field-id.
+    """
+
+    field_id: int = Field(
+        ...,
+        alias='field-id',
+        description='Field ID from the schema of the table or view',
+    )
+    labels: dict[str, str] = Field(
+        ..., description='Flat key-value labels for this field'
+    )
+
+
+class Labels(BaseModel):
+    """
+    Catalog-provided metadata enrichment (for example ownership,
+    classification, or cost attribution) returned with a table or view.
+    Labels are catalog-provided and optional; clients may ignore them, and
+    may cache them following the response ETag.
+    The spec does not require how a catalog produces or stores labels, nor
+    whether they are persisted or versioned. `object-labels` carries
+    labels for the object as a whole; `fields` carries per-field labels,
+    each identified by field-id.
+
+    """
+
+    object_labels: CatalogObjectLabels | None = Field(None, alias='object-labels')
+    fields: list[FieldLabels] | None = Field(
+        None,
+        description='Field-level labels. Each entry identifies its field by field-id.',
     )
 
 
@@ -795,9 +1061,27 @@ class ListTablesResponse(BaseModel):
     identifiers: list[TableIdentifier] | None = None
 
 
+class ListFunctionsResponse(BaseModel):
+    next_page_token: PageToken | None = Field(None, alias='next-page-token')
+    identifiers: list[CatalogObjectIdentifier] | None = None
+
+
 class ListNamespacesResponse(BaseModel):
     next_page_token: PageToken | None = Field(None, alias='next-page-token')
     namespaces: list[Namespace] | None = None
+
+
+class FunctionSQLRepresentation(BaseModel):
+    type: Literal['sql']
+    dialect: str = Field(
+        ..., description='SQL dialect identifier (e.g., "spark", "trino").'
+    )
+    sql: str = Field(..., description='SQL expression text.')
+
+
+class FunctionDefinitionVersionRef(BaseModel):
+    definition_id: str = Field(..., alias='definition-id')
+    version_id: int = Field(..., alias='version-id')
 
 
 class UpdateNamespacePropertiesResponse(BaseModel):
@@ -941,6 +1225,14 @@ class CountMap(BaseModel):
     )
 
 
+class FieldStatistics(BaseModel):
+    avg_value_size_in_bytes: int | None = Field(
+        None,
+        alias='avg-value-size-in-bytes',
+        description='Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption',
+    )
+
+
 class PrimitiveTypeValue(
     RootModel[
         BooleanTypeValue
@@ -1008,6 +1300,11 @@ class ContentFile(BaseModel):
         None, alias='split-offsets', description='List of splittable offsets'
     )
     sort_order_id: int | None = Field(None, alias='sort-order-id')
+    content_stats: dict[str, FieldStatistics] | None = Field(
+        None,
+        alias='content-stats',
+        description='Container struct for per-field metrics structs',
+    )
 
 
 class PositionDeleteFile(ContentFile):
@@ -1082,6 +1379,21 @@ class RemoteSignResult(BaseModel):
     headers: MultiValuedMap
 
 
+class RemoteSigningConfig(BaseModel):
+    """
+    Configuration for the remote signer client.
+    """
+
+    properties: dict[str, str] | None = Field(
+        None,
+        description='Static key-value pairs the signer client MUST pass through unchanged in the `properties` field of every `RemoteSignRequest` sent to the signing endpoint.\n',
+    )
+    headers: MultiValuedMap | None = Field(
+        None,
+        description='Static headers the signer client MUST include unchanged in every request to the signing endpoint.\n',
+    )
+
+
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: dict[str, str] | None = Field(
@@ -1096,14 +1408,68 @@ class RenameTableRequest(BaseModel):
     destination: TableIdentifier
 
 
+class Literal1(BaseModel):
+    """
+    A literal is either a bare value, an untyped literal object, or a typed literal object.
+
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['literal']
+    value: PrimitiveTypeValue
+    data_type: PrimitiveType | None = Field(None, alias='data-type')
+
+
+class LiteralModel(RootModel[PrimitiveTypeValue | Literal1]):
+    root: PrimitiveTypeValue | Literal1 = Field(
+        ...,
+        description='A literal is either a bare value, an untyped literal object, or a typed literal object.\n',
+    )
+
+
+class Literals1(BaseModel):
+    """
+    Literals is either a bare array of literals or a typed object with an explicit data-type applied to all values.
+
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['literals']
+    values: list[PrimitiveTypeValue]
+    data_type: PrimitiveType = Field(..., alias='data-type')
+
+
+class Literals(RootModel[list[LiteralModel] | Literals1]):
+    root: list[LiteralModel] | Literals1 = Field(
+        ...,
+        description='Literals is either a bare array of literals or a typed object with an explicit data-type applied to all values.\n',
+    )
+
+
+class Reference(RootModel[IdReference | NamedReference]):
+    root: IdReference | NamedReference = Field(
+        ...,
+        description='A reference to a field. Either a bound reference (by field ID) or an unbound reference (by name). The context in which an expression is used determines which form is valid.\n',
+    )
+
+
 class TransformTerm(BaseModel):
+    """
+    Deprecated. Legacy transform-applied-to-a-term form. Use Apply with a Reference argument instead.
+
+    """
+
     type: Literal['transform']
     transform: Transform
-    term: Reference
+    term: TermReference
 
 
 class SetPartitionStatisticsUpdate(BaseUpdate):
-    action: Literal['set-partition-statistics'] = 'set-partition-statistics'
+    action: Literal['set-partition-statistics']
     partition_statistics: PartitionStatisticsFile = Field(
         ..., alias='partition-statistics'
     )
@@ -1125,6 +1491,25 @@ class FailedPlanningResult(IcebergErrorResponse):
 
 class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
+
+
+class FunctionRepresentation(RootModel[FunctionSQLRepresentation]):
+    root: FunctionSQLRepresentation = Field(
+        ..., description='UDF implementation representation.'
+    )
+
+
+class FunctionDefinitionLogEntry(BaseModel):
+    timestamp_ms: int = Field(
+        ...,
+        alias='timestamp-ms',
+        description='Timestamp when the function was updated to use the definition versions.',
+    )
+    definition_versions: list[FunctionDefinitionVersionRef] = Field(
+        ...,
+        alias='definition-versions',
+        description='Mapping of each definition to its selected version at this time.',
+    )
 
 
 class StatisticsFile(BaseModel):
@@ -1189,12 +1574,16 @@ class FetchScanTasksRequest(BaseModel):
     plan_task: PlanTask = Field(..., alias='plan-task')
 
 
-class Term(RootModel[Reference | TransformTerm]):
-    root: Reference | TransformTerm
+class Term(RootModel[TermReference | TransformTerm]):
+    root: TermReference | TransformTerm = Field(
+        ...,
+        deprecated=True,
+        description='Deprecated. Legacy term form used by older REST predicates. Use Reference or Apply instead.\n',
+    )
 
 
 class SetStatisticsUpdate(BaseUpdate):
-    action: Literal['set-statistics'] = 'set-statistics'
+    action: Literal['set-statistics']
     snapshot_id: int | None = Field(
         None,
         alias='snapshot-id',
@@ -1204,98 +1593,28 @@ class SetStatisticsUpdate(BaseUpdate):
     statistics: StatisticsFile
 
 
-class UnaryExpression(BaseModel):
-    type: Literal['is-null', 'not-null', 'is-nan', 'not-nan'] = Field(
+class FunctionDefinitionVersion(BaseModel):
+    version_id: int = Field(
         ...,
-        examples=[
-            [
-                'true',
-                'false',
-                'eq',
-                'and',
-                'or',
-                'not',
-                'in',
-                'not-in',
-                'lt',
-                'lt-eq',
-                'gt',
-                'gt-eq',
-                'not-eq',
-                'starts-with',
-                'not-starts-with',
-                'is-null',
-                'not-null',
-                'is-nan',
-                'not-nan',
-            ]
-        ],
+        alias='version-id',
+        description='Monotonically increasing identifier of the definition version.',
     )
-    term: Term
-
-
-class LiteralExpression(BaseModel):
-    type: Literal[
-        'lt', 'lt-eq', 'gt', 'gt-eq', 'eq', 'not-eq', 'starts-with', 'not-starts-with'
-    ] = Field(
+    representations: list[FunctionRepresentation] = Field(
+        ..., description='UDF implementations.'
+    )
+    deterministic: bool | None = Field(
+        False, description='Whether the function is deterministic.'
+    )
+    on_null_input: Literal['return-null', 'call'] | None = Field(
+        'call',
+        alias='on-null-input',
+        description='Defines how the UDF behaves when any input parameter is NULL.',
+    )
+    timestamp_ms: int = Field(
         ...,
-        examples=[
-            [
-                'true',
-                'false',
-                'eq',
-                'and',
-                'or',
-                'not',
-                'in',
-                'not-in',
-                'lt',
-                'lt-eq',
-                'gt',
-                'gt-eq',
-                'not-eq',
-                'starts-with',
-                'not-starts-with',
-                'is-null',
-                'not-null',
-                'is-nan',
-                'not-nan',
-            ]
-        ],
+        alias='timestamp-ms',
+        description='Creation timestamp of this version (unix epoch millis).',
     )
-    term: Term
-    value: PrimitiveTypeValue
-
-
-class SetExpression(BaseModel):
-    type: Literal['in', 'not-in'] = Field(
-        ...,
-        examples=[
-            [
-                'true',
-                'false',
-                'eq',
-                'and',
-                'or',
-                'not',
-                'in',
-                'not-in',
-                'lt',
-                'lt-eq',
-                'gt',
-                'gt-eq',
-                'not-eq',
-                'starts-with',
-                'not-starts-with',
-                'is-null',
-                'not-null',
-                'is-nan',
-                'not-nan',
-            ]
-        ],
-    )
-    term: Term
-    values: list[PrimitiveTypeValue]
 
 
 class StructField(BaseModel):
@@ -1329,7 +1648,7 @@ class MapType(BaseModel):
     value_required: bool = Field(..., alias='value-required')
 
 
-class AndOrExpression(BaseModel):
+class AndOrPredicate(BaseModel):
     type: Literal['and', 'or'] = Field(
         ...,
         examples=[
@@ -1356,11 +1675,11 @@ class AndOrExpression(BaseModel):
             ]
         ],
     )
-    left: Expression
-    right: Expression
+    left: Predicate
+    right: Predicate
 
 
-class NotExpression(BaseModel):
+class NotPredicate(BaseModel):
     type: Literal['not'] = Field(
         ...,
         examples=[
@@ -1387,7 +1706,151 @@ class NotExpression(BaseModel):
             ]
         ],
     )
-    child: Expression
+    child: Predicate
+
+
+class UnaryPredicate(BaseModel):
+    """
+    A predicate that tests a single value expression. Accepts either 'child' (preferred) or 'term' (deprecated) to identify the operand.
+
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['is-null', 'not-null', 'is-nan', 'not-nan'] = Field(
+        ...,
+        examples=[
+            [
+                'true',
+                'false',
+                'eq',
+                'and',
+                'or',
+                'not',
+                'in',
+                'not-in',
+                'lt',
+                'lt-eq',
+                'gt',
+                'gt-eq',
+                'not-eq',
+                'starts-with',
+                'not-starts-with',
+                'is-null',
+                'not-null',
+                'is-nan',
+                'not-nan',
+            ]
+        ],
+    )
+    child: ValueExpression | None = None
+    term: Term | None = Field(
+        None, deprecated=True, description="Deprecated. Use 'child' instead."
+    )
+
+
+class ComparisonPredicate(BaseModel):
+    """
+    A predicate that compares two value expressions. Accepts either 'left'/'right' (preferred) or 'term'/'value' (deprecated).
+
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal[
+        'lt', 'lt-eq', 'gt', 'gt-eq', 'eq', 'not-eq', 'starts-with', 'not-starts-with'
+    ] = Field(
+        ...,
+        examples=[
+            [
+                'true',
+                'false',
+                'eq',
+                'and',
+                'or',
+                'not',
+                'in',
+                'not-in',
+                'lt',
+                'lt-eq',
+                'gt',
+                'gt-eq',
+                'not-eq',
+                'starts-with',
+                'not-starts-with',
+                'is-null',
+                'not-null',
+                'is-nan',
+                'not-nan',
+            ]
+        ],
+    )
+    left: ValueExpression | None = None
+    right: ValueExpression | None = None
+    term: Term | None = Field(
+        None, deprecated=True, description="Deprecated. Use 'left' instead."
+    )
+    value: LiteralModel | None = Field(
+        None, deprecated=True, description="Deprecated. Use 'right' instead."
+    )
+
+
+class SetPredicate(BaseModel):
+    """
+    A predicate that tests whether a value is in a set of literals. Accepts either 'child' (preferred) or 'term' (deprecated) to identify the operand.
+
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['in', 'not-in'] = Field(
+        ...,
+        examples=[
+            [
+                'true',
+                'false',
+                'eq',
+                'and',
+                'or',
+                'not',
+                'in',
+                'not-in',
+                'lt',
+                'lt-eq',
+                'gt',
+                'gt-eq',
+                'not-eq',
+                'starts-with',
+                'not-starts-with',
+                'is-null',
+                'not-null',
+                'is-nan',
+                'not-nan',
+            ]
+        ],
+    )
+    child: ValueExpression | None = None
+    term: Term | None = Field(
+        None, deprecated=True, description="Deprecated. Use 'child' instead."
+    )
+    values: Literals
+
+
+class Apply(BaseModel):
+    """
+    A function application on zero or more value expressions or predicates.
+
+    """
+
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    type: Literal['apply']
+    function: Function | CatalogObjectIdentifier | Function1
+    arguments: list[FunctionArgument]
 
 
 class TableMetadata(BaseModel):
@@ -1434,13 +1897,46 @@ class ViewMetadata(BaseModel):
 
 
 class AddSchemaUpdate(BaseUpdate):
-    action: Literal['add-schema'] = 'add-schema'
+    action: Literal['add-schema']
     schema_: Schema = Field(..., alias='schema')
     last_column_id: int | None = Field(
         None,
         alias='last-column-id',
         deprecated=True,
         description="This optional field is **DEPRECATED for REMOVAL** since it more safe to handle this internally, and shouldn't be exposed to the clients.\nThe highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. When omitted, it will be computed on the server side.",
+    )
+
+
+class ReadRestrictions(BaseModel):
+    """
+    Read restrictions for a table.
+    A reader evaluates the row filter against original, untransformed column values, then applies required-column-projections to the surviving rows. Each action must produce a value of the same type as the input column. If a reader that supports read-restrictions cannot apply any returned restriction (a filter expression or an action), it must fail the query and must not silently return raw, partial, or empty results.
+    A missing or empty ReadRestrictions object (no required-column-projections and no required-row-filter) imposes no restrictions.
+
+    """
+
+    required_column_projections: (
+        list[
+            MaskAlphanum
+            | MaskToFixedValue
+            | ReplaceWithNull
+            | ShowFirst4
+            | ShowLast4
+            | TruncateToYear
+            | TruncateToMonth
+            | Sha256Global
+            | Sha256QueryLocal
+        ]
+        | None
+    ) = Field(
+        None,
+        alias='required-column-projections',
+        description='A list of columns that require specific actions to be applied when reading. A server must not return an action for a column whose type is not listed in that action\'s "Applicable to" set. If absent or empty, no required actions apply; columns not listed are not subject to any required action.\n1. For each column listed, the reader must apply the specified action before\n  returning values for that column.\n\n2. The reader must replace all output references to the column with the result\n  of the action, presenting the result under the original field-id. For\n  example, if the action for field-id `9` is mask-alphanum, the reader must\n  return the masked value as field-id `9` in the query output.\n\n3. A server must not return more than one projection for the same field-id\n  in required-column-projections. If a duplicate field-id appears, the reader\n  must fail the query.\n\n4. A server must not return a projection that targets a map\'s key field-id;\n  a reader that receives one must fail the query. Applying an action to keys\n  can produce duplicate or null keys, which readers silently coalesce or\n  reject, causing data loss.\n\n5. A reader must enforce projections on the columns it is actually reading.\n  Projections referencing columns that are not being read do not apply.\n\n6. A server must not return projections on both a nested-typed field\n  (struct, list, or map) and any field-id nested within it at any depth.\n  A reader that receives such a response must fail the query.\n',
+    )
+    required_row_filter: Predicate | None = Field(
+        None,
+        alias='required-row-filter',
+        description='An expression that limits which rows the reader may return.\n1. The expression must evaluate to a boolean (TRUE or FALSE; Iceberg predicates\n  never produce NULL). A reader must discard any row for which the filter\n  evaluates to FALSE, and no information derived from discarded rows may be\n  included in the query result.\n\n2. If this property is absent, null, or always true then no mandatory filtering is required.\n3. Column references within the expression must use field IDs (IdReference),\n  not column names. This ensures the filter remains valid across column renames,\n  consistent with required-column-projections which also reference columns by field-id.\n',
     )
 
 
@@ -1482,9 +1978,15 @@ class LoadTableResult(BaseModel):
 
     ## Remote Signing
 
-    If remote signing for a specific storage provider is enabled, clients must respect the following configurations when creating a remote signer client:
-     - `signer.endpoint`: the remote signer endpoint. Required. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
-     - `signer.uri`: the base URI to resolve `signer.endpoint` against. Optional. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
+    If remote signing for a specific storage provider is enabled, the server SHOULD use the `remote-signing-config`
+    field to communicate all signer client settings. When the `remote-signing-config` field is present, clients
+    SHOULD respect the provided configuration.
+
+    For backward compatibility, the following `config` properties are still supported but **DEPRECATED** and SHOULD NOT be used by clients able to consume the remote signing configuration:
+     - `signer.endpoint` **DEPRECATED**.: the remote signer endpoint. Can either be a relative path (to be resolved against `signer.uri`) or an absolute URI.
+     - `signer.uri` **DEPRECATED**.: the base URI to resolve `signer.endpoint` against. Only meaningful if `signer.endpoint` is a relative path. Defaults to the catalog's base URI if not set.
+    If any of these properties is present, clients SHOULD use them to compute the actual remote signing endpoint URI to contact.
+    If none of these properties is present, clients SHOULD contact the default remote signing endpoint using the catalog's base URI.
 
     """
 
@@ -1498,6 +2000,11 @@ class LoadTableResult(BaseModel):
     storage_credentials: list[StorageCredential] | None = Field(
         None, alias='storage-credentials'
     )
+    remote_signing_config: RemoteSigningConfig | None = Field(
+        None, alias='remote-signing-config'
+    )
+    read_restrictions: ReadRestrictions | None = Field(None, alias='read-restrictions')
+    labels: Labels | None = None
 
 
 class ScanTasks(BaseModel):
@@ -1563,6 +2070,19 @@ class CreateTableRequest(BaseModel):
     properties: dict[str, str] | None = None
 
 
+class UnregisterTableResult(BaseModel):
+    """
+    Last metadata location and the corresponding table metadata for the table that was successfully unregistered and is no longer tracked by the catalog.
+    """
+
+    metadata_location: str = Field(
+        ...,
+        alias='metadata-location',
+        description='The last metadata location for the table at the time it was unregistered.',
+    )
+    metadata: TableMetadata
+
+
 class CreateViewRequest(BaseModel):
     name: str
     location: str | None = None
@@ -1596,17 +2116,153 @@ class LoadViewResult(BaseModel):
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: ViewMetadata
     config: dict[str, str] | None = None
+    labels: Labels | None = None
 
 
 class ScanReport(BaseModel):
     table_name: str = Field(..., alias='table-name')
     snapshot_id: int = Field(..., alias='snapshot-id')
-    filter: Expression
+    filter: Predicate
     schema_id: int = Field(..., alias='schema-id')
     projected_field_ids: list[int] = Field(..., alias='projected-field-ids')
     projected_field_names: list[str] = Field(..., alias='projected-field-names')
     metrics: Metrics
     metadata: dict[str, str] | None = None
+
+
+class LoadFunctionResult(BaseModel):
+    """
+    Result returned when a function is loaded from the catalog.
+
+
+    The function metadata JSON is returned in the `metadata` field. The location of the metadata
+    file is returned in the `metadata-location` field, if available.
+
+    """
+
+    metadata_location: str | None = Field(None, alias='metadata-location')
+    metadata: FunctionMetadata
+
+
+class FunctionMetadata(BaseModel):
+    """
+    Portable UDF metadata format.
+
+
+    Each function is represented by a self-contained metadata file. The `format-version` field
+    identifies the UDF metadata format.
+
+    """
+
+    function_uuid: UUID = Field(
+        ...,
+        alias='function-uuid',
+        description='A UUID that identifies this UDF, generated once at creation.',
+    )
+    format_version: int = Field(
+        ...,
+        alias='format-version',
+        description='UDF specification format version (must be 1).',
+        ge=1,
+        le=1,
+    )
+    definitions: list[FunctionDefinition] = Field(
+        ..., description='List of function definition entities.'
+    )
+    definition_log: list[FunctionDefinitionLogEntry] = Field(
+        ...,
+        alias='definition-log',
+        description="History of versions within the function's definitions.",
+    )
+    location: str | None = Field(
+        None,
+        description="The function's base location. This is used to store function metadata files.",
+    )
+    properties: dict[str, str] | None = Field(
+        None, description='A string-to-string map of properties.'
+    )
+    secure: bool | None = Field(False, description='Whether it is a secure function.')
+    doc: str | None = Field(None, description='Documentation string.')
+
+
+class FunctionDefinition(BaseModel):
+    definition_id: str = Field(
+        ...,
+        alias='definition-id',
+        description='A canonical string derived from the parameter types, formatted as a comma-separated list with no spaces.',
+    )
+    specific_name: str | None = Field(
+        None,
+        alias='specific-name',
+        description='A user-assignable name for this definition that must be unique among all definitions within the UDF metadata.',
+    )
+    parameters: list[FunctionParameter] = Field(
+        ...,
+        description='Ordered list of function parameters. Invocation order must match this list.',
+    )
+    return_type: FunctionDataType = Field(..., alias='return-type')
+    return_nullable: bool | None = Field(
+        True,
+        alias='return-nullable',
+        description='A hint to indicate whether the return value is nullable or not.',
+    )
+    versions: list[FunctionDefinitionVersion] = Field(
+        ..., description='Versioned implementations of this definition.'
+    )
+    current_version_id: int = Field(
+        ...,
+        alias='current-version-id',
+        description='Identifier of the current version for this definition.',
+    )
+    function_type: Literal['udf', 'udtf'] = Field(
+        ...,
+        alias='function-type',
+        description='Function type. When set to "udtf", "return-type" must be a struct describing the output schema.',
+    )
+    doc: str | None = Field(None, description='Documentation string.')
+
+
+class FunctionParameter(BaseModel):
+    type: FunctionDataType
+    name: str
+    doc: str | None = Field(None, description='Parameter documentation.')
+
+
+class FunctionListType(BaseModel):
+    """
+    UDF list type object.
+    """
+
+    type: Literal['list']
+    element: FunctionDataType
+
+
+class FunctionMapType(BaseModel):
+    """
+    UDF map type object.
+    """
+
+    type: Literal['map']
+    key: FunctionDataType
+    value: FunctionDataType
+
+
+class FunctionStructType(BaseModel):
+    """
+    UDF struct type object.
+    """
+
+    type: Literal['struct']
+    fields: list[FunctionStructField]
+
+
+class FunctionStructField(BaseModel):
+    """
+    UDF struct field.
+    """
+
+    name: str
+    type: FunctionDataType
 
 
 class CommitTableResponse(BaseModel):
@@ -1623,8 +2279,8 @@ class PlanTableScanRequest(BaseModel):
     select: list[FieldName] | None = Field(
         None, description='List of selected schema fields'
     )
-    filter: Expression | None = Field(
-        None, description='Expression used to filter the table data'
+    filter: Predicate | None = Field(
+        None, description='Predicate used to filter the table data'
     )
     min_rows_requested: int | None = Field(
         None,
@@ -1665,7 +2321,7 @@ class FileScanTask(BaseModel):
         alias='delete-file-references',
         description='A list of indices in the delete files array (0-based)',
     )
-    residual_filter: Expression | None = Field(
+    residual_filter: Predicate | None = Field(
         None,
         alias='residual-filter',
         description='An optional filter to be applied to rows in this file scan task.\nIf the residual is not present, the client must produce the residual or use the original filter.',
@@ -1677,29 +2333,38 @@ class Schema(StructType):
     identifier_field_ids: list[int] | None = Field(None, alias='identifier-field-ids')
 
 
-class Type(RootModel[PrimitiveType | StructType | ListType | MapType]):
-    root: PrimitiveType | StructType | ListType | MapType
+class Type(RootModel[VariantType | PrimitiveType | StructType | ListType | MapType]):
+    root: VariantType | PrimitiveType | StructType | ListType | MapType
 
 
-class Expression(
+class Predicate(
     RootModel[
-        TrueExpression
+        bool
+        | TrueExpression
         | FalseExpression
-        | AndOrExpression
-        | NotExpression
-        | SetExpression
-        | LiteralExpression
-        | UnaryExpression
+        | AndOrPredicate
+        | NotPredicate
+        | UnaryPredicate
+        | ComparisonPredicate
+        | SetPredicate
     ]
 ):
     root: (
-        TrueExpression
+        bool
+        | TrueExpression
         | FalseExpression
-        | AndOrExpression
-        | NotExpression
-        | SetExpression
-        | LiteralExpression
-        | UnaryExpression
+        | AndOrPredicate
+        | NotPredicate
+        | UnaryPredicate
+        | ComparisonPredicate
+        | SetPredicate
+    )
+
+
+class ValueExpression(RootModel[LiteralModel | Reference | Apply]):
+    root: LiteralModel | Reference | Apply = Field(
+        ...,
+        description='A value expression: a literal, a field reference, or a function application.\n',
     )
 
 
@@ -1806,6 +2471,19 @@ class ReportMetricsRequest1(ScanReport):
     report_type: str = Field(..., alias='report-type')
 
 
+class FunctionDataType(
+    RootModel[str | FunctionListType | FunctionMapType | FunctionStructType]
+):
+    root: str | FunctionListType | FunctionMapType | FunctionStructType = Field(
+        ...,
+        description='A type for function parameters or return value. It is encoded either as a type string or as a JSON object for nested types (struct, list, map) following the UDF spec Types section.\n\nPrimitive and semi-structured type strings are encoded based on the Iceberg type JSON representation (e.g., "int", "string", "timestamp", "decimal(9,2)", "variant"). Type strings must contain no spaces or quote characters.\n\nNested types are based on the Iceberg type JSON representation, but the UDF spec only requires a subset of fields (e.g., list requires `type` and `element`; map requires `type`, `key`, and `value`; struct requires `type` and `fields`). Any other fields must be ignored.\n',
+    )
+
+
+class FunctionArgument(RootModel[ValueExpression | Predicate]):
+    root: ValueExpression | Predicate
+
+
 class CompletedPlanningWithIDResult(CompletedPlanningResult):
     plan_id: str = Field(
         ..., alias='plan-id', description='ID used to track a planning request'
@@ -1850,17 +2528,30 @@ class PlanTableScanResult(
 StructField.model_rebuild()
 ListType.model_rebuild()
 MapType.model_rebuild()
-AndOrExpression.model_rebuild()
-NotExpression.model_rebuild()
+AndOrPredicate.model_rebuild()
+NotPredicate.model_rebuild()
+UnaryPredicate.model_rebuild()
+ComparisonPredicate.model_rebuild()
+SetPredicate.model_rebuild()
+Apply.model_rebuild()
 TableMetadata.model_rebuild()
 ViewMetadata.model_rebuild()
 AddSchemaUpdate.model_rebuild()
+ReadRestrictions.model_rebuild()
 ScanTasks.model_rebuild()
 CommitTableRequest.model_rebuild()
 CommitViewRequest.model_rebuild()
 CreateTableRequest.model_rebuild()
 CreateViewRequest.model_rebuild()
 ScanReport.model_rebuild()
+LoadFunctionResult.model_rebuild()
+FunctionMetadata.model_rebuild()
+FunctionDefinition.model_rebuild()
+FunctionParameter.model_rebuild()
+FunctionListType.model_rebuild()
+FunctionMapType.model_rebuild()
+FunctionStructType.model_rebuild()
+FunctionStructField.model_rebuild()
 PlanTableScanRequest.model_rebuild()
 FileScanTask.model_rebuild()
 CompletedPlanningResult.model_rebuild()

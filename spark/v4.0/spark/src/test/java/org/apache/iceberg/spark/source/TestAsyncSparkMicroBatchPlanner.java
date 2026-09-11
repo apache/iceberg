@@ -19,10 +19,13 @@
 package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.spark.SparkReadConf;
 import org.junit.jupiter.api.Test;
 
 class TestAsyncSparkMicroBatchPlanner {
@@ -51,6 +54,22 @@ class TestAsyncSparkMicroBatchPlanner {
 
     assertThat(AsyncSparkMicroBatchPlanner.reachedAvailableNowCap(readFrom, null)).isFalse();
     assertThat(AsyncSparkMicroBatchPlanner.reachedAvailableNowCap(null, capOffset)).isFalse();
+  }
+
+  @Test
+  void stoppingTwiceIncludesTableNameInError() {
+    Table table = mock(Table.class);
+    SparkReadConf readConf = mock(SparkReadConf.class);
+    when(table.name()).thenReturn("test_table");
+    when(readConf.streamingSnapshotPollingIntervalMs()).thenReturn(1000L);
+
+    AsyncSparkMicroBatchPlanner planner =
+        new AsyncSparkMicroBatchPlanner(table, readConf, StreamingOffset.START_OFFSET, null, null);
+    planner.stop();
+
+    assertThatThrownBy(planner::stop)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("AsyncSparkMicroBatchPlanner for test_table was already stopped");
   }
 
   private Snapshot mockSnapshot(long snapshotId) {

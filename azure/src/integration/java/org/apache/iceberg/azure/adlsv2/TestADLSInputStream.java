@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 public class TestADLSInputStream extends AzuriteTestBase {
 
   private static final String FILE_PATH = "path/to/file";
+  private static final int EOF = -1;
 
   private final Random random = new Random(1);
   private final AzureProperties azureProperties = new AzureProperties();
@@ -99,6 +100,28 @@ public class TestADLSInputStream extends AzuriteTestBase {
             location(), fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
       assertThat(in.read()).isEqualTo(i0);
       assertThat(in.read()).isEqualTo(i1);
+      assertThat(in.read()).isEqualTo(EOF);
+    }
+  }
+
+  @Test
+  public void testReadBufferedEOF() throws Exception {
+    int dataSize = 8;
+    byte[] expected = randomData(dataSize);
+    byte[] actual = new byte[dataSize + 1];
+
+    setupData(expected);
+
+    try (SeekableInputStream in =
+        new ADLSInputStream(
+            location(), fileClient(), null, azureProperties, MetricsContext.nullMetrics())) {
+      int bytesRead = in.read(actual, 0, dataSize + 1);
+      assertThat(bytesRead).isEqualTo(dataSize);
+      assertThat(Arrays.copyOfRange(actual, 0, bytesRead)).isEqualTo(expected);
+
+      // Pos is in the end of data, any read should EOF
+      assertThat(in.read(actual, 0, actual.length)).isEqualTo(EOF);
+      assertThat(in.getPos()).isEqualTo(dataSize);
     }
   }
 

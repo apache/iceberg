@@ -32,6 +32,7 @@ import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -47,13 +48,6 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         Serializable {
 
   static final Types.StructType EMPTY_STRUCT_TYPE = Types.StructType.of();
-  static final PartitionData EMPTY_PARTITION_DATA =
-      new PartitionData(EMPTY_STRUCT_TYPE) {
-        @Override
-        public PartitionData copy() {
-          return this; // this does not change
-        }
-      };
 
   private Types.StructType partitionType;
 
@@ -76,6 +70,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   private Map<Integer, Long> nanValueCounts = null;
   private Map<Integer, ByteBuffer> lowerBounds = null;
   private Map<Integer, ByteBuffer> upperBounds = null;
+  private Map<Integer, Integer> avgValueSizes = null;
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
   private byte[] keyMetadata = null;
@@ -154,6 +149,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       Map<Integer, Long> nanValueCounts,
       Map<Integer, ByteBuffer> lowerBounds,
       Map<Integer, ByteBuffer> upperBounds,
+      Map<Integer, Integer> avgValueSizes,
       List<Long> splitOffsets,
       int[] equalityFieldIds,
       Integer sortOrderId,
@@ -170,8 +166,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
 
     // this constructor is used by DataFiles.Builder, which passes null for unpartitioned data
     if (partition == null) {
-      this.partitionData = EMPTY_PARTITION_DATA;
-      this.partitionType = EMPTY_PARTITION_DATA.getPartitionType();
+      this.partitionData = PartitionData.EMPTY;
+      this.partitionType = PartitionData.EMPTY.getPartitionType();
     } else {
       this.partitionData = partition;
       this.partitionType = partition.getPartitionType();
@@ -186,6 +182,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.nanValueCounts = nanValueCounts;
     this.lowerBounds = SerializableByteBufferMap.wrap(lowerBounds);
     this.upperBounds = SerializableByteBufferMap.wrap(upperBounds);
+    this.avgValueSizes = avgValueSizes;
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
     this.equalityIds = equalityFieldIds;
     this.sortOrderId = sortOrderId;
@@ -223,6 +220,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.nanValueCounts = copyMap(toCopy.nanValueCounts, requestedColumnIds);
       this.lowerBounds = copyByteBufferMap(toCopy.lowerBounds, requestedColumnIds);
       this.upperBounds = copyByteBufferMap(toCopy.upperBounds, requestedColumnIds);
+      this.avgValueSizes = copyAvgValueSizes(toCopy.avgValueSizes, requestedColumnIds);
     } else {
       this.columnSizes = null;
       this.valueCounts = null;
@@ -230,6 +228,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       this.nanValueCounts = null;
       this.lowerBounds = null;
       this.upperBounds = null;
+      this.avgValueSizes = null;
     }
     this.keyMetadata =
         toCopy.keyMetadata == null
@@ -329,7 +328,11 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         this.partitionSpecId = (value != null) ? (Integer) value : -1;
         return;
       case 4:
-        this.partitionData = (PartitionData) value;
+        // Preserve the constructor-initialized partitionData when the reader returns null
+        // (e.g., v4 Parquet manifests for unpartitioned tables omit the partition field).
+        if (value != null) {
+          this.partitionData = (PartitionData) value;
+        }
         return;
       case 5:
         this.recordCount = (Long) value;
@@ -524,6 +527,11 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   }
 
   @Override
+  public Map<Integer, Integer> avgValueSizes() {
+    return toReadableMap(avgValueSizes);
+  }
+
+  @Override
   public ByteBuffer keyMetadata() {
     return keyMetadata != null ? ByteBuffer.wrap(keyMetadata) : null;
   }
@@ -579,11 +587,45 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     return keys == null ? SerializableMap.copyOf(map) : SerializableMap.filteredCopyOf(map, keys);
   }
 
-  private static Map<Integer, ByteBuffer> copyByteBufferMap(
-      Map<Integer, ByteBuffer> map, Set<Integer> keys) {
-    return SerializableByteBufferMap.wrap(copyMap(map, keys));
+  private static Map<Integer, Integer> copyAvgValueSizes(
+      Map<Integer, Integer> map, Set<Integer> keys) {
+    Map<Integer, Integer> copy = copyMap(map, keys);
+    return copy == null || copy.isEmpty() ? null : copy;
   }
 
+  private static Map<Integer, ByteBuffer> copyByteBufferMap(
+      Map<Integer, ByteBuffer> map, Set<Integer> keys) {
+    if (map == null) {
+      return null;
+    }
+
+    return SerializableByteBufferMap.wrap(deepCopyByteBufferMap(map, keys));
+  }
+
+  // Required as long as we have Map<Integer, ByteBuffer> in the API since Parquet reuses buffers.
+  private static Map<Integer, ByteBuffer> deepCopyByteBufferMap(
+      Map<Integer, ByteBuffer> map, Set<Integer> keys) {
+    Map<Integer, ByteBuffer> deepCopy = Maps.newHashMapWithExpectedSize(map.size());
+    for (Map.Entry<Integer, ByteBuffer> entry : map.entrySet()) {
+      if (keys == null || keys.contains(entry.getKey())) {
+        ByteBuffer buf = entry.getValue();
+        if (buf != null) {
+          ByteBuffer copy = ByteBuffer.allocate(buf.remaining());
+          copy.put(buf.duplicate());
+          copy.flip();
+          deepCopy.put(entry.getKey(), copy);
+        } else {
+          deepCopy.put(entry.getKey(), null);
+        }
+      }
+    }
+
+    return deepCopy;
+  }
+
+  // Returns an unmodifiable view of the map. The SerializableMap check is needed because
+  // internal maps may be wrapped for serialization after being populated by a format reader
+  // with container reuse enabled, and immutableMap() provides a stable snapshot.
   private static <K, V> Map<K, V> toReadableMap(Map<K, V> map) {
     if (map == null) {
       return null;
@@ -594,6 +636,10 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     }
   }
 
+  // Separate from toReadableMap because SerializableByteBufferMap is its own wrapper type
+  // (not a SerializableMap subclass) to handle ByteBuffer-specific serialization. ByteBuffer
+  // values are mutable and can be overwritten by Parquet container reuse, so callers that
+  // retain references must use copyByteBufferMap to get independent copies.
   private static Map<Integer, ByteBuffer> toReadableByteBufferMap(Map<Integer, ByteBuffer> map) {
     if (map == null) {
       return null;
@@ -620,6 +666,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         .add("nan_value_counts", nanValueCounts)
         .add("lower_bounds", lowerBounds)
         .add("upper_bounds", upperBounds)
+        .add("avg_value_sizes", avgValueSizes)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .add("equality_ids", equalityIds == null ? "null" : equalityFieldIds())

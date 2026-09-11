@@ -33,6 +33,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-hive-metastore')
 
     compileOnly libs.flink120.avro
+    compileOnly libs.joda.time
     // dropwizard histogram metrics (optional in Flink)
     compileOnly libs.flink120.metrics.dropwizard
     compileOnly libs.flink120.streaming.java
@@ -67,6 +68,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     }
 
     implementation libs.datasketches
+    implementation libs.roaringbitmap
 
     testImplementation libs.flink120.connector.test.utils
     testImplementation libs.flink120.core
@@ -83,6 +85,9 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-orc', configuration: 'testArtifacts')
+    testImplementation(testFixtures(project(':iceberg-parquet')))
+    testImplementation (project(path: ':iceberg-open-api', configuration: 'testFixturesRuntimeElements'))
 
     // By default, hive-exec is a fat/uber jar and it exports a guava library
     // that's really old. We use the core classifier to be able to override our guava
@@ -169,9 +174,6 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
       exclude group: 'com.google.code.findbugs', module: 'jsr305'
     }
 
-    // To support dropwizard histogram metrics (not shipped by Flink by default)
-    implementation libs.flink120.metrics.dropwizard
-
     // for integration testing with the flink-runtime-jar
     // all of those dependencies are required because the integration test extends FlinkTestBase
     integrationCompileOnly project(':iceberg-api')
@@ -227,12 +229,6 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     configurations = [project.configurations.runtimeClasspath]
 
     zip64 true
-
-    // include the LICENSE and NOTICE files for the shaded Jar
-    from(projectDir) {
-      include 'LICENSE'
-      include 'NOTICE'
-    }
 
     // Relocate dependencies to avoid conflicts
     relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'

@@ -44,7 +44,6 @@ public class TestSparkDVWriters extends TestDVWriters<InternalRow> {
         .deleteFileFormat(dataFormat())
         .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
         .equalityDeleteRowSchema(equalityDeleteRowSchema)
-        .positionDeleteRowSchema(positionDeleteRowSchema)
         .build();
   }
 

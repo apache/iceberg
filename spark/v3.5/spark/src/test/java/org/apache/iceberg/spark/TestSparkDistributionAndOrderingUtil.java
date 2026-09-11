@@ -20,12 +20,12 @@ package org.apache.iceberg.spark;
 
 import static org.apache.iceberg.TableProperties.DELETE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.MERGE_DISTRIBUTION_MODE;
-import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.TableProperties.UPDATE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
+import static org.apache.iceberg.spark.SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DELETE;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.MERGE;
 import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.UPDATE;
@@ -3020,10 +3020,10 @@ public class TestSparkDistributionAndOrderingUtil extends TestBaseWithCatalog {
   }
 
   private void disableFanoutWriters(Table table) {
-    table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "false").commit();
+    table.updateProperties().set(WRITE_PARTITIONED_FANOUT_ENABLED, "false").commit();
   }
 
   private void enableFanoutWriters(Table table) {
-    table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
+    table.updateProperties().set(WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
   }
 }

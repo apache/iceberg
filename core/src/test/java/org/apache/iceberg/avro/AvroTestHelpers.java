@@ -140,6 +140,8 @@ public class AvroTestHelpers {
       case FIXED:
       case BINARY:
       case DECIMAL:
+      case GEOMETRY:
+      case GEOGRAPHY:
         assertThat(actual).as("Primitive value should be equal to expected").isEqualTo(expected);
         break;
       case VARIANT:
@@ -176,5 +178,13 @@ public class AvroTestHelpers {
         new DataFileReader<>(new SeekableFileInput(file), new GenericDatumReader<>())) {
       return reader.getMetaString("avro.codec");
     }
+  }
+
+  public static boolean hasIds(Schema schema) {
+    return AvroSchemaUtil.hasIds(schema);
+  }
+
+  public static Schema removeIds(org.apache.iceberg.Schema schema) {
+    return RemoveIds.removeIds(schema);
   }
 }

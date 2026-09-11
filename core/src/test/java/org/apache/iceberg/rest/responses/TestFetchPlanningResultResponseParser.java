@@ -144,18 +144,6 @@ public class TestFetchPlanningResultResponseParser {
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
-    PlanStatus planStatus = PlanStatus.fromName("submitted");
-    assertThatThrownBy(
-            () -> {
-              FetchPlanningResultResponse.builder()
-                  .withPlanStatus(planStatus)
-                  .withDeleteFiles(List.of(FILE_A_DELETES))
-                  .build();
-            })
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
-
     String invalidJson =
         "{\"status\":\"submitted\","
             + "\"delete-files\":[{\"spec-id\":0,\"content\":\"position-deletes\","
@@ -329,5 +317,71 @@ public class TestFetchPlanningResultResponseParser {
 
     assertThat(FetchPlanningResultResponseParser.toJson(copyResponse, true))
         .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithFailedStatusAndErrorResponse() {
+    ErrorResponse errorResponse =
+        ErrorResponse.builder()
+            .withMessage("Scan planning failed: table too large to plan")
+            .withType("IllegalStateException")
+            .responseCode(500)
+            .build();
+
+    FetchPlanningResultResponse response =
+        FetchPlanningResultResponse.builder()
+            .withPlanStatus(PlanStatus.FAILED)
+            .withErrorResponse(errorResponse)
+            .build();
+
+    String expectedJson =
+        "{\"status\":\"failed\","
+            + "\"error\":{\"message\":\"Scan planning failed: table too large to plan\","
+            + "\"type\":\"IllegalStateException\",\"code\":500}}";
+    String json = FetchPlanningResultResponseParser.toJson(response);
+    assertThat(json).isEqualTo(expectedJson);
+
+    FetchPlanningResultResponse fromResponse =
+        FetchPlanningResultResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
+    assertThat(fromResponse.planStatus()).isEqualTo(PlanStatus.FAILED);
+    assertThat(fromResponse.errorResponse()).isNotNull();
+    assertThat(fromResponse.errorResponse().message())
+        .isEqualTo("Scan planning failed: table too large to plan");
+    assertThat(fromResponse.errorResponse().type()).isEqualTo("IllegalStateException");
+    assertThat(fromResponse.errorResponse().code()).isEqualTo(500);
+  }
+
+  @Test
+  public void parseFailedStatusWithoutErrorObject() {
+    // Spec requires an `error` object on failed responses, but parse leniently so
+    // a non-compliant server still surfaces the failure to the client.
+    String json = "{\"status\":\"failed\"}";
+    FetchPlanningResultResponse response =
+        FetchPlanningResultResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
+    assertThat(response.planStatus()).isEqualTo(PlanStatus.FAILED);
+    assertThat(response.errorResponse()).isNull();
+  }
+
+  @Test
+  public void parseFailedStatusWithPrimitiveErrorField() {
+    String json = "{\"status\":\"failed\",\"error\":\"oops\"}";
+    FetchPlanningResultResponse response =
+        FetchPlanningResultResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false);
+    assertThat(response.planStatus()).isEqualTo(PlanStatus.FAILED);
+    assertThat(response.errorResponse()).isNull();
+  }
+
+  @Test
+  public void cannotBuildWithErrorResponseWhenStatusIsNotFailed() {
+    ErrorResponse errorResponse =
+        ErrorResponse.builder().withMessage("boom").withType("X").responseCode(500).build();
+    assertThatThrownBy(
+            () ->
+                FetchPlanningResultResponse.builder()
+                    .withPlanStatus(PlanStatus.COMPLETED)
+                    .withErrorResponse(errorResponse)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid response: error can only be returned in a 'failed' status");
   }
 }

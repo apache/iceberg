@@ -66,6 +66,7 @@ public class ListMetadataFiles extends ProcessFunction<Trigger, String> {
   public void processElement(Trigger trigger, Context ctx, Collector<String> collector)
       throws Exception {
     try {
+      table.refresh();
       table
           .snapshots()
           .forEach(

@@ -110,8 +110,38 @@ public class SparkSQLProperties {
   // Prefix for custom snapshot properties
   public static final String SNAPSHOT_PROPERTY_PREFIX = "spark.sql.iceberg.snapshot-property.";
 
+  // Controls whether adaptive split sizing is enabled
+  public static final String READ_ADAPTIVE_SPLIT_SIZE_ENABLED =
+      "spark.sql.iceberg.read.adaptive-split-size.enabled";
+
+  // Overrides the split target size for scan planning
+  public static final String READ_SPLIT_SIZE = "spark.sql.iceberg.read.split-size";
+
+  // Overrides the parallelism used for adaptive split sizing. When unset, the parallelism
+  // defaults to max(spark.default.parallelism, spark.sql.shuffle.partitions).
+  public static final String READ_ADAPTIVE_SPLIT_SIZE_PARALLELISM =
+      "spark.sql.iceberg.read.adaptive-split-size.parallelism";
+
   // Controls whether to enable async micro batch planning for session
   public static final String ASYNC_MICRO_BATCH_PLANNING_ENABLED =
       "spark.sql.iceberg.async-micro-batch-planning-enabled";
   public static final boolean ASYNC_MICRO_BATCH_PLANNING_ENABLED_DEFAULT = false;
+
+  // Controls whether to shred variant columns during write operations
+  public static final String SHRED_VARIANTS = "spark.sql.iceberg.shred-variants";
+
+  // Controls the buffer size for variant schema inference during writes
+  // This determines how many rows are buffered before inferring shredded schema
+  public static final String VARIANT_INFERENCE_BUFFER_SIZE =
+      "spark.sql.iceberg.variant-inference-buffer-size";
+
+  // Controls how a view's stored schema is applied to the columns its SQL produces
+  public static final String VIEW_SCHEMA_BINDING_MODE =
+      "spark.sql.iceberg.view.schema-binding-mode";
+
+  // Permits only widening casts
+  public static final String VIEW_SCHEMA_MODE_BINDING = "BINDING";
+
+  // Permits any ANSI cast, which can truncate values or fail at runtime
+  public static final String VIEW_SCHEMA_MODE_COMPENSATION = "COMPENSATION";
 }

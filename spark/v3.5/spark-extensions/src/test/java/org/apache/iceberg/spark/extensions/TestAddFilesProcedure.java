@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -59,7 +60,6 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.joda.time.DateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -1280,7 +1280,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
   };
 
   private static java.sql.Date toDate(String value) {
-    return new java.sql.Date(DateTime.parse(value).getMillis());
+    return java.sql.Date.valueOf(LocalDate.parse(value));
   }
 
   private Dataset<Row> dateDF() {

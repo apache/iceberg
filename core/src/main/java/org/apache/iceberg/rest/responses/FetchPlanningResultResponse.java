@@ -31,10 +31,12 @@ import org.apache.iceberg.rest.credentials.Credential;
 
 public class FetchPlanningResultResponse extends BaseScanTaskResponse {
   private final PlanStatus planStatus;
+  private final ErrorResponse errorResponse;
   private final List<Credential> credentials;
 
   private FetchPlanningResultResponse(
       PlanStatus planStatus,
+      ErrorResponse errorResponse,
       List<String> planTasks,
       List<FileScanTask> fileScanTasks,
       List<DeleteFile> deleteFiles,
@@ -42,12 +44,17 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
       List<Credential> credentials) {
     super(planTasks, fileScanTasks, deleteFiles, specsById);
     this.planStatus = planStatus;
+    this.errorResponse = errorResponse;
     this.credentials = credentials;
     validate();
   }
 
   public PlanStatus planStatus() {
     return planStatus;
+  }
+
+  public ErrorResponse errorResponse() {
+    return errorResponse;
   }
 
   public List<Credential> credentials() {
@@ -58,12 +65,38 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
     return new Builder();
   }
 
+  /**
+   * Returns a new builder pre-populated with the given partition specs map. Required for server
+   * responses that serialize {@code fileScanTasks} or {@code deleteFiles}; the specs are used only
+   * to serialize partition data and are never written to the response payload.
+   */
+  public static Builder builder(Map<Integer, PartitionSpec> specsById) {
+    return new Builder().withSpecsById(specsById);
+  }
+
+  /**
+   * Returns a builder pre-populated with this response's fields, suitable for producing a copy with
+   * one or more fields modified.
+   */
+  public Builder toBuilder() {
+    return new Builder()
+        .withPlanStatus(planStatus)
+        .withErrorResponse(errorResponse)
+        .withPlanTasks(planTasks())
+        .withFileScanTasks(fileScanTasks())
+        .withCredentials(credentials())
+        .withSpecsById(specsById());
+  }
+
   @Override
   public void validate() {
     Preconditions.checkArgument(planStatus() != null, "Invalid status: null");
     Preconditions.checkArgument(
         planStatus() == PlanStatus.COMPLETED || (planTasks() == null && fileScanTasks() == null),
         "Invalid response: tasks can only be returned in a 'completed' status");
+    Preconditions.checkArgument(
+        planStatus() == PlanStatus.FAILED || errorResponse() == null,
+        "Invalid response: error can only be returned in a 'failed' status");
     if (fileScanTasks() == null || fileScanTasks().isEmpty()) {
       Preconditions.checkArgument(
           (deleteFiles() == null || deleteFiles().isEmpty()),
@@ -76,10 +109,16 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
     private Builder() {}
 
     private PlanStatus planStatus;
+    private ErrorResponse errorResponse;
     private final List<Credential> credentials = Lists.newArrayList();
 
     public Builder withPlanStatus(PlanStatus status) {
       this.planStatus = status;
+      return this;
+    }
+
+    public Builder withErrorResponse(ErrorResponse response) {
+      this.errorResponse = response;
       return this;
     }
 
@@ -91,7 +130,13 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
     @Override
     public FetchPlanningResultResponse build() {
       return new FetchPlanningResultResponse(
-          planStatus, planTasks(), fileScanTasks(), deleteFiles(), specsById(), credentials);
+          planStatus,
+          errorResponse,
+          planTasks(),
+          fileScanTasks(),
+          deleteFiles(),
+          specsById(),
+          credentials);
     }
   }
 }

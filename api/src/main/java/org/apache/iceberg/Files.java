@@ -40,6 +40,9 @@ public class Files {
   }
 
   public static OutputFile localOutput(String file) {
+    if (file.startsWith("file:")) {
+      return localOutput(new File(file.replaceFirst("file:", "")));
+    }
     return localOutput(Paths.get(file).toAbsolutePath().toFile());
   }
 
@@ -70,10 +73,8 @@ public class Files {
 
     @Override
     public PositionOutputStream createOrOverwrite() {
-      if (file.exists()) {
-        if (!file.delete()) {
-          throw new RuntimeIOException("Failed to delete: %s", file);
-        }
+      if (file.exists() && !file.delete()) {
+        throw new RuntimeIOException("Failed to delete: %s", file);
       }
       return create();
     }

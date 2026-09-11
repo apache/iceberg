@@ -101,6 +101,7 @@ public class TestMergeAppend extends TestBase {
 
     AppendFiles append = table.newAppend();
     dataFiles.forEach(append::appendFile);
+    append.writeManifestsWith(Executors.newFixedThreadPool(multiplier), multiplier);
     append.commit();
 
     Snapshot snapshot = table.currentSnapshot();
@@ -376,6 +377,71 @@ public class TestMergeAppend extends TestBase {
   }
 
   @TestTemplate
+  public void testAppendWithWriteManifestsExecutor() {
+    assertEmptyTable();
+
+    AtomicInteger commitThreadsIndex = new AtomicInteger(0);
+    Snapshot snapshot =
+        commit(
+            table,
+            table
+                .newAppend()
+                .appendFile(FILE_A)
+                .appendFile(FILE_B)
+                .writeManifestsWith(newNamedExecutor("commit", commitThreadsIndex), 1),
+            branch);
+    assertThat(commitThreadsIndex.get())
+        .as("Thread should be created in provided commit pool")
+        .isGreaterThan(0);
+
+    assertThat(snapshot).isNotNull();
+    assertThat(snapshot.allManifests(table.io())).hasSize(1);
+    long snapshotId = snapshot.snapshotId();
+    validateManifest(
+        snapshot.allManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(snapshotId, snapshotId),
+        files(FILE_A, FILE_B),
+        statuses(Status.ADDED, Status.ADDED));
+  }
+
+  @TestTemplate
+  public void testAppendWithSeparateScanAndWriteExecutors() {
+    assertEmptyTable();
+
+    AtomicInteger scanThreadsIndex = new AtomicInteger(0);
+    AtomicInteger commitThreadsIndex = new AtomicInteger(0);
+    Snapshot snapshot =
+        commit(
+            table,
+            table
+                .newAppend()
+                .appendFile(FILE_A)
+                .appendFile(FILE_B)
+                .scanManifestsWith(newNamedExecutor("scan", scanThreadsIndex))
+                .writeManifestsWith(newNamedExecutor("commit", commitThreadsIndex), 1),
+            branch);
+    assertThat(scanThreadsIndex.get())
+        .as("Thread should be created in provided scan pool")
+        .isGreaterThan(0);
+    assertThat(commitThreadsIndex.get())
+        .as("Thread should be created in provided commit pool")
+        .isGreaterThan(0);
+
+    assertThat(snapshot).isNotNull();
+    assertThat(snapshot.allManifests(table.io())).hasSize(1);
+    long snapshotId = snapshot.snapshotId();
+    validateManifest(
+        snapshot.allManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(snapshotId, snapshotId),
+        files(FILE_A, FILE_B),
+        statuses(Status.ADDED, Status.ADDED));
+  }
+
+  @TestTemplate
   public void testMergeWithAppendFilesAndManifest() throws IOException {
     // merge all manifests for this test
     table.updateProperties().set("commit.manifest.min-count-to-merge", "1").commit();
@@ -629,7 +695,8 @@ public class TestMergeAppend extends TestBase {
                 .newAppend()
                 .appendManifest(
                     writeManifest(
-                        "input-m0.avro", manifestEntry(ManifestEntry.Status.ADDED, null, FILE_C))),
+                        manifestFormat().addExtension("input-m0"),
+                        manifestEntry(ManifestEntry.Status.ADDED, null, FILE_C))),
             branch);
 
     base = readMetadata();
@@ -671,7 +738,8 @@ public class TestMergeAppend extends TestBase {
                 .newAppend()
                 .appendManifest(
                     writeManifest(
-                        "input-m1.avro", manifestEntry(ManifestEntry.Status.ADDED, null, FILE_D))),
+                        manifestFormat().addExtension("input-m1"),
+                        manifestEntry(ManifestEntry.Status.ADDED, null, FILE_D))),
             branch);
 
     base = readMetadata();
@@ -1274,7 +1342,7 @@ public class TestMergeAppend extends TestBase {
 
     table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
 
-    ManifestFile manifest1 = writeManifestWithName("manifest-file-1.avro", FILE_A, FILE_B);
+    ManifestFile manifest1 = writeManifestWithName("manifest-file-1", FILE_A, FILE_B);
     Snapshot snap1 = commit(table, table.newAppend().appendManifest(manifest1), branch);
 
     long commitId1 = snap1.snapshotId();
@@ -1290,7 +1358,7 @@ public class TestMergeAppend extends TestBase {
         statuses(Status.ADDED, Status.ADDED));
     assertThat(new File(manifest1.path())).exists();
 
-    ManifestFile manifest2 = writeManifestWithName("manifest-file-2.avro", FILE_C, FILE_D);
+    ManifestFile manifest2 = writeManifestWithName("manifest-file-2", FILE_C, FILE_D);
     Snapshot snap2 = commit(table, table.newAppend().appendManifest(manifest2), branch);
 
     long commitId2 = snap2.snapshotId();
@@ -1347,7 +1415,9 @@ public class TestMergeAppend extends TestBase {
     assertThat(base.currentSnapshot()).isNull();
 
     ManifestFile manifestWithExistingFiles =
-        writeManifest("manifest-file-1.avro", manifestEntry(Status.EXISTING, null, FILE_A));
+        writeManifest(
+            manifestFormat().addExtension("manifest-file-1"),
+            manifestEntry(Status.EXISTING, null, FILE_A));
     assertThatThrownBy(
             () ->
                 commit(table, table.newAppend().appendManifest(manifestWithExistingFiles), branch))
@@ -1356,7 +1426,9 @@ public class TestMergeAppend extends TestBase {
     assertThat(readMetadata().lastSequenceNumber()).isEqualTo(0);
 
     ManifestFile manifestWithDeletedFiles =
-        writeManifest("manifest-file-2.avro", manifestEntry(Status.DELETED, null, FILE_A));
+        writeManifest(
+            manifestFormat().addExtension("manifest-file-2"),
+            manifestEntry(Status.DELETED, null, FILE_A));
     assertThatThrownBy(
             () -> commit(table, table.newAppend().appendManifest(manifestWithDeletedFiles), branch))
         .isInstanceOf(IllegalArgumentException.class)

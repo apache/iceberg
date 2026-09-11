@@ -23,27 +23,30 @@ nav:
     - Hive: hive-quickstart.md
   - Docs:
     - Java:
-      - Nightly: '!include docs/docs/nightly/mkdocs.yml'
-      - Latest (1.10.1): '!include docs/docs/latest/mkdocs.yml'
+      # First entry determines the default landing page for the Docs tab.
+      - Latest (1.11.0): '!include versioned-docs/latest/mkdocs.yml'
+      - Nightly: '!include versioned-docs/nightly/mkdocs.yml'
       - Previous:
-        - 1.10.0: '!include docs/docs/1.10.0/mkdocs.yml'
-        - 1.9.2: '!include docs/docs/1.9.2/mkdocs.yml'
-        - 1.9.1: '!include docs/docs/1.9.1/mkdocs.yml'
-        - 1.9.0: '!include docs/docs/1.9.0/mkdocs.yml'
-        - 1.8.1: '!include docs/docs/1.8.1/mkdocs.yml'
-        - 1.8.0: '!include docs/docs/1.8.0/mkdocs.yml'
-        - 1.7.2: '!include docs/docs/1.7.2/mkdocs.yml'
-        - 1.7.1: '!include docs/docs/1.7.1/mkdocs.yml'
-        - 1.7.0: '!include docs/docs/1.7.0/mkdocs.yml'
-        - 1.6.1: '!include docs/docs/1.6.1/mkdocs.yml'
-        - 1.6.0: '!include docs/docs/1.6.0/mkdocs.yml'
-        - 1.5.2: '!include docs/docs/1.5.2/mkdocs.yml'
-        - 1.5.1: '!include docs/docs/1.5.1/mkdocs.yml'
-        - 1.5.0: '!include docs/docs/1.5.0/mkdocs.yml'
-        - 1.4.3: '!include docs/docs/1.4.3/mkdocs.yml'
-        - 1.4.2: '!include docs/docs/1.4.2/mkdocs.yml'
-        - 1.4.1: '!include docs/docs/1.4.1/mkdocs.yml'
-        - 1.4.0: '!include docs/docs/1.4.0/mkdocs.yml'
+        - 1.10.2: '!include versioned-docs/1.10.2/mkdocs.yml'
+        - 1.10.1: '!include versioned-docs/1.10.1/mkdocs.yml'
+        - 1.10.0: '!include versioned-docs/1.10.0/mkdocs.yml'
+        - 1.9.2: '!include versioned-docs/1.9.2/mkdocs.yml'
+        - 1.9.1: '!include versioned-docs/1.9.1/mkdocs.yml'
+        - 1.9.0: '!include versioned-docs/1.9.0/mkdocs.yml'
+        - 1.8.1: '!include versioned-docs/1.8.1/mkdocs.yml'
+        - 1.8.0: '!include versioned-docs/1.8.0/mkdocs.yml'
+        - 1.7.2: '!include versioned-docs/1.7.2/mkdocs.yml'
+        - 1.7.1: '!include versioned-docs/1.7.1/mkdocs.yml'
+        - 1.7.0: '!include versioned-docs/1.7.0/mkdocs.yml'
+        - 1.6.1: '!include versioned-docs/1.6.1/mkdocs.yml'
+        - 1.6.0: '!include versioned-docs/1.6.0/mkdocs.yml'
+        - 1.5.2: '!include versioned-docs/1.5.2/mkdocs.yml'
+        - 1.5.1: '!include versioned-docs/1.5.1/mkdocs.yml'
+        - 1.5.0: '!include versioned-docs/1.5.0/mkdocs.yml'
+        - 1.4.3: '!include versioned-docs/1.4.3/mkdocs.yml'
+        - 1.4.2: '!include versioned-docs/1.4.2/mkdocs.yml'
+        - 1.4.1: '!include versioned-docs/1.4.1/mkdocs.yml'
+        - 1.4.0: '!include versioned-docs/1.4.0/mkdocs.yml'
         - archive: archive.md
     - Other Implementations:
       - Python: https://py.iceberg.apache.org/
@@ -66,7 +69,7 @@ nav:
         - Apache Amoro: integrations/amoro.md
         - Apache Doris: https://doris.apache.org/docs/dev/lakehouse/catalogs/iceberg-catalog
         - Apache Druid: https://druid.apache.org/docs/latest/development/extensions-contrib/iceberg/
-        - Apache Fluss: https://fluss.apache.org/docs/next/streaming-lakehouse/integrate-data-lakes/iceberg/
+        - Apache Fluss: https://fluss.apache.org/docs/next/streaming-lakehouse/datalake-formats/iceberg/
         - BladePipe: https://www.bladepipe.com/docs/dataMigrationAndSync/datasource_func/Iceberg/props_for_iceberg_ds
         - ClickHouse: https://clickhouse.com/docs/en/engines/table-engines/integrations/iceberg
         - Daft: integrations/daft.md
@@ -75,6 +78,7 @@ nav:
         - DuckDB: https://duckdb.org/docs/preview/core_extensions/iceberg/overview
         - Estuary: https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/
         - Firebolt: https://docs.firebolt.io/reference-sql/functions-reference/table-valued/read_iceberg
+        - Fivetran: https://fivetran.com/docs/managed-data-lake-service
         - Google BigQuery: https://cloud.google.com/bigquery/docs/iceberg-tables
         - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
         - Memiiso Debezium: https://memiiso.github.io/debezium-server-iceberg/
@@ -87,6 +91,7 @@ nav:
         - Ryft: https://docs.ryft.io/platform
         - Sail: https://docs.lakesail.com/sail/latest/guide/sources/iceberg
         - Snowflake: https://docs.snowflake.com/en/user-guide/tables-iceberg
+        - Stackable: https://stackable.tech/en/data-lakehouse/
         - Starburst: https://docs.starburst.io/latest/connector/iceberg.html
         - Starrocks: https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog
         - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg
@@ -95,6 +100,7 @@ nav:
   - Project:
     - Contributing: contribute.md
     - Multi-engine support: multi-engine-support.md
+    - Developer snapshot testing: developer-snapshot-testing.md
     - Benchmarks: benchmarks.md
     - Security: security.md
     - How to release: how-to-release.md

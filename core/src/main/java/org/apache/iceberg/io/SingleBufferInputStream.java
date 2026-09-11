@@ -58,7 +58,7 @@ class SingleBufferInputStream extends ByteBufferInputStream {
   @Override
   public int read() throws IOException {
     if (!buffer.hasRemaining()) {
-      throw new EOFException();
+      return -1;
     }
     return buffer.get() & 0xFF; // as unsigned
   }

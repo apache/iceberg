@@ -129,7 +129,7 @@ public class SparkValueConverter {
       case STRUCT:
       case LIST:
       case MAP:
-        return new UnsupportedOperationException("Complex types currently not supported");
+        throw new UnsupportedOperationException("Complex types currently not supported");
       case DATE:
         return DateTimeUtils.daysToLocalDate((int) object);
       case TIMESTAMP:
