@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.catalog.AbstractCatalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
@@ -339,19 +340,17 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public List<String> listTables(String databaseName)
       throws DatabaseNotExistException, CatalogException {
-    List<String> results;
+    List<TableIdentifier> tables;
     try {
-      results =
-          icebergCatalog.listTables(appendLevel(baseNamespace, databaseName)).stream()
-              .map(TableIdentifier::name)
-              .collect(Collectors.toList());
+      tables = icebergCatalog.listTables(appendLevel(baseNamespace, databaseName));
     } catch (NoSuchNamespaceException e) {
       throw new DatabaseNotExistException(getName(), databaseName, e);
     }
 
     // Flink's Catalog#listTables contract requires this to return both tables and views
-    results.addAll(listViews(databaseName));
-    return results;
+    return Stream.concat(
+            tables.stream().map(TableIdentifier::name), listViews(databaseName).stream())
+        .toList();
   }
 
   @Override
@@ -364,7 +363,7 @@ public class FlinkCatalog extends AbstractCatalog {
     try {
       return asViewCatalog.listViews(appendLevel(baseNamespace, databaseName)).stream()
           .map(TableIdentifier::name)
-          .collect(Collectors.toList());
+          .toList();
     } catch (NoSuchNamespaceException e) {
       throw new DatabaseNotExistException(getName(), databaseName, e);
     }
