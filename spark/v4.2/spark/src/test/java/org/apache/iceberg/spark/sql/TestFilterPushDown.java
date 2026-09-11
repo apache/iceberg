@@ -98,8 +98,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
     checkFilters(
         "dep = 'd1' AND salary > 100.03" /* query predicate */,
         "isnotnull(salary) AND (salary > 100.03)" /* Spark post scan filter */,
-        "dep IS NOT NULL, salary IS NOT NULL, dep = 'd1', salary >"
-            + " 100.03" /* Iceberg scan filters */,
+        "dep IS NOT NULL, salary IS NOT NULL, dep = 'd1', salary > 100.03" /* Iceberg scan filters */,
         ImmutableList.of(row(2, new BigDecimal("100.05"), "d1")));
   }
 
@@ -734,8 +733,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
         () -> {
           checkFilters(
               "try_variant_get(data, '$.num', 'int') IS NOT NULL",
-              "isnotnull(data) AND isnotnull(try_variant_get(data, $.num, IntegerType, false,"
-                  + " Some(UTC)))",
+              "isnotnull(data) AND isnotnull(try_variant_get(data, $.num, IntegerType, false, Some(UTC)))",
               "data IS NOT NULL",
               ImmutableList.of(
                   row(1L, toSparkVariantRow("foo", 25)),
@@ -750,15 +748,13 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
 
           checkFilters(
               "try_variant_get(data, '$.num', 'int') > 30",
-              "isnotnull(data) AND (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) >"
-                  + " 30)",
+              "isnotnull(data) AND (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) > 30)",
               "data IS NOT NULL",
               ImmutableList.of(row(3L, toSparkVariantRow("baz", 35))));
 
           checkFilters(
               "try_variant_get(data, '$.num', 'int') = 30",
-              "isnotnull(data) AND (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) ="
-                  + " 30)",
+              "isnotnull(data) AND (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) = 30)",
               "data IS NOT NULL",
               ImmutableList.of(row(2L, toSparkVariantRow("bar", 30))));
 
@@ -771,8 +767,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
 
           checkFilters(
               "try_variant_get(data, '$.num', 'int') != 25",
-              "isnotnull(data) AND NOT (try_variant_get(data, $.num, IntegerType, false, Some(UTC))"
-                  + " = 25)",
+              "isnotnull(data) AND NOT (try_variant_get(data, $.num, IntegerType, false, Some(UTC)) = 25)",
               "data IS NOT NULL",
               ImmutableList.of(
                   row(2L, toSparkVariantRow("bar", 30)), row(3L, toSparkVariantRow("baz", 35))));

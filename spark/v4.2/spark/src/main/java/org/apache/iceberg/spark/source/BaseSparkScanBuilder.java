@@ -63,6 +63,7 @@ import org.slf4j.LoggerFactory;
 abstract class BaseSparkScanBuilder implements ScanBuilder {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseSparkScanBuilder.class);
+
   private final SparkSession spark;
   private final Table table;
   private final Schema schema;
@@ -72,9 +73,9 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
   private final InMemoryMetricsReporter metricsReporter = new InMemoryMetricsReporter();
   private final List<PartitionPredicate> partitionPredicates = Lists.newArrayList();
   private final List<Predicate> pushedPredicates = Lists.newArrayList();
+  private final List<Expression> filters = Lists.newArrayList();
 
   private Schema projection;
-  private List<Expression> filters = Lists.newArrayList();
   private Integer limit = null;
 
   protected BaseSparkScanBuilder(

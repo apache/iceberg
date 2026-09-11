@@ -201,10 +201,11 @@ public class TestFilteredScan {
   public void testUnpartitionedIDFilters() {
     CaseInsensitiveStringMap options =
         new CaseInsensitiveStringMap(ImmutableMap.of("path", unpartitioned.toString()));
-    SparkScanBuilder builder =
-        new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
 
     for (int i = 0; i < 10; i += 1) {
+      SparkScanBuilder builder =
+          new SparkScanBuilder(spark, TABLES.load(options.get("path")), options);
+
       pushFilters(builder, EqualTo.apply("id", i));
       Batch scan = builder.build().toBatch();
 
