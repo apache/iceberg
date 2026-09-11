@@ -118,7 +118,12 @@ public final class MetricsConfig implements Serializable {
    * @return a metrics config for the given table
    */
   public static MetricsConfig forTable(Table table) {
-    return from(table.properties(), table.schema(), table.sortOrder());
+    return from(
+        table.properties(),
+        table.schema(),
+        table.sortOrder(),
+        table.spec(),
+        TableUtil.formatVersion(table));
   }
 
   public Iterable<Integer> metricsFieldIds() {
@@ -255,9 +260,36 @@ public final class MetricsConfig implements Serializable {
    * @return metrics configuration
    */
   public static MetricsConfig from(Map<String, String> props, Schema schema, SortOrder order) {
-    int maxInferredDefaultColumns = maxInferredColumnDefaults(props);
     Map<Integer, String> idToName = Maps.newHashMap();
     Map<String, MetricsMode> columnModes = Maps.newHashMap();
+    MetricsMode defaultMode = defaultModeFor(props, schema, order, columnModes, idToName);
+    return new MetricsConfig(columnModes, defaultMode, idToName);
+  }
+
+  private static MetricsConfig from(
+      Map<String, String> props,
+      Schema schema,
+      SortOrder order,
+      PartitionSpec spec,
+      int formatVersion) {
+    Map<Integer, String> idToName = Maps.newHashMap();
+    Map<String, MetricsMode> columnModes = Maps.newHashMap();
+    MetricsMode defaultMode = defaultModeFor(props, schema, order, columnModes, idToName);
+
+    if (formatVersion >= 4) {
+      configureFullMetricsForPartitionSourceColumns(spec, schema, columnModes, idToName);
+    }
+
+    return new MetricsConfig(columnModes, defaultMode, idToName);
+  }
+
+  private static MetricsMode defaultModeFor(
+      Map<String, String> props,
+      Schema schema,
+      SortOrder order,
+      Map<String, MetricsMode> columnModes,
+      Map<Integer, String> idToName) {
+    int maxInferredDefaultColumns = maxInferredColumnDefaults(props);
 
     // Handle user override of default mode
     MetricsMode defaultMode;
@@ -302,7 +334,18 @@ public final class MetricsConfig implements Serializable {
           }
         });
 
-    // Handle user overrides of defaults
+    applyColumnOverrides(props, schema, defaultMode, columnModes, idToName);
+
+    return defaultMode;
+  }
+
+  // Handle user overrides of defaults
+  private static void applyColumnOverrides(
+      Map<String, String> props,
+      Schema schema,
+      MetricsMode defaultMode,
+      Map<String, MetricsMode> columnModes,
+      Map<Integer, String> idToName) {
     for (String key : props.keySet()) {
       if (key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX)) {
         String columnAlias = key.replaceFirst(METRICS_MODE_COLUMN_CONF_PREFIX, "");
@@ -314,8 +357,25 @@ public final class MetricsConfig implements Serializable {
         }
       }
     }
+  }
 
-    return new MetricsConfig(columnModes, defaultMode, idToName);
+  private static void configureFullMetricsForPartitionSourceColumns(
+      PartitionSpec spec,
+      Schema schema,
+      Map<String, MetricsMode> columnModes,
+      Map<Integer, String> idToName) {
+    // configure metrics collection for partition fields ignoring any overrides
+    for (PartitionField field : spec.fields()) {
+      if (!field.transform().preservesOrder()) {
+        continue;
+      }
+
+      String name = schema.findColumnName(field.sourceId());
+      if (name != null) {
+        columnModes.put(name, MetricsModes.Full.get());
+        idToName.put(field.sourceId(), name);
+      }
+    }
   }
 
   /**
