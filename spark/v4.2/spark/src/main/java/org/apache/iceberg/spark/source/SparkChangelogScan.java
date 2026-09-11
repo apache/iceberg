@@ -42,6 +42,7 @@ import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
+import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.types.StructType;
 
 class SparkChangelogScan implements Scan, SupportsReportStatistics {
@@ -56,6 +57,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   private final List<Expression> filters;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
+  private final SparkChangelogReadMode readMode;
 
   // lazy variables
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups = null;
@@ -68,7 +70,24 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
       SparkReadConf readConf,
       Schema projection,
       List<Expression> filters) {
+    this(
+        spark,
+        table,
+        scan,
+        readConf,
+        projection,
+        filters,
+        SparkChangelogReadMode.ICEBERG_CHANGELOG);
+  }
 
+  SparkChangelogScan(
+      SparkSession spark,
+      Table table,
+      IncrementalChangelogScan scan,
+      SparkReadConf readConf,
+      Schema projection,
+      List<Expression> filters,
+      SparkChangelogReadMode readMode) {
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), projection);
 
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
@@ -79,6 +98,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
     this.filters = filters != null ? filters : Collections.emptyList();
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
+    this.readMode = readMode;
     if (scan == null) {
       this.taskGroups = Collections.emptyList();
     }
@@ -111,6 +131,16 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         taskGroups(),
         projection,
         hashCode());
+  }
+
+  @Override
+  public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
+    if (!readMode.isSparkCdc()) {
+      throw new UnsupportedOperationException("Changelog streaming is only supported through CDC");
+    }
+
+    return new SparkChangelogMicroBatchStream(
+        sparkContext, table, readConf, projection, checkpointLocation);
   }
 
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups() {
