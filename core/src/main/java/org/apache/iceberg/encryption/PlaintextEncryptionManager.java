@@ -45,4 +45,9 @@ public class PlaintextEncryptionManager implements EncryptionManager {
   public EncryptedOutputFile encrypt(OutputFile rawOutput) {
     return EncryptedFiles.encryptedOutput(rawOutput, EncryptionKeyMetadata.empty());
   }
+
+  @Override
+  public String encryptKeyMetadata(EncryptionKeyMetadata keyMetadata, long fileLength) {
+    return null;
+  }
 }

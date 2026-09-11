@@ -34,6 +34,7 @@ public class StatisticsFileParser {
   private static final String STATISTICS_PATH = "statistics-path";
   private static final String FILE_SIZE_IN_BYTES = "file-size-in-bytes";
   private static final String FILE_FOOTER_SIZE_IN_BYTES = "file-footer-size-in-bytes";
+  private static final String KEY_ID = "key-id";
   private static final String BLOB_METADATA = "blob-metadata";
   private static final String TYPE = "type";
   private static final String SEQUENCE_NUMBER = "sequence-number";
@@ -57,6 +58,9 @@ public class StatisticsFileParser {
     generator.writeStringField(STATISTICS_PATH, statisticsFile.path());
     generator.writeNumberField(FILE_SIZE_IN_BYTES, statisticsFile.fileSizeInBytes());
     generator.writeNumberField(FILE_FOOTER_SIZE_IN_BYTES, statisticsFile.fileFooterSizeInBytes());
+    if (statisticsFile.keyId() != null) {
+      generator.writeStringField(KEY_ID, statisticsFile.keyId());
+    }
     generator.writeArrayFieldStart(BLOB_METADATA);
     for (BlobMetadata blobMetadata : statisticsFile.blobMetadata()) {
       toJson(blobMetadata, generator);
@@ -70,6 +74,7 @@ public class StatisticsFileParser {
     String path = JsonUtil.getString(STATISTICS_PATH, node);
     long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE_IN_BYTES, node);
     long fileFooterSizeInBytes = JsonUtil.getLong(FILE_FOOTER_SIZE_IN_BYTES, node);
+    String keyId = JsonUtil.getStringOrNull(KEY_ID, node);
     ImmutableList.Builder<BlobMetadata> blobMetadata = ImmutableList.builder();
     JsonNode blobsJson = node.get(BLOB_METADATA);
     Preconditions.checkArgument(
@@ -80,7 +85,7 @@ public class StatisticsFileParser {
       blobMetadata.add(blobMetadataFromJson(blobJson));
     }
     return new GenericStatisticsFile(
-        snapshotId, path, fileSizeInBytes, fileFooterSizeInBytes, blobMetadata.build());
+        snapshotId, path, fileSizeInBytes, fileFooterSizeInBytes, keyId, blobMetadata.build());
   }
 
   private static void toJson(BlobMetadata blobMetadata, JsonGenerator generator)
