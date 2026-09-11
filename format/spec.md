@@ -710,8 +710,6 @@ A manifest file must store metadata as properties in the file’s key-value meta
 
 Within a snapshot, each content file must be referenced by at most one live manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers should not produce multiple manifest entries for the same content file in a snapshot (for example, both ADDED and DELETED entries for the same file). Writers are not required to validate uniqueness at commit time.
 
-The schema of a manifest file is defined by the `manifest_entry` struct (v1-v3) or `tracked_file` struct (v4), described in the following section.
-
 #### Entries in Manifests
 
 In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, entries are called tracked files and are described by the `tracked_file` struct. In v4, `data_file` struct fields are flattened directly into the tracked file, and tracking fields are grouped into a nested `tracking` struct.
