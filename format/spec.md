@@ -88,7 +88,7 @@ Table state is maintained in metadata files. All changes to table state create a
 
 Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, an optional colocated deletion vector and column files (v4), and its metrics. The data in a snapshot is the union of all live files in its manifests; each live file may only appear once (see [Content file uniqueness](#content-file-uniqueness)). Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing.
 
-In v1-v3, the manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation. Since v4, manifest lists are replaced by a single root manifest per snapshot, which can contain references to data files, delete files, and other data and delete manifests in a unified structure.
+In v1-v3, the manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation. Since v4, manifest lists are replaced by a single root manifest per snapshot, which can contain references to data files, data manifests, and delete manifests in a unified structure.
 
 ### Optimistic Concurrency
 
@@ -149,7 +149,7 @@ Version 4 of the Iceberg spec adds support for relative locations in metadata, e
 * **Snapshot** -- The state of a table at some point in time, including the set of all data files.
 * **Snapshot root** -- The per-snapshot file that tracks a snapshot's manifests; a manifest list (v1-v3) or a root manifest (v4).
 * **Manifest list** -- (v1-v3 only) A file that lists manifest files; one per snapshot.
-* **Root Manifest** -- (v4+) A manifest that can reference data files, delete files, and other data and delete manifests; one per snapshot. Replaces manifest lists in v4.
+* **Root Manifest** -- (v4+) A manifest that can reference data files, data manifests, and delete manifests; one per snapshot. Replaces manifest lists in v4.
 * **Data manifest** -- A file that lists data files; a subset of a snapshot.
 * **Delete manifest** -- A file that lists delete files to be associated with data files at planning time.
 * **Data file** -- A file that contains rows of a table.
@@ -1514,7 +1514,7 @@ When removing a data file, writers must also remove any deletion vector that app
 
 Row-level delete files (both equality and position delete files) are valid Iceberg data files: files must use valid Iceberg formats, schemas, and column projection. It is recommended that these delete files are written using the table's default file format.
 
-Row-level delete files and deletion vectors are tracked by manifests. A separate set of manifests is used for delete files and DVs, but the same manifest schema is used for both data and delete manifests. Deletion vectors are tracked individually by file location, offset, and length within the containing file. Deletion vector metadata must include the referenced data file.
+Row-level delete files and deletion vectors are tracked by manifests. A separate set of manifests is used for delete files and DVs, but the same manifest schema is used for both data and delete manifests. Deletion vectors are tracked individually by file location, offset, and length within the containing file. Deletion vector metadata must include the referenced data file. Starting in v4, a deletion vector is instead colocated with its data file.
 
 Both position and equality delete files allow encoding deleted row values with a delete. This can be used to reconstruct a stream of changes to a table.
 
