@@ -22,12 +22,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.util.Arrays;
 import java.util.List;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogView;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -52,6 +54,15 @@ public class TestFlinkCatalogView extends CatalogTestBase {
 
   private static final Schema PROJECTED_VIEW_SCHEMA =
       new Schema(Types.NestedField.optional(1, "id", Types.LongType.get()));
+
+  @Parameters(name = "catalogType={0}, baseNamespace={1}")
+  protected static List<Object[]> parameters() {
+    return Arrays.asList(
+        new Object[] {CatalogType.HIVE, Namespace.empty()},
+        new Object[] {CatalogType.HADOOP, Namespace.empty()},
+        new Object[] {CatalogType.REST, Namespace.empty()},
+        new Object[] {CatalogType.REST, Namespace.of("l0", "l1")});
+  }
 
   @Override
   @BeforeEach
