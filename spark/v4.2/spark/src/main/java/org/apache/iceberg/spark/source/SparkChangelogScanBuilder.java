@@ -50,11 +50,11 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
           MetadataColumns.CHANGE_TYPE.name(),
           MetadataColumns.CHANGE_ORDINAL.name(),
           MetadataColumns.COMMIT_SNAPSHOT_ID.name());
-  private final SparkChangelogReadMode readMode;
+  private final SparkChangelogRange cdcRange;
 
   SparkChangelogScanBuilder(
       SparkSession spark, Table table, Schema schema, CaseInsensitiveStringMap options) {
-    this(spark, table, schema, options, SparkChangelogReadMode.ICEBERG_CHANGELOG);
+    this(spark, table, schema, options, null);
   }
 
   SparkChangelogScanBuilder(
@@ -62,21 +62,21 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
       Table table,
       Schema schema,
       CaseInsensitiveStringMap options,
-      SparkChangelogReadMode readMode) {
+      SparkChangelogRange cdcRange) {
     super(spark, table, schema, options);
-    this.readMode = readMode;
+    this.cdcRange = cdcRange;
   }
 
   @Override
   public void pruneColumns(StructType requestedType) {
-    if (!readMode.isSparkCdc()) {
+    if (cdcRange == null) {
       super.pruneColumns(requestedType);
     }
   }
 
   @Override
   public Predicate[] pushPredicates(Predicate[] predicates) {
-    if (readMode.isSparkCdc()) {
+    if (cdcRange != null) {
       return predicates;
     }
 
@@ -112,6 +112,23 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
 
   @Override
   public Scan build() {
+    if (cdcRange != null) {
+      Preconditions.checkArgument(
+          readConf().startSnapshotId() == null
+              && readConf().endSnapshotId() == null
+              && readConf().startTimestamp() == null
+              && readConf().endTimestamp() == null,
+          "Use Spark CDC startingVersion/endingVersion or startingTimestamp/endingTimestamp options");
+      Schema readProjection = projectionWithMetadataColumns();
+      IncrementalChangelogScan scan =
+          buildIcebergScan(
+              ChangelogUtil.changelogSchema(SparkChangelogTable.dropCdcMetadata(readProjection)),
+              null,
+              null);
+      return new SparkChangelogScan(
+          spark(), table(), scan, readConf(), readProjection, filters(), cdcRange);
+    }
+
     Long startSnapshotId = readConf().startSnapshotId();
     Long endSnapshotId = readConf().endSnapshotId();
     Long startTimestamp = readConf().startTimestamp();
@@ -135,9 +152,7 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
         SparkReadOptions.START_TIMESTAMP,
         SparkReadOptions.END_TIMESTAMP);
 
-    if (readMode.isEmpty()) {
-      return emptyChangelogScan();
-    } else if (startTimestamp != null) {
+    if (startTimestamp != null) {
       if (noSnapshotsAfter(startTimestamp)) {
         return emptyChangelogScan();
       }
@@ -151,15 +166,9 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
       }
     }
 
-    Schema readProjection = projectionWithMetadataColumns();
-    Schema scanProjection =
-        readMode.isSparkCdc()
-            ? ChangelogUtil.changelogSchema(SparkChangelogTable.cdcDataSchema(table()))
-            : readProjection;
-    IncrementalChangelogScan scan =
-        buildIcebergScan(scanProjection, startSnapshotId, endSnapshotId);
-    return new SparkChangelogScan(
-        spark(), table(), scan, readConf(), readProjection, filters(), readMode);
+    Schema projection = projectionWithMetadataColumns();
+    IncrementalChangelogScan scan = buildIcebergScan(projection, startSnapshotId, endSnapshotId);
+    return new SparkChangelogScan(spark(), table(), scan, readConf(), projection, filters());
   }
 
   private IncrementalChangelogScan buildIcebergScan(
@@ -192,8 +201,7 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
         null /* no scan */,
         readConf(),
         projectionWithMetadataColumns(),
-        filters(),
-        readMode);
+        filters());
   }
 
   private boolean noSnapshotsAfter(long timestamp) {

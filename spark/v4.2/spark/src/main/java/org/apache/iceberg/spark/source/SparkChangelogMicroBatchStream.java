@@ -18,23 +18,29 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.IncrementalChangelogScan;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.connector.read.streaming.Offset;
+import org.apache.spark.sql.connector.read.streaming.ReadAllAvailable;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 
 /**
@@ -46,13 +52,16 @@ import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 class SparkChangelogMicroBatchStream extends SparkMicroBatchStreamBase {
 
   private Broadcast<Table> plannedTableBroadcast = null;
+  private final Schema dataSchema;
+  private final SparkChangelogRange range;
 
   SparkChangelogMicroBatchStream(
       JavaSparkContext sparkContext,
       Table table,
       SparkReadConf readConf,
       Schema projection,
-      String checkpointLocation) {
+      String checkpointLocation,
+      SparkChangelogRange range) {
     super(
         sparkContext,
         table,
@@ -60,24 +69,15 @@ class SparkChangelogMicroBatchStream extends SparkMicroBatchStreamBase {
         readConf,
         projection,
         checkpointLocation,
-        () -> configuredInitialOffset(readConf));
-  }
-
-  private static StreamingOffset configuredInitialOffset(SparkReadConf readConf) {
-    return readConf.startSnapshotId() != null
-        ? new StreamingOffset(readConf.startSnapshotId(), 0, false)
-        : StreamingOffset.START_OFFSET;
+        () -> StreamingOffset.START_OFFSET);
+    this.dataSchema = SparkChangelogTable.dropCdcMetadata(projection);
+    this.range = range;
   }
 
   @Override
   protected StreamingOffset latestStreamingOffset() {
     table().refresh();
     Snapshot latest = table().currentSnapshot();
-    Long configuredEndSnapshotId = readConf().endSnapshotId();
-    if (configuredEndSnapshotId != null) {
-      latest = table().snapshot(configuredEndSnapshotId);
-    }
-
     return latest != null
         ? new StreamingOffset(latest.snapshotId(), 0, false)
         : StreamingOffset.START_OFFSET;
@@ -89,9 +89,49 @@ class SparkChangelogMicroBatchStream extends SparkMicroBatchStreamBase {
         startOffset instanceof StreamingOffset, "Invalid start offset: %s", startOffset);
 
     StreamingOffset latestOffset = (StreamingOffset) latestOffset();
-    return latestOffset.equals(StreamingOffset.START_OFFSET) || latestOffset.equals(startOffset)
-        ? null
-        : latestOffset;
+    if (latestOffset.equals(StreamingOffset.START_OFFSET) || latestOffset.equals(startOffset)) {
+      return null;
+    } else if (limit instanceof ReadAllAvailable) {
+      return latestOffset;
+    }
+
+    BaseSparkMicroBatchPlanner.UnpackedLimits limits =
+        new BaseSparkMicroBatchPlanner.UnpackedLimits(limit);
+    List<Snapshot> snapshots = snapshotsBetween((StreamingOffset) startOffset, latestOffset);
+    long rows = 0;
+    long files = 0;
+    Snapshot last = null;
+    for (Snapshot snapshot : snapshots) {
+      // Admission limits are soft: a single snapshot is never split across batches.
+      if (last != null
+          && (rows >= limits.getMaxRows() || files >= limits.getMaxFiles())
+          && snapshot.timestampMillis() != last.timestampMillis()) {
+        break;
+      }
+
+      last = snapshot;
+      if (range.includes(snapshot)) {
+        rows +=
+            PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_RECORDS_PROP, 0)
+                + PropertyUtil.propertyAsLong(
+                    snapshot.summary(), SnapshotSummary.DELETED_RECORDS_PROP, 0);
+        files +=
+            PropertyUtil.propertyAsLong(snapshot.summary(), SnapshotSummary.ADDED_FILES_PROP, 0)
+                + PropertyUtil.propertyAsLong(
+                    snapshot.summary(), SnapshotSummary.DELETED_FILES_PROP, 0);
+      }
+    }
+
+    return last != null ? new StreamingOffset(last.snapshotId(), 0, false) : null;
+  }
+
+  @Override
+  public ReadLimit getDefaultReadLimit() {
+    return ReadLimit.compositeLimit(
+        new ReadLimit[] {
+          ReadLimit.maxFiles(readConf().maxFilesPerMicroBatch()),
+          ReadLimit.maxRows(readConf().maxRecordsPerMicroBatch())
+        });
   }
 
   @Override
@@ -114,24 +154,83 @@ class SparkChangelogMicroBatchStream extends SparkMicroBatchStreamBase {
         "Cannot load changelog end offset at expired or removed snapshot: %s",
         endOffset.snapshotId());
 
+    validateReadSchema();
+    if (startOffset.equals(StreamingOffset.START_OFFSET)) {
+      range.validateVersions(table());
+    }
+
+    if (range.requiresPostProcessing()) {
+      validateCommitTimestamps(startOffset, endOffset);
+    }
+
     IncrementalChangelogScan scan =
         table()
             .newIncrementalChangelogScan()
             .caseSensitive(readConf().caseSensitive())
-            .project(ChangelogUtil.changelogSchema(SparkChangelogTable.cdcDataSchema(table())));
-    if (!startOffset.equals(StreamingOffset.START_OFFSET)) {
-      scan = scan.fromSnapshotExclusive(startOffset.snapshotId());
-    }
-    scan = scan.toSnapshot(endOffset.snapshotId());
+            .project(ChangelogUtil.changelogSchema(dataSchema))
+            .option(TableProperties.SPLIT_SIZE, String.valueOf(readConf().splitSize()))
+            .option(TableProperties.SPLIT_LOOKBACK, String.valueOf(readConf().splitLookback()))
+            .option(
+                TableProperties.SPLIT_OPEN_FILE_COST,
+                String.valueOf(readConf().splitOpenFileCost()));
+    Long startSnapshotId =
+        startOffset.equals(StreamingOffset.START_OFFSET)
+            ? null
+            : Long.valueOf(startOffset.snapshotId());
+    return range.planTasks(table(), scan, startSnapshotId, endOffset.snapshotId());
+  }
 
-    List<ScanTaskGroup<ChangelogScanTask>> taskGroups;
-    try (CloseableIterable<ScanTaskGroup<ChangelogScanTask>> groups = scan.planTasks()) {
-      taskGroups = Lists.newArrayList(groups);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to close Iceberg changelog task groups", e);
+  private List<Snapshot> snapshotsBetween(StreamingOffset start, StreamingOffset end) {
+    Long startSnapshotId =
+        start.equals(StreamingOffset.START_OFFSET) ? null : Long.valueOf(start.snapshotId());
+    if (startSnapshotId != null) {
+      Preconditions.checkState(
+          SnapshotUtil.isParentAncestorOf(table(), end.snapshotId(), startSnapshotId),
+          "Cannot read CDC: snapshot %s is not an ancestor of %s",
+          startSnapshotId,
+          end.snapshotId());
     }
 
-    return taskGroups;
+    List<Snapshot> snapshots = new ArrayList<>();
+    SnapshotUtil.ancestorsBetween(table(), end.snapshotId(), startSnapshotId)
+        .forEach(snapshots::add);
+    Collections.reverse(snapshots);
+    return snapshots;
+  }
+
+  private void validateCommitTimestamps(StreamingOffset start, StreamingOffset end) {
+    Long previousTimestamp =
+        start.equals(StreamingOffset.START_OFFSET)
+            ? null
+            : Long.valueOf(table().snapshot(start.snapshotId()).timestampMillis());
+    boolean first = true;
+    for (Snapshot snapshot : snapshotsBetween(start, end)) {
+      long timestamp = snapshot.timestampMillis();
+      // Spark's zero-delay CDC watermark drops timestamps <= the preceding batch's maximum.
+      Preconditions.checkState(
+          previousTimestamp == null
+              || (first ? timestamp > previousTimestamp : timestamp >= previousTimestamp),
+          "Cannot stream CDC post-processing at snapshot %s: commit timestamp %s does not advance "
+              + "past %s. Use batch CDC or deduplicationMode=none with computeUpdates=false",
+          snapshot.snapshotId(),
+          timestamp,
+          previousTimestamp);
+      previousTimestamp = timestamp;
+      first = false;
+    }
+  }
+
+  private void validateReadSchema() {
+    for (Types.NestedField field : dataSchema.columns()) {
+      if (field.fieldId() != MetadataColumns.ROW_ID.fieldId()
+          && field.fieldId() != MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()) {
+        Types.NestedField current = table().schema().findField(field.fieldId());
+        Preconditions.checkState(
+            current != null && current.type().equals(field.type()),
+            "Cannot continue CDC after an incompatible schema change to field %s",
+            field.name());
+      }
+    }
   }
 
   @Override

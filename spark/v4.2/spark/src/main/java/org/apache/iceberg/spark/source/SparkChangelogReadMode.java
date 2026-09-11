@@ -20,14 +20,9 @@ package org.apache.iceberg.spark.source;
 
 enum SparkChangelogReadMode {
   ICEBERG_CHANGELOG,
-  SPARK_CDC,
-  EMPTY_SPARK_CDC;
+  SPARK_CDC;
 
   boolean isSparkCdc() {
     return this != ICEBERG_CHANGELOG;
-  }
-
-  boolean isEmpty() {
-    return this == EMPTY_SPARK_CDC;
   }
 }
