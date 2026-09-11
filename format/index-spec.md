@@ -85,10 +85,12 @@ A table may have multiple indexes of the same index type.
 
 The index type defines the logical category of an index and the class of queries it accelerates.
 
-| Type     | Status                            | Description                                                                                                           |
-|----------|-----------------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| `SCALAR` | Defined by this specification     | Accelerates point lookups on clustered fields, and range filters when the clustering expressions are order preserving |
-| `VECTOR` | Reserved for future specification | Accelerates similarity search over vector embeddings                                                                  |
+| Type     | Description                                                                                                           |
+|----------|-----------------------------------------------------------------------------------------------------------------------|
+| `SCALAR` | Accelerates point lookups on clustered fields, and range filters when the clustering expressions are order preserving |
+
+This specification defines a single index type, `SCALAR`. Future specifications may define additional types, see
+[Future Extensions](#future-extensions).
 
 Writers must write `type` in upper case. Readers must match it case-insensitively. A reader that does not implement an
 index type must ignore the index and read the source table directly; it must not fail.
@@ -101,33 +103,6 @@ values are stored in [range files](#range-files), and [non-materialized fields](
 represented only by statistics in [tracking file entries](#tracking-file-entry). Every index field has a field ID that
 must be unique across the three lists.
 
-#### Expression Fields
-
-The value of an expression field is produced by evaluating an
-[Iceberg value expression](expressions-spec.md#value-expressions) for an indexed row of the source table.
-An expression field has the following fields:
-
-| Requirement | Field name    | Type              | Description                                                  |
-|-------------|---------------|-------------------|--------------------------------------------------------------|
-| _required_  | `field-id`    | `int`             | ID that uniquely identifies the index field                  |
-| _required_  | `type`        | `string`          | Expression field representation; must be `expr-value`        |
-| _required_  | `data-type`   | Iceberg type      | Type produced by the expression                              |
-| _required_  | `expr`        | JSON expression   | Value expression that produces the field, serialized as JSON |
-
-Each expression field must satisfy the following requirements:
-
-- `expr` must contain only ID references to source table fields or
-  [metadata columns](spec.md#reserved-field-ids). Named references must not be used. The `_deleted`, `_change_type`,
-  `_change_ordinal`, and `_commit_snapshot_id` metadata columns must not be referenced, and neither must the
-  `file_path`, `pos`, and `row` columns of delete files.
-- `expr` must be deterministic and must produce the declared `data-type`.
-- `field-id` must not be a [reserved field ID](spec.md#reserved-field-ids) and must not be a field ID in the source
-  table schema.
-
-Expressions are serialized using the [JSON serialization](expressions-spec.md#appendix-b-json-serialization) defined by
-the expressions specification. Types are serialized using the [type serialization](spec.md#schemas) defined by the table
-specification.
-
 #### Identity Fields
 
 `identity-fields` is a non-empty list of unique source table field IDs. Each entry must reference a data field.
@@ -138,12 +113,41 @@ an index snapshot references.
 Every source table field referenced by an expression field in the [cluster spec](#cluster-spec) must be an identity
 field.
 
-#### Materialized Fields
+#### Expression Fields
+
+Both [materialized fields](#materialized-fields) and [non-materialized fields](#non-materialized-fields) are expression
+fields; they differ only in where their values are kept.
+
+The value of an expression field is produced by evaluating an
+[Iceberg value expression](expressions-spec.md#value-expressions) for an indexed row of the source table.
+An expression field has the following fields:
+
+| Requirement | Field name    | Type              | Description                                                  |
+|-------------|---------------|-------------------|--------------------------------------------------------------|
+| _required_  | `field-id`    | `int`             | ID that uniquely identifies the index field                  |
+| _required_  | `type`        | `expr-value`      | Expression field representation                              |
+| _required_  | `data-type`   | Iceberg type      | Type produced by the expression                              |
+| _required_  | `expr`        | JSON expression   | Value expression that produces the field, serialized as JSON |
+
+Each expression field must satisfy the following requirements:
+
+- `expr` must contain only ID references to source table fields or
+  [metadata columns](spec.md#reserved-field-ids). Named references must not be used. The `_deleted`, `_change_type`,
+  `_change_ordinal`, and `_commit_snapshot_id` metadata columns must not be referenced, and neither must the
+  `file_path`, `pos`, and `row` columns of delete files.
+- `expr` must be deterministic and must produce the declared `data-type`.
+- `field-id` must not be a [reserved field ID](spec.md#reserved-field-ids).
+
+Expressions are serialized using the [JSON serialization](expressions-spec.md#appendix-b-json-serialization) defined by
+the expressions specification. Types are serialized using the [type serialization](spec.md#schemas) defined by the table
+specification.
+
+##### Materialized Fields
 
 `materialized-fields` is a list of expression fields whose values are stored in the [range files](#range-files).
 Evaluating the identity fields and the materialized fields for one indexed row produces one range file row.
 
-#### Non-Materialized Fields
+##### Non-Materialized Fields
 
 `non-materialized-fields` is a list of expression fields whose row values are not stored in range files. Only their
 field statistics are stored, in [tracking file entries](#tracking-file-entry).
@@ -463,7 +467,7 @@ that only that snapshot referenced.
 
 ### Future Extensions
 
-Future specifications may define additional index types, for example VECTOR indexes for similarity search or text/term
+Future specifications may define additional index types, for example vector indexes for similarity search or text/term
 indexes. Additional clustering strategies do not require changes to this specification and can be added as functions
 in the `iceberg_functions` catalog of the [expressions specification](expressions-spec.md), for example a function that
 maps multi-column values to their Hilbert curve position. The result can be declared as an index field and referenced
