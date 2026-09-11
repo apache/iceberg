@@ -133,6 +133,7 @@ class RootManifestFile implements ManifestFile {
 
   @Override
   public ManifestFile copy() {
-    return new RootManifestFile(file, snapshotId, keyMetadata());
+    ByteBuffer keyMetadataCopy = keyMetadata == null ? null : ByteBuffer.wrap(keyMetadata.clone());
+    return new RootManifestFile(file, snapshotId, keyMetadataCopy);
   }
 }

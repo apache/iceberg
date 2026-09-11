@@ -107,19 +107,19 @@ class FilePlanner {
       throw new UncheckedIOException("Failed to close root manifest: " + root.path(), e);
     }
 
-    List<CloseableIterable<TrackedFile>> leafFiles = Lists.newArrayList();
+    List<CloseableIterable<TrackedFile>> leafPlanTasks = Lists.newArrayList();
     for (ManifestFile leaf : leafManifests) {
-      leafFiles.add(expandLeaf(leaf));
+      leafPlanTasks.add(leafPlanTask(leaf));
     }
 
-    CloseableIterable<TrackedFile> expandedLeafFiles =
+    CloseableIterable<TrackedFile> leafFiles =
         executorService != null && leafManifests.size() > 1
-            ? new ParallelIterable<>(leafFiles, executorService)
-            : CloseableIterable.concat(leafFiles);
+            ? new ParallelIterable<>(leafPlanTasks, executorService)
+            : CloseableIterable.concat(leafPlanTasks);
 
     CloseableIterable<TrackedFile> files =
         CloseableIterable.concat(
-            ImmutableList.of(CloseableIterable.withNoopClose(rootDataFiles), expandedLeafFiles));
+            ImmutableList.of(CloseableIterable.withNoopClose(rootDataFiles), leafFiles));
 
     CloseableIterable<DataFile> dataFiles =
         CloseableIterable.transform(files, file -> TrackedFileAdapters.asDataFile(file, specsById));
@@ -127,7 +127,7 @@ class FilePlanner {
     return CloseableIterable.transform(dataFiles, this::createTask);
   }
 
-  private CloseableIterable<TrackedFile> expandLeaf(ManifestFile leaf) {
+  private CloseableIterable<TrackedFile> leafPlanTask(ManifestFile leaf) {
     return CloseableIterable.transform(
         reader(leaf),
         entry -> {
@@ -152,10 +152,12 @@ class FilePlanner {
     TaskContext context =
         taskContextsBySpec.computeIfAbsent(dataFile.specId(), this::newTaskContext);
 
-    DeleteFile[] deletes =
-        dataFile.deletionVector() != null
-            ? new DeleteFile[] {TrackedFileAdapters.asDVDeleteFile(dataFile)}
-            : NO_DELETES;
+    DeleteFile[] deletes = NO_DELETES;
+    if (dataFile.deletionVector() != null) {
+      DeleteFile dv = TrackedFileAdapters.asDVDeleteFile(dataFile);
+      ScanMetricsUtil.indexedDeleteFile(scanMetrics, dv);
+      deletes = new DeleteFile[] {dv};
+    }
 
     ScanMetricsUtil.fileTask(scanMetrics, dataFile, deletes);
 
