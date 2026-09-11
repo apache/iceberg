@@ -259,7 +259,7 @@ class RecordConverter {
                     hasSchemaUpdates = true;
                   }
                 }
-                Object recordFieldValue = struct.get(recordField);
+                Object recordFieldValue = struct.getWithoutDefault(recordField.name());
                 if (recordFieldValue == null && schemaUpdateConsumer != null && !hasSchemaUpdates) {
                   evolveSchemaFromConnectSchema(
                       recordField.schema(),
@@ -628,7 +628,7 @@ class RecordConverter {
       fields.forEach(
           field -> {
             names.add(field.name());
-            names.addAll(collectFieldNames(struct.get(field)));
+            names.addAll(collectFieldNames(struct.getWithoutDefault(field.name())));
           });
       return names;
     }
@@ -663,7 +663,7 @@ class RecordConverter {
     if (value instanceof Struct struct) {
       ShreddedObject object = Variants.object(metadata);
       for (Field field : struct.schema().fields()) {
-        object.put(field.name(), objectToVariantValue(struct.get(field), metadata, field.schema()));
+        object.put(field.name(), objectToVariantValue(struct.getWithoutDefault(field.name()), metadata, field.schema()));
       }
       return object;
     }

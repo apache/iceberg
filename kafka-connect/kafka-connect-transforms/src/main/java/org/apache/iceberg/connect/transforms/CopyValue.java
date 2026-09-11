@@ -73,7 +73,7 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
     Map<String, Object> value = Requirements.requireMap(record.value(), "copy value");
 
     Map<String, Object> updatedValue = Maps.newHashMap(value);
-    updatedValue.put(targetField, value.get(sourceField));
+    updatedValue.put(targetField, value.getWithoutDefault(sourceField));
 
     return newRecord(record, null, updatedValue);
   }
@@ -90,9 +90,9 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
     Struct updatedValue = new Struct(updatedSchema);
 
     for (Field field : value.schema().fields()) {
-      updatedValue.put(field.name(), value.get(field));
+      updatedValue.put(field.name(), value.getWithoutDefault(field.name()));
     }
-    updatedValue.put(targetField, value.get(sourceField));
+    updatedValue.put(targetField, value.getWithoutDefault(sourceField));
 
     return newRecord(record, updatedSchema, updatedValue);
   }
