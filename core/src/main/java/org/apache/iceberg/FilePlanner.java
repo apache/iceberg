@@ -79,9 +79,8 @@ class FilePlanner {
     this.executorService = executorService;
   }
 
-  static Builder builder(
-      FileIO io, ManifestFile root, Map<Integer, PartitionSpec> specsById, String tableLocation) {
-    return new Builder(io, root, specsById, tableLocation);
+  static Builder builder(FileIO io, ManifestFile root, Map<Integer, PartitionSpec> specsById) {
+    return new Builder(io, root, specsById);
   }
 
   CloseableIterable<FileScanTask> planFiles() {
@@ -190,23 +189,26 @@ class FilePlanner {
     private final FileIO io;
     private final ManifestFile root;
     private final Map<Integer, PartitionSpec> specsById;
-    private final String tableLocation;
+    private String tableLocation = null;
     private Expression dataFilter = Expressions.alwaysTrue();
     private boolean ignoreResiduals = false;
     private boolean caseSensitive = true;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
     private ExecutorService executorService = null;
 
-    private Builder(
-        FileIO io, ManifestFile root, Map<Integer, PartitionSpec> specsById, String tableLocation) {
+    private Builder(FileIO io, ManifestFile root, Map<Integer, PartitionSpec> specsById) {
       Preconditions.checkArgument(io != null, "Invalid file IO: null");
       Preconditions.checkArgument(root != null, "Invalid root manifest: null");
       Preconditions.checkArgument(specsById != null, "Invalid specs by ID: null");
-      Preconditions.checkArgument(tableLocation != null, "Invalid table location: null");
       this.io = io;
       this.root = root;
       this.specsById = ImmutableMap.copyOf(specsById);
-      this.tableLocation = tableLocation;
+    }
+
+    Builder tableLocation(String newTableLocation) {
+      Preconditions.checkArgument(newTableLocation != null, "Invalid table location: null");
+      this.tableLocation = newTableLocation;
+      return this;
     }
 
     /** Sets the filter used for partition pruning and residual evaluation. */
