@@ -73,19 +73,22 @@ class TestMergingSortedRowDataReader extends TestBase {
 
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
 
+  private static final TableIdentifier TABLE_IDENT =
+      TableIdentifier.of("default", "test_merging_reader");
+
   private Table table;
 
   @TempDir private Path temp;
 
   @BeforeEach
   void before() {
-    table = catalog.createTable(TableIdentifier.of("default", "test_merging_reader"), SCHEMA, SPEC);
+    table = catalog.createTable(TABLE_IDENT, SCHEMA, SPEC);
     table.replaceSortOrder().asc("id").commit();
   }
 
   @AfterEach
   void after() {
-    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
+    catalog.dropTable(TABLE_IDENT);
   }
 
   @Test
@@ -115,8 +118,6 @@ class TestMergingSortedRowDataReader extends TestBase {
 
   @Test
   void mergeDescendingOrder() throws IOException {
-    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
-    table = catalog.createTable(TableIdentifier.of("default", "test_merging_reader"), SCHEMA, SPEC);
     table.replaceSortOrder().desc("id").commit();
 
     DataFile file1 = writeDataFile(record(6, "f"), record(4, "d"));
@@ -131,16 +132,8 @@ class TestMergingSortedRowDataReader extends TestBase {
 
   @Test
   void mergeWithNulls() throws IOException {
-    Schema nullableSchema =
-        new Schema(
-            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
-            required(2, "data", Types.StringType.get()));
-
-    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
-    table =
-        catalog.createTable(
-            TableIdentifier.of("default", "test_merging_reader"), nullableSchema, SPEC);
-    table.replaceSortOrder().asc("id").commit();
+    // id is required in the base schema; make it optional so rows can carry null sort keys
+    table.updateSchema().makeColumnOptional("id").commit();
 
     DataFile file1 = writeDataFile(nullRecord("x"), record(3, "c"));
     DataFile file2 = writeDataFile(nullRecord("y"), record(1, "a"), record(2, "b"));
@@ -149,10 +142,8 @@ class TestMergingSortedRowDataReader extends TestBase {
 
     List<InternalRow> rows = readMerged(table);
 
-    assertThat(rows).hasSize(5);
-    assertThat(rows.get(0).isNullAt(0)).isTrue();
-    assertThat(rows.get(1).isNullAt(0)).isTrue();
-    assertThat(extractIds(rows.subList(2, 5))).containsExactly(1, 2, 3);
+    // two null-id rows sort first, then 1, 2, 3
+    assertThat(extractIds(rows)).containsExactly(null, null, 1, 2, 3);
   }
 
   @Test
@@ -204,19 +195,11 @@ class TestMergingSortedRowDataReader extends TestBase {
 
   @Test
   void mergeWithStructColumnNotInSortOrder() throws IOException {
-    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
-
-    Schema schemaWithStruct =
-        new Schema(
-            required(1, "id", Types.IntegerType.get()),
-            required(2, "data", Types.StringType.get()),
-            required(
-                4, "location", Types.StructType.of(required(5, "city", Types.StringType.get()))));
-
-    table =
-        catalog.createTable(
-            TableIdentifier.of("default", "test_merging_reader"), schemaWithStruct, SPEC);
-    table.replaceSortOrder().asc("id").commit();
+    // add a struct column that is not part of the sort order
+    table
+        .updateSchema()
+        .addColumn("location", Types.StructType.of(required(5, "city", Types.StringType.get())))
+        .commit();
 
     DataFile file1 = writeDataFile(structRecord(1, "a", "NYC"), structRecord(3, "c", "SFO"));
     DataFile file2 = writeDataFile(structRecord(2, "b", "LAX"), structRecord(4, "d", "SEA"));
@@ -234,18 +217,18 @@ class TestMergingSortedRowDataReader extends TestBase {
 
   @Test
   void mergeWithArrayOfStructsDoesNotCorruptElements() throws IOException {
-    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
-
     Types.StructType element = Types.StructType.of(required(4, "a", Types.IntegerType.get()));
     Schema arrayOfStructs =
         new Schema(
             required(1, "id", Types.IntegerType.get()),
             Types.NestedField.optional(2, "arr", Types.ListType.ofOptional(3, element)));
 
-    table =
-        catalog.createTable(
-            TableIdentifier.of("default", "test_merging_reader"), arrayOfStructs, SPEC);
-    table.replaceSortOrder().asc("id").commit();
+    // replace data with the array-of-structs column; base is already sorted by id
+    table
+        .updateSchema()
+        .deleteColumn("data")
+        .addColumn("arr", Types.ListType.ofOptional(3, element))
+        .commit();
 
     // File1 = [(1,[a=10]), (3,[a=30])], File2 = [(2,[a=20])]. SortedMerge advances file1's reader
     // before returning the row for id=1, so a shallow copy would let id=3's struct clobber id=1's.
@@ -266,8 +249,6 @@ class TestMergingSortedRowDataReader extends TestBase {
 
   @Test
   void mergeWithMapOfStructsDoesNotCorruptElements() throws IOException {
-    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
-
     Types.StructType element = Types.StructType.of(required(5, "a", Types.IntegerType.get()));
     Schema mapOfStructs =
         new Schema(
@@ -275,10 +256,12 @@ class TestMergingSortedRowDataReader extends TestBase {
             Types.NestedField.optional(
                 2, "m", Types.MapType.ofOptional(3, 4, Types.StringType.get(), element)));
 
-    table =
-        catalog.createTable(
-            TableIdentifier.of("default", "test_merging_reader"), mapOfStructs, SPEC);
-    table.replaceSortOrder().asc("id").commit();
+    // replace data with the map-of-structs column; base is already sorted by id
+    table
+        .updateSchema()
+        .deleteColumn("data")
+        .addColumn("m", Types.MapType.ofOptional(3, 4, Types.StringType.get(), element))
+        .commit();
 
     DataFile file1 =
         writeDataFile(
@@ -349,9 +332,9 @@ class TestMergingSortedRowDataReader extends TestBase {
   }
 
   @Test
-  void mergeRejectsUnsortedTable() throws IOException {
-    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
-    table = catalog.createTable(TableIdentifier.of("default", "test_merging_reader"), SCHEMA, SPEC);
+  void mergeRejectsUnsortedFiles() throws IOException {
+    // drop the sort order so files carry the unsorted order id.
+    table.replaceSortOrder().commit();
 
     DataFile file1 = writeDataFile(record(1, "a"), record(3, "c"));
     DataFile file2 = writeDataFile(record(2, "b"), record(4, "d"));
@@ -366,7 +349,7 @@ class TestMergingSortedRowDataReader extends TestBase {
                 new MergingSortedRowDataReader(
                     table, table.io(), taskGroup, table.schema(), true, false))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Cannot create merging reader for unsorted table");
+        .hasMessageContaining("Merging reader requires sorted files");
   }
 
   @Test
@@ -554,12 +537,11 @@ class TestMergingSortedRowDataReader extends TestBase {
 
   @Test
   void mergeRejectsUuidSortKey() throws IOException {
-    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
-
     Schema uuidSchema =
         new Schema(
             required(1, "id", Types.IntegerType.get()), required(2, "key", Types.UUIDType.get()));
-    table = catalog.createTable(TableIdentifier.of("default", "test_merging_reader"), uuidSchema);
+    // replace data with a uuid key and sort by it
+    table.updateSchema().deleteColumn("data").addColumn("key", Types.UUIDType.get()).commit();
     table.replaceSortOrder().asc("key").commit();
 
     // Iceberg's UUID#compareTo ordering and Spark's string-based UUID ordering disagree, so an
@@ -580,12 +562,10 @@ class TestMergingSortedRowDataReader extends TestBase {
 
   @Test
   void mergeWithBucketedUuidSortKey() throws IOException {
-    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
-
     Schema uuidSchema =
         new Schema(
             required(1, "id", Types.IntegerType.get()), required(2, "key", Types.UUIDType.get()));
-    table = catalog.createTable(TableIdentifier.of("default", "test_merging_reader"), uuidSchema);
+    table.updateSchema().deleteColumn("data").addColumn("key", Types.UUIDType.get()).commit();
     table.replaceSortOrder().asc(Expressions.bucket("key", 8)).commit();
 
     // bucket(key, 8) is unaffected by the guard: its result type is int, computed identically by
@@ -630,15 +610,18 @@ class TestMergingSortedRowDataReader extends TestBase {
   }
 
   private BaseScanTaskGroup<FileScanTask> setUpNestedSortKeyTable() throws IOException {
-    catalog.dropTable(TableIdentifier.of("default", "test_merging_reader"));
-
     Schema nestedSchema =
         new Schema(
             required(1, "id", Types.IntegerType.get()),
             required(
                 2, "location", Types.StructType.of(required(3, "city", Types.StringType.get()))));
 
-    table = catalog.createTable(TableIdentifier.of("default", "test_merging_reader"), nestedSchema);
+    // replace data with a nested struct and sort by the nested field
+    table
+        .updateSchema()
+        .deleteColumn("data")
+        .addColumn("location", Types.StructType.of(required(3, "city", Types.StringType.get())))
+        .commit();
     table.replaceSortOrder().asc("location.city").commit();
 
     Types.StructType locationType =
