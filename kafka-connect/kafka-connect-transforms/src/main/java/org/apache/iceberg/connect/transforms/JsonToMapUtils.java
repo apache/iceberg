@@ -36,11 +36,10 @@ import java.math.BigDecimal;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -148,23 +147,31 @@ class JsonToMapUtils {
             // need to protect against arrays of empty arrays, arrays of empty objects, arrays
             // inconsistent types, etc.
 
-            Set<Schema> nestedSchemas = Sets.newHashSet();
-            array
-                .elements()
-                .forEachRemaining(node -> nestedSchemas.add(JsonToMapUtils.schemaFromNode(node)));
+            // single pass: all element schemas must match, bail on the first that differs (this
+            // also skips the remaining schemaFromNode calls once an inconsistency is found)
+            Schema nestedArraySchema = null;
+            boolean firstNested = true;
+            boolean consistent = true;
+            for (Iterator<JsonNode> it = array.elements(); it.hasNext(); ) {
+              Schema nodeSchema = JsonToMapUtils.schemaFromNode(it.next());
+              if (firstNested) {
+                nestedArraySchema = nodeSchema;
+                firstNested = false;
+              } else if (!Objects.equals(nodeSchema, nestedArraySchema)) {
+                consistent = false;
+                break;
+              }
+            }
 
-            if (nestedSchemas.size() > 1) {
+            if (!consistent) {
               // inconsistent types for nested arrays
               result = SchemaBuilder.array(ARRAY_OPTIONAL_STRING).optional().build();
+            } else if (nestedArraySchema == null) {
+              // consistent types, but the element schema is unknown
+              result = null;
             } else {
-              // nestedSchemas.size() == 1 in this case (we already checked array is not empty)
-              // i.e. consistent types for nested arrays
-              Schema nestedArraySchema = nestedSchemas.iterator().next();
-              if (nestedArraySchema == null) {
-                result = null;
-              } else {
-                result = SchemaBuilder.array(nestedArraySchema).optional().build();
-              }
+              // consistent types for nested arrays
+              result = SchemaBuilder.array(nestedArraySchema).optional().build();
             }
           } else {
             // we are a consistent primitive
@@ -179,21 +186,21 @@ class JsonToMapUtils {
 
   /* Kafka Connect arrays must all be the same type */
   public static Class<? extends JsonNode> arrayNodeType(ArrayNode array) {
-    Set<Class<? extends JsonNode>> elementTypes = Sets.newHashSet();
-    array.elements().forEachRemaining(node -> elementTypes.add(node.getClass()));
-
-    Class<? extends JsonNode> result;
-    if (elementTypes.isEmpty()) {
-      // empty ArrayNode, cannot determine element type
-      result = null;
-    } else if (elementTypes.size() == 1) {
-      // consistent element type
-      result = elementTypes.iterator().next();
-    } else {
-      // inconsistent element types
-      result = null;
+    // single pass: all elements must share one class, bail on the first that differs
+    Class<? extends JsonNode> result = null;
+    boolean first = true;
+    for (Iterator<JsonNode> it = array.elements(); it.hasNext(); ) {
+      Class<? extends JsonNode> type = it.next().getClass();
+      if (first) {
+        result = type;
+        first = false;
+      } else if (!type.equals(result)) {
+        // inconsistent element types
+        return null;
+      }
     }
 
+    // null when the array is empty (element type unknown) or types were inconsistent
     return result;
   }
 
