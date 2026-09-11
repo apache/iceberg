@@ -71,6 +71,7 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.tables.evolve-schema-enabled       | Set to `true` to add any missing record fields to the table schema, default is `false`                           |
 | iceberg.tables.schema-force-optional       | Set to `true` to set columns as optional during table create and evolution, default is `false` to respect schema |
 | iceberg.tables.schema-case-insensitive     | Set to `true` to look up table columns by case-insensitive name, default is `false` for case-sensitive           |
+| iceberg.tables.replace-null-with-default   | Set to `false` to preserve explicit null values instead of replacing them with the record schema default value, default is `true` |
 | iceberg.tables.auto-create-props.*         | Properties set on new tables during auto-create                                                                  |
 | iceberg.tables.write-props.*               | Properties passed through to Iceberg writer initialization, these take precedence                                |
 | iceberg.table.<_table-name_\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                   |
@@ -93,6 +94,11 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 If `iceberg.tables.dynamic-enabled` is `false` (the default) then you must specify `iceberg.tables`. If
 `iceberg.tables.dynamic-enabled` is `true` then you must specify `iceberg.tables.route-field` which will
 contain the name of the table.
+
+When `iceberg.tables.replace-null-with-default` is set to `false`, a record whose route field is
+explicitly null is skipped, like any other record with a null route value. Note that the JSON
+converter applies its own `replace.null.with.default` setting during (de)serialization, so it must
+also be set to `false` wherever that converter is used.
 
 ### Kafka configuration
 
