@@ -480,13 +480,14 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
+    // The Iceberg CALL grammar requires ARRAY to have at least one element, so an empty sort_by
+    // array is rejected at parse time rather than by the procedure's runtime validation.
     assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_manifests(table => '%s', sort_by => array())",
                     catalogName, tableIdent))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("sort_by must not be empty when provided");
+        .isInstanceOf(AnalysisException.class);
   }
 
   @TestTemplate
