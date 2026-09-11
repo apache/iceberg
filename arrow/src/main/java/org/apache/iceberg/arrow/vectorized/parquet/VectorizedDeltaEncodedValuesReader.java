@@ -41,6 +41,11 @@ import org.apache.parquet.io.ParquetDecodingException;
 public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     implements VectorizedValuesReader {
 
+  // Hard cap on the number of values per DELTA_BINARY_PACKED block. Standard Parquet writers use
+  // 128; 1 << 20 is ~8000x that and still bounds `unpackedValuesBuffer` to a few MB even at the
+  // most miniBlocksPerBlock-skewed shape, so legitimate files are unaffected.
+  private static final int MAX_BLOCK_SIZE_IN_VALUES = 1 << 20;
+
   // header data
   private int blockSizeInValues;
   private int miniBlocksPerBlock;
@@ -78,12 +83,27 @@ public class VectorizedDeltaEncodedValuesReader extends ValuesReader
     // Read the header
     this.blockSizeInValues = BytesUtils.readUnsignedVarInt(this.inputStream);
     this.miniBlocksPerBlock = BytesUtils.readUnsignedVarInt(this.inputStream);
+    Preconditions.checkArgument(
+        blockSizeInValues > 0 && blockSizeInValues <= MAX_BLOCK_SIZE_IN_VALUES,
+        "blockSizeInValues must be in (0, %s], but is %s",
+        MAX_BLOCK_SIZE_IN_VALUES,
+        blockSizeInValues);
+    Preconditions.checkArgument(
+        miniBlocksPerBlock > 0 && miniBlocksPerBlock <= blockSizeInValues,
+        "miniBlocksPerBlock must be in (0, blockSizeInValues=%s], but is %s",
+        blockSizeInValues,
+        miniBlocksPerBlock);
     double miniSize = (double) blockSizeInValues / miniBlocksPerBlock;
     Preconditions.checkArgument(
         miniSize % 8 == 0, "miniBlockSize must be multiple of 8, but it's " + miniSize);
     this.miniBlockSizeInValues = (int) miniSize;
     // True value count. May be less than valueCount because of nulls
     this.totalValueCount = BytesUtils.readUnsignedVarInt(this.inputStream);
+    Preconditions.checkArgument(
+        totalValueCount >= 0 && totalValueCount <= valueCount,
+        "totalValueCount must be in [0, valueCount=%s], but is %s",
+        valueCount,
+        totalValueCount);
     this.bitWidths = new int[miniBlocksPerBlock];
     this.unpackedValuesBuffer = new long[miniBlockSizeInValues];
     // read the first value
