@@ -474,17 +474,7 @@ public class ParquetValueWriters {
           // we are not tracking field metrics for this type ourselves
           return Stream.empty();
         } else if (fieldMetricsFromWriter.size() == 1) {
-          FieldMetrics<?> metrics = fieldMetricsFromWriter.get(0);
-          return Stream.of(
-              new FieldMetrics<>(
-                  metrics.id(),
-                  metrics.valueCount() + nullValueCount,
-                  nullValueCount,
-                  metrics.nanValueCount(),
-                  metrics.lowerBound(),
-                  metrics.upperBound(),
-                  metrics.originalType(),
-                  metrics.avgValueSizeInBytes()));
+          return Stream.of(withNullValues(fieldMetricsFromWriter.get(0)));
         } else {
           throw new IllegalStateException(
               String.format(
@@ -494,9 +484,26 @@ public class ParquetValueWriters {
         }
       }
 
-      // skipping updating null stats for non-primitive types since we don't use them today, to
-      // avoid unnecessary work
-      return writer.metrics();
+      // A null value here is also null for every descendant column, but those columns are written
+      // directly and never see it, so their writers cannot count it. Add it to their metrics.
+      return writer.metrics().map(this::withNullValues);
+    }
+
+    /** Adds the nulls counted by this writer to metrics produced by a descendant column. */
+    private FieldMetrics<?> withNullValues(FieldMetrics<?> metrics) {
+      if (nullValueCount == 0) {
+        return metrics;
+      }
+
+      return new FieldMetrics<>(
+          metrics.id(),
+          metrics.valueCount() + nullValueCount,
+          metrics.nullValueCount() + nullValueCount,
+          metrics.nanValueCount(),
+          metrics.lowerBound(),
+          metrics.upperBound(),
+          metrics.originalType(),
+          metrics.avgValueSizeInBytes());
     }
   }
 
