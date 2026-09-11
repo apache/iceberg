@@ -103,7 +103,7 @@ public class RewriteDataFiles {
 
     /**
      * Configures the target file size. See {@link
-     * org.apache.iceberg.actions.RewriteDataFiles#TARGET_FILE_SIZE_BYTES} for more details.
+     * SizeBasedFileRewritePlanner#TARGET_FILE_SIZE_BYTES} for more details.
      *
      * @param targetFileSizeBytes target file size
      */

@@ -307,7 +307,7 @@ public class TestRewriteDataFilesAction extends TestBase {
                 SizeBasedFileRewritePlanner.MIN_FILE_SIZE_BYTES,
                 Integer.toString(averageFileSize(table) + 1000))
             .option(
-                RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
                 // Increase max file size for V3 to account for additional row lineage fields
                 Integer.toString(averageFileSize(table) + (formatVersion >= 3 ? 12000 : 1100)))
             .execute();
@@ -500,7 +500,9 @@ public class TestRewriteDataFilesAction extends TestBase {
             .rewriteDataFiles(table)
             // do not include any file based on bin pack file size configs
             .option(BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES, "0")
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
+            .option(
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
+                Long.toString(Long.MAX_VALUE - 1))
             .option(BinPackRewriteFilePlanner.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
             .option(BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD, "2")
             .execute();
@@ -565,7 +567,9 @@ public class TestRewriteDataFilesAction extends TestBase {
             .rewriteDataFiles(table)
             // do not include any file based on bin pack file size configs
             .option(BinPackRewriteFilePlanner.MIN_FILE_SIZE_BYTES, "0")
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE - 1))
+            .option(
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
+                Long.toString(Long.MAX_VALUE - 1))
             .option(BinPackRewriteFilePlanner.MAX_FILE_SIZE_BYTES, Long.toString(Long.MAX_VALUE))
             // set DELETE_FILE_THRESHOLD to 1 since DVs only produce one delete file per data file
             .option(BinPackRewriteFilePlanner.DELETE_FILE_THRESHOLD, "1")
@@ -946,7 +950,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     long dataSizeBefore = testDataSize(table);
     Result result =
         basicRewrite(table)
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Long.toString(targetSize))
+            .option(SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES, Long.toString(targetSize))
             .option(
                 SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES,
                 Long.toString(targetSize * 2 - 2000))
@@ -980,7 +984,9 @@ public class TestRewriteDataFilesAction extends TestBase {
     long dataSizeBefore = testDataSize(table);
     Result result =
         basicRewrite(table)
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(targetSize + 1000))
+            .option(
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
+                Integer.toString(targetSize + 1000))
             .option(
                 SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES,
                 // Increase max file size for V3 to account for additional row lineage fields
@@ -1016,7 +1022,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     long dataSizeBefore = testDataSize(table);
     Result result =
         basicRewrite(table)
-            .option(RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(targetSize))
+            .option(
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES, Integer.toString(targetSize))
             .option(
                 SizeBasedFileRewritePlanner.MAX_FILE_SIZE_BYTES,
                 // Increase max file size for V3 to account for additional row lineage fields
@@ -1053,7 +1060,8 @@ public class TestRewriteDataFilesAction extends TestBase {
         basicRewrite(table)
             .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
             .option(
-                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
+                SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                Integer.toString(fileSize * 2 + 1000))
             .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "10")
             .execute();
 
@@ -1079,7 +1087,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         basicRewrite(table)
             .option(
-                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
+                SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                Integer.toString(fileSize * 2 + 1000))
             .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
             .execute();
 
@@ -1105,7 +1114,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFiles.Result result =
         basicRewrite(table)
             .option(
-                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
+                SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                Integer.toString(fileSize * 2 + 1000))
             .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
             .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3")
             .execute();
@@ -1130,7 +1140,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFilesSparkAction realRewrite =
         basicRewrite(table)
             .option(
-                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000));
+                SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                Integer.toString(fileSize * 2 + 1000));
 
     RewriteDataFilesSparkAction spyRewrite = Mockito.spy(realRewrite);
 
@@ -1162,7 +1173,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFilesSparkAction realRewrite =
         basicRewrite(table)
             .option(
-                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000));
+                SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                Integer.toString(fileSize * 2 + 1000));
 
     RewriteDataFilesSparkAction spyRewrite = spy(realRewrite);
     RewriteDataFilesCommitManager util = spy(new RewriteDataFilesCommitManager(table));
@@ -1194,7 +1206,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFilesSparkAction realRewrite =
         basicRewrite(table)
             .option(
-                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000));
+                SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                Integer.toString(fileSize * 2 + 1000));
 
     RewriteDataFilesSparkAction spyRewrite = spy(realRewrite);
     RewriteDataFilesCommitManager util = spy(new RewriteDataFilesCommitManager(table));
@@ -1226,7 +1239,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFilesSparkAction realRewrite =
         basicRewrite(table)
             .option(
-                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
+                SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                Integer.toString(fileSize * 2 + 1000))
             .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "3");
 
     RewriteDataFilesSparkAction spyRewrite = Mockito.spy(realRewrite);
@@ -1260,7 +1274,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFilesSparkAction realRewrite =
         basicRewrite(table)
             .option(
-                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
+                SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                Integer.toString(fileSize * 2 + 1000))
             .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
             .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3");
 
@@ -1300,7 +1315,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFilesSparkAction realRewrite =
         basicRewrite(table)
             .option(
-                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
+                SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                Integer.toString(fileSize * 2 + 1000))
             .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "3")
             .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
             .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3");
@@ -1341,7 +1357,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFilesSparkAction realRewrite =
         basicRewrite(table)
             .option(
-                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
+                SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                Integer.toString(fileSize * 2 + 1000))
             .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "3")
             .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
             .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3");
@@ -1383,7 +1400,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFilesSparkAction realRewrite =
         basicRewrite(table)
             .option(
-                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
+                SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                Integer.toString(fileSize * 2 + 1000))
             .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "3")
             .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
             .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "3")
@@ -1423,7 +1441,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     RewriteDataFilesSparkAction rewrite =
         basicRewrite(table)
             .option(
-                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
+                SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                Integer.toString(fileSize * 2 + 1000))
             .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "3")
             .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
             // Since we can have at most one commit per file group and there are only 10 file
@@ -1524,7 +1543,8 @@ public class TestRewriteDataFilesAction extends TestBase {
             .sort()
             .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .option(
-                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000))
+                SizeBasedFileRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                Integer.toString(fileSize * 2 + 1000))
             .execute();
 
     assertThat(result.rewriteResults()).as("Should have 10 fileGroups").hasSize(10);
@@ -1553,7 +1573,8 @@ public class TestRewriteDataFilesAction extends TestBase {
             .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
             .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .option(
-                RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table)))
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
+                Integer.toString(averageFileSize(table)))
             .execute();
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
@@ -1586,7 +1607,8 @@ public class TestRewriteDataFilesAction extends TestBase {
             .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
             .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .option(
-                RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table)))
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
+                Integer.toString(averageFileSize(table)))
             .execute();
 
     assertThat(result.rewriteResults())
@@ -1618,7 +1640,8 @@ public class TestRewriteDataFilesAction extends TestBase {
             .sort(SortOrder.builderFor(table.schema()).asc("c2").build())
             .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .option(
-                RewriteDataFiles.TARGET_FILE_SIZE_BYTES, Integer.toString(averageFileSize(table)))
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
+                Integer.toString(averageFileSize(table)))
             .execute();
 
     assertThat(result.rewriteResults()).as("Should have 1 fileGroups").hasSize(1);
@@ -1656,7 +1679,7 @@ public class TestRewriteDataFilesAction extends TestBase {
             .sort(SortOrder.builderFor(table.schema()).asc("c3").build())
             .option(SizeBasedFileRewritePlanner.REWRITE_ALL, "true")
             .option(
-                RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
                 Integer.toString(averageFileSize(table) / partitions))
             .execute();
 
@@ -1720,7 +1743,7 @@ public class TestRewriteDataFilesAction extends TestBase {
                 Integer.toString((averageFileSize(table) / 2) + 2))
             // Divide files in 2
             .option(
-                RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
                 Integer.toString(averageFileSize(table) / 2))
             .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
             .execute();
@@ -1819,7 +1842,7 @@ public class TestRewriteDataFilesAction extends TestBase {
                 Integer.toString((averageFileSize(table) / 2) + 2))
             // Divide files in 2
             .option(
-                RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
                 Integer.toString(averageFileSize(table) / 2))
             .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
             .execute();
@@ -1897,7 +1920,7 @@ public class TestRewriteDataFilesAction extends TestBase {
                 Integer.toString((averageFileSize(table) / 2) + 2))
             // Divide files in 2
             .option(
-                RewriteDataFiles.TARGET_FILE_SIZE_BYTES,
+                SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES,
                 Integer.toString(averageFileSize(table) / 2))
             .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
             .execute();
@@ -2243,26 +2266,15 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  void cacheDeleteFilesOnExecutorsDisabledByDefault() {
+  public void testExecutorCacheForDeleteFilesDisabled() {
     Table table = createTablePartitioned(1, 1);
     RewriteDataFilesSparkAction action = SparkActions.get(spark).rewriteDataFiles(table);
-    action.init(0L);
 
+    // The constructor should have set the configuration to false
     SparkReadConf readConf = new SparkReadConf(action.spark(), table);
-    assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
-  }
-
-  @TestTemplate
-  void cacheDeleteFilesOnExecutorsEnabledByOption() {
-    Table table = createTablePartitioned(1, 1);
-    RewriteDataFilesSparkAction action =
-        SparkActions.get(spark)
-            .rewriteDataFiles(table)
-            .option(RewriteDataFilesSparkAction.CACHE_DELETE_FILES, "true");
-    action.init(0L);
-
-    SparkReadConf readConf = new SparkReadConf(action.spark(), table);
-    assertThat(readConf.cacheDeleteFilesOnExecutors()).isTrue();
+    assertThat(readConf.cacheDeleteFilesOnExecutors())
+        .as("Executor cache for delete files should be disabled in RewriteDataFilesSparkAction")
+        .isFalse();
   }
 
   @TestTemplate

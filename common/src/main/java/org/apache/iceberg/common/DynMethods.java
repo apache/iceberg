@@ -67,14 +67,6 @@ public class DynMethods {
       }
     }
 
-    /**
-     * Invokes the method on the given target, wrapping checked exceptions in a RuntimeException.
-     *
-     * @param <R> the return type of the method
-     * @param target the object to invoke the method on
-     * @param args the arguments to pass to the method
-     * @return the result of the invocation
-     */
     @SuppressWarnings("deprecation")
     public <R> R invoke(Object target, Object... args) {
       try {
@@ -105,20 +97,12 @@ public class DynMethods {
       return new BoundMethod(this, receiver);
     }
 
-    /**
-     * Returns whether the method is a static method.
-     *
-     * @return true if the method is static, false otherwise
-     */
+    /** Returns whether the method is a static method. */
     public boolean isStatic() {
       return Modifier.isStatic(method.getModifiers());
     }
 
-    /**
-     * Returns whether the method is a noop.
-     *
-     * @return true if the method is a noop, false otherwise
-     */
+    /** Returns whether the method is a noop. */
     public boolean isNoop() {
       return this == NOOP;
     }
@@ -169,7 +153,6 @@ public class DynMethods {
         };
   }
 
-  /** A method bound to a receiver, invokable without passing the receiver. */
   public static class BoundMethod {
     private final UnboundMethod method;
     private final Object receiver;
@@ -179,32 +162,15 @@ public class DynMethods {
       this.receiver = receiver;
     }
 
-    /**
-     * Invokes the bound method with the given arguments.
-     *
-     * @param <R> the return type of the method
-     * @param args the arguments to pass to the method
-     * @return the result of the invocation
-     * @throws Exception if the method throws a checked exception
-     */
     public <R> R invokeChecked(Object... args) throws Exception {
       return method.invokeChecked(receiver, args);
     }
 
-    /**
-     * Invokes the bound method with the given arguments, wrapping checked exceptions in a
-     * RuntimeException.
-     *
-     * @param <R> the return type of the method
-     * @param args the arguments to pass to the method
-     * @return the result of the invocation
-     */
     public <R> R invoke(Object... args) {
       return method.invoke(receiver, args);
     }
   }
 
-  /** A static method, invokable without a receiver. */
   public static class StaticMethod {
     private final UnboundMethod method;
 
@@ -212,26 +178,10 @@ public class DynMethods {
       this.method = method;
     }
 
-    /**
-     * Invokes the static method with the given arguments.
-     *
-     * @param <R> the return type of the method
-     * @param args the arguments to pass to the method
-     * @return the result of the invocation
-     * @throws Exception if the method throws a checked exception
-     */
     public <R> R invokeChecked(Object... args) throws Exception {
       return method.invokeChecked(null, args);
     }
 
-    /**
-     * Invokes the static method with the given arguments, wrapping checked exceptions in a
-     * RuntimeException.
-     *
-     * @param <R> the return type of the method
-     * @param args the arguments to pass to the method
-     * @return the result of the invocation
-     */
     public <R> R invoke(Object... args) {
       return method.invoke(null, args);
     }
@@ -247,17 +197,11 @@ public class DynMethods {
     return new Builder(methodName);
   }
 
-  /** Builder for resolving a method from candidate implementations. */
   public static class Builder {
     private final String name;
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private UnboundMethod method = null;
 
-    /**
-     * Constructs a builder that locates a method by the given name.
-     *
-     * @param methodName name of the method the builder will locate
-     */
     public Builder(String methodName) {
       this.name = methodName;
     }

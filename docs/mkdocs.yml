@@ -36,8 +36,6 @@ nav:
       - schemas.md
     - Views:
       - view-configuration.md
-    - Catalogs:
-      - rest-protocol.md
   - API:
     - Quickstart: java-api-quickstart.md
     - API: api.md
@@ -68,7 +66,6 @@ nav:
       - Delta Lake Migration: delta-lake-migration.md
   - Catalogs:
     - Catalog properties: catalog-properties.md
-    - REST Compatible Catalog: rest-catalog.md
     - AWS Glue: aws/#glue-catalog
     - AWS DynamoDB: aws/#dynamodb-catalog
     - HadoopCatalog: https://iceberg.apache.org/javadoc/nightly/org/apache/iceberg/hadoop/HadoopCatalog.html
