@@ -369,15 +369,98 @@ public class TestFlinkCatalogView extends CatalogTestBase {
     sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
     // IF NOT EXISTS is silent
     sql("CREATE VIEW IF NOT EXISTS %s AS SELECT id FROM %s", VIEW_NAME, TABLE_NAME);
-    // without it, creation fails
+    // the view was not replaced: it still exists with its original query
+    View view = viewCatalog().loadView(TableIdentifier.of(icebergNamespace, VIEW_NAME));
+    assertThat(view.sqlFor("flink").sql()).containsIgnoringCase("data");
+
+    // without IF NOT EXISTS, creation fails
     assertThatThrownBy(() -> sql("CREATE VIEW %s AS SELECT id FROM %s", VIEW_NAME, TABLE_NAME))
+        .hasMessageContaining("Could not execute CreateTable")
+        .cause()
+        .isInstanceOf(TableAlreadyExistException.class)
         .hasMessageContaining(VIEW_NAME);
   }
 
   @TestTemplate
   public void testCreateViewOverExistingTableFails() {
     assertThatThrownBy(() -> sql("CREATE VIEW %s AS SELECT id FROM %s", TABLE_NAME, TABLE_NAME))
+        .hasMessageContaining("Could not execute CreateTable")
+        .cause()
+        .isInstanceOf(TableAlreadyExistException.class)
         .hasMessageContaining(TABLE_NAME);
+
+    // the table was not touched by the failed attempt
+    assertSameElements(expectedRows(), sql("SELECT * FROM %s", TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testCreateViewWithUnqualifiedCrossDatabaseReferenceFails() {
+    // the stored SQL resolves against the view's database, but the session validated it against
+    // db2 — accepting this would produce session-dependent results, so creation is rejected
+    sql("CREATE DATABASE %s.db2", catalogName);
+    sql("USE db2");
+    try {
+      sql("CREATE TABLE cross_t (id BIGINT)");
+      assertThatThrownBy(
+              () ->
+                  sql(
+                      "CREATE VIEW %s.%s.cross_view AS SELECT id FROM cross_t",
+                      catalogName, DATABASE))
+          .hasMessageContaining("Could not execute CreateTable")
+          .cause()
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessageContaining("unqualified name");
+    } finally {
+      sql("USE %s", DATABASE);
+      sql("DROP TABLE IF EXISTS %s.db2.cross_t", catalogName);
+      dropDatabase(catalogName + ".db2", true);
+    }
+  }
+
+  @TestTemplate
+  public void testCreateViewWithQualifiedCrossDatabaseReference() {
+    // explicitly qualified references are deterministic and remain allowed
+    sql("CREATE DATABASE %s.db2", catalogName);
+    try {
+      sql("CREATE TABLE %s.db2.other_t (id BIGINT)", catalogName);
+      sql("INSERT INTO %s.db2.other_t VALUES (9)", catalogName);
+      sql("CREATE VIEW cross_view AS SELECT id FROM db2.other_t");
+
+      assertSameElements(Lists.newArrayList(Row.of(9L)), sql("SELECT * FROM cross_view"));
+      // the result does not depend on the reader's session database
+      sql("USE db2");
+      assertSameElements(
+          Lists.newArrayList(Row.of(9L)),
+          sql("SELECT * FROM %s.%s.cross_view", catalogName, DATABASE));
+    } finally {
+      sql("USE %s", DATABASE);
+      sql("DROP TABLE IF EXISTS %s.db2.other_t", catalogName);
+      dropDatabase(catalogName + ".db2", true);
+    }
+  }
+
+  @TestTemplate
+  public void testCreateViewNotSupportedByCatalog() {
+    // a catalog without view support (HadoopCatalog) rejects CREATE VIEW with a clear error
+    String noViewCatalog = catalogName + "_noviews";
+    sql(
+        "CREATE CATALOG %s WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='file://%s/noviews')",
+        noViewCatalog, warehouseRoot());
+    try {
+      sql("CREATE DATABASE %s.no_view_db", noViewCatalog);
+      assertThatThrownBy(
+              () ->
+                  sql(
+                      "CREATE VIEW %s.no_view_db.unsupported_view AS SELECT id, data FROM %s",
+                      noViewCatalog, TABLE_NAME))
+          .hasMessageContaining("Could not execute CreateTable")
+          .cause()
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessageContaining("Creating a view is not supported by catalog");
+    } finally {
+      dropDatabase(noViewCatalog + ".no_view_db", true);
+      dropCatalog(noViewCatalog, true);
+    }
   }
 
   @TestTemplate
