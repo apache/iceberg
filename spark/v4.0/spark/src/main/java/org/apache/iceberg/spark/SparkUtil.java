@@ -24,9 +24,11 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -254,7 +256,8 @@ public class SparkUtil {
   }
 
   // Lenient ISO parser accepting either a date (e.g. "2021-01-01") or a date-time
-  // (e.g. "2021-01-01T12:34:56"), defaulting any missing time fields to zero.
+  // (e.g. "2021-01-01T12:34:56"), with an optional zone offset (e.g. "2021-01-01T12:34:56Z" or
+  // "2021-01-01T12:34:56+00:00"), defaulting any missing time fields to zero.
   private static final DateTimeFormatter LENIENT_ISO_DATE_TIME =
       new DateTimeFormatterBuilder()
           .append(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -262,14 +265,24 @@ public class SparkUtil {
           .appendLiteral('T')
           .append(DateTimeFormatter.ISO_LOCAL_TIME)
           .optionalEnd()
+          .optionalStart()
+          .appendOffsetId()
+          .optionalEnd()
           .parseDefaulting(ChronoField.HOUR_OF_DAY, 0)
           .parseDefaulting(ChronoField.MINUTE_OF_HOUR, 0)
           .parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
           .toFormatter();
 
   private static long parseToEpochMillis(String value) {
-    LocalDateTime dateTime = LocalDateTime.parse(value, LENIENT_ISO_DATE_TIME);
-    return dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+    TemporalAccessor parsed = LENIENT_ISO_DATE_TIME.parse(value);
+    LocalDateTime dateTime = LocalDateTime.from(parsed);
+    // Respect an explicit offset when present (as Joda's DateTime.parse did), otherwise
+    // interpret the value in the system default zone.
+    ZoneId zone =
+        parsed.isSupported(ChronoField.OFFSET_SECONDS)
+            ? ZoneOffset.from(parsed)
+            : ZoneId.systemDefault();
+    return dateTime.atZone(zone).toInstant().toEpochMilli();
   }
 
   public static String toColumnName(NamedReference ref) {
