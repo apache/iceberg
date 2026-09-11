@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
@@ -498,10 +499,8 @@ public class TestVariantMetrics {
 
   @Test
   public void testShreddedNullVariantsWithMissingNullCount() throws IOException {
-    // For a shredded column where the values are either shredded into typed_value or are null
-    // variants, the value column holds only null variants. That count comes from the value count,
-    // not the footer null count, so shredded bounds are still trusted even when a row group omits
-    // null_count.
+    // A shredded column's value column holds only null variants, so its null count comes from the
+    // value count, not the footer. Shredded bounds survive a row group that omits null_count.
     VariantValue value = Variants.of(1234);
     ParquetMetadata footer =
         footer(
@@ -568,21 +567,7 @@ public class TestVariantMetrics {
   private ParquetMetadata footer(VariantShreddingFunction shredding, Variant... variants)
       throws IOException {
     InMemoryOutputFile out = new InMemoryOutputFile();
-    GenericRecord record = GenericRecord.create(SCHEMA);
-
-    FileAppender<Record> writer =
-        Parquet.write(out)
-            .schema(SCHEMA)
-            .variantShreddingFunc(shredding)
-            .createWriterFunc(fileSchema -> InternalWriter.create(SCHEMA.asStruct(), fileSchema))
-            .build();
-    try (writer) {
-      for (int id = 0; id < variants.length; id += 1) {
-        record.setField("id", (long) id);
-        record.setField("var", variants[id]);
-        writer.add(record);
-      }
-    }
+    writeVariants(out, shredding, builder -> {}, variants);
 
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(out.toInputFile()))) {
       return reader.getFooter();
@@ -944,51 +929,54 @@ public class TestVariantMetrics {
   private Metrics writeParquetWithMetricsConfig(
       VariantShreddingFunction shredding, MetricsConfig metricsConfig, Variant... variants)
       throws IOException {
-    OutputFile out = new InMemoryOutputFile();
-    GenericRecord record = GenericRecord.create(SCHEMA);
-
-    FileAppender<Record> writer =
-        Parquet.write(out)
-            .schema(SCHEMA)
-            .variantShreddingFunc(shredding)
-            .metricsConfig(metricsConfig)
-            .createWriterFunc(fileSchema -> InternalWriter.create(SCHEMA.asStruct(), fileSchema))
-            .build();
-
-    try (writer) {
-      for (int id = 0; id < variants.length; id += 1) {
-        record.setField("id", (long) id);
-        record.setField("var", variants[id]);
-        writer.add(record);
-      }
-    }
-
-    return writer.metrics();
+    return writeVariants(shredding, builder -> builder.metricsConfig(metricsConfig), variants)
+        .metrics();
   }
 
   private Metrics writeParquetWithRowGroupSize(
       VariantShreddingFunction shredding, String rowGroupSizeBytes, Variant... variants)
       throws IOException {
-    OutputFile out = new InMemoryOutputFile();
-    GenericRecord record = GenericRecord.create(SCHEMA);
+    return writeVariants(
+            shredding,
+            builder -> builder.set(PARQUET_ROW_GROUP_SIZE_BYTES, rowGroupSizeBytes),
+            variants)
+        .metrics();
+  }
 
-    FileAppender<Record> writer =
+  /**
+   * Writes the given variants to an in-memory Parquet file and returns the closed appender. The
+   * {@code options} consumer applies writer options that vary between callers.
+   */
+  private FileAppender<Record> writeVariants(
+      VariantShreddingFunction shredding,
+      Consumer<Parquet.WriteBuilder> options,
+      Variant... variants)
+      throws IOException {
+    return writeVariants(new InMemoryOutputFile(), shredding, options, variants);
+  }
+
+  private FileAppender<Record> writeVariants(
+      OutputFile out,
+      VariantShreddingFunction shredding,
+      Consumer<Parquet.WriteBuilder> options,
+      Variant... variants)
+      throws IOException {
+    Parquet.WriteBuilder builder =
         Parquet.write(out)
             .schema(SCHEMA)
             .variantShreddingFunc(shredding)
-            .set(PARQUET_ROW_GROUP_SIZE_BYTES, rowGroupSizeBytes)
-            .createWriterFunc(fileSchema -> InternalWriter.create(SCHEMA.asStruct(), fileSchema))
-            .build();
+            .createWriterFunc(fileSchema -> InternalWriter.create(SCHEMA.asStruct(), fileSchema));
+    options.accept(builder);
 
-    try (writer) {
+    GenericRecord record = GenericRecord.create(SCHEMA);
+    try (FileAppender<Record> writer = builder.build()) {
       for (int id = 0; id < variants.length; id += 1) {
         record.setField("id", (long) id);
         record.setField("var", variants[id]);
         writer.add(record);
       }
+      return writer;
     }
-
-    return writer.metrics();
   }
 
   private static VariantValue increment(VariantValue value) {
