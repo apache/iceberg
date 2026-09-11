@@ -1363,6 +1363,9 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
   @Test
   public void asyncPlanningSucceedsWithCustomRetries() {
+    // Keep the plan SUBMITTED for the first two fetches so planning only completes because more
+    // than one retry is allowed. A retry count of 1 would exhaust the budget before the third
+    // fetch.
     List<Endpoint> endpoints =
         endpointsWithPlanning(
             Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
@@ -1370,10 +1373,52 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             Endpoint.V1_CANCEL_TABLE_SCAN_PLAN,
             Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
 
-    CatalogWithAdapter catalogWithAdapter =
-        catalogWithEndpoints(endpoints, TestPlanningBehavior.builder().asynchronous().build());
+    int submittedResponses = 2;
+    AtomicInteger fetchAttempts = new AtomicInteger();
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders,
+                  ParserContext parserContext) {
+                if (ResourcePaths.config().equals(request.path())) {
+                  return castResponse(
+                      responseType, ConfigResponse.builder().withEndpoints(endpoints).build());
+                }
+                T response =
+                    super.execute(
+                        request, responseType, errorHandler, responseHeaders, parserContext);
+                if (response instanceof LoadTableResponse) {
+                  return castResponse(
+                      responseType,
+                      withPlanningMode(
+                          (LoadTableResponse) response,
+                          RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
+                }
 
-    catalogWithAdapter.catalog.initialize(
+                // Force the first fetches to stay SUBMITTED so the poll loop must retry
+                if (response instanceof FetchPlanningResultResponse
+                    && fetchAttempts.incrementAndGet() <= submittedResponses) {
+                  return castResponse(
+                      responseType,
+                      FetchPlanningResultResponse.builder()
+                          .withPlanStatus(PlanStatus.SUBMITTED)
+                          .build());
+                }
+
+                return response;
+              }
+            });
+
+    adapter.setPlanningBehavior(TestPlanningBehavior.builder().asynchronous().build());
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
         "test-custom-retries",
         ImmutableMap.of(
             CatalogProperties.FILE_IO_IMPL,
@@ -1383,9 +1428,12 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             RESTCatalogProperties.REST_SCAN_PLANNING_POLL_NUM_RETRIES,
             "25"));
 
-    RESTTable table = restTableFor(catalogWithAdapter.catalog, "custom_retries_success");
+    RESTTable table = restTableFor(catalog, "custom_retries_success");
     setParserContext(table);
+
     assertThat(table.newScan().planFiles()).hasSize(1);
+    // initial fetch plus retries: two SUBMITTED responses followed by a completed one
+    assertThat(fetchAttempts).hasValue(submittedResponses + 1);
   }
 
   @Test
@@ -1417,7 +1465,8 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
     assertThatThrownBy(scan::planFiles)
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("must be non-negative");
+        .hasMessage(
+            "Invalid value for rest-scan-planning.poll-num-retries: -1 (must be non-negative)");
   }
 
   @ParameterizedTest
