@@ -54,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.crypto.ParquetCryptoRuntimeException;
 import org.apache.spark.SparkException;
@@ -363,6 +364,16 @@ public class TestTableEncryption extends CatalogTestBase {
     assertThat(catalog.tableExists(tableIdent)).as("Table should not exist").isFalse();
     assertThat(dataFiles)
         .allSatisfy(filePath -> assertThat(localInput(filePath).exists()).isFalse());
+  }
+
+  @TestTemplate
+  public void testComputeTableStats() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThatThrownBy(() -> SparkActions.get().computeTableStats(table).execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot compute table statistics for an encrypted table: " + table.name());
   }
 
   private void checkMetadataFileEncryption(InputFile file) throws IOException {
