@@ -486,7 +486,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
 
           assertThatThrownBy(() -> catalog.loadTable(metadataTableIdentifier))
               .isInstanceOf(NoSuchTableException.class)
-              .hasMessage("Table does not exist: %s", TABLE);
+              .hasMessage("Table does not exist: %s", metadataTableIdentifier);
         },
         1);
 
