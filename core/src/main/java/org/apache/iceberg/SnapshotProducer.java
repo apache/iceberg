@@ -621,7 +621,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   private Set<String> committedManifestPaths(Snapshot saved) {
-    Set<String> paths = manifestsByManifestList.get(saved.manifestListLocation());
+    Set<String> paths = writtenManifestPaths(saved.manifestListLocation());
     if (paths != null) {
       // this producer wrote the manifest list, so its manifest paths are already in memory
       return paths;
@@ -631,6 +631,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return saved.allManifests(ops.io()).stream()
         .map(ManifestFile::path)
         .collect(Collectors.toSet());
+  }
+
+  /**
+   * Returns the paths of the manifests written to the given manifest list, or null if not written
+   * by this producer.
+   */
+  Set<String> writtenManifestPaths(String manifestListLocation) {
+    return manifestsByManifestList.get(manifestListLocation);
   }
 
   protected void deleteFile(String path) {
