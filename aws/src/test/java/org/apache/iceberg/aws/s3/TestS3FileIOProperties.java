@@ -629,6 +629,7 @@ public class TestS3FileIOProperties {
   @Test
   public void testDefaultS3FileIOAwsClientFactoryAppliesApiCallTimeoutToAsyncClient() {
     Map<String, String> properties = Maps.newHashMap();
+    properties.put(AwsClientProperties.CLIENT_REGION, "us-east-1");
     properties.put(S3FileIOProperties.S3_CRT_ENABLED, "false");
     properties.put(S3FileIOProperties.S3_API_CALL_TIMEOUT_MS, "60000");
     properties.put(S3FileIOProperties.S3_API_CALL_ATTEMPT_TIMEOUT_MS, "30000");
