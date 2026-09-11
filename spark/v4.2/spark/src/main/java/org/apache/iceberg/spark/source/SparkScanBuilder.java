@@ -148,8 +148,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
           expressions.add((BoundAggregate<?, ?>) bound);
         } else {
           LOG.info(
-              "Skipping aggregate pushdown: AggregateFunc {} can't be converted to iceberg"
-                  + " expression",
+              "Skipping aggregate pushdown: AggregateFunc {} can't be converted to iceberg expression",
               aggregateFunc);
           return false;
         }
@@ -238,8 +237,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
           if (aggregate.op() == Expression.Operation.MAX
               || aggregate.op() == Expression.Operation.MIN) {
             LOG.info(
-                "Skipping aggregate pushdown: Cannot produce min or max from truncated values for"
-                    + " column {}",
+                "Skipping aggregate pushdown: Cannot produce min or max from truncated values for column {}",
                 colName);
             return false;
           }
@@ -365,8 +363,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
 
     Preconditions.checkState(
         Objects.equals(snapshot, scan.snapshot()),
-        "Failed to enforce scan consistency: resolved Spark table snapshot (%s) vs scan snapshot"
-            + " (%s)",
+        "Failed to enforce scan consistency: resolved Spark table snapshot (%s) vs scan snapshot (%s)",
         snapshot,
         scan.snapshot());
 

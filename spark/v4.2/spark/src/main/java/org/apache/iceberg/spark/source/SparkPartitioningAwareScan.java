@@ -194,7 +194,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       try (CloseableIterable<? extends ScanTask> taskIterable = scan.planFiles()) {
         List<T> plannedTasks = Lists.newArrayList();
         Map<Integer, PartitionPredicateEvaluator> evaluatorsBySpecId = Maps.newHashMap();
-        int numPlannedTasks = 0;
+        int numCandidateTasks = 0;
 
         for (ScanTask task : taskIterable) {
           ValidationException.check(
@@ -204,7 +204,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
               task.getClass().getName());
 
           T partitionTask = taskJavaClass().cast(task);
-          numPlannedTasks += 1;
+          numCandidateTasks += 1;
 
           if (partitionPredicates.isEmpty()
               || matchesPartitionPredicates(partitionTask, evaluatorsBySpecId)) {
@@ -214,11 +214,11 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
         this.tasks = plannedTasks;
 
-        if (plannedTasks.size() < numPlannedTasks) {
+        if (plannedTasks.size() < numCandidateTasks) {
           LOG.info(
               "{} of {} task(s) for table {} matched {} opaque Spark partition predicate(s)",
               plannedTasks.size(),
-              numPlannedTasks,
+              numCandidateTasks,
               table().name(),
               partitionPredicates.size());
         }
@@ -258,8 +258,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
         StructLikeSet plannedGroupingKeys = collectGroupingKeys(plannedTaskGroups);
 
         LOG.debug(
-            "Planned {} task group(s) with {} grouping key type and {} unique grouping key(s) for"
-                + " table {}",
+            "Planned {} task group(s) with {} grouping key type and {} unique grouping key(s) for table {}",
             plannedTaskGroups.size(),
             groupingKeyType(),
             plannedGroupingKeys.size(),
