@@ -487,7 +487,8 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
                 sql(
                     "CALL %s.system.rewrite_manifests(table => '%s', sort_by => array())",
                     catalogName, tableIdent))
-        .isInstanceOf(AnalysisException.class);
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("no viable alternative at input ')'");
   }
 
   @TestTemplate
