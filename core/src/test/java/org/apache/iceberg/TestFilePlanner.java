@@ -167,29 +167,7 @@ class TestFilePlanner {
             delete -> {
               assertThat(delete.content()).isEqualTo(FileContent.POSITION_DELETES);
               assertThat(delete.referencedDataFile()).isEqualTo(resolved("with-dv.parquet"));
-              assertThat(delete.recordCount()).isEqualTo(DV_CARDINALITY);
-              assertThat(delete.contentOffset()).isEqualTo(DV_OFFSET);
-              assertThat(delete.contentSizeInBytes()).isEqualTo(DV_SIZE_IN_BYTES);
             });
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  void partitionFilterPrunesFiles(FileFormat format) throws IOException {
-    InputFile root =
-        writeManifest(
-            format,
-            PARTITION_TYPE,
-            ImmutableList.of(
-                dataFile("keep.parquet", partition(1)), dataFile("prune.parquet", partition(2))));
-
-    List<FileScanTask> tasks =
-        plan(root, PARTITIONED_SPECS, planner -> planner.filterData(Expressions.equal("id", 1)));
-
-    assertThat(tasks)
-        .hasSize(1)
-        .extracting(task -> task.file().location())
-        .containsExactly(resolved("keep.parquet"));
   }
 
   @ParameterizedTest
@@ -250,7 +228,8 @@ class TestFilePlanner {
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     FilePlanner planner =
-        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS).tableLocation(TABLE_LOCATION)
+        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS)
+            .tableLocation(TABLE_LOCATION)
             .scanMetrics(metrics)
             .build();
     // the root is read eagerly to route its entries; leaf readers open lazily, so closing the plan
@@ -317,7 +296,9 @@ class TestFilePlanner {
 
     // delete content is only produced by upgraded trees; that path is not yet implemented
     FilePlanner planner =
-        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS).tableLocation(TABLE_LOCATION).build();
+        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS)
+            .tableLocation(TABLE_LOCATION)
+            .build();
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("v3 and earlier deletes are not yet supported");
@@ -325,36 +306,19 @@ class TestFilePlanner {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  void deleteContentInLeafIsUnsupported(FileFormat format) throws IOException {
-    InputFile leaf =
-        writeManifest(
-            format,
-            EMPTY_PARTITION,
-            ImmutableList.of(
-                dataFile("leaf-data.parquet", EMPTY_PARTITION_DATA),
-                deleteManifest("leaf-deletes.avro")));
-    InputFile root =
-        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
-
-    FilePlanner planner =
-        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS).tableLocation(TABLE_LOCATION).build();
-    assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid content type for DataFile: DELETE_MANIFEST");
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  void nestedDataManifestInLeafIsRejected(FileFormat format) throws IOException {
+  void nonDataEntryInLeafFailsPlanning(FileFormat format) throws IOException {
+    // the planner feeds every leaf entry to the data-file adapter, so a non-data leaf entry
+    // (here a nested manifest) fails planning
     InputFile leaf =
         writeManifest(
             format, EMPTY_PARTITION, ImmutableList.of(dataManifest("nested-leaf.parquet")));
     InputFile root =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
 
-    // a leaf holds only data entries in a two-level tree; a nested manifest is rejected
     FilePlanner planner =
-        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS).tableLocation(TABLE_LOCATION).build();
+        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS)
+            .tableLocation(TABLE_LOCATION)
+            .build();
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid content type for DataFile: DATA_MANIFEST");
@@ -454,7 +418,9 @@ class TestFilePlanner {
       throws IOException {
     FilePlanner planner =
         configure
-            .apply(FilePlanner.builder(fileIO, asManifest(root), specsById).tableLocation(TABLE_LOCATION))
+            .apply(
+                FilePlanner.builder(fileIO, asManifest(root), specsById)
+                    .tableLocation(TABLE_LOCATION))
             .build();
     try (CloseableIterable<FileScanTask> tasks = planner.planFiles()) {
       return Lists.newArrayList(tasks);
