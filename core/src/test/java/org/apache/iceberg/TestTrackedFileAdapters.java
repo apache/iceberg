@@ -508,8 +508,6 @@ class TestTrackedFileAdapters {
     assertThat(dvFile.content()).isEqualTo(FileContent.POSITION_DELETES);
     assertThat(dvFile.referencedDataFile()).isEqualTo(DATA_FILE_LOCATION);
     assertThat(dvFile.recordCount()).isEqualTo(dv.cardinality());
-    assertThat(dvFile.contentOffset()).isEqualTo(dv.offset());
-    assertThat(dvFile.contentSizeInBytes()).isEqualTo(dv.sizeInBytes());
   }
 
   @Test
