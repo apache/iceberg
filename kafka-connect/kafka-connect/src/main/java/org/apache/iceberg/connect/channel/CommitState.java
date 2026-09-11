@@ -69,10 +69,6 @@ class CommitState {
           "Received commit ready when no commit in progress, this can happen during recovery. Commit ID: {}",
           dataComplete.commitId());
     } else if (Objects.equals(currentCommitId, dataComplete.commitId())) {
-      // Track which source partitions reported rather than how many responses arrived. The same
-      // partition can be reported more than once for one commit: a control-topic replay redelivers
-      // a DataComplete, and two workers can transiently claim a partition across a rebalance.
-      // Counting those again would satisfy the quorum before every partition has reported.
       dataComplete
           .assignments()
           .forEach(
