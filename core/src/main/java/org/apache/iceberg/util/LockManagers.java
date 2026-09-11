@@ -85,6 +85,7 @@ public class LockManagers {
     private long heartbeatIntervalMs;
     private long heartbeatTimeoutMs;
     private int heartbeatThreads;
+    private BackoffStrategy backoffStrategy;
 
     public long heartbeatTimeoutMs() {
       return heartbeatTimeoutMs;
@@ -104,6 +105,10 @@ public class LockManagers {
 
     public int heartbeatThreads() {
       return heartbeatThreads;
+    }
+
+    public BackoffStrategy backoffStrategy() {
+      return backoffStrategy;
     }
 
     /**
@@ -158,6 +163,8 @@ public class LockManagers {
               properties,
               CatalogProperties.LOCK_HEARTBEAT_THREADS,
               CatalogProperties.LOCK_HEARTBEAT_THREADS_DEFAULT);
+      this.backoffStrategy =
+          BackoffStrategies.from(properties, acquireIntervalMs, acquireIntervalMs, 1.0);
     }
 
     @Override
@@ -242,7 +249,8 @@ public class LockManagers {
             .retry(Integer.MAX_VALUE - 1)
             .onlyRetryOn(IllegalStateException.class)
             .throwFailureWhenFinished()
-            .exponentialBackoff(acquireIntervalMs(), acquireIntervalMs(), acquireTimeoutMs(), 1)
+            .totalTimeoutMs(acquireTimeoutMs())
+            .backoffStrategy(backoffStrategy())
             .run(id -> acquireOnce(id, ownerId));
         return true;
       } catch (IllegalStateException e) {
