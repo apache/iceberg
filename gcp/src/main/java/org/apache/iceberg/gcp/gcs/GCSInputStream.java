@@ -146,6 +146,7 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
     Preconditions.checkState(!closed, "Cannot read: already closed");
+    Preconditions.checkPositionIndexes(off, off + len, b.length);
     byteBuffer = byteBuffer != null && byteBuffer.array() == b ? byteBuffer : ByteBuffer.wrap(b);
     int bytesRead = read(channel, byteBuffer, off, len);
     if (bytesRead == -1) {
@@ -195,7 +196,7 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
   private int read(ReadChannel readChannel, ByteBuffer buffer, int off, int len)
       throws IOException {
     buffer.position(off);
-    buffer.limit(Math.min(off + len, buffer.capacity()));
+    buffer.limit(off + len);
     try {
       return readChannel.read(buffer);
     } catch (IOException e) {
