@@ -46,6 +46,15 @@ class TrackedFileAdapters {
     return new TrackedDVDeleteFile(file, resolveSpecId(file, specsById));
   }
 
+  static DeleteFile asDVDeleteFile(DataFile dataFile) {
+    Preconditions.checkArgument(
+        dataFile instanceof TrackedDataFile,
+        "Cannot create DV delete file from DataFile: %s",
+        dataFile.getClass().getName());
+    TrackedDataFile tracked = (TrackedDataFile) dataFile;
+    return new TrackedDVDeleteFile(tracked.file(), tracked.specId());
+  }
+
   static DeleteFile asEqualityDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(
         file.contentType() == FileContent.EQUALITY_DELETES,

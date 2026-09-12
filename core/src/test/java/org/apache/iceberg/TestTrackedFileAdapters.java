@@ -480,6 +480,43 @@ class TestTrackedFileAdapters {
         .hasMessage("Cannot create DV delete file: no deletion vector");
   }
 
+  @Test
+  void dvDeleteFileFromDataFileUnwrapsTrackedFile() {
+    DeletionVector dv = deletionVector();
+    TrackedFile file =
+        new TrackedFileStruct(
+            null, // tracking
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            DATA_FILE_LOCATION,
+            FileFormat.PARQUET,
+            100L, // recordCount
+            1024L, // fileSizeInBytes
+            PARTITIONED_SPEC_ID,
+            PARTITION,
+            null, // contentStats
+            null, // sortOrderId
+            dv, // deletionVector
+            null, // manifestInfo
+            null, // keyMetadata
+            null, // splitOffsets
+            null); // equalityIds
+
+    DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(PARTITIONED_SPEC));
+    DeleteFile dvFile = TrackedFileAdapters.asDVDeleteFile(dataFile);
+
+    assertThat(dvFile.content()).isEqualTo(FileContent.POSITION_DELETES);
+    assertThat(dvFile.referencedDataFile()).isEqualTo(DATA_FILE_LOCATION);
+    assertThat(dvFile.recordCount()).isEqualTo(dv.cardinality());
+  }
+
+  @Test
+  void dvDeleteFileFromDataFileRejectsNonTrackedDataFile() {
+    assertThatThrownBy(() -> TrackedFileAdapters.asDVDeleteFile(mock(DataFile.class)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot create DV delete file from DataFile");
+  }
+
   @ParameterizedTest
   @EnumSource(
       value = FileContent.class,
