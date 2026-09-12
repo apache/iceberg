@@ -16,29 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.responses;
+package org.apache.iceberg;
 
 import java.util.Map;
-import org.apache.iceberg.Labels;
-import org.apache.iceberg.rest.RESTResponse;
-import org.apache.iceberg.view.ViewMetadata;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
 
+/** Labels attached to a single field, identified by its field id. See {@link Labels}. */
 @Value.Immutable
-public interface LoadViewResponse extends RESTResponse {
-  String metadataLocation();
+public interface FieldLabels {
+  int fieldId();
 
-  ViewMetadata metadata();
+  Map<String, String> labels();
 
-  Map<String, String> config();
-
-  @Value.Default
-  default Labels labels() {
-    return Labels.EMPTY;
-  }
-
-  @Override
+  @Value.Check
   default void validate() {
-    // nothing to validate as it's not possible to create an invalid instance
+    Preconditions.checkArgument(fieldId() >= 1, "Invalid field id: must be >= 1");
   }
 }
