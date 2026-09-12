@@ -500,8 +500,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   // looking it up may load all snapshots when they are loaded lazily
                   Long producedSnapshotId = snapshotId;
                   boolean isProducedSnapshot =
-                      producedSnapshotId != null
-                          && producedSnapshotId == newSnapshot.snapshotId();
+                      producedSnapshotId != null && producedSnapshotId == newSnapshot.snapshotId();
                   if (!isProducedSnapshot && base.snapshot(newSnapshot.snapshotId()) != null) {
                     // this is a rollback operation
                     update.setBranchSnapshot(newSnapshot.snapshotId(), targetBranch);

@@ -536,8 +536,8 @@ public class TableMetadata implements Serializable {
   /**
    * Returns the snapshot for the given id if it is already loaded, or null otherwise.
    *
-   * <p>Unlike {@link #snapshot(long)}, this never triggers loading all snapshots when snapshots
-   * are loaded lazily. Callers must be able to tolerate a null result for an existing but not yet
+   * <p>Unlike {@link #snapshot(long)}, this never triggers loading all snapshots when snapshots are
+   * loaded lazily. Callers must be able to tolerate a null result for an existing but not yet
    * loaded snapshot.
    */
   Snapshot snapshotIfKnown(long snapshotId) {

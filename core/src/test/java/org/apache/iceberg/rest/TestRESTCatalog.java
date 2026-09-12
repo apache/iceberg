@@ -1095,6 +1095,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 .build())
         .commit();
 
+    // only verify requests made by the loads below, not by the commits above
+    Mockito.clearInvocations(adapter);
+
     Table refsTable = catalog.loadTable(TABLE);
 
     // don't call snapshots() directly as that would cause to load all snapshots. Instead,
@@ -1135,7 +1138,74 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testCommitOnRefsModeTableLoadsAllSnapshots() {
+  public void testTableSnapshotLoadingRefreshKeepsLazySupplier() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            // default loading to refs only
+            RESTCatalogProperties.SNAPSHOT_LOADING_MODE,
+            SnapshotMode.REFS.name()));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Table table = catalog.createTable(TABLE, SCHEMA);
+
+    for (int i = 0; i < 3; i++) {
+      table
+          .newFastAppend()
+          .appendFile(
+              DataFiles.builder(PartitionSpec.unpartitioned())
+                  .withPath(String.format("/path/to/data-%s.parquet", i))
+                  .withFileSizeInBytes(10)
+                  .withRecordCount(2)
+                  .build())
+          .commit();
+    }
+
+    Table refsTable = catalog.loadTable(TABLE);
+
+    // load in refs mode: only the retained ref snapshot is loaded eagerly
+    assertThat(((BaseTable) refsTable).operations().current())
+        .extracting("snapshots")
+        .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
+        .hasSize(1);
+
+    // advance the table so the metadata location changes, then refresh
+    table
+        .newFastAppend()
+        .appendFile(
+            DataFiles.builder(PartitionSpec.unpartitioned())
+                .withPath("/path/to/data-adv.parquet")
+                .withFileSizeInBytes(10)
+                .withRecordCount(2)
+                .build())
+        .commit();
+
+    // refresh must re-install the lazy snapshots supplier in refs mode
+    refsTable.refresh();
+
+    // still partial after refresh (refs mode) -- supplier must be re-installed
+    assertThat(((BaseTable) refsTable).operations().current())
+        .extracting("snapshots")
+        .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
+        .hasSize(1);
+
+    // resolving all snapshots must lazy-load the full history via the reinstalled supplier
+    assertThat(refsTable.snapshots()).hasSize(4);
+  }
+
+  @Test
+  public void testCommitOnRefsModeTableDoesNotLoadAllSnapshots() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
     RESTCatalog catalog =
@@ -1197,11 +1267,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 .build())
         .commit();
 
-    // the commit refreshes the table without the refs argument, once before applying the changes
-    // and once after committing to check that the new snapshot was saved
+    // the commit refreshes the table in refs mode, once before applying the changes and once
+    // after committing to check that the new snapshot was saved
     verify(adapter, times(2))
         .execute(
-            matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of()),
+            matches(
+                HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of("snapshots", "refs")),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -1216,8 +1287,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
     verify(adapter, Mockito.never())
         .execute(
-            matches(
-                HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of("snapshots", "refs")),
+            matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of()),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -1285,11 +1355,18 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .stageOnly()
         .commit();
 
-    // committing must not force loading all snapshots through the lazy snapshot supplier
+    // committing must not force loading all snapshots through the lazy snapshot supplier, even
+    // though the staged snapshot is not referenced by any ref
     verify(adapter, Mockito.never())
         .execute(
             matches(
                 HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of("snapshots", "all")),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+    verify(adapter, Mockito.never())
+        .execute(
+            matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of()),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -1362,6 +1439,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 .build())
         .toBranch(branch)
         .commit();
+
+    // only verify requests made by the loads below, not by the commits above
+    Mockito.clearInvocations(adapter);
 
     Table refsTable = catalog.loadTable(TABLE);
 

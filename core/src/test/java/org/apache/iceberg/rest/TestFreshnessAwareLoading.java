@@ -809,6 +809,9 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     table.newAppend().appendFile(FILE_A).commit();
     table.newAppend().appendFile(FILE_B).commit();
 
+    // only verify requests made by the loads below, not by the commits above
+    Mockito.clearInvocations(adapter);
+
     Table refsTable = catalog.loadTable(TABLE);
     String eTag = responseHeaders.get(HttpHeaders.ETAG);
     assertThat(eTag).isNotNull();
