@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * This ByteBufferInputStream does not consume the ByteBuffer being passed in, but will create a
@@ -82,6 +83,7 @@ class SingleBufferInputStream extends ByteBufferInputStream {
 
   @Override
   public void seek(long newPosition) throws IOException {
+    Preconditions.checkArgument(newPosition >= 0, "Position is negative: %s", newPosition);
     if (newPosition > length) {
       throw new EOFException(
           String.format("Cannot seek to position after end of file: %s", newPosition));
