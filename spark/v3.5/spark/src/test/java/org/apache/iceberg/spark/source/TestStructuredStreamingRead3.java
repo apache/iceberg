@@ -64,6 +64,7 @@ import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.VoidFunction2;
 import org.apache.spark.sql.Dataset;
@@ -75,6 +76,7 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
+import org.apache.spark.sql.streaming.StreamingQueryProgress;
 import org.apache.spark.sql.streaming.Trigger;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
@@ -150,6 +152,15 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
               Lists.newArrayList(
                   new SimpleRecord(15, "fifteen"), new SimpleRecord(16, "sixteen"))));
 
+  /** Five rows in one file, used by the initial-snapshot delete/DV tests. */
+  private static final List<SimpleRecord> FIVE_ROWS =
+      Lists.newArrayList(
+          new SimpleRecord(1, "one"),
+          new SimpleRecord(2, "two"),
+          new SimpleRecord(3, "three"),
+          new SimpleRecord(4, "four"),
+          new SimpleRecord(5, "five"));
+
   @BeforeAll
   public static void setupSpark() {
     // disable AQE as tests assume that writes generate a particular number of files
@@ -167,6 +178,31 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         tableName);
     this.table = validationCatalog.loadTable(tableIdent);
     microBatches.set(0);
+  }
+
+  /** Recreates {@code tableName} as a merge-on-read table at the given format version. */
+  private void createMergeOnReadTable(String formatVersion) {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql(
+        "CREATE TABLE %s (id INT, data STRING) USING iceberg "
+            + "TBLPROPERTIES ("
+            + "  'format-version' = '%s',"
+            + "  'write.delete.mode' = 'merge-on-read',"
+            + "  'write.update.mode' = 'merge-on-read',"
+            + "  'write.merge.mode' = 'merge-on-read'"
+            + ")",
+        tableName, formatVersion);
+    this.table = validationCatalog.loadTable(tableIdent);
+  }
+
+  private static List<SimpleRecord> excludingData(List<SimpleRecord> records, String data) {
+    List<SimpleRecord> result = Lists.newArrayList();
+    for (SimpleRecord r : records) {
+      if (!data.equals(r.getData())) {
+        result.add(r);
+      }
+    }
+    return result;
   }
 
   @AfterEach
@@ -823,6 +859,590 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testInitialSnapshotReadsCurrentDataThenIncremental() throws Exception {
+    List<List<SimpleRecord>> existing = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(existing);
+
+    StreamingQuery query = startStream();
+
+    List<SimpleRecord> afterInitial = rowsAvailable(query);
+    assertThat(afterInitial).containsExactlyInAnyOrderElementsOf(Iterables.concat(existing));
+
+    List<SimpleRecord> newRecords =
+        Lists.newArrayList(new SimpleRecord(100, "hundred"), new SimpleRecord(101, "hundred-one"));
+    appendData(newRecords);
+
+    List<SimpleRecord> total = Lists.newArrayList(Iterables.concat(existing));
+    total.addAll(newRecords);
+
+    List<SimpleRecord> afterIncremental = rowsAvailable(query);
+    assertThat(afterIncremental).containsExactlyInAnyOrderElementsOf(total);
+  }
+
+  @TestTemplate
+  public void testInitialSnapshotFromOverwriteSnapshot() throws Exception {
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+
+    List<SimpleRecord> postOverwrite =
+        Lists.newArrayList(
+            new SimpleRecord(100, "hundred"),
+            new SimpleRecord(101, "hundred-one"),
+            new SimpleRecord(102, "hundred-two"));
+    spark
+        .createDataFrame(postOverwrite, SimpleRecord.class)
+        .select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode("overwrite")
+        .save(tableName);
+
+    table.refresh();
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.OVERWRITE);
+
+    // The initial read must reflect the post-overwrite state only
+    StreamingQuery query = startStream();
+    assertThat(rowsAvailable(query)).containsExactlyInAnyOrderElementsOf(postOverwrite);
+  }
+
+  @TestTemplate
+  public void testInitialSnapshotFromDeleteSnapshot() throws Exception {
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+
+    table.refresh();
+    table.updateSpec().removeField("id_bucket").addField(ref("id")).commit();
+    table.refresh();
+    table.newDelete().deleteFromRowFilter(Expressions.equal("id", 4)).commit();
+
+    table.refresh();
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.DELETE);
+
+    // The initial read must reflect the post-delete state only
+    StreamingQuery query = startStream();
+    List<SimpleRecord> actual = rowsAvailable(query);
+    List<SimpleRecord> expected =
+        Lists.newArrayList(
+            new SimpleRecord(1, "one"),
+            new SimpleRecord(2, "two"),
+            new SimpleRecord(3, "three"),
+            new SimpleRecord(5, "five"),
+            new SimpleRecord(6, "six"),
+            new SimpleRecord(7, "seven"));
+    assertThat(actual).containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  @TestTemplate
+  public void testInitialSnapshotRecoversFromEmptyTableCheckpointWithNewCommits() throws Exception {
+    File writerCheckpointFolder = temp.resolve("empty-checkpoint-folder").toFile();
+    File writerCheckpoint = new File(writerCheckpointFolder, "writer-checkpoint");
+    File output = temp.resolve("empty-checkpoint-output").toFile();
+
+    Map<String, String> options = Maps.newHashMap();
+    options.put(SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED, async.toString());
+    if (async) {
+      options.put(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, "1");
+    }
+
+    DataStreamWriter<Row> querySource =
+        spark
+            .readStream()
+            .options(options)
+            .format("iceberg")
+            .load(tableName)
+            .writeStream()
+            .options(options)
+            .option("checkpointLocation", writerCheckpoint.toString())
+            .format("parquet")
+            .queryName("empty_checkpoint_test")
+            .option("path", output.getPath());
+
+    // Empty table at first stream start so persist START_OFFSET as the initial offset
+    StreamingQuery firstQuery = querySource.start();
+    firstQuery.processAllAvailable();
+    firstQuery.stop();
+
+    // Commits land while the stream is down, restart must not drop the backlog
+    List<SimpleRecord> firstBatch =
+        Lists.newArrayList(
+            new SimpleRecord(1, "one"), new SimpleRecord(2, "two"), new SimpleRecord(3, "three"));
+    List<SimpleRecord> secondBatch =
+        Lists.newArrayList(new SimpleRecord(4, "four"), new SimpleRecord(5, "five"));
+    appendData(firstBatch);
+    appendData(secondBatch);
+
+    StreamingQuery restarted = querySource.start();
+    restarted.processAllAvailable();
+    restarted.stop();
+
+    List<SimpleRecord> actual =
+        spark.read().load(output.getPath()).as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    List<SimpleRecord> expected = Lists.newArrayList();
+    expected.addAll(firstBatch);
+    expected.addAll(secondBatch);
+    assertThat(actual).containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  @TestTemplate
+  public void testStreamFromSnapshotLatestSkipsBacklog() throws Exception {
+    List<List<SimpleRecord>> existing = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(existing);
+
+    StreamingQuery query =
+        startStream(
+            SparkReadOptions.STREAM_FROM_SNAPSHOT, SparkReadOptions.STREAM_FROM_SNAPSHOT_LATEST);
+
+    // With "latest", the backlog must not be visible
+    assertThat(rowsAvailable(query)).isEmpty();
+
+    List<SimpleRecord> newRecords =
+        Lists.newArrayList(new SimpleRecord(100, "hundred"), new SimpleRecord(101, "hundred-one"));
+    appendData(newRecords);
+
+    // New appends after the stream starts should be picked up
+    assertThat(rowsAvailable(query)).containsExactlyInAnyOrderElementsOf(newRecords);
+  }
+
+  @TestTemplate
+  public void testStreamFromSnapshotEarliestReplaysHistory() throws Exception {
+    // historical default, stream snapshots from the oldest ancestor
+    List<List<SimpleRecord>> existing = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(existing);
+
+    StreamingQuery query =
+        startStream(
+            SparkReadOptions.STREAM_FROM_SNAPSHOT, SparkReadOptions.STREAM_FROM_SNAPSHOT_EARLIEST);
+
+    assertThat(rowsAvailable(query))
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(existing));
+  }
+
+  @TestTemplate
+  public void testStreamFromSnapshotSpecificIdReadsAfterSnapshot() throws Exception {
+    List<SimpleRecord> ignored =
+        Lists.newArrayList(new SimpleRecord(-1, "minus-one"), new SimpleRecord(0, "zero"));
+    appendData(ignored);
+    table.refresh();
+    long ignoredSnapshotId = table.currentSnapshot().snapshotId();
+
+    List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
+    appendDataAsMultipleSnapshots(expected);
+
+    StreamingQuery query =
+        startStream(SparkReadOptions.STREAM_FROM_SNAPSHOT, Long.toString(ignoredSnapshotId));
+
+    assertThat(rowsAvailable(query))
+        .containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
+  }
+
+  @TestTemplate
+  public void testStreamFromSnapshotEqualToCurrentBehavesLikeLatest() throws Exception {
+    // stream-from-snapshot=<current_id> must position past the current snapshot's end
+    appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
+    table.refresh();
+    long currentSnapshotId = table.currentSnapshot().snapshotId();
+    long expectedPosition = MicroBatchUtils.addedFilesCount(table, table.currentSnapshot());
+
+    SparkMicroBatchStream stream =
+        newMicroBatchStream(
+            ImmutableMap.of(
+                SparkReadOptions.STREAM_FROM_SNAPSHOT, Long.toString(currentSnapshotId)),
+            "stream-from-current-snapshot-id-checkpoint");
+    try {
+      StreamingOffset initial = (StreamingOffset) stream.initialOffset();
+      assertThat(initial.snapshotId()).isEqualTo(currentSnapshotId);
+      assertThat(initial.position()).isEqualTo(expectedPosition);
+      assertThat(initial.shouldScanAllFiles()).isFalse();
+    } finally {
+      stream.stop();
+    }
+  }
+
+  @TestTemplate
+  public void testStreamFromSnapshotAndStreamFromTimestampAreMutuallyExclusive() throws Exception {
+    appendData(Lists.newArrayList(new SimpleRecord(1, "one")));
+
+    Map<String, String> options =
+        ImmutableMap.of(
+            SparkReadOptions.STREAM_FROM_SNAPSHOT,
+            SparkReadOptions.STREAM_FROM_SNAPSHOT_LATEST,
+            SparkReadOptions.STREAM_FROM_TIMESTAMP,
+            Long.toString(System.currentTimeMillis()));
+
+    assertThatThrownBy(() -> newMicroBatchStream(options, "mutex-checkpoint"))
+        .hasMessageContaining(SparkReadOptions.STREAM_FROM_SNAPSHOT)
+        .hasMessageContaining(SparkReadOptions.STREAM_FROM_TIMESTAMP);
+  }
+
+  @TestTemplate
+  public void testStreamFromSnapshotInvalidValue() throws Exception {
+    appendData(Lists.newArrayList(new SimpleRecord(1, "one")));
+
+    assertThatThrownBy(
+            () ->
+                newMicroBatchStream(
+                    ImmutableMap.of(SparkReadOptions.STREAM_FROM_SNAPSHOT, "not-a-snapshot"),
+                    "invalid-value-checkpoint"))
+        .hasMessageContaining(SparkReadOptions.STREAM_FROM_SNAPSHOT)
+        .hasMessageContaining("not-a-snapshot");
+  }
+
+  @TestTemplate
+  public void testStreamFromSnapshotIdNotFound() throws Exception {
+    appendData(Lists.newArrayList(new SimpleRecord(1, "one")));
+
+    assertThatThrownBy(
+            () ->
+                newMicroBatchStream(
+                    ImmutableMap.of(SparkReadOptions.STREAM_FROM_SNAPSHOT, "12345"),
+                    "not-found-checkpoint"))
+        .hasMessageContaining("Cannot find snapshot")
+        .hasMessageContaining("12345");
+  }
+
+  @TestTemplate
+  public void testStreamFromSnapshotNotAncestorOfCurrentErrorsOut() throws Exception {
+    appendData(Lists.newArrayList(new SimpleRecord(1, "one")));
+    table.refresh();
+    long rollbackPoint = table.currentSnapshot().snapshotId();
+
+    // orphanedSnapshotId still exists in the log but is no longer an ancestor after the rollback
+    appendData(Lists.newArrayList(new SimpleRecord(2, "two")));
+    table.refresh();
+    long orphanedSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.manageSnapshots().rollbackTo(rollbackPoint).commit();
+    appendData(Lists.newArrayList(new SimpleRecord(3, "three")));
+    table.refresh();
+    assertThat(table.snapshot(orphanedSnapshotId)).isNotNull();
+    assertThat(
+            SnapshotUtil.isAncestorOf(
+                table, table.currentSnapshot().snapshotId(), orphanedSnapshotId))
+        .isFalse();
+
+    assertThatThrownBy(
+            () ->
+                newMicroBatchStream(
+                    ImmutableMap.of(
+                        SparkReadOptions.STREAM_FROM_SNAPSHOT, Long.toString(orphanedSnapshotId)),
+                    "not-ancestor-checkpoint"))
+        .hasMessageContaining("not an ancestor")
+        .hasMessageContaining(Long.toString(orphanedSnapshotId));
+  }
+
+  @TestTemplate
+  public void testInitialSnapshotAppliesPositionalDeletes() throws Exception {
+    createMergeOnReadTable("2");
+
+    // five rows in one file so Spark's V2 DELETE produces a positional delete rather than rewriting
+    appendData(FIVE_ROWS);
+
+    sql("DELETE FROM %s WHERE data = 'one'", tableName);
+    table.refresh();
+    assertThat(table.currentSnapshot().deleteManifests(table.io())).isNotEmpty();
+
+    StreamingQuery query = startStream();
+    assertThat(rowsAvailable(query))
+        .containsExactlyInAnyOrderElementsOf(excludingData(FIVE_ROWS, "one"));
+  }
+
+  @TestTemplate
+  public void testInitialSnapshotAppliesEqualityDeletes() throws Exception {
+    createMergeOnReadTable("2");
+    appendData(FIVE_ROWS);
+    table.refresh();
+
+    // write an equality delete file
+    Schema deleteRowSchema = table.schema().select("data");
+    Record deleteRecord = GenericRecord.create(deleteRowSchema);
+    List<Record> deletes = Lists.newArrayList(deleteRecord.copy("data", "one"));
+    File deleteOut = File.createTempFile("eq-delete", ".parquet");
+    deleteOut.delete();
+    deleteOut.deleteOnExit();
+    DeleteFile equalityDelete =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(deleteOut), null, deletes, deleteRowSchema);
+    table.newRowDelta().addDeletes(equalityDelete).commit();
+    table.refresh();
+    assertThat(table.currentSnapshot().deleteManifests(table.io())).isNotEmpty();
+
+    StreamingQuery query = startStream();
+    assertThat(rowsAvailable(query))
+        .containsExactlyInAnyOrderElementsOf(excludingData(FIVE_ROWS, "one"));
+  }
+
+  @TestTemplate
+  public void testInitialSnapshotAppliesDeletionVectors() throws Exception {
+    createMergeOnReadTable("3");
+    appendData(FIVE_ROWS);
+
+    sql("DELETE FROM %s WHERE data = 'one'", tableName);
+    table.refresh();
+    assertThat(table.currentSnapshot().deleteManifests(table.io())).isNotEmpty();
+
+    StreamingQuery query = startStream();
+    assertThat(rowsAvailable(query))
+        .containsExactlyInAnyOrderElementsOf(excludingData(FIVE_ROWS, "one"));
+  }
+
+  @TestTemplate
+  public void testInitialSnapshotWithCarriedForwardDeletesOnAppend() throws Exception {
+    createMergeOnReadTable("2");
+    appendData(FIVE_ROWS);
+
+    sql("DELETE FROM %s WHERE data = 'one'", tableName);
+
+    appendData(Lists.newArrayList(new SimpleRecord(100, "hundred")));
+    table.refresh();
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.APPEND);
+    assertThat(table.currentSnapshot().deleteManifests(table.io())).isNotEmpty();
+
+    List<SimpleRecord> expected = excludingData(FIVE_ROWS, "one");
+    expected.add(new SimpleRecord(100, "hundred"));
+
+    StreamingQuery query = startStream();
+    assertThat(rowsAvailable(query)).containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  @TestTemplate
+  public void testInitialSnapshotAppliesDeletesAcrossRateLimitedBatches() throws Exception {
+    createMergeOnReadTable("2");
+
+    // Three data files, 5 rows each, so the DELETE produces a row-level delete
+    List<SimpleRecord> file1 =
+        Lists.newArrayList(
+            new SimpleRecord(1, "one"),
+            new SimpleRecord(2, "two"),
+            new SimpleRecord(3, "three"),
+            new SimpleRecord(4, "four"),
+            new SimpleRecord(5, "five"));
+    List<SimpleRecord> file2 =
+        Lists.newArrayList(
+            new SimpleRecord(6, "six"),
+            new SimpleRecord(7, "seven"),
+            new SimpleRecord(8, "eight"),
+            new SimpleRecord(9, "nine"),
+            new SimpleRecord(10, "ten"));
+    List<SimpleRecord> file3 =
+        Lists.newArrayList(
+            new SimpleRecord(11, "eleven"),
+            new SimpleRecord(12, "twelve"),
+            new SimpleRecord(13, "thirteen"),
+            new SimpleRecord(14, "fourteen"),
+            new SimpleRecord(15, "fifteen"));
+    appendData(file1);
+    appendData(file2);
+    appendData(file3);
+
+    sql("DELETE FROM %s WHERE data = 'seven'", tableName);
+    table.refresh();
+    assertThat(table.currentSnapshot().deleteManifests(table.io())).isNotEmpty();
+
+    List<SimpleRecord> expected = Lists.newArrayList();
+    expected.addAll(file1);
+    for (SimpleRecord r : file2) {
+      if (!"seven".equals(r.getData())) {
+        expected.add(r);
+      }
+    }
+    expected.addAll(file3);
+
+    List<SimpleRecord> captured = Collections.synchronizedList(Lists.newArrayList());
+    AtomicInteger batchCount = new AtomicInteger();
+
+    Map<String, String> options = Maps.newHashMap();
+    options.put(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1");
+    options.put(SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED, async.toString());
+    if (async) {
+      options.put(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, "1");
+    }
+
+    StreamingQuery query =
+        spark
+            .readStream()
+            .options(options)
+            .format("iceberg")
+            .load(tableName)
+            .writeStream()
+            .options(options)
+            .trigger(Trigger.AvailableNow())
+            .foreachBatch(
+                (VoidFunction2<Dataset<Row>, Long>)
+                    (dataset, batchId) -> {
+                      batchCount.incrementAndGet();
+                      captured.addAll(
+                          dataset.as(Encoders.bean(SimpleRecord.class)).collectAsList());
+                    })
+            .start();
+    query.processAllAvailable();
+    query.awaitTermination(60000);
+
+    assertThat(captured).containsExactlyInAnyOrderElementsOf(expected);
+    assertThat(batchCount.get()).isGreaterThan(1);
+    stopStreams();
+  }
+
+  @TestTemplate
+  public void testInitialSnapshotRateLimitSplitsIntoMultipleBatches() throws Exception {
+    // initial data
+    appendData(
+        Lists.newArrayList(
+            new SimpleRecord(1, "one"), new SimpleRecord(2, "two"), new SimpleRecord(3, "three")));
+    appendData(Lists.newArrayList(new SimpleRecord(4, "four"), new SimpleRecord(5, "five")));
+
+    // overwrite initial data, rows 1-5 must not appear in the stream
+    List<SimpleRecord> postOverwrite =
+        Lists.newArrayList(
+            new SimpleRecord(100, "hundred"),
+            new SimpleRecord(101, "hundred-one"),
+            new SimpleRecord(102, "hundred-two"),
+            new SimpleRecord(103, "hundred-three"));
+    spark
+        .createDataFrame(postOverwrite, SimpleRecord.class)
+        .select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode("overwrite")
+        .save(tableName);
+
+    // Append again so the current snapshot's manifest list still references the overwrite's files
+    List<SimpleRecord> postOverwriteAppend =
+        Lists.newArrayList(new SimpleRecord(200, "two-hundred"));
+    appendData(postOverwriteAppend);
+
+    table.refresh();
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.APPEND);
+
+    List<SimpleRecord> expected = Lists.newArrayList();
+    expected.addAll(postOverwrite);
+    expected.addAll(postOverwriteAppend);
+
+    List<SimpleRecord> captured = Collections.synchronizedList(Lists.newArrayList());
+    AtomicInteger batchCount = new AtomicInteger();
+
+    Map<String, String> options = Maps.newHashMap();
+    options.put(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1");
+    options.put(SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED, async.toString());
+    if (async) {
+      options.put(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, "1");
+    }
+
+    StreamingQuery query =
+        spark
+            .readStream()
+            .options(options)
+            .format("iceberg")
+            .load(tableName)
+            .writeStream()
+            .options(options)
+            .trigger(Trigger.AvailableNow())
+            .foreachBatch(
+                (VoidFunction2<Dataset<Row>, Long>)
+                    (dataset, batchId) -> {
+                      batchCount.incrementAndGet();
+                      captured.addAll(
+                          dataset.as(Encoders.bean(SimpleRecord.class)).collectAsList());
+                    })
+            .start();
+    query.processAllAvailable();
+    query.awaitTermination(60000);
+
+    // only latest state of live rows arrive, nothing from before the overwrite
+    assertThat(captured).containsExactlyInAnyOrderElementsOf(expected);
+    // rate-limiting should split the initial snapshot read across multiple batches
+    assertThat(batchCount.get()).isGreaterThan(1);
+
+    long totalInputRows = 0L;
+    for (StreamingQueryProgress progress : query.recentProgress()) {
+      totalInputRows += progress.numInputRows();
+    }
+    assertThat(totalInputRows).isEqualTo((long) expected.size());
+    stopStreams();
+  }
+
+  @TestTemplate
+  public void testRestartMidInitialSnapshotResumesWithoutDuplicatesOrGaps() throws Exception {
+    // Three appends create three manifests, a restart must resolve the checkpoint identically
+    appendData(Lists.newArrayList(new SimpleRecord(1, "one")));
+    appendData(Lists.newArrayList(new SimpleRecord(2, "two")));
+    appendData(Lists.newArrayList(new SimpleRecord(3, "three")));
+
+    table.refresh();
+    List<String> allFileLocations = Lists.newArrayList();
+    try (CloseableIterable<FileScanTask> tasks =
+        table.newScan().useSnapshot(table.currentSnapshot().snapshotId()).planFiles()) {
+      for (FileScanTask task : tasks) {
+        allFileLocations.add(task.file().location());
+      }
+    }
+    assertThat(allFileLocations).hasSize(3);
+
+    Map<String, String> options =
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "1");
+
+    // Consume only the first micro-batch, then abandon the stream to simulate a mid-scan crash
+    SparkMicroBatchStream firstRunStream =
+        newMicroBatchStream(options, "restart-mid-initial-checkpoint");
+    Offset startOffset = firstRunStream.initialOffset();
+    Offset firstBatchEnd =
+        firstRunStream.latestOffset(startOffset, firstRunStream.getDefaultReadLimit());
+    assertThat(firstBatchEnd).isNotNull();
+
+    List<String> firstRunLocations =
+        fileLocationsOf(firstRunStream.planInputPartitions(startOffset, firstBatchEnd));
+    assertThat(firstRunLocations).hasSize(1);
+    firstRunStream.stop();
+
+    // "Restart": a new stream/planner instance replans the full scan from the same snapshot
+    SparkMicroBatchStream restartedStream =
+        newMicroBatchStream(options, "restart-mid-initial-checkpoint");
+    List<String> secondRunLocations = Lists.newArrayList();
+    Offset resumeOffset = firstBatchEnd;
+    Offset nextEnd =
+        restartedStream.latestOffset(resumeOffset, restartedStream.getDefaultReadLimit());
+    while (nextEnd != null) {
+      secondRunLocations.addAll(
+          fileLocationsOf(restartedStream.planInputPartitions(resumeOffset, nextEnd)));
+      resumeOffset = nextEnd;
+      nextEnd = restartedStream.latestOffset(resumeOffset, restartedStream.getDefaultReadLimit());
+    }
+    restartedStream.stop();
+
+    List<String> allConsumedLocations = Lists.newArrayList();
+    allConsumedLocations.addAll(firstRunLocations);
+    allConsumedLocations.addAll(secondRunLocations);
+
+    assertThat(allConsumedLocations).containsExactlyInAnyOrderElementsOf(allFileLocations);
+  }
+
+  @TestTemplate
+  public void testInitialSnapshotToIncrementalTransitionRespectsRateLimit() throws Exception {
+    // Two files exactly matching the file limit, so the initial snapshot uses the whole budget
+    appendData(Lists.newArrayList(new SimpleRecord(1, "one")));
+    appendData(Lists.newArrayList(new SimpleRecord(2, "two")));
+
+    Map<String, String> options =
+        ImmutableMap.of(SparkReadOptions.STREAMING_MAX_FILES_PER_MICRO_BATCH, "2");
+    SparkMicroBatchStream stream = newMicroBatchStream(options, "rate-limit-transition-checkpoint");
+    try {
+      Offset startOffset = stream.initialOffset();
+
+      // A next snapshot lands only after the initial offset is locked in, simulating a race
+      appendData(Lists.newArrayList(new SimpleRecord(3, "three")));
+
+      Offset endOffset = stream.latestOffset(startOffset, stream.getDefaultReadLimit());
+      assertThat(endOffset).isNotNull();
+
+      List<String> files = fileLocationsOf(stream.planInputPartitions(startOffset, endOffset));
+      assertThat(files)
+          .as(
+              "one microbatch must not exceed the configured file limit even across the"
+                  + " initial-snapshot-to-incremental transition")
+          .hasSizeLessThanOrEqualTo(2);
+    } finally {
+      stream.stop();
+    }
+  }
+
+  @TestTemplate
   public void testReadStreamWithSnapshotTypeOverwriteErrorsOut() throws Exception {
     // upgrade table to version 2 - to facilitate creation of Snapshot of type OVERWRITE.
     TableOperations ops = ((BaseTable) table).operations();
@@ -862,7 +1482,11 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     // type OVERWRITE
     assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.OVERWRITE);
 
-    StreamingQuery query = startStream();
+    StreamingQuery query =
+        startStream(
+            ImmutableMap.of(
+                SparkReadOptions.STREAM_FROM_SNAPSHOT,
+                SparkReadOptions.STREAM_FROM_SNAPSHOT_EARLIEST));
 
     assertThatThrownBy(query::processAllAvailable)
         .cause()
@@ -971,7 +1595,11 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     // DELETE.
     assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.DELETE);
 
-    StreamingQuery query = startStream();
+    StreamingQuery query =
+        startStream(
+            ImmutableMap.of(
+                SparkReadOptions.STREAM_FROM_SNAPSHOT,
+                SparkReadOptions.STREAM_FROM_SNAPSHOT_EARLIEST));
 
     assertThatThrownBy(query::processAllAvailable)
         .cause()
@@ -994,7 +1622,13 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     // DELETE.
     assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.DELETE);
 
-    StreamingQuery query = startStream(SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS, "true");
+    StreamingQuery query =
+        startStream(
+            ImmutableMap.of(
+                SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS,
+                "true",
+                SparkReadOptions.STREAM_FROM_SNAPSHOT,
+                SparkReadOptions.STREAM_FROM_SNAPSHOT_EARLIEST));
     assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
   }
@@ -1026,7 +1660,13 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
     // OVERWRITE.
     assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.OVERWRITE);
 
-    StreamingQuery query = startStream(SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS, "true");
+    StreamingQuery query =
+        startStream(
+            ImmutableMap.of(
+                SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS,
+                "true",
+                SparkReadOptions.STREAM_FROM_SNAPSHOT,
+                SparkReadOptions.STREAM_FROM_SNAPSHOT_EARLIEST));
     assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
   }
@@ -1149,6 +1789,17 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         .sql("select * from " + MEMORY_TABLE)
         .as(Encoders.bean(SimpleRecord.class))
         .collectAsList();
+  }
+
+  private static List<String> fileLocationsOf(InputPartition[] partitions) {
+    List<String> locations = Lists.newArrayList();
+    for (InputPartition partition : partitions) {
+      SparkInputPartition sparkInputPartition = (SparkInputPartition) partition;
+      for (FileScanTask task : sparkInputPartition.<FileScanTask>taskGroup().tasks()) {
+        locations.add(task.file().location());
+      }
+    }
+    return locations;
   }
 
   private SparkMicroBatchStream newMicroBatchStream(
