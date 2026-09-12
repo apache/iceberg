@@ -326,6 +326,8 @@ public class TestIcebergInputFormats {
 
     for (InputSplit split : testInputFormat.create(builder.conf()).getSplits()) {
       assertThat(split.getLocations()).containsExactly("localhost");
+      // repeated calls must return the same locations that were computed and cached above
+      assertThat(split.getLocations()).containsExactly("localhost");
     }
   }
 
