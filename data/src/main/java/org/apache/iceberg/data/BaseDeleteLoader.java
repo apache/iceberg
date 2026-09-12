@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import org.apache.iceberg.DVUtil;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
@@ -264,18 +265,7 @@ public class BaseDeleteLoader implements DeleteLoader {
   }
 
   private void validateDV(DeleteFile dv, CharSequence filePath) {
-    Preconditions.checkArgument(
-        dv.contentOffset() != null,
-        "Invalid DV, offset cannot be null: %s",
-        ContentFileUtil.dvDesc(dv));
-    Preconditions.checkArgument(
-        dv.contentSizeInBytes() != null,
-        "Invalid DV, length is null: %s",
-        ContentFileUtil.dvDesc(dv));
-    Preconditions.checkArgument(
-        dv.contentSizeInBytes() <= Integer.MAX_VALUE,
-        "Can't read DV larger than 2GB: %s",
-        dv.contentSizeInBytes());
+    DVUtil.validateDV(dv);
     Preconditions.checkArgument(
         filePath.toString().equals(dv.referencedDataFile()),
         "DV is expected to reference %s, not %s",
