@@ -164,7 +164,7 @@ See the [`RewriteManifests` Javadoc](../../javadoc/{{ icebergVersion }}/org/apac
 Iceberg can rewrite position delete files, which serves two purposes:
 
 * Minor compaction: Compact small position delete files into larger ones. This reduces the size of metadata stored in manifest files and the overhead of opening small delete files.
-* Remove dangling deletes: Filter out position delete records that refer to data files that are no longer live. After `rewriteDataFiles`, position delete records pointing to the rewritten data files are not always marked for removal, and can remain tracked by the table's live snapshot metadata. This is known as the "dangling delete" problem.
+* Filter dangling records: When a position delete file is selected for rewriting, discard records that reference data files that are no longer live.
 
 ```java
 Table table = ...
@@ -174,18 +174,19 @@ SparkActions
     .execute();
 ```
 
-Dangling deletes are always filtered out during rewriting.
+Only position delete files selected for rewriting are affected. For metadata-only removal of whole delete files identified as dangling, see [`removeDanglingDeleteFiles`](#remove-dangling-delete-files).
 
 See the [`RewritePositionDeleteFiles` Javadoc](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/actions/RewritePositionDeleteFiles.html) to see more configuration options. In Spark SQL, this action is also available as the [`rewrite_position_delete_files` procedure](spark-procedures.md#rewrite_position_delete_files).
 
 ### Remove dangling delete files
 
-A delete file is dangling if its deletes no longer apply to any live data files. The `removeDanglingDeleteFiles` action scans the current snapshot and removes:
+A delete file is dangling if its deletes no longer apply to any live data files. The `removeDanglingDeleteFiles` action scans the current snapshot and removes whole delete files that can be identified as dangling from metadata:
 
-* Position delete files with a data sequence number less than that of any data file in the same partition
+* Delete files in partitions with no live data files
+* Position delete files with a data sequence number less than that of any data file in the same partition; deletion vectors are removed when their referenced data file is no longer live
 * Equality delete files with a data sequence number less than or equal to that of any data file in the same partition
 
-This is a metadata-only operation: dangling delete files are dropped from table metadata, and no data or delete files are rewritten.
+This is a metadata-only operation: dangling delete files are dropped from table metadata, and no data or delete files are rewritten. The action removes references to whole delete files; it does not filter dangling records from files that also contain valid records. For unpartitioned tables the action is a no-op, because dangling deletes are already removed table-wide on every commit.
 
 ```java
 Table table = ...
@@ -195,7 +196,7 @@ SparkActions
     .execute();
 ```
 
-There is no Spark SQL procedure for this action, but the `rewriteDataFiles` action can remove dangling deletes as part of compaction when the `remove-dangling-deletes` option is set to `true`, and the `rewritePositionDeletes` action always filters out dangling position deletes.
+There is no Spark SQL procedure for this action. During compaction, `rewriteDataFiles` can remove dangling delete files when `remove-dangling-deletes` is `true`. `rewritePositionDeletes` also filters dangling records from the position delete files it rewrites.
 
 See the [`RemoveDanglingDeleteFiles` Javadoc](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/actions/RemoveDanglingDeleteFiles.html) for more details.
 
@@ -203,7 +204,7 @@ See the [`RemoveDanglingDeleteFiles` Javadoc](../../javadoc/{{ icebergVersion }}
 
 The `computeTableStats` action collects Number of Distinct Values (NDV) statistics for table columns, writes them to a [Puffin](../../puffin-spec.md) statistics file, and registers the file in table metadata. Query engines can use these statistics for cost-based optimization.
 
-By default, statistics are collected for all columns using the table's current snapshot. The action can be configured to use a specific snapshot and/or a subset of columns.
+By default, statistics are collected for all top-level primitive columns using the table's current snapshot. The action can be configured to use a specific snapshot and/or a subset of columns.
 
 ```java
 Table table = ...
@@ -218,7 +219,7 @@ See the [`ComputeTableStats` Javadoc](../../javadoc/{{ icebergVersion }}/org/apa
 
 ### Compute partition statistics
 
-The `computePartitionStats` action computes [partition statistics](../../spec.md#partition-statistics) for the table and registers the resulting partition statistics file in table metadata. Statistics are computed incrementally from the last snapshot that has a partition statistics file up to the chosen snapshot (the current snapshot by default); a full computation is performed if no previous partition statistics file exists.
+The `computePartitionStats` action computes [partition statistics](../../spec.md#partition-statistics) for a partitioned table and registers the resulting partition statistics file in table metadata. Statistics are computed incrementally from the last snapshot that has a partition statistics file up to the chosen snapshot (the current snapshot by default); a full computation is performed if no previous partition statistics file exists.
 
 ```java
 Table table = ...
@@ -268,6 +269,6 @@ SparkActions
     .execute();
 ```
 
-The action returns the name of the latest rewritten `metadata.json` and the location of a file list containing the source and target paths of all files to copy. The action only stages rewritten metadata files and prepares the copy plan; actually copying the data and metadata files to the target location is done separately with a file-copy tool.
+The action returns the name of the latest rewritten `metadata.json` and the location of a file list containing the source and target paths of all files to copy. It writes metadata and position delete files with updated paths to a staging directory, but does not copy any files to the target location. Use a separate file-copy tool to copy the files listed in the plan.
 
 See the [`RewriteTablePath` Javadoc](../../javadoc/{{ icebergVersion }}/org/apache/iceberg/actions/RewriteTablePath.html) to see more configuration options. In Spark SQL, this action is also available as the [`rewrite_table_path` procedure](spark-procedures.md#rewrite_table_path).
