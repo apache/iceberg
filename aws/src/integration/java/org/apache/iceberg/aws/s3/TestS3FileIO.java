@@ -32,7 +32,9 @@ import static org.mockito.Mockito.verify;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
@@ -91,6 +93,8 @@ import org.mockito.Mockito;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.AwsServiceClientConfiguration;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -100,18 +104,23 @@ import software.amazon.awssdk.identity.spi.IdentityProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.S3ServiceClientConfiguration;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Error;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 @Testcontainers
 public class TestS3FileIO {
@@ -1041,5 +1050,62 @@ public class TestS3FileIO {
               assertThat(identity.secretAccessKey()).isEqualTo("refreshedSecretKey");
               assertThat(identity.sessionToken()).isEqualTo("refreshedSessionToken");
             });
+  }
+
+  @Test
+  public void testNewInputFileForPreSignedUrl() throws IOException {
+    byte[] expected = new byte[1024 * 1024];
+    random.nextBytes(expected);
+    String url = putObjectAndPreSign("path/to/pre-signed.txt", expected);
+
+    InputFile in = s3FileIO.newInputFile(url, expected.length);
+    assertThat(in.location()).isEqualTo(url);
+    assertThat(in.exists()).isTrue();
+
+    byte[] actual = new byte[expected.length];
+    try (InputStream is = in.newStream()) {
+      IOUtil.readFully(is, actual, 0, actual.length);
+    }
+
+    assertThat(actual).isEqualTo(expected);
+  }
+
+  @Test
+  public void testTamperedPreSignedUrlIsRejected() {
+    byte[] expected = new byte[1024];
+    random.nextBytes(expected);
+    String url = putObjectAndPreSign("path/to/pre-signed.txt", expected);
+
+    InputFile in = s3FileIO.newInputFile(url + "0", expected.length);
+    assertThatThrownBy(() -> in.newStream().read())
+        .isInstanceOf(IOException.class)
+        .hasMessageContaining("HTTP 403");
+  }
+
+  /** Writes an object through MinIO and signs a GET URL for it with the AWS presigner. */
+  private String putObjectAndPreSign(String key, byte[] content) {
+    s3.get()
+        .putObject(
+            PutObjectRequest.builder().bucket(S3_GENERAL_PURPOSE_BUCKET).key(key).build(),
+            RequestBody.fromBytes(content));
+    try (S3Presigner presigner =
+        S3Presigner.builder()
+            .endpointOverride(URI.create(minio.getS3URL()))
+            .region(Region.US_EAST_1)
+            .credentialsProvider(
+                StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create(minio.getUserName(), minio.getPassword())))
+            .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
+            .build()) {
+      return presigner
+          .presignGetObject(
+              GetObjectPresignRequest.builder()
+                  .signatureDuration(Duration.ofMinutes(10))
+                  .getObjectRequest(
+                      GetObjectRequest.builder().bucket(S3_GENERAL_PURPOSE_BUCKET).key(key).build())
+                  .build())
+          .url()
+          .toString();
+    }
   }
 }
