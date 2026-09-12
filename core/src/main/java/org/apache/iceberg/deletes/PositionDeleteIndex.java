@@ -80,6 +80,28 @@ public interface PositionDeleteIndex {
   }
 
   /**
+   * Traverses the deleted positions within the given range in ascending order, applying the
+   * provided consumer.
+   *
+   * <p>Callers that test a contiguous range of positions should prefer this method over calling
+   * {@link #isDeleted(long)} once per position. Implementations backed by a bitmap can locate the
+   * containers covering the range once and walk them, instead of resolving the container for every
+   * position.
+   *
+   * @param posStart the first position in the range, inclusive
+   * @param length the number of positions in the range
+   * @param consumer a consumer for the deleted positions in the range
+   */
+  default void forEachInRange(long posStart, int length, LongConsumer consumer) {
+    for (int index = 0; index < length; index++) {
+      long pos = posStart + index;
+      if (isDeleted(pos)) {
+        consumer.accept(pos);
+      }
+    }
+  }
+
+  /**
    * Returns delete files that this index was created from or an empty collection if unknown.
    *
    * @return delete files that this index was created from

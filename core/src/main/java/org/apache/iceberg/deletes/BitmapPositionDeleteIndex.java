@@ -99,6 +99,11 @@ class BitmapPositionDeleteIndex implements PositionDeleteIndex {
   }
 
   @Override
+  public void forEachInRange(long posStart, int length, LongConsumer consumer) {
+    bitmap.forEachInRange(posStart, length, consumer);
+  }
+
+  @Override
   public Collection<DeleteFile> deleteFiles() {
     return deleteFiles;
   }
