@@ -199,6 +199,7 @@ public class Avro {
         writerFunc = GenericAvroWriter::new;
       }
 
+      meta(AvroFileMetadataAware.FIXED_ENCODING_META_KEY, AvroFileMetadataAware.FIXED_ENCODING_V2);
       // add the Iceberg schema to keyValueMetadata
       meta("iceberg.schema", SchemaParser.toJson(schema));
 
