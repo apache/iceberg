@@ -123,6 +123,8 @@ interface DataConverter {
         return new ArrayConverter((ArrayType) sourceType, (ArrayType) targetType);
       case MAP:
         return new MapConverter((MapType) sourceType, (MapType) targetType);
+      case VARIANT:
+        return object -> object;
       default:
         throw new UnsupportedOperationException("Not a supported type: " + targetType);
     }
