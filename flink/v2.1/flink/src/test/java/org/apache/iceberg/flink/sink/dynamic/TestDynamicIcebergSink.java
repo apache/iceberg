@@ -49,6 +49,7 @@ import org.apache.flink.configuration.RestartStrategyOptions;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.runtime.OperatorIDPair;
 import org.apache.flink.runtime.client.JobExecutionException;
+import org.apache.flink.runtime.jobgraph.JobEdge;
 import org.apache.flink.runtime.jobgraph.JobVertex;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -401,6 +402,54 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     assertThat(shufflingWriterSSGApplied).isTrue();
     assertThat(generatorSSGApplied).isTrue();
+  }
+
+  @Test
+  void testCommitterParallelismAppliedToGeneratedCommitter() {
+    DataStream<DynamicIcebergDataImpl> dataStream =
+        env.fromData(Collections.emptyList(), TypeInformation.of(new TypeHint<>() {}));
+
+    DynamicIcebergSink.forInput(dataStream)
+        .generator(new ForwardGenerator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .writeParallelism(8)
+        .committerParallelism(1)
+        .committerMaxParallelism(1)
+        .immediateTableUpdate(false)
+        .overwrite(false)
+        .append();
+
+    List<JobVertex> vertices =
+        StreamSupport.stream(env.getStreamGraph().getJobGraph().getVertices().spliterator(), false)
+            .toList();
+
+    List<JobVertex> preCommitVertices =
+        vertices.stream()
+            .filter(
+                vertex ->
+                    vertex.getOperatorIDs().stream()
+                        .anyMatch(
+                            id ->
+                                id.getUserDefinedOperatorUid() != null
+                                    && id.getUserDefinedOperatorUid()
+                                        .endsWith("-pre-commit-topology")))
+            .toList();
+    assertThat(preCommitVertices).hasSize(1);
+
+    List<JobVertex> committerVertices =
+        vertices.stream()
+            .filter(vertex -> vertex.getName() != null && vertex.getName().contains("Committer"))
+            .toList();
+    assertThat(committerVertices).hasSize(1);
+
+    JobVertex preCommitVertex = preCommitVertices.get(0);
+    JobVertex committerVertex = committerVertices.get(0);
+    assertThat(committerVertex.getParallelism()).isEqualTo(1);
+    assertThat(committerVertex.getMaxParallelism()).isEqualTo(1);
+
+    List<JobEdge> committerInputs = committerVertex.getInputs();
+    assertThat(committerInputs).hasSize(1);
+    assertThat(committerInputs.get(0).getSource().getProducer()).isEqualTo(preCommitVertex);
   }
 
   @Test

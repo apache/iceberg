@@ -220,6 +220,20 @@ public class FlinkWriteConf {
     return confParser.intConf().option(FlinkWriteOptions.WRITE_PARALLELISM.key()).parseOptional();
   }
 
+  public Integer committerParallelism() {
+    return confParser
+        .intConf()
+        .option(FlinkWriteOptions.COMMITTER_PARALLELISM.key())
+        .parseOptional();
+  }
+
+  public Integer committerMaxParallelism() {
+    return confParser
+        .intConf()
+        .option(FlinkWriteOptions.COMMITTER_MAX_PARALLELISM.key())
+        .parseOptional();
+  }
+
   public boolean expireSnapshotsMode() {
     return confParser
         .booleanConf()
