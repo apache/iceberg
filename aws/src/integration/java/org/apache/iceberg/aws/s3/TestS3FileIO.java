@@ -79,7 +79,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.assertj.core.api.InstanceOfAssertFactories;
@@ -1081,26 +1080,6 @@ public class TestS3FileIO {
     assertThatThrownBy(() -> in.newStream().read())
         .isInstanceOf(IOException.class)
         .hasMessageContaining("HTTP 403");
-  }
-
-  @ParameterizedTest
-  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
-  public void testPreSignedUrlAfterSerialization(
-      TestHelpers.RoundTripSerializer<S3FileIO> roundTripSerializer)
-      throws IOException, ClassNotFoundException {
-    byte[] expected = new byte[1024];
-    random.nextBytes(expected);
-    String url = putObjectAndPreSign("path/to/pre-signed.txt", expected);
-
-    S3FileIO fileIO = new S3FileIO();
-    fileIO.initialize(ImmutableMap.of());
-    // the reader exists before the round trip; it is transient and rebuilt by the copy
-    assertThat(fileIO.newInputFile(url, expected.length).exists()).isTrue();
-
-    try (S3FileIO executorCopy = roundTripSerializer.apply(fileIO);
-        InputStream is = executorCopy.newInputFile(url, expected.length).newStream()) {
-      assertThat(ByteStreams.toByteArray(is)).isEqualTo(expected);
-    }
   }
 
   /** Writes an object through MinIO and signs a GET URL for it with the AWS presigner. */

@@ -20,35 +20,76 @@ package org.apache.iceberg.io;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpStatus;
+import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * An {@link InputFile} addressed by a pre-signed URL. {@link #location()} is the URL itself.
+ * An {@link InputFile} addressed by a pre-signed URL: an {@code http} or {@code https} URL carrying
+ * its own authorization. {@link #location()} is the URL itself.
  *
- * <p>The length comes from the caller; {@code 0} means unknown, as in {@code S3InputFile}, and is
- * then read from {@code Content-Range} on a single-byte range GET. HEAD is not an option, as the
- * method is part of the signature and presigned URLs are signed with GET method.
+ * <p>All instances share one HTTP client.
  */
-class PreSignedUrlInputFile implements InputFile {
+public class PreSignedUrlInputFile implements InputFile {
 
-  private final CloseableHttpClient http;
+  private static final Logger LOG = LoggerFactory.getLogger(PreSignedUrlInputFile.class);
+  private static final String DEFAULT_METRICS_IMPL =
+      "org.apache.iceberg.hadoop.HadoopMetricsContext";
+  private static final String METRICS_PREFIX = "presigned-url";
+
+  // pool size, in total and per host
+  private static final int MAX_CONNECTIONS = 100;
+  // the AWS SDK's HTTP defaults, as in S3FileIO; HttpClient's own socket timeout is unbounded
+  private static final long CONNECT_TIMEOUT_MS = 2_000;
+  private static final int SOCKET_TIMEOUT_MS = 30_000;
+
+  private static volatile CloseableHttpClient http;
+  private static volatile MetricsContext metrics;
+
   private final String url;
-  private final MetricsContext metrics;
   private Long length;
 
-  PreSignedUrlInputFile(CloseableHttpClient http, String url, long length, MetricsContext metrics) {
-    this.http = http;
+  private PreSignedUrlInputFile(String url, long length) {
     this.url = url;
     this.length = length > 0 ? length : null;
-    this.metrics = metrics;
   }
 
+  /** Whether {@code location} is an {@code http} or {@code https} URL. */
+  public static boolean isHttpUrl(String location) {
+    String lower = location.toLowerCase(Locale.ROOT);
+    return lower.startsWith("https://") || lower.startsWith("http://");
+  }
+
+  /**
+   * Returns an input file that reads {@code url} as given.
+   *
+   * @param url an {@code http} or {@code https} URL
+   * @param length the file length if known, otherwise {@code 0}
+   */
+  public static InputFile of(String url, long length) {
+    Preconditions.checkArgument(isHttpUrl(url), "Not an http or https URL: %s", url);
+    return new PreSignedUrlInputFile(url, length);
+  }
+
+  /**
+   * The length comes from the caller; {@code 0} means unknown, as in {@code S3InputFile}, and is
+   * then read from {@code Content-Range} on a single-byte range GET. HEAD is not an option, as the
+   * method is part of the signature and pre-signed URLs are signed for GET.
+   */
   @Override
   public long getLength() {
     if (length == null) {
@@ -60,7 +101,7 @@ class PreSignedUrlInputFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    return new PreSignedUrlInputStream(http, url, metrics);
+    return new PreSignedUrlInputStream(http(), url, metrics());
   }
 
   @Override
@@ -87,7 +128,7 @@ class PreSignedUrlInputFile implements InputFile {
     HttpGet get = new HttpGet(url);
     get.setHeader("Range", "bytes=0-0");
     try {
-      ClassicHttpResponse response = http.executeOpen(null, get, null);
+      ClassicHttpResponse response = http().executeOpen(null, get, null);
       int code = response.getCode();
       if (code != HttpStatus.SC_PARTIAL_CONTENT
           && code != HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
@@ -106,5 +147,61 @@ class PreSignedUrlInputFile implements InputFile {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  private static CloseableHttpClient http() {
+    if (null == http) {
+      synchronized (PreSignedUrlInputFile.class) {
+        if (null == http) {
+          ConnectionConfig connectionConfig =
+              ConnectionConfig.custom()
+                  .setConnectTimeout(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                  .setSocketTimeout(SOCKET_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                  .build();
+          // the signed request is the whole request: no redirects, no content coding, no cookies
+          http =
+              HttpClients.custom()
+                  .setConnectionManager(
+                      PoolingHttpClientConnectionManagerBuilder.create()
+                          .setMaxConnTotal(MAX_CONNECTIONS)
+                          .setMaxConnPerRoute(MAX_CONNECTIONS)
+                          .setDefaultConnectionConfig(connectionConfig)
+                          .build())
+                  .disableRedirectHandling()
+                  .disableContentCompression()
+                  .disableCookieManagement()
+                  .disableAuthCaching()
+                  .build();
+        }
+      }
+    }
+
+    return http;
+  }
+
+  @SuppressWarnings("CatchBlockLogException")
+  private static MetricsContext metrics() {
+    if (null == metrics) {
+      synchronized (PreSignedUrlInputFile.class) {
+        if (null == metrics) {
+          try {
+            DynConstructors.Ctor<MetricsContext> ctor =
+                DynConstructors.builder(MetricsContext.class)
+                    .hiddenImpl(DEFAULT_METRICS_IMPL, String.class)
+                    .buildChecked();
+            MetricsContext context = ctor.newInstance(METRICS_PREFIX);
+            context.initialize(Map.of());
+            metrics = context;
+          } catch (NoClassDefFoundError | NoSuchMethodException | ClassCastException e) {
+            LOG.warn(
+                "Unable to load metrics class: '{}', falling back to null metrics",
+                DEFAULT_METRICS_IMPL);
+            metrics = MetricsContext.nullMetrics();
+          }
+        }
+      }
+    }
+
+    return metrics;
   }
 }

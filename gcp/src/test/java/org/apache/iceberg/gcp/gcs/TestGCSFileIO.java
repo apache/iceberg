@@ -584,20 +584,4 @@ public class TestGCSFileIO {
     assertThat(in.getClass().getSimpleName()).isEqualTo("PreSignedUrlInputFile");
     assertThat(in.location()).isEqualTo(PRE_SIGNED_URL);
   }
-
-  @ParameterizedTest
-  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
-  public void preSignedUrlAfterSerialization(
-      TestHelpers.RoundTripSerializer<GCSFileIO> roundTripSerializer)
-      throws IOException, ClassNotFoundException {
-    GCSFileIO fileIO = new GCSFileIO();
-    fileIO.initialize(ImmutableMap.of());
-    // the reader exists before the round trip; it is transient and rebuilt by the copy
-    fileIO.newInputFile(PRE_SIGNED_URL, 10);
-
-    try (GCSFileIO executorCopy = roundTripSerializer.apply(fileIO)) {
-      assertThat(executorCopy.newInputFile(PRE_SIGNED_URL, 10).getClass().getSimpleName())
-          .isEqualTo("PreSignedUrlInputFile");
-    }
-  }
 }

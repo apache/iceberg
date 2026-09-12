@@ -43,7 +43,7 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.PreSignedUrlReader;
+import org.apache.iceberg.io.PreSignedUrlInputFile;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsContext;
@@ -85,7 +85,6 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
   private transient volatile Map<String, PrefixedStorage> storageByPrefix;
   private transient volatile ScheduledFuture<?> refreshFuture;
-  private transient volatile PreSignedUrlReader preSignedUrlReader;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -111,23 +110,11 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    if (PreSignedUrlReader.handles(path)) {
-      return preSignedUrlReader().newInputFile(path, length);
+    if (PreSignedUrlInputFile.isHttpUrl(path)) {
+      return PreSignedUrlInputFile.of(path, length);
     }
 
     return GCSInputFile.fromLocation(path, length, clientForStoragePath(path), metrics);
-  }
-
-  private PreSignedUrlReader preSignedUrlReader() {
-    if (null == preSignedUrlReader) {
-      synchronized (this) {
-        if (null == preSignedUrlReader) {
-          this.preSignedUrlReader = new PreSignedUrlReader(properties);
-        }
-      }
-    }
-
-    return preSignedUrlReader;
   }
 
   @Override
@@ -302,10 +289,6 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
       if (refreshFuture != null) {
         refreshFuture.cancel(true);
         refreshFuture = null;
-      }
-      if (preSignedUrlReader != null) {
-        preSignedUrlReader.close();
-        this.preSignedUrlReader = null;
       }
     }
   }

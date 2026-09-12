@@ -230,26 +230,4 @@ public class TestResolvingIO {
       assertThat(file.getLength()).isEqualTo(10);
     }
   }
-
-  @ParameterizedTest
-  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
-  public void testPreSignedUrlAfterSerialization(
-      TestHelpers.RoundTripSerializer<ResolvingFileIO> roundTripSerializer) throws Exception {
-    try (PreSignedUrlTestServer store = new PreSignedUrlTestServer(temp.resolve("store"));
-        ResolvingFileIO resolvingFileIO = new ResolvingFileIO()) {
-      resolvingFileIO.initialize(ImmutableMap.of());
-      byte[] expected = new byte[1024 * 1024];
-      random.nextBytes(expected);
-      store.put("data/part-0.parquet", expected);
-      String url = store.url("data/part-0.parquet");
-      // the reader exists before the round trip; it is transient and rebuilt by the copy
-      assertThat(resolvingFileIO.newInputFile(url, expected.length).exists()).isTrue();
-
-      try (ResolvingFileIO executorCopy = roundTripSerializer.apply(resolvingFileIO);
-          SeekableInputStream stream =
-              executorCopy.newInputFile(url, expected.length).newStream()) {
-        assertThat(ByteStreams.toByteArray(stream)).isEqualTo(expected);
-      }
-    }
-  }
 }
