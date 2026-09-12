@@ -84,6 +84,7 @@ object-client-bundle = "3.3.2"
 orc = "1.9.9"
 parquet = "1.17.1"
 roaringbitmap = "1.6.20"
+rocksdbjni = "8.10.0"
 scala-collection-compat = "2.14.0"
 slf4j = "2.0.18"
 snowflake-jdbc = "3.28.0"
@@ -181,6 +182,7 @@ parquet-avro = { module = "org.apache.parquet:parquet-avro", version.ref = "parq
 parquet-column = { module = "org.apache.parquet:parquet-column", version.ref = "parquet" }
 parquet-hadoop = { module = "org.apache.parquet:parquet-hadoop", version.ref = "parquet" }
 roaringbitmap = { module = "org.roaringbitmap:RoaringBitmap", version.ref = "roaringbitmap" }
+rocksdbjni = { module = "org.rocksdb:rocksdbjni", version.ref = "rocksdbjni" }
 scala-collection-compat = { module = "org.scala-lang.modules:scala-collection-compat_2.13", version.ref = "scala-collection-compat"}
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
