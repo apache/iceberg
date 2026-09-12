@@ -22,11 +22,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
 import java.util.Map.Entry;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
+import org.assertj.core.api.InstanceOfAssertFactories;
+import org.bson.BsonArray;
+import org.bson.BsonDateTime;
 import org.bson.BsonDocument;
+import org.bson.BsonInt32;
+import org.bson.BsonTimestamp;
 import org.bson.BsonValue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -388,5 +395,114 @@ public class TestMongoArrayConverter {
         .isEqualTo(
             "Struct{" + "_id=1," + "a1=Struct{" + "_0=Struct{a=1}," + "_1=Struct{a=c}" + "}" + "}");
     // @formatter:on
+  }
+
+  @Test
+  @SuppressWarnings("JavaUtilDate")
+  public void shouldConvertArrayOfTimestamps() {
+    final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.ARRAY);
+    final BsonDocument val =
+        new BsonDocument()
+            .append("_id", new BsonInt32(1))
+            .append(
+                "ts",
+                new BsonArray(Arrays.asList(new BsonTimestamp(60, 1), new BsonTimestamp(120, 1))));
+
+    final SchemaBuilder schemaBuilder = SchemaBuilder.struct().name("array");
+    for (Entry<String, BsonValue> entry : val.entrySet()) {
+      converter.addFieldSchema(entry, schemaBuilder);
+    }
+    final Schema finalSchema = schemaBuilder.build();
+    final Struct struct = new Struct(finalSchema);
+    for (Entry<String, BsonValue> entry : val.entrySet()) {
+      converter.convertRecord(entry, finalSchema, struct);
+    }
+
+    assertThat(struct.get("ts"))
+        .asInstanceOf(InstanceOfAssertFactories.LIST)
+        .containsExactly(new Date(60_000L), new Date(120_000L));
+  }
+
+  @Test
+  @SuppressWarnings("JavaUtilDate")
+  public void shouldConvertArrayOfDateTimes() {
+    final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.ARRAY);
+    final BsonDocument val =
+        new BsonDocument()
+            .append("_id", new BsonInt32(1))
+            .append(
+                "dt",
+                new BsonArray(Arrays.asList(new BsonDateTime(1_000L), new BsonDateTime(2_000L))));
+
+    final SchemaBuilder schemaBuilder = SchemaBuilder.struct().name("array");
+    for (Entry<String, BsonValue> entry : val.entrySet()) {
+      converter.addFieldSchema(entry, schemaBuilder);
+    }
+    final Schema finalSchema = schemaBuilder.build();
+    final Struct struct = new Struct(finalSchema);
+    for (Entry<String, BsonValue> entry : val.entrySet()) {
+      converter.convertRecord(entry, finalSchema, struct);
+    }
+
+    assertThat(struct.get("dt"))
+        .asInstanceOf(InstanceOfAssertFactories.LIST)
+        .containsExactly(new Date(1_000L), new Date(2_000L));
+  }
+
+  @Test
+  @SuppressWarnings("JavaUtilDate")
+  public void shouldConvertNestedArrayOfTimestamps() {
+    final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.ARRAY);
+    final BsonDocument val =
+        new BsonDocument()
+            .append("_id", new BsonInt32(1))
+            .append(
+                "ts",
+                new BsonArray(
+                    Arrays.asList(
+                        new BsonArray(Collections.singletonList(new BsonTimestamp(60, 1))),
+                        new BsonArray(Collections.singletonList(new BsonTimestamp(120, 1))))));
+
+    final SchemaBuilder schemaBuilder = SchemaBuilder.struct().name("array");
+    for (Entry<String, BsonValue> entry : val.entrySet()) {
+      converter.addFieldSchema(entry, schemaBuilder);
+    }
+    final Schema finalSchema = schemaBuilder.build();
+    final Struct struct = new Struct(finalSchema);
+    for (Entry<String, BsonValue> entry : val.entrySet()) {
+      converter.convertRecord(entry, finalSchema, struct);
+    }
+
+    assertThat(struct.get("ts"))
+        .asInstanceOf(InstanceOfAssertFactories.LIST)
+        .containsExactly(
+            Collections.singletonList(new Date(60_000L)),
+            Collections.singletonList(new Date(120_000L)));
+  }
+
+  @Test
+  @SuppressWarnings("JavaUtilDate")
+  public void shouldConvertDocumentEncodedArrayOfTimestamps() {
+    final MongoDataConverter converter = new MongoDataConverter(ArrayEncoding.DOCUMENT);
+    final BsonDocument val =
+        new BsonDocument()
+            .append("_id", new BsonInt32(1))
+            .append(
+                "ts",
+                new BsonArray(Arrays.asList(new BsonTimestamp(60, 1), new BsonTimestamp(120, 1))));
+
+    final SchemaBuilder schemaBuilder = SchemaBuilder.struct().name("array");
+    for (Entry<String, BsonValue> entry : val.entrySet()) {
+      converter.addFieldSchema(entry, schemaBuilder);
+    }
+    final Schema finalSchema = schemaBuilder.build();
+    final Struct struct = new Struct(finalSchema);
+    for (Entry<String, BsonValue> entry : val.entrySet()) {
+      converter.convertRecord(entry, finalSchema, struct);
+    }
+
+    final Struct tsStruct = struct.getStruct("ts");
+    assertThat(tsStruct.get("_0")).isEqualTo(new Date(60_000L));
+    assertThat(tsStruct.get("_1")).isEqualTo(new Date(120_000L));
   }
 }
