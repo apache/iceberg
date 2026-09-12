@@ -64,8 +64,10 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.util.Exceptions;
@@ -107,6 +109,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final AtomicInteger manifestCount = new AtomicInteger(0);
   private final AtomicInteger attempt = new AtomicInteger(0);
   private final List<String> manifestLists = Lists.newArrayList();
+
+  /** Manifests written to each manifest list, keyed by manifest list location. */
+  private final Map<String, List<ManifestFile>> manifestsByManifestList = Maps.newHashMap();
+
   private final long targetManifestSizeBytes;
   private final FileFormat manifestFormat;
   private final Map<String, String> manifestWriterProps;
@@ -325,6 +331,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
 
       writer.addAll(Arrays.asList(manifestFiles));
+      manifestsByManifestList.put(manifestList.location(), ImmutableList.copyOf(manifestFiles));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
@@ -541,7 +548,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         Snapshot saved = ops.refresh().snapshot(newSnapshotId.get());
         if (saved != null) {
           if (cleanupAfterCommit()) {
-            cleanUncommitted(Sets.newHashSet(saved.allManifests(ops.io())));
+            cleanUncommitted(Sets.newHashSet(committedManifests(saved)));
           }
 
           // also clean up unused manifest lists created by multiple attempts
@@ -600,7 +607,29 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       deleteFile(manifestList);
     }
     manifestLists.clear();
+    manifestsByManifestList.clear();
     cleanUncommitted(EMPTY_SET);
+  }
+
+  /**
+   * Returns the manifests of the committed snapshot without reading its manifest list when this
+   * producer wrote that manifest list.
+   */
+  private List<ManifestFile> committedManifests(Snapshot saved) {
+    List<ManifestFile> manifests = writtenManifests(saved.manifestListLocation());
+    if (manifests != null) {
+      return manifests;
+    }
+
+    return saved.allManifests(ops.io());
+  }
+
+  /**
+   * Returns the manifests written to the given manifest list, or null if not written by this
+   * producer.
+   */
+  List<ManifestFile> writtenManifests(String manifestListLocation) {
+    return manifestsByManifestList.get(manifestListLocation);
   }
 
   protected void deleteFile(String path) {
