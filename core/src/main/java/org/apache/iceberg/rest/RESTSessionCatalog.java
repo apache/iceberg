@@ -52,6 +52,8 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -168,6 +170,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
+  private KeyManagementClient keyManagementClient = null;
   private String namespaceSeparator = null;
   private ScanPlanningMode clientScanPlanningMode = null;
 
@@ -275,6 +278,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             mergedProps,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
+
+    if (mergedProps.containsKey(CatalogProperties.ENCRYPTION_KMS_TYPE)
+        || mergedProps.containsKey(CatalogProperties.ENCRYPTION_KMS_IMPL)) {
+      this.keyManagementClient = EncryptionUtil.createKmsClient(mergedProps);
+      this.closeables.addCloseable(this.keyManagementClient);
+    }
 
     if (reportingViaRestEnabled) {
       this.metricsExecutor = ThreadPools.newFixedThreadPool("rest-metrics-reporter", 1);
@@ -1302,7 +1311,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableMetadata current,
       Set<Endpoint> supportedEndpoints) {
     return new RESTTableOperations(
-        restClient, path, readHeaders, mutationHeaderSupplier, fileIO, current, supportedEndpoints);
+        restClient,
+        path,
+        readHeaders,
+        mutationHeaderSupplier,
+        fileIO,
+        keyManagementClient,
+        current,
+        supportedEndpoints);
   }
 
   /**
@@ -1341,6 +1357,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         readHeaders,
         mutationHeaderSupplier,
         fileIO,
+        keyManagementClient,
         updateType,
         createChanges,
         current,

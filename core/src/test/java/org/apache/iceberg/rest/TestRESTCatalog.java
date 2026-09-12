@@ -3234,7 +3234,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           FileIO fileIO,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints) {
-        super(client, path, () -> customHeaders, fileIO, current, supportedEndpoints);
+        super(client, path, () -> customHeaders, fileIO, null, current, supportedEndpoints);
         customTableOpsCalled.set(true);
       }
 
@@ -3252,6 +3252,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             path,
             () -> customHeaders,
             fileIO,
+            null,
             updateType,
             createChanges,
             current,
