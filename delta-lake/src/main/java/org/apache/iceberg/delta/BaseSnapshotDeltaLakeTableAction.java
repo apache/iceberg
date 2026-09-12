@@ -24,7 +24,6 @@ import io.delta.standalone.actions.Action;
 import io.delta.standalone.actions.AddFile;
 import io.delta.standalone.actions.RemoveFile;
 import io.delta.standalone.exceptions.DeltaStandaloneException;
-import java.io.File;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -448,13 +447,13 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
    *     (either absolute or relative)
    * @param tableRoot the root path of the delta table
    */
-  private static String getFullFilePath(String path, String tableRoot) {
+  static String getFullFilePath(String path, String tableRoot) {
     URI dataFileUri = URI.create(path);
     String decodedPath = URLDecoder.decode(path, StandardCharsets.UTF_8);
     if (dataFileUri.isAbsolute()) {
       return decodedPath;
     } else {
-      return tableRoot + File.separator + decodedPath;
+      return tableRoot + "/" + decodedPath;
     }
   }
 }
