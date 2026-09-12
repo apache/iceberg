@@ -118,6 +118,25 @@ public class ManifestFiles {
   }
 
   /**
+   * Returns a {@link CloseableIterable} of live {@link ContentFile}s in the {@link ManifestFile},
+   * reading only the given columns.
+   *
+   * @param manifest a ManifestFile
+   * @param io a FileIO
+   * @param specsById a Map from spec ID to partition spec
+   * @param columns columns to read
+   * @return a manifest reader
+   */
+  public static CloseableIterable<? extends ContentFile<?>> readColumns(
+      ManifestFile manifest,
+      FileIO io,
+      Map<Integer, PartitionSpec> specsById,
+      Collection<String> columns) {
+    ManifestReader<? extends ContentFile<?>> reader = open(manifest, io, specsById);
+    return CloseableIterable.transform(reader.select(columns).liveEntries(), ManifestEntry::file);
+  }
+
+  /**
    * Returns a new {@link ManifestReader} for a {@link ManifestFile}.
    *
    * @param manifest a {@link ManifestFile}
