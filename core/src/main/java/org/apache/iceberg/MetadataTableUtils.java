@@ -88,6 +88,8 @@ public class MetadataTableUtils {
         return new AllEntriesTable(baseTable, metadataTableName);
       case POSITION_DELETES:
         return new PositionDeletesTable(baseTable, metadataTableName);
+      case LABELS:
+        return new LabelsTable(baseTable, metadataTableName);
       default:
         throw new NoSuchTableException(
             "Unknown metadata table type: %s for %s", type, metadataTableName);
