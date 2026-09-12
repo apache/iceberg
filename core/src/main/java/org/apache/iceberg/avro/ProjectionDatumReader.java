@@ -30,6 +30,11 @@ import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.types.TypeUtil;
 
+/**
+ * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link
+ *     org.apache.iceberg.data.avro.PlannedDataReader} instead.
+ */
+@Deprecated
 public class ProjectionDatumReader<D> implements DatumReader<D>, SupportsRowPosition {
   private final Function<Schema, DatumReader<?>> getReader;
   private final org.apache.iceberg.Schema expectedSchema;

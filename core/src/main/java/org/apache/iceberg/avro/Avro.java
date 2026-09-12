@@ -618,6 +618,11 @@ public class Avro {
       return this;
     }
 
+    /**
+     * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link
+     *     #createResolvingReader(Function)} instead.
+     */
+    @Deprecated
     public ReadBuilder createReaderFunc(Function<Schema, DatumReader<?>> readerFunction) {
       Preconditions.checkState(
           createReaderBiFunc == null && createResolvingReaderFunc == null,
@@ -626,6 +631,11 @@ public class Avro {
       return this;
     }
 
+    /**
+     * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link
+     *     #createResolvingReader(Function)} instead.
+     */
+    @Deprecated
     public ReadBuilder createReaderFunc(
         BiFunction<org.apache.iceberg.Schema, Schema, DatumReader<?>> readerFunction) {
       Preconditions.checkState(
