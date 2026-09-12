@@ -70,6 +70,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
@@ -77,6 +78,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
@@ -302,6 +304,16 @@ public class CatalogHandlers {
 
   public static ListNamespacesResponse listNamespaces(
       SupportsNamespaces catalog, Namespace parent) {
+    return listNamespaces(catalog, parent, false);
+  }
+
+  public static ListNamespacesResponse listNamespacesRecursively(
+      SupportsNamespaces catalog, Namespace parent) {
+    return listNamespaces(catalog, parent, true);
+  }
+
+  private static ListNamespacesResponse listNamespaces(
+      SupportsNamespaces catalog, Namespace parent, boolean recursive) {
     List<Namespace> results;
     if (parent.isEmpty()) {
       results = catalog.listNamespaces();
@@ -309,7 +321,29 @@ public class CatalogHandlers {
       results = catalog.listNamespaces(parent);
     }
 
+    if (recursive) {
+      results = listNamespacesRecursively(catalog, results);
+    }
+
     return ListNamespacesResponse.builder().addAll(results).build();
+  }
+
+  private static List<Namespace> listNamespacesRecursively(
+      SupportsNamespaces catalog, List<Namespace> namespaces) {
+    List<Namespace> allNamespaces = Lists.newArrayList(namespaces);
+
+    for (Namespace namespace : namespaces) {
+      try {
+        List<Namespace> children = catalog.listNamespaces(namespace);
+        if (!children.isEmpty()) {
+          allNamespaces.addAll(listNamespacesRecursively(catalog, children));
+        }
+      } catch (NoSuchNamespaceException | ForbiddenException e) {
+        // Skip the namespace if it has been deleted concurrently or access is forbidden
+      }
+    }
+
+    return allNamespaces;
   }
 
   public static ListNamespacesResponse listNamespaces(
