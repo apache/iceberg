@@ -20,12 +20,16 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.util.ArrayDeque;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.ManifestEntry.Status;
@@ -40,6 +44,9 @@ import org.apache.iceberg.util.Exceptions;
 import org.apache.iceberg.util.Tasks;
 
 abstract class ManifestMergeManager<F extends ContentFile<F>> {
+  // bound on entries held in memory ahead of the writer within one bin
+  static final long MAX_READ_AHEAD_ENTRIES = 1_000;
+
   private final long targetSizeBytes;
   private final int minCountToMerge;
   private final boolean mergeEnabled;
@@ -193,34 +200,54 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
     }
 
     ManifestWriter<F> writer = newManifestWriter(spec(specId));
+    ExecutorService workerPool = workerPoolSupplier.get();
+    Deque<FutureTask<List<ManifestEntry<F>>>> pendingReads = new ArrayDeque<>();
     boolean threw = true;
     try {
-      for (ManifestFile manifest : bin) {
-        boolean isCommitted =
-            manifest.snapshotId() != null && snapshotId() != manifest.snapshotId();
-        try (ManifestReader<F> reader = newManifestReader(manifest, isCommitted)) {
-          for (ManifestEntry<F> entry : reader.entries()) {
-            if (entry.status() == Status.DELETED) {
-              // suppress deletes from previous snapshots. only files deleted by this snapshot
-              // should be added to the new manifest
-              if (entry.snapshotId() == snapshotId()) {
-                writer.delete(entry);
-              }
-            } else if (entry.status() == Status.ADDED && entry.snapshotId() == snapshotId()) {
-              // adds from this snapshot are still adds, otherwise they should be existing
-              writer.add(entry);
-            } else {
-              // add all files from the old manifest as existing files
-              writer.existing(entry);
-            }
-          }
-        } catch (IOException e) {
-          throw new RuntimeIOException(e, "Failed to close manifest reader");
+      // reads run on the worker pool ahead of the writer, which consumes them in bin order. a
+      // manifest too large for the read-ahead bound is streamed by the writer instead.
+      int nextToRead = 0;
+      int nextToWrite = 0;
+      long readAheadEntries = 0;
+      while (nextToWrite < bin.size()) {
+        ManifestFile current = bin.get(nextToWrite);
+        boolean streamCurrent =
+            nextToRead == nextToWrite && entryCount(current) > MAX_READ_AHEAD_ENTRIES;
+        if (streamCurrent) {
+          nextToRead += 1;
         }
+
+        while (nextToRead < bin.size()
+            && entryCount(bin.get(nextToRead)) <= MAX_READ_AHEAD_ENTRIES - readAheadEntries) {
+          ManifestFile manifest = bin.get(nextToRead);
+          FutureTask<List<ManifestEntry<F>>> read = new FutureTask<>(() -> readEntries(manifest));
+          pendingReads.addLast(read);
+          readAheadEntries += entryCount(manifest);
+          workerPool.execute(read);
+          nextToRead += 1;
+        }
+
+        if (streamCurrent) {
+          streamEntries(writer, current);
+        } else {
+          for (ManifestEntry<F> entry : awaitEntries(pendingReads.removeFirst())) {
+            writeEntry(writer, entry);
+          }
+
+          readAheadEntries -= entryCount(current);
+        }
+
+        nextToWrite += 1;
       }
+
       threw = false;
 
     } finally {
+      // unstarted reads are skipped; a read in progress finishes and is discarded
+      for (FutureTask<List<ManifestEntry<F>>> read : pendingReads) {
+        read.cancel(false);
+      }
+
       Exceptions.close(writer, threw);
     }
 
@@ -236,5 +263,83 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
     }
 
     return manifest;
+  }
+
+  private static long entryCount(ManifestFile manifest) {
+    if (manifest.addedFilesCount() == null
+        || manifest.existingFilesCount() == null
+        || manifest.deletedFilesCount() == null) {
+      // v1 manifest lists may omit entry counts; a manifest of unknown size is streamed
+      return Long.MAX_VALUE;
+    }
+
+    return (long) manifest.addedFilesCount()
+        + manifest.existingFilesCount()
+        + manifest.deletedFilesCount();
+  }
+
+  private boolean isCommitted(ManifestFile manifest) {
+    return manifest.snapshotId() != null && snapshotId() != manifest.snapshotId();
+  }
+
+  private List<ManifestEntry<F>> readEntries(ManifestFile manifest) {
+    try (ManifestReader<F> reader = newManifestReader(manifest, isCommitted(manifest))) {
+      List<ManifestEntry<F>> entries = Lists.newArrayList();
+      for (ManifestEntry<F> entry : reader.entries()) {
+        // the reader reuses one entry container; copy with stats so the writer sees each entry
+        entries.add(entry.copy());
+      }
+
+      return entries;
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close manifest reader");
+    }
+  }
+
+  private void streamEntries(ManifestWriter<F> writer, ManifestFile manifest) {
+    try (ManifestReader<F> reader = newManifestReader(manifest, isCommitted(manifest))) {
+      for (ManifestEntry<F> entry : reader.entries()) {
+        writeEntry(writer, entry);
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close manifest reader");
+    }
+  }
+
+  private List<ManifestEntry<F>> awaitEntries(FutureTask<List<ManifestEntry<F>>> read) {
+    // run the read inline unless a worker has claimed it, so a bin never waits on a queued read
+    // while every worker waits on its own bin
+    read.run();
+    try {
+      return read.get();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted while reading manifest", e);
+    } catch (ExecutionException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof RuntimeException runtimeException) {
+        throw runtimeException;
+      } else if (cause instanceof Error error) {
+        throw error;
+      }
+
+      throw new RuntimeException("Failed to read manifest", cause);
+    }
+  }
+
+  private void writeEntry(ManifestWriter<F> writer, ManifestEntry<F> entry) {
+    if (entry.status() == Status.DELETED) {
+      // suppress deletes from previous snapshots. only files deleted by this snapshot
+      // should be added to the new manifest
+      if (entry.snapshotId() == snapshotId()) {
+        writer.delete(entry);
+      }
+    } else if (entry.status() == Status.ADDED && entry.snapshotId() == snapshotId()) {
+      // adds from this snapshot are still adds, otherwise they should be existing
+      writer.add(entry);
+    } else {
+      // add all files from the old manifest as existing files
+      writer.existing(entry);
+    }
   }
 }
