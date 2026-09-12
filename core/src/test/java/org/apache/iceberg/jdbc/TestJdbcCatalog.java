@@ -32,6 +32,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.SQLNonTransientConnectionException;
@@ -305,6 +306,68 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
             () -> jdbcCatalog.buildView(TableIdentifier.of("namespace1", "view")).create())
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage(JdbcCatalog.VIEW_WARNING_LOG_MESSAGE);
+  }
+
+  @Test
+  void catalogTablesAreCreatedWhenAnotherTableMatchesTheirNamePattern() throws Exception {
+    // as this test uses different connections, we can't use memory database (as it's per
+    // connection), but a file database instead
+    java.nio.file.Path dbFile = Files.createTempFile("icebergSimilarTable", "db");
+    String jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
+
+    // the underscore in iceberg_tables is a wildcard when used as a JDBC metadata pattern, so
+    // this unrelated table is reported as the catalog table unless the pattern is escaped
+    executeUpdate(jdbcUrl, "CREATE TABLE iceberg1tables (col VARCHAR(255))");
+
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, jdbcUrl);
+
+    try (JdbcCatalog jdbcCatalog = new JdbcCatalog()) {
+      jdbcCatalog.setConf(conf);
+      jdbcCatalog.initialize("similar_table_catalog", properties);
+
+      assertThat(catalogTablesExist(jdbcUrl)).isTrue();
+
+      TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("ns1"), "tbl");
+      jdbcCatalog.buildTable(tableIdent, SCHEMA).create();
+      assertThat(jdbcCatalog.loadTable(tableIdent).schema().asStruct())
+          .isEqualTo(SCHEMA.asStruct());
+    }
+  }
+
+  @Test
+  void schemaVersionIgnoresColumnsOfTablesMatchingTheCatalogTableNamePattern() throws Exception {
+    // as this test uses different connections, we can't use memory database (as it's per
+    // connection), but a file database instead
+    java.nio.file.Path dbFile = Files.createTempFile("icebergSimilarColumn", "db");
+    String jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
+
+    // create the catalog tables up front so that only schema version detection is exercised
+    executeUpdate(jdbcUrl, JdbcUtil.V0_CREATE_CATALOG_SQL);
+    executeUpdate(jdbcUrl, JdbcUtil.CREATE_NAMESPACE_PROPERTIES_TABLE_SQL);
+    // this table and its column match iceberg_tables and iceberg_type through the underscore
+    // wildcard, so an unescaped lookup reports view support that the catalog table lacks
+    executeUpdate(jdbcUrl, "CREATE TABLE iceberg1tables (iceberg1type VARCHAR(5))");
+
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, jdbcUrl);
+
+    try (JdbcCatalog jdbcCatalog = new JdbcCatalog()) {
+      jdbcCatalog.setConf(conf);
+      jdbcCatalog.initialize("similar_column_catalog", properties);
+
+      // committing as V1 would write iceberg_type, which this V0 catalog table does not have
+      TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("ns1"), "tbl");
+      jdbcCatalog.buildTable(tableIdent, SCHEMA).create();
+      assertThat(jdbcCatalog.loadTable(tableIdent).schema().asStruct())
+          .isEqualTo(SCHEMA.asStruct());
+
+      assertThatThrownBy(() -> jdbcCatalog.listViews(Namespace.of("ns1")))
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage(JdbcCatalog.VIEW_WARNING_LOG_MESSAGE);
+    }
   }
 
   @Test
@@ -1259,6 +1322,16 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
                   + table2MetadataLocation
                   + "',null)")
           .execute();
+    }
+  }
+
+  private void executeUpdate(String jdbcUrl, String sql) throws SQLException {
+    SQLiteDataSource dataSource = new SQLiteDataSource();
+    dataSource.setUrl(jdbcUrl);
+
+    try (Connection connection = dataSource.getConnection();
+        PreparedStatement statement = connection.prepareStatement(sql)) {
+      statement.executeUpdate();
     }
   }
 

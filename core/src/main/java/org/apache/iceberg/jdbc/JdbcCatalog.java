@@ -168,15 +168,17 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     connections.run(
         conn -> {
           DatabaseMetaData dbMeta = conn.getMetaData();
+          String catalog = JdbcUtil.metadataCatalog(conn);
+          String escape = dbMeta.getSearchStringEscape();
 
           // check the existence of a table name
           Predicate<String> tableTest =
               name -> {
                 try (ResultSet result =
                     dbMeta.getTables(
-                        null /* catalog name */,
+                        catalog,
                         null /* schemaPattern */,
-                        name /* tableNamePattern */,
+                        JdbcUtil.escapeMetadataPattern(name, escape) /* tableNamePattern */,
                         null /* types */)) {
                   return result.next();
                 } catch (SQLException e) {
@@ -235,9 +237,13 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       connections.run(
           conn -> {
             DatabaseMetaData dbMeta = conn.getMetaData();
+            String escape = dbMeta.getSearchStringEscape();
             try (ResultSet typeColumn =
                 dbMeta.getColumns(
-                    null, null, JdbcUtil.CATALOG_TABLE_VIEW_NAME, JdbcUtil.RECORD_TYPE)) {
+                    JdbcUtil.metadataCatalog(conn),
+                    null,
+                    JdbcUtil.escapeMetadataPattern(JdbcUtil.CATALOG_TABLE_VIEW_NAME, escape),
+                    JdbcUtil.escapeMetadataPattern(JdbcUtil.RECORD_TYPE, escape))) {
               if (typeColumn.next()) {
                 LOG.debug("{} already supports views", JdbcUtil.CATALOG_TABLE_VIEW_NAME);
                 schemaVersion = JdbcUtil.SchemaVersion.V1;
