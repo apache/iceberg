@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -33,6 +34,7 @@ import org.apache.iceberg.aws.s3.signer.S3V4RestSignerClient;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
@@ -228,6 +230,21 @@ public class S3FileIOProperties implements Serializable {
    * different endpoint, or access a private S3 endpoint in a virtual private cloud.
    */
   public static final String ENDPOINT = "s3.endpoint";
+
+  /**
+   * Comma-separated list of host suffixes that catalog-vended pre-signed HTTP(S) reads are allowed
+   * to target (for example {@code amazonaws.com}). A URL's host must equal, or be a dotted
+   * subdomain of, a listed suffix; reads to any other host, or over plain HTTP, are rejected. The
+   * configured {@link #ENDPOINT} host, when set, is always allowed.
+   *
+   * <p>When unset, this defaults to AWS S3 domains ({@code amazonaws.com}, {@code
+   * amazonaws.com.cn}). Because a REST catalog can vend {@code s3.*} properties, operators that do
+   * not fully trust their catalog should set this client-side.
+   */
+  public static final String PRESIGNED_READ_ALLOWED_HOSTS = "s3.presigned-read.allowed-hosts";
+
+  static final Set<String> PRESIGNED_READ_ALLOWED_HOSTS_DEFAULT =
+      Collections.unmodifiableSet(Sets.newHashSet("amazonaws.com", "amazonaws.com.cn"));
 
   /**
    * If set {@code true}, requests to S3FileIO will use Path-Style, otherwise, Virtual Hosted-Style
@@ -536,6 +553,7 @@ public class S3FileIOProperties implements Serializable {
   private final boolean isUseArnRegionEnabled;
   private final boolean isAccelerationEnabled;
   private final String endpoint;
+  private final Set<String> presignedReadAllowedHosts;
   private final boolean isRemoteSigningEnabled;
   private final boolean isS3AnalyticsAcceleratorEnabled;
   private final Map<String, String> s3AnalyticsacceleratorProperties;
@@ -558,6 +576,7 @@ public class S3FileIOProperties implements Serializable {
     this.sessionToken = null;
     this.acl = null;
     this.endpoint = null;
+    this.presignedReadAllowedHosts = Sets.newHashSet(PRESIGNED_READ_ALLOWED_HOSTS_DEFAULT);
     this.multipartUploadThreads = Runtime.getRuntime().availableProcessors();
     this.multiPartSize = MULTIPART_SIZE_DEFAULT;
     this.multipartThresholdFactor = MULTIPART_THRESHOLD_FACTOR_DEFAULT;
@@ -611,6 +630,7 @@ public class S3FileIOProperties implements Serializable {
           null != sseMd5, "Cannot initialize SSE-C S3FileIO with null encryption key MD5");
     }
     this.endpoint = properties.get(ENDPOINT);
+    this.presignedReadAllowedHosts = parsePresignedReadAllowedHosts(properties, endpoint);
 
     this.multipartUploadThreads =
         PropertyUtil.propertyAsInt(
@@ -851,6 +871,38 @@ public class S3FileIOProperties implements Serializable {
 
   public String endpoint() {
     return this.endpoint;
+  }
+
+  public Set<String> presignedReadAllowedHosts() {
+    return presignedReadAllowedHosts;
+  }
+
+  private static Set<String> parsePresignedReadAllowedHosts(
+      Map<String, String> properties, String endpoint) {
+    Set<String> hosts = Sets.newHashSet();
+    String configured = properties.get(PRESIGNED_READ_ALLOWED_HOSTS);
+    if (configured == null || configured.trim().isEmpty()) {
+      hosts.addAll(PRESIGNED_READ_ALLOWED_HOSTS_DEFAULT);
+    } else {
+      for (String suffix : Splitter.on(',').trimResults().omitEmptyStrings().split(configured)) {
+        hosts.add(suffix.toLowerCase(Locale.ROOT));
+      }
+    }
+
+    // Always trust the configured S3 endpoint host, so custom, VPC, or S3-compatible endpoints
+    // work without extra configuration.
+    if (endpoint != null) {
+      try {
+        String endpointHost = URI.create(endpoint).getHost();
+        if (endpointHost != null) {
+          hosts.add(endpointHost.toLowerCase(Locale.ROOT));
+        }
+      } catch (IllegalArgumentException e) {
+        // An unparseable endpoint is validated elsewhere; ignore it for host allow-listing.
+      }
+    }
+
+    return hosts;
   }
 
   public void setChecksumEnabled(boolean eTagCheckEnabled) {
