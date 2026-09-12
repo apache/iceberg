@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.util;
 
+import java.io.Serializable;
 import org.apache.iceberg.StructLike;
 
 public class StructLikeUtil {
@@ -28,7 +29,7 @@ public class StructLikeUtil {
     return StructCopy.copy(struct);
   }
 
-  private static class StructCopy implements StructLike {
+  private static class StructCopy implements StructLike, Serializable {
     private static StructLike copy(StructLike struct) {
       return struct != null ? new StructCopy(struct) : null;
     }
