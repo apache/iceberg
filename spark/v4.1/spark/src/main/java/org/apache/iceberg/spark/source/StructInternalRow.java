@@ -55,6 +55,7 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.DoubleType;
 import org.apache.spark.sql.types.FloatType;
+import org.apache.spark.sql.types.GeographyType;
 import org.apache.spark.sql.types.GeometryType;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
@@ -255,14 +256,22 @@ class StructInternalRow extends InternalRow {
 
   @Override
   public GeographyVal getGeography(int ordinal) {
-    return isNullAt(ordinal) ? null : STUtils.stGeogFromWKB(getBinaryInternal(ordinal));
+    return isNullAt(ordinal) ? null : getGeographyInternal(ordinal);
+  }
+
+  private GeographyVal getGeographyInternal(int ordinal) {
+    return STUtils.stGeogFromWKB(getBinaryInternal(ordinal));
   }
 
   @Override
   public GeometryVal getGeometry(int ordinal) {
-    return isNullAt(ordinal)
-        ? null
-        : toGeometryVal(type.fields().get(ordinal).type(), getBinaryInternal(ordinal));
+    return isNullAt(ordinal) ? null : getGeometryInternal(ordinal);
+  }
+
+  private GeometryVal getGeometryInternal(int ordinal) {
+    GeometryType sparkType =
+        (GeometryType) SparkSchemaUtil.convert(type.fields().get(ordinal).type());
+    return toGeometryVal(sparkType.srid(), getBinaryInternal(ordinal));
   }
 
   @Override
@@ -304,6 +313,10 @@ class StructInternalRow extends InternalRow {
       return getLong(ordinal);
     } else if (dataType instanceof VariantType) {
       return getVariantInternal(ordinal);
+    } else if (dataType instanceof GeometryType) {
+      return getGeometryInternal(ordinal);
+    } else if (dataType instanceof GeographyType) {
+      return getGeographyInternal(ordinal);
     }
     return null;
   }
@@ -346,11 +359,12 @@ class StructInternalRow extends InternalRow {
             array ->
                 (BiConsumer<Integer, BigDecimal>) (pos, dec) -> array[pos] = Decimal.apply(dec));
       case GEOMETRY:
+        int srid = ((GeometryType) SparkSchemaUtil.convert(elementType)).srid();
         return fillArray(
             values,
             array ->
                 (BiConsumer<Integer, Object>)
-                    (pos, value) -> array[pos] = toGeometryVal(elementType, value));
+                    (pos, value) -> array[pos] = toGeometryVal(srid, value));
       case GEOGRAPHY:
         return fillArray(
             values,
@@ -387,9 +401,8 @@ class StructInternalRow extends InternalRow {
     }
   }
 
-  private static GeometryVal toGeometryVal(Type type, Object value) {
-    GeometryType sparkType = (GeometryType) SparkSchemaUtil.convert(type);
-    return STUtils.stGeomFromWKB(toByteArray(value), sparkType.srid());
+  private static GeometryVal toGeometryVal(int srid, Object value) {
+    return STUtils.stGeomFromWKB(toByteArray(value), srid);
   }
 
   private static VariantVal toVariantVal(Object value) {

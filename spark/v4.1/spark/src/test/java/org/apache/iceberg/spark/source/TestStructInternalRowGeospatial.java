@@ -121,15 +121,37 @@ public class TestStructInternalRowGeospatial {
     InternalRow converted = locations.getStruct(0, locationType.fields().size());
     assertGeometry(converted.getGeometry(0), 3857, geometry);
     assertGeography(converted.getGeography(1), geography);
+    DataType sparkGeometryType = SparkSchemaUtil.convert(geometryType);
+    DataType sparkGeographyType = SparkSchemaUtil.convert(geographyType);
+    assertGeometry((GeometryVal) converted.get(0, sparkGeometryType), 3857, geometry);
+    assertGeography((GeographyVal) converted.get(1, sparkGeographyType), geography);
     assertThat(locations.isNullAt(1)).isTrue();
   }
 
+  @Test
+  public void returnsNullForGeospatialFields() {
+    Types.GeometryType geometryType = Types.GeometryType.of("EPSG:3857");
+    Types.GeographyType geographyType = Types.GeographyType.crs84();
+    Types.StructType structType =
+        Types.StructType.of(
+            Types.NestedField.optional(1, "geometry", geometryType),
+            Types.NestedField.optional(2, "geography", geographyType));
+    InternalRow row = new StructInternalRow(structType).setStruct(GenericRecord.create(structType));
+
+    assertThat(row.getGeometry(0)).isNull();
+    assertThat(row.getGeography(1)).isNull();
+    assertThat(row.get(0, SparkSchemaUtil.convert(geometryType))).isNull();
+    assertThat(row.get(1, SparkSchemaUtil.convert(geographyType))).isNull();
+  }
+
   private static void assertGeometry(GeometryVal geometry, int srid, byte[] wkb) {
+    assertThat(geometry).isNotNull();
     assertThat(STUtils.stSrid(geometry)).isEqualTo(srid);
     assertThat(STUtils.stAsBinary(geometry)).isEqualTo(wkb);
   }
 
   private static void assertGeography(GeographyVal geography, byte[] wkb) {
+    assertThat(geography).isNotNull();
     assertThat(STUtils.stSrid(geography)).isEqualTo(4326);
     assertThat(STUtils.stAsBinary(geography)).isEqualTo(wkb);
   }
