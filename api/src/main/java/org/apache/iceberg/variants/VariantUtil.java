@@ -57,18 +57,12 @@ class VariantUtil {
     Preconditions.checkArgument(value.remaining() >= 1, "Invalid variant: empty value buffer");
     int header = ByteBuffers.readByte(value, 0);
     BasicType basicType = basicType(header);
-    switch (basicType) {
-      case PRIMITIVE:
-        return SerializedPrimitive.from(value, header);
-      case SHORT_STRING:
-        return SerializedShortString.from(value, header);
-      case OBJECT:
-        return SerializedObject.from(metadata, value, header, depth);
-      case ARRAY:
-        return SerializedArray.from(metadata, value, header, depth);
-    }
-
-    throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
+    return switch (basicType) {
+      case PRIMITIVE -> SerializedPrimitive.from(value, header);
+      case SHORT_STRING -> SerializedShortString.from(value, header);
+      case OBJECT -> SerializedObject.from(metadata, value, header, depth);
+      case ARRAY -> SerializedArray.from(metadata, value, header, depth);
+    };
   }
 
   static float readFloat(ByteBuffer buffer, int offset) {
@@ -153,17 +147,12 @@ class VariantUtil {
 
   static BasicType basicType(int header) {
     int basicType = header & BASIC_TYPE_MASK;
-    switch (basicType) {
-      case BASIC_TYPE_PRIMITIVE:
-        return BasicType.PRIMITIVE;
-      case BASIC_TYPE_SHORT_STRING:
-        return BasicType.SHORT_STRING;
-      case BASIC_TYPE_OBJECT:
-        return BasicType.OBJECT;
-      case BASIC_TYPE_ARRAY:
-        return BasicType.ARRAY;
-    }
-
-    throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
+    return switch (basicType) {
+      case BASIC_TYPE_PRIMITIVE -> BasicType.PRIMITIVE;
+      case BASIC_TYPE_SHORT_STRING -> BasicType.SHORT_STRING;
+      case BASIC_TYPE_OBJECT -> BasicType.OBJECT;
+      case BASIC_TYPE_ARRAY -> BasicType.ARRAY;
+      default -> throw new UnsupportedOperationException("Unsupported basic type: " + basicType);
+    };
   }
 }

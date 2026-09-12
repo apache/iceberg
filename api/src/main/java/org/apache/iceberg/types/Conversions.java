@@ -48,34 +48,25 @@ public class Conversions {
       return null;
     }
 
-    switch (type.typeId()) {
-      case BOOLEAN:
-        return Boolean.valueOf(asString);
-      case INTEGER:
-        return Integer.valueOf(asString);
-      case LONG:
-        return Long.valueOf(asString);
-      case FLOAT:
-        return Float.valueOf(asString);
-      case DOUBLE:
-        return Double.valueOf(asString);
-      case STRING:
-        return asString;
-      case UUID:
-        return UUID.fromString(asString);
-      case FIXED:
+    return switch (type.typeId()) {
+      case BOOLEAN -> Boolean.valueOf(asString);
+      case INTEGER -> Integer.valueOf(asString);
+      case LONG -> Long.valueOf(asString);
+      case FLOAT -> Float.valueOf(asString);
+      case DOUBLE -> Double.valueOf(asString);
+      case STRING -> asString;
+      case UUID -> UUID.fromString(asString);
+      case FIXED -> {
         Types.FixedType fixed = (Types.FixedType) type;
-        return Arrays.copyOf(asString.getBytes(StandardCharsets.UTF_8), fixed.length());
-      case BINARY:
-        return asString.getBytes(StandardCharsets.UTF_8);
-      case DECIMAL:
-        return new BigDecimal(asString);
-      case DATE:
-        return Literal.of(asString).to(Types.DateType.get()).value();
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported type for fromPartitionString: " + type);
-    }
+        yield Arrays.copyOf(asString.getBytes(StandardCharsets.UTF_8), fixed.length());
+      }
+      case BINARY -> asString.getBytes(StandardCharsets.UTF_8);
+      case DECIMAL -> new BigDecimal(asString);
+      case DATE -> Literal.of(asString).to(Types.DateType.get()).value();
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported type for fromPartitionString: " + type);
+    };
   }
 
   private static final ThreadLocal<CharsetEncoder> ENCODER =
@@ -92,36 +83,28 @@ public class Conversions {
       return null;
     }
 
-    switch (typeId) {
-      case BOOLEAN:
-        return ByteBuffer.allocate(1).put(0, (Boolean) value ? (byte) 0x01 : (byte) 0x00);
-      case INTEGER:
-      case DATE:
-        return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(0, (int) value);
-      case LONG:
-      case TIME:
-      case TIMESTAMP:
-      case TIMESTAMP_NANO:
-        return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, (long) value);
-      case FLOAT:
-        return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putFloat(0, (float) value);
-      case DOUBLE:
-        return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putDouble(0, (double) value);
-      case STRING:
+    return switch (typeId) {
+      case BOOLEAN -> ByteBuffer.allocate(1).put(0, (Boolean) value ? (byte) 0x01 : (byte) 0x00);
+      case INTEGER, DATE ->
+          ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(0, (int) value);
+      case LONG, TIME, TIMESTAMP, TIMESTAMP_NANO ->
+          ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, (long) value);
+      case FLOAT ->
+          ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putFloat(0, (float) value);
+      case DOUBLE ->
+          ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putDouble(0, (double) value);
+      case STRING -> {
         CharBuffer buffer = CharBuffer.wrap((CharSequence) value);
         try {
-          return ENCODER.get().encode(buffer);
+          yield ENCODER.get().encode(buffer);
         } catch (CharacterCodingException e) {
           throw new RuntimeIOException(e, "Failed to encode value as UTF-8: %s", value);
         }
-      case UUID:
-        return UUIDUtil.convertToByteBuffer((UUID) value);
-      case FIXED:
-      case BINARY:
-        return (ByteBuffer) value;
-      case DECIMAL:
-        return ByteBuffer.wrap(((BigDecimal) value).unscaledValue().toByteArray());
-      case VARIANT:
+      }
+      case UUID -> UUIDUtil.convertToByteBuffer((UUID) value);
+      case FIXED, BINARY -> (ByteBuffer) value;
+      case DECIMAL -> ByteBuffer.wrap(((BigDecimal) value).unscaledValue().toByteArray());
+      case VARIANT -> {
         // Produce a concatenated buffer of metadata and value
         Variant variant = (Variant) value;
         VariantMetadata variantMetadata = variant.metadata();
@@ -131,19 +114,16 @@ public class Conversions {
                 .order(ByteOrder.LITTLE_ENDIAN);
         variantMetadata.writeTo(variantBuffer, 0);
         variantValue.writeTo(variantBuffer, variantMetadata.sizeInBytes());
-        return variantBuffer;
-      case GEOMETRY:
-      case GEOGRAPHY:
+        yield variantBuffer;
+      }
         // Geometry and geography lower/upper bounds are single points encoded as an
         // x:y:z:m concatenation of 8-byte little-endian IEEE 754 doubles. See the
         // Bound Serialization section of the Iceberg spec.
-        return ((GeospatialBound) value).toByteBuffer();
-      case UNKNOWN:
+      case GEOMETRY, GEOGRAPHY -> ((GeospatialBound) value).toByteBuffer();
         // underlying type not known
-        return null;
-      default:
-        throw new UnsupportedOperationException("Cannot serialize type: " + typeId);
-    }
+      case UNKNOWN -> null;
+      default -> throw new UnsupportedOperationException("Cannot serialize type: " + typeId);
+    };
   }
 
   @SuppressWarnings("unchecked")
@@ -162,55 +142,44 @@ public class Conversions {
     } else {
       tmp.order(ByteOrder.LITTLE_ENDIAN);
     }
-    switch (type.typeId()) {
-      case BOOLEAN:
-        return tmp.get() != 0x00;
-      case INTEGER:
-      case DATE:
-        return tmp.getInt();
-      case LONG:
-      case TIME:
-      case TIMESTAMP:
-      case TIMESTAMP_NANO:
+    return switch (type.typeId()) {
+      case BOOLEAN -> tmp.get() != 0x00;
+      case INTEGER, DATE -> tmp.getInt();
+      case LONG, TIME, TIMESTAMP, TIMESTAMP_NANO -> {
         if (tmp.remaining() < 8) {
           // type was later promoted to long
-          return (long) tmp.getInt();
+          yield (long) tmp.getInt();
         }
-        return tmp.getLong();
-      case FLOAT:
-        return tmp.getFloat();
-      case DOUBLE:
+        yield tmp.getLong();
+      }
+      case FLOAT -> tmp.getFloat();
+      case DOUBLE -> {
         if (tmp.remaining() < 8) {
           // type was later promoted to long
-          return (double) tmp.getFloat();
+          yield (double) tmp.getFloat();
         }
-        return tmp.getDouble();
-      case STRING:
+        yield tmp.getDouble();
+      }
+      case STRING -> {
         try {
-          return DECODER.get().decode(tmp);
+          yield DECODER.get().decode(tmp);
         } catch (CharacterCodingException e) {
           throw new RuntimeIOException(e, "Failed to decode value as UTF-8: %s", buffer);
         }
-      case UUID:
-        return UUIDUtil.convert(tmp);
-      case FIXED:
-      case BINARY:
-        return tmp;
-      case DECIMAL:
+      }
+      case UUID -> UUIDUtil.convert(tmp);
+      case FIXED, BINARY -> tmp;
+      case DECIMAL -> {
         Types.DecimalType decimal = (Types.DecimalType) type;
         byte[] unscaledBytes = new byte[buffer.remaining()];
         tmp.get(unscaledBytes);
-        return new BigDecimal(new BigInteger(unscaledBytes), decimal.scale());
-      case VARIANT:
-        return Variant.from(tmp);
-      case GEOMETRY:
-      case GEOGRAPHY:
-        return GeospatialBound.fromByteBuffer(tmp);
-      case UNKNOWN:
+        yield new BigDecimal(new BigInteger(unscaledBytes), decimal.scale());
+      }
+      case VARIANT -> Variant.from(tmp);
+      case GEOMETRY, GEOGRAPHY -> GeospatialBound.fromByteBuffer(tmp);
         // underlying type not known
-        return null;
-      default:
-        throw new UnsupportedOperationException("Cannot deserialize type: " + type);
-    }
+      case UNKNOWN -> null;
+      default -> throw new UnsupportedOperationException("Cannot deserialize type: " + type);
+    };
   }
 }
