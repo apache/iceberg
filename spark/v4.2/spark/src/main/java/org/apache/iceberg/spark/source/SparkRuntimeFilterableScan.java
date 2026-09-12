@@ -105,10 +105,7 @@ abstract class SparkRuntimeFilterableScan extends SparkPartitioningAwareScan<Par
         .toArray(NamedReference[]::new);
   }
 
-  // synchronized because a single scan instance may be shared and Spark can invoke this runtime
-  // filter callback concurrently; the check-then-act below (and its terminal resetTasks) must be
-  // atomic to keep concurrent callers from observing the pre-narrowing (full) task set. filter()
-  // runs at planning time only, so synchronization adds no per-row cost.
+  // serialize concurrent filter() calls on a shared scan
   @Override
   public synchronized void filter(Predicate[] predicates) {
     Expression runtimeFilter = convertRuntimePredicates(predicates);

@@ -91,11 +91,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
     return new NamedReference[] {SparkMetadataColumns.FILE_PATH.asRef()};
   }
 
-  // synchronized because Spark rewrites UPDATEs with subqueries as a UNION of two branches that
-  // share this scan; under AQE both branches may invoke filter() concurrently. The method is a
-  // non-atomic check-then-act over filteredLocations/tasks()/resetTasks(), so it must hold the
-  // same monitor as the tasks()/taskGroups()/resetTasks() accessors to avoid a losing branch
-  // observing the full (planning-time) task set and rewriting every file.
+  // serialize concurrent filter() calls on a scan shared across UNION branches
   @Override
   public synchronized void filter(Predicate[] predicates) {
     for (Predicate predicate : predicates) {

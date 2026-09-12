@@ -49,37 +49,21 @@ import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
-/**
- * Reproduces the copy-on-write runtime-filter concurrency bug (issue #18004).
- *
- * <p>A COW {@code UPDATE ... WHERE EXISTS (<subquery>)} is rewritten as {@code Union(Filter(cond,
- * S), Filter(NOT cond, S))} where BOTH branches share the same {@link SparkCopyOnWriteScan} {@code
- * S}. Under AQE the two branch stages are prepared concurrently, so the {@link
- * org.apache.spark.sql.connector.read.SupportsRuntimeV2Filtering#filter(Predicate[])} callback runs
- * concurrently on the one shared scan. {@code filter()} is a non-atomic check-then-act: it
- * publishes {@code filteredLocations} first, then narrows {@code tasks()}, and only at the very end
- * calls {@code resetTasks(...)}. A losing branch that observes {@code filteredLocations} already
- * set (so it skips narrowing) while the winner has not yet reached {@code resetTasks} would read
- * the planning-time memoized FULL task set and scan every file, duplicating rows on commit.
- *
- * <p>This drives the race deterministically: a winner thread narrows the scan but parks inside an
- * un-synchronized {@code resetTasks} override, while a loser thread runs {@code filter()} and reads
- * the shared task set. With {@code filter()} synchronized the loser is serialized behind the winner
- * and observes the narrowed single-file set; revert the {@code synchronized} keyword and it
- * observes the full set.
- */
+/** Regression test for the copy-on-write runtime-filter concurrency bug (issue #18004). */
 public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
 
   private static final int FILE_COUNT = 10;
-  private static final long PARK_MILLIS = TimeUnit.SECONDS.toMillis(2);
-  private static final long LATCH_TIMEOUT_SECONDS = 30;
-  private static final long JOIN_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(30);
+  private static final long TIMEOUT_SECONDS = 30;
+  private static final long JOIN_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(TIMEOUT_SECONDS);
 
   @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
+  // A COW UPDATE with a subquery becomes a UNION whose branches share one scan, which Spark can
+  // filter() concurrently under AQE. Without synchronization a branch reads the full task set and
+  // rewrites every file, duplicating rows (#18004).
   @TestTemplate
   public void testConcurrentRuntimeFilteringNarrowsSharedScan() throws Exception {
     sql(
@@ -87,8 +71,7 @@ public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
             + "TBLPROPERTIES ('write.update.mode'='copy-on-write')",
         tableName);
 
-    // one single-row data file per INSERT, so the full task set is clearly distinguishable from
-    // the single-file set the runtime filter should produce
+    // one single-row file per INSERT, so the narrowed set (1) is clearly distinct from the full set
     for (int i = 0; i < FILE_COUNT; i++) {
       sql("INSERT INTO %s VALUES (%d, 'data-%d')", tableName, i, i);
     }
@@ -96,9 +79,10 @@ public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
     Table table = validationCatalog.loadTable(tableIdent);
 
     CountDownLatch enteredResetTasks = new CountDownLatch(1);
-    InstrumentedCopyOnWriteScan scan = newInstrumentedScan(table, enteredResetTasks);
+    CountDownLatch releaseWinner = new CountDownLatch(1);
+    InstrumentedCopyOnWriteScan scan = newInstrumentedScan(table, enteredResetTasks, releaseWinner);
 
-    // memoize the full planning-time task set and task groups exactly as query planning would
+    // memoize the full task set and groups exactly as query planning would
     List<FileScanTask> plannedTasks = scan.tasks();
     scan.taskGroups();
     assertThat(plannedTasks).as("expected one task per single-row file").hasSize(FILE_COUNT);
@@ -112,8 +96,7 @@ public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
     AtomicInteger observedTaskCount = new AtomicInteger(-1);
     AtomicInteger observedTaskGroupFileCount = new AtomicInteger(-1);
 
-    // winner: narrows the scan but parks inside resetTasks. It holds the scan monitor while it
-    // sleeps ONLY if filter() is synchronized; that is exactly the production behavior under test.
+    // winner: narrows the scan, then parks in resetTasks while holding the scan monitor
     Thread winner =
         new Thread(
             () -> {
@@ -121,21 +104,15 @@ public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
                 scan.filter(predicates);
               } catch (Throwable t) {
                 winnerFailure.set(t);
-                enteredResetTasks.countDown();
               }
             },
             "cow-filter-winner");
 
-    // loser: proceeds only once the winner has published filteredLocations and entered resetTasks.
-    // Its own filter() short-circuits (the guard fails for the same single location), then it reads
-    // the shared task set - which must already be narrowed.
+    // loser: runs filter() (short-circuits) then reads the shared task set, which must be narrowed
     Thread loser =
         new Thread(
             () -> {
               try {
-                assertThat(enteredResetTasks.await(LATCH_TIMEOUT_SECONDS, TimeUnit.SECONDS))
-                    .as("winner should have entered resetTasks")
-                    .isTrue();
                 scan.filter(predicates);
                 observedTaskCount.set(scan.tasks().size());
                 observedTaskGroupFileCount.set(countFiles(scan.taskGroups()));
@@ -146,7 +123,15 @@ public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
             "cow-filter-loser");
 
     winner.start();
+    assertThat(enteredResetTasks.await(TIMEOUT_SECONDS, TimeUnit.SECONDS))
+        .as("winner should have entered resetTasks")
+        .isTrue();
+
     loser.start();
+    // release the winner once the loser has blocked on the monitor or finished its stale read
+    awaitLoserSettled(loser, observedTaskCount);
+    releaseWinner.countDown();
+
     winner.join(JOIN_TIMEOUT_MILLIS);
     loser.join(JOIN_TIMEOUT_MILLIS);
 
@@ -169,10 +154,25 @@ public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
         .isEqualTo(1);
   }
 
-  // mirrors SparkScanBuilder#buildCopyOnWriteScan (non-null snapshot path) but returns an
-  // instrumented subclass so the race window inside resetTasks can be controlled deterministically
+  // waits until the loser can progress no further before releasing the winner: either blocked on
+  // the scan monitor (synchronized filter()) or already done recording its task count
+  private static void awaitLoserSettled(Thread loser, AtomicInteger observedTaskCount)
+      throws InterruptedException {
+    long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(TIMEOUT_SECONDS);
+    while (System.nanoTime() < deadlineNanos) {
+      Thread.State state = loser.getState();
+      if (state == Thread.State.BLOCKED
+          || state == Thread.State.TERMINATED
+          || observedTaskCount.get() != -1) {
+        return;
+      }
+      Thread.sleep(1);
+    }
+  }
+
+  // mirrors SparkScanBuilder#buildCopyOnWriteScan but returns an instrumented subclass
   private InstrumentedCopyOnWriteScan newInstrumentedScan(
-      Table table, CountDownLatch enteredResetTasks) {
+      Table table, CountDownLatch enteredResetTasks, CountDownLatch releaseWinner) {
     SparkReadConf readConf = new SparkReadConf(spark, table);
     Schema schema = table.schema();
     Snapshot snapshot = table.currentSnapshot();
@@ -197,7 +197,8 @@ public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
         schema /* projection */,
         Lists.newArrayList(),
         () -> null,
-        enteredResetTasks);
+        enteredResetTasks,
+        releaseWinner);
   }
 
   private static Predicate filePathInPredicate(String location) {
@@ -216,15 +217,11 @@ public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
     return count;
   }
 
-  /**
-   * A {@link SparkCopyOnWriteScan} that parks inside {@code resetTasks} (before delegating to the
-   * real implementation) so the check-then-act window in {@code filter()} can be observed by
-   * another thread. The override is intentionally NOT synchronized: the only serialization under
-   * test must come from {@code SparkCopyOnWriteScan#filter}, so reverting that fix reliably
-   * reproduces the race instead of being masked here.
-   */
+  // parks inside resetTasks to hold the filter() window open for another thread. Intentionally NOT
+  // synchronized so the only serialization under test comes from SparkCopyOnWriteScan#filter.
   private static class InstrumentedCopyOnWriteScan extends SparkCopyOnWriteScan {
     private final CountDownLatch enteredResetTasks;
+    private final CountDownLatch releaseWinner;
 
     InstrumentedCopyOnWriteScan(
         SparkSession spark,
@@ -237,7 +234,8 @@ public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
         Schema projection,
         List<Expression> filters,
         Supplier<ScanReport> scanReportSupplier,
-        CountDownLatch enteredResetTasks) {
+        CountDownLatch enteredResetTasks,
+        CountDownLatch releaseWinner) {
       super(
           spark,
           table,
@@ -250,13 +248,14 @@ public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
           filters,
           scanReportSupplier);
       this.enteredResetTasks = enteredResetTasks;
+      this.releaseWinner = releaseWinner;
     }
 
     @Override
     protected void resetTasks(List<FileScanTask> filteredTasks) {
       enteredResetTasks.countDown();
       try {
-        Thread.sleep(PARK_MILLIS);
+        releaseWinner.await(TIMEOUT_SECONDS, TimeUnit.SECONDS);
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
       }

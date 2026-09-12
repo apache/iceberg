@@ -118,11 +118,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   }
 
   @Override
-  // synchronized on the same monitor as tasks()/taskGroups()/resetTasks() so the non-atomic
-  // check-then-act (publish filteredLocations, stream tasks(), then resetTasks()) cannot interleave
-  // with a concurrent filter() call. UPDATE ... WHERE EXISTS(<subquery>) is rewritten as a UNION
-  // whose branches share this scan and Spark may invoke filter() concurrently on the shared
-  // instance.
+  // serialize concurrent filter() calls on a scan shared across UNION branches
   public synchronized void filter(Predicate[] predicates) {
     Preconditions.checkState(
         Objects.equals(snapshotId(), currentSnapshotId()),
