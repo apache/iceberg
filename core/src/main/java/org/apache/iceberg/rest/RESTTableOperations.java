@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -38,7 +39,9 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
@@ -61,6 +64,7 @@ class RESTTableOperations implements TableOperations {
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
   private final Set<Endpoint> endpoints;
+  private final SnapshotMode snapshotMode;
   private UpdateType updateType;
   private TableMetadata current;
 
@@ -80,7 +84,8 @@ class RESTTableOperations implements TableOperations {
         UpdateType.SIMPLE,
         Lists.newArrayList(),
         current,
-        endpoints);
+        endpoints,
+        SnapshotMode.ALL);
   }
 
   RESTTableOperations(
@@ -92,7 +97,17 @@ class RESTTableOperations implements TableOperations {
       List<MetadataUpdate> createChanges,
       TableMetadata current,
       Set<Endpoint> endpoints) {
-    this(client, path, headers, headers, io, updateType, createChanges, current, endpoints);
+    this(
+        client,
+        path,
+        headers,
+        headers,
+        io,
+        updateType,
+        createChanges,
+        current,
+        endpoints,
+        SnapshotMode.ALL);
   }
 
   RESTTableOperations(
@@ -112,7 +127,8 @@ class RESTTableOperations implements TableOperations {
         UpdateType.SIMPLE,
         Lists.newArrayList(),
         current,
-        endpoints);
+        endpoints,
+        SnapshotMode.ALL);
   }
 
   RESTTableOperations(
@@ -124,7 +140,8 @@ class RESTTableOperations implements TableOperations {
       UpdateType updateType,
       List<MetadataUpdate> createChanges,
       TableMetadata current,
-      Set<Endpoint> endpoints) {
+      Set<Endpoint> endpoints,
+      SnapshotMode snapshotMode) {
     this.client = client;
     this.path = path;
     this.readHeaders = readHeaders;
@@ -139,6 +156,7 @@ class RESTTableOperations implements TableOperations {
       this.current = current;
     }
     this.endpoints = endpoints;
+    this.snapshotMode = snapshotMode != null ? snapshotMode : SnapshotMode.ALL;
   }
 
   @Override
@@ -150,7 +168,15 @@ class RESTTableOperations implements TableOperations {
   public TableMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     return updateCurrentMetadata(
-        client.get(path, LoadTableResponse.class, readHeaders, ErrorHandlers.tableErrorHandler()));
+        client.get(
+            path,
+            snapshotModeToParam(snapshotMode),
+            LoadTableResponse.class,
+            readHeaders,
+            ErrorHandlers.tableErrorHandler()),
+        // a refs mode response suppresses historical snapshots, so a lazy snapshot supplier must
+        // be re-installed. commit responses always contain all snapshots and need no supplier
+        snapshotMode == SnapshotMode.REFS);
   }
 
   @Override
@@ -286,15 +312,46 @@ class RESTTableOperations implements TableOperations {
   }
 
   private TableMetadata updateCurrentMetadata(LoadTableResponse response) {
+    return updateCurrentMetadata(response, false);
+  }
+
+  private TableMetadata updateCurrentMetadata(
+      LoadTableResponse response, boolean reinstallSnapshotsSupplier) {
     // LoadTableResponse is used to deserialize the response, but config is not allowed by the REST
     // spec so it can be
     // safely ignored. there is no requirement to update config on refresh or commit.
     if (current == null
         || !Objects.equals(current.metadataFileLocation(), response.metadataLocation())) {
-      this.current = checkUUID(current, response.tableMetadata());
+      TableMetadata refreshed = checkUUID(current, response.tableMetadata());
+      if (reinstallSnapshotsSupplier) {
+        refreshed =
+            TableMetadata.buildFrom(refreshed)
+                .withMetadataLocation(response.metadataLocation())
+                .setPreviousFileLocation(null)
+                .setSnapshotsSupplier(
+                    () ->
+                        client
+                            .get(
+                                path,
+                                snapshotModeToParam(SnapshotMode.ALL),
+                                LoadTableResponse.class,
+                                readHeaders,
+                                ErrorHandlers.tableErrorHandler())
+                            .tableMetadata()
+                            .snapshots())
+                .discardChanges()
+                .build();
+      }
+
+      this.current = refreshed;
     }
 
     return current;
+  }
+
+  private static Map<String, String> snapshotModeToParam(SnapshotMode mode) {
+    return ImmutableMap.of(
+        RESTCatalogProperties.SNAPSHOTS_QUERY_PARAMETER, mode.name().toLowerCase(Locale.US));
   }
 
   private static TableMetadata checkUUID(TableMetadata currentMetadata, TableMetadata newMetadata) {
