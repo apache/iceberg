@@ -42,6 +42,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
@@ -139,6 +140,28 @@ public class TestTableEncryption extends CatalogTestBase {
     // add an arbitrary datafile
     append.appendFile(dataFiles.get(0));
     append.commit();
+    transaction.commitTransaction();
+
+    assertThat(currentDataFiles(table)).hasSize(dataFiles.size() + 1);
+  }
+
+  @TestTemplate
+  void transactionCanReadAfterTableRefresh() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+    List<DataFile> dataFiles = currentDataFiles(table);
+    DataFile file = dataFiles.get(0);
+
+    Transaction transaction = table.newTransaction();
+    transaction.newFastAppend().appendFile(file).commit();
+
+    // Refresh must preserve the keys for the transaction's uncommitted snapshot.
+    table.refresh();
+
+    assertThat(SnapshotChanges.builderFor(transaction.table()).build().addedDataFiles())
+        .extracting(DataFile::location)
+        .containsExactly(file.location());
+
     transaction.commitTransaction();
 
     assertThat(currentDataFiles(table)).hasSize(dataFiles.size() + 1);
