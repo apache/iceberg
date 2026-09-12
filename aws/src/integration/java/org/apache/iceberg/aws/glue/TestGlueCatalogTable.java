@@ -344,9 +344,9 @@ public class TestGlueCatalogTable extends GlueTestBase {
                 glueCatalog.renameTable(
                     TableIdentifier.of(namespace, tableName),
                     TableIdentifier.of(namespace, newTableName)))
-        .isInstanceOf(software.amazon.awssdk.services.glue.model.AlreadyExistsException.class)
+        .isInstanceOf(AlreadyExistsException.class)
         .as("should fail to rename to an existing table")
-        .hasMessageContaining("Table already exists");
+        .hasMessageContaining("table already exists");
     // old table can still be read with same metadata
     Table oldTable = glueCatalog.loadTable(id);
     assertThat(oldTable.location()).isEqualTo(table.location());
