@@ -363,14 +363,29 @@ public abstract class TestByteBufferInputStreams {
   }
 
   @Test
-  void seekRejectsNegativePositionWithoutChangingState() throws Exception {
+  public void testSeekRejectsNegativePosition() throws Exception {
     ByteBufferInputStream stream = newStream();
-    assertThat(stream.read()).isEqualTo(0);
+    assertThat(stream.getPos()).isEqualTo(0);
+
+    assertThatThrownBy(() -> stream.seek(-1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Position is negative: -1");
+    assertThat(stream.getPos()).isEqualTo(0);
+    assertThat(stream.read()).isGreaterThanOrEqualTo(0);
+    assertThat(stream.getPos()).isEqualTo(1);
+  }
+
+  @Test
+  public void testSeekRejectsNegativePositionWithoutChangingState() throws Exception {
+    ByteBufferInputStream stream = newStream();
+    assertThat(stream.read()).isGreaterThanOrEqualTo(0);
 
     assertThatThrownBy(() -> stream.seek(-1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Position is negative: -1");
     assertThat(stream.getPos()).isEqualTo(1);
+    assertThat(stream.read()).isGreaterThanOrEqualTo(0);
+    assertThat(stream.getPos()).isEqualTo(2);
   }
 
   @Test
