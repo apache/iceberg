@@ -495,7 +495,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   Snapshot newSnapshot = apply();
                   newSnapshotId.set(newSnapshot.snapshotId());
                   TableMetadata.Builder update = TableMetadata.buildFrom(base);
-                  if (base.snapshot(newSnapshot.snapshotId()) != null) {
+                  // a snapshot with the id this producer generated is always new; only a snapshot
+                  // returned by apply() with another id can be an existing snapshot, in which case
+                  // looking it up may load all snapshots when they are loaded lazily
+                  Long producedSnapshotId = snapshotId;
+                  boolean isProducedSnapshot =
+                      producedSnapshotId != null
+                          && producedSnapshotId == newSnapshot.snapshotId();
+                  if (!isProducedSnapshot && base.snapshot(newSnapshot.snapshotId()) != null) {
                     // this is a rollback operation
                     update.setBranchSnapshot(newSnapshot.snapshotId(), targetBranch);
                   } else if (stageOnly) {
@@ -685,7 +692,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected long snapshotId() {
     if (snapshotId == null) {
       synchronized (this) {
-        while (snapshotId == null || ops.current().snapshot(snapshotId) != null) {
+        // only check ids that are already loaded: with lazily loaded snapshots, a collision with
+        // an unloaded historical snapshot id is left to be detected when the commit is applied,
+        // since checking here would force loading all snapshots for every new snapshot id
+        while (snapshotId == null || ops.current().snapshotIfKnown(snapshotId) != null) {
           this.snapshotId = ops.newSnapshotId();
         }
       }
