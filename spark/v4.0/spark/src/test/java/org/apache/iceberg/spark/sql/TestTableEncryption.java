@@ -108,6 +108,24 @@ public class TestTableEncryption extends CatalogTestBase {
     assertEquals("Should return all expected rows", expected, sql("SELECT * FROM %s", tableName));
   }
 
+  @TestTemplate
+  public void testRejectsRewriteTablePath() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+    File stagingDir = temp.resolve("rewrite-table-path-staging").toFile();
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .rewriteTablePath(table)
+                    .rewriteLocationPrefix(table.location(), table.location() + "-rewritten")
+                    .stagingLocation(stagingDir.getAbsolutePath())
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot rewrite table paths for encrypted tables");
+    assertThat(stagingDir).doesNotExist();
+  }
+
   private static List<DataFile> currentDataFiles(Table table) {
     return Streams.stream(table.newScan().planFiles())
         .map(FileScanTask::file)
