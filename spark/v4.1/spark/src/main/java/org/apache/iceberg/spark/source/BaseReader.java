@@ -77,6 +77,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private final Iterator<TaskT> tasks;
   private final DeleteCounter counter;
   private final boolean cacheDeleteFilesOnExecutors;
+  // nanos, not millis: a single split can be read in well under a millisecond
+  private long scanDurationNanos = 0L;
 
   private Map<String, InputFile> lazyInputFiles;
   private CloseableIterator<T> currentIterator;
@@ -132,7 +134,13 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     return counter;
   }
 
+  /** Wall time spent reading in this task, in nanoseconds. */
+  protected long scanDurationNanos() {
+    return scanDurationNanos;
+  }
+
   public boolean next() throws IOException {
+    long start = System.nanoTime();
     try {
       while (true) {
         if (currentIterator.hasNext()) {
@@ -156,6 +164,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         LOG.error("Error reading file(s): {}", filePaths, e);
       }
       throw e;
+    } finally {
+      this.scanDurationNanos += System.nanoTime() - start;
     }
   }
 
