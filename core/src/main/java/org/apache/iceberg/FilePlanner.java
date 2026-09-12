@@ -201,7 +201,6 @@ class FilePlanner {
       return this;
     }
 
-    /** Sets the filter used for partition pruning and residual evaluation. */
     Builder filterData(Expression expr) {
       Preconditions.checkArgument(expr != null, "Invalid filter: null");
       this.dataFilter = expr;
