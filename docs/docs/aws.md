@@ -408,6 +408,8 @@ workloads with exceptionally high throughput against tables that S3 has not yet 
 | s3.retry.num-retries | 5       | Number of times to retry S3 operations. Recommended 32 for high-throughput workloads. |
 | s3.retry.min-wait-ms | 2s      | Minimum wait time to retry a S3 operation.                                            |
 | s3.retry.max-wait-ms | 20s     | Maximum wait time to retry a S3 read operation.                                       |
+| s3.api-call-timeout-ms | (not set) | Timeout for the entire S3 API call, including retries. Not enabled unless explicitly set. |
+| s3.api-call-attempt-timeout-ms | (not set) | Timeout for a single S3 API call attempt, before retries. Not enabled unless explicitly set. |
 
 ### S3 Strong Consistency
 
