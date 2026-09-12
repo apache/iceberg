@@ -324,8 +324,6 @@ class RESTTableOperations implements TableOperations {
         || !Objects.equals(current.metadataFileLocation(), response.metadataLocation())) {
       TableMetadata refreshed = checkUUID(current, response.tableMetadata());
       if (reinstallSnapshotsSupplier) {
-        // re-install the lazy snapshot supplier so that snapshots suppressed by refs mode can
-        // still be loaded on demand from the refreshed metadata
         refreshed =
             TableMetadata.buildFrom(refreshed)
                 .withMetadataLocation(response.metadataLocation())

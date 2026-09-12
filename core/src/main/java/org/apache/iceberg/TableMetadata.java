@@ -559,12 +559,15 @@ public class TableMetadata implements Serializable {
       List<Snapshot> loadedSnapshots = Lists.newArrayList(snapshotsSupplier.get());
       loadedSnapshots.removeIf(s -> s.sequenceNumber() > lastSequenceNumber);
 
-      // retain snapshots that are unknown to the supplier, such as snapshots that were added to
-      // this metadata after the supplier was created and are not yet visible to it
+      // retain snapshots that were added to this metadata but are unknown to the supplier, such
+      // as staged snapshots that are not committed to the catalog yet. the supplier remains
+      // authoritative for all snapshots inherited from the base metadata
       Set<Long> loadedSnapshotIds =
           loadedSnapshots.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+      Set<Long> addedSnapshotIds = addedSnapshotIds(changes);
       for (Snapshot snapshot : snapshots) {
-        if (!loadedSnapshotIds.contains(snapshot.snapshotId())) {
+        if (addedSnapshotIds.contains(snapshot.snapshotId())
+            && !loadedSnapshotIds.contains(snapshot.snapshotId())) {
           loadedSnapshots.add(snapshot);
         }
       }
@@ -578,6 +581,13 @@ public class TableMetadata implements Serializable {
       this.snapshotsLoaded = true;
       this.snapshotsSupplier = null;
     }
+  }
+
+  private static Set<Long> addedSnapshotIds(List<MetadataUpdate> changes) {
+    return changes.stream()
+        .filter(change -> change instanceof MetadataUpdate.AddSnapshot)
+        .map(change -> ((MetadataUpdate.AddSnapshot) change).snapshot().snapshotId())
+        .collect(Collectors.toSet());
   }
 
   public SnapshotRef ref(String name) {
@@ -946,6 +956,7 @@ public class TableMetadata implements Serializable {
     private long currentSnapshotId;
     private List<Snapshot> snapshots;
     private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
+    private boolean snapshotsLoaded;
     private final Map<String, SnapshotRef> refs;
     private final Map<Long, List<StatisticsFile>> statisticsFiles;
     private final Map<Long, List<PartitionStatisticsFile>> partitionStatisticsFiles;
@@ -988,6 +999,7 @@ public class TableMetadata implements Serializable {
       this.sortOrders = Lists.newArrayList();
       this.properties = Maps.newHashMap();
       this.snapshots = Lists.newArrayList();
+      this.snapshotsLoaded = true;
       this.currentSnapshotId = -1;
       this.changes = Lists.newArrayList();
       this.startingChangeCount = 0;
@@ -1029,6 +1041,7 @@ public class TableMetadata implements Serializable {
       synchronized (base) {
         this.snapshots = Lists.newArrayList(base.snapshots);
         this.snapshotsSupplier = base.snapshotsSupplier;
+        this.snapshotsLoaded = base.snapshotsLoaded;
         this.snapshotsById = Maps.newHashMap(base.snapshotsById);
         this.refs = Maps.newHashMap(base.refs);
       }
@@ -1326,10 +1339,9 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    // loads all snapshots into the builder for operations that require them, keeping snapshots
-    // that were added to the builder but are unknown to the supplier
+    // keeps snapshots that were added to the builder but are unknown to the supplier
     private void ensureSnapshotsLoaded() {
-      if (snapshotsSupplier == null) {
+      if (snapshotsLoaded || snapshotsSupplier == null) {
         return;
       }
 
@@ -1341,8 +1353,10 @@ public class TableMetadata implements Serializable {
 
       Set<Long> loadedSnapshotIds =
           loadedSnapshots.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+      Set<Long> addedSnapshotIds = addedSnapshotIds(changes);
       for (Snapshot snapshot : snapshots) {
-        if (!loadedSnapshotIds.contains(snapshot.snapshotId())) {
+        if (addedSnapshotIds.contains(snapshot.snapshotId())
+            && !loadedSnapshotIds.contains(snapshot.snapshotId())) {
           loadedSnapshots.add(snapshot);
         }
       }
@@ -1350,12 +1364,12 @@ public class TableMetadata implements Serializable {
       this.snapshots = loadedSnapshots;
       snapshots.forEach(snapshot -> snapshotsById.putIfAbsent(snapshot.snapshotId(), snapshot));
       this.snapshotsSupplier = null;
+      this.snapshotsLoaded = true;
     }
 
-    // looks up a snapshot by id, loading all snapshots if the id is not loaded yet
     private Snapshot snapshotById(long snapshotId) {
       Snapshot snapshot = snapshotsById.get(snapshotId);
-      if (snapshot == null && snapshotsSupplier != null) {
+      if (snapshot == null && !snapshotsLoaded) {
         ensureSnapshotsLoaded();
         snapshot = snapshotsById.get(snapshotId);
       }
@@ -1495,7 +1509,6 @@ public class TableMetadata implements Serializable {
     }
 
     public Builder removeSnapshots(Collection<Long> idsToRemove) {
-      // all snapshots must be loaded to remove any of them
       ensureSnapshotsLoaded();
       return rewriteSnapshotsInternal(idsToRemove, false);
     }
@@ -1647,8 +1660,9 @@ public class TableMetadata implements Serializable {
             addPreviousFile(
                 previousFiles, previousFileLocation, base.lastUpdatedMillis(), properties);
       }
-      // rewriting the snapshot log validates its entries against all snapshots
-      if (snapshotsSupplier != null
+      // rewriting the snapshot log validates its entries against all snapshots, which requires
+      // loading them when the builder only holds a partial set inherited from the base
+      if (!snapshotsLoaded
           && (!intermediateSnapshotIdSet(changes, currentSnapshotId).isEmpty()
               || changes.stream()
                   .anyMatch(change -> change instanceof MetadataUpdate.RemoveSnapshots))) {

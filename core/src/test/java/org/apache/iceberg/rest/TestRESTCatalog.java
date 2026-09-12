@@ -1138,7 +1138,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testTableSnapshotLoadingRefreshKeepsLazySupplier() {
+  void tableSnapshotLoadingRefreshKeepsLazySupplier() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
     RESTCatalog catalog =
@@ -1205,7 +1205,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testCommitOnRefsModeTableDoesNotLoadAllSnapshots() {
+  void commitOnRefsModeTableDoesNotLoadAllSnapshots() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
     RESTCatalog catalog =
@@ -1297,7 +1297,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testStagedCommitOnRefsModeTableDoesNotLoadAllSnapshots() {
+  void stagedCommitOnRefsModeTableDoesNotLoadAllSnapshots() {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
     RESTCatalog catalog =
