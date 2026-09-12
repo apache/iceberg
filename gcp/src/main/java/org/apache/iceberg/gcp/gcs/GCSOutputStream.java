@@ -22,7 +22,9 @@ import com.google.cloud.WriteChannel;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.Storage.BlobTargetOption;
 import com.google.cloud.storage.Storage.BlobWriteOption;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.channels.Channels;
@@ -40,8 +42,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The GCSOutputStream leverages native streaming channels from the GCS API for streaming uploads.
- * See <a href="https://cloud.google.com/storage/docs/streaming">Streaming Transfers</a>
+ * Uploads to GCS.
+ *
+ * <ul>
+ *   <li>If size &lt; {@link GCPProperties#GCS_WRITE_THRESHOLD_BYTES} (default 8MB): single-shot
+ *       {@link Storage#create}
+ *   <li>Otherwise: {@link WriteChannel} output stream
+ * </ul>
  */
 class GCSOutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(GCSOutputStream.class);
@@ -50,8 +57,11 @@ class GCSOutputStream extends PositionOutputStream {
   private final Storage storage;
   private final BlobId blobId;
   private final GCPProperties gcpProperties;
+  private final long writeThreshold;
 
+  private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
   private OutputStream stream;
+  private boolean useWriteChannel = false;
 
   private final Counter writeBytes;
   private final Counter writeOperations;
@@ -60,18 +70,19 @@ class GCSOutputStream extends PositionOutputStream {
   private boolean closed = false;
 
   GCSOutputStream(
-      Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics)
-      throws IOException {
+      Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics) {
     this.storage = storage;
     this.blobId = blobId;
     this.gcpProperties = gcpProperties;
+    this.writeThreshold = gcpProperties.writeThresholdBytes();
 
     createStack = Thread.currentThread().getStackTrace();
 
     this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Unit.BYTES);
     this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS);
 
-    openStream();
+    // Buffer in memory until size reaches the threshold.
+    this.stream = buffer;
   }
 
   @Override
@@ -90,6 +101,10 @@ class GCSOutputStream extends PositionOutputStream {
     pos += 1;
     writeBytes.increment();
     writeOperations.increment();
+
+    if (!useWriteChannel && pos >= writeThreshold) {
+      openStream();
+    }
   }
 
   @Override
@@ -98,9 +113,14 @@ class GCSOutputStream extends PositionOutputStream {
     pos += len;
     writeBytes.increment(len);
     writeOperations.increment();
+
+    if (!useWriteChannel && pos >= writeThreshold) {
+      openStream();
+    }
   }
 
-  private void openStream() {
+  /** Switch from in-memory buffer to a WriteChannel once size >= threshold. */
+  private void openStream() throws IOException {
     List<BlobWriteOption> writeOptions = Lists.newArrayList();
 
     gcpProperties
@@ -116,7 +136,11 @@ class GCSOutputStream extends PositionOutputStream {
 
     gcpProperties.channelWriteChunkSize().ifPresent(channel::setChunkSize);
 
-    stream = Channels.newOutputStream(channel);
+    OutputStream channelStream = Channels.newOutputStream(channel);
+    buffer.writeTo(channelStream);
+    buffer.reset();
+    stream = channelStream;
+    useWriteChannel = true;
   }
 
   @Override
@@ -127,7 +151,25 @@ class GCSOutputStream extends PositionOutputStream {
 
     super.close();
     closed = true;
-    stream.close();
+
+    if (useWriteChannel) {
+      stream.close();
+      return;
+    }
+
+    // size < threshold → single-shot upload
+    List<BlobTargetOption> targetOptions = Lists.newArrayList();
+    gcpProperties
+        .encryptionKey()
+        .ifPresent(key -> targetOptions.add(BlobTargetOption.encryptionKey(key)));
+    gcpProperties
+        .userProject()
+        .ifPresent(userProject -> targetOptions.add(BlobTargetOption.userProject(userProject)));
+
+    storage.create(
+        BlobInfo.newBuilder(blobId).build(),
+        buffer.toByteArray(),
+        targetOptions.toArray(new BlobTargetOption[0]));
   }
 
   @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize", "deprecation"})
@@ -135,7 +177,7 @@ class GCSOutputStream extends PositionOutputStream {
   protected void finalize() throws Throwable {
     super.finalize();
     if (!closed) {
-      close(); // releasing resources is more important than printing the warning
+      close();
       String trace = Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
       LOG.warn("Unclosed output stream created by:\n\t{}", trace);
     }

@@ -20,8 +20,6 @@ package org.apache.iceberg.gcp.gcs;
 
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.InputFile;
@@ -69,11 +67,7 @@ class GCSOutputFile extends BaseGCSFile implements OutputFile {
 
   @Override
   public PositionOutputStream createOrOverwrite() {
-    try {
-      return new GCSOutputStream(storage(), blobId(), gcpProperties(), metrics());
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to create output stream for location: " + uri(), e);
-    }
+    return new GCSOutputStream(storage(), blobId(), gcpProperties(), metrics());
   }
 
   @Override
