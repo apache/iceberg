@@ -1400,12 +1400,35 @@ paths:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
+      - $ref: '#/components/parameters/data-access'
 
     post:
       tags:
         - Catalog API
       summary: Remotely signs requests to object storage
       operationId: signRequest
+      description: >
+        Signs one request to object storage on the client's behalf.
+
+
+        `RemoteSignResult` takes one of two forms. With `remote-signing`, `uri` is the
+        requested URI and `headers` carries the signature. With `presigned-urls`, `uri`
+        carries the signature and `headers` is empty.
+
+
+        `X-Iceberg-Access-Delegation` on this operation is not a capability negotiation.
+        When used, the client selects the form of the result for this request, and the
+        server SHOULD answer in that form. A server that does not implement the requested
+        mode SHOULD respond with 406 rather than answer in another form.
+
+
+        Only `remote-signing` and `presigned-urls` are evaluated on this operation. A request
+        that selects both modes is malformed, 400. When no mode is present the request is
+        treated as `remote-signing`.
+
+
+        A client MUST verify that the result has the form it requested: a server that
+        predates this header ignores it and answers with signed headers.
       requestBody:
         description: The request to be signed
         content:
@@ -1422,6 +1445,8 @@ paths:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
           $ref: '#/components/responses/ForbiddenResponse'
+        406:
+          $ref: '#/components/responses/UnsupportedOperationResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -2150,6 +2175,11 @@ components:
         Specific properties and handling for `vended-credentials` and `remote-signing`
         are documented in the `LoadTableResult` schema section of this spec document.
 
+
+        On `signRequest` the header selects the signing mode for that request: exactly one
+        of `remote-signing` or `presigned-urls`, as documented in the `signRequest`
+        operation. Other values are ignored on that operation.
+
       required: false
       schema:
         type: array
@@ -2158,6 +2188,7 @@ components:
           enum:
             - vended-credentials
             - remote-signing
+            - presigned-urls
       style: simple
       explode: false
       example: "vended-credentials,remote-signing"
