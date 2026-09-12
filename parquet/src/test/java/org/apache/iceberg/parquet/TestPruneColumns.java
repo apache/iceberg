@@ -359,6 +359,7 @@ public class TestPruneColumns {
     assertThatThrownBy(() -> ParquetSchemaUtil.pruneColumns(fileSchema, projection))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot read Parquet type")
+        .hasMessageContaining("field geom")
         .hasMessageContaining("geometry(OGC:CRS84)");
   }
 
@@ -375,6 +376,88 @@ public class TestPruneColumns {
     assertThatThrownBy(() -> ParquetSchemaUtil.pruneColumnsFallback(fileSchema, projection))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot read Parquet type")
+        .hasMessageContaining("field geom")
+        .hasMessageContaining("geometry(OGC:CRS84)");
+  }
+
+  @Test
+  public void rejectsNestedStructGeometryCrsMismatchWithoutIds() {
+    MessageType fileSchema =
+        Types.buildMessage()
+            .addField(
+                Types.buildGroup(Type.Repetition.OPTIONAL)
+                    .optional(PrimitiveTypeName.BINARY)
+                    .as(LogicalTypeAnnotation.geometryType("EPSG:3857"))
+                    .named("geom")
+                    .named("location"))
+            .named("table");
+    Schema projection =
+        new Schema(
+            NestedField.optional(
+                1,
+                "location",
+                StructType.of(NestedField.optional(2, "geom", GeometryType.crs84()))));
+
+    assertThatThrownBy(() -> ParquetSchemaUtil.pruneColumnsFallback(fileSchema, projection))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot read Parquet type")
+        .hasMessageContaining("field location.geom")
+        .hasMessageContaining("geometry(OGC:CRS84)");
+  }
+
+  @Test
+  public void rejectsListElementGeometryCrsMismatchWithoutIds() {
+    MessageType fileSchema =
+        Types.buildMessage()
+            .addField(
+                Types.buildGroup(Type.Repetition.OPTIONAL)
+                    .addField(
+                        Types.buildGroup(Type.Repetition.REPEATED)
+                            .optional(PrimitiveTypeName.BINARY)
+                            .as(LogicalTypeAnnotation.geometryType("EPSG:3857"))
+                            .named("element")
+                            .named("list"))
+                    .as(LogicalTypeAnnotation.listType())
+                    .named("locations"))
+            .named("table");
+    Schema projection =
+        new Schema(
+            NestedField.optional(1, "locations", ListType.ofOptional(2, GeometryType.crs84())));
+
+    assertThatThrownBy(() -> ParquetSchemaUtil.pruneColumnsFallback(fileSchema, projection))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot read Parquet type")
+        .hasMessageContaining("field locations.list.element")
+        .hasMessageContaining("geometry(OGC:CRS84)");
+  }
+
+  @Test
+  public void rejectsMapValueGeometryCrsMismatchWithoutIds() {
+    MessageType fileSchema =
+        Types.buildMessage()
+            .addField(
+                Types.buildGroup(Type.Repetition.OPTIONAL)
+                    .addField(
+                        Types.buildGroup(Type.Repetition.REPEATED)
+                            .required(PrimitiveTypeName.BINARY)
+                            .as(LogicalTypeAnnotation.stringType())
+                            .named("key")
+                            .optional(PrimitiveTypeName.BINARY)
+                            .as(LogicalTypeAnnotation.geometryType("EPSG:3857"))
+                            .named("value")
+                            .named("key_value"))
+                    .as(LogicalTypeAnnotation.mapType())
+                    .named("locations"))
+            .named("table");
+    Schema projection =
+        new Schema(
+            NestedField.optional(
+                1, "locations", MapType.ofOptional(2, 3, StringType.get(), GeometryType.crs84())));
+
+    assertThatThrownBy(() -> ParquetSchemaUtil.pruneColumnsFallback(fileSchema, projection))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot read Parquet type")
+        .hasMessageContaining("field locations.key_value.value")
         .hasMessageContaining("geometry(OGC:CRS84)");
   }
 
