@@ -36,6 +36,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
@@ -45,6 +46,7 @@ import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -71,6 +73,8 @@ class TestHttpInputFile {
   private static String throttledUrl;
   private static String notImplementedUrl;
   private static String redirectUrl;
+  private static String unknownLength200Url;
+  private static String unknownLength206Url;
   private static final AtomicInteger REQUEST_COUNT = new AtomicInteger();
 
   @BeforeAll
@@ -83,6 +87,8 @@ class TestHttpInputFile {
     server.createContext("/throttled", exchange -> respondStatus(exchange, 429));
     server.createContext("/not-implemented", exchange -> respondStatus(exchange, 501));
     server.createContext("/redirect", TestHttpInputFile::respondRedirect);
+    server.createContext("/unknown-length-200", TestHttpInputFile::respondUnknownLength200);
+    server.createContext("/unknown-length-206", TestHttpInputFile::respondUnknownLength206);
     server.start();
     // disable the client's built-in retries so tests exercise HttpInputStream's own retry logic
     client = HttpClients.custom().disableAutomaticRetries().build();
@@ -94,6 +100,10 @@ class TestHttpInputFile {
     throttledUrl = String.format(Locale.ROOT, "http://127.0.0.1:%d/throttled", port);
     notImplementedUrl = String.format(Locale.ROOT, "http://127.0.0.1:%d/not-implemented", port);
     redirectUrl = String.format(Locale.ROOT, "http://127.0.0.1:%d/redirect", port);
+    unknownLength200Url =
+        String.format(Locale.ROOT, "http://127.0.0.1:%d/unknown-length-200", port);
+    unknownLength206Url =
+        String.format(Locale.ROOT, "http://127.0.0.1:%d/unknown-length-206", port);
   }
 
   @AfterAll
@@ -217,6 +227,19 @@ class TestHttpInputFile {
   }
 
   @Test
+  void getLengthThrowsWhenLengthCannotBeDetermined() {
+    assertThatThrownBy(
+            () -> httpInputFile(unknownLength200Url, MetricsContext.nullMetrics()).getLength())
+        .isInstanceOf(RuntimeIOException.class)
+        .hasMessageContaining("Cannot determine content length");
+
+    assertThatThrownBy(
+            () -> httpInputFile(unknownLength206Url, MetricsContext.nullMetrics()).getLength())
+        .isInstanceOf(RuntimeIOException.class)
+        .hasMessageContaining("Cannot determine content length");
+  }
+
+  @Test
   void readThrowsForbiddenWithoutRetry() {
     HttpInputFile inputFile = httpInputFile(forbiddenUrl, MetricsContext.nullMetrics());
 
@@ -280,24 +303,49 @@ class TestHttpInputFile {
 
   @Test
   void readDoesNotFollowRedirect() {
-    // HttpUrlClient builds the client with redirect handling disabled, so a 3xx is surfaced as an
-    // error rather than followed to its target (which would defeat a host allow-list).
-    HttpUrlClient support = new HttpUrlClient();
-    try {
-      InputFile inputFile = support.newInputFile(redirectUrl, MetricsContext.nullMetrics());
-      assertThatThrownBy(
-              () -> {
-                try (SeekableInputStream stream = inputFile.newStream()) {
-                  stream.read();
-                }
-              })
-          .isInstanceOf(IOException.class)
-          .hasMessageContaining("Unexpected HTTP 302");
-      // only the redirect endpoint is hit; the target is never fetched
-      assertThat(REQUEST_COUNT.get()).isEqualTo(1);
-    } finally {
-      support.close();
+    InputFile inputFile =
+        HttpInputFile.fromLocation(redirectUrl, ImmutableMap.of(), MetricsContext.nullMetrics());
+
+    assertThatThrownBy(
+            () -> {
+              try (SeekableInputStream stream = inputFile.newStream()) {
+                stream.read();
+              }
+            })
+        .isInstanceOf(IOException.class)
+        .hasMessageContaining("Unexpected HTTP 302");
+    // only the redirect endpoint is hit; the target is never fetched
+    assertThat(REQUEST_COUNT.get()).isEqualTo(1);
+  }
+
+  @Test
+  void readChunkSizeCanBeConfigured() throws IOException {
+    InputFile inputFile =
+        HttpInputFile.fromLocation(
+            url,
+            ImmutableMap.of(
+                HttpInputFile.READ_CHUNK_SIZE_BYTES, String.valueOf(DATA.length + 1_000)),
+            MetricsContext.nullMetrics());
+
+    byte[] actual = new byte[DATA.length];
+    try (SeekableInputStream stream = inputFile.newStream()) {
+      IOUtil.readFully(stream, actual, 0, actual.length);
     }
+
+    assertThat(actual).isEqualTo(DATA);
+    assertThat(REQUEST_COUNT.get()).isEqualTo(1);
+  }
+
+  @Test
+  void invalidReadChunkSizeFails() {
+    assertThatThrownBy(
+            () ->
+                HttpInputFile.fromLocation(
+                    url,
+                    ImmutableMap.of(HttpInputFile.READ_CHUNK_SIZE_BYTES, "0"),
+                    MetricsContext.nullMetrics()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(HttpInputFile.READ_CHUNK_SIZE_BYTES);
   }
 
   @Test
@@ -388,6 +436,23 @@ class TestHttpInputFile {
     exchange.getResponseHeaders().set("Location", PATH);
     exchange.sendResponseHeaders(302, -1);
     exchange.close();
+  }
+
+  private static void respondUnknownLength200(HttpExchange exchange) throws IOException {
+    REQUEST_COUNT.incrementAndGet();
+    exchange.sendResponseHeaders(200, 0);
+    try (OutputStream out = exchange.getResponseBody()) {
+      out.write(DATA, 0, 1);
+    }
+  }
+
+  private static void respondUnknownLength206(HttpExchange exchange) throws IOException {
+    REQUEST_COUNT.incrementAndGet();
+    exchange.getResponseHeaders().set("Content-Range", "bytes 0-0/*");
+    exchange.sendResponseHeaders(206, 1);
+    try (OutputStream out = exchange.getResponseBody()) {
+      out.write(DATA, 0, 1);
+    }
   }
 
   private static HttpInputFile httpInputFile(String requestUrl, MetricsContext metrics) {
