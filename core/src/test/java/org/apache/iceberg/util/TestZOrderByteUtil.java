@@ -140,7 +140,7 @@ public class TestZOrderByteUtil {
    * exercise both the table and the fallback used beyond its supported width.
    */
   @Test
-  public void testInterleaveUniformColumns() {
+  public void interleaveUniformColumns() {
     for (int numColumns = 1; numColumns <= 9; numColumns++) {
       for (int colLength = 1; colLength <= 9; colLength++) {
         byte[][] testBytes = new byte[numColumns][];
@@ -164,7 +164,7 @@ public class TestZOrderByteUtil {
    * full interleaving, for every truncation point.
    */
   @Test
-  public void testInterleaveUniformColumnsTruncatedOutput() {
+  public void interleaveUniformColumnsTruncatedOutput() {
     for (int numColumns = 1; numColumns <= 9; numColumns++) {
       int colLength = 8;
       byte[][] testBytes = new byte[numColumns][];
@@ -187,7 +187,7 @@ public class TestZOrderByteUtil {
 
   /** Columns of differing lengths drop out of the interleaving once exhausted. */
   @Test
-  public void testInterleaveRaggedColumns() {
+  public void interleaveRaggedColumns() {
     for (int test = 0; test < NUM_INTERLEAVE_TESTS; test++) {
       int numColumns = random.nextInt(9) + 1;
       byte[][] testBytes = new byte[numColumns][];
@@ -208,7 +208,7 @@ public class TestZOrderByteUtil {
 
   /** A zero-length column contributes nothing and must not disturb the other columns. */
   @Test
-  public void testInterleaveWithEmptyColumn() {
+  public void interleaveWithEmptyColumn() {
     byte[][] test = new byte[3][];
     test[0] = new byte[] {IOIOIOIO, OIOIOIOI};
     test[1] = new byte[0];
