@@ -53,9 +53,11 @@ import org.apache.iceberg.Scan;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -1408,34 +1410,8 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   @EnumSource(PlanningMode.class)
   void fileIOForRemotePlanningIsPropagated(
       Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode) {
-    RESTCatalogAdapter adapter =
-        Mockito.spy(
-            new RESTCatalogAdapter(backendCatalog) {
-              @Override
-              public <T extends RESTResponse> T execute(
-                  HTTPRequest request,
-                  Class<T> responseType,
-                  Consumer<ErrorResponse> errorHandler,
-                  Consumer<Map<String, String>> responseHeaders,
-                  ParserContext parserContext) {
-                T response =
-                    super.execute(
-                        request, responseType, errorHandler, responseHeaders, parserContext);
-                return maybeAddStorageCredential(response);
-              }
-            });
-
-    adapter.setPlanningBehavior(planMode.apply(TestPlanningBehavior.builder()).build());
-
     RESTCatalog catalog =
-        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    catalog.initialize(
-        "test",
-        ImmutableMap.of(
-            CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.inmemory.InMemoryFileIO",
-            RESTCatalogProperties.SCAN_PLANNING_MODE,
-            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
+        catalogWithStorageCredentialsForPlanning(planMode, ImmutableMap.of()).catalog;
 
     Table table = restTableFor(catalog, "file_io_propagation");
 
@@ -1468,6 +1444,107 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
         .containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
     assertThat(newScan.fileIO().get().properties().get(RESTCatalogProperties.REST_SCAN_PLAN_ID))
         .isNotEqualTo(planId);
+  }
+
+  @ParameterizedTest
+  @EnumSource(PlanningMode.class)
+  void encryptedTableRemotePlanningRejectsVendedStorageCredentialsUnlessClientKmsCredsEnabled(
+      PlanningMode planMode) throws IOException {
+    assertEncryptedTablePlanningUsesVendedStorageCredentials(planMode, false);
+    assertEncryptedTablePlanningUsesVendedStorageCredentials(planMode, true);
+  }
+
+  private void assertEncryptedTablePlanningUsesVendedStorageCredentials(
+      PlanningMode planMode, boolean useClientKmsCreds) throws IOException {
+    ImmutableMap.Builder<String, String> properties =
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getName());
+    if (useClientKmsCreds) {
+      properties.put(RESTCatalogProperties.USE_CLIENT_KMS_CREDS, "true");
+    }
+
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithStorageCredentialsForPlanning(planMode, properties.buildKeepingLast());
+
+    try {
+      Table table =
+          encryptedTableWithScanPlanning(
+              catalogWithAdapter.catalog,
+              "encrypted_" + planMode.ordinal() + "_" + useClientKmsCreds);
+      TableScan tableScan = table.newScan();
+
+      if (useClientKmsCreds) {
+        try (CloseableIterable<FileScanTask> tasks = tableScan.planFiles()) {
+          assertThat(tasks).isEmpty();
+        }
+
+        assertThat(tableScan.fileIO().get().properties())
+            .containsKey(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+      } else {
+        assertThatThrownBy(tableScan::planFiles)
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("Cannot use REST-provided storage access")
+            .hasMessageContaining(RESTCatalogProperties.USE_CLIENT_KMS_CREDS);
+      }
+    } finally {
+      catalogWithAdapter.catalog.close();
+    }
+  }
+
+  private CatalogWithAdapter catalogWithStorageCredentialsForPlanning(
+      Function<TestPlanningBehavior.Builder, TestPlanningBehavior.Builder> planMode,
+      Map<String, String> additionalProperties) {
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders,
+                  ParserContext parserContext) {
+                T response =
+                    super.execute(
+                        request, responseType, errorHandler, responseHeaders, parserContext);
+                return maybeAddStorageCredential(response);
+              }
+            });
+
+    adapter.setPlanningBehavior(planMode.apply(TestPlanningBehavior.builder()).build());
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+
+    catalog.initialize(
+        "test",
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
+            .put(
+                RESTCatalogProperties.SCAN_PLANNING_MODE,
+                RESTCatalogProperties.ScanPlanningMode.SERVER.modeName())
+            .putAll(additionalProperties)
+            .buildKeepingLast());
+
+    return new CatalogWithAdapter(catalog, adapter);
+  }
+
+  private RESTTable encryptedTableWithScanPlanning(RESTCatalog catalog, String tableName) {
+    TableIdentifier identifier = TableIdentifier.of(NS, tableName);
+    if (!catalog.namespaceExists(identifier.namespace())) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    Table table =
+        catalog
+            .buildTable(identifier, SCHEMA)
+            .withPartitionSpec(SPEC)
+            .withProperty(TableProperties.FORMAT_VERSION, "3")
+            .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+            .create();
+
+    assertThat(table).isInstanceOf(RESTTable.class);
+    return (RESTTable) table;
   }
 
   @SuppressWarnings("unchecked")

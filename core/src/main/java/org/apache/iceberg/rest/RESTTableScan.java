@@ -36,6 +36,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.TableScanContext;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -85,6 +86,7 @@ class RESTTableScan extends DataTableScan {
   private final ParserContext parserContext;
   private final Map<String, String> catalogProperties;
   private final Object hadoopConf;
+  private final boolean useClientSideStorageAccessForEncryptedTables;
   private String planId = null;
   private FileIO scanFileIO = null;
   private boolean useSnapshotSchema = false;
@@ -100,7 +102,8 @@ class RESTTableScan extends DataTableScan {
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
       Map<String, String> catalogProperties,
-      Object hadoopConf) {
+      Object hadoopConf,
+      boolean useClientSideStorageAccessForEncryptedTables) {
     super(table, schema, context);
     this.client = client;
     this.headers = headers;
@@ -115,6 +118,8 @@ class RESTTableScan extends DataTableScan {
             .build();
     this.catalogProperties = catalogProperties;
     this.hadoopConf = hadoopConf;
+    this.useClientSideStorageAccessForEncryptedTables =
+        useClientSideStorageAccessForEncryptedTables;
   }
 
   @Override
@@ -132,7 +137,8 @@ class RESTTableScan extends DataTableScan {
             resourcePaths,
             supportedEndpoints,
             catalogProperties,
-            hadoopConf);
+            hadoopConf,
+            useClientSideStorageAccessForEncryptedTables);
     scan.useSnapshotSchema = useSnapshotSchema;
     return scan;
   }
@@ -209,8 +215,7 @@ class RESTTableScan extends DataTableScan {
 
     this.planId = response.planId();
     PlanStatus planStatus = response.planStatus();
-    this.scanFileIO =
-        !response.credentials().isEmpty() ? scanFileIO(response.credentials()) : table().io();
+    this.scanFileIO = fileIOForPlanningResponse(response.credentials());
 
     switch (planStatus) {
       case COMPLETED:
@@ -316,10 +321,28 @@ class RESTTableScan extends DataTableScan {
 
     FetchPlanningResultResponse response = result.get();
 
-    this.scanFileIO =
-        !response.credentials().isEmpty() ? scanFileIO(response.credentials()) : table().io();
+    this.scanFileIO = fileIOForPlanningResponse(response.credentials());
 
     return scanTasksIterable(response.planTasks(), response.fileScanTasks());
+  }
+
+  private FileIO fileIOForPlanningResponse(List<Credential> storageCredentials) {
+    if (storageCredentials.isEmpty()) {
+      return table().io();
+    }
+
+    Preconditions.checkState(
+        !useClientSideStorageAccessForEncryptedTable(),
+        "Cannot use REST-provided storage access for encrypted table %s unless %s is true",
+        tableIdentifier,
+        RESTCatalogProperties.USE_CLIENT_KMS_CREDS);
+
+    return scanFileIO(storageCredentials);
+  }
+
+  private boolean useClientSideStorageAccessForEncryptedTable() {
+    return useClientSideStorageAccessForEncryptedTables
+        && table().properties().containsKey(TableProperties.ENCRYPTION_TABLE_KEY);
   }
 
   private static String failureMessage(String planId, ErrorResponse error) {
