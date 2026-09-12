@@ -21,11 +21,19 @@ package org.apache.iceberg;
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ComparisonChain;
@@ -33,6 +41,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -44,6 +56,14 @@ public class TestBaseIncrementalChangelogScan
   @Override
   protected IncrementalChangelogScan newScan() {
     return table.newIncrementalChangelogScan();
+  }
+
+  @BeforeEach
+  public void enableChangelogDeleteFiles() {
+    table
+        .updateProperties()
+        .set(TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES, "true")
+        .commit();
   }
 
   @TestTemplate
@@ -275,6 +295,387 @@ public class TestBaseIncrementalChangelogScan
         .extracting(DeleteFile::location)
         .containsExactly(FILE_A_DELETES.location());
     assertThat(task.existingDeletes()).as("Must have no existing deletes").isEmpty();
+  }
+
+  @TestTemplate
+  public void testPositionDeletesOnFileWithPreExistingPositionDeletes() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Snapshot 1: Add FILE_A and FILE_B with position deletes on FILE_A (before the scan range)
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: Add more position deletes for FILE_A within the scan range
+    DeleteFile newFileADeletes =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-a-deletes-2.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(newFileADeletes).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    assertThat(tasks).as("Must have 1 task").hasSize(1);
+
+    DeletedRowsScanTask task = (DeletedRowsScanTask) Iterables.getOnlyElement(tasks);
+    assertThat(task.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
+    assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
+    assertThat(task.addedDeletes())
+        .as("Must have the newly added position delete")
+        .extracting(DeleteFile::location)
+        .containsExactly(newFileADeletes.location());
+
+    // Pre-range position deletes must be attached as existing deletes even when there are no
+    // equality deletes in the range, so previously deleted rows are not emitted again
+    assertThat(task.existingDeletes())
+        .as("Must include position deletes from before the scan range")
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
+  }
+
+  @TestTemplate
+  public void testExistingDeletesOutsideAffectedPartitions() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Snapshot 1: FILE_A (bucket 0) and FILE_B (bucket 1), position deletes on both
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: a new position delete for FILE_A only
+    DeleteFile newFileADeletes =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-a-deletes-3.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(newFileADeletes).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    // FILE_B is untouched in the range: its pre-range deletes are outside the affected scope
+    // and must not surface, while FILE_A's pre-range deletes must still be attached
+    assertThat(tasks).as("Must have 1 task").hasSize(1);
+
+    DeletedRowsScanTask task = (DeletedRowsScanTask) Iterables.getOnlyElement(tasks);
+    assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
+    assertThat(task.addedDeletes())
+        .as("Must have the new delete")
+        .extracting(DeleteFile::location)
+        .containsExactly(newFileADeletes.location());
+    assertThat(task.existingDeletes())
+        .as("Must have only FILE_A's pre-range delete")
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
+  }
+
+  @TestTemplate
+  public void testExistingDVKeptForEqualityTriggeredTask() {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    // Snapshot 1: Add FILE_A with a DV (before the scan range)
+    table.newFastAppend().appendFile(FILE_A).commit();
+    DeleteFile dv = newDV(FILE_A);
+    table.newRowDelta().addDeletes(dv).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 2: an equality delete in FILE_A's partition (no file-scoped deletes added)
+    table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap2.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    assertThat(tasks).as("Must have 1 task").hasSize(1);
+
+    DeletedRowsScanTask task = (DeletedRowsScanTask) Iterables.getOnlyElement(tasks);
+    assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
+    assertThat(task.addedDeletes())
+        .as("Must have the equality delete")
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A2_DELETES.location());
+
+    // The pre-range DV references a file that is not in the affected location set, but it lies
+    // in a partition where a partition-scoped delete was added, so it must be kept to suppress
+    // positions already deleted before the range
+    assertThat(task.existingDeletes())
+        .as("Must include the pre-range DV")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv.location());
+  }
+
+  @TestTemplate
+  public void testDVOnExistingFile() {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    // Snapshot 1: Add FILE_A and FILE_B
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: Add a DV for FILE_A
+    DeleteFile dv = newDV(FILE_A);
+    table.newRowDelta().addDeletes(dv).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    assertThat(tasks).as("Must have 1 task").hasSize(1);
+
+    DeletedRowsScanTask task = (DeletedRowsScanTask) Iterables.getOnlyElement(tasks);
+    assertThat(task.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
+    assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
+    assertThat(task.addedDeletes())
+        .as("Must have the added DV")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv.location());
+    assertThat(task.existingDeletes()).as("Must have no existing deletes").isEmpty();
+  }
+
+  @TestTemplate
+  public void testDVReplacementOnExistingFile() {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    // Snapshot 1: Add FILE_A
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    // Snapshot 2: Add a DV for FILE_A (before the scan range)
+    DeleteFile dv1 = newDV(FILE_A);
+    table.newRowDelta().addDeletes(dv1).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: Replace the DV — a new DV carries all previously deleted positions, so the
+    // old DV must be removed in the same commit
+    DeleteFile dv2 = newDV(FILE_A);
+    table
+        .newRowDelta()
+        .removeDeletes(dv1)
+        .addDeletes(dv2)
+        .validateFromSnapshot(snap2.snapshotId())
+        .commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap2.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    assertThat(tasks).as("Must have 1 task").hasSize(1);
+
+    DeletedRowsScanTask task = (DeletedRowsScanTask) Iterables.getOnlyElement(tasks);
+    assertThat(task.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap3.snapshotId());
+    assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
+    assertThat(task.addedDeletes())
+        .as("Must have the replacement DV")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv2.location());
+
+    // The replaced DV must be attached as an existing delete: the new DV is cumulative, so
+    // positions already deleted by the old DV must not be emitted as DELETE rows again
+    assertThat(task.existingDeletes())
+        .as("Must include the replaced DV to suppress previously deleted positions")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv1.location());
+  }
+
+  @TestTemplate
+  public void testDVReplacementWithinScanRange() {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    // Snapshot 1: Add FILE_A
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: Add a DV for FILE_A within the scan range
+    DeleteFile dv1 = newDV(FILE_A);
+    table.newRowDelta().addDeletes(dv1).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: Replace the DV within the scan range
+    DeleteFile dv2 = newDV(FILE_A);
+    table
+        .newRowDelta()
+        .removeDeletes(dv1)
+        .addDeletes(dv2)
+        .validateFromSnapshot(snap2.snapshotId())
+        .commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    assertThat(tasks).as("Must have 2 tasks").hasSize(2);
+
+    DeletedRowsScanTask task1 = (DeletedRowsScanTask) tasks.get(0);
+    assertThat(task1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
+    assertThat(task1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
+    assertThat(task1.addedDeletes())
+        .as("Must have the first DV")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv1.location());
+    assertThat(task1.existingDeletes()).as("Must have no existing deletes").isEmpty();
+
+    DeletedRowsScanTask task2 = (DeletedRowsScanTask) tasks.get(1);
+    assertThat(task2.changeOrdinal()).as("Ordinal must match").isEqualTo(1);
+    assertThat(task2.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap3.snapshotId());
+    assertThat(task2.addedDeletes())
+        .as("Must have the replacement DV")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv2.location());
+    assertThat(task2.existingDeletes())
+        .as("Must include the DV replaced in this snapshot")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv1.location());
+  }
+
+  @TestTemplate
+  public void testDeletedFileWithDV() {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    // Snapshot 1: Add FILE_A
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    // Snapshot 2: Add a DV for FILE_A (before the scan range)
+    DeleteFile dv = newDV(FILE_A);
+    table.newRowDelta().addDeletes(dv).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: Delete FILE_A entirely within the scan range
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap2.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    assertThat(tasks).as("Must have 1 task").hasSize(1);
+
+    DeletedDataFileScanTask task = (DeletedDataFileScanTask) Iterables.getOnlyElement(tasks);
+    assertThat(task.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap3.snapshotId());
+    assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
+    assertThat(task.existingDeletes())
+        .as("Must include the DV so previously deleted positions are not emitted")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv.location());
+  }
+
+  @TestTemplate
+  public void testAddedFileWithDVInSameSnapshot() {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    // Snapshot 1: Add FILE_A
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: Add FILE_B together with a DV on it (same-commit upsert pattern)
+    DeleteFile dvB = newDV(FILE_B);
+    table.newRowDelta().addRows(FILE_B).addDeletes(dvB).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    assertThat(tasks).as("Must have 1 task").hasSize(1);
+
+    AddedRowsScanTask task = (AddedRowsScanTask) Iterables.getOnlyElement(tasks);
+    assertThat(task.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
+    assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_B.location());
+    assertThat(task.deletes())
+        .as("Must have the DV added in the same snapshot")
+        .extracting(DeleteFile::location)
+        .containsExactly(dvB.location());
+  }
+
+  @TestTemplate
+  public void testDVRewrittenByMidRangeReplaceSnapshot() {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    // Snapshot 1: Add FILE_A with a DV (before the scan range)
+    table.newFastAppend().appendFile(FILE_A).commit();
+    DeleteFile dv1 = newDV(FILE_A);
+    table.newRowDelta().addDeletes(dv1).commit();
+    Snapshot rangeStart = table.currentSnapshot();
+
+    // Snapshot 2: REPLACE snapshot rewrites the DV (e.g. delete compaction); changelog scans
+    // skip REPLACE snapshots, so this removal/addition is never observed by planning
+    DeleteFile dv1b = newDV(FILE_A);
+    table.newRewrite().deleteFile(dv1).addFile(dv1b, rangeStart.sequenceNumber()).commit();
+    Snapshot replaceSnap = table.currentSnapshot();
+
+    // Snapshot 3: Replace the rewritten DV within the scan range
+    DeleteFile dv2 = newDV(FILE_A);
+    table
+        .newRowDelta()
+        .removeDeletes(dv1b)
+        .addDeletes(dv2)
+        .validateFromSnapshot(replaceSnap.snapshotId())
+        .commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    // Snapshot 4: Replace the DV again
+    DeleteFile dv3 = newDV(FILE_A);
+    table
+        .newRowDelta()
+        .removeDeletes(dv2)
+        .addDeletes(dv3)
+        .validateFromSnapshot(snap3.snapshotId())
+        .commit();
+    Snapshot snap4 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(rangeStart.snapshotId()).toSnapshot(snap4.snapshotId());
+
+    // Planning must not fail on multiple DV versions for the same file: the pre-range dv1 is
+    // never observed as removed (its removal happened in the skipped REPLACE snapshot), so it
+    // would collide with dv2 unless the newest DV per file wins
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    assertThat(tasks).as("Must have 2 tasks").hasSize(2);
+
+    DeletedRowsScanTask task1 = (DeletedRowsScanTask) tasks.get(0);
+    assertThat(task1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap3.snapshotId());
+    assertThat(task1.addedDeletes())
+        .as("Must have the DV added in snapshot 3")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv2.location());
+    assertThat(task1.existingDeletes())
+        .as("Must carry the content-equivalent pre-range DV")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv1.location());
+
+    DeletedRowsScanTask task2 = (DeletedRowsScanTask) tasks.get(1);
+    assertThat(task2.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap4.snapshotId());
+    assertThat(task2.addedDeletes())
+        .as("Must have the DV added in snapshot 4")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv3.location());
+    assertThat(task2.existingDeletes())
+        .as("Must keep only the newest DV for the file")
+        .extracting(DeleteFile::location)
+        .containsExactly(dv2.location());
   }
 
   @TestTemplate
@@ -807,6 +1208,71 @@ public class TestBaseIncrementalChangelogScan
   }
 
   @TestTemplate
+  public void testExistingDeletesWithStatsAreKeptWhenResidualsAreIgnored() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // a pre-range equality delete on "id" whose bounds (id = 100) cannot match a filter of id = 1.
+    // "id" is not a partition column, so only the delete file's own stats can prune this file
+    int idFieldId = table.schema().findField("id").fieldId();
+    ByteBuffer bound = Conversions.toByteBuffer(Types.IntegerType.get(), 100);
+    DeleteFile existingEqDeletes =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofEqualityDeletes(idFieldId)
+            .withPath("/path/to/existing-id-100-eq-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withMetrics(
+                new Metrics(
+                    1L, null, null, null, null, Map.of(idFieldId, bound), Map.of(idFieldId, bound)))
+            .build();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newRowDelta().addDeletes(existingEqDeletes).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // an in-range delete on FILE_A, which turns FILE_A into a DeletedRowsScanTask
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    Expression filter = Expressions.equal("id", 1);
+
+    // with residuals, the task filter still suppresses rows the pruned delete would have removed
+    DeletedRowsScanTask withResiduals =
+        (DeletedRowsScanTask)
+            Iterables.getOnlyElement(
+                plan(
+                    newScan()
+                        .filter(filter)
+                        .fromSnapshotExclusive(snap1.snapshotId())
+                        .toSnapshot(snap2.snapshotId())));
+    assertThat(withResiduals.residual())
+        .as("Residual must re-apply the filter to emitted rows")
+        .isEqualTo(filter);
+
+    // without residuals, nothing re-applies the filter, so the existing delete must be retained
+    DeletedRowsScanTask ignoringResiduals =
+        (DeletedRowsScanTask)
+            Iterables.getOnlyElement(
+                plan(
+                    newScan()
+                        .filter(filter)
+                        .ignoreResiduals()
+                        .fromSnapshotExclusive(snap1.snapshotId())
+                        .toSnapshot(snap2.snapshotId())));
+    assertThat(ignoringResiduals.residual())
+        .as("Residual must be dropped")
+        .isEqualTo(Expressions.alwaysTrue());
+    assertThat(ignoringResiduals.addedDeletes())
+        .as("Must have the newly added delete")
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_A_DELETES.location());
+    assertThat(ignoringResiduals.existingDeletes())
+        .as("Existing delete must not be pruned by its stats when residuals are ignored")
+        .extracting(DeleteFile::location)
+        .containsExactly(existingEqDeletes.location());
+  }
+
+  @TestTemplate
   public void testOverwriteSnapshotWithExistingDeletes() {
     assumeThat(formatVersion).isEqualTo(2);
 
@@ -1030,16 +1496,12 @@ public class TestBaseIncrementalChangelogScan
     // Verify no errors and correct results
     assertThat(tasks1).isNotEmpty();
 
-    // Verify existingDeleteIndex was NOT built (position deletes don't require it)
+    // Position deletes on an EXISTING file produce a DeletedRowsScanTask, which must attach
+    // deletes from before the scan range; verify the index was built lazily exactly once
     BaseIncrementalChangelogScan baseScan1 = (BaseIncrementalChangelogScan) scan1;
-    assertThat(baseScan1.getExistingDeleteIndexBuildCallCount())
-        .as(
-            "Should not call buildExistingDeleteIndex for position deletes without equality deletes/DELETED files")
-        .isEqualTo(0);
-    assertThat(baseScan1.wasExistingDeleteIndexBuilt())
-        .as(
-            "Should not build existingDeleteIndex for position deletes without equality deletes/DELETED files")
-        .isFalse();
+    assertThat(baseScan1.existingDeleteIndexBuildCount())
+        .as("Should build existingDeleteIndex lazily exactly once for DeletedRowsScanTask")
+        .isEqualTo(1);
 
     // Scenario 2: Pure append-only (no deletes at all, no DELETED files)
     // Snapshot 3: Add FILE_B (pure append, no deletes)
@@ -1058,7 +1520,7 @@ public class TestBaseIncrementalChangelogScan
 
     // Verify existingDeleteIndex was NOT built (pure append, no deletes, no DELETED files)
     BaseIncrementalChangelogScan baseScan2 = (BaseIncrementalChangelogScan) scan2;
-    assertThat(baseScan2.getExistingDeleteIndexBuildCallCount())
+    assertThat(baseScan2.existingDeleteIndexBuildCount())
         .as("Should not call buildExistingDeleteIndex for pure append-only workload")
         .isEqualTo(0);
     assertThat(baseScan2.wasExistingDeleteIndexBuilt())
@@ -1098,7 +1560,7 @@ public class TestBaseIncrementalChangelogScan
 
     // Verify existingDeleteIndex was built EARLY (for equality deletes, not lazily)
     BaseIncrementalChangelogScan baseScan = (BaseIncrementalChangelogScan) scan;
-    assertThat(baseScan.getExistingDeleteIndexBuildCallCount())
+    assertThat(baseScan.existingDeleteIndexBuildCount())
         .as("Should call buildExistingDeleteIndex exactly once for equality deletes")
         .isEqualTo(1);
     assertThat(baseScan.wasExistingDeleteIndexBuilt())
@@ -1138,7 +1600,7 @@ public class TestBaseIncrementalChangelogScan
 
     // Verify existingDeleteIndex was built LAZILY (on-demand for DELETED file)
     BaseIncrementalChangelogScan baseScan = (BaseIncrementalChangelogScan) scan;
-    assertThat(baseScan.getExistingDeleteIndexBuildCallCount())
+    assertThat(baseScan.existingDeleteIndexBuildCount())
         .as("Should call buildExistingDeleteIndex exactly once (lazily) for DELETED file")
         .isEqualTo(1);
     assertThat(baseScan.wasExistingDeleteIndexBuilt())
@@ -1180,7 +1642,7 @@ public class TestBaseIncrementalChangelogScan
 
     // This proves that the cached index was reused when DELETED file was encountered
     BaseIncrementalChangelogScan baseScan = (BaseIncrementalChangelogScan) scan;
-    assertThat(baseScan.getExistingDeleteIndexBuildCallCount())
+    assertThat(baseScan.existingDeleteIndexBuildCount())
         .as(
             "Should call buildExistingDeleteIndex exactly once (early), then reuse cached index for DELETED file")
         .isEqualTo(1);
@@ -1228,7 +1690,7 @@ public class TestBaseIncrementalChangelogScan
     // deletes)
     // Note: It will be built but will be empty
     BaseIncrementalChangelogScan baseScan = (BaseIncrementalChangelogScan) scan;
-    assertThat(baseScan.getExistingDeleteIndexBuildCallCount())
+    assertThat(baseScan.existingDeleteIndexBuildCount())
         .as("Should call buildExistingDeleteIndex exactly once (lazily) even if result is empty")
         .isEqualTo(1);
     assertThat(baseScan.wasExistingDeleteIndexBuilt())
@@ -1302,6 +1764,10 @@ public class TestBaseIncrementalChangelogScan
     TestTables.TestTable localTable =
         TestTables.create(
             tableDir, tableName, SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
+    localTable
+        .updateProperties()
+        .set(TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES, "true")
+        .commit();
 
     // Snapshot 1: Add fileA (unpartitioned, Spec ID 0)
     DataFile fileA =
@@ -1364,5 +1830,925 @@ public class TestBaseIncrementalChangelogScan
 
     assertThat(addedCount).isEqualTo(1);
     assertThat(deletedCount).isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testPlanningIsProgressive() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Snapshot 1: FILE_A with position deletes (before the scan range)
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: a new position delete for FILE_A within the scan range
+    DeleteFile newFileADeletes =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-a-deletes-progressive.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(newFileADeletes).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+    BaseIncrementalChangelogScan baseScan = (BaseIncrementalChangelogScan) scan;
+
+    try (CloseableIterable<ChangelogScanTask> tasks = scan.planFiles()) {
+      // Planning must be progressive: work that is only needed for emitted tasks (here, the
+      // existing delete index behind the DeletedRowsScanTask) must not run until consumption
+      assertThat(baseScan.wasExistingDeleteIndexBuilt())
+          .as("Existing delete index must not be built before tasks are consumed")
+          .isFalse();
+
+      List<ChangelogScanTask> materialized = Lists.newArrayList(tasks);
+      assertThat(materialized).as("Must have 1 task").hasSize(1);
+      assertThat(baseScan.wasExistingDeleteIndexBuilt())
+          .as("Existing delete index must be built once tasks are consumed")
+          .isTrue();
+    }
+  }
+
+  @TestTemplate
+  public void testNoDataManifestReadsBeforeConsumption() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Pre-range: FILE_A in its own data manifest
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+    String preRangeDataManifest = Iterables.getOnlyElement(snap1.dataManifests(table.io())).path();
+
+    // In range: a position delete for FILE_A, whose DeletedRowsScanTask requires scanning the
+    // live data manifests (including the pre-range one)
+    DeleteFile newFileADeletes =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-a-deletes-io-defer.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(newFileADeletes).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    // Planning must not read live data manifests; only consuming the tasks may
+    withUnavailableLocations(
+        ImmutableList.of(preRangeDataManifest),
+        () -> assertThatCode(scan::planFiles).doesNotThrowAnyException());
+
+    // With the manifest available again, consuming produces the expected task
+    List<ChangelogScanTask> tasks = plan(scan);
+    assertThat(tasks).as("Must have 1 task").hasSize(1);
+    DeletedRowsScanTask task = (DeletedRowsScanTask) Iterables.getOnlyElement(tasks);
+    assertThat(task.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
+    assertThat(task.addedDeletes())
+        .extracting(DeleteFile::location)
+        .containsExactly(newFileADeletes.location());
+  }
+
+  @TestTemplate
+  public void testUnaffectedExistingDeleteManifestsAreNotRead() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Two partitions with pre-range deletes committed separately, so each delete manifest
+    // covers a single partition
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    table.newRowDelta().addDeletes(FILE_B_DELETES).commit();
+    Snapshot rangeStart = table.currentSnapshot();
+    String fileBDeleteManifest =
+        rangeStart.deleteManifests(table.io()).stream()
+            .filter(m -> m.snapshotId().equals(rangeStart.snapshotId()))
+            .map(ManifestFile::path)
+            .findFirst()
+            .orElseThrow();
+
+    // The range only touches FILE_A's partition
+    DeleteFile newFileADeletes =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-a-deletes-io-guard.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(newFileADeletes).commit();
+    Snapshot snap = table.currentSnapshot();
+
+    // FILE_B's delete manifest is outside the affected scope: planning must succeed without
+    // ever opening it
+    withUnavailableLocations(
+        ImmutableList.of(fileBDeleteManifest),
+        () -> {
+          IncrementalChangelogScan scan =
+              newScan()
+                  .fromSnapshotExclusive(rangeStart.snapshotId())
+                  .toSnapshot(snap.snapshotId());
+
+          List<ChangelogScanTask> tasks = plan(scan);
+
+          assertThat(tasks).as("Must have 1 task").hasSize(1);
+          DeletedRowsScanTask task = (DeletedRowsScanTask) Iterables.getOnlyElement(tasks);
+          assertThat(task.existingDeletes())
+              .as("Must have only FILE_A's pre-range delete")
+              .extracting(DeleteFile::location)
+              .containsExactly(FILE_A_DELETES.location());
+        });
+  }
+
+  @TestTemplate
+  public void testAffectedPartitionPruningAfterSpecEvolution() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Two partitions with pre-range deletes committed separately, so each delete manifest
+    // covers a single partition
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    table.newRowDelta().addDeletes(FILE_B_DELETES).commit();
+    Snapshot rangeStart = table.currentSnapshot();
+    String fileBDeleteManifest =
+        rangeStart.deleteManifests(table.io()).stream()
+            .filter(m -> m.snapshotId() != null && m.snapshotId() == rangeStart.snapshotId())
+            .map(ManifestFile::path)
+            .findFirst()
+            .orElseThrow();
+
+    // Evolve the spec (a metadata-only change, no new snapshot) so the range below can produce
+    // affected partitions spanning both the old and the new spec
+    table.updateSpec().addField("id").commit();
+
+    // In range: a new delete on FILE_A (old spec, bucket 0) - affected partitions now contain
+    // the old-spec bucket-0 tuple; nothing touches bucket 1
+    DeleteFile newFileADeletes =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-a-deletes-evolved.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(newFileADeletes).commit();
+
+    // In a separate in-range commit: a delete under the newly evolved spec. No data file lives
+    // at this tuple, so it contributes no task, but it does add a new-spec tuple to the range's
+    // affected partitions, so affected partitions now span two specs
+    DeleteFile newSpecDeletes =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/data-evolved-spec-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0/id=1")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(newSpecDeletes).commit();
+    Snapshot snap = table.currentSnapshot();
+
+    // With per-spec pruning, the bucket-1 delete manifest must never be read even though the
+    // range's affected partitions span two specs (the old-spec bucket-0 tuple and the new-spec
+    // tuple)
+    withUnavailableLocations(
+        ImmutableList.of(fileBDeleteManifest),
+        () -> {
+          IncrementalChangelogScan scan =
+              newScan()
+                  .fromSnapshotExclusive(rangeStart.snapshotId())
+                  .toSnapshot(snap.snapshotId());
+
+          List<ChangelogScanTask> tasks = plan(scan);
+          assertThat(tasks).as("Must have 1 task").hasSize(1);
+          DeletedRowsScanTask task = (DeletedRowsScanTask) Iterables.getOnlyElement(tasks);
+          assertThat(task.existingDeletes())
+              .as("Must have only FILE_A's pre-range delete")
+              .extracting(DeleteFile::location)
+              .containsExactly(FILE_A_DELETES.location());
+        });
+  }
+
+  @TestTemplate
+  public void testDeleteManifestsReadOnceDuringPlanning() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    CountingLocalFileIO countingIO = new CountingLocalFileIO();
+    File location = java.nio.file.Files.createTempDirectory(temp, "counting-table").toFile();
+    TestTables.TestTable countingTable =
+        TestTables.create(
+            location,
+            "counting_changelog",
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations("counting_changelog", location, countingIO));
+    countingTable
+        .updateProperties()
+        .set(TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES, "true")
+        .commit();
+
+    // Pre-range: FILE_A with position deletes
+    countingTable.newFastAppend().appendFile(FILE_A).commit();
+    countingTable.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot rangeStart = countingTable.currentSnapshot();
+    String preRangeDeleteManifest =
+        Iterables.getOnlyElement(rangeStart.deleteManifests(countingTable.io())).path();
+
+    // In range: a new position delete for FILE_A
+    DeleteFile inRangeDeletes =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-a-deletes-io-count.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    countingTable.newRowDelta().addDeletes(inRangeDeletes).commit();
+    Snapshot snap = countingTable.currentSnapshot();
+    String inRangeDeleteManifest =
+        snap.deleteManifests(countingTable.io()).stream()
+            .filter(m -> m.snapshotId().equals(snap.snapshotId()))
+            .map(ManifestFile::path)
+            .findFirst()
+            .orElseThrow();
+
+    // Count only planning-time reads, not commit-time reads
+    countingIO.reset();
+
+    IncrementalChangelogScan scan =
+        countingTable
+            .newIncrementalChangelogScan()
+            .fromSnapshotExclusive(rangeStart.snapshotId())
+            .toSnapshot(snap.snapshotId());
+    List<ChangelogScanTask> tasks = plan(scan);
+    assertThat(tasks).as("Must have 1 task").hasSize(1);
+
+    assertThat(countingIO.opens(inRangeDeleteManifest))
+        .as("Each in-range delete manifest must be read exactly once during planning")
+        .isEqualTo(1);
+    assertThat(countingIO.opens(preRangeDeleteManifest))
+        .as("Each existing delete manifest must be read exactly once during planning")
+        .isEqualTo(1);
+  }
+
+  @TestTemplate
+  public void testDeleteManifestsReadOnceDuringPlanningWithDVs() throws IOException {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    CountingLocalFileIO countingIO = new CountingLocalFileIO();
+    File location = java.nio.file.Files.createTempDirectory(temp, "counting-table-dv").toFile();
+    TestTables.TestTable countingTable =
+        TestTables.create(
+            location,
+            "counting_changelog_dv",
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations("counting_changelog_dv", location, countingIO));
+    countingTable
+        .updateProperties()
+        .set(TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES, "true")
+        .commit();
+
+    // Pre-range: FILE_A with a DV
+    countingTable.newFastAppend().appendFile(FILE_A).commit();
+    DeleteFile dv1 = FileGenerationUtil.generateDV(countingTable, FILE_A);
+    countingTable.newRowDelta().addDeletes(dv1).commit();
+    Snapshot rangeStart = countingTable.currentSnapshot();
+    String preRangeDeleteManifest =
+        Iterables.getOnlyElement(rangeStart.deleteManifests(countingTable.io())).path();
+
+    // In range: replace the DV — the commit writes the added DV and the removed DV entry into
+    // this snapshot's delete manifests, which planning must split in a single read
+    DeleteFile dv2 = FileGenerationUtil.generateDV(countingTable, FILE_A);
+    countingTable
+        .newRowDelta()
+        .removeDeletes(dv1)
+        .addDeletes(dv2)
+        .validateFromSnapshot(rangeStart.snapshotId())
+        .commit();
+    Snapshot snap = countingTable.currentSnapshot();
+    List<String> inRangeDeleteManifests =
+        snap.deleteManifests(countingTable.io()).stream()
+            .filter(m -> m.snapshotId() != null && m.snapshotId() == snap.snapshotId())
+            .map(ManifestFile::path)
+            .toList();
+    assertThat(inRangeDeleteManifests).isNotEmpty();
+
+    // Count only planning-time reads, not commit-time reads
+    countingIO.reset();
+
+    IncrementalChangelogScan scan =
+        countingTable
+            .newIncrementalChangelogScan()
+            .fromSnapshotExclusive(rangeStart.snapshotId())
+            .toSnapshot(snap.snapshotId());
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    assertThat(tasks).as("Must have 1 task").hasSize(1);
+    DeletedRowsScanTask task = (DeletedRowsScanTask) Iterables.getOnlyElement(tasks);
+    assertThat(task.addedDeletes())
+        .extracting(DeleteFile::location)
+        .containsExactly(dv2.location());
+    assertThat(task.existingDeletes())
+        .extracting(DeleteFile::location)
+        .containsExactly(dv1.location());
+
+    for (String manifest : inRangeDeleteManifests) {
+      assertThat(countingIO.opens(manifest))
+          .as("Each in-range delete manifest must be read exactly once during planning")
+          .isEqualTo(1);
+    }
+
+    assertThat(countingIO.opens(preRangeDeleteManifest))
+        .as("Each existing delete manifest must be read exactly once during planning")
+        .isEqualTo(1);
+  }
+
+  @TestTemplate
+  public void testTasksEmittedInChangeOrdinalOrderWithoutSorting() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: new data file + position delete on the existing FILE_A in one commit
+    DeleteFile fileADeletes2 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-a-deletes-order-1.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addRows(FILE_B).addDeletes(fileADeletes2).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: same shape again
+    DeleteFile fileADeletes3 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-a-deletes-order-2.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addRows(FILE_C).addDeletes(fileADeletes3).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    // Deliberately NOT using the sorting plan(...) helper: the raw iteration order is the contract
+    List<ChangelogScanTask> tasks;
+    try (CloseableIterable<ChangelogScanTask> iterable = scan.planFiles()) {
+      tasks = Lists.newArrayList(iterable);
+    }
+
+    assertThat(tasks).hasSize(4);
+    assertThat(tasks.get(0)).isInstanceOf(AddedRowsScanTask.class);
+    assertThat(tasks.get(0).changeOrdinal()).isEqualTo(0);
+    assertThat(tasks.get(1)).isInstanceOf(DeletedRowsScanTask.class);
+    assertThat(tasks.get(1).changeOrdinal()).isEqualTo(0);
+    assertThat(tasks.get(2)).isInstanceOf(AddedRowsScanTask.class);
+    assertThat(tasks.get(2).changeOrdinal()).isEqualTo(1);
+    assertThat(tasks.get(3)).isInstanceOf(DeletedRowsScanTask.class);
+    assertThat(tasks.get(3).changeOrdinal()).isEqualTo(1);
+    assertThat(tasks.get(0).commitSnapshotId()).isEqualTo(snap2.snapshotId());
+    assertThat(tasks.get(2).commitSnapshotId()).isEqualTo(snap3.snapshotId());
+  }
+
+  @TestTemplate
+  public void testTasksEmittedInChangeOrdinalOrderWithoutSortingWithDVs() throws IOException {
+    assumeThat(formatVersion).isEqualTo(3);
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    // Snapshot 2: new data file + DV on the existing FILE_A in one commit
+    DeleteFile dvA1 = newDV(FILE_A);
+    table.newRowDelta().addRows(FILE_B).addDeletes(dvA1).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    // Snapshot 3: same shape again — the new DV is cumulative, so the old one is replaced
+    DeleteFile dvA2 = newDV(FILE_A);
+    table
+        .newRowDelta()
+        .addRows(FILE_C)
+        .removeDeletes(dvA1)
+        .addDeletes(dvA2)
+        .validateFromSnapshot(snap2.snapshotId())
+        .commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    // Deliberately NOT using the sorting plan(...) helper: the raw iteration order is the contract
+    List<ChangelogScanTask> tasks;
+    try (CloseableIterable<ChangelogScanTask> iterable = scan.planFiles()) {
+      tasks = Lists.newArrayList(iterable);
+    }
+
+    assertThat(tasks).hasSize(4);
+    assertThat(tasks.get(0)).isInstanceOf(AddedRowsScanTask.class);
+    assertThat(tasks.get(0).changeOrdinal()).isEqualTo(0);
+    assertThat(tasks.get(1)).isInstanceOf(DeletedRowsScanTask.class);
+    assertThat(tasks.get(1).changeOrdinal()).isEqualTo(0);
+    assertThat(tasks.get(2)).isInstanceOf(AddedRowsScanTask.class);
+    assertThat(tasks.get(2).changeOrdinal()).isEqualTo(1);
+    assertThat(tasks.get(3)).isInstanceOf(DeletedRowsScanTask.class);
+    assertThat(tasks.get(3).changeOrdinal()).isEqualTo(1);
+    assertThat(tasks.get(0).commitSnapshotId()).isEqualTo(snap2.snapshotId());
+    assertThat(tasks.get(2).commitSnapshotId()).isEqualTo(snap3.snapshotId());
+
+    // DV replacement semantics hold in raw order too: the snap3 task attaches the replaced DV
+    // as existing so only newly deleted positions are emitted
+    DeletedRowsScanTask replacement = (DeletedRowsScanTask) tasks.get(3);
+    assertThat(replacement.addedDeletes())
+        .extracting(DeleteFile::location)
+        .containsExactly(dvA2.location());
+    assertThat(replacement.existingDeletes())
+        .extracting(DeleteFile::location)
+        .containsExactly(dvA1.location());
+  }
+
+  @TestTemplate
+  public void testConsumingEarlySnapshotsDoesNotReadLaterSnapshotWork() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Pre-range: FILE_A in its own manifest
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+    String preRangeDataManifest = Iterables.getOnlyElement(snap1.dataManifests(table.io())).path();
+
+    // Snapshot 2: pure append (its task needs no pre-range manifests)
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    // Snapshot 3: position delete on FILE_A — planning ITS tasks must read the pre-range manifest
+    DeleteFile fileADeletes2 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-a-deletes-progressive-2.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(fileADeletes2).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    // With the pre-range manifest unavailable, planning and consuming ONLY snapshot 2's task
+    // must succeed: snapshot 3's work is not touched until the walk reaches it
+    withUnavailableLocations(
+        ImmutableList.of(preRangeDataManifest),
+        () -> {
+          try (CloseableIterable<ChangelogScanTask> tasks = scan.planFiles()) {
+            Iterator<ChangelogScanTask> iter = tasks.iterator();
+            ChangelogScanTask first = iter.next();
+            assertThat(first).isInstanceOf(AddedRowsScanTask.class);
+            assertThat(((AddedRowsScanTask) first).file().location()).isEqualTo(FILE_B.location());
+          } catch (IOException e) {
+            throw new UncheckedIOException(e);
+          }
+        });
+
+    // Fully consumable once the manifest is back
+    List<ChangelogScanTask> all = plan(scan);
+    assertThat(all).hasSize(2);
+  }
+
+  @TestTemplate
+  public void testReplanningUnpinnedScanRebuildsExistingDeleteIndex() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // Pre-range: FILE_A (bucket 0) and FILE_B (bucket 1), each with its own position delete
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    table.newRowDelta().addDeletes(FILE_B_DELETES).commit();
+    Snapshot rangeStart = table.currentSnapshot();
+
+    // First range touches only bucket 0, so the existing delete index is scoped to bucket 0
+    DeleteFile fileADeletes2 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-a-deletes-replan.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(fileADeletes2).commit();
+
+    // the scan is not pinned to an end snapshot, so each planFiles() resolves a wider range
+    IncrementalChangelogScan scan = newScan().fromSnapshotExclusive(rangeStart.snapshotId());
+
+    List<ChangelogScanTask> firstPlan = plan(scan);
+    assertThat(firstPlan).hasSize(1);
+    assertThat(((DeletedRowsScanTask) firstPlan.get(0)).file().location())
+        .isEqualTo(FILE_A.location());
+
+    // Second range additionally touches bucket 1, whose existing delete was out of the first scope
+    DeleteFile fileBDeletes2 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-b-deletes-replan.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=1")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(fileBDeletes2).commit();
+
+    List<ChangelogScanTask> secondPlan = plan(scan);
+    assertThat(secondPlan).hasSize(2);
+
+    DeletedRowsScanTask fileBTask =
+        (DeletedRowsScanTask)
+            secondPlan.stream()
+                .filter(task -> path(task).equals(FILE_B.location()))
+                .findFirst()
+                .orElseThrow();
+
+    assertThat(fileBTask.existingDeletes())
+        .as("Replanning must rebuild the existing delete index for the wider range")
+        .extracting(DeleteFile::location)
+        .containsExactly(FILE_B_DELETES.location());
+  }
+
+  @TestTemplate
+  public void testReAddedDeleteFileSurvivesLaterUnrelatedRemoval() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    Snapshot rangeStart = table.currentSnapshot();
+
+    String reusedPath = "/path/to/data-a-deletes-readded.parquet";
+    DeleteFile delete1 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath(reusedPath)
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    DeleteFile unrelatedDelete =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-b-deletes-unrelated.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=1")
+            .withRecordCount(1)
+            .build();
+
+    // s1: add a delete on FILE_A and an unrelated delete on FILE_B
+    table.newRowDelta().addDeletes(delete1).addDeletes(unrelatedDelete).commit();
+
+    // s2: remove the delete on FILE_A
+    table.newRowDelta().removeDeletes(delete1).commit();
+
+    // s3: re-add a delete file at the same path
+    DeleteFile reAddedDelete1 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath(reusedPath)
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(2)
+            .build();
+    table.newRowDelta().addDeletes(reAddedDelete1).commit();
+
+    // s4: remove an unrelated delete file; the re-added one must not be evicted with it
+    table.newRowDelta().removeDeletes(unrelatedDelete).commit();
+
+    // s5: add another delete on FILE_A
+    DeleteFile delete3 =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-a-deletes-third.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(delete3).commit();
+    Snapshot snap5 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(rangeStart.snapshotId()).toSnapshot(snap5.snapshotId());
+
+    DeletedRowsScanTask lastTask =
+        (DeletedRowsScanTask)
+            plan(scan).stream()
+                .filter(task -> task instanceof DeletedRowsScanTask)
+                .filter(task -> task.commitSnapshotId() == snap5.snapshotId())
+                .findFirst()
+                .orElseThrow();
+
+    assertThat(lastTask.addedDeletes())
+        .extracting(DeleteFile::location)
+        .containsExactly(delete3.location());
+    assertThat(lastTask.existingDeletes())
+        .as("A re-added delete file must survive a later removal of an unrelated delete file")
+        .extracting(DeleteFile::location)
+        .containsExactly(reusedPath);
+  }
+
+  @TestTemplate
+  public void testDeletedRowsScanTaskColumnStats() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    DataFile fileWithStats = FileGenerationUtil.generateDataFile(table, TestHelpers.Row.of(0));
+    table.newFastAppend().appendFile(fileWithStats).commit();
+    Snapshot rangeStart = table.currentSnapshot();
+
+    DeleteFile deletes =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-stats-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(deletes).commit();
+    Snapshot snap = table.currentSnapshot();
+
+    DeletedRowsScanTask withStats =
+        (DeletedRowsScanTask)
+            Iterables.getOnlyElement(
+                plan(
+                    newScan()
+                        .includeColumnStats()
+                        .fromSnapshotExclusive(rangeStart.snapshotId())
+                        .toSnapshot(snap.snapshotId())));
+
+    assertThat(withStats.file().lowerBounds())
+        .as("Column stats must be returned when requested")
+        .isNotNull()
+        .isNotEmpty();
+    assertThat(withStats.file().upperBounds()).isNotNull().isNotEmpty();
+
+    DeletedRowsScanTask withoutStats =
+        (DeletedRowsScanTask)
+            Iterables.getOnlyElement(
+                plan(
+                    newScan()
+                        .fromSnapshotExclusive(rangeStart.snapshotId())
+                        .toSnapshot(snap.snapshotId())));
+
+    assertThat(withoutStats.file().lowerBounds())
+        .as("Column stats must be dropped when not requested")
+        .isNull();
+    assertThat(withoutStats.file().upperBounds()).isNull();
+  }
+
+  @TestTemplate
+  public void testDeletedRowsScanTaskColumnStatsForSubsetOfColumns() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    DataFile fileWithStats = FileGenerationUtil.generateDataFile(table, TestHelpers.Row.of(0));
+    table.newFastAppend().appendFile(fileWithStats).commit();
+    Snapshot rangeStart = table.currentSnapshot();
+
+    DeleteFile deletes =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-stats-subset-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withPartitionPath("data_bucket=0")
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(deletes).commit();
+    Snapshot snap = table.currentSnapshot();
+
+    int idFieldId = table.schema().findField("id").fieldId();
+
+    DeletedRowsScanTask task =
+        (DeletedRowsScanTask)
+            Iterables.getOnlyElement(
+                plan(
+                    newScan()
+                        .includeColumnStats(ImmutableList.of("id"))
+                        .fromSnapshotExclusive(rangeStart.snapshotId())
+                        .toSnapshot(snap.snapshotId())));
+
+    assertThat(task.file().lowerBounds())
+        .as("Only stats for the requested columns must be returned")
+        .containsOnlyKeys(idFieldId);
+    assertThat(task.file().upperBounds()).containsOnlyKeys(idFieldId);
+  }
+
+  @TestTemplate
+  public void testAddedRowsScanTaskColumnStatsForSubsetOfColumns() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot rangeStart = table.currentSnapshot();
+
+    DataFile fileWithStats = FileGenerationUtil.generateDataFile(table, TestHelpers.Row.of(0));
+    table.newFastAppend().appendFile(fileWithStats).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    int idFieldId = table.schema().findField("id").fieldId();
+
+    AddedRowsScanTask task =
+        (AddedRowsScanTask)
+            Iterables.getOnlyElement(
+                plan(
+                    newScan()
+                        .includeColumnStats(ImmutableList.of("id"))
+                        .fromSnapshotExclusive(rangeStart.snapshotId())
+                        .toSnapshot(snap2.snapshotId())));
+
+    assertThat(task.file().lowerBounds())
+        .as("Only stats for the requested columns must be returned")
+        .containsOnlyKeys(idFieldId);
+    assertThat(task.file().upperBounds()).containsOnlyKeys(idFieldId);
+  }
+
+  @TestTemplate
+  public void testAppendOnlyRangeReadsDataManifestsOnce() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    CountingLocalFileIO countingIO = new CountingLocalFileIO();
+    File location = java.nio.file.Files.createTempDirectory(temp, "append-only-table").toFile();
+    TestTables.TestTable countingTable =
+        TestTables.create(
+            location,
+            "append_only_changelog",
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations("append_only_changelog", location, countingIO));
+    countingTable
+        .updateProperties()
+        .set(TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES, "true")
+        .commit();
+
+    countingTable.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot rangeStart = countingTable.currentSnapshot();
+
+    countingTable.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot snap2 = countingTable.currentSnapshot();
+    String snap2DataManifest = newDataManifestPath(countingTable, snap2);
+
+    countingTable.newFastAppend().appendFile(FILE_C).commit();
+    Snapshot snap3 = countingTable.currentSnapshot();
+    String snap3DataManifest = newDataManifestPath(countingTable, snap3);
+
+    // Count only planning-time reads, not commit-time reads
+    countingIO.reset();
+
+    List<ChangelogScanTask> tasks =
+        plan(
+            countingTable
+                .newIncrementalChangelogScan()
+                .fromSnapshotExclusive(rangeStart.snapshotId())
+                .toSnapshot(snap3.snapshotId()));
+
+    assertThat(tasks).hasSize(2);
+    assertThat(tasks).allMatch(AddedRowsScanTask.class::isInstance);
+    assertThat(tasks).extracting(this::path).containsExactly(FILE_B.location(), FILE_C.location());
+
+    assertThat(countingIO.opens(snap2DataManifest))
+        .as("An append-only range must read each changed data manifest exactly once")
+        .isEqualTo(1);
+    assertThat(countingIO.opens(snap3DataManifest))
+        .as("An append-only range must read each changed data manifest exactly once")
+        .isEqualTo(1);
+  }
+
+  @TestTemplate
+  public void testDeleteFilesRequireOptIn() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // this test verifies default-off behavior: remove the opt-in the setup hook added
+    table.updateProperties().remove(TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES).commit();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    assertThatThrownBy(scan::planFiles)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining(TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES);
+  }
+
+  @TestTemplate
+  public void testPreRangeDeleteFilesRequireOptIn() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    table.updateProperties().remove(TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES).commit();
+
+    // deletes exist only BEFORE the range; DeletedDataFileScanTask would attach them
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot snap3 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap2.snapshotId()).toSnapshot(snap3.snapshotId());
+
+    assertThatThrownBy(scan::planFiles)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining(TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES);
+  }
+
+  @TestTemplate
+  public void testAppendOnlyRangeDoesNotRequireOptIn() {
+    // runs on every format version: append-only changelogs must keep working with default settings
+    table.updateProperties().remove(TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES).commit();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    table.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    assertThat(plan(scan)).hasSize(1);
+  }
+
+  @TestTemplate
+  public void testScanOptionOverridesDeleteFileOptIn() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    table.updateProperties().remove(TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES).commit();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan()
+            .option(TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES, "true")
+            .fromSnapshotExclusive(snap1.snapshotId())
+            .toSnapshot(snap2.snapshotId());
+
+    assertThat(plan(scan)).hasSize(1);
+  }
+
+  @TestTemplate
+  public void testScanOptionDisablesDeleteFileOptIn() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    // table property is ON via the setup hook; an explicit option=false must win
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan()
+            .option(TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES, "false")
+            .fromSnapshotExclusive(snap1.snapshotId())
+            .toSnapshot(snap2.snapshotId());
+
+    assertThatThrownBy(scan::planFiles)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining(TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES);
+  }
+
+  private String newDataManifestPath(Table tbl, Snapshot snapshot) {
+    return snapshot.dataManifests(tbl.io()).stream()
+        .filter(manifest -> manifest.snapshotId().equals(snapshot.snapshotId()))
+        .map(ManifestFile::path)
+        .findFirst()
+        .orElseThrow();
+  }
+
+  /** Counts how often each path is opened for reading, on top of local file IO. */
+  private static class CountingLocalFileIO extends TestTables.LocalFileIO {
+    private final Map<String, Integer> inputOpens = Maps.newConcurrentMap();
+
+    @Override
+    public org.apache.iceberg.io.InputFile newInputFile(String path) {
+      inputOpens.merge(path, 1, Integer::sum);
+      return super.newInputFile(path);
+    }
+
+    void reset() {
+      inputOpens.clear();
+    }
+
+    int opens(String path) {
+      return inputOpens.getOrDefault(path, 0);
+    }
   }
 }

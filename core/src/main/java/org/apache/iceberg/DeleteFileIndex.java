@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -69,7 +70,8 @@ import org.apache.iceberg.util.Tasks;
  */
 class DeleteFileIndex {
   private static final DeleteFile[] EMPTY_DELETES = new DeleteFile[0];
-  private static final DeleteFileIndex EMPTY = new DeleteFileIndex(null, null, null, null, null);
+  private static final DeleteFileIndex EMPTY =
+      new DeleteFileIndex(null, null, null, null, null, null);
 
   private final EqualityDeletes globalDeletes;
   private final PartitionMap<EqualityDeletes> eqDeletesByPartition;
@@ -421,6 +423,7 @@ class DeleteFileIndex {
     private ExecutorService executorService = null;
     private ScanMetrics scanMetrics = ScanMetrics.noop();
     private boolean ignoreResiduals = false;
+    private Predicate<DeleteFile> deleteFilePredicate = null;
 
     Builder(FileIO io, Set<ManifestFile> deleteManifests) {
       this.io = io;
@@ -490,6 +493,20 @@ class DeleteFileIndex {
       return this;
     }
 
+    /**
+     * Keeps only the delete files accepted by the given predicate, evaluated on raw manifest
+     * entries before stats are trimmed, so that excluded files cost neither a copy nor index space.
+     *
+     * <p>The predicate must be thread-safe: when {@link #planWith(ExecutorService)} is set, delete
+     * manifests are loaded in parallel and the predicate is called from every loader thread.
+     */
+    Builder deleteFilePredicate(Predicate<DeleteFile> newDeleteFilePredicate) {
+      Preconditions.checkArgument(
+          deleteFiles == null, "Index constructed from files does not support file predicates");
+      this.deleteFilePredicate = newDeleteFilePredicate;
+      return this;
+    }
+
     private Iterable<DeleteFile> filterDeleteFiles() {
       return Iterables.filter(deleteFiles, file -> file.dataSequenceNumber() > minSequenceNumber);
     }
@@ -508,6 +525,9 @@ class DeleteFileIndex {
                   for (ManifestEntry<DeleteFile> entry : reader) {
                     if (entry.dataSequenceNumber() > minSequenceNumber) {
                       DeleteFile file = entry.file();
+                      if (deleteFilePredicate != null && !deleteFilePredicate.test(file)) {
+                        continue;
+                      }
                       // keep minimum stats to avoid memory pressure
                       Set<Integer> columns =
                           file.content() == FileContent.POSITION_DELETES

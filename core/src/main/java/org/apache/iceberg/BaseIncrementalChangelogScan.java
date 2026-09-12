@@ -18,17 +18,17 @@
  */
 package org.apache.iceberg;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayDeque;
-import java.util.Collection;
-import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestGroup.CreateTasksFunction;
 import org.apache.iceberg.ManifestGroup.TaskContext;
 import org.apache.iceberg.expressions.Evaluator;
@@ -39,7 +39,6 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -47,8 +46,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
-import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -75,11 +74,9 @@ class BaseIncrementalChangelogScan
     return new BaseIncrementalChangelogScan(newTable, newSchema, newContext);
   }
 
-  // Private fields to track build call count and cache (accessed via package-private methods for
-  // testing)
-  private int existingDeleteIndexBuildCallCount = 0;
-  // Cache for the built index (null if not built yet)
-  private DeleteFileIndex cachedExistingDeleteIndex = null;
+  // Counts how many times the existing (pre-range) delete index was actually built across all
+  // planFiles() calls on this scan (accessed via package-private methods for testing)
+  private final AtomicInteger existingDeleteIndexBuildCallCount = new AtomicInteger(0);
 
   @Override
   protected CloseableIterable<ChangelogScanTask> doPlanFiles(
@@ -92,27 +89,93 @@ class BaseIncrementalChangelogScan
       return CloseableIterable.empty();
     }
 
-    Set<Long> changelogSnapshotIds = toSnapshotIds(changelogSnapshots);
+    // Read each snapshot's new delete manifests once, collecting added and removed delete files
+    DeleteFileChanges deleteFileChanges = collectDeleteFileChanges(changelogSnapshots);
+    Map<Long, DeleteFileIndex> addedDeletesBySnapshot = deleteFileChanges.addedBySnapshot;
 
-    Set<ManifestFile> newDataManifests =
-        FluentIterable.from(changelogSnapshots)
-            .transformAndConcat(snapshot -> snapshot.dataManifests(table().io()))
-            .filter(manifest -> changelogSnapshotIds.contains(manifest.snapshotId()))
-            .toSet();
+    boolean rangeHasDeleteFiles =
+        hasDeleteFileChanges(deleteFileChanges) || hasExistingDeletes(fromSnapshotIdExclusive);
 
-    // Build per-snapshot delete file indexes for added deletes
-    Map<Long, DeleteFileIndex> addedDeletesBySnapshot = buildAddedDeleteIndexes(changelogSnapshots);
+    if (rangeHasDeleteFiles && !includeDeleteFiles()) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Changelog scans cannot be planned when delete files apply to the scan range "
+                  + "(e.g. they produce %s, which not all engines can execute). Set table "
+                  + "property or scan option '%s' to true to enable delete file support in "
+                  + "changelog scans",
+              DeletedRowsScanTask.class.getSimpleName(),
+              TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES));
+    }
 
-    // Check if existing delete index is needed for equality deletes
-    boolean hasEqualityDeletes =
-        addedDeletesBySnapshot.values().stream()
-            .anyMatch(index -> !index.isEmpty() && index.hasEqualityDeletes());
+    // Collect data file changes in the range and derive the scope of existing deletes that can
+    // apply to tasks, so that building the existing delete index only reads relevant delete files.
+    // Both outputs only feed the delete file machinery, so when no delete file exists before the
+    // range and none is added or removed within it, this extra manifest pass is skipped: every
+    // cumulative index can only be empty and no DeletedRowsScanTask can be planned
+    ChangedDataFiles changedDataFiles = ChangedDataFiles.empty(table().specs());
+    ExistingDeleteScope existingDeleteScope = null;
+    if (rangeHasDeleteFiles) {
+      changedDataFiles = collectChangedDataFiles(changelogSnapshots);
+      existingDeleteScope = buildExistingDeleteScope(changedDataFiles, addedDeletesBySnapshot);
+    }
 
-    // Build existing index early if needed for equality deletes, otherwise use lazy initialization
-    DeleteFileIndex existingDeleteIndex =
-        hasEqualityDeletes
-            ? buildExistingDeleteIndexTracked(fromSnapshotIdExclusive)
-            : DeleteFileIndex.emptyIndex();
+    // Tracks all deletes that applied before each snapshot in the range; the existing (pre-range)
+    // delete index is built lazily on first use and memoized for this invocation only, as a later
+    // plan of the same scan may resolve a different range
+    ExistingDeleteIndexHolder existingDeleteIndexHolder =
+        new ExistingDeleteIndexHolder(fromSnapshotIdExclusive, existingDeleteScope);
+    CumulativeDeleteIndexes cumulativeDeleteIndexes =
+        new CumulativeDeleteIndexes(
+            changelogSnapshots,
+            addedDeletesBySnapshot,
+            deleteFileChanges.removedBySnapshot,
+            existingDeleteIndexHolder::get);
+
+    Map<Long, Integer> snapshotOrdinals = computeSnapshotOrdinals(changelogSnapshots);
+
+    // The task factory derives everything it needs from the manifest entry, so a single instance
+    // is shared by every snapshot in the range
+    CreateDataFileChangeTasks createDataFileChangeTasks =
+        new CreateDataFileChangeTasks(
+            snapshotOrdinals, addedDeletesBySnapshot, cumulativeDeleteIndexes);
+
+    // Plan progressively: walk snapshots oldest to newest, emitting each snapshot's data file
+    // tasks and then its deleted-rows tasks before moving on. Tasks come out ordered by change
+    // ordinal by construction, and consumers stream them without materializing the whole range
+    List<CloseableIterable<ChangelogScanTask>> perSnapshotTasks = Lists.newArrayList();
+    for (Snapshot snapshot : changelogSnapshots) {
+      perSnapshotTasks.add(planDataFileTasks(snapshot, createDataFileChangeTasks));
+      perSnapshotTasks.add(
+          planDeletedRowsTasksForSnapshot(
+              snapshot,
+              addedDeletesBySnapshot,
+              cumulativeDeleteIndexes,
+              changedDataFiles,
+              snapshotOrdinals));
+    }
+
+    return CloseableIterable.concat(perSnapshotTasks);
+  }
+
+  /**
+   * Plans ADDED and DELETED data file tasks for one snapshot from the data manifests that snapshot
+   * wrote. ADDED entries in a manifest carry the snapshot ID that committed them (or inherit the
+   * manifest's), and DELETED entries carry the deleting snapshot's ID, so filtering both manifests
+   * and entries by this snapshot's ID partitions the range's changes exactly.
+   */
+  private CloseableIterable<ChangelogScanTask> planDataFileTasks(
+      Snapshot snapshot, CreateDataFileChangeTasks createTasks) {
+    long snapshotId = snapshot.snapshotId();
+
+    List<ManifestFile> newDataManifests =
+        snapshot.dataManifests(table().io()).stream()
+            .filter(
+                manifest -> manifest.snapshotId() != null && manifest.snapshotId() == snapshotId)
+            .toList();
+
+    if (newDataManifests.isEmpty()) {
+      return CloseableIterable.empty();
+    }
 
     ManifestGroup manifestGroup =
         new ManifestGroup(table().io(), newDataManifests, ImmutableList.of())
@@ -120,7 +183,8 @@ class BaseIncrementalChangelogScan
             .caseSensitive(isCaseSensitive())
             .select(scanColumns())
             .filterData(filter())
-            .filterManifestEntries(entry -> changelogSnapshotIds.contains(entry.snapshotId()))
+            .filterManifestEntries(
+                entry -> entry.snapshotId() != null && entry.snapshotId() == snapshotId)
             .ignoreExisting()
             .columnsToKeepStats(columnsToKeepStats());
 
@@ -132,41 +196,46 @@ class BaseIncrementalChangelogScan
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
 
-    // Create a supplier that reuses already-built index or builds lazily when first DELETED entry
-    // is encountered
-    Supplier<DeleteFileIndex> existingDeleteIndexSupplier =
+    return manifestGroup.plan(createTasks);
+  }
+
+  /**
+   * Plans DeletedRowsScanTask instances for EXISTING data files affected by this snapshot's added
+   * delete files. The scan of the snapshot's live data manifests is deferred until the returned
+   * iterable is consumed.
+   */
+  private CloseableIterable<ChangelogScanTask> planDeletedRowsTasksForSnapshot(
+      Snapshot snapshot,
+      Map<Long, DeleteFileIndex> addedDeletesBySnapshot,
+      CumulativeDeleteIndexes cumulativeDeleteIndexes,
+      ChangedDataFiles changedDataFiles,
+      Map<Long, Integer> snapshotOrdinals) {
+    DeleteFileIndex addedDeleteIndex = addedDeletesBySnapshot.get(snapshot.snapshotId());
+    if (addedDeleteIndex == null || addedDeleteIndex.isEmpty()) {
+      return CloseableIterable.empty();
+    }
+
+    // re-iterating the returned iterable replans this snapshot's tasks (same as ManifestGroup.plan)
+    return CloseableIterable.withNoopClose(
         () -> {
-          if (cachedExistingDeleteIndex != null) {
-            return cachedExistingDeleteIndex;
-          }
-          return buildExistingDeleteIndexTracked(fromSnapshotIdExclusive);
-        };
+          // A task for an EXISTING file requires one of this snapshot's added deletes to apply,
+          // so data manifests are pruned to the partitions of this snapshot's added delete files
+          // and, when every added delete is file-scoped, entries to the referenced files
+          PartitionSet snapshotDeletePartitions = addedDeletePartitions(addedDeleteIndex);
+          Set<String> candidateLocations = fileScopedTargets(addedDeleteIndex);
 
-    // Plan data file tasks (ADDED and DELETED)
-    Map<Long, List<DeleteFile>> cumulativeDeletesMap =
-        buildCumulativeDeletesBySnapshot(changelogSnapshots, addedDeletesBySnapshot);
-
-    CloseableIterable<ChangelogScanTask> dataFileTasks =
-        manifestGroup.plan(
-            new CreateDataFileChangeTasks(
-                changelogSnapshots,
-                existingDeleteIndexSupplier,
-                addedDeletesBySnapshot,
-                cumulativeDeletesMap,
-                table().specs(),
-                isCaseSensitive()));
-
-    // Find EXISTING data files affected by newly added delete files and create tasks for them
-    CloseableIterable<ChangelogScanTask> deletedRowsTasks =
-        planDeletedRowsTasks(
-            changelogSnapshots, existingDeleteIndex, addedDeletesBySnapshot, changelogSnapshotIds);
-
-    // Merge tasks from both iterables in order by changeOrdinal
-    Comparator<ChangelogScanTask> byOrdinal =
-        Comparator.comparing(ChangelogScanTask::changeOrdinal)
-            .thenComparing(ChangelogScanTask::commitSnapshotId);
-
-    return new SortedMerge<>(byOrdinal, ImmutableList.of(dataFileTasks, deletedRowsTasks));
+          List<ChangelogScanTask> tasks = Lists.newArrayList();
+          processSnapshotForDeletedRowsTasks(
+              snapshot,
+              addedDeleteIndex,
+              cumulativeDeleteIndexes,
+              changedDataFiles.statusBySnapshot.getOrDefault(snapshot.snapshotId(), Map.of()),
+              snapshotOrdinals,
+              snapshotDeletePartitions,
+              candidateLocations,
+              tasks);
+          return tasks.iterator();
+        });
   }
 
   @Override
@@ -189,10 +258,6 @@ class BaseIncrementalChangelogScan
     return changelogSnapshots;
   }
 
-  private Set<Long> toSnapshotIds(Collection<Snapshot> snapshots) {
-    return snapshots.stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
-  }
-
   private static Map<Long, Integer> computeSnapshotOrdinals(Deque<Snapshot> snapshots) {
     Map<Long, Integer> snapshotOrdinals = Maps.newHashMap();
 
@@ -208,9 +273,11 @@ class BaseIncrementalChangelogScan
   /**
    * Builds a delete file index for existing deletes that were present before the start snapshot.
    * These deletes should be applied to data files but should not generate DELETE changelog rows.
-   * Uses manifest pruning and caching to optimize performance.
+   * Manifests that cannot hold a delete relevant to the range are pruned before the index builder
+   * reads the rest, and files outside the affected scope are skipped as entries are read.
    */
-  private DeleteFileIndex buildExistingDeleteIndex(Long fromSnapshotIdExclusive) {
+  private DeleteFileIndex buildExistingDeleteIndex(
+      Long fromSnapshotIdExclusive, ExistingDeleteScope scope) {
     if (fromSnapshotIdExclusive == null) {
       return DeleteFileIndex.emptyIndex();
     }
@@ -218,56 +285,104 @@ class BaseIncrementalChangelogScan
     Preconditions.checkState(
         fromSnapshot != null, "Cannot find starting snapshot: %s", fromSnapshotIdExclusive);
 
-    List<ManifestFile> existingDeleteManifests = fromSnapshot.deleteManifests(table().io());
-    if (existingDeleteManifests.isEmpty()) {
+    List<ManifestFile> deleteManifests = fromSnapshot.deleteManifests(table().io());
+    if (deleteManifests.isEmpty()) {
       return DeleteFileIndex.emptyIndex();
     }
 
-    // Prune manifests based on partition filter to avoid processing irrelevant manifests
-    List<ManifestFile> prunedManifests = pruneManifestsByPartition(existingDeleteManifests);
-    if (prunedManifests.isEmpty()) {
+    // Prune manifests that cannot contain deletes for any partition affected by the scan range
+    if (scope != null) {
+      deleteManifests =
+          pruneManifestsByAffectedPartitions(deleteManifests, scope.allAffectedPartitions);
+    }
+
+    if (deleteManifests.isEmpty()) {
       return DeleteFileIndex.emptyIndex();
     }
 
-    // Load delete files from manifests
-    Iterable<DeleteFile> deleteFiles = loadDeleteFiles(prunedManifests, null);
+    // filterData prunes manifests and entries against the scan filter with per-spec cached
+    // evaluators and keeps minimal stats. Entry pruning also runs the filter against each delete
+    // file's own stats, which may drop a delete file whose bounds cannot match the filter; that is
+    // only safe because the task residual re-applies the filter to the rows a task emits, so
+    // ignoreResiduals must be forwarded (as ManifestGroup does) to disable it when the residual is
+    // dropped. Deliberately no planWith: this may run lazily under the cumulative-index monitor on
+    // shared worker-pool threads, and nested submission to the same pool can starve it
+    DeleteFileIndex.Builder builder =
+        DeleteFileIndex.builderFor(table().io(), deleteManifests)
+            .specsById(table().specs())
+            .caseSensitive(isCaseSensitive())
+            .filterData(filter());
 
-    return DeleteFileIndex.builderFor(deleteFiles)
-        .specsById(table().specs())
-        .caseSensitive(isCaseSensitive())
-        .build();
+    if (shouldIgnoreResiduals()) {
+      builder.ignoreResiduals();
+    }
+
+    if (scope != null) {
+      // skip delete files that cannot apply to any task in the scan range
+      builder.deleteFilePredicate(scope::keeps);
+    }
+
+    return builder.build();
   }
 
   /**
-   * Wrapper method that tracks build calls and caches the result for reuse. This ensures we only
-   * build the index once even if called from multiple places.
+   * Builds the existing (pre-range) delete index at most once per planFiles() invocation, so that
+   * concurrent planning threads share one index while a later plan of the same scan, which may
+   * resolve a different range and scope, builds its own.
    */
-  private DeleteFileIndex buildExistingDeleteIndexTracked(Long fromSnapshotIdExclusive) {
-    if (cachedExistingDeleteIndex != null) {
-      return cachedExistingDeleteIndex;
+  private class ExistingDeleteIndexHolder {
+    private final Long fromSnapshotIdExclusive;
+    private final ExistingDeleteScope scope;
+    private DeleteFileIndex index = null;
+
+    ExistingDeleteIndexHolder(Long fromSnapshotIdExclusive, ExistingDeleteScope scope) {
+      this.fromSnapshotIdExclusive = fromSnapshotIdExclusive;
+      this.scope = scope;
     }
-    existingDeleteIndexBuildCallCount++;
-    cachedExistingDeleteIndex = buildExistingDeleteIndex(fromSnapshotIdExclusive);
-    return cachedExistingDeleteIndex;
+
+    synchronized DeleteFileIndex get() {
+      if (index == null) {
+        this.index = buildExistingDeleteIndex(fromSnapshotIdExclusive, scope);
+        existingDeleteIndexBuildCallCount.incrementAndGet();
+      }
+
+      return index;
+    }
   }
 
   // Visible for testing
-  int getExistingDeleteIndexBuildCallCount() {
-    return existingDeleteIndexBuildCallCount;
+  int existingDeleteIndexBuildCount() {
+    return existingDeleteIndexBuildCallCount.get();
   }
 
   // Visible for testing
   boolean wasExistingDeleteIndexBuilt() {
-    return existingDeleteIndexBuildCallCount > 0;
+    return existingDeleteIndexBuildCallCount.get() > 0;
+  }
+
+  /** Added delete indexes and removed delete files, per snapshot, read in one manifest pass. */
+  private static class DeleteFileChanges {
+    private final Map<Long, DeleteFileIndex> addedBySnapshot;
+    private final Map<Long, List<DeleteFile>> removedBySnapshot;
+
+    DeleteFileChanges(
+        Map<Long, DeleteFileIndex> addedBySnapshot, Map<Long, List<DeleteFile>> removedBySnapshot) {
+      this.addedBySnapshot = addedBySnapshot;
+      this.removedBySnapshot = removedBySnapshot;
+    }
   }
 
   /**
-   * Builds per-snapshot delete file indexes for newly added delete files in each changelog
-   * snapshot. These deletes should generate DELETE changelog rows. Uses caching to avoid re-parsing
-   * manifests.
+   * Reads the delete manifests written by each changelog snapshot exactly once, splitting live
+   * entries into the snapshot's added delete files (indexed) and removed delete files.
    */
-  private Map<Long, DeleteFileIndex> buildAddedDeleteIndexes(Deque<Snapshot> changelogSnapshots) {
-    Map<Long, DeleteFileIndex> addedDeletesBySnapshot = Maps.newConcurrentMap();
+  private DeleteFileChanges collectDeleteFileChanges(Deque<Snapshot> changelogSnapshots) {
+    Map<Long, DeleteFileIndex> addedBySnapshot = Maps.newConcurrentMap();
+    Map<Long, List<DeleteFile>> removedBySnapshot = Maps.newConcurrentMap();
+
+    // one evaluator of the scan filter per partition spec, shared by all manifests and snapshots
+    Map<Integer, Evaluator> partitionEvaluators = Maps.newConcurrentMap();
+
     Tasks.foreach(changelogSnapshots)
         .retry(3)
         .stopOnFailure()
@@ -276,118 +391,219 @@ class BaseIncrementalChangelogScan
         .onFailure(
             (snapshot, exc) ->
                 LOG.warn(
-                    "Failed to build delete index for snapshot {}", snapshot.snapshotId(), exc))
+                    "Failed to read delete manifests for snapshot {}", snapshot.snapshotId(), exc))
         .run(
             snapshot -> {
-              List<ManifestFile> snapshotDeleteManifests = snapshot.deleteManifests(table().io());
-              if (snapshotDeleteManifests.isEmpty()) {
-                addedDeletesBySnapshot.put(snapshot.snapshotId(), DeleteFileIndex.emptyIndex());
-                return;
+              long snapshotId = snapshot.snapshotId();
+              List<ManifestFile> newDeleteManifests =
+                  snapshot.deleteManifests(table().io()).stream()
+                      .filter(
+                          manifest ->
+                              manifest.snapshotId() != null && manifest.snapshotId() == snapshotId)
+                      .toList();
+
+              List<DeleteFile> added = Lists.newArrayList();
+              List<DeleteFile> removed = Lists.newArrayList();
+              for (ManifestFile manifest : newDeleteManifests) {
+                readDeleteManifest(manifest, snapshotId, partitionEvaluators, added, removed);
               }
 
-              // Filter to only include delete files added in this snapshot
-              List<ManifestFile> addedDeleteManifests =
-                  snapshotDeleteManifests.stream()
-                      .filter(manifest -> manifest.snapshotId().equals(snapshot.snapshotId()))
-                      .collect(Collectors.toUnmodifiableList());
-
-              if (addedDeleteManifests.isEmpty()) {
-                addedDeletesBySnapshot.put(snapshot.snapshotId(), DeleteFileIndex.emptyIndex());
-              } else {
-                // Load delete files from manifests
-                Iterable<DeleteFile> deleteFiles =
-                    loadDeleteFiles(addedDeleteManifests, snapshot.snapshotId());
-
-                DeleteFileIndex index =
-                    DeleteFileIndex.builderFor(deleteFiles)
-                        .specsById(table().specs())
-                        .caseSensitive(isCaseSensitive())
-                        .build();
-                addedDeletesBySnapshot.put(snapshot.snapshotId(), index);
-              }
+              addedBySnapshot.put(
+                  snapshotId,
+                  added.isEmpty()
+                      ? DeleteFileIndex.emptyIndex()
+                      : DeleteFileIndex.builderFor(added)
+                          .specsById(table().specs())
+                          .caseSensitive(isCaseSensitive())
+                          .build());
+              removedBySnapshot.put(snapshotId, removed);
             });
-    return addedDeletesBySnapshot;
+
+    return new DeleteFileChanges(addedBySnapshot, removedBySnapshot);
   }
 
   /**
-   * Plans tasks for EXISTING data files that are affected by newly added delete files. These files
-   * were not added or deleted in the changelog snapshot range, but have new delete files applied to
-   * them.
+   * Reads one delete manifest, collecting the delete files this snapshot added and removed. Only
+   * entries committed by the given snapshot are considered; EXISTING entries carried over from
+   * earlier snapshots keep their original snapshot ID and are skipped.
    */
-  private CloseableIterable<ChangelogScanTask> planDeletedRowsTasks(
-      Deque<Snapshot> changelogSnapshots,
-      DeleteFileIndex existingDeleteIndex,
-      Map<Long, DeleteFileIndex> addedDeletesBySnapshot,
-      Set<Long> changelogSnapshotIds) {
+  private void readDeleteManifest(
+      ManifestFile manifest,
+      long snapshotId,
+      Map<Integer, Evaluator> partitionEvaluators,
+      List<DeleteFile> added,
+      List<DeleteFile> removed) {
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(manifest, table().io(), table().specs())) {
+      for (ManifestEntry<DeleteFile> entry : reader.entries()) {
+        if (entry.snapshotId() == null || entry.snapshotId() != snapshotId) {
+          continue;
+        }
 
-    Map<Long, Integer> snapshotOrdinals = computeSnapshotOrdinals(changelogSnapshots);
-    List<ChangelogScanTask> tasks = Lists.newArrayList();
+        DeleteFile file = entry.file();
 
-    // Build a map of file statuses and collect affected partitions for each snapshot
-    Pair<Map<Long, Map<String, ManifestEntry.Status>>, PartitionSet> fileStatusAndPartitions =
-        buildFileStatusBySnapshot(changelogSnapshots, changelogSnapshotIds);
-    Map<Long, Map<String, ManifestEntry.Status>> fileStatusBySnapshot =
-        fileStatusAndPartitions.first();
-    PartitionSet affectedPartitions = fileStatusAndPartitions.second();
+        // Apply partition pruning - skip delete files that cannot match the scan filter
+        if (!partitionMatchesFilter(file, partitionEvaluators)) {
+          continue;
+        }
 
-    // Accumulate actual DeleteFile entries chronologically
-    List<DeleteFile> accumulatedDeletes = Lists.newArrayList();
+        Set<Integer> columns =
+            file.content() == FileContent.POSITION_DELETES
+                ? Set.of(MetadataColumns.DELETE_FILE_PATH.fieldId())
+                : Set.copyOf(file.equalityFieldIds());
+        DeleteFile copied = ContentFileUtil.copy(file, true, columns);
 
-    // Start with deletes from before the changelog range
-    if (!existingDeleteIndex.isEmpty()) {
-      for (DeleteFile df : existingDeleteIndex.referencedDeleteFiles()) {
-        accumulatedDeletes.add(df);
+        if (entry.status() == ManifestEntry.Status.DELETED) {
+          removed.add(copied);
+        } else {
+          added.add(copied);
+        }
       }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to read delete manifest: " + manifest.path(), e);
     }
-
-    for (Snapshot snapshot : changelogSnapshots) {
-      DeleteFileIndex addedDeleteIndex = addedDeletesBySnapshot.get(snapshot.snapshotId());
-      if (addedDeleteIndex.isEmpty()) {
-        continue;
-      }
-
-      // Collect partitions of newly added delete files for pruning (important for the current
-      // snapshot)
-      for (DeleteFile df : addedDeleteIndex.referencedDeleteFiles()) {
-        affectedPartitions.add(df.specId(), df.partition());
-      }
-
-      DeleteFileIndex cumulativeDeleteIndex =
-          buildDeleteIndex(accumulatedDeletes, affectedPartitions);
-
-      // Process data files for this snapshot
-      // Use a local set per snapshot to track processed files
-      Set<String> alreadyProcessedPaths = Sets.newHashSet();
-      processSnapshotForDeletedRowsTasks(
-          snapshot,
-          addedDeleteIndex,
-          cumulativeDeleteIndex,
-          fileStatusBySnapshot.get(snapshot.snapshotId()),
-          alreadyProcessedPaths,
-          snapshotOrdinals,
-          affectedPartitions,
-          tasks);
-
-      // Accumulate this snapshot's added deletes for subsequent snapshots
-      for (DeleteFile df : addedDeleteIndex.referencedDeleteFiles()) {
-        accumulatedDeletes.add(df);
-      }
-    }
-
-    return CloseableIterable.withNoopClose(tasks);
   }
 
   /**
-   * Builds a map of file statuses for each snapshot, tracking which files were added or deleted in
-   * each snapshot.
+   * Returns true if the delete file's partition may contain rows matching the scan filter, so that
+   * delete files that cannot apply to any scanned row are skipped. The scan filter is projected
+   * into each spec's partition space once and the resulting evaluator is cached in the given map,
+   * which may be shared by concurrent readers.
    */
-  private Pair<Map<Long, Map<String, ManifestEntry.Status>>, PartitionSet>
-      buildFileStatusBySnapshot(
-          Deque<Snapshot> changelogSnapshots, Set<Long> changelogSnapshotIds) {
+  private boolean partitionMatchesFilter(DeleteFile file, Map<Integer, Evaluator> evaluatorCache) {
+    Expression currentFilter = filter();
+    if (currentFilter.equals(Expressions.alwaysTrue())) {
+      return true;
+    }
 
-    Map<Long, Map<String, ManifestEntry.Status>> fileStatusBySnapshot = Maps.newConcurrentMap();
-    java.util.Queue<PartitionSet> localPartitionsQueue =
-        new java.util.concurrent.ConcurrentLinkedQueue<>();
+    PartitionSpec spec = table().specs().get(file.specId());
+    if (spec == null || spec.isUnpartitioned()) {
+      // if the spec is unknown or the table is unpartitioned, be conservative and keep the file
+      return true;
+    }
+
+    try {
+      Evaluator evaluator =
+          evaluatorCache.computeIfAbsent(
+              file.specId(),
+              ignored -> {
+                // an inclusive projection turns predicates on source columns into predicates on
+                // partition values, so non-identity transforms are handled correctly
+                Expression partitionFilter =
+                    Projections.inclusive(spec, isCaseSensitive()).project(currentFilter);
+                return new Evaluator(spec.partitionType(), partitionFilter, isCaseSensitive());
+              });
+      return evaluator.eval(file.partition());
+    } catch (Exception e) {
+      // if the filter cannot be projected or evaluated, be conservative and keep the file
+      return true;
+    }
+  }
+
+  /**
+   * Returns the partitions of the added delete files, or an empty set when some delete has global
+   * reach (an unpartitioned spec) and data manifests cannot be pruned by partition.
+   */
+  private PartitionSet addedDeletePartitions(DeleteFileIndex addedDeleteIndex) {
+    PartitionSet partitions = PartitionSet.create(table().specs());
+    for (DeleteFile file : addedDeleteIndex.referencedDeleteFiles()) {
+      PartitionSpec spec = table().specs().get(file.specId());
+      if (spec == null || spec.isUnpartitioned()) {
+        // an empty set disables partition pruning
+        return PartitionSet.create(table().specs());
+      }
+
+      partitions.add(file.specId(), file.partition());
+    }
+
+    return partitions;
+  }
+
+  /**
+   * Returns the data file locations referenced by the added delete files when every added delete is
+   * file-scoped (a DV or a single-file position delete), or null when some added delete may apply
+   * to files other than the ones it references.
+   */
+  private static Set<String> fileScopedTargets(DeleteFileIndex addedDeleteIndex) {
+    Set<String> locations = Sets.newHashSet();
+    for (DeleteFile file : addedDeleteIndex.referencedDeleteFiles()) {
+      String referencedLocation = ContentFileUtil.referencedDataFileLocation(file);
+      if (referencedLocation == null) {
+        return null;
+      }
+
+      locations.add(referencedLocation);
+    }
+
+    return locations;
+  }
+
+  /** Data file changes observed across the changelog snapshots. */
+  private static class ChangedDataFiles {
+    private final Map<Long, Map<String, ManifestEntry.Status>> statusBySnapshot;
+    private final Set<String> deletedFileLocations;
+    private final PartitionSet deletedFilePartitions;
+
+    ChangedDataFiles(
+        Map<Long, Map<String, ManifestEntry.Status>> statusBySnapshot,
+        Set<String> deletedFileLocations,
+        PartitionSet deletedFilePartitions) {
+      this.statusBySnapshot = statusBySnapshot;
+      this.deletedFileLocations = deletedFileLocations;
+      this.deletedFilePartitions = deletedFilePartitions;
+    }
+
+    static ChangedDataFiles empty(Map<Integer, PartitionSpec> specsById) {
+      return new ChangedDataFiles(Map.of(), Set.of(), PartitionSet.create(specsById));
+    }
+  }
+
+  /** Returns true if any snapshot in the range added or removed a delete file. */
+  private static boolean hasDeleteFileChanges(DeleteFileChanges deleteFileChanges) {
+    for (DeleteFileIndex addedDeletes : deleteFileChanges.addedBySnapshot.values()) {
+      if (!addedDeletes.isEmpty()) {
+        return true;
+      }
+    }
+
+    for (List<DeleteFile> removedDeletes : deleteFileChanges.removedBySnapshot.values()) {
+      if (!removedDeletes.isEmpty()) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /** Returns true if the snapshot the range starts from has any delete files. */
+  private boolean hasExistingDeletes(Long fromSnapshotIdExclusive) {
+    if (fromSnapshotIdExclusive == null) {
+      return false;
+    }
+
+    Snapshot fromSnapshot = table().snapshot(fromSnapshotIdExclusive);
+    return fromSnapshot != null && !fromSnapshot.deleteManifests(table().io()).isEmpty();
+  }
+
+  private boolean includeDeleteFiles() {
+    boolean tableValue =
+        PropertyUtil.propertyAsBoolean(
+            table().properties(),
+            TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES,
+            TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES_DEFAULT);
+    return PropertyUtil.propertyAsBoolean(
+        options(), TableProperties.CHANGELOG_SCAN_INCLUDE_DELETE_FILES, tableValue);
+  }
+
+  /**
+   * Collects, for each snapshot, the statuses of data files changed in it, along with the locations
+   * and partitions of data files removed anywhere in the scan range.
+   */
+  private ChangedDataFiles collectChangedDataFiles(Deque<Snapshot> changelogSnapshots) {
+
+    Map<Long, Map<String, ManifestEntry.Status>> statusBySnapshot = Maps.newConcurrentMap();
+    Queue<Set<String>> localDeletedLocations = new ConcurrentLinkedQueue<>();
+    Queue<PartitionSet> localDeletedPartitions = new ConcurrentLinkedQueue<>();
 
     Tasks.foreach(changelogSnapshots)
         .stopOnFailure()
@@ -395,12 +611,16 @@ class BaseIncrementalChangelogScan
         .executeWith(planExecutor())
         .run(
             snapshot -> {
+              long snapshotId = snapshot.snapshotId();
               Map<String, ManifestEntry.Status> fileStatuses = Maps.newHashMap();
-              PartitionSet localAffected = PartitionSet.create(table().specs());
+              Set<String> deletedLocations = Sets.newHashSet();
+              PartitionSet deletedPartitions = PartitionSet.create(table().specs());
 
               List<ManifestFile> changedDataManifests =
-                  FluentIterable.from(snapshot.dataManifests(table().io()))
-                      .filter(manifest -> manifest.snapshotId().equals(snapshot.snapshotId()))
+                  snapshot.dataManifests(table().io()).stream()
+                      .filter(
+                          manifest ->
+                              manifest.snapshotId() != null && manifest.snapshotId() == snapshotId)
                       .toList();
 
               if (!changedDataManifests.isEmpty()) {
@@ -415,9 +635,15 @@ class BaseIncrementalChangelogScan
 
                 try (CloseableIterable<ManifestEntry<DataFile>> entries = changedGroup.entries()) {
                   for (ManifestEntry<DataFile> entry : entries) {
-                    if (changelogSnapshotIds.contains(entry.snapshotId())) {
+                    if (entry.snapshotId() != null && entry.snapshotId() == snapshotId) {
                       fileStatuses.put(entry.file().location(), entry.status());
-                      localAffected.add(entry.file().specId(), entry.file().partition());
+                      if (entry.status() == ManifestEntry.Status.DELETED) {
+                        // copy the file: the reader reuses the entry, so the partition struct
+                        // must not be stored as a live reference
+                        DataFile deletedFile = entry.file().copyWithoutStats();
+                        deletedLocations.add(deletedFile.location());
+                        deletedPartitions.add(deletedFile.specId(), deletedFile.partition());
+                      }
                     }
                   }
                 } catch (Exception e) {
@@ -426,143 +652,339 @@ class BaseIncrementalChangelogScan
                 }
               }
 
-              fileStatusBySnapshot.put(snapshot.snapshotId(), fileStatuses);
-              localPartitionsQueue.add(localAffected);
+              statusBySnapshot.put(snapshot.snapshotId(), fileStatuses);
+              localDeletedLocations.add(deletedLocations);
+              localDeletedPartitions.add(deletedPartitions);
             });
 
-    PartitionSet globalAffected = PartitionSet.create(table().specs());
-    for (PartitionSet local : localPartitionsQueue) {
-      globalAffected.addAll(local);
-    }
+    Set<String> deletedFileLocations = Sets.newHashSet();
+    localDeletedLocations.forEach(deletedFileLocations::addAll);
 
-    return Pair.of(fileStatusBySnapshot, globalAffected);
+    PartitionSet deletedFilePartitions = PartitionSet.create(table().specs());
+    localDeletedPartitions.forEach(deletedFilePartitions::addAll);
+
+    return new ChangedDataFiles(statusBySnapshot, deletedFileLocations, deletedFilePartitions);
   }
 
+  /**
+   * Scope of existing (pre-range) delete files that can apply to changelog tasks in the scan range.
+   * Existing deletes are only attached to data files that were removed in the range or hit by newly
+   * added deletes, so delete files outside this scope can be skipped while building the existing
+   * delete index:
+   *
+   * <ul>
+   *   <li>file-scoped position deletes and DVs are kept only if they reference an affected data
+   *       file location, or lie in a partition where a partition-scoped delete was added
+   *   <li>equality deletes and partition-scoped position deletes are kept only if they have global
+   *       reach or lie in an affected partition
+   * </ul>
+   */
+  private static class ExistingDeleteScope {
+    private final Map<Integer, PartitionSpec> specsById;
+    private final PartitionSet allAffectedPartitions;
+    private final PartitionSet broadDeletePartitions;
+    private final Set<String> affectedDataFileLocations;
+
+    ExistingDeleteScope(
+        Map<Integer, PartitionSpec> specsById,
+        PartitionSet allAffectedPartitions,
+        PartitionSet broadDeletePartitions,
+        Set<String> affectedDataFileLocations) {
+      this.specsById = specsById;
+      this.allAffectedPartitions = allAffectedPartitions;
+      this.broadDeletePartitions = broadDeletePartitions;
+      this.affectedDataFileLocations = affectedDataFileLocations;
+    }
+
+    boolean keeps(DeleteFile file) {
+      String referencedLocation = ContentFileUtil.referencedDataFileLocation(file);
+      if (referencedLocation != null) {
+        // file-scoped position delete or DV
+        return affectedDataFileLocations.contains(referencedLocation)
+            || broadDeletePartitions.contains(file.specId(), file.partition());
+      }
+
+      // equality delete or partition-scoped position delete
+      PartitionSpec spec = specsById.get(file.specId());
+      return spec == null
+          || spec.isUnpartitioned()
+          || allAffectedPartitions.contains(file.specId(), file.partition());
+    }
+  }
+
+  /**
+   * Derives the scope of existing deletes that can apply to tasks in the scan range from the
+   * removed data files and the added delete files. Returns null when scoping is not possible
+   * because some added delete has global reach and can affect any data file.
+   */
+  private ExistingDeleteScope buildExistingDeleteScope(
+      ChangedDataFiles changedDataFiles, Map<Long, DeleteFileIndex> addedDeletesBySnapshot) {
+    PartitionSet allAffected = PartitionSet.create(table().specs());
+    PartitionSet broadDeletePartitions = PartitionSet.create(table().specs());
+    Set<String> affectedLocations = Sets.newHashSet(changedDataFiles.deletedFileLocations);
+
+    allAffected.addAll(changedDataFiles.deletedFilePartitions);
+
+    for (DeleteFileIndex index : addedDeletesBySnapshot.values()) {
+      for (DeleteFile file : index.referencedDeleteFiles()) {
+        PartitionSpec spec = table().specs().get(file.specId());
+        String referencedLocation = ContentFileUtil.referencedDataFileLocation(file);
+        if (referencedLocation != null) {
+          affectedLocations.add(referencedLocation);
+        } else if (spec == null || spec.isUnpartitioned()) {
+          // an equality delete or a partition-scoped position delete with global reach can
+          // affect any data file, so existing deletes cannot be scoped
+          return null;
+        } else {
+          broadDeletePartitions.add(file.specId(), file.partition());
+        }
+
+        allAffected.add(file.specId(), file.partition());
+      }
+    }
+
+    return new ExistingDeleteScope(
+        table().specs(), allAffected, broadDeletePartitions, affectedLocations);
+  }
+
+  /**
+   * Prunes manifests that cannot contain files in any affected partition. A partitioned manifest
+   * whose spec has no affected partitions is pruned: every delete-to-data match requires equal spec
+   * IDs (file-scoped deletes share their target data file's spec and partition, and
+   * partition-scoped lookups are keyed by the data file's spec), so neither an affected delete file
+   * nor a data file matched by this range's deletes can live in a manifest of an unaffected spec.
+   * Deletes with global reach disable this pruning upstream (null scope for existing deletes; an
+   * empty partition set for per-snapshot data manifest pruning).
+   */
   private List<ManifestFile> pruneManifestsByAffectedPartitions(
       List<ManifestFile> manifests, PartitionSet affectedPartitions) {
     if (affectedPartitions.isEmpty()) {
       return manifests;
     }
 
-    Expression affectedExpr = buildAffectedPartitionExpression(affectedPartitions);
-    if (affectedExpr == Expressions.alwaysFalse()) {
+    Map<Integer, Expression> partitionExprsBySpec =
+        buildAffectedPartitionExpressions(affectedPartitions);
+    if (partitionExprsBySpec == null) {
+      // some affected partition cannot be expressed; skip pruning
       return manifests;
     }
 
-    List<ManifestFile> pruned = Lists.newArrayList();
-    for (ManifestFile manifest : manifests) {
-      PartitionSpec spec = table().specs().get(manifest.partitionSpecId());
-      if (spec == null || spec.isUnpartitioned()) {
-        pruned.add(manifest);
-      } else if (manifestOverlapsFilter(manifest, spec, affectedExpr)) {
-        pruned.add(manifest);
+    try {
+      Map<Integer, ManifestEvaluator> evaluatorsBySpec = Maps.newHashMap();
+      List<ManifestFile> pruned = Lists.newArrayList();
+      for (ManifestFile manifest : manifests) {
+        PartitionSpec spec = table().specs().get(manifest.partitionSpecId());
+        if (spec == null || spec.isUnpartitioned()) {
+          pruned.add(manifest);
+          continue;
+        }
+
+        Expression expr = partitionExprsBySpec.get(manifest.partitionSpecId());
+        if (expr == null) {
+          // no affected partitions in this manifest's spec: see method javadoc
+          continue;
+        }
+
+        ManifestEvaluator evaluator = evaluatorsBySpec.get(manifest.partitionSpecId());
+        if (evaluator == null) {
+          evaluator = ManifestEvaluator.forPartitionFilter(expr, spec, isCaseSensitive());
+          evaluatorsBySpec.put(manifest.partitionSpecId(), evaluator);
+        }
+
+        if (evaluator.eval(manifest)) {
+          pruned.add(manifest);
+        }
       }
+
+      return pruned;
+    } catch (Exception e) {
+      // if the partition expressions cannot be evaluated, be conservative and keep all manifests
+      LOG.warn("Failed to prune manifests by affected partitions, skipping pruning", e);
+      return manifests;
     }
-    return pruned;
   }
 
-  private Expression buildAffectedPartitionExpression(PartitionSet affectedPartitions) {
-    Expression combined = null;
+  /**
+   * Builds partition-space expressions (one per spec) matching the affected partition tuples. The
+   * expressions reference partition field names and compare transformed partition values directly,
+   * so they are correct for non-identity transforms such as bucket or truncate. Returns null if
+   * some affected partition cannot be translated to an expression and pruning must be skipped.
+   */
+  private Map<Integer, Expression> buildAffectedPartitionExpressions(
+      PartitionSet affectedPartitions) {
+    Map<Integer, Expression> exprsBySpec = Maps.newHashMap();
 
     for (Pair<Integer, StructLike> pair : affectedPartitions) {
       int specId = pair.first();
-      StructLike partition = pair.second();
       PartitionSpec spec = table().specs().get(specId);
-      if (spec == null) {
-        continue;
-      } else if (spec.isUnpartitioned()) {
-        return Expressions.alwaysTrue(); // FALLBACK: Global delete exists, include ALL manifests!
+      if (spec == null || spec.isUnpartitioned()) {
+        // a partition tuple without a known partitioned spec may affect any manifest
+        return null;
       }
 
-      Expression specExpr = null;
-      for (int i = 0; i < spec.fields().size(); i++) {
-        org.apache.iceberg.PartitionField field = spec.fields().get(i);
-        Object value = partition.get(i, Object.class);
-        if (value != null) {
-          String columnName = table().schema().findColumnName(field.sourceId());
-          if (columnName != null) {
-            Expression equalExpr = Expressions.equal(columnName, value);
-            specExpr = (specExpr == null) ? equalExpr : Expressions.and(specExpr, equalExpr);
-          }
+      StructLike partition = pair.second();
+      Expression tupleExpr = Expressions.alwaysTrue();
+      for (int pos = 0; pos < spec.fields().size(); pos++) {
+        String name = spec.partitionType().fields().get(pos).name();
+        Object value = partition.get(pos, Object.class);
+        if (value == null) {
+          tupleExpr = Expressions.and(tupleExpr, Expressions.isNull(name));
+        } else if (isNaN(value)) {
+          // NaN cannot be expressed as an equality predicate
+          return null;
+        } else {
+          tupleExpr = Expressions.and(tupleExpr, Expressions.equal(name, value));
         }
       }
 
-      if (specExpr != null) {
-        combined = (combined == null) ? specExpr : Expressions.or(combined, specExpr);
-      }
+      exprsBySpec.merge(specId, tupleExpr, Expressions::or);
     }
 
-    return combined != null ? combined : Expressions.alwaysFalse();
+    return exprsBySpec;
+  }
+
+  private static boolean isNaN(Object value) {
+    return (value instanceof Double && ((Double) value).isNaN())
+        || (value instanceof Float && ((Float) value).isNaN());
   }
 
   /**
-   * Builds a map of snapshot ID -> all delete files that were added in the scan range up to that
-   * snapshot, PRUNING files that were removed in the middle.
+   * Tracks the delete files that applied before each snapshot in the scan range and lazily builds a
+   * per-snapshot index of them.
+   *
+   * <p>The index for a snapshot combines deletes that existed before the scan range with deletes
+   * added by earlier snapshots in the range. Delete files that were removed by earlier snapshots in
+   * the range are excluded, so removed delete files are never assigned to tasks.
+   *
+   * <p>Snapshots are consumed oldest to newest, so this class keeps a single advancing cursor over
+   * the range instead of materializing per-snapshot state: one running list of accumulated added
+   * deletes, one running set of removed delete paths, and only the most recently built index.
+   * Within one snapshot, planning worker threads may request the same index concurrently; those
+   * calls are serialized by this object's monitor.
    */
-  private Map<Long, List<DeleteFile>> buildCumulativeDeletesBySnapshot(
-      Deque<Snapshot> snapshots, Map<Long, DeleteFileIndex> addedDeletesBySnapshot) {
-    Map<Long, List<DeleteFile>> result = Maps.newHashMap();
-    List<DeleteFile> accumulatedDeletes = Lists.newArrayList();
+  private class CumulativeDeleteIndexes {
+    private final Supplier<DeleteFileIndex> existingDeleteIndexSupplier;
+    private final List<Long> orderedSnapshotIds;
+    private final Map<Long, DeleteFileIndex> addedDeletesBySnapshot;
+    private final Map<Long, List<DeleteFile>> removedDeletesBySnapshot;
 
-    for (Snapshot snapshot : snapshots) {
-      // Save state first, so that this snapshot's tasks can use any deletes active up to this point
-      result.put(snapshot.snapshotId(), Lists.newArrayList(accumulatedDeletes));
+    // cursor state: position in orderedSnapshotIds of the next snapshot whose effects to apply,
+    // together with the state produced by all snapshots before that position
+    private int cursor = 0;
+    private final List<DeleteFile> accumulatedAddedDeletes = Lists.newArrayList();
+    private final Set<String> removedPaths = Sets.newHashSet();
+    private Long latestIndexSnapshotId = null;
+    private DeleteFileIndex latestIndex = null;
 
-      // Check for removed deletes and prune from accumulatedDeletes for FUTURE snapshots
-      List<ManifestFile> changedDeletes =
-          FluentIterable.from(snapshot.deleteManifests(table().io()))
-              .filter(manifest -> manifest.snapshotId().equals(snapshot.snapshotId()))
-              .toList();
+    CumulativeDeleteIndexes(
+        Deque<Snapshot> snapshots,
+        Map<Long, DeleteFileIndex> addedDeletesBySnapshot,
+        Map<Long, List<DeleteFile>> removedDeletesBySnapshot,
+        Supplier<DeleteFileIndex> existingDeleteIndexSupplier) {
+      this.existingDeleteIndexSupplier = existingDeleteIndexSupplier;
+      this.orderedSnapshotIds = snapshots.stream().map(Snapshot::snapshotId).toList();
+      this.addedDeletesBySnapshot = addedDeletesBySnapshot;
+      this.removedDeletesBySnapshot = removedDeletesBySnapshot;
+    }
 
-      if (!changedDeletes.isEmpty()) {
-        Iterable<DeleteFile> removedDeletes =
-            loadRemovedDeleteFiles(changedDeletes, snapshot.snapshotId());
-        Set<String> removedPaths = Sets.newHashSet();
-        for (DeleteFile rdf : removedDeletes) {
-          removedPaths.add(rdf.location());
-        }
-        accumulatedDeletes.removeIf(df -> removedPaths.contains(df.location()));
+    /** Returns an index of all delete files that applied before the given snapshot. */
+    synchronized DeleteFileIndex deletesBefore(long snapshotId) {
+      if (latestIndexSnapshotId != null && latestIndexSnapshotId == snapshotId) {
+        return latestIndex;
       }
 
-      // Add new deletes for FUTURE snapshots
-      DeleteFileIndex addedDeleteIndex = addedDeletesBySnapshot.get(snapshot.snapshotId());
+      int position = orderedSnapshotIds.indexOf(snapshotId);
+      Preconditions.checkArgument(
+          position >= 0, "Cannot find snapshot %s in the changelog range", snapshotId);
+
+      // a consumer that re-iterates the plan may ask for a snapshot the cursor already passed;
+      // restarting from the beginning is correct, just slower
+      if (position < cursor) {
+        resetCursor();
+      }
+
+      // apply the effects of every snapshot strictly before the requested one
+      while (cursor < position) {
+        advanceCursor(orderedSnapshotIds.get(cursor));
+        cursor += 1;
+      }
+
+      this.latestIndex = buildIndex();
+      this.latestIndexSnapshotId = snapshotId;
+      return latestIndex;
+    }
+
+    private void resetCursor() {
+      this.cursor = 0;
+      accumulatedAddedDeletes.clear();
+      removedPaths.clear();
+    }
+
+    /** Applies one snapshot's delete file removals and additions to the running state. */
+    private void advanceCursor(long snapshotId) {
+      List<DeleteFile> removedDeletes =
+          removedDeletesBySnapshot.getOrDefault(snapshotId, List.of());
+      if (!removedDeletes.isEmpty()) {
+        Set<String> currentRemovedPaths = Sets.newHashSet();
+        for (DeleteFile removed : removedDeletes) {
+          currentRemovedPaths.add(removed.location());
+        }
+
+        // the cumulative set is still needed to filter pre-range existing delete files, but only
+        // this snapshot's removals may evict accumulated in-range deletes: a path removed earlier
+        // and re-added later in the range is live again
+        removedPaths.addAll(currentRemovedPaths);
+        accumulatedAddedDeletes.removeIf(file -> currentRemovedPaths.contains(file.location()));
+      }
+
+      DeleteFileIndex addedDeleteIndex = addedDeletesBySnapshot.get(snapshotId);
       if (addedDeleteIndex != null && !addedDeleteIndex.isEmpty()) {
-        for (DeleteFile df : addedDeleteIndex.referencedDeleteFiles()) {
-          accumulatedDeletes.add(df);
+        for (DeleteFile file : addedDeleteIndex.referencedDeleteFiles()) {
+          accumulatedAddedDeletes.add(file);
         }
       }
     }
 
-    return result;
-  }
-
-  /**
-   * Builds a delete index from the accumulated list of delete files, pruning by affected
-   * partitions.
-   */
-  private DeleteFileIndex buildDeleteIndex(
-      List<DeleteFile> accumulatedDeletes, PartitionSet affectedPartitions) {
-    if (accumulatedDeletes.isEmpty()) {
-      return DeleteFileIndex.emptyIndex();
-    }
-
-    List<DeleteFile> filteredDeletes = accumulatedDeletes;
-    if (!affectedPartitions.isEmpty()) {
-      filteredDeletes = Lists.newArrayList();
-      for (DeleteFile df : accumulatedDeletes) {
-        PartitionSpec spec = table().specs().get(df.specId());
-        if (spec == null || spec.isUnpartitioned()) {
-          filteredDeletes.add(df); // Always include unpartitioned deletes
-        } else if (affectedPartitions.contains(df.specId(), df.partition())) {
-          filteredDeletes.add(df);
+    private DeleteFileIndex buildIndex() {
+      List<DeleteFile> candidates = Lists.newArrayList();
+      for (DeleteFile file : existingDeleteIndexSupplier.get().referencedDeleteFiles()) {
+        if (!removedPaths.contains(file.location())) {
+          candidates.add(file);
         }
       }
-    }
 
-    return DeleteFileIndex.builderFor(filteredDeletes)
-        .specsById(table().specs())
-        .caseSensitive(isCaseSensitive())
-        .build();
+      candidates.addAll(accumulatedAddedDeletes);
+
+      if (candidates.isEmpty()) {
+        return DeleteFileIndex.emptyIndex();
+      }
+
+      // A data file has at most one live DV, but when a DV was replaced by a snapshot this scan
+      // does not track (e.g. a mid-range REPLACE rewrote it), both versions may be accumulated.
+      // Keep only the newest DV per referenced data file: DVs are cumulative, so the newest one
+      // carries all previously deleted positions. Candidates are ordered oldest to newest.
+      //
+      // When a skipped REPLACE snapshot rewrote a delete file, the DV retained here is the
+      // pre-range one, which is content-equivalent to the rewritten one but may already have been
+      // physically removed by expire_snapshots; execution then fails on a missing file. This is an
+      // accepted limitation, discussed on the PR.
+      List<DeleteFile> deleteFiles = Lists.newArrayList();
+      Map<String, DeleteFile> dvByReferencedFile = Maps.newHashMap();
+      for (DeleteFile file : candidates) {
+        if (ContentFileUtil.isDV(file)) {
+          dvByReferencedFile.put(file.referencedDataFile(), file);
+        } else {
+          deleteFiles.add(file);
+        }
+      }
+
+      deleteFiles.addAll(dvByReferencedFile.values());
+
+      return DeleteFileIndex.builderFor(deleteFiles)
+          .specsById(table().specs())
+          .caseSensitive(isCaseSensitive())
+          .build();
+    }
   }
 
   /**
@@ -572,17 +994,18 @@ class BaseIncrementalChangelogScan
   private void processSnapshotForDeletedRowsTasks(
       Snapshot snapshot,
       DeleteFileIndex addedDeleteIndex,
-      DeleteFileIndex cumulativeDeleteIndex,
+      CumulativeDeleteIndexes cumulativeDeleteIndexes,
       Map<String, ManifestEntry.Status> currentSnapshotFiles,
-      Set<String> alreadyProcessedPaths,
       Map<Long, Integer> snapshotOrdinals,
-      PartitionSet affectedPartitions,
+      PartitionSet snapshotDeletePartitions,
+      Set<String> candidateLocations,
       List<ChangelogScanTask> tasks) {
 
-    // Get all data files that exist in this snapshot, pruned by affected partitions
+    // Get all data files that exist in this snapshot, pruned to the partitions of this
+    // snapshot's added delete files
     List<ManifestFile> allDataManifests = snapshot.dataManifests(table().io());
     List<ManifestFile> prunedManifests =
-        pruneManifestsByAffectedPartitions(allDataManifests, affectedPartitions);
+        pruneManifestsByAffectedPartitions(allDataManifests, snapshotDeletePartitions);
 
     ManifestGroup allDataGroup =
         new ManifestGroup(table().io(), prunedManifests, ImmutableList.of())
@@ -604,10 +1027,18 @@ class BaseIncrementalChangelogScan
     Map<Integer, ResidualEvaluator> residualCache = Maps.newHashMap();
     Expression residualFilter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
 
+    // Track files already processed within this snapshot
+    Set<String> alreadyProcessedPaths = Sets.newHashSet();
+
     try (CloseableIterable<ManifestEntry<DataFile>> entries = allDataGroup.entries()) {
       for (ManifestEntry<DataFile> entry : entries) {
         DataFile dataFile = entry.file();
         String filePath = dataFile.location();
+
+        // When every added delete is file-scoped, only the referenced files can produce tasks
+        if (candidateLocations != null && !candidateLocations.contains(filePath)) {
+          continue;
+        }
 
         // Skip if this file was ADDED or DELETED in this snapshot
         // (those are handled by CreateDataFileChangeTasks)
@@ -627,12 +1058,13 @@ class BaseIncrementalChangelogScan
           continue;
         }
 
-        // This data file was EXISTING but has new delete files applied
-        // Get existing deletes from before this snapshot (cumulative)
+        // This data file was EXISTING but has new delete files applied.
+        // Attach all deletes that applied before this snapshot so that rows deleted earlier are
+        // not emitted again; the underlying index is built lazily on first use
+        DeleteFileIndex deletesBefore =
+            cumulativeDeleteIndexes.deletesBefore(snapshot.snapshotId());
         DeleteFile[] existingDeletes =
-            cumulativeDeleteIndex.isEmpty()
-                ? new DeleteFile[0]
-                : cumulativeDeleteIndex.forEntry(entry);
+            deletesBefore.isEmpty() ? new DeleteFile[0] : deletesBefore.forEntry(entry);
 
         // Create a DeletedRowsScanTask
         int changeOrdinal = snapshotOrdinals.get(snapshot.snapshotId());
@@ -654,7 +1086,7 @@ class BaseIncrementalChangelogScan
             new BaseDeletedRowsScanTask(
                 changeOrdinal,
                 snapshot.snapshotId(),
-                dataFile.copy(shouldKeepStats()),
+                ContentFileUtil.copy(dataFile, shouldReturnColumnStats(), columnsToKeepStats()),
                 addedDeletes,
                 existingDeletes,
                 schemaString,
@@ -669,237 +1101,20 @@ class BaseIncrementalChangelogScan
     }
   }
 
-  private boolean shouldKeepStats() {
-    Set<Integer> columns = columnsToKeepStats();
-    return columns != null && !columns.isEmpty();
-  }
-
-  /**
-   * Loads delete files from manifests by parsing each manifest.
-   *
-   * @param manifests the delete manifests to load
-   * @return list of delete files
-   */
-  private Iterable<DeleteFile> loadDeleteFiles(
-      List<ManifestFile> manifests, Long targetSnapshotId) {
-    Queue<DeleteFile> allDeleteFiles = new ConcurrentLinkedQueue<>();
-
-    Tasks.foreach(manifests)
-        .stopOnFailure()
-        .throwFailureWhenFinished()
-        .executeWith(planExecutor())
-        .run(
-            manifest -> {
-              List<DeleteFile> deleteFiles =
-                  loadDeleteFilesFromManifest(manifest, targetSnapshotId);
-              allDeleteFiles.addAll(deleteFiles);
-            });
-
-    return allDeleteFiles;
-  }
-
-  private Iterable<DeleteFile> loadRemovedDeleteFiles(
-      List<ManifestFile> manifests, Long targetSnapshotId) {
-    Queue<DeleteFile> allDeleteFiles = new ConcurrentLinkedQueue<>();
-
-    Tasks.foreach(manifests)
-        .stopOnFailure()
-        .throwFailureWhenFinished()
-        .executeWith(planExecutor())
-        .run(
-            manifest -> {
-              List<DeleteFile> deleteFiles =
-                  loadRemovedDeleteFilesFromManifest(manifest, targetSnapshotId);
-              allDeleteFiles.addAll(deleteFiles);
-            });
-
-    return allDeleteFiles;
-  }
-
-  private List<DeleteFile> loadRemovedDeleteFilesFromManifest(
-      ManifestFile manifest, Long targetSnapshotId) {
-    List<DeleteFile> deleteFiles = Lists.newArrayList();
-
-    try (ManifestReader<DeleteFile> reader =
-        ManifestFiles.readDeleteManifest(manifest, table().io(), table().specs())) {
-      for (ManifestEntry<DeleteFile> entry : reader.entries()) {
-        if (entry.status() == ManifestEntry.Status.DELETED
-            && entry.snapshotId().equals(targetSnapshotId)) {
-          DeleteFile file = entry.file();
-
-          if (!partitionMatchesFilter(file)) {
-            continue;
-          }
-
-          Set<Integer> columns =
-              file.content() == FileContent.POSITION_DELETES
-                  ? Set.of(MetadataColumns.DELETE_FILE_PATH.fieldId())
-                  : Set.copyOf(file.equalityFieldIds());
-          deleteFiles.add(ContentFileUtil.copy(file, true, columns));
-        }
-      }
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to read delete manifest: " + manifest.path(), e);
-    }
-
-    return deleteFiles;
-  }
-
-  /**
-   * Prunes delete manifests based on partition filter to avoid processing irrelevant manifests.
-   * This significantly improves performance when only a subset of partitions are relevant to the
-   * scan.
-   *
-   * @param manifests all delete manifests to consider
-   * @return list of manifests that might contain relevant delete files
-   */
-  private List<ManifestFile> pruneManifestsByPartition(List<ManifestFile> manifests) {
-    Expression currentFilter = filter();
-
-    // If there's no filter, return all manifests
-    if (currentFilter == null || currentFilter.equals(Expressions.alwaysTrue())) {
-      return manifests;
-    }
-
-    List<ManifestFile> prunedManifests = Lists.newArrayList();
-
-    for (ManifestFile manifest : manifests) {
-      PartitionSpec spec = table().specs().get(manifest.partitionSpecId());
-      if (spec == null || spec.isUnpartitioned()) {
-        // Include unpartitioned manifests
-        prunedManifests.add(manifest);
-      } else if (manifestOverlapsFilter(manifest, spec, currentFilter)) {
-        // Check if manifest partition range overlaps with filter
-        prunedManifests.add(manifest);
-      }
-    }
-
-    return prunedManifests;
-  }
-
-  /**
-   * Checks if a manifest's partition range overlaps with the given filter.
-   *
-   * @param manifest the manifest to check
-   * @param spec the partition spec for the manifest
-   * @param filter the scan filter
-   * @return true if the manifest might contain matching partitions, false otherwise
-   */
-  private boolean manifestOverlapsFilter(
-      ManifestFile manifest, PartitionSpec spec, Expression filter) {
-    try {
-      // Use inclusive projection to transform row filter to partition filter
-      Expression partitionFilter = Projections.inclusive(spec, isCaseSensitive()).project(filter);
-
-      // Create evaluator for the partition filter
-      ManifestEvaluator evaluator =
-          ManifestEvaluator.forPartitionFilter(partitionFilter, spec, isCaseSensitive());
-
-      // Check if manifest could contain matching partitions
-      return evaluator.eval(manifest);
-    } catch (Exception e) {
-      // If evaluation fails, be conservative and include the manifest
-      return true;
-    }
-  }
-
-  /**
-   * Checks if a delete file's partition overlaps with the current scan filter. This enables
-   * partition pruning to reduce memory footprint and planning overhead by skipping delete files
-   * that cannot possibly match any rows in the scan.
-   *
-   * @param file the delete file to check
-   * @return true if the delete file's partition might contain matching rows, false otherwise
-   */
-  private boolean partitionMatchesFilter(DeleteFile file) {
-    // If there's no filter, all partitions match
-    Expression currentFilter = filter();
-    if (currentFilter == null || currentFilter.equals(Expressions.alwaysTrue())) {
-      return true;
-    }
-
-    // Get the partition spec for this delete file
-    PartitionSpec spec = table().specs().get(file.specId());
-    if (spec == null || spec.isUnpartitioned()) {
-      // If spec not found or table is unpartitioned, be conservative and include the file
-      return true;
-    }
-
-    try {
-      // Project the row filter to partition space using inclusive projection
-      // This transforms expressions on source columns to expressions on partition columns
-      Expression partitionFilter =
-          Projections.inclusive(spec, isCaseSensitive()).project(currentFilter);
-
-      // Evaluate the projected filter against the delete file's partition
-      Evaluator evaluator = new Evaluator(spec.partitionType(), partitionFilter, isCaseSensitive());
-      return evaluator.eval(file.partition());
-    } catch (Exception e) {
-      // If evaluation fails, be conservative and include the file
-      return true;
-    }
-  }
-
-  /**
-   * Loads delete files from a single manifest, parsing the manifest entries.
-   *
-   * @param manifest the delete manifest to load
-   * @return list of delete files from this manifest
-   */
-  private List<DeleteFile> loadDeleteFilesFromManifest(
-      ManifestFile manifest, Long targetSnapshotId) {
-    List<DeleteFile> deleteFiles = Lists.newArrayList();
-
-    try (ManifestReader<DeleteFile> reader =
-        ManifestFiles.readDeleteManifest(manifest, table().io(), table().specs())) {
-      for (ManifestEntry<DeleteFile> entry : reader.entries()) {
-        if (entry.status() != ManifestEntry.Status.DELETED
-            && (targetSnapshotId == null || entry.snapshotId().equals(targetSnapshotId))) {
-          // Only include live delete files, copy with minimal stats to save memory
-          DeleteFile file = entry.file();
-
-          // Apply partition pruning - skip delete files that cannot match the scan filter
-          if (!partitionMatchesFilter(file)) {
-            continue;
-          }
-
-          Set<Integer> columns =
-              file.content() == FileContent.POSITION_DELETES
-                  ? Set.of(MetadataColumns.DELETE_FILE_PATH.fieldId())
-                  : Set.copyOf(file.equalityFieldIds());
-          deleteFiles.add(ContentFileUtil.copy(file, true, columns));
-        }
-      }
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to read delete manifest: " + manifest.path(), e);
-    }
-
-    return deleteFiles;
-  }
-
   private static class CreateDataFileChangeTasks implements CreateTasksFunction<ChangelogScanTask> {
     private static final DeleteFile[] NO_DELETES = new DeleteFile[0];
 
     private final Map<Long, Integer> snapshotOrdinals;
-    private final Supplier<DeleteFileIndex> existingDeleteIndexSupplier;
     private final Map<Long, DeleteFileIndex> addedDeletesBySnapshot;
-    private final Map<Long, List<DeleteFile>> cumulativeDeletesMap;
-    private final Map<Integer, PartitionSpec> specsById;
-    private final boolean caseSensitive;
+    private final CumulativeDeleteIndexes cumulativeDeleteIndexes;
 
     CreateDataFileChangeTasks(
-        Deque<Snapshot> snapshots,
-        Supplier<DeleteFileIndex> existingDeleteIndexSupplier,
+        Map<Long, Integer> snapshotOrdinals,
         Map<Long, DeleteFileIndex> addedDeletesBySnapshot,
-        Map<Long, List<DeleteFile>> cumulativeDeletesMap,
-        Map<Integer, PartitionSpec> specsById,
-        boolean caseSensitive) {
-      this.snapshotOrdinals = computeSnapshotOrdinals(snapshots);
-      this.existingDeleteIndexSupplier = existingDeleteIndexSupplier;
+        CumulativeDeleteIndexes cumulativeDeleteIndexes) {
+      this.snapshotOrdinals = snapshotOrdinals;
       this.addedDeletesBySnapshot = addedDeletesBySnapshot;
-      this.cumulativeDeletesMap = cumulativeDeletesMap;
-      this.specsById = specsById;
-      this.caseSensitive = caseSensitive;
+      this.cumulativeDeleteIndexes = cumulativeDeleteIndexes;
     }
 
     @Override
@@ -911,12 +1126,14 @@ class BaseIncrementalChangelogScan
           entry -> {
             long commitSnapshotId = entry.snapshotId();
             int changeOrdinal = snapshotOrdinals.get(commitSnapshotId);
-            DataFile dataFile = entry.file().copy(context.shouldKeepStats());
+            DataFile dataFile =
+                ContentFileUtil.copy(
+                    entry.file(), context.shouldKeepStats(), context.columnsToKeepStats());
 
             switch (entry.status()) {
               case ADDED:
                 // For ADDED data files, attach delete files added in this snapshot
-                DeleteFile[] addedFileDeletes = getDeletesForAddedFile(entry, commitSnapshotId);
+                DeleteFile[] addedFileDeletes = deletesForAddedFile(entry, commitSnapshotId);
                 return new BaseAddedRowsScanTask(
                     changeOrdinal,
                     commitSnapshotId,
@@ -929,7 +1146,7 @@ class BaseIncrementalChangelogScan
               case DELETED:
                 // For DELETED data files, attach ALL deletes that were present up to deletion
                 // This includes existing deletes AND deletes added in the scan range
-                DeleteFile[] deletedFileDeletes = getDeletesForDeletedFile(entry, commitSnapshotId);
+                DeleteFile[] deletedFileDeletes = deletesForDeletedFile(entry, commitSnapshotId);
                 return new BaseDeletedDataFileScanTask(
                     changeOrdinal,
                     commitSnapshotId,
@@ -949,8 +1166,7 @@ class BaseIncrementalChangelogScan
      * Gets delete files that apply to an ADDED data file. Only includes deletes added in the same
      * snapshot as the file.
      */
-    private DeleteFile[] getDeletesForAddedFile(
-        ManifestEntry<DataFile> entry, long commitSnapshotId) {
+    private DeleteFile[] deletesForAddedFile(ManifestEntry<DataFile> entry, long commitSnapshotId) {
       DeleteFileIndex addedDeleteIndex = addedDeletesBySnapshot.get(commitSnapshotId);
       return addedDeleteIndex == null || addedDeleteIndex.isEmpty()
           ? NO_DELETES
@@ -960,36 +1176,13 @@ class BaseIncrementalChangelogScan
     /**
      * Gets all delete files that were applied to a DELETED data file up to the point it was
      * deleted. This includes existing deletes and all deletes added in the scan range up to (but
-     * not including) the deletion snapshot.
+     * not including) the deletion snapshot. The underlying per-snapshot index is built once and
+     * reused for all entries deleted in the same snapshot.
      */
-    private DeleteFile[] getDeletesForDeletedFile(
+    private DeleteFile[] deletesForDeletedFile(
         ManifestEntry<DataFile> entry, long deletionSnapshotId) {
-
-      List<DeleteFile> allDeletes = Lists.newArrayList();
-
-      // Build existing delete index lazily when first DELETED entry is encountered
-      DeleteFileIndex existingDeleteIndex = existingDeleteIndexSupplier.get();
-      DeleteFile[] existingDeletes =
-          existingDeleteIndex.isEmpty() ? NO_DELETES : existingDeleteIndex.forEntry(entry);
-      for (DeleteFile df : existingDeletes) {
-        allDeletes.add(df);
-      }
-
-      // Add all deletes from snapshots in the scan range BEFORE the deletion
-      List<DeleteFile> cumulativeDeletes = cumulativeDeletesMap.get(deletionSnapshotId);
-      if (cumulativeDeletes != null && !cumulativeDeletes.isEmpty()) {
-        DeleteFileIndex tempIndex =
-            DeleteFileIndex.builderFor(cumulativeDeletes)
-                .specsById(specsById)
-                .caseSensitive(caseSensitive)
-                .build();
-        DeleteFile[] applicable = tempIndex.forEntry(entry);
-        for (DeleteFile deleteFile : applicable) {
-          allDeletes.add(deleteFile);
-        }
-      }
-
-      return allDeletes.isEmpty() ? NO_DELETES : allDeletes.toArray(new DeleteFile[0]);
+      DeleteFileIndex deletesBefore = cumulativeDeleteIndexes.deletesBefore(deletionSnapshotId);
+      return deletesBefore.isEmpty() ? NO_DELETES : deletesBefore.forEntry(entry);
     }
   }
 }

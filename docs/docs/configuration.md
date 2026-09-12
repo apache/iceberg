@@ -39,6 +39,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | read.orc.vectorization.batch-size | 5000               | The batch size for orc vectorized reads                |
 | read.data-planning-mode           | auto               | Mode used to plan data manifests: auto, local, or distributed |
 | read.delete-planning-mode         | auto               | Mode used to plan delete manifests: auto, local, or distributed |
+| changelog.scan.include-delete-files | false            | Enables changelog scans over ranges containing delete files; produces DeletedRowsScanTask, which requires engine support |
 
 ### Write properties
 
