@@ -43,6 +43,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -257,7 +258,7 @@ public class TestBaseReader {
     Schema schema = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
 
     try {
-      this.table = TestTables.create(location, desc, schema, PartitionSpec.unpartitioned());
+      this.table = TestTables.create(location, desc, schema, PartitionSpec.unpartitioned(), 2);
       // Important: use the table's schema for the rest of the test
       // When tables are created, the column ids are reassigned.
       Schema tableSchema = table.schema();

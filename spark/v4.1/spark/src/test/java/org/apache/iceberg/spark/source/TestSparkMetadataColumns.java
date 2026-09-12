@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
-import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.ORC_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.PARQUET_BATCH_SIZE;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
@@ -49,6 +48,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -359,7 +359,6 @@ public class TestSparkMetadataColumns extends TestBase {
     PartitionSpec bucketSpec = PartitionSpec.builderFor(mapSchema).bucket("id", 1).build();
 
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(FORMAT_VERSION, String.valueOf(formatVersion));
     properties.put(DEFAULT_FILE_FORMAT, FileFormat.PARQUET.name());
     properties.put(PARQUET_VECTORIZATION_ENABLED, String.valueOf(vectorized));
     // merge-on-read: DELETE writes position delete files instead of rewriting data files.
@@ -372,6 +371,7 @@ public class TestSparkMetadataColumns extends TestBase {
         mapTableName,
         mapSchema,
         bucketSpec,
+        formatVersion,
         properties);
 
     // Both rows in a single INSERT so they land in the same Parquet file.
@@ -399,7 +399,6 @@ public class TestSparkMetadataColumns extends TestBase {
     PartitionSpec bucketSpec = PartitionSpec.builderFor(listSchema).bucket("id", 1).build();
 
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(FORMAT_VERSION, String.valueOf(formatVersion));
     properties.put(DEFAULT_FILE_FORMAT, FileFormat.PARQUET.name());
     properties.put(PARQUET_VECTORIZATION_ENABLED, String.valueOf(vectorized));
     // merge-on-read: DELETE writes position delete files instead of rewriting data files.
@@ -412,6 +411,7 @@ public class TestSparkMetadataColumns extends TestBase {
         listTableName,
         listSchema,
         bucketSpec,
+        formatVersion,
         properties);
 
     // Both rows in a single INSERT so they land in the same Parquet file.
@@ -427,7 +427,6 @@ public class TestSparkMetadataColumns extends TestBase {
 
   private void createAndInitTable() throws IOException {
     Map<String, String> properties = Maps.newHashMap();
-    properties.put(FORMAT_VERSION, String.valueOf(formatVersion));
     properties.put(DEFAULT_FILE_FORMAT, fileFormat.name());
 
     switch (fileFormat) {
@@ -448,6 +447,7 @@ public class TestSparkMetadataColumns extends TestBase {
             TABLE_NAME,
             SCHEMA,
             SPEC,
+            formatVersion,
             properties);
   }
 }
