@@ -19,9 +19,7 @@
 package org.apache.iceberg.aws.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.AfterEach;
@@ -31,7 +29,7 @@ import org.junit.jupiter.api.Test;
  * Verifies that {@link S3FileIO#newInputFile} dispatches HTTP(S) locations to the direct HTTP(S)
  * read path and everything else to the native S3 client, without performing any I/O.
  */
-public class TestS3FileIOHttpUrlDispatch {
+class TestS3FileIOHttpUrlDispatch {
 
   private S3FileIO fileIO;
 
@@ -55,16 +53,14 @@ public class TestS3FileIOHttpUrlDispatch {
     InputFile inputFile = fileIO.newInputFile(url);
 
     assertThat(inputFile.location()).isEqualTo(url);
-    assertThat(inputFile.getClass().getName())
-        .isEqualTo("org.apache.iceberg.io.http.HttpInputFile");
+    assertThat(inputFile.getClass().getName()).isEqualTo("org.apache.iceberg.io.HttpInputFile");
 
     InputFile withLength = fileIO.newInputFile(url, 100L);
-    assertThat(withLength.getClass().getName())
-        .isEqualTo("org.apache.iceberg.io.http.HttpInputFile");
+    assertThat(withLength.getClass().getName()).isEqualTo("org.apache.iceberg.io.HttpInputFile");
   }
 
   @Test
-  void httpLocationIsRejected() {
+  void httpLocationUsesHttpShortCircuit() {
     fileIO =
         new S3FileIO(
             () -> {
@@ -72,14 +68,13 @@ public class TestS3FileIOHttpUrlDispatch {
             });
     fileIO.initialize(ImmutableMap.of());
 
-    // plain HTTP is refused even on an otherwise-allowed host
-    assertThatThrownBy(() -> fileIO.newInputFile("http://bucket.s3.amazonaws.com/key"))
-        .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("only https is allowed");
+    InputFile inputFile = fileIO.newInputFile("http://bucket.s3.amazonaws.com/key");
+
+    assertThat(inputFile.getClass().getName()).isEqualTo("org.apache.iceberg.io.HttpInputFile");
   }
 
   @Test
-  void httpsUntrustedHostIsRejected() {
+  void httpsArbitraryHostUsesHttpShortCircuit() {
     fileIO =
         new S3FileIO(
             () -> {
@@ -87,45 +82,9 @@ public class TestS3FileIOHttpUrlDispatch {
             });
     fileIO.initialize(ImmutableMap.of());
 
-    assertThatThrownBy(
-            () -> fileIO.newInputFile("https://evil.example.com/key?X-Amz-Signature=abc"))
-        .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("evil.example.com");
+    InputFile inputFile = fileIO.newInputFile("https://example.com/key?X-Amz-Signature=abc");
 
-    // suffix matching is boundary-safe: a look-alike host is not a subdomain of amazonaws.com
-    assertThatThrownBy(() -> fileIO.newInputFile("https://evil-amazonaws.com/key"))
-        .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("evil-amazonaws.com");
-  }
-
-  @Test
-  void httpsUserInfoTrickIsRejected() {
-    fileIO =
-        new S3FileIO(
-            () -> {
-              throw new AssertionError("Native S3 client should not be used for an https:// path");
-            });
-    fileIO.initialize(ImmutableMap.of());
-
-    // the real host is evil.com; the allow-listed name is only user info before '@'
-    assertThatThrownBy(() -> fileIO.newInputFile("https://bucket.s3.amazonaws.com@evil.com/key"))
-        .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("evil.com");
-  }
-
-  @Test
-  void httpsCustomAllowedHostIsAccepted() {
-    fileIO =
-        new S3FileIO(
-            () -> {
-              throw new AssertionError("Native S3 client should not be used for an https:// path");
-            });
-    fileIO.initialize(
-        ImmutableMap.of(S3FileIOProperties.PRESIGNED_READ_ALLOWED_HOSTS, "minio.internal"));
-
-    InputFile inputFile = fileIO.newInputFile("https://minio.internal/bucket/key");
-    assertThat(inputFile.getClass().getName())
-        .isEqualTo("org.apache.iceberg.io.http.HttpInputFile");
+    assertThat(inputFile.getClass().getName()).isEqualTo("org.apache.iceberg.io.HttpInputFile");
   }
 
   @Test

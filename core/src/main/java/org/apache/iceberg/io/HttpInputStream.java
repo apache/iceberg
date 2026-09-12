@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.io.http;
+package org.apache.iceberg.io;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -30,11 +30,9 @@ import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
+import org.apache.hc.core5.io.CloseMode;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.apache.iceberg.io.FileIOMetricsContext;
-import org.apache.iceberg.io.RangeReadable;
-import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
@@ -52,13 +50,11 @@ import org.slf4j.LoggerFactory;
  * a single range GET fully consumed within the response handler so connections return to the pool.
  * Positional reads ({@link #readFully}, {@link #readTail}) each issue their own range GET.
  *
- * <p>Transient socket/TLS errors and retryable HTTP responses (throttling and transient server
- * errors; see {@link HttpStatusCategory}) are retried with exponential backoff up to {@value
- * #MAX_RETRIES} times, so a throttled or briefly unavailable endpoint is not hammered. A missing
- * location ({@code 404}) surfaces as {@link NotFoundException} and a forbidden response ({@code
- * 403}, e.g. an expired pre-signed URL) as {@link ForbiddenException}; both are terminal, as is any
- * other non-retryable status. Status codes are classified in one place by {@link
- * HttpStatusCategory}.
+ * <p>Transient socket/TLS errors and retryable HTTP responses are retried with exponential backoff
+ * up to {@value #MAX_RETRIES} times, so a throttled or briefly unavailable endpoint is not
+ * hammered. A missing location ({@code 404}) surfaces as {@link NotFoundException} and a forbidden
+ * response ({@code 403}, e.g. an expired pre-signed URL) as {@link ForbiddenException}; both are
+ * terminal, as is any other non-retryable status.
  */
 class HttpInputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(HttpInputStream.class);
@@ -74,6 +70,7 @@ class HttpInputStream extends SeekableInputStream implements RangeReadable {
   private final String location;
   private final String url;
   private final int chunkSize;
+  private final boolean closeClient;
 
   private final Counter readBytes;
   private final Counter readOperations;
@@ -93,10 +90,21 @@ class HttpInputStream extends SeekableInputStream implements RangeReadable {
       String url,
       int chunkSize,
       MetricsContext metrics) {
+    this(client, location, url, chunkSize, metrics, false);
+  }
+
+  HttpInputStream(
+      CloseableHttpClient client,
+      String location,
+      String url,
+      int chunkSize,
+      MetricsContext metrics,
+      boolean closeClient) {
     this.client = client;
     this.location = location;
     this.url = url;
     this.chunkSize = chunkSize;
+    this.closeClient = closeClient;
     this.readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, Unit.BYTES);
     this.readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
     this.createStack = Thread.currentThread().getStackTrace();
@@ -163,7 +171,7 @@ class HttpInputStream extends SeekableInputStream implements RangeReadable {
     if (data.length < length) {
       throw new EOFException(
           "Reached end of "
-              + HttpUrlClient.redact(location)
+              + BaseHttpFile.redact(location)
               + " with "
               + (length - data.length)
               + " bytes left to read");
@@ -185,9 +193,15 @@ class HttpInputStream extends SeekableInputStream implements RangeReadable {
 
   @Override
   public void close() throws IOException {
-    super.close();
-    closed = true;
-    buffer = null;
+    try {
+      super.close();
+    } finally {
+      closed = true;
+      buffer = null;
+      if (closeClient) {
+        client.close(CloseMode.GRACEFUL);
+      }
+    }
   }
 
   private boolean inBuffer(long filePos) {
@@ -243,7 +257,7 @@ class HttpInputStream extends SeekableInputStream implements RangeReadable {
         request,
         response -> {
           int statusCode = response.getCode();
-          return switch (HttpStatusCategory.classify(statusCode)) {
+          return switch (BaseHttpFile.classifyStatus(statusCode)) {
             case OK, PARTIAL_CONTENT ->
                 response.getEntity() != null
                     ? EntityUtils.toByteArray(response.getEntity())
@@ -256,24 +270,24 @@ class HttpInputStream extends SeekableInputStream implements RangeReadable {
             }
             case NOT_FOUND ->
                 throw new NotFoundException(
-                    "Location does not exist: %s", HttpUrlClient.redact(requestUrl));
+                    "Location does not exist: %s", BaseHttpFile.redact(requestUrl));
             case FORBIDDEN ->
                 throw new ForbiddenException(
-                    "Access forbidden for %s", HttpUrlClient.redact(requestUrl));
-            case TRANSIENT ->
+                    "Access forbidden for %s", BaseHttpFile.redact(requestUrl));
+            case RETRYABLE ->
                 throw new TransientHttpException(
                     String.format(
                         Locale.ROOT,
                         "Transient HTTP %d for %s",
                         statusCode,
-                        HttpUrlClient.redact(requestUrl)));
-            case TERMINAL ->
+                        BaseHttpFile.redact(requestUrl)));
+            case FAILURE ->
                 throw new IOException(
                     String.format(
                         Locale.ROOT,
                         "Unexpected HTTP %d for %s",
                         statusCode,
-                        HttpUrlClient.redact(requestUrl)));
+                        BaseHttpFile.redact(requestUrl)));
           };
         });
   }
