@@ -105,8 +105,9 @@ abstract class SparkRuntimeFilterableScan extends SparkPartitioningAwareScan<Par
         .toArray(NamedReference[]::new);
   }
 
+  // serialize concurrent filter() calls on a shared scan
   @Override
-  public void filter(Predicate[] predicates) {
+  public synchronized void filter(Predicate[] predicates) {
     Expression runtimeFilter = convertRuntimePredicates(predicates);
 
     if (runtimeFilter != Expressions.alwaysTrue()) {
