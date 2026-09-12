@@ -56,6 +56,7 @@ public class TableMetadata implements Serializable {
   static final long INVALID_SEQUENCE_NUMBER = -1;
   static final int DEFAULT_TABLE_FORMAT_VERSION = 2;
   static final int SUPPORTED_TABLE_FORMAT_VERSION = 4;
+  static final int UNREPORTED_FORMAT_VERSION = 0;
   static final int MIN_FORMAT_VERSION_ROW_LINEAGE = 3;
   static final int MIN_FORMAT_VERSION_PARQUET_MANIFESTS = 4;
   static final int MIN_FORMAT_VERSION_OPTIONAL_LOCATION = 4;

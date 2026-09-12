@@ -106,6 +106,11 @@ public class StandardEncryptionManager implements EncryptionManager {
     return Iterables.transform(encrypted, this::decrypt);
   }
 
+  @Override
+  public ByteBuffer decryptKeyMetadata(String keyId) {
+    return EncryptionUtil.decryptKeyMetadata(keyId, this);
+  }
+
   private LoadingCache<String, ByteBuffer> unwrappedKeyCache() {
     if (this.unwrappedKeyCache == null) {
       this.unwrappedKeyCache =
