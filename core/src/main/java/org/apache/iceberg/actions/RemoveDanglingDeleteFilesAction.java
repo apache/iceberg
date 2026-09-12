@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import org.apache.iceberg.DeleteFile;
@@ -29,6 +30,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
@@ -36,6 +38,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -48,6 +51,22 @@ public class RemoveDanglingDeleteFilesAction
     implements RemoveDanglingDeleteFiles {
 
   private static final Logger LOG = LoggerFactory.getLogger(RemoveDanglingDeleteFilesAction.class);
+  private static final List<String> DELETE_COLUMNS =
+      ImmutableList.of(
+          "content",
+          "file_path",
+          "file_format",
+          "partition",
+          "record_count",
+          "file_size_in_bytes",
+          "key_metadata",
+          "split_offsets",
+          "equality_ids",
+          "sort_order_id",
+          "first_row_id",
+          "referenced_data_file",
+          "content_offset",
+          "content_size_in_bytes");
   private static final Result EMPTY_RESULT =
       ImmutableRemoveDanglingDeleteFiles.Result.builder()
           .removedDeleteFiles(ImmutableList.of())
@@ -145,10 +164,10 @@ public class RemoveDanglingDeleteFilesAction
     List<DeleteFile> danglingDeletes = Lists.newArrayList();
     for (ManifestFile manifest : deleteManifests) {
       try (ManifestReader<DeleteFile> reader =
-          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
+          readDeleteManifest(manifest, table.io(), table.specs())) {
         for (DeleteFile deleteFile : reader) {
           if (!referencedKeys.contains(new DeleteFileKey(deleteFile))) {
-            danglingDeletes.add(deleteFile.copyWithoutStats());
+            danglingDeletes.add(deleteFile);
           }
         }
       } catch (IOException e) {
@@ -157,6 +176,11 @@ public class RemoveDanglingDeleteFilesAction
     }
 
     return danglingDeletes;
+  }
+
+  public static ManifestReader<DeleteFile> readDeleteManifest(
+      ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
+    return ManifestFiles.readDeleteManifest(manifest, io, specsById).select(DELETE_COLUMNS);
   }
 
   public record DeleteFileKey(String location, Long contentOffset, Long contentSizeInBytes)

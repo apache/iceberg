@@ -26,7 +26,6 @@ import java.util.stream.StreamSupport;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
@@ -100,11 +99,11 @@ class RemoveDanglingDeletesSparkAction
             .flatMap(
                 manifest -> {
                   ManifestReader<DeleteFile> reader =
-                      ManifestFiles.readDeleteManifest(
+                      RemoveDanglingDeleteFilesAction.readDeleteManifest(
                           manifest, tableBroadcast.value().io(), tableBroadcast.value().specs());
                   return new ClosingIterator<>(reader.iterator());
                 })
-            .mapToPair(file -> new Tuple2<>(new DeleteFileKey(file), file.copyWithoutStats()));
+            .mapToPair(file -> new Tuple2<>(new DeleteFileKey(file), file));
 
     return allDeletes.subtractByKey(referencedKeys).values().collect();
   }
