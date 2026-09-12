@@ -89,9 +89,10 @@ public interface Snapshot extends Serializable {
   List<ManifestFile> deleteManifests(FileIO io);
 
   /**
-   * Return the name of the {@link DataOperations data operation} that produced this snapshot.
+   * Return the name of the {@link DataOperations data operation} that summarizes the changes in
+   * this snapshot.
    *
-   * @return the operation that produced this snapshot, or null if the operation is unknown
+   * @return the operation for this snapshot, or null if the operation is unknown
    * @see DataOperations
    */
   String operation();

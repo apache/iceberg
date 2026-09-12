@@ -21,38 +21,35 @@ package org.apache.iceberg;
 /**
  * Data operations that produce snapshots.
  *
- * <p>A snapshot can return the operation that created the snapshot to help other components ignore
- * snapshots that are not needed for some tasks. For example, snapshot expiration does not need to
- * clean up deleted files for appends, which have no deleted files.
+ * <p>A snapshot can return the operation that summarizes the changes in the snapshot to help other
+ * components ignore snapshots that are not needed for some tasks. For example, snapshot expiration
+ * does not need to clean up deleted files for appends, which have no deleted files.
+ *
+ * <p>An operation describes the changes that were committed in a snapshot, not the intent of the
+ * write that produced it. A single API may produce different operations depending on the changes
+ * that it commits.
  */
 public class DataOperations {
   private DataOperations() {}
 
-  /**
-   * New data is appended to the table and no data is removed or deleted.
-   *
-   * <p>This operation is implemented by {@link AppendFiles}.
-   */
+  /** Only data files were added and no files were removed. */
   public static final String APPEND = "append";
 
   /**
-   * Files are removed and replaced, without changing the data in the table.
-   *
-   * <p>This operation is implemented by {@link RewriteFiles}.
+   * Data and delete files were added and removed without changing table data; i.e., compaction,
+   * changing the data file format, or relocating data files.
    */
   public static final String REPLACE = "replace";
 
   /**
-   * New data is added to overwrite existing data.
-   *
-   * <p>This operation is implemented by {@link OverwriteFiles} and {@link ReplacePartitions}.
+   * Data files were added, and data files were removed and/or delete files were added to delete
+   * rows.
    */
   public static final String OVERWRITE = "overwrite";
 
   /**
-   * Data is deleted from the table and no data is added.
-   *
-   * <p>This operation is implemented by {@link DeleteFiles}.
+   * Data files were removed and their contents logically deleted and/or delete files were added to
+   * delete rows; no data files were added.
    */
   public static final String DELETE = "delete";
 }
