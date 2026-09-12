@@ -87,7 +87,9 @@ public class TestPreSignedUrlInputFile {
   public void testMissingObject() {
     InputFile file = PreSignedUrlInputFile.of(server.url("data/missing.parquet"), 10);
     assertThat(file.exists()).isFalse();
-    assertThatThrownBy(() -> file.newStream().read()).isInstanceOf(NotFoundException.class);
+    assertThatThrownBy(() -> file.newStream().read())
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining("Location does not exist");
   }
 
   @Test

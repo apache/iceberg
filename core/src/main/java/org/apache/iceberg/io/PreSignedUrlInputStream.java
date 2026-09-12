@@ -77,8 +77,8 @@ class PreSignedUrlInputStream extends SeekableInputStream {
     Preconditions.checkState(!closed, "Cannot read: already closed");
     positionStream();
 
-    int b = stream.read();
-    if (b >= 0) {
+    int bytesRead = stream.read();
+    if (bytesRead >= 0) {
       pos += 1;
       next += 1;
       readBytes.increment();
@@ -87,7 +87,7 @@ class PreSignedUrlInputStream extends SeekableInputStream {
       streamAtEof = true;
     }
 
-    return b;
+    return bytesRead;
   }
 
   @Override
@@ -99,17 +99,17 @@ class PreSignedUrlInputStream extends SeekableInputStream {
 
     positionStream();
 
-    int n = stream.read(b, off, len);
-    if (n > 0) {
-      pos += n;
-      next += n;
-      readBytes.increment(n);
+    int bytesRead = stream.read(b, off, len);
+    if (bytesRead > 0) {
+      pos += bytesRead;
+      next += bytesRead;
+      readBytes.increment(bytesRead);
       readOperations.increment();
-    } else if (n < 0) {
+    } else if (bytesRead < 0) {
       streamAtEof = true;
     }
 
-    return n;
+    return bytesRead;
   }
 
   private void positionStream() throws IOException {
