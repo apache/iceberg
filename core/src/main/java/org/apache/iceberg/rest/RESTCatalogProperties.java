@@ -58,6 +58,10 @@ public final class RESTCatalogProperties {
   public static final long REST_SCAN_PLANNING_POLL_TIMEOUT_MS_DEFAULT =
       TimeUnit.MINUTES.toMillis(5);
 
+  // Allow REST-provided storage access for encrypted tables that use client-side KMS.
+  public static final String USE_CLIENT_KMS_CREDS = "rest.encryption.use-client-kms-creds";
+  public static final boolean USE_CLIENT_KMS_CREDS_DEFAULT = false;
+
   // Properties that control the behaviour of the table cache used for freshness-aware table
   // loading.
   public static final String TABLE_CACHE_EXPIRE_AFTER_WRITE_MS =

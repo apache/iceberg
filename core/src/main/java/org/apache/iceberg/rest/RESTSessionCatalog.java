@@ -45,6 +45,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
@@ -171,6 +172,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Set<Endpoint> endpoints;
   private Supplier<Map<String, String>> mutationHeaders = Map::of;
   private KeyManagementClient keyManagementClient = null;
+  private boolean useClientKmsCredsWithVendedStorage =
+      RESTCatalogProperties.USE_CLIENT_KMS_CREDS_DEFAULT;
   private String namespaceSeparator = null;
   private ScanPlanningMode clientScanPlanningMode = null;
 
@@ -201,6 +204,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     // note that this is only done for local config properties and not for properties from the
     // catalog service
     Map<String, String> props = EnvironmentUtil.resolveAll(unresolved);
+    this.useClientKmsCredsWithVendedStorage =
+        PropertyUtil.propertyAsBoolean(
+            props,
+            RESTCatalogProperties.USE_CLIENT_KMS_CREDS,
+            RESTCatalogProperties.USE_CLIENT_KMS_CREDS_DEFAULT);
 
     this.closeables = new CloseableGroup();
 
@@ -279,9 +287,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             RESTCatalogProperties.METRICS_REPORTING_ENABLED,
             RESTCatalogProperties.METRICS_REPORTING_ENABLED_DEFAULT);
 
-    if (mergedProps.containsKey(CatalogProperties.ENCRYPTION_KMS_TYPE)
-        || mergedProps.containsKey(CatalogProperties.ENCRYPTION_KMS_IMPL)) {
-      this.keyManagementClient = EncryptionUtil.createKmsClient(mergedProps);
+    if (props.containsKey(CatalogProperties.ENCRYPTION_KMS_TYPE)
+        || props.containsKey(CatalogProperties.ENCRYPTION_KMS_IMPL)) {
+      this.keyManagementClient = EncryptionUtil.createKmsClient(props);
       this.closeables.addCloseable(this.keyManagementClient);
     }
 
@@ -599,7 +607,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               paths.table(identifier),
               Map::of,
               mutationHeaders,
-              tableFileIO(identifier, context, tableConf, credentials, remoteSigningConfig),
+              tableFileIO(
+                  identifier, tableMetadata, context, tableConf, credentials, remoteSigningConfig),
               tableMetadata,
               endpoints);
 
@@ -664,7 +673,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           paths,
           endpoints,
           properties(),
-          conf);
+          conf,
+          useClientSideStorageAccessForEncryptedTables());
     }
 
     // Default to client-side planning
@@ -746,7 +756,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             Map::of,
             mutationHeaders,
             tableFileIO(
-                ident, context, tableConf, response.credentials(), response.remoteSigningConfig()),
+                ident,
+                response.tableMetadata(),
+                context,
+                tableConf,
+                response.credentials(),
+                response.remoteSigningConfig()),
             response.tableMetadata(),
             endpoints);
 
@@ -1017,6 +1032,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               mutationHeaders,
               tableFileIO(
                   ident,
+                  response.tableMetadata(),
                   context,
                   tableConf,
                   response.credentials(),
@@ -1055,6 +1071,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               mutationHeaders,
               tableFileIO(
                   ident,
+                  meta,
                   context,
                   tableConf,
                   response.credentials(),
@@ -1125,6 +1142,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               mutationHeaders,
               tableFileIO(
                   ident,
+                  replacement,
                   context,
                   tableConf,
                   response.credentials(),
@@ -1255,10 +1273,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   private FileIO tableFileIO(
       TableIdentifier tableIdentifier,
+      TableMetadata tableMetadata,
       SessionContext context,
       Map<String, String> tableConf,
       List<Credential> storageCredentials,
       RemoteSigningConfig remoteSigningConfig) {
+    if (useClientSideStorageAccessForEncryptedTable(tableMetadata)) {
+      validateNoServerSideStorageAccess(tableIdentifier, storageCredentials, remoteSigningConfig);
+    }
 
     boolean canReuseCatalogIO =
         tableConf.isEmpty()
@@ -1283,6 +1305,27 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     return newFileIO(context, fullConf.buildKeepingLast(), storageCredentials);
+  }
+
+  private boolean useClientSideStorageAccessForEncryptedTable(TableMetadata tableMetadata) {
+    return useClientSideStorageAccessForEncryptedTables()
+        && tableMetadata != null
+        && tableMetadata.properties().containsKey(TableProperties.ENCRYPTION_TABLE_KEY);
+  }
+
+  private void validateNoServerSideStorageAccess(
+      TableIdentifier tableIdentifier,
+      List<Credential> storageCredentials,
+      RemoteSigningConfig remoteSigningConfig) {
+    Preconditions.checkState(
+        storageCredentials.isEmpty() && remoteSigningConfig.isEmpty(),
+        "Cannot use REST-provided storage access for encrypted table %s unless %s is true",
+        tableIdentifier,
+        RESTCatalogProperties.USE_CLIENT_KMS_CREDS);
+  }
+
+  private boolean useClientSideStorageAccessForEncryptedTables() {
+    return !useClientKmsCredsWithVendedStorage;
   }
 
   /**

@@ -40,6 +40,7 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
   private final Set<Endpoint> supportedEndpoints;
   private final Map<String, String> catalogProperties;
   private final Object hadoopConf;
+  private final boolean useClientSideStorageAccessForEncryptedTables;
 
   RESTTable(
       TableOperations ops,
@@ -51,7 +52,8 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
       Map<String, String> catalogProperties,
-      Object hadoopConf) {
+      Object hadoopConf,
+      boolean useClientSideStorageAccessForEncryptedTables) {
     super(ops, name, reporter);
     this.reporter = reporter;
     this.client = client;
@@ -61,6 +63,8 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
     this.supportedEndpoints = supportedEndpoints;
     this.catalogProperties = catalogProperties;
     this.hadoopConf = hadoopConf;
+    this.useClientSideStorageAccessForEncryptedTables =
+        useClientSideStorageAccessForEncryptedTables;
   }
 
   @Override
@@ -76,7 +80,8 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
         resourcePaths,
         supportedEndpoints,
         catalogProperties,
-        hadoopConf);
+        hadoopConf,
+        useClientSideStorageAccessForEncryptedTables);
   }
 
   @Override
