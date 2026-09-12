@@ -665,7 +665,14 @@ public class OAuth2Util {
               parent.scope(),
               parent.oauth2ServerUri(),
               parent.optionalOAuthParams());
-      return fromTokenResponse(client, executor, response, startTimeMillis, parent, credential);
+      return fromTokenResponse(
+          client,
+          executor,
+          response,
+          startTimeMillis,
+          parent,
+          credential,
+          parent.config().exchangeEnabled());
     }
 
     public static AuthSession fromTokenResponse(
@@ -675,7 +682,13 @@ public class OAuth2Util {
         long startTimeMillis,
         AuthSession parent) {
       return fromTokenResponse(
-          client, executor, response, startTimeMillis, parent, parent.credential());
+          client,
+          executor,
+          response,
+          startTimeMillis,
+          parent,
+          parent.credential(),
+          parent.config().exchangeEnabled());
     }
 
     private static AuthSession fromTokenResponse(
@@ -684,7 +697,8 @@ public class OAuth2Util {
         OAuthTokenResponse response,
         long startTimeMillis,
         AuthSession parent,
-        String credential) {
+        String credential,
+        boolean exchangeEnabled) {
       // issued_token_type is required in RFC 8693 but not in RFC 6749,
       // thus assume type is access_token for compatibility with RFC 6749.
       // See https://datatracker.ietf.org/doc/html/rfc6749#section-4.4.3
@@ -701,6 +715,7 @@ public class OAuth2Util {
                   .token(response.token())
                   .tokenType(issuedTokenType)
                   .credential(credential)
+                  .exchangeEnabled(exchangeEnabled)
                   .expiresAtMillis(OAuth2Util.expiresAtMillis(response.token()))
                   .build());
 
@@ -734,7 +749,10 @@ public class OAuth2Util {
               parent.scope(),
               parent.oauth2ServerUri(),
               parent.optionalOAuthParams());
-      return fromTokenResponse(client, executor, response, startTimeMillis, parent);
+      // Renew by exchange regardless of the parent's setting: the parent's credential identifies
+      // the parent, so refreshing with it would replace the exchanged identity.
+      return fromTokenResponse(
+          client, executor, response, startTimeMillis, parent, parent.credential(), true);
     }
   }
 }
