@@ -30,6 +30,7 @@ import static org.mockito.Mockito.withSettings;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -37,10 +38,15 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -48,6 +54,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestResolvingIO {
 
+  private final Random random = new Random(1);
   @TempDir private java.nio.file.Path temp;
 
   @ParameterizedTest
@@ -181,5 +188,68 @@ public class TestResolvingIO {
     assertThat(roundTripSerializer.apply(resolvingFileIO).credentials())
         .isEqualTo(storageCredentials)
         .isEqualTo(resolvingFileIO.credentials());
+  }
+
+  @Test
+  public void testPreSignedUrl() throws Exception {
+    try (PreSignedUrlTestServer store = new PreSignedUrlTestServer(temp.resolve("store"));
+        ResolvingFileIO resolvingFileIO = new ResolvingFileIO()) {
+      resolvingFileIO.initialize(ImmutableMap.of());
+      byte[] expected = new byte[1024 * 1024];
+      random.nextBytes(expected);
+      store.put("data/part-0.parquet", expected);
+      String url = store.url("data/part-0.parquet");
+
+      InputFile file = resolvingFileIO.newInputFile(url, expected.length);
+      assertThat(file).isInstanceOf(PreSignedUrlInputFile.class);
+      assertThat(file.location()).isEqualTo(url);
+      try (SeekableInputStream stream = file.newStream()) {
+        assertThat(ByteStreams.toByteArray(stream)).isEqualTo(expected);
+      }
+
+      // no delegate is registered for the scheme
+      assertThat(resolvingFileIO.ioClass(url)).isEqualTo(HadoopFileIO.class);
+    }
+  }
+
+  @Test
+  public void testPreSignedUrlFromContentFile() throws Exception {
+    try (PreSignedUrlTestServer store = new PreSignedUrlTestServer(temp.resolve("store"));
+        ResolvingFileIO resolvingFileIO = new ResolvingFileIO()) {
+      resolvingFileIO.initialize(ImmutableMap.of());
+      DataFile dataFile =
+          DataFiles.builder(PartitionSpec.unpartitioned())
+              .withPath(store.url("data/part-0.parquet"))
+              .withFormat(FileFormat.PARQUET)
+              .withFileSizeInBytes(10)
+              .withRecordCount(1)
+              .build();
+
+      InputFile file = resolvingFileIO.newInputFile(dataFile);
+      assertThat(file).isInstanceOf(PreSignedUrlInputFile.class);
+      assertThat(file.getLength()).isEqualTo(10);
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testPreSignedUrlAfterSerialization(
+      TestHelpers.RoundTripSerializer<ResolvingFileIO> roundTripSerializer) throws Exception {
+    try (PreSignedUrlTestServer store = new PreSignedUrlTestServer(temp.resolve("store"));
+        ResolvingFileIO resolvingFileIO = new ResolvingFileIO()) {
+      resolvingFileIO.initialize(ImmutableMap.of());
+      byte[] expected = new byte[1024 * 1024];
+      random.nextBytes(expected);
+      store.put("data/part-0.parquet", expected);
+      String url = store.url("data/part-0.parquet");
+      // the reader exists before the round trip; it is transient and rebuilt by the copy
+      assertThat(resolvingFileIO.newInputFile(url, expected.length).exists()).isTrue();
+
+      try (ResolvingFileIO executorCopy = roundTripSerializer.apply(resolvingFileIO);
+          SeekableInputStream stream =
+              executorCopy.newInputFile(url, expected.length).newStream()) {
+        assertThat(ByteStreams.toByteArray(stream)).isEqualTo(expected);
+      }
+    }
   }
 }

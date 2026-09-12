@@ -44,6 +44,7 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PreSignedUrlReader;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsRecoveryOperations;
 import org.apache.iceberg.io.SupportsStorageCredentials;
@@ -113,6 +114,7 @@ public class S3FileIO
   private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
   private transient volatile Map<String, PrefixedS3Client> clientByPrefix;
   private transient volatile ScheduledFuture<?> refreshFuture;
+  private transient volatile PreSignedUrlReader preSignedUrlReader;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -149,12 +151,28 @@ public class S3FileIO
 
   @Override
   public InputFile newInputFile(String path) {
-    return S3InputFile.fromLocation(path, clientForStoragePath(path), metrics);
+    return newInputFile(path, 0);
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
+    if (PreSignedUrlReader.handles(path)) {
+      return preSignedUrlReader().newInputFile(path, length);
+    }
+
     return S3InputFile.fromLocation(path, length, clientForStoragePath(path), metrics);
+  }
+
+  private PreSignedUrlReader preSignedUrlReader() {
+    if (null == preSignedUrlReader) {
+      synchronized (this) {
+        if (null == preSignedUrlReader) {
+          this.preSignedUrlReader = new PreSignedUrlReader(properties);
+        }
+      }
+    }
+
+    return preSignedUrlReader;
   }
 
   @Override
@@ -545,6 +563,10 @@ public class S3FileIO
       if (refreshFuture != null) {
         refreshFuture.cancel(true);
         refreshFuture = null;
+      }
+      if (preSignedUrlReader != null) {
+        preSignedUrlReader.close();
+        this.preSignedUrlReader = null;
       }
     }
   }

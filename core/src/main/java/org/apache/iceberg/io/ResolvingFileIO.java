@@ -71,6 +71,7 @@ public class ResolvingFileIO
   private final Map<String, DelegateFileIO> ioInstances = Maps.newConcurrentMap();
   private final AtomicBoolean isClosed = new AtomicBoolean(false);
   private final transient StackTraceElement[] createStack;
+  private transient volatile PreSignedUrlReader preSignedUrlReader;
   private SerializableMap<String, String> properties;
   private SerializableSupplier<Configuration> hadoopConf;
   // use modifiable collection for Kryo serde
@@ -87,11 +88,19 @@ public class ResolvingFileIO
 
   @Override
   public InputFile newInputFile(String location) {
+    if (PreSignedUrlReader.handles(location)) {
+      return preSignedUrlReader().newInputFile(location, 0);
+    }
+
     return io(location).newInputFile(location);
   }
 
   @Override
   public InputFile newInputFile(String location, long length) {
+    if (PreSignedUrlReader.handles(location)) {
+      return preSignedUrlReader().newInputFile(location, length);
+    }
+
     return io(location).newInputFile(location, length);
   }
 
@@ -143,7 +152,24 @@ public class ResolvingFileIO
       for (DelegateFileIO io : instances) {
         io.close();
       }
+
+      if (preSignedUrlReader != null) {
+        preSignedUrlReader.close();
+        this.preSignedUrlReader = null;
+      }
     }
+  }
+
+  private PreSignedUrlReader preSignedUrlReader() {
+    if (null == preSignedUrlReader) {
+      synchronized (this) {
+        if (null == preSignedUrlReader) {
+          this.preSignedUrlReader = new PreSignedUrlReader(properties);
+        }
+      }
+    }
+
+    return preSignedUrlReader;
   }
 
   @Override

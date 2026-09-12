@@ -66,6 +66,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestGCSFileIO {
+  private static final String PRE_SIGNED_URL =
+      "https://storage.googleapis.com/bucket/path/to/file.parquet?X-Goog-Signature=1";
   private static final String TEST_BUCKET = "TEST_BUCKET";
   private final Random random = new Random(1);
 
@@ -574,5 +576,28 @@ public class TestGCSFileIO {
         .asInstanceOf(InstanceOfAssertFactories.type(GCSFileIO.class))
         .extracting(GCSFileIO::credentials)
         .isEqualTo(storageCredentials);
+  }
+
+  @Test
+  public void newInputFileForPreSignedUrl() {
+    InputFile in = io.newInputFile(PRE_SIGNED_URL, 10);
+    assertThat(in.getClass().getSimpleName()).isEqualTo("PreSignedUrlInputFile");
+    assertThat(in.location()).isEqualTo(PRE_SIGNED_URL);
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void preSignedUrlAfterSerialization(
+      TestHelpers.RoundTripSerializer<GCSFileIO> roundTripSerializer)
+      throws IOException, ClassNotFoundException {
+    GCSFileIO fileIO = new GCSFileIO();
+    fileIO.initialize(ImmutableMap.of());
+    // the reader exists before the round trip; it is transient and rebuilt by the copy
+    fileIO.newInputFile(PRE_SIGNED_URL, 10);
+
+    try (GCSFileIO executorCopy = roundTripSerializer.apply(fileIO)) {
+      assertThat(executorCopy.newInputFile(PRE_SIGNED_URL, 10).getClass().getSimpleName())
+          .isEqualTo("PreSignedUrlInputFile");
+    }
   }
 }
