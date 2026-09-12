@@ -23,7 +23,6 @@ import static org.mockito.Mockito.mock;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.events.AvroUtil;
@@ -70,14 +69,8 @@ public class TestChannel extends ChannelTestBase {
 
     // the offset committed for the group is what a restarted channel resumes from, and what the
     // coordinator stamps on the snapshot, so a regression here is durable
-    assertThat(lastGroupOffsets()).containsEntry(CTL_TOPIC_PARTITION, new OffsetAndMetadata(5L));
-  }
-
-  private Map<TopicPartition, OffsetAndMetadata> lastGroupOffsets() {
-    List<Map<String, Map<TopicPartition, OffsetAndMetadata>>> history =
-        producer.consumerGroupOffsetsHistory();
-    assertThat(history).isNotEmpty();
-    return history.get(history.size() - 1).values().iterator().next();
+    assertThat(committedGroupOffsets(consumer.groupMetadata().groupId()))
+        .containsEntry(CTL_TOPIC_PARTITION, new OffsetAndMetadata(5L));
   }
 
   @Test

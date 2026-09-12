@@ -26,9 +26,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.lang.reflect.Field;
 import java.time.OffsetDateTime;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -357,6 +358,39 @@ public class TestCoordinator extends ChannelTestBase {
   }
 
   @Test
+  public void testFencedCoordinatorThreadIsClearedByCommitterWithoutFailingTask()
+      throws InterruptedException, NoSuchFieldException, IllegalAccessException {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+
+    producer.fenceProducer();
+
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
+    coordinatorThread.start();
+    coordinatorThread.join(5000);
+
+    assertThat(coordinatorThread.isTerminated()).isTrue();
+    assertThat(coordinatorThread.isFenced())
+        .as("a real coordinator whose producer was fenced must report as fenced")
+        .isTrue();
+
+    CommitterImpl committer = new CommitterImpl();
+    Field field = CommitterImpl.class.getDeclaredField("coordinatorThread");
+    field.setAccessible(true);
+    field.set(committer, coordinatorThread);
+
+    committer.save(Collections.emptyList());
+
+    assertThat(field.get(committer))
+        .as("committer must clear a fenced coordinator instead of failing the task")
+        .isNull();
+  }
+
+  @Test
   public void testCommitNewConsumerAdvances() {
     Coordinator coordinator = startCoordinator();
 
@@ -418,18 +452,13 @@ public class TestCoordinator extends ChannelTestBase {
   }
 
   private Long lastCommittedOffset(int partition) {
-    TopicPartition topicPartition = new TopicPartition(CTL_TOPIC_NAME, partition);
-    Long result = null;
-    for (Map<String, Map<TopicPartition, OffsetAndMetadata>> committed :
-        producer.consumerGroupOffsetsHistory()) {
-      for (Map<TopicPartition, OffsetAndMetadata> offsets : committed.values()) {
-        OffsetAndMetadata metadata = offsets.get(topicPartition);
-        if (metadata != null) {
-          result = metadata.offset();
-        }
-      }
-    }
-    return result;
+    String groupId = consumer.groupMetadata().groupId();
+    OffsetAndMetadata metadata =
+        committedGroupOffsets(groupId).get(new TopicPartition(CTL_TOPIC_NAME, partition));
+    assertThat(metadata)
+        .as("expected a committed offset for partition %s in group %s", partition, groupId)
+        .isNotNull();
+    return metadata.offset();
   }
 
   private Coordinator startCoordinator() {

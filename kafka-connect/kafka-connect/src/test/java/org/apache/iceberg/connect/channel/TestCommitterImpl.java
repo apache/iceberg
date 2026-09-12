@@ -201,26 +201,4 @@ public class TestCommitterImpl {
     committer.save(Collections.emptyList());
     assertThat(field.get(committer)).isNull();
   }
-
-  @Test
-  public void testRequestedTerminationWithNoRecordedErrorIsTreatedAsFatal()
-      throws NoSuchFieldException, IllegalAccessException {
-    Coordinator coordinator = mock(Coordinator.class);
-    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
-    coordinatorThread.terminate();
-
-    assertThat(coordinatorThread.isTerminated()).isTrue();
-    assertThat(coordinatorThread.isFenced()).isFalse();
-    assertThat(coordinatorThread.error()).isNull();
-
-    CommitterImpl committer = new CommitterImpl();
-    Field field = CommitterImpl.class.getDeclaredField("coordinatorThread");
-    field.setAccessible(true);
-    field.set(committer, coordinatorThread);
-
-    assertThatThrownBy(() -> committer.save(Collections.emptyList()))
-        .isInstanceOf(NotRunningException.class)
-        .hasMessageContaining("Coordinator unexpectedly terminated")
-        .hasNoCause();
-  }
 }

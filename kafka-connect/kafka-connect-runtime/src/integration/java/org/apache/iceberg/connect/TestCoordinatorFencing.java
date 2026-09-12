@@ -79,6 +79,11 @@ public class TestCoordinatorFencing {
     Map<String, String> connectorProps = connectorProps();
     String staleCoordinatorId = new IcebergSinkConfig(connectorProps).coordinatorTransactionalId();
     String newCoordinatorId = new IcebergSinkConfig(connectorProps).coordinatorTransactionalId();
+    assertThat(newCoordinatorId)
+        .as(
+            "coordinator·transactional·id·must·be·deterministic·and·match·across"
+                + "independently derived instances for the same connector")
+        .isEqualTo(staleCoordinatorId);
     KafkaProducer<String, String> staleCoordinator =
         context.initLocalTransactionalProducer(staleCoordinatorId);
     KafkaProducer<String, String> newCoordinator =

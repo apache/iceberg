@@ -311,7 +311,7 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public String transactionalSuffix() {
     // this is for internal use and is not part of the config definition...
-    return originalProps.get(INTERNAL_TRANSACTIONAL_SUFFIX_PROP);
+    return originalProps.getOrDefault(INTERNAL_TRANSACTIONAL_SUFFIX_PROP, "");
   }
 
   public Map<String, String> catalogProps() {
@@ -448,6 +448,9 @@ public class IcebergSinkConfig extends AbstractConfig {
    * across coordinator instances and task restarts within a connector, and unique across
    * connectors. Its stability lets an incoming coordinator's {@code initTransactions()} bump the
    * producer epoch and fence a stale coordinator.
+   *
+   * <p>Unlike the worker producer id, this intentionally omits {@link #transactionalSuffix()}: a
+   * per-task/per-instance suffix would make each coordinator's id unique and prevent fencing.
    */
   public String coordinatorTransactionalId() {
     return transactionalPrefix() + connectGroupId() + "-coordinator";
