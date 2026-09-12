@@ -31,6 +31,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.expressions.filter.PartitionPredicate;
 import org.apache.spark.sql.connector.read.Statistics;
 
 class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
@@ -48,8 +49,18 @@ class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
       SparkReadConf readConf,
       Schema projection,
       List<Expression> filters,
+      List<PartitionPredicate> partitionPredicates,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, schema, scan, readConf, projection, filters, scanReportSupplier);
+    super(
+        spark,
+        table,
+        schema,
+        scan,
+        readConf,
+        projection,
+        filters,
+        partitionPredicates,
+        scanReportSupplier);
     this.snapshot = snapshot;
     this.branch = branch;
   }
@@ -80,6 +91,7 @@ class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
         && Objects.equals(branch, that.branch)
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
         && filtersDesc().equals(that.filtersDesc())
+        && partitionPredicates().equals(that.partitionPredicates())
         && runtimeFiltersDesc().equals(that.runtimeFiltersDesc());
   }
 
@@ -92,6 +104,7 @@ class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
         branch,
         readSchema(),
         filtersDesc(),
+        partitionPredicates(),
         runtimeFiltersDesc());
   }
 
