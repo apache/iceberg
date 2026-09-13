@@ -1,4 +1,3 @@
-
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -203,6 +202,76 @@
 
 --------------------------------------------------------------------------------
 
+This product includes code from Apache Parquet.
+
+* DynMethods.java
+* DynConstructors.java
+* IOUtil.java readFully and tests
+* ByteBufferInputStream implementations and tests
+
+Copyright: 2014-2017 The Apache Software Foundation.
+Home page: https://parquet.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from Apache Avro.
+
+* Conversion in DecimalWriter is based on Avro's Conversions.DecimalConversion.
+
+Copyright: 2014-2017 The Apache Software Foundation.
+Home page: https://avro.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from Cloudera Kite.
+
+Copyright: 2013-2017 Cloudera Inc.
+Project URL: https://kitesdk.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from Presto.
+
+Copyright: 2016 Facebook and contributors
+Project URL: https://prestodb.io/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from Delta Lake.
+
+* AssignmentAlignmentSupport is an independent development but UpdateExpressionsSupport in Delta was used as a reference.
+* RoaringPositionBitmap is a Java implementation of RoaringBitmapArray in Delta.
+
+Copyright: 2020 The Delta Lake Project Authors.
+Project URL: https://delta.io/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from Apache Commons.
+
+* Core ArrayUtil.
+
+Copyright: 2020 The Apache Software Foundation
+Project URL: https://commons.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product includes code from Apache HttpComponents Client.
+
+* retry and error handling logic in ExponentialHttpRequestRetryStrategy.java
+
+Copyright: 1999-2022 The Apache Software Foundation.
+Home page: https://hc.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product bundles Azure SDK for Java.
 
 Project URL: https://github.com/Azure/azure-sdk-for-java
@@ -231,6 +300,13 @@ License: MIT
 
 --------------------------------------------------------------------------------
 
+This product bundles Aalto XML (bundled by Azure SDK for Java).
+
+Project URL: https://github.com/FasterXML/aalto-xml
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product bundles Jackson JSON Processor.
 
 Project URL: https://github.com/FasterXML/jackson
@@ -238,10 +314,304 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
+This product bundles FastDoubleParser (bundled by Jackson JSON Processor).
+
+Project URL: https://github.com/wrandelshofer/FastDoubleParser
+License: MIT
+
+| MIT License
+|
+| Copyright (c) 2024 Werner Randelshofer, Switzerland.
+|
+| Permission is hereby granted, free of charge, to any person obtaining a copy
+| of this software and associated documentation files (the "Software"), to deal
+| in the Software without restriction, including without limitation the rights
+| to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+| copies of the Software, and to permit persons to whom the Software is
+| furnished to do so, subject to the following conditions:
+|
+| The above copyright notice and this permission notice shall be included in all
+| copies or substantial portions of the Software.
+|
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+| IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+| FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+| AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+| LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+| OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+| SOFTWARE.
+|
+| ------
+| This is a Java port of Daniel Lemire's fast_float project.
+| This project provides parsers for double, float, BigDecimal and BigInteger values.
+|
+| ## Copyright
+|
+| Copyright © 2024 Werner Randelshofer, Switzerland.
+|
+| ## Licensing
+|
+| This code is licensed under MIT License.
+| https://github.com/wrandelshofer/FastDoubleParser/blob/522be16e145f43308c43b23094e31d5efcaa580e/LICENSE
+| (The file 'LICENSE' is included in the sources and classes Jar files that are released by this project
+| - as is required by that license - see FastDoubleParser-LICENSE.)
+|
+| Some portions of the code have been derived from other projects.
+| All these projects require that we include a copyright notice, and some require that we also include some text of their
+| license file.
+|
+| fast_double_parser, Copyright (c) 2022 Daniel Lemire. Boost Software License.
+| https://github.com/lemire/fast_double_parser
+| https://github.com/lemire/fast_double_parser/blob/07d9189a8fb815fe800cb15ca022e7a07093236e/LICENSE.BSL
+| (The file 'LICENSE.BSL' is included in the sources and classes Jar files that are released by this project
+| - as is required by that license - see FastDoubleParser-ThirdParty-LICENSE.)
+|
+| fast_float, Copyright (c) 2021 The fast_float authors. MIT License.
+| https://github.com/fastfloat/fast_float
+| https://github.com/fastfloat/fast_float/blob/cc1e01e9eee74128e48d51488a6b1df4a767a810/LICENSE-MIT
+| (The file 'LICENSE-MIT' is included in the sources and classes Jar files that are released by this project
+| - as is required by that license - see FastDoubleParser-ThirdParty-LICENSE.)
+|
+| bigint, Copyright 2020 Tim Buktu. 2-clause BSD License.
+| https://github.com/tbuktu/bigint/tree/floatfft
+| https://github.com/tbuktu/bigint/blob/617c8cd8a7c5e4fb4d919c6a4d11e2586107f029/LICENSE
+| https://github.com/wrandelshofer/FastDoubleParser/blob/39e123b15b71f29a38a087d16a0bc620fc879aa6/bigint-LICENSE
+| (We only use those portions of the bigint project that can be licensed under 2-clause BSD License.)
+| (The file 'bigint-LICENSE' is included in the sources and classes Jar files that are released by this project
+| - as is required by that license - see FastDoubleParser-ThirdParty-LICENSE.)
+
+--------------------------------------------------------------------------------
+
+This product bundles third-party code included in FastDoubleParser: fast_float and bigint (bundled by Jackson JSON Processor).
+
+License: Boost Software License 1.0, MIT and BSD 2-Clause, reproduced from FastDoubleParser-ThirdParty-LICENSE
+
+| # FastDoubleParser
+|
+| This is a Java port of Daniel Lemire's fast_float project.
+| This project provides parsers for double, float, BigDecimal and BigInteger values.
+|
+| Copyright (c) Daniel Lemire
+|
+| Boost Software License - Version 1.0 - August 17th, 2003
+|
+| Permission is hereby granted, free of charge, to any person or organization
+| obtaining a copy of the software and accompanying documentation covered by
+| this license (the "Software") to use, reproduce, display, distribute,
+| execute, and transmit the Software, and to prepare derivative works of the
+| Software, and to permit third-parties to whom the Software is furnished to
+| do so, all subject to the following:
+|
+| The copyright notices in the Software and this entire statement, including
+| the above license grant, this restriction and the following disclaimer,
+| must be included in all copies of the Software, in whole or in part, and
+| all derivative works of the Software, unless such copies or derivative
+| works are solely in the form of machine-executable object code generated by
+| a source language processor.
+|
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+| IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+| FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT
+| SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE
+| FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
+| ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+| DEALINGS IN THE SOFTWARE.
+|
+| ------
+| Third-party license for
+| fast_float, Copyright (c) 2021 The fast_float authors. MIT License.
+| https://github.com/fastfloat/fast_float
+| https://github.com/fastfloat/fast_float/blob/35d523195bf7d57aba0e735ad6eba1e6f71ba8d6/LICENSE-MIT
+|
+| MIT License
+|
+| Copyright (c) 2021 The fast_float authors
+|
+| Permission is hereby granted, free of charge, to any person obtaining a copy
+| of this software and associated documentation files (the "Software"), to deal
+| in the Software without restriction, including without limitation the rights
+| to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+| copies of the Software, and to permit persons to whom the Software is
+| furnished to do so, subject to the following conditions:
+|
+| The above copyright notice and this permission notice shall be included in all
+| copies or substantial portions of the Software.
+|
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+| IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+| FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+| AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+| LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+| OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+| SOFTWARE.
+| ------
+| Third-party license for
+| bigint, Copyright 2020 Tim Buktu. 2-clause BSD License.
+| https://github.com/tbuktu/bigint/tree/floatfft
+| https://github.com/tbuktu/bigint/blob/617c8cd8a7c5e4fb4d919c6a4d11e2586107f029/LICENSE
+| https://github.com/wrandelshofer/FastDoubleParser/blob/39e123b15b71f29a38a087d16a0bc620fc879aa6/bigint-LICENSE
+| (We only use those portions of the bigint project that can be licensed under 2-clause BSD License.)
+|
+| 2-clause BSD License
+|
+| Copyright 2022 Tim Buktu
+|
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions
+| are met:
+|
+| 1. Redistributions of source code must retain the above copyright notice, this
+|    list of conditions and the following disclaimer.
+|
+| 2. Redistributions in binary form must reproduce the above copyright notice,
+|    this list of conditions and the following disclaimer in the documentation
+|    and/or other materials provided with the distribution.
+|
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS” AND
+| ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+| WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+| DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+| FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+| DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+| SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+| CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+| OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+| OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This product bundles Schubfach (bundled by Jackson JSON Processor).
+
+Project URL: https://github.com/c4f7fcce9cb06515/Schubfach
+License: MIT
+
+| Copyright 2018-2020 Raffaello Giulietti
+|
+| Permission is hereby granted, free of charge, to any person obtaining a copy
+| of this software and associated documentation files (the "Software"), to deal
+| in the Software without restriction, including without limitation the rights
+| to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+| copies of the Software, and to permit persons to whom the Software is
+| furnished to do so, subject to the following conditions:
+|
+| The above copyright notice and this permission notice shall be included in
+| all copies or substantial portions of the Software.
+|
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+| IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+| FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+| AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+| LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+| OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+| THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+
 This product bundles Woodstox.
 
 Project URL: https://github.com/FasterXML/woodstox
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles MSV (msv-core and xsdlib, bundled by Woodstox).
+
+Project URL: https://github.com/xmlark/msv
+License: BSD 3-Clause
+
+| Copyright 2001-2013 Oracle and/or its affiliates. All rights reserved.
+|
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are met:
+|
+| 1. Redistributions of source code must retain the above copyright notice,
+|    this list of conditions and the following disclaimer.
+|
+| 2. Redistributions in binary form must reproduce the above copyright notice,
+|    this list of conditions and the following disclaimer in the documentation
+|    and/or other materials provided with the distribution.
+|
+| 3. Neither the name of the copyright holder nor the names of its contributors
+|    may be used to endorse or promote products derived from this software
+|    without specific prior written permission.
+|
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+| AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+| IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+| ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+| LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+| CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+| SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+| INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+| CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+| ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+| POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This product bundles isorelax (bundled by Woodstox).
+
+Project URL: http://iso-relax.sourceforge.net/
+License: MIT
+
+| Copyright (c) 2001, SourceForge ISO-RELAX Project
+| (ASAMI Tomoharu, Daisuke Okajima, Kohsuke Kawaguchi, and MURATA Makoto)
+|
+| Permission is hereby granted, free of charge, to any person obtaining a copy
+| of this software and associated documentation files (the "Software"), to deal
+| in the Software without restriction, including without limitation the rights
+| to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+| copies of the Software, and to permit persons to whom the Software is
+| furnished to do so, subject to the following conditions:
+|
+| The above copyright notice and this permission notice shall be included in all
+| copies or substantial portions of the Software.
+|
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+| IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+| FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+| AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+| LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+| OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+| SOFTWARE.
+--------------------------------------------------------------------------------
+
+This product bundles RELAX NG Datatype API (bundled by Woodstox).
+
+Project URL: https://github.com/relaxng/jing-trang
+License: BSD 3-Clause
+
+| Copyright (c) 2001-2003 Thai Open Source Software Center Ltd
+| All rights reserved.
+|
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are
+| met:
+|
+|     Redistributions of source code must retain the above copyright
+|     notice, this list of conditions and the following disclaimer.
+|
+|     Redistributions in binary form must reproduce the above copyright
+|     notice, this list of conditions and the following disclaimer in
+|     the documentation and/or other materials provided with the
+|     distribution.
+|
+|     Neither the name of the Thai Open Source Software Center Ltd nor
+|     the names of its contributors may be used to endorse or promote
+|     products derived from this software without specific prior written
+|     permission.
+|
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+| "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+| LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+| A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR
+| CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+| EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+| PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+| PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+| LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+| NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+| SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
@@ -292,13 +662,6 @@ License: CDDL 1.1 - http://glassfish.java.net/public/CDDL+GPL_1_1.html
 
 --------------------------------------------------------------------------------
 
-This product bundles JCIP Annotations.
-
-Project URL: http://stephenc.github.com/jcip-annotations
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
 This product bundles Android Annotations.
 
 Project URL: http://source.android.com/
@@ -308,13 +671,70 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 This product bundles Google API Common.
 
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://github.com/googleapis/api-common-java
+License: BSD 3-Clause
+
+| Copyright 2016, Google Inc.
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are
+| met:
+|
+|    * Redistributions of source code must retain the above copyright
+| notice, this list of conditions and the following disclaimer.
+|    * Redistributions in binary form must reproduce the above
+| copyright notice, this list of conditions and the following disclaimer
+| in the documentation and/or other materials provided with the
+| distribution.
+|    * Neither the name of Google Inc. nor the names of its
+| contributors may be used to endorse or promote products derived from
+| this software without specific prior written permission.
+|
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+| "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+| LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+| A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+| OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+| SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+| LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+| DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+| THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+| (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+| OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
 This product bundles Google GAX.
 
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://github.com/googleapis/gax-java
+License: BSD 3-Clause
+
+| Copyright 2016, Google Inc. All rights reserved.
+|
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are
+| met:
+|
+|     * Redistributions of source code must retain the above copyright
+| notice, this list of conditions and the following disclaimer.
+|     * Redistributions in binary form must reproduce the above
+| copyright notice, this list of conditions and the following disclaimer
+| in the documentation and/or other materials provided with the
+| distribution.
+|     * Neither the name of Google Inc. nor the names of its
+| contributors may be used to endorse or promote products derived from
+| this software without specific prior written permission.
+|
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+| "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+| LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+| A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+| OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+| SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+| LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+| DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+| THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+| (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+| OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
@@ -331,16 +751,53 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Google SDK platform for Java.
+This product bundles Google OAuth Client Library for Java.
 
-Project URL: https://github.com/googleapis/sdk-platform-java
+Project URL: https://github.com/googleapis/google-oauth-java-client
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Google API Services.
+
+Project URL: https://github.com/googleapis/google-api-java-client-services
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
 This product bundles Google Auth Library.
 
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://github.com/googleapis/google-auth-library-java
+License: BSD 3-Clause
+
+| Copyright 2014, Google Inc. All rights reserved.
+|
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are
+| met:
+|
+|    * Redistributions of source code must retain the above copyright
+| notice, this list of conditions and the following disclaimer.
+|    * Redistributions in binary form must reproduce the above
+| copyright notice, this list of conditions and the following disclaimer
+| in the documentation and/or other materials provided with the
+| distribution.
+|
+|    * Neither the name of Google Inc. nor the names of its
+| contributors may be used to endorse or promote products derived from
+| this software without specific prior written permission.
+|
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+| "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+| LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+| A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+| OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+| SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+| LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+| DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+| THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+| (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+| OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
@@ -357,9 +814,23 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles Google findbugs jsr305.
+This product bundles Google Cloud APIs for Java.
 
-Project URL (from POM): http://findbugs.sourceforge.net/
+Project URL: https://github.com/googleapis/google-cloud-java
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles JSpecify.
+
+Project URL: https://github.com/jspecify/jspecify
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles GCS Analytics.
+
+Project URL: https://github.com/GoogleCloudPlatform/gcs-analytics-core
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -394,7 +865,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 This product bundles Google j2objc annotations.
 
-Project URL (from POM): https://github.com/google/j2objc/
+Project URL: https://github.com/google/j2objc/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -538,45 +1009,37 @@ License: MIT
 
 --------------------------------------------------------------------------------
 
-This product bundles Nimbus Content Type.
+This product bundles MSAL4J Persistence Extension.
 
-Project URL: https://bitbucket.org/connect2id/nimbus-content-type
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+Project URL: https://github.com/AzureAD/microsoft-authentication-library-for-java
+License: MIT
+
+| Copyright (c) Microsoft Corporation. All rights reserved.
+|
+| Permission is hereby granted, free of charge, to any person obtaining a copy
+| of this software and associated documentation files (the "Software"), to deal
+| in the Software without restriction, including without limitation the rights
+| to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+| copies of the Software, and to permit persons to whom the Software is
+| furnished to do so, subject to the following conditions:
+|
+| The above copyright notice and this permission notice shall be included in all
+| copies or substantial portions of the Software.
+|
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+| IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+| FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+| AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+| LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+| OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+| SOFTWARE
 
 --------------------------------------------------------------------------------
 
-This product bundles Nimbus Lang Tag.
-
-Project URL: https://bitbucket.org/connect2id/nimbus-language-tags
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Nimbus Jose JWT.
-
-Project URL: https://bitbucket.org/connect2id/nimbus-jose-jwt
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Nimbus OAuth2 OIDC SDK.
-
-Project URL: https://bitbucket.org/connect2id/oauth-2.0-sdk-with-openid-connect-extensions
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles JAXB.
+This product bundles JAXB (jaxb-api and jaxb-impl).
 
 Project URL: http://jaxb.java.net/
-License: CDDL 1.1 - https://glassfish.java.net/public/CDDL+GPL_1_1.html
-
---------------------------------------------------------------------------------
-
-This product bundles Apache Commons Beanutils.
-
-Project URL: https://commons.apache.org/proper/commons-beanutils/
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+License: CDDL 1.0 - https://spdx.org/licenses/CDDL-1.0.html
 
 --------------------------------------------------------------------------------
 
@@ -700,6 +1163,91 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
+This product bundles Apache Tomcat Native (netty-tcnative-classes, and statically linked into netty-tcnative bundled by gRPC-netty-shaded).
+
+Project URL: https://tomcat.apache.org/native-doc/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles BoringSSL (statically linked into netty-tcnative bundled by gRPC-netty-shaded, and into Conscrypt).
+
+Project URL: https://boringssl.googlesource.com/boringssl/
+License: Apache License, Version 2.0 (with portions under the Go License - BSD 3-Clause) - https://boringssl.googlesource.com/boringssl/+/HEAD/LICENSE
+
+|
+| Licenses for support code
+| -------------------------
+|
+| Parts of the TLS test suite are under the Go license. This code is not included
+| in BoringSSL (i.e. libcrypto and libssl) when compiled, however, so
+| distributing code linked against BoringSSL does not trigger this license:
+|
+| Copyright (c) 2009 The Go Authors. All rights reserved.
+|
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are
+| met:
+|
+|    * Redistributions of source code must retain the above copyright
+| notice, this list of conditions and the following disclaimer.
+|    * Redistributions in binary form must reproduce the above
+| copyright notice, this list of conditions and the following disclaimer
+| in the documentation and/or other materials provided with the
+| distribution.
+|    * Neither the name of Google Inc. nor the names of its
+| contributors may be used to endorse or promote products derived from
+| this software without specific prior written permission.
+|
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+| "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+| LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+| A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+| OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+| SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+| LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+| DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+| THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+| (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+| OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This product bundles Envoy API definitions (shaded by gRPC-xds).
+
+Project URL: https://github.com/envoyproxy/envoy
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles protoc-gen-validate (PGV) definitions (shaded by gRPC-xds).
+
+Project URL: https://github.com/bufbuild/protoc-gen-validate
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles the Common Expression Language (CEL) specification (shaded by gRPC-xds).
+
+Project URL: https://github.com/google/cel-spec
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles xDS data plane API definitions (shaded by gRPC-xds).
+
+Project URL: https://github.com/cncf/xds
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles UDPA (Universal Data Plane API) definitions (shaded by gRPC-xds).
+
+Project URL: https://github.com/cncf/udpa
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product bundles Netty.
 
 Project URL: https://netty.io/
@@ -710,6 +1258,28 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 This product bundles Google FlatBuffers.
 
 Project URL: https://google.github.io/flatbuffers/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles OpenTelemetry.
+
+Project URL: https://opentelemetry.io/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles WeakConcurrentMap (via OpenTelemetry).
+
+Copyright: 2014 Rafael Winterhalter
+Project URL: https://github.com/raphw/weak-lock-free
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Google Cloud Open-Telemetry Operations Exporters for Java
+
+Project URL: https://github.com/GoogleCloudPlatform/opentelemetry-operations-java
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -749,24 +1319,60 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
+This product bundles Reactor Pool (bundled by Reactor Netty).
+
+Project URL: https://github.com/reactor/reactor-pool
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
 This product bundles Jakarta Activation API.
 
-Project URL: https://www.eclipse.org
-License: Eclipse Public License v. 2.0 - https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.txt
+Project URL: https://github.com/eclipse-ee4j/jaf
+License: Eclipse Distribution License v. 1.0 (BSD 3-Clause) - https://www.eclipse.org/org/documents/edl-v10.php
+
+| Copyright (c) 2018 Oracle and/or its affiliates. All rights reserved.
+|
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions
+| are met:
+|
+|   - Redistributions of source code must retain the above copyright
+|     notice, this list of conditions and the following disclaimer.
+|
+|   - Redistributions in binary form must reproduce the above copyright
+|     notice, this list of conditions and the following disclaimer in the
+|     documentation and/or other materials provided with the distribution.
+|
+|   - Neither the name of the Eclipse Foundation, Inc. nor the names of its
+|     contributors may be used to endorse or promote products derived
+|     from this software without specific prior written permission.
+|
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+| IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+| THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+| PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+| CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+| EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+| PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+| PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+| LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+| NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+| SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
 This product bundles Javax Annotation API.
 
 Project URL: https://javaee.github.io/glassfish
-License: CDDL 1.1 - https://github.com/javaee/javax.annotation/blob/master/LICENSE
+License: CDDL 1.0 - https://spdx.org/licenses/CDDL-1.0.html
 
 --------------------------------------------------------------------------------
 
 This product bundles Javax Servlet API.
 
 Project URL: http://servlet-spec.java.net
-License: CDDL 1.1 - https://glassfish.dev.java.net/nonav/public/CDDL+GPL.html
+License: CDDL 1.0 - https://spdx.org/licenses/CDDL-1.0.html
 
 --------------------------------------------------------------------------------
 
@@ -774,13 +1380,6 @@ This product bundles Javax Servlet JSP.
 
 Project URL: https://github.com/javaee/javaee-jsp-api
 License: CDDL 1.1 - https://github.com/javaee/javaee-jsp-api/blob/master/LICENSE
-
---------------------------------------------------------------------------------
-
-This product bundles JAXB.
-
-Project URL: https://jaxb.dev.java.net/
-License: CDDL 1.1 - https://glassfish.dev.java.net/public/CDDL+GPL_1_1.html
 
 --------------------------------------------------------------------------------
 
@@ -793,20 +1392,6 @@ License: CDDL 1.0 - http://www.sun.com/cddl/cddl.html
 This product bundles JNA.
 
 Project URL: https://github.com/java-native-access/jna
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Accessors Smart.
-
-Project URL: https://urielch.github.io/
-License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-
---------------------------------------------------------------------------------
-
-This product bundles Json Smart.
-
-Project URL: https://urielch.github.io/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -839,6 +1424,245 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
+This product bundles third-party code included in Apache Commons Math (Minpack, odex, Mersenne Twister, Sobol direction numbers, SciPy).
+
+Project URL: https://commons.apache.org/proper/commons-math/
+License: BSD-style licences, reproduced from the commons-math3 LICENSE file
+
+| APACHE COMMONS MATH DERIVATIVE WORKS:
+|
+| The Apache commons-math library includes a number of subcomponents
+| whose implementation is derived from original sources written
+| in C or Fortran.  License terms of the original sources
+| are reproduced below.
+|
+| ===============================================================================
+| For the lmder, lmpar and qrsolv Fortran routine from minpack and translated in
+| the LevenbergMarquardtOptimizer class in package
+| org.apache.commons.math3.optimization.general
+| Original source copyright and license statement:
+|
+| Minpack Copyright Notice (1999) University of Chicago.  All rights reserved
+|
+| Redistribution and use in source and binary forms, with or
+| without modification, are permitted provided that the
+| following conditions are met:
+|
+| 1. Redistributions of source code must retain the above
+| copyright notice, this list of conditions and the following
+| disclaimer.
+|
+| 2. Redistributions in binary form must reproduce the above
+| copyright notice, this list of conditions and the following
+| disclaimer in the documentation and/or other materials
+| provided with the distribution.
+|
+| 3. The end-user documentation included with the
+| redistribution, if any, must include the following
+| acknowledgment:
+|
+|    "This product includes software developed by the
+|    University of Chicago, as Operator of Argonne National
+|    Laboratory.
+|
+| Alternately, this acknowledgment may appear in the software
+| itself, if and wherever such third-party acknowledgments
+| normally appear.
+|
+| 4. WARRANTY DISCLAIMER. THE SOFTWARE IS SUPPLIED "AS IS"
+| WITHOUT WARRANTY OF ANY KIND. THE COPYRIGHT HOLDER, THE
+| UNITED STATES, THE UNITED STATES DEPARTMENT OF ENERGY, AND
+| THEIR EMPLOYEES: (1) DISCLAIM ANY WARRANTIES, EXPRESS OR
+| IMPLIED, INCLUDING BUT NOT LIMITED TO ANY IMPLIED WARRANTIES
+| OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE
+| OR NON-INFRINGEMENT, (2) DO NOT ASSUME ANY LEGAL LIABILITY
+| OR RESPONSIBILITY FOR THE ACCURACY, COMPLETENESS, OR
+| USEFULNESS OF THE SOFTWARE, (3) DO NOT REPRESENT THAT USE OF
+| THE SOFTWARE WOULD NOT INFRINGE PRIVATELY OWNED RIGHTS, (4)
+| DO NOT WARRANT THAT THE SOFTWARE WILL FUNCTION
+| UNINTERRUPTED, THAT IT IS ERROR-FREE OR THAT ANY ERRORS WILL
+| BE CORRECTED.
+|
+| 5. LIMITATION OF LIABILITY. IN NO EVENT WILL THE COPYRIGHT
+| HOLDER, THE UNITED STATES, THE UNITED STATES DEPARTMENT OF
+| ENERGY, OR THEIR EMPLOYEES: BE LIABLE FOR ANY INDIRECT,
+| INCIDENTAL, CONSEQUENTIAL, SPECIAL OR PUNITIVE DAMAGES OF
+| ANY KIND OR NATURE, INCLUDING BUT NOT LIMITED TO LOSS OF
+| PROFITS OR LOSS OF DATA, FOR ANY REASON WHATSOEVER, WHETHER
+| SUCH LIABILITY IS ASSERTED ON THE BASIS OF CONTRACT, TORT
+| (INCLUDING NEGLIGENCE OR STRICT LIABILITY), OR OTHERWISE,
+| EVEN IF ANY OF SAID PARTIES HAS BEEN WARNED OF THE
+| POSSIBILITY OF SUCH LOSS OR DAMAGES.
+| ===============================================================================
+|
+| Copyright and license statement for the odex Fortran routine developed by
+| E. Hairer and G. Wanner and translated in GraggBulirschStoerIntegrator class
+| in package org.apache.commons.math3.ode.nonstiff:
+|
+|
+| Copyright (c) 2004, Ernst Hairer
+|
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are
+| met:
+|
+| - Redistributions of source code must retain the above copyright
+| notice, this list of conditions and the following disclaimer.
+|
+| - Redistributions in binary form must reproduce the above copyright
+| notice, this list of conditions and the following disclaimer in the
+| documentation and/or other materials provided with the distribution.
+|
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+| IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+| TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+| PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR
+| CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+| EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+| PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+| PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+| LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+| NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+| SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+| ===============================================================================
+|
+| Copyright and license statement for the original Mersenne twister C
+| routines translated in MersenneTwister class in package
+| org.apache.commons.math3.random:
+|
+|    Copyright (C) 1997 - 2002, Makoto Matsumoto and Takuji Nishimura,
+|    All rights reserved.
+|
+|    Redistribution and use in source and binary forms, with or without
+|    modification, are permitted provided that the following conditions
+|    are met:
+|
+|      1. Redistributions of source code must retain the above copyright
+|         notice, this list of conditions and the following disclaimer.
+|
+|      2. Redistributions in binary form must reproduce the above copyright
+|         notice, this list of conditions and the following disclaimer in the
+|         documentation and/or other materials provided with the distribution.
+|
+|      3. The names of its contributors may not be used to endorse or promote
+|         products derived from this software without specific prior written
+|         permission.
+|
+|    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+|    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+|    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+|    A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+|    CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+|    EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+|    PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+|    PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+|    LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+|    NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+|    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+|
+| ===============================================================================
+|
+| The initial code for shuffling an array (originally in class
+| "org.apache.commons.math3.random.RandomDataGenerator", now replaced by
+| a method in class "org.apache.commons.math3.util.MathArrays") was
+| inspired from the algorithm description provided in
+| "Algorithms", by Ian Craw and John Pulham (University of Aberdeen 1999).
+| The textbook (containing a proof that the shuffle is uniformly random) is
+| available here:
+|   http://citeseerx.ist.psu.edu/viewdoc/download;?doi=10.1.1.173.1898&rep=rep1&type=pdf
+|
+| ===============================================================================
+| License statement for the direction numbers in the resource files for Sobol sequences.
+|
+| -----------------------------------------------------------------------------
+| Licence pertaining to sobol.cc and the accompanying sets of direction numbers
+|
+| -----------------------------------------------------------------------------
+| Copyright (c) 2008, Frances Y. Kuo and Stephen Joe
+| All rights reserved.
+|
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are met:
+|
+|     * Redistributions of source code must retain the above copyright
+|       notice, this list of conditions and the following disclaimer.
+|
+|     * Redistributions in binary form must reproduce the above copyright
+|       notice, this list of conditions and the following disclaimer in the
+|       documentation and/or other materials provided with the distribution.
+|
+|     * Neither the names of the copyright holders nor the names of the
+|       University of New South Wales and the University of Waikato
+|       and its contributors may be used to endorse or promote products derived
+|       from this software without specific prior written permission.
+|
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
+| EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+| WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+| DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
+| DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+| (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+| LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+| ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+| (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+| SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+| ===============================================================================
+|
+| The initial commit of package "org.apache.commons.math3.ml.neuralnet" is
+| an adapted version of code developed in the context of the Data Processing
+| and Analysis Consortium (DPAC) of the "Gaia" project of the European Space
+| Agency (ESA).
+| ===============================================================================
+|
+| The initial commit of the class "org.apache.commons.math3.special.BesselJ" is
+| an adapted version of code translated from the netlib Fortran program, rjbesl
+| http://www.netlib.org/specfun/rjbesl by R.J. Cody at Argonne National
+| Laboratory (USA).  There is no license or copyright statement included with the
+| original Fortran sources.
+| ===============================================================================
+|
+|
+| The BracketFinder (package org.apache.commons.math3.optimization.univariate)
+| and PowellOptimizer (package org.apache.commons.math3.optimization.general)
+| classes are based on the Python code in module "optimize.py" (version 0.5)
+| developed by Travis E. Oliphant for the SciPy library (http://www.scipy.org/)
+| Copyright © 2003-2009 SciPy Developers.
+|
+| SciPy license
+| Copyright © 2001, 2002 Enthought, Inc.
+| All rights reserved.
+|
+| Copyright © 2003-2013 SciPy Developers.
+| All rights reserved.
+|
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are met:
+|
+|     * Redistributions of source code must retain the above copyright
+|       notice, this list of conditions and the following disclaimer.
+|
+|     * Redistributions in binary form must reproduce the above copyright
+|       notice, this list of conditions and the following disclaimer in the
+|       documentation and/or other materials provided with the distribution.
+|
+|     * Neither the name of Enthought nor the names of the SciPy Developers may
+|       be used to endorse or promote products derived from this software without
+|       specific prior written permission.
+|
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS” AND ANY
+| EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+| WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+| DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE FOR ANY
+| DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+| (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+| LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+| ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+| (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+| SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+| ===============================================================================
+
+--------------------------------------------------------------------------------
+
 This product bundles Apache Commons Text.
 
 Project URL: https://commons.apache.org/proper/commons-text
@@ -853,6 +1677,41 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
+This product bundles Bloom filter code from the OneLab project (bundled by Apache Hadoop).
+
+Project URL: http://www.one-lab.org
+License: BSD 3-Clause
+
+| Copyright (c) 2005, European Commission project OneLab under contract 034819 (http://www.one-lab.org)
+| All rights reserved.
+| Redistribution and use in source and binary forms, with or
+| without modification, are permitted provided that the following
+| conditions are met:
+|  - Redistributions of source code must retain the above copyright
+|    notice, this list of conditions and the following disclaimer.
+|  - Redistributions in binary form must reproduce the above copyright
+|    notice, this list of conditions and the following disclaimer in
+|    the documentation and/or other materials provided with the distribution.
+|  - Neither the name of the University Catholique de Louvain - UCL
+|    nor the names of its contributors may be used to endorse or
+|    promote products derived from this software without specific prior
+|    written permission.
+|
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+| "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+| LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+| FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+| COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+| INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+| BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+| LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+| CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+| LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+| ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+| POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
 This product bundles Apache HttpComponents (core and client).
 
 Project URL: https://hc.apache.org/
@@ -860,9 +1719,397 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
+This product bundles the Mozilla Public Suffix List (via Apache HttpComponents and Google Guava).
+
+Project URL: https://publicsuffix.org/
+License: Mozilla Public License, Version 2.0 - https://mozilla.org/MPL/2.0/
+
+| Mozilla Public License Version 2.0
+| ==================================
+|
+| 1. Definitions
+| --------------
+|
+| 1.1. "Contributor"
+|     means each individual or legal entity that creates, contributes to
+|     the creation of, or owns Covered Software.
+|
+| 1.2. "Contributor Version"
+|     means the combination of the Contributions of others (if any) used
+|     by a Contributor and that particular Contributor's Contribution.
+|
+| 1.3. "Contribution"
+|     means Covered Software of a particular Contributor.
+|
+| 1.4. "Covered Software"
+|     means Source Code Form to which the initial Contributor has attached
+|     the notice in Exhibit A, the Executable Form of such Source Code
+|     Form, and Modifications of such Source Code Form, in each case
+|     including portions thereof.
+|
+| 1.5. "Incompatible With Secondary Licenses"
+|     means
+|
+|     (a) that the initial Contributor has attached the notice described
+|         in Exhibit B to the Covered Software; or
+|
+|     (b) that the Covered Software was made available under the terms of
+|         version 1.1 or earlier of the License, but not also under the
+|         terms of a Secondary License.
+|
+| 1.6. "Executable Form"
+|     means any form of the work other than Source Code Form.
+|
+| 1.7. "Larger Work"
+|     means a work that combines Covered Software with other material, in
+|     a separate file or files, that is not Covered Software.
+|
+| 1.8. "License"
+|     means this document.
+|
+| 1.9. "Licensable"
+|     means having the right to grant, to the maximum extent possible,
+|     whether at the time of the initial grant or subsequently, any and
+|     all of the rights conveyed by this License.
+|
+| 1.10. "Modifications"
+|     means any of the following:
+|
+|     (a) any file in Source Code Form that results from an addition to,
+|         deletion from, or modification of the contents of Covered
+|         Software; or
+|
+|     (b) any new file in Source Code Form that contains any Covered
+|         Software.
+|
+| 1.11. "Patent Claims" of a Contributor
+|     means any patent claim(s), including without limitation, method,
+|     process, and apparatus claims, in any patent Licensable by such
+|     Contributor that would be infringed, but for the grant of the
+|     License, by the making, using, selling, offering for sale, having
+|     made, import, or transfer of either its Contributions or its
+|     Contributor Version.
+|
+| 1.12. "Secondary License"
+|     means either the GNU General Public License, Version 2.0, the GNU
+|     Lesser General Public License, Version 2.1, the GNU Affero General
+|     Public License, Version 3.0, or any later versions of those
+|     licenses.
+|
+| 1.13. "Source Code Form"
+|     means the form of the work preferred for making modifications.
+|
+| 1.14. "You" (or "Your")
+|     means an individual or a legal entity exercising rights under this
+|     License. For legal entities, "You" includes any entity that
+|     controls, is controlled by, or is under common control with You. For
+|     purposes of this definition, "control" means (a) the power, direct
+|     or indirect, to cause the direction or management of such entity,
+|     whether by contract or otherwise, or (b) ownership of more than
+|     fifty percent (50%) of the outstanding shares or beneficial
+|     ownership of such entity.
+|
+| 2. License Grants and Conditions
+| --------------------------------
+|
+| 2.1. Grants
+|
+| Each Contributor hereby grants You a world-wide, royalty-free,
+| non-exclusive license:
+|
+| (a) under intellectual property rights (other than patent or trademark)
+|     Licensable by such Contributor to use, reproduce, make available,
+|     modify, display, perform, distribute, and otherwise exploit its
+|     Contributions, either on an unmodified basis, with Modifications, or
+|     as part of a Larger Work; and
+|
+| (b) under Patent Claims of such Contributor to make, use, sell, offer
+|     for sale, have made, import, and otherwise transfer either its
+|     Contributions or its Contributor Version.
+|
+| 2.2. Effective Date
+|
+| The licenses granted in Section 2.1 with respect to any Contribution
+| become effective for each Contribution on the date the Contributor first
+| distributes such Contribution.
+|
+| 2.3. Limitations on Grant Scope
+|
+| The licenses granted in this Section 2 are the only rights granted under
+| this License. No additional rights or licenses will be implied from the
+| distribution or licensing of Covered Software under this License.
+| Notwithstanding Section 2.1(b) above, no patent license is granted by a
+| Contributor:
+|
+| (a) for any code that a Contributor has removed from Covered Software;
+|     or
+|
+| (b) for infringements caused by: (i) Your and any other third party's
+|     modifications of Covered Software, or (ii) the combination of its
+|     Contributions with other software (except as part of its Contributor
+|     Version); or
+|
+| (c) under Patent Claims infringed by Covered Software in the absence of
+|     its Contributions.
+|
+| This License does not grant any rights in the trademarks, service marks,
+| or logos of any Contributor (except as may be necessary to comply with
+| the notice requirements in Section 3.4).
+|
+| 2.4. Subsequent Licenses
+|
+| No Contributor makes additional grants as a result of Your choice to
+| distribute the Covered Software under a subsequent version of this
+| License (see Section 10.2) or under the terms of a Secondary License (if
+| permitted under the terms of Section 3.3).
+|
+| 2.5. Representation
+|
+| Each Contributor represents that the Contributor believes its
+| Contributions are its original creation(s) or it has sufficient rights
+| to grant the rights to its Contributions conveyed by this License.
+|
+| 2.6. Fair Use
+|
+| This License is not intended to limit any rights You have under
+| applicable copyright doctrines of fair use, fair dealing, or other
+| equivalents.
+|
+| 2.7. Conditions
+|
+| Sections 3.1, 3.2, 3.3, and 3.4 are conditions of the licenses granted
+| in Section 2.1.
+|
+| 3. Responsibilities
+| -------------------
+|
+| 3.1. Distribution of Source Form
+|
+| All distribution of Covered Software in Source Code Form, including any
+| Modifications that You create or to which You contribute, must be under
+| the terms of this License. You must inform recipients that the Source
+| Code Form of the Covered Software is governed by the terms of this
+| License, and how they can obtain a copy of this License. You may not
+| attempt to alter or restrict the recipients' rights in the Source Code
+| Form.
+|
+| 3.2. Distribution of Executable Form
+|
+| If You distribute Covered Software in Executable Form then:
+|
+| (a) such Covered Software must also be made available in Source Code
+|     Form, as described in Section 3.1, and You must inform recipients of
+|     the Executable Form how they can obtain a copy of such Source Code
+|     Form by reasonable means in a timely manner, at a charge no more
+|     than the cost of distribution to the recipient; and
+|
+| (b) You may distribute such Executable Form under the terms of this
+|     License, or sublicense it under different terms, provided that the
+|     license for the Executable Form does not attempt to limit or alter
+|     the recipients' rights in the Source Code Form under this License.
+|
+| 3.3. Distribution of a Larger Work
+|
+| You may create and distribute a Larger Work under terms of Your choice,
+| provided that You also comply with the requirements of this License for
+| the Covered Software. If the Larger Work is a combination of Covered
+| Software with a work governed by one or more Secondary Licenses, and the
+| Covered Software is not Incompatible With Secondary Licenses, this
+| License permits You to additionally distribute such Covered Software
+| under the terms of such Secondary License(s), so that the recipient of
+| the Larger Work may, at their option, further distribute the Covered
+| Software under the terms of either this License or such Secondary
+| License(s).
+|
+| 3.4. Notices
+|
+| You may not remove or alter the substance of any license notices
+| (including copyright notices, patent notices, disclaimers of warranty,
+| or limitations of liability) contained within the Source Code Form of
+| the Covered Software, except that You may alter any license notices to
+| the extent required to remedy known factual inaccuracies.
+|
+| 3.5. Application of Additional Terms
+|
+| You may choose to offer, and to charge a fee for, warranty, support,
+| indemnity or liability obligations to one or more recipients of Covered
+| Software. However, You may do so only on Your own behalf, and not on
+| behalf of any Contributor. You must make it absolutely clear that any
+| such warranty, support, indemnity, or liability obligation is offered by
+| You alone, and You hereby agree to indemnify every Contributor for any
+| liability incurred by such Contributor as a result of warranty, support,
+| indemnity or liability terms You offer. You may include additional
+| disclaimers of warranty and limitations of liability specific to any
+| jurisdiction.
+|
+| 4. Inability to Comply Due to Statute or Regulation
+| ---------------------------------------------------
+|
+| If it is impossible for You to comply with any of the terms of this
+| License with respect to some or all of the Covered Software due to
+| statute, judicial order, or regulation then You must: (a) comply with
+| the terms of this License to the maximum extent possible; and (b)
+| describe the limitations and the code they affect. Such description must
+| be placed in a text file included with all distributions of the Covered
+| Software under this License. Except to the extent prohibited by statute
+| or regulation, such description must be sufficiently detailed for a
+| recipient of ordinary skill to be able to understand it.
+|
+| 5. Termination
+| --------------
+|
+| 5.1. The rights granted under this License will terminate automatically
+| if You fail to comply with any of its terms. However, if You become
+| compliant, then the rights granted under this License from a particular
+| Contributor are reinstated (a) provisionally, unless and until such
+| Contributor explicitly and finally terminates Your grants, and (b) on an
+| ongoing basis, if such Contributor fails to notify You of the
+| non-compliance by some reasonable means prior to 60 days after You have
+| come back into compliance. Moreover, Your grants from a particular
+| Contributor are reinstated on an ongoing basis if such Contributor
+| notifies You of the non-compliance by some reasonable means, this is the
+| first time You have received notice of non-compliance with this License
+| from such Contributor, and You become compliant prior to 30 days after
+| Your receipt of the notice.
+|
+| 5.2. If You initiate litigation against any entity by asserting a patent
+| infringement claim (excluding declaratory judgment actions,
+| counter-claims, and cross-claims) alleging that a Contributor Version
+| directly or indirectly infringes any patent, then the rights granted to
+| You by any and all Contributors for the Covered Software under Section
+| 2.1 of this License shall terminate.
+|
+| 5.3. In the event of termination under Sections 5.1 or 5.2 above, all
+| end user license agreements (excluding distributors and resellers) which
+| have been validly granted by You or Your distributors under this License
+| prior to termination shall survive termination.
+|
+| ************************************************************************
+| *                                                                      *
+| *  6. Disclaimer of Warranty                                           *
+| *  -------------------------                                           *
+| *                                                                      *
+| *  Covered Software is provided under this License on an "as is"       *
+| *  basis, without warranty of any kind, either expressed, implied, or  *
+| *  statutory, including, without limitation, warranties that the       *
+| *  Covered Software is free of defects, merchantable, fit for a        *
+| *  particular purpose or non-infringing. The entire risk as to the     *
+| *  quality and performance of the Covered Software is with You.        *
+| *  Should any Covered Software prove defective in any respect, You     *
+| *  (not any Contributor) assume the cost of any necessary servicing,   *
+| *  repair, or correction. This disclaimer of warranty constitutes an   *
+| *  essential part of this License. No use of any Covered Software is   *
+| *  authorized under this License except under this disclaimer.         *
+| *                                                                      *
+| ************************************************************************
+|
+| ************************************************************************
+| *                                                                      *
+| *  7. Limitation of Liability                                          *
+| *  --------------------------                                          *
+| *                                                                      *
+| *  Under no circumstances and under no legal theory, whether tort      *
+| *  (including negligence), contract, or otherwise, shall any           *
+| *  Contributor, or anyone who distributes Covered Software as          *
+| *  permitted above, be liable to You for any direct, indirect,         *
+| *  special, incidental, or consequential damages of any character      *
+| *  including, without limitation, damages for lost profits, loss of    *
+| *  goodwill, work stoppage, computer failure or malfunction, or any    *
+| *  and all other commercial damages or losses, even if such party      *
+| *  shall have been informed of the possibility of such damages. This   *
+| *  limitation of liability shall not apply to liability for death or   *
+| *  personal injury resulting from such party's negligence to the       *
+| *  extent applicable law prohibits such limitation. Some               *
+| *  jurisdictions do not allow the exclusion or limitation of           *
+| *  incidental or consequential damages, so this exclusion and          *
+| *  limitation may not apply to You.                                    *
+| *                                                                      *
+| ************************************************************************
+|
+| 8. Litigation
+| -------------
+|
+| Any litigation relating to this License may be brought only in the
+| courts of a jurisdiction where the defendant maintains its principal
+| place of business and such litigation shall be governed by laws of that
+| jurisdiction, without reference to its conflict-of-law provisions.
+| Nothing in this Section shall prevent a party's ability to bring
+| cross-claims or counter-claims.
+|
+| 9. Miscellaneous
+| ----------------
+|
+| This License represents the complete agreement concerning the subject
+| matter hereof. If any provision of this License is held to be
+| unenforceable, such provision shall be reformed only to the extent
+| necessary to make it enforceable. Any law or regulation which provides
+| that the language of a contract shall be construed against the drafter
+| shall not be used to construe this License against a Contributor.
+|
+| 10. Versions of the License
+| ---------------------------
+|
+| 10.1. New Versions
+|
+| Mozilla Foundation is the license steward. Except as provided in Section
+| 10.3, no one other than the license steward has the right to modify or
+| publish new versions of this License. Each version will be given a
+| distinguishing version number.
+|
+| 10.2. Effect of New Versions
+|
+| You may distribute the Covered Software under the terms of the version
+| of the License under which You originally received the Covered Software,
+| or under the terms of any subsequent version published by the license
+| steward.
+|
+| 10.3. Modified Versions
+|
+| If you create software not governed by this License, and you want to
+| create a new license for such software, you may create and use a
+| modified version of this License if you rename the license and remove
+| any references to the name of the license steward (except to note that
+| such modified license differs from this License).
+|
+| 10.4. Distributing Source Code Form that is Incompatible With Secondary
+| Licenses
+|
+| If You choose to distribute Source Code Form that is Incompatible With
+| Secondary Licenses under the terms of this version of the License, the
+| notice described in Exhibit B of this License must be attached.
+|
+| Exhibit A - Source Code Form License Notice
+| -------------------------------------------
+|
+|   This Source Code Form is subject to the terms of the Mozilla Public
+|   License, v. 2.0. If a copy of the MPL was not distributed with this
+|   file, You can obtain one at http://mozilla.org/MPL/2.0/.
+|
+| If it is not possible or desirable to put the notice in a particular
+| file, then You may include the notice in a location (such as a LICENSE
+| file in a relevant directory) where a recipient would be likely to look
+| for such a notice.
+|
+| You may add additional accurate notices of copyright ownership.
+|
+| Exhibit B - "Incompatible With Secondary Licenses" Notice
+| ---------------------------------------------------------
+|
+|   This Source Code Form is "Incompatible With Secondary Licenses", as
+|   defined by the Mozilla Public License, v. 2.0.
+
+--------------------------------------------------------------------------------
+
 This product bundles Apache ORC.
 
 Project URL: https://orc.apache.org
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Hive Storage API (bundled by Apache ORC).
+
+Project URL: https://hive.apache.org/
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
@@ -874,19 +2121,38 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles checkerframework checker-qual.
+This product bundles zero-allocation-hashing (bundled by Apache Parquet).
+
+Project URL: https://github.com/OpenHFT/Zero-Allocation-Hashing
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles Apache Thrift (bundled by Parquet).
+
+Copyright: 2006-2017 The Apache Software Foundation.
+Project URL: https://thrift.apache.org/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles fastutil (bundled by Parquet).
+
+Copyright: 2002-2014 Sebastiano Vigna
+Project URL: http://fastutil.di.unimi.it/
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles checkerframework checker-qual and checker-compat-qual.
 
 Project URL: https://checkerframework.org/
 License: MIT
-| The annotations are licensed under the MIT License.  (The text of this
-| license appears below.)  More specifically, all the parts of the Checker
-| Framework that you might want to include with your own program use the
-| MIT License.  This is the checker-qual.jar file and all the files that
-| appear in it:  every file in a qual/ directory, plus utility files such
-| as NullnessUtil.java, RegexUtil.java, SignednessUtil.java, etc.
-| In addition, the cleanroom implementations of third-party annotations,
-| which the Checker Framework recognizes as aliases for its own
-| annotations, are licensed under the MIT License.
+
+| Checker Framework qualifiers
+| Copyright 2004-present by the Checker Framework developers
+|
+| MIT License:
 |
 | Permission is hereby granted, free of charge, to any person obtaining a copy
 | of this software and associated documentation files (the "Software"), to deal
@@ -918,7 +2184,37 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 This product bundles JTS Topology Suite.
 
 Project URL: https://github.com/locationtech/jts
-License: Eclipse Public License v. 2.0 - https://www.eclipse.org/org/documents/epl-2.0/EPL-2.0.txt
+License: Eclipse Distribution License v. 1.0 - https://www.eclipse.org/org/documents/edl-v10.php
+
+| Eclipse Distribution License - v 1.0
+|
+| Copyright (c) 2007, Eclipse Foundation, Inc. and its licensors.
+|
+| All rights reserved.
+|
+| Redistribution and use in source and binary forms, with or without
+| modification, are permitted provided that the following conditions are met:
+|
+|   * Redistributions of source code must retain the above copyright notice,
+|     this list of conditions and the following disclaimer.
+|   * Redistributions in binary form must reproduce the above copyright notice,
+|     this list of conditions and the following disclaimer in the documentation
+|     and/or other materials provided with the distribution.
+|   * Neither the name of the Eclipse Foundation, Inc. nor the names of its
+|     contributors may be used to endorse or promote products derived from this
+|     software without specific prior written permission.
+|
+| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+| AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+| IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+| ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+| LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+| CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+| SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+| INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+| CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+| ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+| POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
@@ -981,6 +2277,28 @@ License: BSD 2-Clause
 
 --------------------------------------------------------------------------------
 
+This product bundles Bouncy Castle.
+
+Project URL: https://www.bouncycastle.org/
+License: MIT
+| MIT License (https://opensource.org/licenses/MIT)
+|
+| Copyright (c) 2000-2026 The Legion of the Bouncy Castle Inc. (https://www.bouncycastle.org).
+| Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+| associated documentation files (the "Software"), to deal in the Software without restriction,
+| including without limitation the rights to use, copy, modify, merge, publish, distribute,
+| sub license, and/or sell copies of the Software, and to permit persons to whom the Software is
+| furnished to do so, subject to the following conditions: The above copyright notice and this
+| permission notice shall be included in all copies or substantial portions of the Software.
+|
+| THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+| NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+| NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+| DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+| OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+
 This product bundles Conscrypt (openjdk-uber).
 
 Project URL: https://conscrypt.org/
@@ -988,44 +2306,10 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles ASM.
-
-Project URL: http://asm.ow2.org
-License: BSD 3-Clause
-| ASM: a very small and fast Java bytecode manipulation framework
-| Copyright (c) 2000-2011 INRIA, France Telecom
-| All rights reserved.
-| 
-| Redistribution and use in source and binary forms, with or without
-| modification, are permitted provided that the following conditions
-| are met:
-| 1. Redistributions of source code must retain the above copyright
-|   notice, this list of conditions and the following disclaimer.
-| 2. Redistributions in binary form must reproduce the above copyright
-|   notice, this list of conditions and the following disclaimer in the
-|   documentation and/or other materials provided with the distribution.
-| 3. Neither the name of the copyright holders nor the names of its
-|   contributors may be used to endorse or promote products derived from
-|   this software without specific prior written permission.
-| 
-| THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-| AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-| IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-| ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-| LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-| CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-| SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-| INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-| CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-| ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
-| THE POSSIBILITY OF SUCH DAMAGE.
-
---------------------------------------------------------------------------------
-
 This product bundles Reactive Streams.
 
 Project URL: http://reactive-streams.org
-License: MIT
+License: MIT-0
 | MIT No Attribution
 | 
 | Copyright 2014 Reactive Streams
@@ -1047,7 +2331,7 @@ This product bundles SLF4J.
 
 Project URL: http://www.slf4j.org
 License: MIT
-| Copyright (c) 2004-2025 QOS.ch
+| Copyright (c) 2004-2022 QOS.ch Sarl
 |  All rights reserved.
 | 
 |  Permission is hereby granted, free  of charge, to any person obtaining
@@ -1075,6 +2359,9 @@ This product bundles ThreeTen Extra.
 
 Project URL: https://www.threeten.org/threeten-extra
 License: BSD 3-Clause
+
+| Copyright (c) 2007-present, Stephen Colebourne & Michael Nascimento Santos.
+|
 | All rights reserved.
 |
 | * Redistribution and use in source and binary forms, with or without
@@ -1151,6 +2438,27 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 This product bundles AWS SDK for Java.
 
 Project URL: https://aws.amazon.com/sdkforjava
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles AWS SDK CRT for Java.
+
+Project URL: https://github.com/awslabs/aws-crt-java
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles AWS AccessGrants Plugin for Java.
+
+Project URL: https://github.com/aws/aws-s3-accessgrants-plugin-java-v2
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles AWS Analytics Accelerator S3.
+
+Project URL: https://github.com/awslabs/analytics-accelerator-s3
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
