@@ -38,7 +38,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
@@ -71,6 +70,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
@@ -81,6 +81,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -92,7 +93,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.StorageCredential;
-import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.CommitReport;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -145,6 +145,9 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           ImmutableMap.of(
               RESTCatalogProperties.NAMESPACE_SEPARATOR,
               RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8));
+  private static final RemoteSigningConfig TEST_REMOTE_SIGNING_CONFIG =
+      ImmutableRemoteSigningConfig.builder().putProperties("k", "v").build();
+  private static final String KMS_CREDENTIAL = "kms.credential";
 
   private static final class IdempotentEnv {
     private final TableIdentifier ident;
@@ -155,6 +158,17 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       this.ident = ident;
       this.http = http;
       this.headers = headers;
+    }
+  }
+
+  public static class TrackingKMS extends UnitestKMS {
+    private static final AtomicReference<Map<String, String>> INITIALIZED_PROPERTIES =
+        new AtomicReference<>();
+
+    @Override
+    public void initialize(Map<String, String> properties) {
+      super.initialize(properties);
+      INITIALIZED_PROPERTIES.set(ImmutableMap.copyOf(properties));
     }
   }
 
@@ -502,6 +516,54 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .isEqualTo("s3://bucket/warehouse");
 
     restCat.close();
+  }
+
+  @Test
+  public void kmsClientUsesClientSidePropertiesByDefault() throws IOException {
+    TrackingKMS.INITIALIZED_PROPERTIES.set(null);
+
+    RESTClient testClient =
+        new RESTCatalogAdapter(backendCatalog) {
+          @Override
+          public <T extends RESTResponse> T execute(
+              HTTPRequest request,
+              Class<T> responseType,
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            if (ResourcePaths.config().equals(request.path())) {
+              return castResponse(
+                  responseType,
+                  ConfigResponse.builder()
+                      .withOverride(KMS_CREDENTIAL, "server")
+                      .withOverride(
+                          CatalogProperties.ENCRYPTION_KMS_IMPL,
+                          "org.apache.iceberg.rest.DoesNotExistKMS")
+                      .build());
+            }
+
+            return super.execute(request, responseType, errorHandler, responseHeaders);
+          }
+        };
+
+    try (RESTCatalog restCat = new RESTCatalog((config) -> testClient)) {
+      restCat.initialize(
+          "prod",
+          ImmutableMap.of(
+              CatalogProperties.URI,
+              "http://localhost:8080",
+              CatalogProperties.ENCRYPTION_KMS_IMPL,
+              TrackingKMS.class.getName(),
+              KMS_CREDENTIAL,
+              "client"));
+
+      assertThat(restCat.properties()).containsEntry(KMS_CREDENTIAL, "server");
+      assertThat(restCat.properties())
+          .containsEntry(
+              CatalogProperties.ENCRYPTION_KMS_IMPL, "org.apache.iceberg.rest.DoesNotExistKMS");
+      assertThat(TrackingKMS.INITIALIZED_PROPERTIES.get())
+          .containsEntry(CatalogProperties.ENCRYPTION_KMS_IMPL, TrackingKMS.class.getName())
+          .containsEntry(KMS_CREDENTIAL, "client");
+    }
   }
 
   @Test
@@ -1314,9 +1376,6 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
   @Test
   public void loadTablePropagatesRemoteSigningConfig() throws IOException {
-    RemoteSigningConfig signingConfig =
-        ImmutableRemoteSigningConfig.builder().putProperties("k", "v").build();
-
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
 
     // Inject signing config into load table responses
@@ -1326,7 +1385,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               return LoadTableResponse.builder()
                   .withTableMetadata(response.tableMetadata())
                   .addAllConfig(response.config())
-                  .withRemoteSigningConfig(signingConfig)
+                  .withRemoteSigningConfig(TEST_REMOTE_SIGNING_CONFIG)
                   .build();
             })
         .when(adapter)
@@ -1357,8 +1416,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     assertThat(io.properties())
         .containsEntry(
+            RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT, RESOURCE_PATHS.remoteSign(TABLE))
+        .containsEntry(
             RESTCatalogProperties.REMOTE_SIGNING_CONFIG,
-            RemoteSigningConfigParser.toJson(signingConfig));
+            RemoteSigningConfigParser.toJson(TEST_REMOTE_SIGNING_CONFIG));
 
     catalog.close();
   }
@@ -3234,7 +3295,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           FileIO fileIO,
           TableMetadata current,
           Set<Endpoint> supportedEndpoints) {
-        super(client, path, () -> customHeaders, fileIO, current, supportedEndpoints);
+        super(client, path, () -> customHeaders, fileIO, null, current, supportedEndpoints);
         customTableOpsCalled.set(true);
       }
 
@@ -3252,6 +3313,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             path,
             () -> customHeaders,
             fileIO,
+            null,
             updateType,
             createChanges,
             current,
@@ -3881,67 +3943,78 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
-  public void testIoBuilderReceivesStorageCredentials() {
-    Credential credential =
-        ImmutableCredential.builder()
-            .prefix("s3://test-bucket/")
-            .putConfig("s3.access-key-id", "test-access-key")
-            .putConfig("s3.secret-access-key", "test-secret-key")
-            .build();
+  public void testIoBuilderReceivesStorageCredentials() throws IOException {
+    RESTCatalogAdapter adapter = adapterWithStorageCredential();
+    AtomicReference<TestCatalogUtil.TestFileIOWithStorageCredentials> createdFileIO =
+        new AtomicReference<>();
 
-    // Adapter that injects storage credentials into LoadTableResponse
-    RESTCatalogAdapter adapter =
-        new RESTCatalogAdapter(backendCatalog) {
-          @SuppressWarnings("unchecked")
-          @Override
-          public <T extends RESTResponse> T handleRequest(
-              Route route,
-              Map<String, String> vars,
-              HTTPRequest httpRequest,
-              Class<T> responseType,
-              Consumer<Map<String, String>> responseHeaders) {
-            T response =
-                super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
-            if (route == Route.LOAD_TABLE && response instanceof LoadTableResponse loadResponse) {
-              return (T)
-                  LoadTableResponse.builder()
-                      .withTableMetadata(loadResponse.tableMetadata())
-                      .addAllConfig(loadResponse.config())
-                      .addCredential(credential)
-                      .build();
-            }
-            return response;
-          }
-        };
-
-    AtomicReference<FileIO> createdFileIO = new AtomicReference<>();
-
-    try (RESTCatalog catalog =
-        catalog(
-            adapter,
-            clientBuilder ->
-                new RESTSessionCatalog(
-                    clientBuilder,
-                    (context, config) -> {
-                      TestCatalogUtil.TestFileIOWithStorageCredentials fileIO =
-                          new TestCatalogUtil.TestFileIOWithStorageCredentials();
-                      createdFileIO.set(fileIO);
-                      return fileIO;
-                    }))) {
+    try (RESTCatalog catalog = catalog(adapter, sessionCatalogWithTrackingFileIO(createdFileIO))) {
       catalog.createNamespace(NS);
       catalog.createTable(TABLE, SCHEMA);
       catalog.loadTable(TABLE);
 
-      assertThat(createdFileIO.get()).isInstanceOf(SupportsStorageCredentials.class);
-      List<StorageCredential> creds =
-          ((SupportsStorageCredentials) createdFileIO.get()).credentials();
-      assertThat(creds).hasSize(1);
-      assertThat(creds.get(0).prefix()).isEqualTo("s3://test-bucket/");
-      assertThat(creds.get(0).config())
-          .containsEntry("s3.access-key-id", "test-access-key")
-          .containsEntry("s3.secret-access-key", "test-secret-key");
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      assertStorageCredential(createdFileIO.get().credentials());
+    }
+  }
+
+  @Test
+  public void encryptedTableRejectsVendedStorageCredentialsUnlessClientKmsCredsEnabled()
+      throws IOException {
+    assertEncryptedTableReceivesVendedStorageCredentials(
+        "encrypted_default",
+        ImmutableMap.of(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getName()),
+        false);
+
+    assertEncryptedTableReceivesVendedStorageCredentials(
+        "encrypted_hybrid",
+        ImmutableMap.of(
+            CatalogProperties.ENCRYPTION_KMS_IMPL,
+            UnitestKMS.class.getName(),
+            RESTCatalogProperties.USE_CLIENT_KMS_CREDS,
+            "true"),
+        true);
+  }
+
+  private void assertEncryptedTableReceivesVendedStorageCredentials(
+      String tableName, Map<String, String> properties, boolean expectVendedCredentials)
+      throws IOException {
+    RESTCatalogAdapter adapter = adapterWithStorageCredential();
+    AtomicReference<TestCatalogUtil.TestFileIOWithStorageCredentials> createdFileIO =
+        new AtomicReference<>();
+    AtomicReference<Map<String, String>> createdFileIOProperties = new AtomicReference<>();
+    TableIdentifier identifier = TableIdentifier.of(NS, tableName);
+
+    try (RESTCatalog catalog =
+        catalog(
+            adapter,
+            sessionCatalogWithTrackingFileIO(createdFileIO, createdFileIOProperties),
+            properties)) {
+      if (!catalog.namespaceExists(identifier.namespace())) {
+        catalog.createNamespace(identifier.namespace());
+      }
+
+      catalog
+          .buildTable(identifier, SCHEMA)
+          .withProperty(TableProperties.FORMAT_VERSION, "3")
+          .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+          .create();
+
+      if (expectVendedCredentials) {
+        catalog.loadTable(identifier);
+        assertStorageCredential(createdFileIO.get().credentials());
+        assertThat(createdFileIOProperties.get())
+            .containsEntry(
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                RESOURCE_PATHS.remoteSign(identifier))
+            .containsEntry(
+                RESTCatalogProperties.REMOTE_SIGNING_CONFIG,
+                RemoteSigningConfigParser.toJson(TEST_REMOTE_SIGNING_CONFIG));
+      } else {
+        assertThatThrownBy(() -> catalog.loadTable(identifier))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("Cannot use REST-provided storage access")
+            .hasMessageContaining(RESTCatalogProperties.USE_CLIENT_KMS_CREDS);
+      }
     }
   }
 
@@ -4111,6 +4184,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       RESTCatalogAdapter adapter,
       Function<Function<Map<String, String>, RESTClient>, RESTSessionCatalog>
           sessionCatalogFactory) {
+    return catalog(adapter, sessionCatalogFactory, ImmutableMap.of());
+  }
+
+  private RESTCatalog catalog(
+      RESTCatalogAdapter adapter,
+      Function<Function<Map<String, String>, RESTClient>, RESTSessionCatalog> sessionCatalogFactory,
+      Map<String, String> additionalProperties) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter) {
           @Override
@@ -4121,9 +4201,76 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         };
     catalog.initialize(
         "test",
-        ImmutableMap.of(
-            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
+            .putAll(additionalProperties)
+            .buildKeepingLast());
     return catalog;
+  }
+
+  private static Credential storageCredential() {
+    return ImmutableCredential.builder()
+        .prefix("s3://test-bucket/")
+        .putConfig("s3.access-key-id", "test-access-key")
+        .putConfig("s3.secret-access-key", "test-secret-key")
+        .build();
+  }
+
+  private static void assertStorageCredential(List<StorageCredential> credentials) {
+    assertThat(credentials).hasSize(1);
+    assertThat(credentials.get(0).prefix()).isEqualTo("s3://test-bucket/");
+    assertThat(credentials.get(0).config())
+        .containsEntry("s3.access-key-id", "test-access-key")
+        .containsEntry("s3.secret-access-key", "test-secret-key");
+  }
+
+  private RESTCatalogAdapter adapterWithStorageCredential() {
+    Credential credential = storageCredential();
+    return new RESTCatalogAdapter(backendCatalog) {
+      @SuppressWarnings("unchecked")
+      @Override
+      public <T extends RESTResponse> T handleRequest(
+          Route route,
+          Map<String, String> vars,
+          HTTPRequest httpRequest,
+          Class<T> responseType,
+          Consumer<Map<String, String>> responseHeaders) {
+        T response = super.handleRequest(route, vars, httpRequest, responseType, responseHeaders);
+        if (route == Route.LOAD_TABLE && response instanceof LoadTableResponse loadResponse) {
+          return (T)
+              LoadTableResponse.builder()
+                  .withTableMetadata(loadResponse.tableMetadata())
+                  .addAllConfig(loadResponse.config())
+                  .addCredential(credential)
+                  .withRemoteSigningConfig(TEST_REMOTE_SIGNING_CONFIG)
+                  .build();
+        }
+
+        return response;
+      }
+    };
+  }
+
+  private Function<Function<Map<String, String>, RESTClient>, RESTSessionCatalog>
+      sessionCatalogWithTrackingFileIO(
+          AtomicReference<TestCatalogUtil.TestFileIOWithStorageCredentials> createdFileIO) {
+    return sessionCatalogWithTrackingFileIO(createdFileIO, new AtomicReference<>());
+  }
+
+  private Function<Function<Map<String, String>, RESTClient>, RESTSessionCatalog>
+      sessionCatalogWithTrackingFileIO(
+          AtomicReference<TestCatalogUtil.TestFileIOWithStorageCredentials> createdFileIO,
+          AtomicReference<Map<String, String>> createdFileIOProperties) {
+    return clientBuilder ->
+        new RESTSessionCatalog(
+            clientBuilder,
+            (context, config) -> {
+              TestCatalogUtil.TestFileIOWithStorageCredentials fileIO =
+                  new TestCatalogUtil.TestFileIOWithStorageCredentials();
+              createdFileIO.set(fileIO);
+              createdFileIOProperties.set(config);
+              return fileIO;
+            });
   }
 
   private static List<HTTPRequest> allRequests(RESTCatalogAdapter adapter) {
