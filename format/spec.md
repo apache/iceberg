@@ -62,6 +62,7 @@ The full set of changes are listed in [Appendix E](#version-3).
 Version 4 of the Iceberg spec restructures metadata for improved performance and new capabilities:
 
 * Support for [relative locations](#file-locations-in-metadata) in metadata fields
+* Row last-updated timestamp metadata column (`_last_updated_timestamp_ms`), inherited from the snapshot `timestamp-ms`
 
 The full set of changes are listed in [Appendix E](#version-4).
 
@@ -456,6 +457,7 @@ The set of metadata columns is:
 | **`2147483541  _commit_snapshot_id`**             | `long`        | The snapshot ID in which the change occurred                                                                 |
 | **`2147483540  _row_id`**                         | `long`        | A unique long assigned for row lineage, see [Row Lineage](#row-lineage)                                  |
 | **`2147483539  _last_updated_sequence_number`**   | `long`        | The sequence number which last updated this row, see [Row Lineage](#row-lineage)              |
+| **`2147483538  _last_updated_timestamp_ms`**      | `long`        | The snapshot commit timestamp in milliseconds which last updated this row, see [Row Lineage](#row-lineage) |
 
 #### Row Lineage
 
@@ -463,26 +465,29 @@ In v3 and later, an Iceberg table must track row lineage fields for all newly cr
 
 * `_row_id` a unique long identifier for every row within the table. The value is assigned via inheritance when a row is first added to the table.
 * `_last_updated_sequence_number` the sequence number of the commit that last updated a row. The value is inherited when a row is first added or modified.
+* `_last_updated_timestamp_ms` (v4 and later) the snapshot `timestamp-ms` of the commit that last updated a row. The value is inherited when a row is first added or modified.
 
-These fields are assigned and updated by inheritance because the commit sequence number and starting row ID are not assigned until the snapshot is successfully committed. Inheritance is used to allow writing data and manifest files before values are known so that it is not necessary to rewrite data and manifest files when an optimistic commit is retried.
+These fields are assigned and updated by inheritance because the commit sequence number, commit timestamp, and starting row ID are not assigned until the snapshot is successfully committed. Inheritance is used to allow writing data and manifest files before values are known so that it is not necessary to rewrite data and manifest files when an optimistic commit is retried.
 
 Row lineage does not track lineage for rows updated via [Equality Deletes](#equality-delete-files), because engines using equality deletes avoid reading existing data before writing changes and can't provide the original row ID for the new rows. These updates are always treated as if the existing row was completely removed and a unique new row was added.
 
 ##### Row lineage assignment
 
-When a row is added or modified, the `_last_updated_sequence_number` field is set to `null` so that it is inherited when reading. Similarly, the `_row_id` field for an added row is set to `null` and assigned when reading.
+When a row is added or modified, the `_last_updated_sequence_number` field is set to `null` so that it is inherited when reading. In v4 and later, `_last_updated_timestamp_ms` is likewise set to `null` when a row is added or modified. Similarly, the `_row_id` field for an added row is set to `null` and assigned when reading.
 
-A data file with only new rows for the table may omit the `_last_updated_sequence_number` and `_row_id`. If the columns are missing, readers should treat both columns as if they exist and are set to null for all rows.
+A data file with only new rows for the table may omit the `_last_updated_sequence_number`, `_last_updated_timestamp_ms`, and `_row_id`. If the columns are missing, readers should treat the columns as if they exist and are set to null for all rows.
 
 On read, if `_last_updated_sequence_number` is `null` it is assigned the `sequence_number` of the data file's manifest entry. The data sequence number of a data file is documented in [Sequence Number Inheritance](#sequence-number-inheritance).
 
+On read, if `_last_updated_timestamp_ms` is `null` it is assigned the `commit_timestamp_ms` of the data file's manifest entry. The commit timestamp of a data file is documented in [Commit Timestamp Inheritance](#commit-timestamp-inheritance). When `commit_timestamp_ms` is null (for example, for files added before a table was upgraded to v4), `_last_updated_timestamp_ms` remains null.
+
 When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the manifest list for a snapshot and is documented in [First Row ID Assignment](#first-row-id-assignment). A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
 
-When an existing row is moved to a different data file for any reason, writers should write `_row_id` and `_last_updated_sequence_number` according to the following rules:
+When an existing row is moved to a different data file for any reason, writers should write `_row_id`, `_last_updated_sequence_number`, and `_last_updated_timestamp_ms` according to the following rules:
 
 1. The row's existing non-null `_row_id` must be copied into the new data file
-2. If the write has modified the row, the `_last_updated_sequence_number` field must be set to `null` (so that the modification's sequence number replaces the current value)
-3. If the write has not modified the row, the existing non-null `_last_updated_sequence_number` value must be copied to the new data file
+2. If the write has modified the row, the `_last_updated_sequence_number` and `_last_updated_timestamp_ms` fields must be set to `null` (so that the modification's sequence number and commit timestamp replace the current values)
+3. If the write has not modified the row, the existing non-null `_last_updated_sequence_number` and `_last_updated_timestamp_ms` values must be copied to the new data file
 
 Engines may model operations as deleting/inserting rows or as modifications to rows that preserve row ids.
 
@@ -543,6 +548,10 @@ Note that:
 * Snapshots created before upgrading to v3 do not have row IDs.
 * After upgrading, new snapshots in different branches will assign disjoint ID ranges to existing data files, based on the table's `next-row-id` when the snapshot is committed. For a data file in multiple branches, a writer may write the `first_row_id` from another branch or may assign a new `first_row_id` to the data file (to avoid large metadata rewrites).
 * Existing rows will inherit `_last_updated_sequence_number` from their containing data file.
+
+##### Row Lineage Timestamp for Upgraded Tables
+
+When a table is upgraded to v4, existing data files and manifests are not modified to assign `commit_timestamp_ms`. Rows that were added or last modified before the upgrade read `_last_updated_timestamp_ms` as null. New rows added or modified after the upgrade inherit `_last_updated_timestamp_ms` from the snapshot `timestamp-ms` via [Commit Timestamp Inheritance](#commit-timestamp-inheritance).
 
 ### Partitioning
 
@@ -684,14 +693,15 @@ Within a snapshot, each content file must be referenced by at most one live mani
 
 The schema of a manifest file is defined by the `manifest_entry` struct, which consists of the following fields:
 
-=== "v1 - v3"
-    | v1         | v2 and v3  | Field id, name                | Type                                                      | Description |
-    | ---------- | ---------- |-------------------------------|-----------------------------------------------------------|-------------|
-    | _required_ | _required_ | **`0  status`**               | `int` with meaning: `0: EXISTING` `1: ADDED` `2: DELETED` | Used to track additions and deletions. Deletes are informational only and not used in scans. |
-    | _required_ | _optional_ | **`1  snapshot_id`**          | `long`                                                    | Snapshot id where the file was added, or deleted if status is 2. Inherited when null. |
-    |            | _optional_ | **`3  sequence_number`**      | `long`                                                    | Data sequence number of the file. Inherited when null and status is 1 (added). |
-    |            | _optional_ | **`4  file_sequence_number`** | `long`                                                    | File sequence number indicating when the file was added. Inherited when null and status is 1 (added). |
-    | _required_ | _required_ | **`2  data_file`**            | `data_file` `struct` (see below)                          | File path, partition tuple, metrics, ... |
+=== "v1 - v4"
+    | v1         | v2 and v3  | v4         | Field id, name                | Type                                                      | Description |
+    | ---------- | ---------- |------------|-------------------------------|-----------------------------------------------------------|-------------|
+    | _required_ | _required_ | _required_ | **`0  status`**               | `int` with meaning: `0: EXISTING` `1: ADDED` `2: DELETED` | Used to track additions and deletions. Deletes are informational only and not used in scans. |
+    | _required_ | _optional_ | _optional_ | **`1  snapshot_id`**          | `long`                                                    | Snapshot id where the file was added, or deleted if status is 2. Inherited when null. |
+    |            | _optional_ | _optional_ | **`3  sequence_number`**      | `long`                                                    | Data sequence number of the file. Inherited when null and status is 1 (added). |
+    |            | _optional_ | _optional_ | **`4  file_sequence_number`** | `long`                                                    | File sequence number indicating when the file was added. Inherited when null and status is 1 (added). |
+    |            |            | _optional_ | **`5  commit_timestamp_ms`**  | `long`                                                    | Snapshot commit timestamp in milliseconds when the file was added. Inherited when null and status is 1 (added). |
+    | _required_ | _required_ | _required_ | **`2  data_file`**            | `data_file` `struct` (see below)                          | File path, partition tuple, metrics, ... |
 
 The manifest entry fields are used to keep track of the snapshot in which files were added or logically deleted. The `data_file` struct, defined below, is nested inside the manifest entry so that it can be easily passed to job planning without the manifest entry fields.
 
@@ -703,6 +713,8 @@ Iceberg v2 adds data and file sequence numbers to the entry and makes the snapsh
 The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
 The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number.
 The data and file sequence numbers are inherited only if the entry status is 1 (added). If the entry status is 0 (existing) or 2 (deleted), the entry must include both sequence numbers explicitly.
+
+Iceberg v4 adds `commit_timestamp_ms` to the entry so that row last-updated timestamps can be inherited independently of snapshot retention. The commit timestamp is inherited under the same rules as sequence numbers: only when the entry status is 1 (added) and the field is null. Existing and deleted entries must include `commit_timestamp_ms` explicitly when the value is known. See [Commit Timestamp Inheritance](#commit-timestamp-inheritance).
 
 Notes:
 
@@ -813,6 +825,7 @@ IDs in the range `10_000` (inclusive) to `200_000_000` (exclusive) are reserved 
 
 | Reserved field                  | ID         | `base-id` | Range end |
 |---------------------------------|------------|-----------|-----------|
+| `_last_updated_timestamp_ms`    | 2147483538 | 8800      | 8999 |
 | `_last_updated_sequence_number` | 2147483539 | 9000      | 9199 |
 | `_row_id`                       | 2147483540 | 9200      | 9399 |
 
@@ -937,6 +950,18 @@ Inheriting sequence numbers through the metadata tree allows writing a new manif
 
 When reading v1 manifests with no sequence number column, sequence numbers for all files must default to 0.
 
+#### Commit Timestamp Inheritance
+
+In v4 and later, manifests track the snapshot commit timestamp when a data or delete file was added to the table. This enables the `_last_updated_timestamp_ms` row lineage field to survive snapshot expiration, using the same inheritance pattern as sequence numbers.
+
+When adding a new file, its `commit_timestamp_ms` is set to `null` because the snapshot's `timestamp-ms` is not finalized until the snapshot is successfully committed. When reading, a null `commit_timestamp_ms` on an ADDED entry is replaced with the manifest's `commit_timestamp_ms` from the manifest list.
+
+When writing an existing file to a new manifest or marking an existing file as deleted, `commit_timestamp_ms` must be set to the original value that was either inherited or provided at commit time. The original value may be null for files added before the table was upgraded to v4.
+
+Inheriting commit timestamps through the metadata tree allows writing a new manifest without a known commit timestamp, so that a manifest can be written once and reused in commit retries. To change the commit timestamp for a retry, only the manifest list must be rewritten.
+
+When reading manifests written before v4 with no `commit_timestamp_ms` column, commit timestamps for all files must default to null.
+
 #### First Row ID Inheritance
 
 When adding a new data file, its `first_row_id` field is set to `null` because it is not assigned until the snapshot is successfully committed.
@@ -999,7 +1024,7 @@ see [Row Lineage Example](#row-lineage-example).
 
 Snapshots are embedded in table metadata, but the list of manifests for a snapshot are stored in a separate manifest list file.
 
-A new manifest list is written for each attempt to commit a snapshot because the list of manifests always changes to produce a new snapshot. When a manifest list is written, the (optimistic) sequence number of the snapshot is written for all new manifest files tracked by the list.
+A new manifest list is written for each attempt to commit a snapshot because the list of manifests always changes to produce a new snapshot. When a manifest list is written, the (optimistic) sequence number of the snapshot is written for all new manifest files tracked by the list. In v4 and later, the snapshot's `timestamp-ms` is likewise written as `commit_timestamp_ms` for all new manifest files tracked by the list.
 
 A manifest list includes summary metadata that can be used to avoid scanning all of the manifests in a snapshot when planning a table scan. This includes the number of added, existing, and deleted files, and a summary of values for each field of the partition spec used to write the manifest.
 
@@ -1007,25 +1032,26 @@ A manifest list is a valid Iceberg data file: files must use valid Iceberg forma
 
 Manifest list files store `manifest_file`, a struct with the following fields:
 
-=== "v1 - v3"
-    | v1         | v2         | v3         | Field id, name                      | Type                                        | Description |
-    | ---------- | ---------- |------------|-------------------------------------|---------------------------------------------|-------------|
-    | _required_ | _required_ | _required_ | **`500 manifest_path`**             | `string`                                    | Location of the manifest file |
-    | _required_ | _required_ | _required_ | **`501 manifest_length`**           | `long`                                      | Length of the manifest file in bytes |
-    | _required_ | _required_ | _required_ | **`502 partition_spec_id`**         | `int`                                       | ID of a partition spec used to write the manifest; must be listed in table metadata `partition-specs` |
-    |            | _required_ | _required_ | **`517 content`**                   | `int` with meaning: `0: data`, `1: deletes` | The type of files tracked by the manifest, either data or delete files; 0 for all v1 manifests |
-    |            | _required_ | _required_ | **`515 sequence_number`**           | `long`                                      | The sequence number when the manifest was added to the table; use 0 when reading v1 manifest lists |
-    |            | _required_ | _required_ | **`516 min_sequence_number`**       | `long`                                      | The minimum data sequence number of all live data or delete files in the manifest; use 0 when reading v1 manifest lists |
-    | _required_ | _required_ | _required_ | **`503 added_snapshot_id`**         | `long`                                      | ID of the snapshot where the manifest file was added |
-    | _optional_ | _required_ | _required_ | **`504 added_files_count`**         | `int`                                       | Number of entries in the manifest that have status `ADDED` (1), when `null` this is assumed to be non-zero |
-    | _optional_ | _required_ | _required_ | **`505 existing_files_count`**      | `int`                                       | Number of entries in the manifest that have status `EXISTING` (0), when `null` this is assumed to be non-zero |
-    | _optional_ | _required_ | _required_ | **`506 deleted_files_count`**       | `int`                                       | Number of entries in the manifest that have status `DELETED` (2), when `null` this is assumed to be non-zero |
-    | _optional_ | _required_ | _required_ | **`512 added_rows_count`**          | `long`                                      | Number of rows in all of files in the manifest that have status `ADDED`, when `null` this is assumed to be non-zero |
-    | _optional_ | _required_ | _required_ | **`513 existing_rows_count`**       | `long`                                      | Number of rows in all of files in the manifest that have status `EXISTING`, when `null` this is assumed to be non-zero |
-    | _optional_ | _required_ | _required_ | **`514 deleted_rows_count`**        | `long`                                      | Number of rows in all of files in the manifest that have status `DELETED`, when `null` this is assumed to be non-zero |
-    | _optional_ | _optional_ | _optional_ | **`507 partitions`**                | `list<508: field_summary>` **(see below)**  | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
-    | _optional_ | _optional_ | _optional_ | **`519 key_metadata`**              | `binary`                                    | Implementation-specific key metadata for encryption |
-    |            |            | _optional_ | **`520 first_row_id`**              | `long`                                      | The starting `_row_id` to assign to rows added by `ADDED` data files [First Row ID Assignment](#first-row-id-assignment) |
+=== "v1 - v4"
+    | v1         | v2         | v3         | v4         | Field id, name                      | Type                                        | Description |
+    | ---------- | ---------- |------------|------------|-------------------------------------|---------------------------------------------|-------------|
+    | _required_ | _required_ | _required_ | _required_ | **`500 manifest_path`**             | `string`                                    | Location of the manifest file |
+    | _required_ | _required_ | _required_ | _required_ | **`501 manifest_length`**           | `long`                                      | Length of the manifest file in bytes |
+    | _required_ | _required_ | _required_ | _required_ | **`502 partition_spec_id`**         | `int`                                       | ID of a partition spec used to write the manifest; must be listed in table metadata `partition-specs` |
+    |            | _required_ | _required_ | _required_ | **`517 content`**                   | `int` with meaning: `0: data`, `1: deletes` | The type of files tracked by the manifest, either data or delete files; 0 for all v1 manifests |
+    |            | _required_ | _required_ | _required_ | **`515 sequence_number`**           | `long`                                      | The sequence number when the manifest was added to the table; use 0 when reading v1 manifest lists |
+    |            | _required_ | _required_ | _required_ | **`516 min_sequence_number`**       | `long`                                      | The minimum data sequence number of all live data or delete files in the manifest; use 0 when reading v1 manifest lists |
+    | _required_ | _required_ | _required_ | _required_ | **`503 added_snapshot_id`**         | `long`                                      | ID of the snapshot where the manifest file was added |
+    | _optional_ | _required_ | _required_ | _required_ | **`504 added_files_count`**         | `int`                                       | Number of entries in the manifest that have status `ADDED` (1), when `null` this is assumed to be non-zero |
+    | _optional_ | _required_ | _required_ | _required_ | **`505 existing_files_count`**      | `int`                                       | Number of entries in the manifest that have status `EXISTING` (0), when `null` this is assumed to be non-zero |
+    | _optional_ | _required_ | _required_ | _required_ | **`506 deleted_files_count`**       | `int`                                       | Number of entries in the manifest that have status `DELETED` (2), when `null` this is assumed to be non-zero |
+    | _optional_ | _required_ | _required_ | _required_ | **`512 added_rows_count`**          | `long`                                      | Number of rows in all of files in the manifest that have status `ADDED`, when `null` this is assumed to be non-zero |
+    | _optional_ | _required_ | _required_ | _required_ | **`513 existing_rows_count`**       | `long`                                      | Number of rows in all of files in the manifest that have status `EXISTING`, when `null` this is assumed to be non-zero |
+    | _optional_ | _required_ | _required_ | _required_ | **`514 deleted_rows_count`**        | `long`                                      | Number of rows in all of files in the manifest that have status `DELETED`, when `null` this is assumed to be non-zero |
+    | _optional_ | _optional_ | _optional_ | _optional_ | **`507 partitions`**                | `list<508: field_summary>` **(see below)**  | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
+    | _optional_ | _optional_ | _optional_ | _optional_ | **`519 key_metadata`**              | `binary`                                    | Implementation-specific key metadata for encryption |
+    |            |            | _optional_ | _optional_ | **`520 first_row_id`**              | `long`                                      | The starting `_row_id` to assign to rows added by `ADDED` data files [First Row ID Assignment](#first-row-id-assignment) |
+    |            |            |            | _optional_ | **`521 commit_timestamp_ms`**       | `long`                                      | The snapshot `timestamp-ms` when the manifest was added to the table; used for [Commit Timestamp Inheritance](#commit-timestamp-inheritance) |
 
 `field_summary` is a struct with the following fields:
 === "v1 - v3"
@@ -1914,6 +1940,18 @@ Reading v4 metadata:
 * Readers must check whether location fields contain a URI scheme to determine if a path is absolute or relative
 * Relative paths must be resolved against the table location before use (see [Path Resolution](#path-resolution))
 * When `location` is omitted, the table location must be provided (see [Table Location Specification](#table-location-specification))
+
+Row last-updated timestamp changes:
+
+* Writers must track `_last_updated_timestamp_ms` for newly created and modified rows
+* When writing a new manifest list, writers must set `commit_timestamp_ms` on newly added manifests to the snapshot's `timestamp-ms`
+* When writing a manifest, new data and delete files must be written with a null `commit_timestamp_ms` so that the value is assigned at read time based on the manifest's `commit_timestamp_ms`
+* When a manifest has a non-null `commit_timestamp_ms`, readers must assign that value to any ADDED entry that has a missing or null `commit_timestamp_ms`
+* When writing an existing or deleted file into a new manifest, its `commit_timestamp_ms` must be written into the manifest (the value may be null for files added before the table was upgraded to v4)
+* Readers must replace any null or missing `_last_updated_timestamp_ms` with the data file's `commit_timestamp_ms` when that value is non-null
+* Readers must produce null for `_last_updated_timestamp_ms` when the data file's `commit_timestamp_ms` is null
+* When writing an existing row into a new data file, writers must write `_last_updated_timestamp_ms` if it is non-null and the row was not modified; if the row was modified, writers must write null so the new commit timestamp is inherited
+* When a table is upgraded to v4, existing files and manifests are not modified to assign `commit_timestamp_ms`; rows last updated before the upgrade read `_last_updated_timestamp_ms` as null
 
 ### Version 3
 
