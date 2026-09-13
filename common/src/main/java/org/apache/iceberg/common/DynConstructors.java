@@ -205,6 +205,18 @@ public class DynConstructors {
         return this;
       }
 
+      // validate assignability if baseClass is set
+      if (baseClass != null && !baseClass.isAssignableFrom(targetClass)) {
+        problems.put(
+            methodName(targetClass, types),
+            new IllegalArgumentException(
+                "Implementation class "
+                    + targetClass.getName()
+                    + " does not implement "
+                    + baseClass.getName()));
+        return this;
+      }
+
       try {
         ctor = new Ctor<>(targetClass.getConstructor(types), targetClass);
       } catch (NoSuchMethodException e) {
@@ -252,6 +264,18 @@ public class DynConstructors {
         return this;
       }
 
+      // validate assignability if baseClass is set
+      if (baseClass != null && !baseClass.isAssignableFrom(targetClass)) {
+        problems.put(
+            methodName(targetClass, types),
+            new IllegalArgumentException(
+                "Implementation class "
+                    + targetClass.getName()
+                    + " does not implement "
+                    + baseClass.getName()));
+        return this;
+      }
+
       try {
         Constructor<T> hidden = targetClass.getDeclaredConstructor(types);
         AccessController.doPrivileged(new MakeAccessible(hidden));
@@ -279,6 +303,12 @@ public class DynConstructors {
       if (ctor != null) {
         return (Ctor<C>) ctor;
       }
+      // throw assignability errors with priority
+      for (Throwable problem : problems.values()) {
+        if (problem instanceof IllegalArgumentException) {
+          throw (IllegalArgumentException) problem;
+        }
+      }
       throw buildCheckedException(baseClass, problems);
     }
 
@@ -294,6 +324,12 @@ public class DynConstructors {
     public <C> Ctor<C> build() {
       if (ctor != null) {
         return (Ctor<C>) ctor;
+      }
+      // throw assignability errors with priority
+      for (Throwable problem : problems.values()) {
+        if (problem instanceof IllegalArgumentException) {
+          throw (IllegalArgumentException) problem;
+        }
       }
       throw buildRuntimeException(baseClass, problems);
     }
