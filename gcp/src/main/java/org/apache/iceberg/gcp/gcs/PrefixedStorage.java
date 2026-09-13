@@ -23,6 +23,7 @@ import com.google.auth.Credentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ImpersonatedCredentials;
 import com.google.cloud.NoCredentials;
+import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import java.io.IOException;
@@ -73,6 +74,11 @@ class PrefixedStorage implements AutoCloseable {
             gcpProperties.projectId().ifPresent(builder::setProjectId);
             gcpProperties.clientLibToken().ifPresent(builder::setClientLibToken);
             gcpProperties.serviceHost().ifPresent(builder::setHost);
+
+            HttpTransportOptions.Builder transportBuilder = HttpTransportOptions.newBuilder();
+            gcpProperties.httpConnectTimeoutMs().ifPresent(transportBuilder::setConnectTimeout);
+            gcpProperties.httpReadTimeoutMs().ifPresent(transportBuilder::setReadTimeout);
+            builder.setTransportOptions(transportBuilder.build());
 
             Credentials credentials = credentials(gcpProperties);
             if (credentials != null) {
