@@ -50,7 +50,7 @@ class TrackedFileAdapters {
     Preconditions.checkArgument(
         dataFile instanceof TrackedDataFile,
         "Cannot create DV delete file from DataFile: %s",
-        dataFile.getClass().getName());
+        dataFile);
     TrackedDataFile tracked = (TrackedDataFile) dataFile;
     return new TrackedDVDeleteFile(tracked.file(), tracked.specId());
   }
