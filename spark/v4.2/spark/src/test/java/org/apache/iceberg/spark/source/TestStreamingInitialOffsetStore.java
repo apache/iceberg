@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.hadoop.conf.Configuration;
@@ -31,21 +33,39 @@ class TestStreamingInitialOffsetStore {
   @TempDir private Path checkpointDir;
 
   @Test
-  void restoresStoredOffset() {
-    AtomicInteger initializations = new AtomicInteger();
-    StreamingOffset expected = new StreamingOffset(34L, 0L, false);
-    StreamingInitialOffsetStore firstStore =
+  void persistsOffsetAndCreatesParentDirectories() {
+    Path checkpoint = checkpointDir.resolve("nested/checkpoint");
+    StreamingOffset expected = new StreamingOffset(34L, 7L, true);
+    StreamingInitialOffsetStore store =
+        new StreamingInitialOffsetStore(checkpoint.toString(), new Configuration(), () -> expected);
+
+    assertThat(store.initialOffset()).isEqualTo(expected);
+    assertThat(checkpoint.resolve("offsets/0"))
+        .isRegularFile()
+        .hasContent("{\"version\":1,\"snapshot_id\":34,\"position\":7,\"scan_all_files\":true}");
+  }
+
+  @Test
+  void restoresStoredOffsetWithoutInitializing() throws IOException {
+    Path offsetFile = checkpointDir.resolve("offsets/0");
+    Files.createDirectories(offsetFile.getParent());
+    Files.writeString(
+        offsetFile, "{\"version\":1,\"snapshot_id\":34,\"position\":7,\"scan_all_files\":true}");
+    StreamingInitialOffsetStore store =
         new StreamingInitialOffsetStore(
             checkpointDir.toString(),
             new Configuration(),
             () -> {
-              initializations.incrementAndGet();
-              return expected;
+              throw new AssertionError("Must restore the persisted offset without initializing");
             });
 
-    assertThat(firstStore.initialOffset()).isEqualTo(expected);
+    assertThat(store.initialOffset()).isEqualTo(new StreamingOffset(34L, 7L, true));
+  }
 
-    StreamingInitialOffsetStore restoredStore =
+  @Test
+  void restoresStartOffsetWithoutReinitializing() {
+    AtomicInteger initializations = new AtomicInteger();
+    StreamingInitialOffsetStore firstStore =
         new StreamingInitialOffsetStore(
             checkpointDir.toString(),
             new Configuration(),
@@ -54,7 +74,18 @@ class TestStreamingInitialOffsetStore {
               return StreamingOffset.START_OFFSET;
             });
 
-    assertThat(restoredStore.initialOffset()).isEqualTo(expected);
+    assertThat(firstStore.initialOffset()).isEqualTo(StreamingOffset.START_OFFSET);
+
+    StreamingInitialOffsetStore restoredStore =
+        new StreamingInitialOffsetStore(
+            checkpointDir.toString(),
+            new Configuration(),
+            () -> {
+              initializations.incrementAndGet();
+              return new StreamingOffset(34L, 0L, false);
+            });
+
+    assertThat(restoredStore.initialOffset()).isEqualTo(StreamingOffset.START_OFFSET);
     assertThat(initializations).hasValue(1);
   }
 }
