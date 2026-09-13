@@ -225,7 +225,14 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Dataset<String> filteredCompareToFileList() {
     Dataset<Row> files = compareToFileList;
     if (location != null) {
-      files = files.filter(files.col(FILE_PATH).startsWith(location));
+      // Ensure path boundary is respected: s3://bucket/table should not match
+      // s3://bucket/table-backup/... which is a sibling path, not a subdirectory
+      String locationPrefix =
+          location.endsWith("/") ? location : location + "/";
+      files =
+          files.filter(
+              files.col(FILE_PATH).startsWith(locationPrefix)
+                  .or(files.col(FILE_PATH).equalTo(location)));
     }
     return files
         .filter(files.col(LAST_MODIFIED).lt(new Timestamp(olderThanTimestamp)))
