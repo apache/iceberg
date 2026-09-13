@@ -333,11 +333,6 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
    */
   private boolean checkCurrentMetadataLocation(String newMetadataLocation) {
     TableMetadata metadata = refresh();
-    if (metadata == null) {
-      // Table creation may not have registered metadata yet.
-      return false;
-    }
-
     String currentMetadataFileLocation = metadata.metadataFileLocation();
     return currentMetadataFileLocation.equals(newMetadataLocation)
         || metadata.previousFiles().stream()
