@@ -66,6 +66,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestGCSFileIO {
+  private static final String PRE_SIGNED_URL =
+      "https://storage.googleapis.com/bucket/path/to/file.parquet?X-Goog-Signature=1";
   private static final String TEST_BUCKET = "TEST_BUCKET";
   private final Random random = new Random(1);
 
@@ -574,5 +576,12 @@ public class TestGCSFileIO {
         .asInstanceOf(InstanceOfAssertFactories.type(GCSFileIO.class))
         .extracting(GCSFileIO::credentials)
         .isEqualTo(storageCredentials);
+  }
+
+  @Test
+  public void newInputFileForPreSignedUrl() {
+    InputFile in = io.newInputFile(PRE_SIGNED_URL, 10);
+    assertThat(in.getClass().getSimpleName()).isEqualTo("PreSignedUrlInputFile");
+    assertThat(in.location()).isEqualTo(PRE_SIGNED_URL);
   }
 }

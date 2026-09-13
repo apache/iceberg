@@ -87,11 +87,19 @@ public class ResolvingFileIO
 
   @Override
   public InputFile newInputFile(String location) {
+    if (PreSignedUrlInputFile.isHttpUrl(location)) {
+      return PreSignedUrlInputFile.of(location, 0);
+    }
+
     return io(location).newInputFile(location);
   }
 
   @Override
   public InputFile newInputFile(String location, long length) {
+    if (PreSignedUrlInputFile.isHttpUrl(location)) {
+      return PreSignedUrlInputFile.of(location, length);
+    }
+
     return io(location).newInputFile(location, length);
   }
 

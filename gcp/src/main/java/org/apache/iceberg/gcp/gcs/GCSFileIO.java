@@ -43,6 +43,7 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PreSignedUrlInputFile;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsContext;
@@ -104,11 +105,15 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
   @Override
   public InputFile newInputFile(String path) {
-    return GCSInputFile.fromLocation(path, clientForStoragePath(path), metrics);
+    return newInputFile(path, 0);
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
+    if (PreSignedUrlInputFile.isHttpUrl(path)) {
+      return PreSignedUrlInputFile.of(path, length);
+    }
+
     return GCSInputFile.fromLocation(path, length, clientForStoragePath(path), metrics);
   }
 

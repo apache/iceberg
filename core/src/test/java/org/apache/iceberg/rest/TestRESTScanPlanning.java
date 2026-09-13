@@ -36,32 +36,51 @@ import static org.mockito.Mockito.atLeastOnce;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectReader;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.PreSignedUrlTestServer;
+import org.apache.iceberg.io.ResolvingFileIO;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
@@ -70,8 +89,10 @@ import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -79,6 +100,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 public class TestRESTScanPlanning extends TestBaseWithRESTServer {
+  private final Random random = new Random(1);
+
   @Override
   protected RESTCatalogAdapter createAdapterForServer() {
     return Mockito.spy(
@@ -104,9 +127,26 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
                       RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
             }
 
+            if (preSignedUrlStore != null && response instanceof PlanTableScanResponse) {
+              return castResponse(
+                  responseType, withPreSignedUrls((PlanTableScanResponse) response));
+            }
+
             return response;
           }
         });
+  }
+
+  // set by the pre-signed URL tests; the adapter then substitutes URLs for file paths
+  private PreSignedUrlTestServer preSignedUrlStore;
+  @TempDir private Path preSignedUrlObjects;
+  private final Map<String, String> preSignedUrls = Maps.newConcurrentMap();
+
+  @AfterEach
+  public void closePreSignedUrlStore() throws Exception {
+    if (preSignedUrlStore != null) {
+      preSignedUrlStore.close();
+    }
   }
 
   @Override
@@ -1641,6 +1681,137 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
       assertThat(table).isNotInstanceOf(RESTTable.class).isInstanceOf(BaseTable.class);
     } else {
       assertThat(table).isInstanceOf(RESTTable.class);
+    }
+  }
+
+  // ==================== Pre-signed URLs ====================
+
+  @Test
+  public void preSignedUrlsInPlanResponse() throws Exception {
+    preSignedUrlStore = new PreSignedUrlTestServer(preSignedUrlObjects);
+    byte[] data = new byte[1024 * 1024];
+    random.nextBytes(data);
+    byte[] dv = new byte[1024 * 1024];
+    random.nextBytes(dv);
+    preSignedUrlStore.put("data-a.parquet", data);
+    preSignedUrlStore.put("data-a-deletes.puffin", dv);
+    tableWithDeletionVector("pre_signed_urls", dv.length);
+
+    try (RESTCatalog client = catalogWithDefaultFileIO()) {
+      Table loaded = client.loadTable(TableIdentifier.of(NS, "pre_signed_urls"));
+      assertThat(loaded.io()).isInstanceOf(ResolvingFileIO.class);
+
+      FileScanTask task;
+      try (CloseableIterable<FileScanTask> tasks = loaded.newScan().planFiles()) {
+        task = Iterables.getOnlyElement(tasks);
+      }
+
+      assertThat(task.file().location()).startsWith("http://");
+      assertThat(read(loaded.io().newInputFile(task.file()))).isEqualTo(data);
+
+      DeleteFile plannedDv = Iterables.getOnlyElement(task.deletes());
+      assertThat(plannedDv.referencedDataFile()).isEqualTo(task.file().location());
+      assertThat(read(loaded.io().newInputFile(plannedDv))).isEqualTo(dv);
+    }
+
+    // the table's metadata keeps the native locations
+    Table backend = backendCatalog.loadTable(TableIdentifier.of(NS, "pre_signed_urls"));
+    try (CloseableIterable<FileScanTask> tasks = backend.newScan().planFiles()) {
+      FileScanTask task = Iterables.getOnlyElement(tasks);
+      assertThat(task.file().location()).isEqualTo(FILE_A.location());
+      assertThat(Iterables.getOnlyElement(task.deletes()).referencedDataFile())
+          .isEqualTo(FILE_A.location());
+    }
+  }
+
+  private void tableWithDeletionVector(String tableName, long dvSize) {
+    restCatalog.createNamespace(NS);
+    Table table =
+        restCatalog
+            .buildTable(TableIdentifier.of(NS, tableName), SCHEMA)
+            .withPartitionSpec(SPEC)
+            .withProperty(TableProperties.FORMAT_VERSION, "3")
+            .create();
+    table.newAppend().appendFile(FILE_A).commit();
+    DeleteFile dv =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .ofPositionDeletes()
+            .withPath("/path/to/data-a-deletes.puffin")
+            .withFormat(FileFormat.PUFFIN)
+            .withFileSizeInBytes(dvSize)
+            .withRecordCount(1)
+            .withPartition(FILE_A.partition())
+            .withReferencedDataFile(FILE_A.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(dvSize - 4)
+            .build();
+    table.newRowDelta().addDeletes(dv).commit();
+    setParserContext(table);
+  }
+
+  /** A client with no {@code io-impl}, so the REST catalog's default FileIO. */
+  private RESTCatalog catalogWithDefaultFileIO() {
+    RESTCatalog catalog =
+        new RESTCatalog(
+            DEFAULT_SESSION_CONTEXT,
+            (config) ->
+                HTTPClient.builder(config)
+                    .uri(config.get(CatalogProperties.URI))
+                    .withHeaders(RESTUtil.configHeaders(config))
+                    .build());
+    catalog.setConf(new Configuration());
+    catalog.initialize(
+        "default-file-io", ImmutableMap.of(CatalogProperties.URI, httpServer.getURI().toString()));
+    return catalog;
+  }
+
+  private PlanTableScanResponse withPreSignedUrls(PlanTableScanResponse response) {
+    if (response.fileScanTasks() == null) {
+      return response;
+    }
+
+    List<FileScanTask> tasks =
+        response.fileScanTasks().stream().map(this::withPreSignedUrls).collect(Collectors.toList());
+    return response.toBuilder().withFileScanTasks(tasks).build();
+  }
+
+  private FileScanTask withPreSignedUrls(FileScanTask task) {
+    PartitionSpec spec = task.spec();
+    DataFile file =
+        DataFiles.builder(spec).copy(task.file()).withPath(preSignedUrl(task.file())).build();
+    DeleteFile[] deletes =
+        task.deletes().stream()
+            .map(
+                delete -> {
+                  FileMetadata.Builder builder =
+                      FileMetadata.deleteFileBuilder(spec)
+                          .copy(delete)
+                          .withPath(preSignedUrl(delete));
+                  if (delete.referencedDataFile() != null) {
+                    builder.withReferencedDataFile(preSignedUrls.get(delete.referencedDataFile()));
+                  }
+
+                  return builder.build();
+                })
+            .toArray(DeleteFile[]::new);
+
+    return new BaseFileScanTask(
+        file,
+        deletes,
+        SchemaParser.toJson(task.schema()),
+        PartitionSpecParser.toJson(spec),
+        ResidualEvaluator.of(spec, task.residual(), false));
+  }
+
+  private String preSignedUrl(ContentFile<?> file) {
+    String location = file.location();
+    return preSignedUrls.computeIfAbsent(
+        location, loc -> preSignedUrlStore.url(loc.substring(loc.lastIndexOf('/') + 1)));
+  }
+
+  private static byte[] read(InputFile file) throws IOException {
+    try (SeekableInputStream stream = file.newStream()) {
+      return ByteStreams.toByteArray(stream);
     }
   }
 }
