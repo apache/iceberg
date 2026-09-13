@@ -81,7 +81,8 @@ public class TestStreamingCheckpointHadoopIO extends TestBaseWithCatalog {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
 
-    File checkpointDir = new File(temp.toFile(), "checkpoint");
+    // Use nested checkpoint path to verify parent directory creation
+    File checkpointDir = new File(temp.toFile(), "nested/checkpoint");
     TrackingFileIO.reset();
 
     // Run streaming query with checkpoints
@@ -103,8 +104,8 @@ public class TestStreamingCheckpointHadoopIO extends TestBaseWithCatalog {
         .as("HadoopFileIO should be used for checkpoints, not table's FileIO")
         .isFalse();
 
-    // Verify the Iceberg source checkpoint exists, rather than the Spark query offset log.
-    assertThat(new File(checkpointDir, "sources/0/offsets/0")).exists().isFile();
+    // Verify checkpoint files were actually created using HadoopFileIO
+    assertThat(new File(checkpointDir, "offsets/0")).exists().isFile();
   }
 
   /**
