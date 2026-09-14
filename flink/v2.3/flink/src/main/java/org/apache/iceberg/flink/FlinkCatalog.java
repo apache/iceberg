@@ -88,6 +88,8 @@ import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewProperties;
 import org.apache.iceberg.view.ViewVersion;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Flink Catalog implementation that wraps an Iceberg {@link Catalog}.
@@ -102,6 +104,7 @@ import org.apache.iceberg.view.ViewVersion;
  */
 @Internal
 public class FlinkCatalog extends AbstractCatalog {
+  private static final Logger LOG = LoggerFactory.getLogger(FlinkCatalog.class);
   private static final String FLINK_DIALECT = "flink";
 
   private final CatalogLoader catalogLoader;
@@ -367,7 +370,8 @@ public class FlinkCatalog extends AbstractCatalog {
     } catch (NoSuchNamespaceException e) {
       throw new DatabaseNotExistException(getName(), databaseName, e);
     } catch (UnsupportedOperationException e) {
-      // implements ViewCatalog but rejects view operations in JDBC catalog with V0 schema
+      // the catalog rejects view operations at runtime, e.g. a JDBC catalog with a V0 schema
+      LOG.warn("Catalog {} rejects view operations; assuming no view support", getName(), e);
       return Collections.emptyList();
     }
   }
@@ -390,7 +394,7 @@ public class FlinkCatalog extends AbstractCatalog {
         e.addSuppressed(viewException);
         throw e;
       } catch (UnsupportedOperationException viewException) {
-        // implements ViewCatalog but rejects view operations in JDBC catalog with V0 schema
+        // the catalog rejects view operations at runtime, e.g. a JDBC catalog with a V0 schema
         e.addSuppressed(viewException);
         throw e;
       }
@@ -453,7 +457,8 @@ public class FlinkCatalog extends AbstractCatalog {
     try {
       return asViewCatalog.viewExists(identifier);
     } catch (UnsupportedOperationException e) {
-      // implements ViewCatalog but rejects view operations in JDBC catalog with V0 schema
+      // the catalog rejects view operations at runtime, e.g. a JDBC catalog with a V0 schema
+      LOG.warn("Catalog {} rejects view operations; assuming no view support", getName(), e);
       return false;
     }
   }
