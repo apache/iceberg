@@ -38,12 +38,12 @@ engine can build an index, maintain it, and use it to plan queries against the t
 An index is recorded in an index metadata file that contains the index definition and a set of index snapshots. Each
 index snapshot corresponds to a snapshot of the source table and references the index data for that state.
 
-Index metadata files and index data files are immutable. Every update writes a new metadata file and a new tracking
-file, may reuse existing range files, and is committed by an atomic swap of the index metadata file, as defined in
-[Commits and Concurrency](#commits-and-concurrency).
+Index metadata files and index data files are immutable. Every update writes a new metadata file. An update that adds an
+index snapshot also writes a new tracking file and may reuse existing region files. Every update is committed by an
+atomic swap of the index metadata file, as defined in [Commits and Concurrency](#commits-and-concurrency).
 
 The index data of a snapshot is organized as a [tracking file](#tracking-file) that lists a set of
-[range files](#range-files):
+[region files](#region-files):
 
 ```text
 Index Metadata
@@ -52,7 +52,7 @@ Index Metadata
             |
             +-- Tracking File
                     |
-                    +-- Range Files
+                    +-- Region Files
 ```
 
 ## Specification
@@ -63,8 +63,8 @@ Index Metadata
 * **Index snapshot** -- The state of an index for a single snapshot of the source table.
 * **Index entry** -- The values produced by the index fields for one indexed row of the source table.
 * **Clustering key** -- The tuple of values that determines the position of an index entry within an index snapshot.
-* **Tracking file** -- A file that lists the range files of an index snapshot; one per index snapshot.
-* **Range file** -- A file that stores the index entries for a range of clustering keys; a subset of an index snapshot.
+* **Tracking file** -- A file that lists the region files of an index snapshot; one per index snapshot.
+* **Region file** -- A file that stores the index entries for a range of clustering keys; a subset of an index snapshot.
 
 ### Paths in Metadata
 
@@ -74,10 +74,13 @@ index `location`, which must be an absolute path.
 
 ### Index Definition
 
-An index is defined by a source table, an index type, identity fields, materialized fields, non-materialized fields, a
-cluster spec, and optional index properties. The definition is fixed when the index is created and must not change for
-the lifetime of the index, so range files remain readable through every index snapshot that references them. A different
-definition requires a new index.
+An index is defined by a source table, an index type, identity fields, materialized fields, non-materialized fields, and
+a cluster spec. The definition is fixed when the index is created and must not change for the lifetime of the index, so
+region files remain readable through every index snapshot that references them. A different definition requires a new
+index.
+
+Index properties are not part of the definition. They configure how an index is written and maintained and may be
+changed by a commit.
 
 A table may have multiple indexes of the same index type.
 
@@ -99,7 +102,7 @@ index type must ignore the index and read the source table directly; it must not
 
 An index field defines one value of an index entry, produced for an indexed row of the source table. An index declares
 three lists of index fields: [identity fields](#identity-fields) and [materialized fields](#materialized-fields), whose
-values are stored in [range files](#range-files), and [non-materialized fields](#non-materialized-fields), which are
+values are stored in [region files](#region-files), and [non-materialized fields](#non-materialized-fields), which are
 represented only by statistics in [tracking file entries](#tracking-file-entry). Every index field has a field ID that
 must be unique across the three lists.
 
@@ -107,8 +110,8 @@ must be unique across the three lists.
 
 `identity-fields` is a non-empty list of unique source table field IDs. Each entry must reference a data field.
 [Metadata columns](spec.md#reserved-field-ids) are not allowed. Each listed field is stored in the
-[range files](#range-files) under its own field ID and takes its type from the schema of the source table snapshot that
-an index snapshot references.
+[region files](#region-files) under its own field ID and takes its type from the schema of the source table snapshot
+that an index snapshot references.
 
 Every source table field referenced by an expression field in the [cluster spec](#cluster-spec) must be an identity
 field.
@@ -144,12 +147,12 @@ specification.
 
 ##### Materialized Fields
 
-`materialized-fields` is a list of expression fields whose values are stored in the [range files](#range-files).
-Evaluating the identity fields and the materialized fields for one indexed row produces one range file row.
+`materialized-fields` is a list of expression fields whose values are stored in the [region files](#region-files).
+Evaluating the identity fields and the materialized fields for one indexed row produces one region file row.
 
 ##### Non-Materialized Fields
 
-`non-materialized-fields` is a list of expression fields whose row values are not stored in range files. Only their
+`non-materialized-fields` is a list of expression fields whose row values are not stored in region files. Only their
 field statistics are stored, in [tracking file entries](#tracking-file-entry).
 
 #### Cluster Spec
@@ -175,8 +178,8 @@ The index metadata file has the following fields:
 | _required_  | `location`                | `string`                   | Index root location                                                                                |
 | _required_  | `last-updated-ms`         | `long`                     | Timestamp when the index was last updated (ms from epoch) [1]                                      |
 | _required_  | `type`                    | `string`                   | Logical index type                                                                                 |
-| _required_  | `identity-fields`         | `list<int>`                | Source table fields stored in range files, see [Identity Fields](#identity-fields)                 |
-| _optional_  | `materialized-fields`     | `list<expression-field>`   | Expression fields stored in range files, see [Materialized Fields](#materialized-fields)           |
+| _required_  | `identity-fields`         | `list<int>`                | Source table fields stored in region files, see [Identity Fields](#identity-fields)                |
+| _optional_  | `materialized-fields`     | `list<expression-field>`   | Expression fields stored in region files, see [Materialized Fields](#materialized-fields)          |
 | _optional_  | `non-materialized-fields` | `list<expression-field>`   | Fields stored only in tracking statistics, see [Non-Materialized Fields](#non-materialized-fields) |
 | _required_  | `cluster-spec`            | `list<int>`                | Field IDs that define clustering, see [Cluster Spec](#cluster-spec)                                |
 | _optional_  | `properties`              | `map<string, string>`      | Index properties applicable for every snapshot                                                     |
@@ -229,25 +232,18 @@ metadata file it replaces. The number of entries to retain is controlled by the 
 
 #### Encryption Keys
 
+An index must not store indexed values with weaker protection than its source table. If the source table snapshot that
+an index snapshot indexes is encrypted, indicated by the snapshot's `key-id` as defined by the table specification, the
+tracking file and the region files of that index snapshot must be encrypted.
+
 Index metadata is not encrypted, so keys are never stored in plain form. Keys used for index encryption are tracked in
-index metadata as a list named `encryption-keys`, using the same structure as the table specification (see
-[Encryption Keys](spec.md#encryption-keys)). The schema of each key is a struct with the following fields:
-
-| Requirement | Field name               | Type                  | Description                                                   |
-|-------------|--------------------------|-----------------------|---------------------------------------------------------------|
-| _required_  | `key-id`                 | `string`              | ID of the encryption key                                      |
-| _required_  | `encrypted-key-metadata` | `string`              | Encrypted key and metadata, base64 encoded [1]                |
-| _optional_  | `encrypted-by-id`        | `string`              | Optional ID of the key used to encrypt or wrap `key-metadata` |
-| _optional_  | `properties`             | `map<string, string>` | Additional metadata used by the index's encryption scheme     |
-
-Notes:
-
-1. The format of encrypted key metadata is determined by the index's encryption scheme and can be a wrapped format
-specific to the KMS provider.
+index metadata as a list named `encryption-keys`, using the [encryption keys](spec.md#encryption-keys) structure defined
+by the table specification. The format of encrypted key metadata is determined by the index's encryption scheme and can
+be a wrapped format specific to the KMS provider.
 
 The `key-id` of an index snapshot must reference a `key-id` in the index metadata `encryption-keys` list. The
 `encrypted-key-metadata` of the referenced entry is the key metadata of the snapshot's tracking file, which in turn
-holds the key metadata of the range files.
+holds the key metadata of the region files.
 
 ### Commits and Concurrency
 
@@ -272,9 +268,9 @@ against the source-table snapshot they intend to read.
 #### Clustering and Ordering
 
 The cluster spec defines an ordering over all index entries of an index snapshot. Index entries must be partitioned into
-ranges of clustering key values that do not overlap, and each range must be stored in a separate range file. A range
+ranges of clustering key values that do not overlap, and each range must be stored in a separate region file. A region
 boundary must fall at a change in clustering key, so all index entries that share a clustering key are stored in the
-same range file.
+same region file.
 
 Index entries are ordered by the [clustering key](#cluster-spec) produced for each indexed row. The key is compared by
 the fields in `cluster-spec` order: index entries are compared by the value of the first field, and the next field is
@@ -290,27 +286,27 @@ position in the ordering:
 
 #### Tracking File
 
-The tracking file contains metadata of all range files belonging to the index snapshot. It may be stored using any
+The tracking file contains metadata of all region files belonging to the index snapshot. It may be stored using any
 supported metadata file format.
 
 ##### Tracking File Entry
 
-Each tracking file contains a collection of tracking file entries. A tracking file entry describes a single range file
+Each tracking file contains a collection of tracking file entries. A tracking file entry describes a single region file
 tracked by an index snapshot. The fields are the subset of the V4 [data file fields](spec.md#data-file-fields) that are
 relevant to planning queries against the index.
 
-Tracking file entries must be stored in the [clustering order](#clustering-and-ordering) of the range files they
+Tracking file entries must be stored in the [clustering order](#clustering-and-ordering) of the region files they
 describe, which is the ascending order of the `group_max_value` statistics recorded for the cluster fields in the
 [content statistics](#content-statistics).
 
-| Requirement | Field id, name                | Type      | Description                                                                                         |
-|-------------|-------------------------------|-----------|-----------------------------------------------------------------------------------------------------|
-| _required_  | **`100  file_path`**          | `string`  | Full URI of the referenced range file                                                               |
-| _required_  | **`101  file_format`**        | `string`  | File format name, such as `parquet`, `avro`, or `orc`                                               |
-| _required_  | **`103  record_count`**       | `long`    | Number of records contained in the referenced range file                                            |
-| _required_  | **`104  file_size_in_bytes`** | `long`    | Total file size in bytes                                                                            |
-| _required_  | **`146  content_stats`**      | `struct`  | Field statistics and clustering bounds for the referenced range file, used for planning and pruning |
-| _optional_  | **`131  key_metadata`**       | `binary`  | Implementation-specific key metadata, used for range file encryption                                |
+| Requirement | Field id, name                | Type      | Description                                                                                          |
+|-------------|-------------------------------|-----------|------------------------------------------------------------------------------------------------------|
+| _required_  | **`100  file_path`**          | `string`  | Full URI of the referenced region file                                                               |
+| _required_  | **`101  file_format`**        | `string`  | File format name, such as `parquet`, `avro`, or `orc`                                                |
+| _required_  | **`103  record_count`**       | `long`    | Number of records contained in the referenced region file                                            |
+| _required_  | **`104  file_size_in_bytes`** | `long`    | Total file size in bytes                                                                             |
+| _required_  | **`146  content_stats`**      | `struct`  | Field statistics and clustering bounds for the referenced region file, used for planning and pruning |
+| _optional_  | **`131  key_metadata`**       | `binary`  | Implementation-specific key metadata, used for region file encryption                                |
 
 ##### Content Statistics
 
@@ -326,7 +322,7 @@ The following metrics are required:
 | Non-materialized field   | `lower_bound`, `upper_bound`                    |
 | Other materialized field | None                                            |
 
-All other metrics are optional. Statistics for a non-materialized field describe the rows that the range file indexes,
+All other metrics are optional. Statistics for a non-materialized field describe the rows that the region file indexes,
 not values stored in it.
 
 ###### Group Max Value
@@ -336,30 +332,30 @@ the field's stats `base-id`. It has the index field's data type and is optional 
 clustering value. Unlike other metrics, a null `group_max_value` is a null clustering value, not an unknown statistic.
 
 The `group_max_value` metrics, read in `cluster-spec` order, must be the exact clustering key of the last index entry in
-the range file according to the [clustering order](#clustering-and-ordering). They must not be truncated or rounded.
-Readers use these keys as inclusive range file upper bounds. The clustering keys of a range file are strictly greater
+the region file according to the [clustering order](#clustering-and-ordering). They must not be truncated or rounded.
+Readers use these keys as inclusive region file upper bounds. The clustering keys of a region file are strictly greater
 than the `group_max_value` key of the preceding tracking file entry, so tracking file entries must be read in order.
 
-#### Range Files
+#### Region Files
 
-Range files must be valid Iceberg data files stored in Parquet, Avro, or ORC, following the
+Region files must be valid Iceberg data files stored in Parquet, Avro, or ORC, following the
 [format-specific requirements](spec.md#appendix-a-format-specific-requirements) of the table specification. Those
 requirements define how each type is encoded and where a column's field ID is recorded in the file.
 
-Each range file row is one index entry and holds the [identity field](#identity-fields) and
-[materialized field](#materialized-fields) values of one indexed row. Index entries within a range file must be stored
+Each region file row is one index entry and holds the [identity field](#identity-fields) and
+[materialized field](#materialized-fields) values of one indexed row. Index entries within a region file must be stored
 in the [clustering order](#clustering-and-ordering). Index entries that share a clustering key may be stored in any
 order.
 
-##### Range Schema
+##### Region Schema
 
-The range schema is constructed from `identity-fields` followed by `materialized-fields`. The result is a struct
+The region schema is constructed from `identity-fields` followed by `materialized-fields`. The result is a struct
 containing one field for each index field in those lists, with fields appearing in that order. An identity field takes
 its ID and type from the source table field it names; a materialized field takes its ID from `field-id` and its type
 from `data-type`.
 
-Names of range schema fields are generated by the writer and are not defined by this specification. Users of the index
-must not rely on them; readers must match range file columns by field ID.
+Names of region schema fields are generated by the writer and are not defined by this specification. Users of the index
+must not rely on them; readers must match region file columns by field ID.
 
 ## Appendix A: Rationale
 
@@ -375,7 +371,7 @@ ended. Expressions must be deterministic for the same reason clustering must be 
 `random` or on the evaluation time would place entries at positions that cannot be reproduced.
 
 Each expression field contains the expression that produces its value. A field that indexes a source table field as is
-carries no expression: it is declared by its ID in `identity-fields`. Materialized field values are stored in range
+carries no expression: it is declared by its ID in `identity-fields`. Materialized field values are stored in region
 files, while non-materialized field values are represented only by tracking statistics. The cluster spec lists field
 IDs in comparison order without repeating their expressions. Engines match query expressions to index fields to
 determine whether the index applies and which stored field contains a result. Because expressions reference only fields
@@ -395,39 +391,39 @@ Multi-component clustering keys are compared field by field, which is an extensi
 table specification. Structs, lists, and maps are excluded because Iceberg does not define ordering for lists and maps,
 and a struct is represented as separate index fields instead.
 
-Clustering keys do not have to be unique. Range boundaries fall only where the clustering key changes, so all entries
-that share a key are in one range file and a lookup resolves to a single range file. Because a range file holds every
-entry with a given clustering key, the order of those entries within the file has no effect on planning or on range
+Clustering keys do not have to be unique. Region boundaries fall only where the clustering key changes, so all entries
+that share a key are in one region file and a lookup resolves to a single region file. Because a region file holds every
+entry with a given clustering key, the order of those entries within the file has no effect on planning or on region
 file bounds, and the specification leaves it to the writer.
 
-The clustering order makes the index usable at two levels: range files can be pruned without being opened, and the
-entries of a range file that is opened can be located without reading all of it.
+The clustering order makes the index usable at two levels: region files can be pruned without being opened, and the
+entries of a region file that is opened can be located without reading all of it.
 
-Range files hold non-overlapping clustering ranges, so the `group_max_value` statistics in the tracking file are enough
-to eliminate a range file. Only the upper bound of a range is stored: clustered tracking file entries make the lower
+Region files hold non-overlapping clustering ranges, so the `group_max_value` statistics in the tracking file are enough
+to eliminate a region file. Only the upper bound of a range is stored: clustered tracking file entries make the lower
 bound redundant, because it is exclusive and equal to the upper bound of the preceding entry. Each component of the
 bound is stored in the field statistics of the clustered field, and the cluster spec supplies the component order. The
-bound has to be exact, because a bound rounded up would place the next range file's lower bound above entries that file
+bound has to be exact, because a bound rounded up would place the next region file's lower bound above entries that file
 actually contains, so a lookup would prune to the wrong file and miss rows.
 
 Ordinary lower and upper bounds are required for clustered and non-materialized fields because they support pruning on
-partial clustering keys, which the `group_max_value` keys alone cannot do. Bounds for the other fields stored in range
+partial clustering keys, which the `group_max_value` keys alone cannot do. Bounds for the other fields stored in region
 files are optional and, when present, extend pruning to fields outside the cluster spec.
 
-Within a range file, the entries that match a lookup are contiguous, so a reader can locate them with the structures the
-file format provides for stored columns, such as Parquet page indexes, instead of examining every entry. Those
+Within a region file, the entries that match a lookup are contiguous, so a reader can locate them with the structures
+the file format provides for stored columns, such as Parquet page indexes, instead of examining every entry. Those
 structures work on a stored field that clustering keeps sorted, or a value from which the clustering expression is order
 preserving: a file clustered on `day(ts)` is also ordered by a stored `ts` field. Clustering on `bucket(256, user_id)`
 leaves a stored `user_id` field unsorted unless the bucket field is also stored, so a reader may need to evaluate the
-clustering expression over range file rows.
+clustering expression over region file rows.
 
-### Range Schema Derivation
+### Region Schema Derivation
 
-The range schema is derived from the identity fields and the materialized fields, so the index definition and the
+The region schema is derived from the identity fields and the materialized fields, so the index definition and the
 physical layout of the index cannot drift apart and the schema does not have to be maintained as a second, redundant
 copy of the definition.
 
-Requiring the stored fields to identify matching rows is what keeps a range file useful on its own. A clustering value
+Requiring the stored fields to identify matching rows is what keeps a region file useful on its own. A clustering value
 alone cannot distinguish the entries that share it, so the source values behind each cluster field have to be indexed
 as identity fields. Clustering on `bucket(256, user_id)`, for example, requires `user_id` to be an identity field,
 because rows with different `user_id` values can share a bucket. Storing the expression result as well is a
@@ -440,16 +436,16 @@ definition. Fields outside `cluster-spec` may use any Iceberg type, and a nested
 in its subtree, allowing a covering index to store lists, maps, or structs.
 
 An identity field declares only a source field ID, and its type is resolved from the source table schema rather than
-repeated in index metadata, where the two could disagree. Resolving it needs no new rules: a range file stores the field
-under the source field ID, so a reader reads it exactly as it reads the same column of a data file, including the type
-promotions the table specification allows. Keeping the source field ID also preserves column identity through renames
-and makes the relationship between source and stored fields explicit. Expressions reference source field IDs for the
-same reason, so they are not rewritten when a column is renamed.
+repeated in index metadata, where the two could disagree. Resolving it needs no new rules: a region file stores the
+field under the source field ID, so a reader reads it exactly as it reads the same column of a data file, including the
+type promotions the table specification allows. Keeping the source field ID also preserves column identity through
+renames and makes the relationship between source and stored fields explicit. Expressions reference source field IDs
+for the same reason, so they are not rewritten when a column is renamed.
 
 A metadata column cannot be an identity field. Its name and ID are fixed by the table specification, so there is no
-column identity to preserve. The range schema is the schema of an Iceberg data file, and metadata column IDs are
+column identity to preserve. The region schema is the schema of an Iceberg data file, and metadata column IDs are
 reserved. For example, an Iceberg reader synthesizes `_pos` from the position of a row in the file it is reading, which
-is the range file rather than the source data file, so storing a range schema field under that ID would collide. A
+is the region file rather than the source data file, so storing a region schema field under that ID would collide. A
 metadata column is therefore indexed with a materialized field that takes an ordinary field ID, and a reader recognizes
 it from its expression.
 
@@ -461,9 +457,9 @@ each other and losing snapshots.
 
 ### Reclaiming Index Files
 
-The `snapshots` list of the current index metadata file is the only root for reachability. A tracking file or range file
-is live because a listed index snapshot references it. A commit that removes an index snapshot should delete the files
-that only that snapshot referenced.
+The `snapshots` list of the current index metadata file is the only root for reachability. A tracking file or region
+file is live because a listed index snapshot references it. A commit that removes an index snapshot should delete the
+files that only that snapshot referenced.
 
 ### Future Extensions
 
@@ -492,7 +488,7 @@ pointer valid when a data file is rewritten, at the cost of resolving the row ID
 An index that only has to eliminate data files can materialize `_file` alone. Recording statistics for a materialized
 `_file` field also lets index maintenance find the entries produced by a data file that has since been rewritten.
 
-An index that materializes none of these can still prune range files by clustering key, but it cannot return source
+An index that materializes none of these can still prune region files by clustering key, but it cannot return source
 rows.
 
 ### Choosing Non-Materialized Fields
@@ -503,10 +499,10 @@ recompute it from `name` while searching.
 
 ### Choosing a Cluster Spec
 
-A range file cannot hold fewer entries than a single clustering key produces, because a range boundary falls only where
-the clustering key changes. Clustering on a low-cardinality expression alone, such as `bucket(256, user_id)` on a large
-table, therefore forces very large range files. Ending `cluster-spec` with a high-cardinality field, as in
-`[ bucket(256, user_id), user_id ]`, keeps range files bounded.
+A region file cannot hold fewer entries than a single clustering key produces, because a region boundary falls only
+where the clustering key changes. Clustering on a low-cardinality expression alone, such as `bucket(256, user_id)` on a
+large table, therefore forces very large region files. Ending `cluster-spec` with a high-cardinality field, as in
+`[ bucket(256, user_id), user_id ]`, keeps region files bounded.
 
 ## Appendix C: Example - Key Lookup Index
 
@@ -521,15 +517,15 @@ CREATE INDEX bucket_index
 
 This creates a `SCALAR` index on the `user_id` column that clusters entries by the hash bucket of `user_id` and then by
 `user_id` itself. When the index is created, the engine (or a later index maintenance job) reads the current table
-snapshot, writes the range files and a tracking file, and produces the first index metadata file containing a single
-index snapshot. Range file boundaries follow the clustering, so a range file holds a contiguous range of buckets or a
-range of `user_id` values within a single bucket. The tracking file describes each range file with its location,
+snapshot, writes the region files and a tracking file, and produces the first index metadata file containing a single
+index snapshot. Region file boundaries follow the clustering, so a region file holds a contiguous range of buckets or a
+range of `user_id` values within a single bucket. The tracking file describes each region file with its location,
 format, record count, and size, together with the statistics used for pruning.
 
 The index stores `user_id` and the source row location. `user_id` is an identity field, so it keeps the field ID and the
 type of the source column, while the location fields are materialized fields that reference metadata columns and so
 take ordinary field IDs. The bucket is field `104`; it is evaluated for clustering and tracking statistics but is not
-stored in range files. The resulting range schema is:
+stored in region files. The resulting region schema is:
 
 | Field id, name    | Type     | Description                                              |
 |-------------------|----------|----------------------------------------------------------|
@@ -585,14 +581,14 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
 }
 ```
 
-The tracking file at `tracking-file` lists the range files of this snapshot. It is stored in a metadata file
+The tracking file at `tracking-file` lists the region files of this snapshot. It is stored in a metadata file
 format rather than JSON, so its tracking file entries are shown here as a table. In this example the index snapshot has
-two range files:
+two region files:
 
-| file_path               | file_format | record_count | file_size_in_bytes |
-|-------------------------|-------------|--------------|--------------------|
-| .../range-00001.parquet | parquet     | 3            | 1160               |
-| .../range-00002.parquet | parquet     | 2            | 1024               |
+| file_path                | file_format | record_count | file_size_in_bytes |
+|--------------------------|-------------|--------------|--------------------|
+| .../region-00001.parquet | parquet     | 3            | 1160               |
+| .../region-00002.parquet | parquet     | 2            | 1024               |
 
 Each tracking file entry also carries a `content_stats` struct. The location fields are materialized fields outside
 `cluster-spec`, so no statistics are required for them and this writer stores none. The struct holds field statistics
@@ -614,23 +610,23 @@ stats structs include `group_max_value`:
 }
 ```
 
-| Range file            | Field     | `lower_bound` | `upper_bound` | `group_max_value` |
-|-----------------------|-----------|---------------|---------------|-------------------|
-| `range-00001.parquet` | bucket    | `3`           | `88`          | `88`              |
-| `range-00001.parquet` | `user_id` | `12094`       | `84721`       | `55310`           |
-| `range-00002.parquet` | bucket    | `120`         | `209`         | `209`             |
-| `range-00002.parquet` | `user_id` | `3277`        | `99182`       | `3277`            |
+| Region file            | Field     | `lower_bound` | `upper_bound` | `group_max_value` |
+|------------------------|-----------|---------------|---------------|-------------------|
+| `region-00001.parquet` | bucket    | `3`           | `88`          | `88`              |
+| `region-00001.parquet` | `user_id` | `12094`       | `84721`       | `55310`           |
+| `region-00002.parquet` | bucket    | `120`         | `209`         | `209`             |
+| `region-00002.parquet` | `user_id` | `3277`        | `99182`       | `3277`            |
 
 The `group_max_value` metrics form the clustering upper bounds `{ bucket: 88, user_id: 55310 }` and
 `{ bucket: 209, user_id: 3277 }` when read in `cluster-spec` order. The `user_id` bounds of the two files overlap, so
 ordinary field statistics alone cannot eliminate either file. The clustering ranges do not overlap:
-`range-00002.parquet` is the second tracking file entry, so its range starts after the first entry's upper bound.
+`region-00002.parquet` is the second tracking file entry, so its range starts after the first entry's upper bound.
 
 A lookup for `user_id = 55310` evaluates the clustering expressions for that value, producing
-`{ bucket: 88, user_id: 55310 }`. That key is not greater than the upper bound of `range-00001.parquet`, the first
-tracking file entry, so only the first range file is read.
+`{ bucket: 88, user_id: 55310 }`. That key is not greater than the upper bound of `region-00001.parquet`, the first
+tracking file entry, so only the first region file is read.
 
-The rows of `range-00001.parquet` follow the range schema constructed from the identity field and the materialized
+The rows of `region-00001.parquet` follow the region schema constructed from the identity field and the materialized
 fields. They are stored in clustering order. The non-materialized bucket is shown here to make the complete clustering
 key visible:
 
@@ -644,8 +640,8 @@ Reading the matched row gives the source data file and row position of the index
 `user_id = 55310` from the `events` table without scanning it.
 
 Later, new data is added to the `events` table, producing a new table snapshot (`5459876531255530170`). Index
-maintenance runs again and writes new range files for the added data, plus a new tracking file that references both the
-still-valid old range files and the new range files.
+maintenance runs again and writes new region files for the added data, plus a new tracking file that references both the
+still-valid old region files and the new region files.
 
 This produces a new index metadata file that completely replaces the previous one. The first index snapshot is kept
 alongside the new one, so engines can still use the index against the older table snapshot. The index definition is
@@ -676,22 +672,22 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid)
 }
 ```
 
-The new rows fall into buckets that lie inside the range already covered by `range-00001.parquet`. Because range files
-must hold non-overlapping clustering ranges, maintenance rewrites that range file as `range-00003.parquet`
-with the merged entries. `range-00002.parquet` covers a disjoint range and is reused unchanged, so the tracking file of
+The new rows fall into buckets that lie inside the range already covered by `region-00001.parquet`. Because region files
+must hold non-overlapping clustering ranges, maintenance rewrites that region file as `region-00003.parquet`
+with the merged entries. `region-00002.parquet` covers a disjoint range and is reused unchanged, so the tracking file of
 the second index snapshot references it as well:
 
-| file_path               | file_format | record_count | file_size_in_bytes |
-|-------------------------|-------------|--------------|--------------------|
-| .../range-00003.parquet | parquet     | 5            | 1480               |
-| .../range-00002.parquet | parquet     | 2            | 1024               |
+| file_path                | file_format | record_count | file_size_in_bytes |
+|--------------------------|-------------|--------------|--------------------|
+| .../region-00003.parquet | parquet     | 5            | 1480               |
+| .../region-00002.parquet | parquet     | 2            | 1024               |
 
-The merged entries fall inside the range that `range-00001.parquet` already covered, so `range-00003.parquet` keeps the
-same field bounds and the same `group_max_value` metrics, which produce the clustering upper bound
-`{ bucket: 88, user_id: 55310 }`. The entry for `range-00002.parquet` is copied from the previous tracking file.
+The merged entries fall inside the range that `region-00001.parquet` already covered, so `region-00003.parquet` keeps
+the same field bounds and the same `group_max_value` metrics, which produce the clustering upper bound
+`{ bucket: 88, user_id: 55310 }`. The entry for `region-00002.parquet` is copied from the previous tracking file.
 
-The rows of `range-00003.parquet` interleave the entries of the rewritten range file with the entries added for the new
-data file, keeping the clustering order:
+The rows of `region-00003.parquet` interleave the entries of the rewritten region file with the entries added for the
+new data file, keeping the clustering order:
 
 | user_id | file                            | pos | (clustering key) |
 |---------|---------------------------------|-----|------------------|
@@ -701,13 +697,13 @@ data file, keeping the clustering order:
 | 40318   | .../data/00002-0-(uuid).parquet | 22  | `{ 62, 40318 }`  |
 | 55310   | .../data/00000-0-(uuid).parquet | 92  | `{ 88, 55310 }`  |
 
-`range-00001.parquet` is no longer referenced by the second index snapshot, but it is still referenced by the first and
+`region-00001.parquet` is no longer referenced by the second index snapshot, but it is still referenced by the first and
 must be retained while that snapshot exists.
 
 Eventually the older table snapshot is no longer needed, so maintenance drops the first index snapshot. It writes a new
 index metadata file that removes the snapshot from the `snapshots` list and replaces the previous metadata file.
 Maintenance then deletes the files referenced only by the removed snapshot: its tracking file,
-`tracking-00001-(uuid).parquet`, and `range-00001.parquet`. `range-00002.parquet` and `range-00003.parquet` are
+`tracking-00001-(uuid).parquet`, and `region-00001.parquet`. `region-00002.parquet` and `region-00003.parquet` are
 still referenced by the second index snapshot and are retained. The index definition is again elided:
 
 ```
