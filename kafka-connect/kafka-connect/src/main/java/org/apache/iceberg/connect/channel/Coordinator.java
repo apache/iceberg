@@ -93,8 +93,17 @@ class Coordinator extends Channel {
       Collection<MemberDescription> members,
       KafkaClientFactory clientFactory,
       SinkTaskContext context) {
-    // pass consumer group ID to which we commit low watermark offsets
-    super("coordinator", config.connectGroupId() + "-coord", config, clientFactory, context);
+    // pass consumer group ID to which we commit low watermark offsets. The group only gets a
+    // committed offset once a commit succeeds, so a coordinator that starts before that must read
+    // from the beginning: buffered responses an earlier coordinator never committed are still on
+    // the control topic, and the per-table offsets in the snapshot summary filter the rest.
+    super(
+        "coordinator",
+        config.connectGroupId() + "-coord",
+        config,
+        clientFactory,
+        context,
+        "earliest");
 
     this.catalog = catalog;
     this.config = config;

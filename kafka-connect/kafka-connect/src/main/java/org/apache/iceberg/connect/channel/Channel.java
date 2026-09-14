@@ -61,13 +61,23 @@ abstract class Channel {
       IcebergSinkConfig config,
       KafkaClientFactory clientFactory,
       SinkTaskContext context) {
+    this(name, consumerGroupId, config, clientFactory, context, "latest");
+  }
+
+  Channel(
+      String name,
+      String consumerGroupId,
+      IcebergSinkConfig config,
+      KafkaClientFactory clientFactory,
+      SinkTaskContext context,
+      String autoOffsetReset) {
     this.controlTopic = config.controlTopic();
     this.connectGroupId = config.connectGroupId();
     this.context = context;
 
     String transactionalId = config.transactionalPrefix() + name + config.transactionalSuffix();
     this.producer = clientFactory.createProducer(transactionalId);
-    this.consumer = clientFactory.createConsumer(consumerGroupId);
+    this.consumer = clientFactory.createConsumer(consumerGroupId, autoOffsetReset);
     this.admin = clientFactory.createAdmin();
 
     this.producerId = UUID.randomUUID().toString();
