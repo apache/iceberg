@@ -779,7 +779,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | 100 | **`location`** | `string` | *required* | Location of the file or manifest. |
     | 101 | **`file_format`** | `string` | *required* | String file format name: `avro`, `orc`, `parquet`, or `puffin` |
     | 147 | **`tracking`** | `tracking` struct | *required* | Groups status, snapshot, and sequence number. See tracking struct below. |
-    | 502 | **`spec_id`** | `int` | *optional* | ID of the partition spec used to write this manifest or data file. |
+    | 141 | **`spec_id`** | `int` | *optional* | ID of the partition spec used to write this manifest or data file. |
     | 140 | **`sort_order_id`** | `int` | *optional* | ID representing sort order for this file. If missing or unknown, the order is assumed to be unsorted. |
     | 103 | **`record_count`** | `long` | *required* | Number of records in this file. |
     | 104 | **`file_size_in_bytes`** | `long` | *required* | Total file size in bytes. |
@@ -818,11 +818,11 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
 
     | Field id | Name | Type | Required | Description |
     |----------|------|------|----------|-------------|
-    | 504 | **`added_files_count`** | `long` | *required* | Count of entries with status ADDED in the manifest. |
-    | 505 | **`existing_files_count`** | `long` | *required* | Count of entries with status EXISTING in the manifest. |
-    | 506 | **`deleted_files_count`** | `long` | *required* | Count of entries with status DELETED in the manifest. |
-    | 520 | **`replaced_files_count`** | `long` | *required* | Count of entries with status REPLACED in the manifest. |
-    | 524 | **`modified_files_count`** | `long` | *required* | Count of entries with status MODIFIED in the manifest. |
+    | 504 | **`added_files_count`** | `int` | *required* | Count of entries with status ADDED in the manifest. |
+    | 505 | **`existing_files_count`** | `int` | *required* | Count of entries with status EXISTING in the manifest. |
+    | 506 | **`deleted_files_count`** | `int` | *required* | Count of entries with status DELETED in the manifest. |
+    | 520 | **`replaced_files_count`** | `int` | *required* | Count of entries with status REPLACED in the manifest. |
+    | 524 | **`modified_files_count`** | `int` | *required* | Count of entries with status MODIFIED in the manifest. |
     | 512 | **`added_rows_count`** | `long` | *required* | Total number of rows in ADDED entries. |
     | 513 | **`existing_rows_count`** | `long` | *required* | Total number of rows in EXISTING entries. |
     | 514 | **`deleted_rows_count`** | `long` | *required* | Total number of rows in DELETED entries. |
