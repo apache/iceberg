@@ -21,6 +21,7 @@ package org.apache.iceberg.io;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -89,7 +90,8 @@ public class TestPreSignedUrlInputFile {
     assertThat(file.exists()).isFalse();
     assertThatThrownBy(() -> file.newStream().read())
         .isInstanceOf(NotFoundException.class)
-        .hasMessageContaining("Location does not exist");
+        .hasMessageContaining("Location does not exist")
+        .hasMessageNotContaining("X-Test-Signature");
   }
 
   @Test
@@ -127,6 +129,34 @@ public class TestPreSignedUrlInputFile {
   }
 
   @Test
+  public void testRangeReads() throws IOException {
+    byte[] content = new byte[3 * 1024 * 1024];
+    random.nextBytes(content);
+    InputFile file = PreSignedUrlInputFile.of(put(content), content.length);
+
+    try (SeekableInputStream stream = file.newStream()) {
+      RangeReadable ranges = (RangeReadable) stream;
+
+      byte[] chunk = new byte[1000];
+      ranges.readFully(1_500_000, chunk);
+      assertThat(chunk).isEqualTo(Arrays.copyOfRange(content, 1_500_000, 1_501_000));
+      assertThat(server.ranges()).containsExactly("bytes=1500000-1500999");
+      // a positional read does not move the stream
+      assertThat(stream.getPos()).isEqualTo(0);
+
+      byte[] tail = new byte[10];
+      assertThat(ranges.readTail(tail)).isEqualTo(10);
+      assertThat(tail).isEqualTo(Arrays.copyOfRange(content, content.length - 10, content.length));
+      assertThat(server.ranges().get(1)).isEqualTo("bytes=-10");
+
+      // past the end
+      assertThatThrownBy(() -> ranges.readFully(content.length + 1, new byte[10]))
+          .isInstanceOf(EOFException.class)
+          .hasMessageContaining("10 bytes left to read");
+    }
+  }
+
+  @Test
   public void testServerIgnoringRange() {
     byte[] content = new byte[1024 * 1024];
     random.nextBytes(content);
@@ -138,6 +168,14 @@ public class TestPreSignedUrlInputFile {
               try (SeekableInputStream stream = file.newStream()) {
                 stream.seek(512);
                 stream.read();
+              }
+            })
+        .isInstanceOf(IOException.class)
+        .hasMessageContaining("ignored Range");
+    assertThatThrownBy(
+            () -> {
+              try (SeekableInputStream stream = file.newStream()) {
+                ((RangeReadable) stream).readFully(512, new byte[10]);
               }
             })
         .isInstanceOf(IOException.class)

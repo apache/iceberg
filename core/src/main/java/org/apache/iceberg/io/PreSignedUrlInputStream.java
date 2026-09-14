@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.io;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Locale;
@@ -35,9 +36,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
  * Reads an object through a URL with range requests. A seek beyond the bytes already read reopens
- * the connection at the new offset.
+ * the connection at the new offset; positional reads are one bounded range request each.
  */
-class PreSignedUrlInputStream extends SeekableInputStream {
+class PreSignedUrlInputStream extends SeekableInputStream implements RangeReadable {
 
   private static final int SKIP_SIZE = 1024 * 1024;
 
@@ -142,6 +143,73 @@ class PreSignedUrlInputStream extends SeekableInputStream {
     pos = next;
   }
 
+  @Override
+  public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+    Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
+    if (length == 0) {
+      return;
+    }
+
+    String range = String.format(Locale.ROOT, "bytes=%d-%d", position, position + length - 1);
+    try (InputStream rangeStream = openRange(range)) {
+      IOUtil.readFully(rangeStream, buffer, offset, length);
+    }
+
+    readBytes.increment(length);
+    readOperations.increment();
+  }
+
+  @Override
+  public int readTail(byte[] buffer, int offset, int length) throws IOException {
+    Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
+    if (length == 0) {
+      return 0;
+    }
+
+    String range = String.format(Locale.ROOT, "bytes=-%d", length);
+    try (InputStream rangeStream = openRange(range)) {
+      int bytesRead = IOUtil.readRemaining(rangeStream, buffer, offset, length);
+      if (bytesRead > 0) {
+        readBytes.increment(bytesRead);
+        readOperations.increment();
+      }
+
+      return bytesRead;
+    }
+  }
+
+  /** One bounded range request; closing the stream closes the response. */
+  private InputStream openRange(String range) throws IOException {
+    HttpGet get = new HttpGet(url);
+    get.setHeader("Range", range);
+    ClassicHttpResponse opened = http.executeOpen(null, get, null);
+
+    int code = opened.getCode();
+    if (code == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
+      // at or past the end of the object
+      discard(opened);
+      return InputStream.nullInputStream();
+    }
+
+    if (code == HttpStatus.SC_OK) {
+      discard(opened);
+      throw new IOException(
+          String.format(
+              Locale.ROOT, "Read of %s failed: server ignored Range %s", redacted(url), range));
+    }
+
+    if (code != HttpStatus.SC_PARTIAL_CONTENT) {
+      throw failure("Read", url, opened);
+    }
+
+    return new FilterInputStream(opened.getEntity().getContent()) {
+      @Override
+      public void close() throws IOException {
+        opened.close();
+      }
+    };
+  }
+
   private void openStream(long from) throws IOException {
     HttpGet get = new HttpGet(url);
     get.setHeader("Range", String.format(Locale.ROOT, "bytes=%d-", from));
@@ -165,7 +233,10 @@ class PreSignedUrlInputStream extends SeekableInputStream {
       discard(opened);
       throw new IOException(
           String.format(
-              Locale.ROOT, "Read of %s failed: server ignored Range bytes=%d-", url, from));
+              Locale.ROOT,
+              "Read of %s failed: server ignored Range bytes=%d-",
+              redacted(url),
+              from));
     }
 
     this.response = opened;
@@ -213,14 +284,24 @@ class PreSignedUrlInputStream extends SeekableInputStream {
       throws IOException {
     try {
       if (response.getCode() == HttpStatus.SC_NOT_FOUND) {
-        throw new NotFoundException("Location does not exist: %s", url);
+        throw new NotFoundException("Location does not exist: %s", redacted(url));
       }
 
       return new IOException(
           String.format(
-              Locale.ROOT, "%s of %s failed with HTTP %d", what, url, response.getCode()));
+              Locale.ROOT,
+              "%s of %s failed with HTTP %d",
+              what,
+              redacted(url),
+              response.getCode()));
     } finally {
       discard(response);
     }
+  }
+
+  /** The URL without its query, which carries the signature; for messages. */
+  static String redacted(String url) {
+    int query = url.indexOf('?');
+    return query < 0 ? url : url.substring(0, query);
   }
 }
