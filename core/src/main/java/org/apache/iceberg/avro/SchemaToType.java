@@ -30,12 +30,14 @@ import org.apache.iceberg.types.Types;
 
 class SchemaToType extends AvroSchemaVisitor<Type> {
   private final Schema root;
+  private final boolean legacyTimestampMapping;
 
-  SchemaToType(Schema root) {
+  SchemaToType(Schema root, boolean legacyTimestampMapping) {
     this.root = root;
     if (root.getType() == Schema.Type.RECORD) {
       this.nextId = root.getFields().size();
     }
+    this.legacyTimestampMapping = legacyTimestampMapping;
   }
 
   private int nextId = 1;
@@ -177,6 +179,7 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
     return Types.VariantType.get();
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public Type logicalType(Schema primitive, LogicalType logical) {
     String name = logical.getName();
     if (logical instanceof LogicalTypes.Decimal) {
@@ -193,16 +196,27 @@ class SchemaToType extends AvroSchemaVisitor<Type> {
 
     } else if (logical instanceof LogicalTypes.TimestampMillis
         || logical instanceof LogicalTypes.TimestampMicros) {
-      if (AvroSchemaUtil.isTimestamptz(primitive)) {
+      if (!legacyTimestampMapping || AvroSchemaUtil.isTimestamptz(primitive)) {
         return Types.TimestampType.withZone();
       } else {
         return Types.TimestampType.withoutZone();
       }
 
     } else if (logical instanceof LogicalTypes.TimestampNanos) {
-      if (AvroSchemaUtil.isTimestamptz(primitive)) {
+      if (!legacyTimestampMapping || AvroSchemaUtil.isTimestamptz(primitive)) {
         return Types.TimestampNanoType.withZone();
       } else {
+        return Types.TimestampNanoType.withoutZone();
+      }
+
+    } else if (logical instanceof LogicalTypes.LocalTimestampMillis
+        || logical instanceof LogicalTypes.LocalTimestampMicros) {
+      if (!legacyTimestampMapping) {
+        return Types.TimestampType.withoutZone();
+      }
+
+    } else if (logical instanceof LogicalTypes.LocalTimestampNanos) {
+      if (!legacyTimestampMapping) {
         return Types.TimestampNanoType.withoutZone();
       }
 

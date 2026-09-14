@@ -26,11 +26,13 @@ import org.apache.iceberg.flink.DataGenerator;
 
 public class TestAvroGenericRecordToRowDataMapper extends AvroGenericRecordConverterBase {
   @Override
-  protected void testConverter(DataGenerator dataGenerator) throws Exception {
+  protected void testConverter(DataGenerator dataGenerator, boolean legacyTimestampMapping)
+      throws Exception {
     // Need to use avroSchema from DataGenerator because some primitive types have special Avro
     // type handling. Hence the Avro schema converted from Iceberg schema won't work.
     AvroGenericRecordToRowDataMapper mapper =
-        AvroGenericRecordToRowDataMapper.forAvroSchema(dataGenerator.avroSchema());
+        AvroGenericRecordToRowDataMapper.forAvroSchema(
+            dataGenerator.avroSchema(), legacyTimestampMapping);
     RowData expected = dataGenerator.generateFlinkRowData();
     RowData actual = mapper.map(dataGenerator.generateAvroGenericRecord());
     assertThat(actual).isEqualTo(expected);
