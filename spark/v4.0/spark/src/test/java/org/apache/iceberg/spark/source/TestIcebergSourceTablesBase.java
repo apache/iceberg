@@ -45,6 +45,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
@@ -1303,7 +1304,8 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
                 10,
                 "last_updated_snapshot_id",
                 Types.LongType.get(),
-                "Id of snapshot that last updated this partition"));
+                "Id of snapshot that last updated this partition"),
+            required(12, "dv_count", Types.IntegerType.get(), "Count of deletion vectors"));
 
     Table partitionsTable = loadTable(tableIdentifier, "partitions");
 
@@ -1326,6 +1328,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("dv_count", 0)
             .build();
 
     List<Row> actual =
@@ -1399,6 +1402,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("dv_count", 0)
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
@@ -1419,6 +1423,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("dv_count", 0)
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(secondCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", secondCommitId)
@@ -1541,6 +1546,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("dv_count", 0)
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
@@ -1557,6 +1563,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("dv_count", 0)
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(secondCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", secondCommitId)
@@ -1595,6 +1602,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("dv_count", 0)
             .set("spec_id", 0)
             .set("last_updated_at", null)
             .set("last_updated_snapshot_id", null)
@@ -1689,6 +1697,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("dv_count", 0)
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(firstCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", firstCommitId)
@@ -1709,6 +1718,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("position_delete_file_count", 2) // should be incremented now
             .set("equality_delete_record_count", 0L)
             .set("equality_delete_file_count", 0)
+            .set("dv_count", 0)
             .set("spec_id", 0)
             .set("last_updated_at", table.snapshot(posDeleteCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", posDeleteCommitId)
@@ -1744,6 +1754,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .set("position_delete_file_count", 0)
             .set("equality_delete_record_count", 2L) // should be incremented now
             .set("equality_delete_file_count", 2) // should be incremented now
+            .set("dv_count", 0)
             .set("last_updated_at", table.snapshot(eqDeleteCommitId).timestampMillis() * 1000)
             .set("last_updated_snapshot_id", eqDeleteCommitId)
             .build());
@@ -1751,6 +1762,44 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
       TestHelpers.assertEqualsSafe(
           partitionsTable.schema().asStruct(), expected.get(i), actual.get(i));
     }
+  }
+
+  @Test
+  public void testPartitionsTableDvCount() {
+    TableIdentifier tableIdentifier = TableIdentifier.of("db", "partitions_dv_test");
+    Table table =
+        createTable(
+            tableIdentifier, SCHEMA, SPEC, ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
+    spark
+        .createDataFrame(Lists.newArrayList(new SimpleRecord(1, "a")), SimpleRecord.class)
+        .select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+    spark
+        .createDataFrame(Lists.newArrayList(new SimpleRecord(1, "b")), SimpleRecord.class)
+        .select("id", "data")
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(loadLocation(tableIdentifier));
+    table.refresh();
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    DeleteFile dv1 = FileGenerationUtil.generateDV(table, dataFiles.get(0));
+    DeleteFile dv2 = FileGenerationUtil.generateDV(table, dataFiles.get(1));
+    table.newRowDelta().addDeletes(dv1).addDeletes(dv2).commit();
+    table.refresh();
+
+    List<Row> actual =
+        spark
+            .read()
+            .format("iceberg")
+            .load(loadLocation(tableIdentifier, "partitions"))
+            .collectAsList();
+    assertThat(actual).hasSize(1);
+    assertThat((int) actual.get(0).getAs("dv_count")).isEqualTo(2);
+    assertThat((int) actual.get(0).getAs("position_delete_file_count")).isEqualTo(2);
   }
 
   @Test
