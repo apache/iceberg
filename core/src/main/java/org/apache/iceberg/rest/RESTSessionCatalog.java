@@ -765,7 +765,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         ops,
         fullTableName(ident),
         metricsReporter(paths.metrics(ident), tableClient),
-        ReadRestrictions.empty());
+        response.readRestrictions());
   }
 
   @Override
@@ -1043,7 +1043,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           ops,
           fullTableName(ident),
           metricsReporter(paths.metrics(ident), tableClient),
-          ReadRestrictions.empty());
+          response.readRestrictions());
     }
 
     @Override
