@@ -316,9 +316,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           encryptionManager.decrypt(
               EncryptedFiles.encryptedInput(io.newInputFile(file.location()), file.keyMetadata()));
 
-      Map<Integer, ?> partition =
-          PartitionUtil.constantsMap(currentTask, IdentityPartitionConverters::convertConstant);
-
       ReadBuilder<Record, ?> readBuilder =
           FormatModelRegistry.readBuilder(file.format(), Record.class, inputFile);
 
@@ -334,7 +331,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           (CloseableIterable<T>)
               readBuilder
                   .project(readSchema)
-                  .idToConstant(partition)
+                  .idToConstant(
+                      PartitionUtil.constantsMap(
+                          currentTask, IdentityPartitionConverters::convertConstant))
                   .split(currentTask.start(), currentTask.length())
                   .caseSensitive(caseSensitive)
                   .filter(currentTask.residual())
