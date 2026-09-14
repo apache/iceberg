@@ -26,6 +26,8 @@ import static org.mockito.Mockito.when;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
@@ -35,6 +37,17 @@ import org.apache.parquet.schema.Type;
 import org.junit.jupiter.api.Test;
 
 class TestParquetValueWriters {
+
+  @Test
+  void geometryWriterUsesParquetCRS() {
+    Types.GeometryType geometryType = Types.GeometryType.of("EPSG:4326");
+    Schema schema = new Schema(optional(2, "geom", geometryType));
+    MessageType parquetSchema = ParquetSchemaUtil.convert(schema, "table");
+    ParquetValueWriter<Record> writer = GenericParquetWriter.create(schema, parquetSchema);
+
+    FieldMetrics<?> metrics = writer.metrics().findFirst().orElseThrow();
+    assertThat(metrics.originalType()).isEqualTo(geometryType);
+  }
 
   @Test
   void geospatialValueSizeMetricsExcludeNulls() {
