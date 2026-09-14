@@ -1,0 +1,98 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.rest;
+
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
+import org.apache.iceberg.BatchScan;
+import org.apache.iceberg.BatchScanAdapter;
+import org.apache.iceberg.ImmutableTableScanContext;
+import org.apache.iceberg.SupportsDistributedScanPlanning;
+import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableScan;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.metrics.MetricsReporter;
+import org.apache.iceberg.rest.restrictions.ReadRestrictions;
+
+/**
+ * {@link RESTTable} that delegates scan planning to the catalog server.
+ *
+ * <p>Constructed by {@link RESTSessionCatalog} when the effective scan planning mode is {@code
+ * server}; every other REST-loaded table is a plain {@link RESTTable} that plans locally.
+ */
+class RESTScanPlanningTable extends RESTTable implements SupportsDistributedScanPlanning {
+  private final RESTClient client;
+  private final Supplier<Map<String, String>> headers;
+  private final MetricsReporter reporter;
+  private final ResourcePaths resourcePaths;
+  private final TableIdentifier tableIdentifier;
+  private final Set<Endpoint> supportedEndpoints;
+  private final Map<String, String> catalogProperties;
+  private final Object hadoopConf;
+
+  RESTScanPlanningTable(
+      TableOperations ops,
+      String name,
+      MetricsReporter reporter,
+      RESTClient client,
+      Supplier<Map<String, String>> headers,
+      TableIdentifier tableIdentifier,
+      ResourcePaths resourcePaths,
+      Set<Endpoint> supportedEndpoints,
+      Map<String, String> catalogProperties,
+      Object hadoopConf,
+      ReadRestrictions readRestrictions) {
+    super(ops, name, reporter, readRestrictions);
+    this.reporter = reporter;
+    this.client = client;
+    this.headers = headers;
+    this.tableIdentifier = tableIdentifier;
+    this.resourcePaths = resourcePaths;
+    this.supportedEndpoints = supportedEndpoints;
+    this.catalogProperties = catalogProperties;
+    this.hadoopConf = hadoopConf;
+  }
+
+  @Override
+  public TableScan newScan() {
+    return new RESTTableScan(
+        this,
+        schema(),
+        ImmutableTableScanContext.builder().metricsReporter(reporter).build(),
+        client,
+        headers.get(),
+        operations(),
+        tableIdentifier,
+        resourcePaths,
+        supportedEndpoints,
+        catalogProperties,
+        hadoopConf);
+  }
+
+  @Override
+  public BatchScan newBatchScan() {
+    return new BatchScanAdapter(newScan());
+  }
+
+  @Override
+  public boolean allowDistributedPlanning() {
+    return false;
+  }
+}

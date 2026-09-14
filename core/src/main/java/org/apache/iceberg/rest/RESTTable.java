@@ -18,75 +18,46 @@
  */
 package org.apache.iceberg.rest;
 
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Supplier;
-import org.apache.iceberg.BatchScan;
-import org.apache.iceberg.BatchScanAdapter;
-import org.apache.iceberg.ImmutableTableScanContext;
-import org.apache.iceberg.SupportsDistributedScanPlanning;
+import java.util.Optional;
+import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.SupportsReadRestrictions;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.TableScan;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.rest.restrictions.ReadRestrictions;
 
-class RESTTable extends BaseRESTTable implements SupportsDistributedScanPlanning {
-  private final RESTClient client;
-  private final Supplier<Map<String, String>> headers;
-  private final MetricsReporter reporter;
-  private final ResourcePaths resourcePaths;
-  private final TableIdentifier tableIdentifier;
-  private final Set<Endpoint> supportedEndpoints;
-  private final Map<String, String> catalogProperties;
-  private final Object hadoopConf;
+/**
+ * BaseTable specialization for tables loaded via a REST catalog. Carries the per-principal {@link
+ * ReadRestrictions} that the REST server may have attached to the load response and advertises the
+ * capability via {@link SupportsReadRestrictions}.
+ *
+ * <p>Used by {@link RESTSessionCatalog} for every table loaded through REST; {@link
+ * RESTScanPlanningTable} extends this class to add server-side scan planning. Non-REST catalogs
+ * (Hadoop, Hive, Glue, JDBC, Nessie, etc.) construct {@link BaseTable} directly and do not
+ * advertise the capability — they have no pathway to produce a {@link ReadRestrictions}.
+ */
+class RESTTable extends BaseTable implements SupportsReadRestrictions {
+  private final Optional<ReadRestrictions> readRestrictions;
 
   RESTTable(
       TableOperations ops,
       String name,
       MetricsReporter reporter,
-      RESTClient client,
-      Supplier<Map<String, String>> headers,
-      TableIdentifier tableIdentifier,
-      ResourcePaths resourcePaths,
-      Set<Endpoint> supportedEndpoints,
-      Map<String, String> catalogProperties,
-      Object hadoopConf,
       ReadRestrictions readRestrictions) {
-    super(ops, name, reporter, readRestrictions);
-    this.reporter = reporter;
-    this.client = client;
-    this.headers = headers;
-    this.tableIdentifier = tableIdentifier;
-    this.resourcePaths = resourcePaths;
-    this.supportedEndpoints = supportedEndpoints;
-    this.catalogProperties = catalogProperties;
-    this.hadoopConf = hadoopConf;
+    super(ops, name, reporter);
+    this.readRestrictions =
+        readRestrictions != null && !readRestrictions.isEmpty()
+            ? Optional.of(readRestrictions)
+            : Optional.empty();
+    // Validate here, where server-provided restrictions first meet a table, so every reader
+    // inherits the check rather than re-deriving it per scan. Reads on the loaded table still fail
+    // closed on anything else they cannot apply. Uses ops directly rather than the overridable
+    // schemas() to avoid calling an overridable method from a constructor.
+    this.readRestrictions.ifPresent(
+        restrictions -> restrictions.validate(ops.current().schemasById()));
   }
 
   @Override
-  public TableScan newScan() {
-    return new RESTTableScan(
-        this,
-        schema(),
-        ImmutableTableScanContext.builder().metricsReporter(reporter).build(),
-        client,
-        headers.get(),
-        operations(),
-        tableIdentifier,
-        resourcePaths,
-        supportedEndpoints,
-        catalogProperties,
-        hadoopConf);
-  }
-
-  @Override
-  public BatchScan newBatchScan() {
-    return new BatchScanAdapter(newScan());
-  }
-
-  @Override
-  public boolean allowDistributedPlanning() {
-    return false;
+  public Optional<ReadRestrictions> readRestrictions() {
+    return readRestrictions;
   }
 }

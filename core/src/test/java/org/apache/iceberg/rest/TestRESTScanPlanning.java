@@ -177,16 +177,16 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     return catalog.buildTable(identifier, SCHEMA).withPartitionSpec(SPEC).create();
   }
 
-  private RESTTable restTableFor(RESTCatalog catalog, String tableName) {
+  private RESTScanPlanningTable restTableFor(RESTCatalog catalog, String tableName) {
     Table table = createTableWithScanPlanning(catalog, tableName);
     table.newAppend().appendFile(FILE_A).commit();
-    assertThat(table).isInstanceOf(RESTTable.class);
-    return (RESTTable) table;
+    assertThat(table).isInstanceOf(RESTScanPlanningTable.class);
+    return (RESTScanPlanningTable) table;
   }
 
   private RESTTableScan restTableScanFor(Table table) {
-    assertThat(table).isInstanceOf(RESTTable.class);
-    RESTTable restTable = (RESTTable) table;
+    assertThat(table).isInstanceOf(RESTScanPlanningTable.class);
+    RESTScanPlanningTable restTable = (RESTScanPlanningTable) table;
     TableScan scan = restTable.newScan();
     assertThat(scan).isInstanceOf(RESTTableScan.class);
     return (RESTTableScan) scan;
@@ -332,7 +332,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   @Test
   public void cancelPlanMethodAvailability() {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronousWithPagination);
-    RESTTable table = restTableFor(restCatalog, "cancel_method_table");
+    RESTScanPlanningTable table = restTableFor(restCatalog, "cancel_method_table");
     RESTTableScan restTableScan = restTableScanFor(table);
 
     // Test that cancelPlan method is available and callable
@@ -346,7 +346,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   @Test
   public void iterableCloseTriggersCancel() throws IOException {
     configurePlanningBehavior(TestPlanningBehavior.Builder::asynchronous);
-    RESTTable restTable = restTableFor(restCatalog, "iterable_close_test");
+    RESTScanPlanningTable restTable = restTableFor(restCatalog, "iterable_close_test");
     setParserContext(restTable);
 
     TableScan scan = restTable.newScan();
@@ -369,13 +369,15 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   @EnumSource(MetadataTableType.class)
   public void metadataTablesWithRemotePlanning(MetadataTableType type) {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
-    RESTTable table = restTableFor(restCatalog, "metadata_tables_test");
+    RESTScanPlanningTable table = restTableFor(restCatalog, "metadata_tables_test");
     table.newAppend().appendFile(FILE_B).commit();
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_B_EQUALITY_DELETES).commit();
     setParserContext(table);
-    // RESTTable should be only be returned for non-metadata tables, because client would
+    // RESTScanPlanningTable should be only be returned for non-metadata tables, because client
+    // would
     // not have access to metadata files for example manifests, since all it needs is file scan
-    // tasks, this test just verifies that metadata tables can be scanned with RESTTable.
+    // tasks, this test just verifies that metadata tables can be scanned with
+    // RESTScanPlanningTable.
     Table metadataTableInstance = MetadataTableUtils.createMetadataTableInstance(table, type);
     assertThat(metadataTableInstance).isNotNull();
     if (type.equals(MetadataTableType.POSITION_DELETES)) {
@@ -444,8 +446,8 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     // Add position deletes that correspond to FILE_A (which was added in table creation)
     table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
 
-    // Ensure we have a RESTTable with server-side planning enabled
-    assertThat(table).isInstanceOf(RESTTable.class);
+    // Ensure we have a RESTScanPlanningTable with server-side planning enabled
+    assertThat(table).isInstanceOf(RESTScanPlanningTable.class);
 
     // Execute scan planning - should handle position deletes correctly
     try (CloseableIterable<FileScanTask> iterable = table.newScan().planFiles()) {
@@ -789,7 +791,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
   public void scanPlanningWithMultiplePartitionSpecs() throws IOException {
     configurePlanningBehavior(TestPlanningBehavior.Builder::synchronous);
 
-    RESTTable table = restTableFor(restCatalog, "multiple_partition_specs");
+    RESTScanPlanningTable table = restTableFor(restCatalog, "multiple_partition_specs");
     table.newFastAppend().appendFile(FILE_B).commit();
 
     // Evolve partition spec to bucket by id with 8 buckets instead of 16
@@ -848,7 +850,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     // Second loadTable is answered from cache
     Table table = restCatalog.loadTable(tableIdentifier);
 
-    // Verify table is RESTTable and newScan() returns RESTTableScan
+    // Verify table is RESTScanPlanningTable and newScan() returns RESTTableScan
     restTableScanFor(table);
   }
 
@@ -1088,7 +1090,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             TestPlanningBehavior.builder().asynchronous().build());
 
     RESTCatalog catalog = catalogWithAdapter.catalog;
-    RESTTable table = restTableFor(catalog, "async_not_supported");
+    RESTScanPlanningTable table = restTableFor(catalog, "async_not_supported");
     setParserContext(table);
 
     // Should fail with UnsupportedOperationException when trying to fetch async plan result
@@ -1112,7 +1114,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             TestPlanningBehavior.builder().synchronousWithPagination().build());
 
     RESTCatalog catalog = catalogWithAdapter.catalog;
-    RESTTable table = restTableFor(catalog, "pagination_not_supported");
+    RESTScanPlanningTable table = restTableFor(catalog, "pagination_not_supported");
     table.newAppend().appendFile(FILE_B).commit();
     setParserContext(table);
     RESTTableScan scan = restTableScanFor(table);
@@ -1137,7 +1139,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             TestPlanningBehavior.builder().asynchronous().build());
 
     RESTCatalog catalog = catalogWithAdapter.catalog;
-    RESTTable table = restTableFor(catalog, "cancellation_not_supported");
+    RESTScanPlanningTable table = restTableFor(catalog, "cancellation_not_supported");
     setParserContext(table);
     RESTTableScan scan = restTableScanFor(table);
 
@@ -1215,7 +1217,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS,
             "1"));
 
-    RESTTable table = restTableFor(catalog, "poll_timeout_test");
+    RESTScanPlanningTable table = restTableFor(catalog, "poll_timeout_test");
     setParserContext(table);
     RESTTableScan scan = restTableScanFor(table);
 
@@ -1247,7 +1249,8 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS,
             "30000"));
 
-    RESTTable table = restTableFor(catalogWithAdapter.catalog, "custom_timeout_success");
+    RESTScanPlanningTable table =
+        restTableFor(catalogWithAdapter.catalog, "custom_timeout_success");
     setParserContext(table);
     assertThat(table.newScan().planFiles()).hasSize(1);
   }
@@ -1275,7 +1278,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS,
             "-1"));
 
-    RESTTable table = restTableFor(catalogWithAdapter.catalog, "invalid_timeout_test");
+    RESTScanPlanningTable table = restTableFor(catalogWithAdapter.catalog, "invalid_timeout_test");
     setParserContext(table);
     RESTTableScan scan = restTableScanFor(table);
 
@@ -1299,7 +1302,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     CatalogWithAdapter catalogWithAdapter =
         catalogThatFailsPlanning(serverError, behavior, "test-planning-failed");
 
-    RESTTable table = restTableFor(catalogWithAdapter.catalog, "planning_failed_test");
+    RESTScanPlanningTable table = restTableFor(catalogWithAdapter.catalog, "planning_failed_test");
     setParserContext(table);
     RESTTableScan scan = restTableScanFor(table);
 
@@ -1321,7 +1324,8 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     CatalogWithAdapter catalogWithAdapter =
         catalogThatFailsPlanning(null, behavior, "test-planning-failed-no-error");
 
-    RESTTable table = restTableFor(catalogWithAdapter.catalog, "planning_failed_no_error_test");
+    RESTScanPlanningTable table =
+        restTableFor(catalogWithAdapter.catalog, "planning_failed_no_error_test");
     setParserContext(table);
     RESTTableScan scan = restTableScanFor(table);
 
@@ -1514,7 +1518,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             .buildTable(TableIdentifier.of(NS, "mismatch_test"), SCHEMA)
             .create();
 
-    assertThat(table1).isNotInstanceOf(RESTTable.class).isInstanceOf(BaseTable.class);
+    assertThat(table1).isNotInstanceOf(RESTScanPlanningTable.class).isInstanceOf(BaseTable.class);
 
     // Client=CLIENT, Server=SERVER
     CatalogWithAdapter catalogWithAdapter2 =
@@ -1528,7 +1532,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             .buildTable(TableIdentifier.of(NS, "client_override_rejected_test"), SCHEMA)
             .create();
 
-    assertThat(table2).isInstanceOf(RESTTable.class);
+    assertThat(table2).isInstanceOf(RESTScanPlanningTable.class);
   }
 
   @Test
@@ -1545,7 +1549,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             .buildTable(TableIdentifier.of(NS, "client_explicit_test"), SCHEMA)
             .create();
 
-    assertThat(table).isNotInstanceOf(RESTTable.class).isInstanceOf(BaseTable.class);
+    assertThat(table).isNotInstanceOf(RESTScanPlanningTable.class).isInstanceOf(BaseTable.class);
   }
 
   @Test
@@ -1560,7 +1564,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             .buildTable(TableIdentifier.of(NS, "client_server_null_test"), SCHEMA)
             .create();
 
-    assertThat(table).isNotInstanceOf(RESTTable.class);
+    assertThat(table).isNotInstanceOf(RESTScanPlanningTable.class);
     assertThat(table).isInstanceOf(BaseTable.class);
   }
 
@@ -1575,7 +1579,7 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
             .buildTable(TableIdentifier.of(NS, "default_mode_test"), SCHEMA)
             .create();
 
-    assertThat(table).isNotInstanceOf(RESTTable.class).isInstanceOf(BaseTable.class);
+    assertThat(table).isNotInstanceOf(RESTScanPlanningTable.class).isInstanceOf(BaseTable.class);
   }
 
   @Test
@@ -1638,9 +1642,9 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
   private void verifyTableTypeForPlanningMode(String planingMode, Table table) {
     if (planingMode.equalsIgnoreCase("client")) {
-      assertThat(table).isNotInstanceOf(RESTTable.class).isInstanceOf(BaseTable.class);
+      assertThat(table).isNotInstanceOf(RESTScanPlanningTable.class).isInstanceOf(BaseTable.class);
     } else {
-      assertThat(table).isInstanceOf(RESTTable.class);
+      assertThat(table).isInstanceOf(RESTScanPlanningTable.class);
     }
   }
 }
