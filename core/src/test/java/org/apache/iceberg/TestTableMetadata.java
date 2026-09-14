@@ -2189,6 +2189,50 @@ public class TestTableMetadata {
   }
 
   @Test
+  void suppressHistoricalSnapshotsKeepsEncryptionKeys() {
+    EncryptedKey historicalKey =
+        new BaseEncryptedKey("historical-key", ByteBuffer.wrap(new byte[] {1}), null, null);
+    EncryptedKey currentKey =
+        new BaseEncryptedKey("current-key", ByteBuffer.wrap(new byte[] {2}), null, null);
+    Snapshot historical =
+        new BaseSnapshot(
+            1, 1L, null, 1L, null, null, null, "file:/s1.avro", 0L, 0L, historicalKey.keyId());
+    Snapshot current =
+        new BaseSnapshot(
+            2,
+            2L,
+            historical.snapshotId(),
+            2L,
+            null,
+            null,
+            null,
+            "file:/s2.avro",
+            0L,
+            0L,
+            currentKey.keyId());
+    TableMetadata metadata =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    TEST_SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    "location",
+                    ImmutableMap.of(TableProperties.FORMAT_VERSION, "3")))
+            .addEncryptionKey(historicalKey)
+            .addEncryptionKey(currentKey)
+            .addSnapshot(historical)
+            .setBranchSnapshot(current, SnapshotRef.MAIN_BRANCH)
+            .discardChanges()
+            .build();
+
+    TableMetadata suppressed =
+        TableMetadata.buildFrom(metadata).suppressHistoricalSnapshots().build();
+
+    assertThat(suppressed.snapshots()).containsExactly(current);
+    assertThat(suppressed.encryptionKeys()).containsExactly(historicalKey, currentKey);
+    assertThat(suppressed.changes()).isEmpty();
+  }
+
+  @Test
   public void testRemoveSnapshotsRemovesAssociatedEncryptionKey() {
     EncryptedKey keptKey =
         new BaseEncryptedKey("kept-key", ByteBuffer.wrap(new byte[] {1}), null, null);
