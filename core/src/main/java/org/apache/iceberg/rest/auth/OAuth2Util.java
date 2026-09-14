@@ -734,7 +734,18 @@ public class OAuth2Util {
               parent.scope(),
               parent.oauth2ServerUri(),
               parent.optionalOAuthParams());
-      return fromTokenResponse(client, executor, response, startTimeMillis, parent);
+      AuthSession session = fromTokenResponse(client, executor, response, startTimeMillis, parent);
+      // A session created by token exchange should be refreshed via token exchange,
+      // not by falling back to the parent's client credential. Clear the inherited
+      // credential and enable exchange on the child session so that refresh always
+      // uses the token exchange flow, independent of the catalog-level exchangeEnabled flag.
+      session.config =
+          AuthConfig.builder()
+              .from(session.config)
+              .credential(null)
+              .exchangeEnabled(true)
+              .build();
+      return session;
     }
   }
 }
