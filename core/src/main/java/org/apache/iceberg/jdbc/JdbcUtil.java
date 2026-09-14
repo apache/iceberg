@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.jdbc;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.Collections;
 import java.util.Map;
@@ -35,8 +37,12 @@ import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class JdbcUtil {
+  private static final Logger LOG = LoggerFactory.getLogger(JdbcUtil.class);
+
   // property to control strict-mode (aka check if namespace exists when creating a table)
   static final String STRICT_MODE_PROPERTY = JdbcCatalog.PROPERTY_PREFIX + "strict-mode";
   // property to control if view support is added to the existing database
@@ -528,6 +534,55 @@ final class JdbcUtil {
     return ex instanceof SQLIntegrityConstraintViolationException
         || POSTGRES_UNIQUE_VIOLATION_SQLSTATE.equals(ex.getSQLState())
         || (ex.getMessage() != null && ex.getMessage().contains("constraint failed"));
+  }
+
+  /**
+   * Returns the catalog that {@link java.sql.DatabaseMetaData} lookups should be restricted to, or
+   * null to leave them unrestricted.
+   *
+   * <p>A null catalog does not restrict a lookup to the database the connection points at, so
+   * catalog tables in an unrelated database can be mistaken for this catalog's own.
+   *
+   * @param conn a connection to resolve the catalog of
+   */
+  static String metadataCatalog(Connection conn) throws SQLException {
+    try {
+      return conn.getCatalog();
+    } catch (SQLFeatureNotSupportedException e) {
+      LOG.debug("Driver does not support catalogs, searching all catalogs", e);
+      return null;
+    }
+  }
+
+  /**
+   * Escapes a literal name so that it matches only itself when used as a {@link
+   * java.sql.DatabaseMetaData} pattern.
+   *
+   * <p>Pattern arguments treat {@code _} and {@code %} as wildcards, so an unescaped name such as
+   * {@code iceberg_tables} also matches unrelated names like {@code iceberg1tables}. The name is
+   * returned unchanged when the driver reports no escape string, because escaping is not supported
+   * in that case.
+   *
+   * @param name a literal table or column name
+   * @param escape the driver's escape string, from {@link
+   *     java.sql.DatabaseMetaData#getSearchStringEscape()}
+   */
+  static String escapeMetadataPattern(String name, String escape) {
+    if (escape == null || escape.isEmpty()) {
+      return name;
+    }
+
+    StringBuilder escaped = new StringBuilder(name.length());
+    for (int i = 0; i < name.length(); i += 1) {
+      char current = name.charAt(i);
+      if (current == '_' || current == '%' || escape.indexOf(current) >= 0) {
+        escaped.append(escape);
+      }
+
+      escaped.append(current);
+    }
+
+    return escaped.toString();
   }
 
   private static int update(
