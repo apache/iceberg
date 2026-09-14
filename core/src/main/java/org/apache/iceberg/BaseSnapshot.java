@@ -48,13 +48,13 @@ class BaseSnapshot implements Snapshot {
   private final String keyId;
 
   // lazily initialized
-  private transient List<ManifestFile> allManifests = null;
-  private transient List<ManifestFile> dataManifests = null;
-  private transient List<ManifestFile> deleteManifests = null;
-  private transient List<DataFile> addedDataFiles = null;
-  private transient List<DataFile> removedDataFiles = null;
-  private transient List<DeleteFile> addedDeleteFiles = null;
-  private transient List<DeleteFile> removedDeleteFiles = null;
+  private transient volatile List<ManifestFile> allManifests = null;
+  private transient volatile List<ManifestFile> dataManifests = null;
+  private transient volatile List<ManifestFile> deleteManifests = null;
+  private transient volatile List<DataFile> addedDataFiles = null;
+  private transient volatile List<DataFile> removedDataFiles = null;
+  private transient volatile List<DeleteFile> addedDeleteFiles = null;
+  private transient volatile List<DeleteFile> removedDeleteFiles = null;
 
   BaseSnapshot(
       long sequenceNumber,
@@ -203,7 +203,11 @@ class BaseSnapshot implements Snapshot {
   @Override
   public List<ManifestFile> allManifests(FileIO fileIO) {
     if (allManifests == null) {
-      cacheManifests(fileIO);
+      synchronized (this) {
+        if (allManifests == null) {
+          cacheManifests(fileIO);
+        }
+      }
     }
     return allManifests;
   }
@@ -211,7 +215,11 @@ class BaseSnapshot implements Snapshot {
   @Override
   public List<ManifestFile> dataManifests(FileIO fileIO) {
     if (dataManifests == null) {
-      cacheManifests(fileIO);
+      synchronized (this) {
+        if (dataManifests == null) {
+          cacheManifests(fileIO);
+        }
+      }
     }
     return dataManifests;
   }
@@ -219,7 +227,11 @@ class BaseSnapshot implements Snapshot {
   @Override
   public List<ManifestFile> deleteManifests(FileIO fileIO) {
     if (deleteManifests == null) {
-      cacheManifests(fileIO);
+      synchronized (this) {
+        if (deleteManifests == null) {
+          cacheManifests(fileIO);
+        }
+      }
     }
     return deleteManifests;
   }
@@ -227,7 +239,11 @@ class BaseSnapshot implements Snapshot {
   @Override
   public List<DataFile> addedDataFiles(FileIO fileIO) {
     if (addedDataFiles == null) {
-      cacheDataFileChanges(fileIO);
+      synchronized (this) {
+        if (addedDataFiles == null) {
+          cacheDataFileChanges(fileIO);
+        }
+      }
     }
     return addedDataFiles;
   }
@@ -235,7 +251,11 @@ class BaseSnapshot implements Snapshot {
   @Override
   public List<DataFile> removedDataFiles(FileIO fileIO) {
     if (removedDataFiles == null) {
-      cacheDataFileChanges(fileIO);
+      synchronized (this) {
+        if (removedDataFiles == null) {
+          cacheDataFileChanges(fileIO);
+        }
+      }
     }
     return removedDataFiles;
   }
@@ -243,7 +263,11 @@ class BaseSnapshot implements Snapshot {
   @Override
   public Iterable<DeleteFile> addedDeleteFiles(FileIO fileIO) {
     if (addedDeleteFiles == null) {
-      cacheDeleteFileChanges(fileIO);
+      synchronized (this) {
+        if (addedDeleteFiles == null) {
+          cacheDeleteFileChanges(fileIO);
+        }
+      }
     }
     return addedDeleteFiles;
   }
@@ -251,7 +275,11 @@ class BaseSnapshot implements Snapshot {
   @Override
   public Iterable<DeleteFile> removedDeleteFiles(FileIO fileIO) {
     if (removedDeleteFiles == null) {
-      cacheDeleteFileChanges(fileIO);
+      synchronized (this) {
+        if (removedDeleteFiles == null) {
+          cacheDeleteFileChanges(fileIO);
+        }
+      }
     }
     return removedDeleteFiles;
   }
