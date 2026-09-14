@@ -664,16 +664,12 @@ public class TestRewriteTablePathUtil extends TestBase {
     OutputFile sourceDVFile =
         Files.localOutput(
             temp.resolve("source/metadata/dv-" + System.nanoTime() + ".puffin").toString());
+    BlobMetadata sourceBlob;
+    BlobMetadata externalBlob;
     try (PuffinWriter writer = Puffin.write(sourceDVFile).createdBy("test").build()) {
-      writer.write(newDVBlob(sourceDeletes, sourcePayload, sourceDataFile));
-      writer.write(newDVBlob(externalDeletes, externalPayload, externalDataFile));
+      sourceBlob = writer.write(newDVBlob(sourceDeletes, sourcePayload, sourceDataFile));
+      externalBlob = writer.write(newDVBlob(externalDeletes, externalPayload, externalDataFile));
     }
-
-    List<BlobMetadata> sourceBlobMetadata;
-    try (PuffinReader reader = Puffin.read(sourceDVFile.toInputFile()).build()) {
-      sourceBlobMetadata = reader.fileMetadata().blobs();
-    }
-    assertThat(sourceBlobMetadata).hasSize(2);
 
     DeleteFile dvDeleteFile =
         FileMetadata.deleteFileBuilder(table.spec())
@@ -684,8 +680,8 @@ public class TestRewriteTablePathUtil extends TestBase {
             .withPartition(FILE_A.partition())
             .withRecordCount(sourceDeletes.cardinality())
             .withReferencedDataFile(sourceDataFile)
-            .withContentOffset(sourceBlobMetadata.get(0).offset())
-            .withContentSizeInBytes(sourceBlobMetadata.get(0).length())
+            .withContentOffset(sourceBlob.offset())
+            .withContentSizeInBytes(sourceBlob.length())
             .build();
 
     OutputFile rewrittenDVFile =
@@ -693,8 +689,8 @@ public class TestRewriteTablePathUtil extends TestBase {
             temp.resolve("target/metadata/dv-rewritten-" + System.nanoTime() + ".puffin")
                 .toString());
 
-    long firstBlobOffset = sourceBlobMetadata.get(0).offset();
-    long failingBlobOffset = sourceBlobMetadata.get(1).offset();
+    long firstBlobOffset = sourceBlob.offset();
+    long failingBlobOffset = externalBlob.offset();
     FileIO failingFileIO =
         new TestTables.LocalFileIO() {
           @Override
