@@ -21,8 +21,10 @@ package org.apache.iceberg;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -41,9 +43,9 @@ import org.slf4j.LoggerFactory;
  */
 public class MetadataLogEntriesTable extends BaseMetadataTable {
 
-  private static final int PROPERTIES_FIELD_ID = 6;
-
   private static final Logger LOG = LoggerFactory.getLogger(MetadataLogEntriesTable.class);
+
+  private static final int PROPERTIES_FIELD_ID = 6;
 
   private static final Schema METADATA_LOG_ENTRIES_SCHEMA =
       new Schema(
@@ -56,6 +58,13 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
               PROPERTIES_FIELD_ID,
               "properties",
               Types.MapType.ofRequired(7, 8, Types.StringType.get(), Types.StringType.get())));
+
+  static {
+    Preconditions.checkState(
+        "properties".equals(METADATA_LOG_ENTRIES_SCHEMA.findColumnName(PROPERTIES_FIELD_ID)),
+        "Field ID %s must identify properties",
+        PROPERTIES_FIELD_ID);
+  }
 
   MetadataLogEntriesTable(Table table) {
     this(table, table.name() + ".metadata_log_entries");
@@ -175,6 +184,12 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
     } catch (NotFoundException e) {
       LOG.warn(
           "Metadata file {} was not found, setting properties to null", metadataLogEntry.file(), e);
+      return null;
+    } catch (RuntimeIOException e) {
+      LOG.warn(
+          "Failed to read metadata file {}, setting properties to null",
+          metadataLogEntry.file(),
+          e);
       return null;
     }
   }

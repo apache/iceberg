@@ -19,6 +19,8 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -30,9 +32,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -116,6 +120,22 @@ class TestMetadataLogEntriesTableProperties {
 
     DataTask task =
         planTask(metadataLogEntriesTable(current, table.io()).newScan().select("properties"));
+
+    assertThat(firstColumnValues(task)).containsExactly(null, updatedProperties);
+  }
+
+  @Test
+  void returnsNullForUnreadableHistoricalMetadata() throws IOException {
+    TableMetadata current = table.operations().current();
+    TableMetadata.MetadataLogEntry previous = Iterables.getOnlyElement(current.previousFiles());
+    InputFile previousInputFile = spy(table.io().newInputFile(previous.file()));
+    doThrow(new RuntimeIOException("Failed to read metadata file"))
+        .when(previousInputFile)
+        .newStream();
+    FileIO io = spy(table.io());
+    doReturn(previousInputFile).when(io).newInputFile(previous.file());
+
+    DataTask task = planTask(metadataLogEntriesTable(current, io).newScan().select("properties"));
 
     assertThat(firstColumnValues(task)).containsExactly(null, updatedProperties);
   }
