@@ -48,6 +48,8 @@ public class FlinkReadOptions {
   public static final ConfigOption<Boolean> CASE_SENSITIVE_OPTION =
       ConfigOptions.key(PREFIX + CASE_SENSITIVE).booleanType().defaultValue(false);
 
+  public static final String AGGREGATE_PUSH_DOWN_ENABLED = "aggregate-push-down-enabled";
+
   public static final ConfigOption<Long> AS_OF_TIMESTAMP =
       ConfigOptions.key("as-of-timestamp").longType().defaultValue(null);
 

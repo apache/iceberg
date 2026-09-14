@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.flink.source;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,25 +37,46 @@ import org.apache.flink.table.connector.ProviderContext;
 import org.apache.flink.table.connector.source.DataStreamScanProvider;
 import org.apache.flink.table.connector.source.DynamicTableSource;
 import org.apache.flink.table.connector.source.ScanTableSource;
+import org.apache.flink.table.connector.source.abilities.SupportsAggregatePushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsSourceWatermark;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.expressions.AggregateExpression;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.factories.FactoryUtil;
 import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.types.DataType;
+import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.BaseMetadataTable;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetricsUtil;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableScan;
+import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionUtil;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.flink.FlinkAggregates;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
+import org.apache.iceberg.flink.FlinkReadConf;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.data.RowDataUtil;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
+import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Flink Iceberg table source. */
 @Internal
@@ -61,11 +85,19 @@ public class IcebergTableSource
         SupportsProjectionPushDown,
         SupportsFilterPushDown,
         SupportsLimitPushDown,
+        SupportsAggregatePushDown,
         SupportsSourceWatermark {
+
+  private static final Logger LOG = LoggerFactory.getLogger(IcebergTableSource.class);
 
   private int[] projectedFields;
   private Long limit;
   private List<Expression> filters;
+  private AggregateEvaluator pushedAggregate;
+  private DataType pushedAggregateProducedDataType;
+
+  private transient Table cachedTable;
+  private transient FlinkReadConf readConf;
 
   private final TableLoader loader;
   private final ResolvedSchema schema;
@@ -82,6 +114,10 @@ public class IcebergTableSource
     this.limit = toCopy.limit;
     this.filters = toCopy.filters;
     this.readableConfig = toCopy.readableConfig;
+    this.cachedTable = toCopy.cachedTable;
+    this.readConf = toCopy.readConf;
+    this.pushedAggregate = toCopy.pushedAggregate;
+    this.pushedAggregateProducedDataType = toCopy.pushedAggregateProducedDataType;
   }
 
   public IcebergTableSource(
@@ -166,18 +202,35 @@ public class IcebergTableSource
   @Override
   public Result applyFilters(List<ResolvedExpression> flinkFilters) {
     List<ResolvedExpression> acceptedFilters = Lists.newArrayList();
+    List<ResolvedExpression> remainingFilters = Lists.newArrayList();
     List<Expression> expressions = Lists.newArrayList();
+
+    Table table = null;
 
     for (ResolvedExpression resolvedExpression : flinkFilters) {
       Optional<Expression> icebergExpression = FlinkFilters.convert(resolvedExpression);
-      if (icebergExpression.isPresent()) {
-        expressions.add(icebergExpression.get());
-        acceptedFilters.add(resolvedExpression);
+      if (icebergExpression.isEmpty()) {
+        remainingFilters.add(resolvedExpression);
+        continue;
+      }
+
+      Expression expression = icebergExpression.get();
+      expressions.add(expression);
+      acceptedFilters.add(resolvedExpression);
+
+      if (table == null) {
+        table = table();
+      }
+
+      if (ExpressionUtil.selectsPartitions(expression, table, readConf().caseSensitive())) {
+        LOG.info("Evaluating {} entirely on the Iceberg side", expression);
+      } else {
+        remainingFilters.add(resolvedExpression);
       }
     }
 
     this.filters = expressions;
-    return Result.of(acceptedFilters, flinkFilters);
+    return Result.of(acceptedFilters, remainingFilters);
   }
 
   @Override
@@ -189,6 +242,126 @@ public class IcebergTableSource
     Preconditions.checkNotNull(
         properties.get(FlinkReadOptions.WATERMARK_COLUMN),
         "watermark-column needs to be configured to use source watermark.");
+  }
+
+  @Override
+  public boolean applyAggregates(
+      List<int[]> groupingSets,
+      List<AggregateExpression> aggregateExpressions,
+      DataType producedDataType) {
+    if (!readConf().aggregatePushDownEnabled()) {
+      LOG.info("Skipping aggregate pushdown: aggregate push down is not enabled");
+      return false;
+    }
+
+    if (!isBounded(properties)) {
+      LOG.info("Skipping aggregate pushdown: streaming reads are not supported");
+      return false;
+    }
+
+    if (groupingSets.size() != 1 || groupingSets.get(0).length > 0) {
+      LOG.info("Skipping aggregate pushdown: GROUP BY push down is not supported");
+      return false;
+    }
+
+    if (limit != null || readConf().limit() > 0) {
+      LOG.info("Skipping aggregate pushdown: a limit is present");
+      return false;
+    }
+
+    if (hasTimeTravelOrRefOptions()) {
+      LOG.info("Skipping aggregate pushdown: time travel or ref read options are set");
+      return false;
+    }
+
+    List<Expression> icebergAggregates = convertAggregates(aggregateExpressions);
+    if (icebergAggregates == null) {
+      return false;
+    }
+
+    Table table = table();
+    if (table instanceof BaseMetadataTable) {
+      LOG.info("Skipping aggregate pushdown: metadata tables are not supported");
+      return false;
+    }
+
+    if (!filtersSelectWholePartitions(table)) {
+      LOG.info("Skipping aggregate pushdown: a filter that doesn't select whole partitions");
+      return false;
+    }
+
+    AggregateEvaluator evaluator = planAggregateEvaluator(table, icebergAggregates);
+    if (evaluator == null) {
+      return false;
+    }
+
+    this.pushedAggregate = evaluator;
+    this.pushedAggregateProducedDataType = producedDataType;
+    return true;
+  }
+
+  private List<Expression> convertAggregates(List<AggregateExpression> aggregateExpressions) {
+    List<Expression> icebergAggregates =
+        Lists.newArrayListWithExpectedSize(aggregateExpressions.size());
+    for (AggregateExpression flinkAggregate : aggregateExpressions) {
+      Expression icebergAggregate = FlinkAggregates.convert(flinkAggregate);
+      if (icebergAggregate == null) {
+        LOG.info("Skipping aggregate pushdown: unsupported aggregate {}", flinkAggregate);
+        return null;
+      }
+
+      icebergAggregates.add(icebergAggregate);
+    }
+
+    return icebergAggregates;
+  }
+
+  private AggregateEvaluator planAggregateEvaluator(
+      Table table, List<Expression> icebergAggregates) {
+    AggregateEvaluator evaluator;
+    try {
+      evaluator = AggregateEvaluator.create(table.schema(), icebergAggregates);
+    } catch (RuntimeException e) {
+      LOG.info("Skipping aggregate pushdown: failed to bind aggregate expressions", e);
+      return null;
+    }
+
+    if (!MetricsUtil.metricsModeSupportsAggregatePushDown(table, evaluator.aggregates())) {
+      return null;
+    }
+
+    TableScan scan =
+        table
+            .newScan()
+            .caseSensitive(readConf().caseSensitive())
+            .includeColumnStats()
+            .filter(filterExpression());
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      for (FileScanTask task : tasks) {
+        if (!task.deletes().isEmpty()) {
+          LOG.info("Skipping aggregate pushdown: detected row level deletes");
+          return null;
+        }
+
+        if (task.residual().op() != Expression.Operation.TRUE) {
+          LOG.info("Skipping aggregate pushdown: file {} needs row-level filtering", task.file());
+          return null;
+        }
+
+        evaluator.update(task.file());
+      }
+    } catch (IOException e) {
+      LOG.info("Skipping aggregate pushdown: failed to plan files", e);
+      return null;
+    }
+
+    if (!evaluator.allAggregatorsValid()) {
+      LOG.info("Skipping aggregate pushdown: required metrics are not available for all files");
+      return null;
+    }
+
+    return evaluator;
   }
 
   @Override
@@ -204,6 +377,21 @@ public class IcebergTableSource
 
   @Override
   public ScanRuntimeProvider getScanRuntimeProvider(ScanContext runtimeProviderContext) {
+    if (pushedAggregate != null) {
+      return new DataStreamScanProvider() {
+        @Override
+        public DataStream<RowData> produceDataStream(
+            ProviderContext providerContext, StreamExecutionEnvironment execEnv) {
+          return createAggregateDataStream(execEnv);
+        }
+
+        @Override
+        public boolean isBounded() {
+          return true;
+        }
+      };
+    }
+
     return new DataStreamScanProvider() {
       @Override
       public DataStream<RowData> produceDataStream(
@@ -217,7 +405,7 @@ public class IcebergTableSource
 
       @Override
       public boolean isBounded() {
-        return FlinkSource.isBounded(properties);
+        return IcebergTableSource.isBounded(properties);
       }
 
       @Override
@@ -236,5 +424,83 @@ public class IcebergTableSource
   @Override
   public String asSummaryString() {
     return "Iceberg table source";
+  }
+
+  private Table table() {
+    if (cachedTable == null) {
+      try (TableLoader tableLoader = loader.clone()) {
+        tableLoader.open();
+        cachedTable = tableLoader.loadTable();
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    }
+
+    return cachedTable;
+  }
+
+  private FlinkReadConf readConf() {
+    if (readConf == null) {
+      readConf = new FlinkReadConf(properties, readableConfig);
+    }
+
+    return readConf;
+  }
+
+  private boolean filtersSelectWholePartitions(Table table) {
+    if (filters == null || filters.isEmpty()) {
+      return true;
+    }
+
+    for (Expression filter : filters) {
+      if (!ExpressionUtil.selectsPartitions(filter, table, readConf().caseSensitive())) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private Expression filterExpression() {
+    if (filters == null) {
+      return Expressions.alwaysTrue();
+    }
+
+    return filters.stream().reduce(Expressions.alwaysTrue(), Expressions::and);
+  }
+
+  private DataStream<RowData> createAggregateDataStream(StreamExecutionEnvironment execEnv) {
+    Types.StructType resultType = pushedAggregate.resultType();
+    StructLike result = pushedAggregate.result();
+    // Aggregate results hold Iceberg's internal representations (e.g. TIME bound as long micros),
+    // which Flink accessors do not accept. Convert each field to Flink's runtime representation.
+    GenericRowData row = new GenericRowData(resultType.fields().size());
+    for (int i = 0; i < row.getArity(); i++) {
+      row.setField(
+          i,
+          RowDataUtil.convertConstant(
+              resultType.fields().get(i).type(), result.get(i, Object.class)));
+    }
+
+    RowType rowType = (RowType) pushedAggregateProducedDataType.getLogicalType();
+    return execEnv
+        .fromData(Collections.singletonList(row), FlinkCompatibilityUtil.toTypeInfo(rowType))
+        .setParallelism(1);
+  }
+
+  private static boolean isBounded(Map<String, String> properties) {
+    return !PropertyUtil.propertyAsBoolean(properties, FlinkReadOptions.STREAMING, false);
+  }
+
+  private boolean hasTimeTravelOrRefOptions() {
+    FlinkReadConf conf = readConf();
+    return conf.snapshotId() != null
+        || conf.asOfTimestamp() != null
+        || conf.branch() != null
+        || conf.tag() != null
+        || conf.startSnapshotId() != null
+        || conf.endSnapshotId() != null
+        || conf.startTag() != null
+        || conf.endTag() != null;
   }
 }
