@@ -341,10 +341,11 @@ public class TestFlinkCatalogView extends CatalogTestBase {
     assertSameElements(expectedRows(), sql("SELECT * FROM %s", VIEW_NAME));
 
     View view = viewCatalog().loadView(TableIdentifier.of(icebergNamespace, VIEW_NAME));
-    // Flink hands the catalog its normalized (unparsed) SQL; references must stay unexpanded
+    // the expanded query is stored: every reference is fully qualified, so resolution does not
+    // depend on the reader's session
     assertThat(view.sqlFor("flink").sql())
-        .containsIgnoringCase(String.format("FROM `%s`", TABLE_NAME))
-        .doesNotContain(catalogName);
+        .containsIgnoringCase(
+            String.format("FROM `%s`.`%s`.`%s`", catalogName, DATABASE, TABLE_NAME));
     assertThat(view.currentVersion().defaultNamespace()).isEqualTo(icebergNamespace);
     assertThat(view.currentVersion().defaultCatalog()).isNull();
     assertThat(view.schema().columns())
@@ -395,22 +396,23 @@ public class TestFlinkCatalogView extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testCreateViewWithUnqualifiedCrossDatabaseReferenceFails() {
-    // the stored SQL resolves against the view's database, but the session validated it against
-    // db2 — accepting this would produce session-dependent results, so creation is rejected
+  public void testCreateViewWithUnqualifiedCrossDatabaseReference() {
+    // the stored expanded query fully qualifies the reference at creation time, so the view
+    // resolves against the table the creator saw, regardless of the reader's session database
     sql("CREATE DATABASE %s.db2", catalogName);
     sql("USE db2");
     try {
       sql("CREATE TABLE cross_t (id BIGINT)");
-      assertThatThrownBy(
-              () ->
-                  sql(
-                      "CREATE VIEW %s.%s.cross_view AS SELECT id FROM cross_t",
-                      catalogName, DATABASE))
-          .hasMessageContaining("Could not execute CreateTable")
-          .cause()
-          .isInstanceOf(UnsupportedOperationException.class)
-          .hasMessageContaining("unqualified name");
+      sql("INSERT INTO cross_t VALUES (7)");
+      sql("CREATE VIEW %s.%s.cross_view AS SELECT id FROM cross_t", catalogName, DATABASE);
+
+      assertSameElements(
+          Lists.newArrayList(Row.of(7L)),
+          sql("SELECT * FROM %s.%s.cross_view", catalogName, DATABASE));
+
+      // reading from the view's own database, where an unqualified cross_t would not resolve
+      sql("USE %s", DATABASE);
+      assertSameElements(Lists.newArrayList(Row.of(7L)), sql("SELECT * FROM cross_view"));
     } finally {
       sql("USE %s", DATABASE);
       sql("DROP TABLE IF EXISTS %s.db2.cross_t", catalogName);
@@ -478,6 +480,19 @@ public class TestFlinkCatalogView extends CatalogTestBase {
   public void testDropViewIfExists() {
     sql("DROP VIEW IF EXISTS nonexistent_view");
     assertThatThrownBy(() -> sql("DROP VIEW nonexistent_view"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("View with identifier")
+        .hasMessageContaining("nonexistent_view")
+        .hasMessageContaining("does not exist");
+
+    // dropping directly through the catalog API also reports the missing view
+    assertThatThrownBy(
+            () ->
+                getTableEnv()
+                    .getCatalog(catalogName)
+                    .get()
+                    .dropTable(new ObjectPath(DATABASE, "nonexistent_view"), false))
+        .isInstanceOf(TableNotExistException.class)
         .hasMessageContaining("nonexistent_view");
   }
 

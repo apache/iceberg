@@ -26,8 +26,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.flink.annotation.Internal;
@@ -109,8 +107,6 @@ import org.slf4j.LoggerFactory;
 public class FlinkCatalog extends AbstractCatalog {
   private static final Logger LOG = LoggerFactory.getLogger(FlinkCatalog.class);
   private static final String FLINK_DIALECT = "flink";
-  private static final Pattern QUALIFIED_REFERENCE =
-      Pattern.compile("`([^`]+)`\\.`([^`]+)`\\.`([^`]+)`");
 
   private final CatalogLoader catalogLoader;
   private final Catalog icebergCatalog;
@@ -489,10 +485,13 @@ public class FlinkCatalog extends AbstractCatalog {
       return;
     }
 
-    // others return false for a missing table; keep that
-    // behavior for tables and only consult the view catalog before returning
-    if (!dropped && canBeView(tablePath)) {
-      asViewCatalog.dropView(identifier);
+    // others return false for a missing table; consult the view catalog before
+    // deciding the object does not exist
+    if (!dropped) {
+      boolean viewDropped = canBeView(tablePath) && asViewCatalog.dropView(identifier);
+      if (!viewDropped && !ignoreIfNotExists) {
+        throw new TableNotExistException(getName(), tablePath);
+      }
     }
   }
 
@@ -600,50 +599,9 @@ public class FlinkCatalog extends AbstractCatalog {
         || FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY.equalsIgnoreCase(prop);
   }
 
-  /**
-   * The stored view SQL is later resolved against the view's own database, but Flink validated it
-   * against the session's current database. An unqualified reference to a table outside the view's
-   * database would therefore resolve differently (or not at all) depending on the reader's session,
-   * so such queries are rejected. Flink's expanded query fully qualifies every table reference,
-   * which makes the mismatch detectable without parsing SQL.
-   */
-  private void validateViewReferences(ObjectPath tablePath, ResolvedCatalogView view) {
-    String originalQuery = view.getOriginalQuery();
-    String expandedQuery = view.getExpandedQuery();
-    if (StringUtils.isNullOrWhitespaceOnly(originalQuery)
-        || StringUtils.isNullOrWhitespaceOnly(expandedQuery)) {
-      // views built programmatically may not carry Flink's normalized queries; the check only
-      // applies to parser-produced text
-      return;
-    }
-
-    Matcher references = QUALIFIED_REFERENCE.matcher(expandedQuery);
-    while (references.find()) {
-      String catalog = references.group(1);
-      String database = references.group(2);
-      String object = references.group(3);
-      if (catalog.equals(getName()) && database.equals(tablePath.getDatabaseName())) {
-        continue;
-      }
-
-      String databaseQualified = String.format("`%s`.`%s`", database, object);
-      String catalogQualified = String.format("`%s`.%s", catalog, databaseQualified);
-      if (!originalQuery.contains(databaseQualified) && !originalQuery.contains(catalogQualified)) {
-        throw new UnsupportedOperationException(
-            String.format(
-                "Cannot create view %s: the query references %s.%s.%s through an unqualified name, "
-                    + "which would resolve against the reader's session instead of the view's "
-                    + "database. Qualify the reference or create the view in that database",
-                tablePath, catalog, database, object));
-      }
-    }
-  }
-
   private void createIcebergView(
       ObjectPath tablePath, ResolvedCatalogView view, boolean ignoreIfExists)
       throws CatalogException, DatabaseNotExistException, TableAlreadyExistException {
-    validateViewReferences(tablePath, view);
-
     Map<String, String> properties = Maps.newHashMap(view.getOptions());
     if (!StringUtils.isNullOrWhitespaceOnly(view.getComment())) {
       properties.put(ViewProperties.COMMENT, view.getComment());
@@ -656,7 +614,10 @@ public class FlinkCatalog extends AbstractCatalog {
           .buildView(toIdentifier(tablePath))
           .withSchema(FlinkSchemaUtil.convert(view.getResolvedSchema()))
           .withDefaultNamespace(appendLevel(baseNamespace, tablePath.getDatabaseName()))
-          .withQuery(FLINK_DIALECT, view.getOriginalQuery())
+          // the expanded query fully qualifies every table reference, so the view resolves the
+          // same way regardless of the reader's session; views built programmatically may not
+          // carry an expanded query, in which case the original query is stored as-is
+          .withQuery(FLINK_DIALECT, viewQuery(view))
           .withProperties(properties)
           .create();
     } catch (AlreadyExistsException e) {
@@ -666,6 +627,12 @@ public class FlinkCatalog extends AbstractCatalog {
     } catch (NoSuchNamespaceException e) {
       throw new DatabaseNotExistException(getName(), tablePath.getDatabaseName(), e);
     }
+  }
+
+  private static String viewQuery(ResolvedCatalogView view) {
+    return StringUtils.isNullOrWhitespaceOnly(view.getExpandedQuery())
+        ? view.getOriginalQuery()
+        : view.getExpandedQuery();
   }
 
   private static void validateTableSchemaAndPartition(CatalogTable ct1, CatalogTable ct2) {
@@ -703,8 +670,7 @@ public class FlinkCatalog extends AbstractCatalog {
   public void alterTable(ObjectPath tablePath, CatalogBaseTable newTable, boolean ignoreIfNotExists)
       throws CatalogException, TableNotExistException {
     if (newTable instanceof CatalogView) {
-      throw new UnsupportedOperationException(
-          "Altering a view is not supported yet for catalog: " + getName());
+      throw new UnsupportedOperationException("Altering a view is not supported.");
     }
 
     validateFlinkTable(newTable);
@@ -770,8 +736,7 @@ public class FlinkCatalog extends AbstractCatalog {
       boolean ignoreIfNotExists)
       throws TableNotExistException, CatalogException {
     if (newTable instanceof CatalogView) {
-      throw new UnsupportedOperationException(
-          "Altering a view is not supported yet for catalog: " + getName());
+      throw new UnsupportedOperationException("Altering a view is not supported.");
     }
 
     validateFlinkTable(newTable);
