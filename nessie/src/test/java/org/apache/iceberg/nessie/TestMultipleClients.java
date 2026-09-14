@@ -112,6 +112,19 @@ public class TestMultipleClients extends BaseTestIceberg {
   }
 
   @Test
+  void listNestedNamespacesFromAnotherClient() {
+    // pins the other client to the current ref hash
+    assertThat(anotherCatalog.listNamespaces()).isEmpty();
+
+    catalog.createNamespace(Namespace.of("db1"), Collections.emptyMap());
+    catalog.createNamespace(Namespace.of("db1", "sub1"), Collections.emptyMap());
+
+    // the other client is still on the old ref hash, but listing reads the HEAD of the ref
+    assertThat(anotherCatalog.listNamespaces(Namespace.of("db1")))
+        .containsExactlyInAnyOrder(Namespace.of("db1", "sub1"));
+  }
+
+  @Test
   public void testLoadNamespaceMetadata() throws NessieConflictException, NessieNotFoundException {
     assertThatThrownBy(() -> catalog.loadNamespaceMetadata(Namespace.of("namespace1")))
         .isInstanceOf(NoSuchNamespaceException.class)
