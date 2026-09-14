@@ -83,7 +83,6 @@ public class TestRemoteSigningClient {
 
   @Test
   public void testPreSign() {
-    // the per-request selection overrides a catalog-level access delegation header
     Map<String, String> properties =
         ImmutableMap.<String, String>builder()
             .putAll(properties())
@@ -109,7 +108,6 @@ public class TestRemoteSigningClient {
 
   @Test
   public void testCredential() {
-    // the credential is exchanged at the configured OAuth2 server, which the stub also serves
     Map<String, String> properties =
         ImmutableMap.<String, String>builder()
             .putAll(properties())
@@ -229,9 +227,6 @@ public class TestRemoteSigningClient {
         .build();
   }
 
-  /**
-   * Answers the pre-signed form when the header selects it and the signed-headers form otherwise.
-   */
   private static class SigningServlet extends RemoteSignerServlet {
     private volatile boolean declineSelection = false;
     private volatile boolean unsupported = false;
@@ -284,7 +279,6 @@ public class TestRemoteSigningClient {
               && RemoteSigningClient.PRESIGNED_URLS.equals(
                   lastHeaders.get(RemoteSigningClient.ACCESS_DELEGATION_HEADER));
       if (preSignedUrl) {
-        // spell the location as the virtual-hosted URL and "sign" it
         URI location = request.uri();
         return ImmutableRemoteSignResponse.builder()
             .uri(

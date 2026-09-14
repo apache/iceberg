@@ -162,8 +162,6 @@ public class S3SignerServlet extends RemoteSignerServlet {
     Preconditions.checkArgument(
         "s3".equalsIgnoreCase(location.getScheme()), "Not an S3 location: %s", location);
 
-    // the presigner spells the URL from this signer's storage configuration and signs with the
-    // request's region, as the signed-headers form does, or this signer's when the client has none
     try (S3Presigner presigner =
         S3Presigner.builder()
             .endpointOverride(s3Endpoint)

@@ -475,7 +475,6 @@ public class TestS3RestSigner {
     return io;
   }
 
-  // no OAuth credential: an auth session would schedule a token refresh and trip afterClass
   private static Map<String, String> fileIOProperties() {
     return ImmutableMap.<String, String>builder()
         .put(CatalogProperties.URI, httpServer.getURI().toString())

@@ -40,7 +40,6 @@ public interface SupportsPreSigning {
    */
   Map<String, URI> preSign(Collection<String> locations);
 
-  /** Obtains a pre-signed URL for reading {@code location}. */
   default URI preSign(String location) {
     return preSign(List.of(location)).get(location);
   }

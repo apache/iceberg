@@ -76,7 +76,7 @@ public class RemoteSigningClient implements AutoCloseable {
     String endpointPath = properties.get(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT);
     Preconditions.checkArgument(
         null != endpointPath,
-        "Pre-signing requires the remote signing endpoint (%s), which the REST catalog sets on table load",
+        "Pre-signing requires the remote signing endpoint (%s)",
         RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT);
 
     this.properties = properties;
