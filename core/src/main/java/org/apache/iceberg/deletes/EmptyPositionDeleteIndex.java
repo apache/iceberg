@@ -51,7 +51,7 @@ class EmptyPositionDeleteIndex implements PositionDeleteIndex {
   }
 
   @Override
-  public void forEachInRange(long posStart, int length, LongConsumer consumer) {}
+  public void forEachInRange(long posStart, long posEnd, LongConsumer consumer) {}
 
   @Override
   public String toString() {

@@ -27,6 +27,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
@@ -324,7 +325,7 @@ public class TestColumnarBatchUtil {
   @Test
   void testPositionOnlyPathMatchesPerRowPath() {
     // the range traversal must agree with a straightforward per-row probe on every batch
-    java.util.Random random = new java.util.Random(20260818L);
+    Random random = new Random(20260818L);
     long fileSize = 300_000L;
     List<Long> deletedPositions = Lists.newArrayList();
     for (long pos = 0; pos < fileSize; pos++) {

@@ -196,32 +196,37 @@ class RoaringPositionBitmap {
   /**
    * Iterates over the positions set within the given range, in ascending order.
    *
-   * <p>The range is resolved to at most two underlying 32-bit bitmaps, each of which is traversed
-   * once. This avoids the per-position key extraction, bounds check and container lookup that
-   * {@link #contains(long)} performs on every call.
+   * <p>Each underlying 32-bit bitmap that the range covers is traversed once, instead of resolving
+   * the containing bitmap for every position as {@link #contains(long)} does.
    *
-   * @param posStart the first position in the range, inclusive
-   * @param length the number of positions in the range
+   * @param posStartInclusive inclusive beginning of position range
+   * @param posEndExclusive exclusive ending of position range
    * @param consumer a consumer for the positions that are set within the range
    */
-  public void forEachInRange(long posStart, int length, LongConsumer consumer) {
-    if (length <= 0) {
+  public void forEachInRange(long posStartInclusive, long posEndExclusive, LongConsumer consumer) {
+    Preconditions.checkArgument(
+        posStartInclusive <= posEndExclusive,
+        "Start position must not exceed end position: [%s, %s)",
+        posStartInclusive,
+        posEndExclusive);
+
+    if (posStartInclusive == posEndExclusive) {
       return;
     }
 
-    long posEnd = posStart + length - 1; // inclusive
-    validatePosition(posStart);
-    validatePosition(posEnd);
+    validatePosition(posStartInclusive);
+    validatePosition(posEndExclusive - 1);
 
-    int startKey = key(posStart);
-    int endKey = key(posEnd);
+    int startKey = key(posStartInclusive);
+    int endKey = key(posEndExclusive - 1);
 
-    // the range spans at most two keys because the length is bound by Integer.MAX_VALUE,
-    // which is smaller than the number of positions a single key covers
     for (int key = startKey; key <= endKey && key < bitmaps.length; key++) {
-      long lowStart = key == startKey ? Integer.toUnsignedLong(pos32Bits(posStart)) : 0L;
-      long lowEnd = key == endKey ? Integer.toUnsignedLong(pos32Bits(posEnd)) : MAX_POS_32_BITS;
-      forEachInRange(key, bitmaps[key], (int) lowStart, (int) (lowEnd - lowStart + 1), consumer);
+      long lowStart = key == startKey ? Integer.toUnsignedLong(pos32Bits(posStartInclusive)) : 0L;
+      long lowEnd =
+          key == endKey
+              ? Integer.toUnsignedLong(pos32Bits(posEndExclusive - 1)) + 1
+              : MAX_POS_32_BITS + 1;
+      forEachInRange(key, bitmaps[key], lowStart, lowEnd, consumer);
     }
   }
 
@@ -373,10 +378,15 @@ class RoaringPositionBitmap {
   }
 
   // iterates over a range of 32-bit positions within one bitmap, reconstructing 64-bit positions
+  // the underlying range API takes an int length, so wider ranges are traversed in chunks
   private static void forEachInRange(
-      int key, RoaringBitmap bitmap, int start, int length, LongConsumer consumer) {
-    bitmap.forEachInRange(
-        start, length, (int pos32Bits) -> consumer.accept(toPosition(key, pos32Bits)));
+      int key, RoaringBitmap bitmap, long lowStart, long lowEnd, LongConsumer consumer) {
+    for (long low = lowStart; low < lowEnd; ) {
+      int length = (int) Math.min(lowEnd - low, Integer.MAX_VALUE);
+      bitmap.forEachInRange(
+          (int) low, length, (int pos32Bits) -> consumer.accept(toPosition(key, pos32Bits)));
+      low += length;
+    }
   }
 
   private static void validatePosition(long pos) {

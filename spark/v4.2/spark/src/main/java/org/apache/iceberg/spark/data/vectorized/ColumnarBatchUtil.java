@@ -97,19 +97,16 @@ public class ColumnarBatchUtil {
       DeleteFilter<InternalRow> deletes,
       long rowStartPosInBatch,
       int batchSize) {
-    RowIdMappingBuilder builder = new RowIdMappingBuilder(rowStartPosInBatch, batchSize);
-    deletedPositions.forEachInRange(rowStartPosInBatch, batchSize, builder);
-    int liveRowId = builder.build();
-
-    if (liveRowId == batchSize) {
+    if (deletedPositions.isEmpty()) {
       return null;
     }
 
-    for (int index = liveRowId; index < batchSize; index++) {
-      deletes.incrementDeleteCount();
-    }
+    RowIdMappingBuilder builder = new RowIdMappingBuilder(deletes, rowStartPosInBatch, batchSize);
+    deletedPositions.forEachInRange(rowStartPosInBatch, rowStartPosInBatch + batchSize, builder);
+    builder.appendRemainingLiveRows();
 
-    return Pair.of(builder.rowIdMapping(), liveRowId);
+    int liveRowId = builder.liveRowCount();
+    return liveRowId == batchSize ? null : Pair.of(builder.rowIdMapping(), liveRowId);
   }
 
   /**
@@ -150,11 +147,8 @@ public class ColumnarBatchUtil {
     PositionDeleteIndex deletedPositions = deletes.deletedRowPositions();
 
     if (deletedPositions != null && !deletes.hasEqDeletes()) {
-      IsDeletedBuilder builder = new IsDeletedBuilder(isDeleted, rowStartPosInBatch);
-      deletedPositions.forEachInRange(rowStartPosInBatch, batchSize, builder);
-      for (int index = 0; index < builder.deletedRowCount(); index++) {
-        deletes.incrementDeleteCount();
-      }
+      IsDeletedBuilder builder = new IsDeletedBuilder(deletes, isDeleted, rowStartPosInBatch);
+      deletedPositions.forEachInRange(rowStartPosInBatch, rowStartPosInBatch + batchSize, builder);
       return isDeleted;
     }
 
@@ -222,13 +216,15 @@ public class ColumnarBatchUtil {
    * Consumes deleted positions in ascending order, filling the gaps between them with live row IDs.
    */
   private static class RowIdMappingBuilder implements LongConsumer {
+    private final DeleteFilter<InternalRow> deletes;
     private final long rowStartPosInBatch;
     private final int batchSize;
     private final int[] rowIdMapping;
     private int nextRowId = 0;
     private int liveRowId = 0;
 
-    RowIdMappingBuilder(long rowStartPosInBatch, int batchSize) {
+    RowIdMappingBuilder(DeleteFilter<InternalRow> deletes, long rowStartPosInBatch, int batchSize) {
+      this.deletes = deletes;
       this.rowStartPosInBatch = rowStartPosInBatch;
       this.batchSize = batchSize;
       this.rowIdMapping = new int[batchSize];
@@ -242,16 +238,19 @@ public class ColumnarBatchUtil {
         liveRowId++;
       }
 
+      deletes.incrementDeleteCount();
       this.nextRowId = deletedRowId + 1;
     }
 
-    /** Appends the live rows after the last deleted position and returns the live row count. */
-    int build() {
+    /** Appends the live rows that follow the last deleted position in the batch. */
+    void appendRemainingLiveRows() {
       for (int rowId = nextRowId; rowId < batchSize; rowId++) {
         rowIdMapping[liveRowId] = rowId;
         liveRowId++;
       }
+    }
 
+    int liveRowCount() {
       return liveRowId;
     }
 
@@ -262,11 +261,13 @@ public class ColumnarBatchUtil {
 
   /** Consumes deleted positions in a batch range, marking them in the given array. */
   private static class IsDeletedBuilder implements LongConsumer {
+    private final DeleteFilter<InternalRow> deletes;
     private final boolean[] isDeleted;
     private final long rowStartPosInBatch;
-    private int deletedRowCount = 0;
 
-    IsDeletedBuilder(boolean[] isDeleted, long rowStartPosInBatch) {
+    IsDeletedBuilder(
+        DeleteFilter<InternalRow> deletes, boolean[] isDeleted, long rowStartPosInBatch) {
+      this.deletes = deletes;
       this.isDeleted = isDeleted;
       this.rowStartPosInBatch = rowStartPosInBatch;
     }
@@ -274,11 +275,7 @@ public class ColumnarBatchUtil {
     @Override
     public void accept(long pos) {
       isDeleted[(int) (pos - rowStartPosInBatch)] = true;
-      this.deletedRowCount++;
-    }
-
-    int deletedRowCount() {
-      return deletedRowCount;
+      deletes.incrementDeleteCount();
     }
   }
 }
