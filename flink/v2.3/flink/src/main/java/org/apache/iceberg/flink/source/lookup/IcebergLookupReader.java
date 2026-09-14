@@ -39,6 +39,8 @@ import org.apache.iceberg.io.CloseableIterable;
 @Internal
 public class IcebergLookupReader {
 
+  public static final long CURRENT_SNAPSHOT = -1L;
+
   private final Table table;
   private final Schema projectedSchema;
   private final List<Expression> baseFilters;
@@ -66,13 +68,16 @@ public class IcebergLookupReader {
     this.filter = combinedFilter;
   }
 
-  public void read(Consumer<RowData> consumer) throws IOException {
+  public void read(long snapshotId, Consumer<RowData> consumer) throws IOException {
     RowDataFileScanTaskReader fileReader =
         new RowDataFileScanTaskReader(
             table.schema(), projectedSchema, nameMapping, caseSensitive, baseFilters);
 
     TableScan scan =
         table.newScan().caseSensitive(caseSensitive).project(projectedSchema).filter(filter);
+    if (snapshotId != CURRENT_SNAPSHOT) {
+      scan = scan.useSnapshot(snapshotId);
+    }
 
     try (CloseableIterable<CombinedScanTask> tasks = scan.planTasks()) {
       for (CombinedScanTask task : tasks) {

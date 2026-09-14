@@ -20,9 +20,8 @@ package org.apache.iceberg.flink.source.lookup;
 
 import org.apache.flink.annotation.Internal;
 
-/** Storage backend used by the Iceberg full lookup cache. */
 @Internal
-public enum LookupCacheType {
+public enum LookupCacheBackend {
   /** Keeps the full cache on the TaskManager heap. */
   MEMORY,
   /** Keeps the full cache on the TaskManager local disk using RocksDB. */

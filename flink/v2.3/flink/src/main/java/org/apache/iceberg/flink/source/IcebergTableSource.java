@@ -59,7 +59,8 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
 import org.apache.iceberg.flink.source.lookup.IcebergFullCachingLookupFunction;
 import org.apache.iceberg.flink.source.lookup.IcebergLookupOptions;
-import org.apache.iceberg.flink.source.lookup.LookupCacheType;
+import org.apache.iceberg.flink.source.lookup.LookupCacheBackend;
+import org.apache.iceberg.flink.source.lookup.ReloadFailurePolicy;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -275,9 +276,23 @@ public class IcebergTableSource
     List<Expression> pushedFilters = filters == null ? ImmutableList.of() : filters;
 
     Configuration lookupConf = Configuration.fromMap(properties);
+
+    String requestedCacheType = properties.get(LookupOptions.CACHE_TYPE.key());
+    if (requestedCacheType != null) {
+      Preconditions.checkArgument(
+          lookupConf.get(LookupOptions.CACHE_TYPE) == LookupOptions.LookupCacheType.FULL,
+          "Iceberg lookup join only supports %s=FULL, but it is set to '%s'. NONE and PARTIAL are "
+              + "not supported, because an Iceberg table cannot be point-looked-up.",
+          LookupOptions.CACHE_TYPE.key(),
+          requestedCacheType);
+    }
+
     Duration refreshInterval =
         lookupConf.getOptional(LookupOptions.FULL_CACHE_PERIODIC_RELOAD_INTERVAL).orElse(null);
-    LookupCacheType lookupCacheType = lookupConf.get(IcebergLookupOptions.CACHE_TYPE);
+    LookupCacheBackend backend = lookupConf.get(IcebergLookupOptions.FULL_CACHE_BACKEND);
+    boolean eagerLoad = lookupConf.get(IcebergLookupOptions.FULL_CACHE_EAGER_LOAD);
+    ReloadFailurePolicy reloadFailurePolicy =
+        lookupConf.get(IcebergLookupOptions.RELOAD_FAILURE_POLICY);
     String lookupCacheDir =
         lookupConf.getOptional(IcebergLookupOptions.ROCKSDB_CACHE_DIR).orElse(null);
 
@@ -289,8 +304,10 @@ public class IcebergTableSource
             keyIndices,
             pushedFilters,
             refreshInterval,
-            lookupCacheType,
+            backend,
             caseSensitive,
+            eagerLoad,
+            reloadFailurePolicy,
             lookupCacheDir);
     return LookupFunctionProvider.of(lookupFn);
   }

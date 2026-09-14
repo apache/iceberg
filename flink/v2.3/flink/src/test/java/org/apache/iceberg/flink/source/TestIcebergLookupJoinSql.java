@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.source;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -66,21 +67,12 @@ public class TestIcebergLookupJoinSql extends TestSqlBase {
 
   @Test
   public void lookupJoinReturnsMatchedAndUnmatchedRows() throws Exception {
-    createDimTable(
-        dimRecord(1L, "alice", "beijing"),
-        dimRecord(2L, "bob", "shanghai"),
-        dimRecord(3L, "carol", "guangzhou"));
+    createDefaultDimTable();
 
     TableEnvironment streamEnv = getStreamingTableEnv();
     createOrdersTable(streamEnv, "orders", 5);
 
-    String joinSql =
-        String.format(
-            "SELECT o.order_id, o.user_id, u.name, u.city\n"
-                + "FROM orders AS o\n"
-                + "LEFT JOIN iceberg_catalog.`%s`.`%s` FOR SYSTEM_TIME AS OF o.proc_time AS u\n"
-                + "  ON o.user_id = u.user_id",
-            TestFixtures.DATABASE, TestFixtures.TABLE);
+    String joinSql = lookupJoinSql("o.order_id, o.user_id, u.name, u.city", "orders");
 
     assertThat(SqlHelpers.sql(streamEnv, joinSql))
         .containsExactlyInAnyOrder(
@@ -102,12 +94,11 @@ public class TestIcebergLookupJoinSql extends TestSqlBase {
     createOrdersTable(streamEnv, "orders_with_filter", 4);
 
     String joinSql =
-        String.format(
-            "SELECT o.order_id, o.user_id, u.name, u.city\n"
-                + "FROM orders_with_filter AS o\n"
-                + "LEFT JOIN iceberg_catalog.`%s`.`%s` FOR SYSTEM_TIME AS OF o.proc_time AS u\n"
-                + "  ON o.user_id = u.user_id AND u.city = 'beijing'",
-            TestFixtures.DATABASE, TestFixtures.TABLE);
+        lookupJoinSql(
+            "o.order_id, o.user_id, u.name, u.city",
+            "orders_with_filter",
+            null,
+            "u.city = 'beijing'");
 
     assertThat(SqlHelpers.sql(streamEnv, joinSql))
         .containsExactlyInAnyOrder(
@@ -130,12 +121,7 @@ public class TestIcebergLookupJoinSql extends TestSqlBase {
     createOrdersTable(streamEnv, "orders_duplicate_keys", 3);
 
     String joinSql =
-        String.format(
-            "SELECT o.order_id, o.user_id, u.name, u.city\n"
-                + "FROM orders_duplicate_keys AS o\n"
-                + "LEFT JOIN iceberg_catalog.`%s`.`%s` FOR SYSTEM_TIME AS OF o.proc_time AS u\n"
-                + "  ON o.user_id = u.user_id",
-            TestFixtures.DATABASE, TestFixtures.TABLE);
+        lookupJoinSql("o.order_id, o.user_id, u.name, u.city", "orders_duplicate_keys");
 
     assertThat(SqlHelpers.sql(streamEnv, joinSql))
         .containsExactlyInAnyOrder(
@@ -147,39 +133,35 @@ public class TestIcebergLookupJoinSql extends TestSqlBase {
 
   @Test
   public void lookupJoinWithRocksDBCache() throws Exception {
-    createDimTable(
-        dimRecord(1L, "alice", "beijing"),
-        dimRecord(2L, "bob", "shanghai"),
-        dimRecord(3L, "carol", "guangzhou"));
+    createDefaultDimTable();
+
+    Path rocksdbDir = temporaryFolder.resolve("rocksdb");
 
     TableEnvironment streamEnv = getStreamingTableEnv();
     createOrdersTable(streamEnv, "orders_rocksdb", 3);
 
     String joinSql =
-        String.format(
-            "SELECT o.order_id, o.user_id, u.name, u.city\n"
-                + "FROM orders_rocksdb AS o\n"
-                + "LEFT JOIN iceberg_catalog.`%s`.`%s`\n"
-                + "  /*+ OPTIONS('lookup.cache.type'='rocksdb', 'lookup.cache.rocksdb.dir'='%s') */\n"
-                + "  FOR SYSTEM_TIME AS OF o.proc_time AS u\n"
-                + "  ON o.user_id = u.user_id",
-            TestFixtures.DATABASE,
-            TestFixtures.TABLE,
-            temporaryFolder.resolve("rocksdb").toString());
+        lookupJoinSql(
+            "o.order_id, o.user_id, u.name, u.city",
+            "orders_rocksdb",
+            String.format(
+                "OPTIONS('lookup.full-cache.backend'='rocksdb',"
+                    + " 'lookup.full-cache.rocksdb.dir'='%s')",
+                rocksdbDir),
+            null);
 
     assertThat(SqlHelpers.sql(streamEnv, joinSql))
         .containsExactlyInAnyOrder(
             Row.of(1L, 1L, "alice", "beijing"),
             Row.of(2L, 2L, "bob", "shanghai"),
             Row.of(3L, 3L, "carol", "guangzhou"));
+
+    assertRocksDbCacheDirEmptied(rocksdbDir);
   }
 
   @Test
   public void lookupJoinWithOptionsInTableDdl() throws Exception {
-    createDimTable(
-        dimRecord(1L, "alice", "beijing"),
-        dimRecord(2L, "bob", "shanghai"),
-        dimRecord(3L, "carol", "guangzhou"));
+    createDefaultDimTable();
 
     Path rocksdbBaseDir = temporaryFolder.resolve("rocksdb-ddl");
 
@@ -199,8 +181,8 @@ public class TestIcebergLookupJoinSql extends TestSqlBase {
             + "  'warehouse' = '%s',\n"
             + "  'catalog-database' = '%s',\n"
             + "  'catalog-table' = '%s',\n"
-            + "  'lookup.cache.type' = 'rocksdb',\n"
-            + "  'lookup.cache.rocksdb.dir' = '%s',\n"
+            + "  'lookup.full-cache.backend' = 'rocksdb',\n"
+            + "  'lookup.full-cache.rocksdb.dir' = '%s',\n"
             + "  'lookup.full-cache.periodic-reload.interval' = '10 min'\n"
             + ")",
         CATALOG_EXTENSION.warehouse(),
@@ -221,12 +203,45 @@ public class TestIcebergLookupJoinSql extends TestSqlBase {
             Row.of(2L, 2L, "bob", "shanghai"),
             Row.of(3L, 3L, "carol", "guangzhou"));
 
-    assertThat(Files.isDirectory(rocksdbBaseDir))
-        .as("RocksDB cache base directory should be created for lookup.cache.type=rocksdb")
-        .isTrue();
-    try (Stream<Path> cacheDirs = Files.list(rocksdbBaseDir)) {
-      assertThat(cacheDirs).isEmpty();
-    }
+    assertRocksDbCacheDirEmptied(rocksdbBaseDir);
+  }
+
+  @Test
+  public void lookupJoinAcceptsFullCacheOptions() throws Exception {
+    createDimTable(dimRecord(1L, "alice", "beijing"));
+
+    TableEnvironment streamEnv = getStreamingTableEnv();
+    createOrdersTable(streamEnv, "orders_full_cache_options", 1);
+
+    String joinSql =
+        lookupJoinSql(
+            "o.order_id, u.name",
+            "orders_full_cache_options",
+            "OPTIONS('lookup.cache'='FULL', 'lookup.full-cache.backend'='MEMORY',"
+                + " 'lookup.full-cache.eager-load'='true',"
+                + " 'lookup.full-cache.reload-failure-policy'='KEEP_STALE')",
+            null);
+
+    assertThat(SqlHelpers.sql(streamEnv, joinSql)).containsExactly(Row.of(1L, "alice"));
+  }
+
+  @Test
+  public void lookupJoinRejectsUnsupportedCacheType() throws Exception {
+    createDimTable(dimRecord(1L, "alice", "beijing"));
+
+    TableEnvironment streamEnv = getStreamingTableEnv();
+    createOrdersTable(streamEnv, "orders_unsupported_cache", 1);
+
+    String joinSql =
+        lookupJoinSql(
+            "o.order_id, u.name",
+            "orders_unsupported_cache",
+            "OPTIONS('lookup.cache'='PARTIAL')",
+            null);
+
+    assertThatThrownBy(() -> SqlHelpers.sql(streamEnv, joinSql))
+        .as("An Iceberg table cannot be point-looked-up, so PARTIAL must be rejected")
+        .hasStackTraceContaining("only supports lookup.cache=FULL");
   }
 
   @Test
@@ -236,16 +251,47 @@ public class TestIcebergLookupJoinSql extends TestSqlBase {
     TableEnvironment streamEnv = getStreamingTableEnv();
     createOrdersTable(streamEnv, "orders_reordered", 2);
 
-    String joinSql =
-        String.format(
-            "SELECT o.order_id, u.city, u.name\n"
-                + "FROM orders_reordered AS o\n"
-                + "LEFT JOIN iceberg_catalog.`%s`.`%s` FOR SYSTEM_TIME AS OF o.proc_time AS u\n"
-                + "  ON o.user_id = u.user_id",
-            TestFixtures.DATABASE, TestFixtures.TABLE);
+    String joinSql = lookupJoinSql("o.order_id, u.city, u.name", "orders_reordered");
 
     assertThat(SqlHelpers.sql(streamEnv, joinSql))
         .containsExactlyInAnyOrder(Row.of(1L, "beijing", "alice"), Row.of(2L, "shanghai", "bob"));
+  }
+
+  private static String lookupJoinSql(String selectClause, String probeTable) {
+    return lookupJoinSql(selectClause, probeTable, null, null);
+  }
+
+  private static String lookupJoinSql(
+      String selectClause, String probeTable, String options, String extraCondition) {
+    return String.format(
+        "SELECT %s\n"
+            + "FROM %s AS o\n"
+            + "LEFT JOIN iceberg_catalog.`%s`.`%s`\n"
+            + "%s"
+            + "  FOR SYSTEM_TIME AS OF o.proc_time AS u\n"
+            + "  ON o.user_id = u.user_id%s",
+        selectClause,
+        probeTable,
+        TestFixtures.DATABASE,
+        TestFixtures.TABLE,
+        options == null ? "" : "  /*+ " + options + " */\n",
+        extraCondition == null ? "" : " AND " + extraCondition);
+  }
+
+  private void createDefaultDimTable() throws IOException {
+    createDimTable(
+        dimRecord(1L, "alice", "beijing"),
+        dimRecord(2L, "bob", "shanghai"),
+        dimRecord(3L, "carol", "guangzhou"));
+  }
+
+  private static void assertRocksDbCacheDirEmptied(Path baseDir) throws IOException {
+    assertThat(Files.isDirectory(baseDir))
+        .as("RocksDB cache base directory should be created when the rocksdb backend is used")
+        .isTrue();
+    try (Stream<Path> cacheDirs = Files.list(baseDir)) {
+      assertThat(cacheDirs).isEmpty();
+    }
   }
 
   private void createDimTable(Record... records) throws IOException {

@@ -26,22 +26,41 @@ import org.apache.flink.configuration.ConfigOptions;
 @Internal
 public class IcebergLookupOptions {
 
-  public static final ConfigOption<LookupCacheType> CACHE_TYPE =
-      ConfigOptions.key("lookup.cache.type")
-          .enumType(LookupCacheType.class)
-          .defaultValue(LookupCacheType.MEMORY)
+  public static final ConfigOption<LookupCacheBackend> FULL_CACHE_BACKEND =
+      ConfigOptions.key("lookup.full-cache.backend")
+          .enumType(LookupCacheBackend.class)
+          .defaultValue(LookupCacheBackend.MEMORY)
           .withDescription(
               "Storage backend of the Iceberg full lookup cache. MEMORY keeps the cache on the "
                   + "TaskManager heap, ROCKSDB keeps it on the TaskManager local disk.");
 
   public static final ConfigOption<String> ROCKSDB_CACHE_DIR =
-      ConfigOptions.key("lookup.cache.rocksdb.dir")
+      ConfigOptions.key("lookup.full-cache.rocksdb.dir")
           .stringType()
           .noDefaultValue()
           .withDescription(
-              "Base directory used by the RocksDB lookup cache on TaskManagers. Each operator "
-                  + "instance creates its own sub-directory. Required when lookup.cache.type is "
-                  + "ROCKSDB.");
+              "Base directory used by the RocksDB lookup cache on TaskManagers. Required when "
+                  + "lookup.full-cache.backend is ROCKSDB. Each operator instance creates its own "
+                  + "sub-directory under it, so point it at a directory on the TaskManager data "
+                  + "disk with enough space for the dimension table.");
+
+  public static final ConfigOption<Boolean> FULL_CACHE_EAGER_LOAD =
+      ConfigOptions.key("lookup.full-cache.eager-load")
+          .booleanType()
+          .defaultValue(false)
+          .withDescription(
+              "Whether to load the full lookup cache when the lookup function is opened, instead "
+                  + "of on the first lookup. Eager loading avoids blocking the first probe row on "
+                  + "the table load.");
+
+  public static final ConfigOption<ReloadFailurePolicy> RELOAD_FAILURE_POLICY =
+      ConfigOptions.key("lookup.full-cache.reload-failure-policy")
+          .enumType(ReloadFailurePolicy.class)
+          .defaultValue(ReloadFailurePolicy.KEEP_STALE)
+          .withDescription(
+              "What to do when a background reload of the full lookup cache fails. KEEP_STALE "
+                  + "keeps serving the previous cache and only records the failure, FAIL fails the "
+                  + "job on the next lookup so that a stale cache is not served silently.");
 
   private IcebergLookupOptions() {}
 }
