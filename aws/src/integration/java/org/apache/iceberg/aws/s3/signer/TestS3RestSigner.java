@@ -107,6 +107,7 @@ public class TestS3RestSigner {
   private static Server httpServer;
   private static S3SignerServlet servlet;
   private static ValidatingSigner validatingSigner;
+  private static final HttpClient HTTP = HttpClient.newHttpClient();
   private S3Client s3;
 
   @BeforeAll
@@ -493,9 +494,8 @@ public class TestS3RestSigner {
 
   private static byte[] fetch(URI url) throws Exception {
     HttpResponse<byte[]> response =
-        HttpClient.newHttpClient()
-            .send(
-                HttpRequest.newBuilder(url).GET().build(), HttpResponse.BodyHandlers.ofByteArray());
+        HTTP.send(
+            HttpRequest.newBuilder(url).GET().build(), HttpResponse.BodyHandlers.ofByteArray());
     assertThat(response.statusCode()).as("GET %s", url).isEqualTo(200);
     return response.body();
   }
