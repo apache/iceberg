@@ -33,6 +33,7 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
+import org.apache.flink.types.variant.Variant;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.DataGenerator;
 import org.apache.iceberg.flink.DataGenerators;
@@ -74,6 +75,19 @@ class TestRowDataConverter {
   void testAddColumn() {
     assertThat(convert(SimpleDataUtil.createRowData(1, "a"), SCHEMA, SCHEMA2))
         .isEqualTo(GenericRowData.of(1, StringData.fromString("a"), null));
+  }
+
+  @Test
+  void testVariantIdentity() {
+    Schema schemaWithVariant =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "payload", Types.VariantType.get()));
+
+    Variant variant = Variant.newBuilder().object().add("k", Variant.newBuilder().of(1L)).build();
+    RowData row = GenericRowData.of(42, variant);
+
+    assertThat(convert(row, schemaWithVariant, schemaWithVariant)).isEqualTo(row);
   }
 
   @Test
