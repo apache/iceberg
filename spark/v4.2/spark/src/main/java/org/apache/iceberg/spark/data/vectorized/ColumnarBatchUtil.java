@@ -97,10 +97,6 @@ public class ColumnarBatchUtil {
       DeleteFilter<InternalRow> deletes,
       long rowStartPosInBatch,
       int batchSize) {
-    if (deletedPositions.isEmpty()) {
-      return null;
-    }
-
     RowIdMappingBuilder builder = new RowIdMappingBuilder(deletes, rowStartPosInBatch, batchSize);
     deletedPositions.forEachInRange(rowStartPosInBatch, rowStartPosInBatch + batchSize, builder);
     builder.appendRemainingLiveRows();
