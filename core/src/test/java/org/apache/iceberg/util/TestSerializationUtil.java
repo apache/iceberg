@@ -19,8 +19,10 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.Serializable;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
@@ -101,6 +103,24 @@ class TestSerializationUtil {
     assertThat(confSerializerInvoked[0])
         .as("the provided confSerializer should be applied")
         .isTrue();
+  }
+
+  @Test
+  void serializeToBytesWrapsIOException() {
+    // A non-Serializable object makes ObjectOutputStream throw NotSerializableException.
+    Object notSerializable = new Object();
+    assertThatThrownBy(() -> SerializationUtil.serializeToBytes(notSerializable))
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessage("Failed to serialize object");
+  }
+
+  @Test
+  void deserializeFromBytesWrapsIOException() {
+    // Bytes that are not a valid object stream make ObjectInputStream throw an IOException.
+    byte[] corrupted = {0, 1, 2, 3};
+    assertThatThrownBy(() -> SerializationUtil.deserializeFromBytes(corrupted))
+        .isInstanceOf(UncheckedIOException.class)
+        .hasMessage("Failed to deserialize object");
   }
 
   @Test
