@@ -127,6 +127,7 @@ public class PuffinReader implements Closeable {
 
     // TODO inspect blob offsets and coalesce read regions close to each other
 
+    // Sort metadata separately so iterator traversal loads one blob at a time.
     List<BlobMetadata> sortedBlobs =
         ImmutableList.sortedCopyOf(Comparator.comparingLong(BlobMetadata::offset), blobs);
 
