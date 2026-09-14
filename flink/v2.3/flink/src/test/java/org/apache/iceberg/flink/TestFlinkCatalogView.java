@@ -24,6 +24,8 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
 import java.util.List;
+import org.apache.flink.table.api.ValidationException;
+import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogView;
 import org.apache.flink.table.catalog.ObjectPath;
@@ -237,8 +239,7 @@ public class TestFlinkCatalogView extends CatalogTestBase {
   @TestTemplate
   public void testTableExistsForView() {
     createView("flink", "SELECT id, data FROM test_table");
-    org.apache.flink.table.catalog.Catalog flinkCatalog =
-        getTableEnv().getCatalog(catalogName).get();
+    Catalog flinkCatalog = getTableEnv().getCatalog(catalogName).get();
     assertThat(flinkCatalog.tableExists(new ObjectPath(DATABASE, VIEW_NAME))).isTrue();
     assertThat(flinkCatalog.tableExists(new ObjectPath(DATABASE, TABLE_NAME))).isTrue();
     assertThat(flinkCatalog.tableExists(new ObjectPath(DATABASE, "nonexistent"))).isFalse();
@@ -255,7 +256,7 @@ public class TestFlinkCatalogView extends CatalogTestBase {
         .isInstanceOf(TableNotExistException.class)
         .hasMessageContaining("Table (or view) db.nonexistent does not exist");
     assertThatThrownBy(() -> sql("SELECT * FROM nonexistent"))
-        .isInstanceOf(org.apache.flink.table.api.ValidationException.class)
+        .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Object 'nonexistent' not found");
   }
 
