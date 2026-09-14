@@ -22,19 +22,24 @@ import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.min;
 
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RewriteFiles;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ImmutableRemoveDanglingDeleteFiles;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.spark.SparkDeleteFile;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.spark.sql.Column;
@@ -90,10 +95,18 @@ class RemoveDanglingDeletesSparkAction
   }
 
   Result doExecute() {
+    Snapshot snapshot = table.currentSnapshot();
+    if (snapshot == null) {
+      return ImmutableRemoveDanglingDeleteFiles.Result.builder()
+          .removedDeleteFiles(Collections.emptyList())
+          .build();
+    }
+
+    long snapshotId = snapshot.snapshotId();
     RewriteFiles rewriteFiles = table.newRewrite();
     DeleteFileSet danglingDeletes = DeleteFileSet.create();
-    danglingDeletes.addAll(findDanglingDeletes());
-    danglingDeletes.addAll(findDanglingDvs());
+    danglingDeletes.addAll(findDanglingDeletes(snapshotId));
+    danglingDeletes.addAll(findDanglingDvs(snapshotId));
 
     for (DeleteFile deleteFile : danglingDeletes) {
       LOG.debug("Removing dangling delete file {}", deleteFile.location());
@@ -101,6 +114,18 @@ class RemoveDanglingDeletesSparkAction
     }
 
     if (!danglingDeletes.isEmpty()) {
+      // Validate on every commit attempt, including retries after concurrent updates.
+      rewriteFiles.validateWith(
+          snapshots -> {
+            Iterator<Snapshot> iterator = snapshots.iterator();
+            Snapshot currentSnapshot = iterator.hasNext() ? iterator.next() : null;
+            ValidationException.check(
+                currentSnapshot != null && currentSnapshot.snapshotId() == snapshotId,
+                "Cannot remove dangling deletes: current snapshot changed from %s to %s",
+                snapshotId,
+                currentSnapshot != null ? currentSnapshot.snapshotId() : null);
+            return true;
+          });
       commit(rewriteFiles);
     }
 
@@ -122,9 +147,9 @@ class RemoveDanglingDeletesSparkAction
    *       rows to valid delete files
    * </ol>
    */
-  private List<DeleteFile> findDanglingDeletes() {
+  private List<DeleteFile> findDanglingDeletes(long snapshotId) {
     Dataset<Row> minSequenceNumberByPartition =
-        loadMetadataTable(table, MetadataTableType.ENTRIES)
+        loadMetadataTable(MetadataTableType.ENTRIES, snapshotId)
             // find live data files
             .filter("data_file.content == 0 AND status < 2")
             .selectExpr(
@@ -136,7 +161,7 @@ class RemoveDanglingDeletesSparkAction
             .toDF("grouped_partition", "grouped_spec_id", "min_data_sequence_number");
 
     Dataset<Row> deleteEntries =
-        loadMetadataTable(table, MetadataTableType.ENTRIES)
+        loadMetadataTable(MetadataTableType.ENTRIES, snapshotId)
             // find live delete files
             .filter("data_file.content != 0 AND status < 2");
 
@@ -175,11 +200,11 @@ class RemoveDanglingDeletesSparkAction
         .collect(Collectors.toList());
   }
 
-  private List<DeleteFile> findDanglingDvs() {
+  private List<DeleteFile> findDanglingDvs(long snapshotId) {
     Dataset<Row> dvs =
-        loadMetadataTable(table, MetadataTableType.DELETE_FILES)
+        loadMetadataTable(MetadataTableType.DELETE_FILES, snapshotId)
             .where(col("file_format").equalTo(FileFormat.PUFFIN.name()));
-    Dataset<Row> dataFiles = loadMetadataTable(table, MetadataTableType.DATA_FILES);
+    Dataset<Row> dataFiles = loadMetadataTable(MetadataTableType.DATA_FILES, snapshotId);
 
     // a DV not pointing to a valid data file path is implicitly a dangling delete
     List<Row> danglingDvs =
@@ -194,6 +219,11 @@ class RemoveDanglingDeletesSparkAction
         // map on driver because SparkDeleteFile is not serializable
         .map(row -> deleteFileWrapper(dvs.schema(), row))
         .collect(Collectors.toList());
+  }
+
+  private Dataset<Row> loadMetadataTable(MetadataTableType type, long snapshotId) {
+    Table metadataTable = MetadataTableUtils.createMetadataTableInstance(table, type);
+    return SparkTableUtil.loadTable(spark(), metadataTable, snapshotId);
   }
 
   private DeleteFile deleteFileWrapper(StructType sparkFileType, Row row) {
