@@ -567,9 +567,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             readRestrictions);
 
     String eTag = responseHeaders.getOrDefault(HttpHeaders.ETAG, null);
-    if (eTag != null && readRestrictions.isEmpty()) {
-      // per-principal read restrictions are not keyed into ETag; skip cache to avoid serving
-      // stale restrictions on a 304 when the server-side policy has changed
+    if (eTag != null) {
+      // Cached regardless of read restrictions: the server decides when a response has changed.
+      // The ETag contract requires distinct tags for responses whose content differs, including
+      // per-principal restrictions, even at the same table metadata version.
       tableCache.put(context.sessionId(), finalIdentifier, tableSupplier, eTag);
     }
 
