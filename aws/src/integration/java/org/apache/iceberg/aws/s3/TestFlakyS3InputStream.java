@@ -39,6 +39,7 @@ import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
+import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.CreateBucketResponse;
@@ -130,9 +131,18 @@ public class TestFlakyS3InputStream extends TestS3InputStream {
     return Stream.of(Arguments.of(new IOException("some generic non-retryable IO exception")));
   }
 
+  @SuppressWarnings("unchecked")
   private S3ClientWrapper flakyStreamClient(AtomicInteger counter, IOException failure) {
     S3ClientWrapper flakyClient = spy(new S3ClientWrapper(s3Client()));
-    doAnswer(invocation -> new FlakyInputStream(invocation.callRealMethod(), counter, failure))
+    doAnswer(
+            invocation -> {
+              ResponseInputStream<GetObjectResponse> delegate =
+                  (ResponseInputStream<GetObjectResponse>) invocation.callRealMethod();
+              return new ResponseInputStream<>(
+                  delegate.response(),
+                  AbortableInputStream.create(
+                      new FlakyInputStream(delegate, counter, failure), delegate));
+            })
         .when(flakyClient)
         .getObject(any(GetObjectRequest.class), any(ResponseTransformer.class));
     return flakyClient;
@@ -190,8 +200,11 @@ public class TestFlakyS3InputStream extends TestS3InputStream {
     private final int round;
     private final IOException exception;
 
-    FlakyInputStream(Object invocationResponse, AtomicInteger counter, IOException exception) {
-      this.delegate = (ResponseInputStream<GetObjectResponse>) invocationResponse;
+    FlakyInputStream(
+        ResponseInputStream<GetObjectResponse> delegate,
+        AtomicInteger counter,
+        IOException exception) {
+      this.delegate = delegate;
       this.counter = counter;
       this.round = counter.get();
       this.exception = exception;
@@ -208,7 +221,7 @@ public class TestFlakyS3InputStream extends TestS3InputStream {
 
     @Override
     public int read() throws IOException {
-      checkCounter();
+      // No checkCounter(): single-byte read is used by abortStream() for EOF check only
       return delegate.read();
     }
 
