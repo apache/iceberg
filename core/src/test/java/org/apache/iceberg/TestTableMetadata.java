@@ -168,6 +168,7 @@ public class TestTableMetadata {
                 "/some/stats/file.puffin",
                 100,
                 42,
+                null,
                 ImmutableList.of(
                     new GenericBlobMetadata(
                         "some-stats", 11L, 2, ImmutableList.of(4), ImmutableMap.of()))));
@@ -1451,7 +1452,7 @@ public class TestTableMetadata {
         TableMetadata.buildFrom(meta)
             .setStatistics(
                 new GenericStatisticsFile(
-                    43, "/some/path/to/stats/file", 128, 27, ImmutableList.of()))
+                    43, "/some/path/to/stats/file", 128, 27, null, ImmutableList.of()))
             .build();
 
     assertThat(withStatistics.statisticsFiles())
@@ -1465,7 +1466,7 @@ public class TestTableMetadata {
         TableMetadata.buildFrom(withStatistics)
             .setStatistics(
                 new GenericStatisticsFile(
-                    43, "/some/path/to/stats/file2", 128, 27, ImmutableList.of()))
+                    43, "/some/path/to/stats/file2", 128, 27, null, ImmutableList.of()))
             .build();
 
     assertThat(withStatisticsReplaced.statisticsFiles())
@@ -1486,10 +1487,10 @@ public class TestTableMetadata {
                     schema, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of()))
             .setStatistics(
                 new GenericStatisticsFile(
-                    43, "/some/path/to/stats/file", 128, 27, ImmutableList.of()))
+                    43, "/some/path/to/stats/file", 128, 27, null, ImmutableList.of()))
             .setStatistics(
                 new GenericStatisticsFile(
-                    44, "/some/path/to/stats/file2", 128, 27, ImmutableList.of()))
+                    44, "/some/path/to/stats/file2", 128, 27, null, ImmutableList.of()))
             .build();
 
     assertThat(TableMetadata.buildFrom(meta).removeStatistics(42L).build())
@@ -1862,6 +1863,7 @@ public class TestTableMetadata {
                 "s3://a/b/stats.puffin",
                 413,
                 42,
+                null,
                 ImmutableList.of(
                     new GenericBlobMetadata(
                         "ndv", 3055729675574597004L, 1, ImmutableList.of(1), ImmutableMap.of()))));

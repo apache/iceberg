@@ -66,6 +66,7 @@ public class TestSetStatistics extends TestBase {
             "/some/statistics/file.puffin",
             100,
             42,
+            null,
             ImmutableList.of(
                 new GenericBlobMetadata(
                     "stats-type",
@@ -92,7 +93,7 @@ public class TestSetStatistics extends TestBase {
     long snapshotId = base.currentSnapshot().snapshotId();
     GenericStatisticsFile statisticsFile =
         new GenericStatisticsFile(
-            snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
+            snapshotId, "/some/statistics/file.puffin", 100, 42, null, ImmutableList.of());
 
     table.updateStatistics().setStatistics(statisticsFile).commit();
 
@@ -114,7 +115,7 @@ public class TestSetStatistics extends TestBase {
 
     GenericStatisticsFile statisticsFile =
         new GenericStatisticsFile(
-            snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
+            snapshotId, "/some/statistics/file.puffin", 100, 42, null, ImmutableList.of());
 
     // Create a TableOperations that simulates concurrent modification
     // On the first commit attempt, another writer modifies the table
@@ -147,7 +148,7 @@ public class TestSetStatistics extends TestBase {
 
     GenericStatisticsFile statisticsFile =
         new GenericStatisticsFile(
-            snapshotId, "/some/statistics/file.puffin", 100, 42, ImmutableList.of());
+            snapshotId, "/some/statistics/file.puffin", 100, 42, null, ImmutableList.of());
 
     TestTables.TestTableOperations ops = table.ops();
     ops.failCommits(2);

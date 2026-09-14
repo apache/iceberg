@@ -27,7 +27,7 @@ import java.util.List;
  * <p>Statistics are informational. A reader can choose to ignore statistics information. Statistics
  * support is not required to read the table correctly.
  */
-public interface StatisticsFile {
+public interface StatisticsFile extends FileWithKeyId {
   /** ID of the Iceberg table's snapshot the statistics file is associated with. */
   long snapshotId();
 
@@ -41,6 +41,16 @@ public interface StatisticsFile {
 
   /** Size of the Puffin footer. */
   long fileFooterSizeInBytes();
+
+  @Override
+  default String location() {
+    return path();
+  }
+
+  @Override
+  default String keyId() {
+    return null;
+  }
 
   /** List of statistics contained in the file. Never null. */
   List<BlobMetadata> blobMetadata();
