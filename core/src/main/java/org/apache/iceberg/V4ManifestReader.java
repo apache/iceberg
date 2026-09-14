@@ -39,8 +39,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.LocationUtil;
-import org.apache.iceberg.util.Pair;
-import org.apache.iceberg.util.StructProjection;
 
 /** Reader that reads a v4+ manifest file as {@link TrackedFile}s. */
 class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile> {
@@ -54,13 +52,15 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final String tableLocation;
 
   // partition filters keyed by spec ID; empty when no partition filter applies
-  private final Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters;
+  private final Map<Integer, Evaluator> partitionFilters;
+  private final Map<Integer, PartitionSpec> specsById;
 
   private V4ManifestReader(
       ManifestFile manifest,
       FileIO io,
       Schema readSchema,
-      Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters,
+      Map<Integer, Evaluator> partitionFilters,
+      Map<Integer, PartitionSpec> specsById,
       boolean includeAll,
       ScanMetrics scanMetrics,
       String tableLocation) {
@@ -68,6 +68,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     this.io = io;
     this.readSchema = readSchema;
     this.partitionFilters = partitionFilters;
+    this.specsById = specsById;
     this.includeAll = includeAll;
     this.scanMetrics = scanMetrics;
     this.tableLocation = tableLocation;
@@ -105,15 +106,14 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return true;
     }
 
-    Pair<Evaluator, StructProjection> partitionFilter = partitionFilters.get(specId);
-    if (partitionFilter == null) {
+    Evaluator evaluator = partitionFilters.get(specId);
+    if (evaluator == null) {
       // the row filter does not project to a partition filter for this spec
       return true;
     }
 
-    Evaluator evaluator = partitionFilter.first();
-    StructProjection projection = partitionFilter.second();
-    boolean matches = evaluator.eval(projection.wrap(trackedFile.partition()));
+    // partition() is already projected to the file's own spec, so evaluate it directly
+    boolean matches = evaluator.eval(trackedFile.partition());
     if (!matches) {
       incrementSkipCount(trackedFile.contentType());
     }
@@ -158,6 +158,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     // manifestLocation is not stored in the manifest; the reader fills it in
     if (tracking instanceof TrackingStruct) {
       ((TrackingStruct) tracking).setManifestLocation(manifest.path());
+    }
+
+    // supply the specs so partition() projects the stored union tuple onto the file's own spec
+    if (trackedFile instanceof TrackedFileStruct) {
+      ((TrackedFileStruct) trackedFile).setSpecsById(specsById);
     }
 
     return trackedFile;
@@ -294,15 +299,13 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     V4ManifestReader build() {
-      Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters = Maps.newHashMap();
+      Map<Integer, Evaluator> partitionFilters = Maps.newHashMap();
       if (rowFilter != Expressions.alwaysTrue() && !unionPartitionType.fields().isEmpty()) {
         for (PartitionSpec spec : specsById.values()) {
           Expression partFilter = Projections.inclusive(spec, caseSensitive).project(rowFilter);
           if (partFilter != Expressions.alwaysTrue()) {
-            Evaluator evaluator = new Evaluator(spec.partitionType(), partFilter, caseSensitive);
-            StructProjection projection =
-                StructProjection.create(unionPartitionType, spec.partitionType());
-            partitionFilters.put(spec.specId(), Pair.of(evaluator, projection));
+            partitionFilters.put(
+                spec.specId(), new Evaluator(spec.partitionType(), partFilter, caseSensitive));
           }
         }
       }
@@ -313,6 +316,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           io,
           readSchema(hasPartitionFilter),
           partitionFilters,
+          specsById,
           includeAll,
           scanMetrics,
           tableLocation);

@@ -22,9 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.TestHelpers.RoundTripSerializer;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -338,6 +341,82 @@ class TestTrackedFileStruct {
     assertThat(file.fileSizeInBytes()).isEqualTo(1024L);
     assertThat(file.get(0, String.class)).isEqualTo("s3://bucket/file.parquet");
     assertThat(file.get(1, Long.class)).isEqualTo(1024L);
+  }
+
+  @Test
+  void partitionIsProjectedOntoResolvedSpec() {
+    // a table whose partitioning evolved from id to category
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "category", Types.StringType.get()));
+    PartitionSpec idSpec =
+        PartitionSpec.builderFor(schema)
+            .withSpecId(0)
+            .add(1, 1000, "id", Transforms.identity())
+            .build();
+    PartitionSpec categorySpec =
+        PartitionSpec.builderFor(schema)
+            .withSpecId(1)
+            .add(2, 1001, "category", Transforms.identity())
+            .build();
+    Map<Integer, PartitionSpec> specsById =
+        ImmutableMap.of(idSpec.specId(), idSpec, categorySpec.specId(), categorySpec);
+
+    // the manifest stores partitions in the union type, where category sits after id
+    Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
+    int categoryUnionPos = unionType.fields().indexOf(unionType.field("category"));
+    PartitionData unionPartition = new PartitionData(unionType);
+    unionPartition.set(categoryUnionPos, "books");
+
+    TrackedFileStruct file = trackedFile(categorySpec.specId(), unionPartition);
+    file.setSpecsById(specsById);
+
+    // category is at position 1 in the union but position 0 in categorySpec; reading by the spec's
+    // ordinal must return category, not id (null)
+    assertThat(file.partition().get(0, CharSequence.class)).hasToString("books");
+
+    // a copy materializes the projection: independent of the reused union row
+    StructLike copyPartition = file.copy().partition();
+    unionPartition.set(categoryUnionPos, "changed");
+    assertThat(copyPartition.get(0, CharSequence.class)).hasToString("books");
+  }
+
+  @Test
+  void partitionReturnedAsIsWhenTypeMatchesSpec() {
+    Schema schema = new Schema(Types.NestedField.required(1, "category", Types.StringType.get()));
+    PartitionSpec spec =
+        PartitionSpec.builderFor(schema).add(1, 1000, "category", Transforms.identity()).build();
+    Map<Integer, PartitionSpec> specsById = ImmutableMap.of(spec.specId(), spec);
+
+    PartitionData partition = new PartitionData(spec.partitionType());
+    partition.set(0, "music");
+
+    TrackedFileStruct file = trackedFile(spec.specId(), partition);
+    file.setSpecsById(specsById);
+
+    // the stored tuple already matches the spec type, so partition() returns it without projecting
+    assertThat(file.partition()).isSameAs(partition);
+  }
+
+  private static TrackedFileStruct trackedFile(int specId, PartitionData partition) {
+    return new TrackedFileStruct(
+        null, // tracking
+        FileContent.DATA,
+        FORMAT_VERSION_V4,
+        "s3://bucket/file.parquet",
+        FileFormat.PARQUET,
+        100L, // recordCount
+        1024L, // fileSizeInBytes
+        specId,
+        partition,
+        null, // contentStats
+        null, // sortOrderId
+        null, // deletionVector
+        null, // manifestInfo
+        null, // keyMetadata
+        null, // splitOffsets
+        null); // equalityIds
   }
 
   @Test

@@ -22,13 +22,16 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.StructProjection;
 
 /** Mutable {@link StructLike} implementation of {@link TrackedFile}. */
 class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, Serializable {
@@ -79,6 +82,11 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private byte[] keyMetadata = null;
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
+
+  // Supplied by the reader so partition() can project the stored union-type tuple onto the file's
+  // own spec. Not serialized: copies materialize the projection into a spec-ordered PartitionData.
+  private transient Map<Integer, PartitionSpec> specsById = null;
+  private transient Map<Integer, StructProjection> partitionProjections = null;
 
   /** Used by internal readers to instantiate this class with a projection schema. */
   TrackedFileStruct(Types.StructType projection) {
@@ -142,7 +150,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.specId = toCopy.specId;
-    this.partitionData = toCopy.partitionData != null ? toCopy.partitionData.copy() : null;
+    this.partitionData = toCopy.materializedPartition();
     this.tracking = toCopy.tracking != null ? toCopy.tracking.copy() : null;
     this.sortOrderId = toCopy.sortOrderId;
     this.deletionVector = toCopy.deletionVector != null ? toCopy.deletionVector.copy() : null;
@@ -210,6 +218,12 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     return fileSizeInBytes;
   }
 
+  // Package-private only so the manifest reader can supply the table specs; other callers construct
+  // partition data directly in the file's own spec order.
+  void setSpecsById(Map<Integer, PartitionSpec> newSpecsById) {
+    this.specsById = newSpecsById;
+  }
+
   @Override
   public Integer specId() {
     return specId;
@@ -217,7 +231,45 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
 
   @Override
   public StructLike partition() {
-    return partitionData;
+    if (partitionData == null || specId == null || specsById == null) {
+      return partitionData;
+    }
+
+    PartitionSpec spec = specsById.get(specId);
+    if (spec == null) {
+      return partitionData;
+    }
+
+    Types.StructType specType = spec.partitionType();
+    if (partitionData.getPartitionType().equals(specType)) {
+      return partitionData;
+    }
+
+    return partitionProjection(specId, specType).wrap(partitionData);
+  }
+
+  private StructProjection partitionProjection(int id, Types.StructType specType) {
+    if (partitionProjections == null) {
+      this.partitionProjections = Maps.newHashMap();
+    }
+
+    return partitionProjections.computeIfAbsent(
+        id, ignored -> StructProjection.create(partitionData.getPartitionType(), specType));
+  }
+
+  // A standalone, spec-ordered copy of the partition, so a file copy is correct after
+  // serialization without the specs context that drives the projection.
+  private PartitionData materializedPartition() {
+    if (partitionData == null) {
+      return null;
+    }
+
+    StructLike projected = partition();
+    if (projected instanceof PartitionData) {
+      return ((PartitionData) projected).copy();
+    }
+
+    return new PartitionData(specsById.get(specId).partitionType()).copyFor(projected);
   }
 
   @Override

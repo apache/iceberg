@@ -24,8 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.StructProjection;
 
 /** Adapts {@link TrackedFile} entries to their read APIs, for example {@link DataFile}. */
 class TrackedFileAdapters {
@@ -37,9 +35,7 @@ class TrackedFileAdapters {
         file.contentType() == FileContent.DATA,
         "Invalid content type for DataFile: %s",
         file.contentType());
-    int specId = resolveSpecId(file, specsById);
-    return new TrackedDataFile(
-        file, specId, projectPartition(file.partition(), specsById.get(specId).partitionType()));
+    return new TrackedDataFile(file, resolveSpecId(file, specsById));
   }
 
   static DeleteFile asDVDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
@@ -47,9 +43,7 @@ class TrackedFileAdapters {
         file.contentType() == FileContent.DATA,
         "Invalid content type for DV delete file: %s",
         file.contentType());
-    int specId = resolveSpecId(file, specsById);
-    return new TrackedDVDeleteFile(
-        file, specId, projectPartition(file.partition(), specsById.get(specId).partitionType()));
+    return new TrackedDVDeleteFile(file, resolveSpecId(file, specsById));
   }
 
   static DeleteFile asEqualityDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
@@ -57,9 +51,7 @@ class TrackedFileAdapters {
         file.contentType() == FileContent.EQUALITY_DELETES,
         "Invalid content type for equality delete file: %s",
         file.contentType());
-    int specId = resolveSpecId(file, specsById);
-    return new TrackedEqualityDeleteFile(
-        file, specId, projectPartition(file.partition(), specsById.get(specId).partitionType()));
+    return new TrackedEqualityDeleteFile(file, resolveSpecId(file, specsById));
   }
 
   static ManifestFile asManifestFile(TrackedFile file) {
@@ -76,12 +68,10 @@ class TrackedFileAdapters {
       implements ContentFile<F>, Serializable {
     private final TrackedFile file;
     private final int specId;
-    private final StructLike partition;
 
-    private TrackedFileAdapter(TrackedFile file, int specId, StructLike partition) {
+    private TrackedFileAdapter(TrackedFile file, int specId) {
       this.file = file;
       this.specId = specId;
-      this.partition = partition;
     }
 
     protected TrackedFile file() {
@@ -111,11 +101,7 @@ class TrackedFileAdapters {
 
     @Override
     public StructLike partition() {
-      return partition;
-    }
-
-    protected StructLike partitionCopy() {
-      return ((PartitionData) partition).copy();
+      return file().partition() != null ? file().partition() : PartitionData.EMPTY;
     }
 
     @Override
@@ -137,8 +123,8 @@ class TrackedFileAdapters {
    */
   private abstract static class TrackedContentFile<F extends ContentFile<F>>
       extends TrackedFileAdapter<F> {
-    private TrackedContentFile(TrackedFile file, int specId, StructLike partition) {
-      super(file, specId, partition);
+    private TrackedContentFile(TrackedFile file, int specId) {
+      super(file, specId);
     }
 
     @SuppressWarnings("deprecation")
@@ -220,8 +206,8 @@ class TrackedFileAdapters {
 
   /** Adapts a TrackedFile DATA entry to the {@link DataFile} interface. */
   private static class TrackedDataFile extends TrackedContentFile<DataFile> implements DataFile {
-    private TrackedDataFile(TrackedFile file, int specId, StructLike partition) {
-      super(file, specId, partition);
+    private TrackedDataFile(TrackedFile file, int specId) {
+      super(file, specId);
     }
 
     @Override
@@ -241,7 +227,7 @@ class TrackedFileAdapters {
 
     @Override
     public DataFile copy() {
-      return new TrackedDataFile(file().copy(), specId(), partitionCopy());
+      return new TrackedDataFile(file().copy(), specId());
     }
 
     @Override
@@ -251,21 +237,20 @@ class TrackedFileAdapters {
 
     @Override
     public DataFile copyWithoutStats() {
-      return new TrackedDataFile(file().copyWithoutStats(), specId(), partitionCopy());
+      return new TrackedDataFile(file().copyWithoutStats(), specId());
     }
 
     @Override
     public DataFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return new TrackedDataFile(
-          file().copyWithStats(requestedColumnIds), specId(), partitionCopy());
+      return new TrackedDataFile(file().copyWithStats(requestedColumnIds), specId());
     }
   }
 
   /** Adapts a TrackedFile EQUALITY_DELETES entry to the {@link DeleteFile} interface. */
   private static class TrackedEqualityDeleteFile extends TrackedContentFile<DeleteFile>
       implements DeleteFile {
-    private TrackedEqualityDeleteFile(TrackedFile file, int specId, StructLike partition) {
-      super(file, specId, partition);
+    private TrackedEqualityDeleteFile(TrackedFile file, int specId) {
+      super(file, specId);
     }
 
     @Override
@@ -280,7 +265,7 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copy() {
-      return new TrackedEqualityDeleteFile(file().copy(), specId(), partitionCopy());
+      return new TrackedEqualityDeleteFile(file().copy(), specId());
     }
 
     @Override
@@ -290,13 +275,12 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copyWithoutStats() {
-      return new TrackedEqualityDeleteFile(file().copyWithoutStats(), specId(), partitionCopy());
+      return new TrackedEqualityDeleteFile(file().copyWithoutStats(), specId());
     }
 
     @Override
     public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return new TrackedEqualityDeleteFile(
-          file().copyWithStats(requestedColumnIds), specId(), partitionCopy());
+      return new TrackedEqualityDeleteFile(file().copyWithStats(requestedColumnIds), specId());
     }
   }
 
@@ -307,8 +291,8 @@ class TrackedFileAdapters {
       implements DeleteFile {
     private final DeletionVector dv;
 
-    private TrackedDVDeleteFile(TrackedFile file, int specId, StructLike partition) {
-      super(file, specId, partition);
+    private TrackedDVDeleteFile(TrackedFile file, int specId) {
+      super(file, specId);
       Preconditions.checkArgument(
           file.deletionVector() != null, "Cannot create DV delete file: no deletion vector");
       this.dv = file.deletionVector();
@@ -413,7 +397,7 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copy() {
-      return new TrackedDVDeleteFile(file().copyWithoutStats(), specId(), partitionCopy());
+      return new TrackedDVDeleteFile(file().copyWithoutStats(), specId());
     }
 
     @Override
@@ -563,22 +547,6 @@ class TrackedFileAdapters {
     public ManifestFile copy() {
       return new TrackedManifestFile(file.copy());
     }
-  }
-
-  // Manifests store partitions in the union of all specs' partition types, but each file's
-  // partition must be read using its own spec's field order.
-  private static StructLike projectPartition(StructLike partition, Types.StructType specType) {
-    if (partition == null) {
-      return PartitionData.EMPTY;
-    }
-
-    Types.StructType unionType = ((PartitionData) partition).getPartitionType();
-    if (unionType.equals(specType)) {
-      return partition;
-    }
-
-    return new PartitionData(specType)
-        .copyFor(StructProjection.create(unionType, specType).wrap(partition));
   }
 
   private static int resolveSpecId(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
