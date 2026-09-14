@@ -98,7 +98,7 @@ services:
 
   # MinIO for S3-compatible object storage
   minio:
-    image: minio/minio
+    image: quay.io/minio/minio
     hostname: minio
     environment:
       MINIO_ROOT_USER: admin
@@ -117,7 +117,7 @@ services:
 
   # Create the warehouse bucket
   create-bucket:
-    image: minio/mc
+    image: quay.io/minio/mc
     depends_on:
       minio:
         condition: service_healthy

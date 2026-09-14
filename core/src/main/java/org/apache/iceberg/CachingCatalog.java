@@ -95,10 +95,9 @@ public class CachingCatalog implements Catalog {
     @Override
     public void onRemoval(TableIdentifier tableIdentifier, Table table, RemovalCause cause) {
       LOG.debug("Evicted {} from the table cache ({})", tableIdentifier, cause);
-      if (RemovalCause.EXPIRED.equals(cause)) {
-        if (!MetadataTableUtils.hasMetadataTableName(tableIdentifier)) {
-          tableCache.invalidateAll(metadataTableIdentifiers(tableIdentifier));
-        }
+      if (RemovalCause.EXPIRED.equals(cause)
+          && !MetadataTableUtils.hasMetadataTableName(tableIdentifier)) {
+        tableCache.invalidateAll(metadataTableIdentifiers(tableIdentifier));
       }
     }
   }

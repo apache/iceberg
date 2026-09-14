@@ -26,12 +26,16 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -40,6 +44,7 @@ import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestDeleteFiles extends TestBase {
@@ -738,7 +743,53 @@ public class TestDeleteFiles extends TestBase {
         statuses(Status.DELETED, Status.DELETED));
   }
 
+  @TestTemplate
+  public void filterManifestsWithLimitedIOPool() {
+    AtomicInteger peakOpenStreams = new AtomicInteger(0);
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations("limited-test", tableDir, trackingIO(peakOpenStreams));
+    Table testTable =
+        TestTables.create(
+            tableDir, "limited-test", SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
+    commit(testTable, testTable.newFastAppend().appendFile(FILE_A), branch);
+    Snapshot deleteSnap = commit(testTable, testTable.newDelete().deleteFile(FILE_A), branch);
+    assertThat(deleteSnap.summary()).containsEntry(SnapshotSummary.DELETED_FILES_PROP, "1");
+    assertThat(peakOpenStreams.get()).isEqualTo(1);
+  }
+
   private static ByteBuffer longToBuffer(long value) {
     return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, value);
+  }
+
+  /** Returns a {@link FileIO} that records the peak number of concurrently open input streams. */
+  private static FileIO trackingIO(AtomicInteger peakOpenStreams) {
+    AtomicInteger openStreams = new AtomicInteger(0);
+    FileIO io = Mockito.spy(new TestTables.LocalFileIO());
+
+    Mockito.doAnswer(
+            newInputFile -> {
+              InputFile file = Mockito.spy((InputFile) newInputFile.callRealMethod());
+              Mockito.doAnswer(
+                      newStream -> {
+                        peakOpenStreams.accumulateAndGet(openStreams.incrementAndGet(), Math::max);
+                        SeekableInputStream stream =
+                            Mockito.spy((SeekableInputStream) newStream.callRealMethod());
+                        Mockito.doAnswer(
+                                close -> {
+                                  openStreams.decrementAndGet();
+                                  return close.callRealMethod();
+                                })
+                            .when(stream)
+                            .close();
+                        return stream;
+                      })
+                  .when(file)
+                  .newStream();
+              return file;
+            })
+        .when(io)
+        .newInputFile(Mockito.anyString());
+
+    return io;
   }
 }

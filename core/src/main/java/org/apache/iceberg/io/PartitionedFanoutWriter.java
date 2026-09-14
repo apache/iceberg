@@ -54,6 +54,7 @@ public abstract class PartitionedFanoutWriter<T> extends BaseTaskWriter<T> {
    * <p>Any PartitionKey returned by this method can be reused by the implementation.
    *
    * @param row a data row
+   * @return the PartitionKey for the given row
    */
   protected abstract PartitionKey partition(T row);
 

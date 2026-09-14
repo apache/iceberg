@@ -81,6 +81,7 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
       "equality-convert-staging-snapshot";
 
   private static final String ADDED_DV_NUM_METRIC = "addedDvNum";
+  private static final String REMOVED_EQ_DELETE_NUM_METRIC = "removedEqDeleteNum";
   private static final String COMMIT_DURATION_MS_METRIC = "commitDurationMs";
 
   private final String tableName;
@@ -97,6 +98,7 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
   private transient Counter addedDataFileNumCounter;
   private transient Counter addedDataFileSizeCounter;
   private transient Counter addedDvNumCounter;
+  private transient Counter removedEqDeleteNumCounter;
   private transient Counter commitDurationMsCounter;
 
   public EqualityConvertCommitter(
@@ -130,6 +132,7 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
     this.addedDataFileSizeCounter =
         taskMetricGroup.counter(TableMaintenanceMetrics.ADDED_DATA_FILE_SIZE_METRIC);
     this.addedDvNumCounter = taskMetricGroup.counter(ADDED_DV_NUM_METRIC);
+    this.removedEqDeleteNumCounter = taskMetricGroup.counter(REMOVED_EQ_DELETE_NUM_METRIC);
     this.commitDurationMsCounter = taskMetricGroup.counter(COMMIT_DURATION_MS_METRIC);
   }
 
@@ -225,11 +228,13 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
     long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
     commitDurationMsCounter.inc(durationMs);
 
+    int removedEqDeletes = stagingOnTargetBranch ? planResult.eqDeleteFiles().size() : 0;
     LOG.info(
-        "Committed {} data files and {} DV files to branch '{}' for table {} in {} ms. "
-            + "Processed staging snapshot {}.",
+        "Committed {} data files and {} DV files, removed {} equality delete files on branch '{}' "
+            + "for table {} in {} ms. Processed staging snapshot {}.",
         planResult.dataFiles().size(),
         allDvFiles.size(),
+        removedEqDeletes,
         targetBranch,
         tableName,
         durationMs,
@@ -245,11 +250,17 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
     }
 
     addedDvNumCounter.inc(allDvFiles.size());
+    removedEqDeleteNumCounter.inc(removedEqDeletes);
   }
 
   @VisibleForTesting
   void commit(RowDelta rowDelta) {
     rowDelta.commit();
+  }
+
+  @VisibleForTesting
+  long removedEqDeleteNum() {
+    return removedEqDeleteNumCounter.getCount();
   }
 
   /**
@@ -315,7 +326,16 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
       rowDelta.addDeletes(dvFile);
     }
 
-    if (!stagingOnTargetBranch) {
+    if (stagingOnTargetBranch) {
+      // In-place conversion: the equality deletes are already on the target branch. Their rows
+      // are now covered by DVs, so remove them; readers then stop loading and applying equality
+      // deletes.
+      for (DeleteFile eqDeleteFile : planResult.eqDeleteFiles()) {
+        rowDelta.removeDeletes(eqDeleteFile);
+      }
+    } else {
+      // Separate target branch: the writer's DVs exist only on staging, so add them to the target
+      // (addStagingDeletes skips any superseded DVs).
       addStagingDeletes(rowDelta, referencedDataFiles, planResult.stagingDVFiles());
     }
 

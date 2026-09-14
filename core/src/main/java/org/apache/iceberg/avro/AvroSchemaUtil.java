@@ -128,16 +128,6 @@ public class AvroSchemaUtil {
     return new PruneColumns(selectedIds, null).rootSchema(schema);
   }
 
-  /**
-   * @deprecated will be removed in 1.12.0; use applyNameMapping and pruneColumns(Schema, Set)
-   *     instead.
-   */
-  @Deprecated
-  public static Schema pruneColumns(
-      Schema schema, Set<Integer> selectedIds, NameMapping nameMapping) {
-    return new PruneColumns(selectedIds, nameMapping).rootSchema(schema);
-  }
-
   public static Schema buildAvroProjection(
       Schema schema, org.apache.iceberg.Schema expected, Map<String, String> renames) {
     return AvroCustomOrderSchemaVisitor.visit(schema, new BuildAvroProjection(expected, renames));

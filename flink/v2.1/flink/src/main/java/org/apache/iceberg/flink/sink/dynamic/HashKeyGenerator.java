@@ -173,7 +173,7 @@ class HashKeyGenerator {
         }
 
       case RANGE:
-        if (schema.identifierFieldIds().isEmpty()) {
+        if (equalityFields.isEmpty()) {
           LOG.warn(
               "{}: Fallback to use 'none' distribution mode, because there are no equality fields set "
                   + "and {}='range' is not supported yet in flink",

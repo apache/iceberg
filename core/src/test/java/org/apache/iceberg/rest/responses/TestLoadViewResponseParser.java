@@ -245,4 +245,38 @@ public class TestLoadViewResponseParser {
     assertThat(LoadViewResponseParser.toJson(LoadViewResponseParser.fromJson(json), true))
         .isEqualTo(expectedJson);
   }
+
+  @Test
+  public void nullConfig() {
+    ViewMetadata viewMetadata =
+        ViewMetadata.builder()
+            .assignUUID("386b9f01-002b-4d8c-b77f-42c3fd3b7c9b")
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(
+                ImmutableViewVersion.builder()
+                    .schemaId(0)
+                    .versionId(1)
+                    .timestampMillis(23L)
+                    .defaultNamespace(Namespace.of("ns1"))
+                    .build())
+            .setCurrentVersionId(1)
+            .build();
+
+    LoadViewResponse response =
+        ImmutableLoadViewResponse.builder()
+            .metadata(viewMetadata)
+            .metadataLocation("custom-location")
+            .build();
+
+    String jsonWithoutConfig = LoadViewResponseParser.toJson(response, true);
+    // a REST server may send an explicit "config": null, which must parse as an empty config
+    String jsonWithNullConfig =
+        jsonWithoutConfig.substring(0, jsonWithoutConfig.length() - 2)
+            + ",\n  \"config\" : null\n}";
+
+    LoadViewResponse parsed = LoadViewResponseParser.fromJson(jsonWithNullConfig);
+    assertThat(parsed.config()).isEmpty();
+    assertThat(LoadViewResponseParser.toJson(parsed, true)).isEqualTo(jsonWithoutConfig);
+  }
 }

@@ -247,6 +247,15 @@ public class FlinkWriteConf {
         .parse();
   }
 
+  public boolean convertEqualityDeletesMode() {
+    return confParser
+        .booleanConf()
+        .option(FlinkWriteOptions.CONVERT_EQUALITY_DELETES_ENABLE.key())
+        .flinkConfig(FlinkWriteOptions.CONVERT_EQUALITY_DELETES_ENABLE)
+        .defaultValue(FlinkWriteOptions.CONVERT_EQUALITY_DELETES_ENABLE.defaultValue())
+        .parse();
+  }
+
   /**
    * NOTE: This may be removed or changed in a future release. This value specifies the interval for
    * refreshing the table instances in sink writer subtasks. If not specified then the default

@@ -723,22 +723,22 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {
-    return RESTUtil.decodeNamespace(
+    return RESTUtil.decodeNamespaceAsPathSegment(
         pathVars.get("namespace"), NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
   }
 
   private static TableIdentifier tableIdentFromPathVars(Map<String, String> pathVars) {
     return TableIdentifier.of(
-        namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("table")));
+        namespaceFromPathVars(pathVars), RESTUtil.decodePathSegment(pathVars.get("table")));
   }
 
   private static TableIdentifier viewIdentFromPathVars(Map<String, String> pathVars) {
     return TableIdentifier.of(
-        namespaceFromPathVars(pathVars), RESTUtil.decodeString(pathVars.get("view")));
+        namespaceFromPathVars(pathVars), RESTUtil.decodePathSegment(pathVars.get("view")));
   }
 
   private static String planIDFromPathVars(Map<String, String> pathVars) {
-    return RESTUtil.decodeString(pathVars.get("plan-id"));
+    return RESTUtil.decodePathSegment(pathVars.get("plan-id"));
   }
 
   private static SnapshotMode snapshotModeFromQueryParams(Map<String, String> queryParams) {

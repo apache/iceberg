@@ -130,4 +130,22 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot parse to a string value: token_type: 34");
   }
+
+  @Test
+  public void nullExpiresInAndScope() throws Exception {
+    OAuthTokenResponse response =
+        deserialize(
+            "{\"access_token\":\"bearer-token\",\"token_type\":\"bearer\","
+                + "\"expires_in\":null,\"scope\":null}");
+
+    assertThat(response.expiresInSeconds()).isNull();
+    assertThat(response.scopes()).isEmpty();
+  }
+
+  @Test
+  void invalidScopeReportedInErrorMsg() {
+    assertThatThrownBy(() -> OAuthTokenResponse.builder().addScope("bad scope"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid scope: bad scope");
+  }
 }

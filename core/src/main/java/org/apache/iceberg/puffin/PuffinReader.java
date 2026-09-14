@@ -164,7 +164,7 @@ public class PuffinReader implements Closeable {
     if (knownFooterSize == null) {
       Preconditions.checkState(
           fileSize >= PuffinFormat.FOOTER_STRUCT_LENGTH,
-          "Invalid file: file length %s is less tha minimal length of the footer tail %s",
+          "Invalid file: file length %s is less than minimal length of the footer tail %s",
           fileSize,
           PuffinFormat.FOOTER_STRUCT_LENGTH);
       byte[] footerStruct =
