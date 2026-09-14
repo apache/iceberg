@@ -366,6 +366,9 @@ public class FlinkCatalog extends AbstractCatalog {
           .toList();
     } catch (NoSuchNamespaceException e) {
       throw new DatabaseNotExistException(getName(), databaseName, e);
+    } catch (UnsupportedOperationException e) {
+      // implements ViewCatalog but rejects view operations in JDBC catalog with V0 schema
+      return Collections.emptyList();
     }
   }
 
@@ -380,13 +383,19 @@ public class FlinkCatalog extends AbstractCatalog {
         throw e;
       }
 
+      View view;
       try {
-        View view = asViewCatalog.loadView(toIdentifier(tablePath));
-        return toCatalogView(tablePath, view);
+        view = asViewCatalog.loadView(toIdentifier(tablePath));
       } catch (NoSuchViewException viewException) {
         e.addSuppressed(viewException);
         throw e;
+      } catch (UnsupportedOperationException viewException) {
+        // implements ViewCatalog but rejects view operations in JDBC catalog with V0 schema
+        e.addSuppressed(viewException);
+        throw e;
       }
+
+      return toCatalogView(tablePath, view);
     }
 
     // Flink's CREATE TABLE LIKE clause relies on properties sent back here to create new table.
@@ -433,8 +442,20 @@ public class FlinkCatalog extends AbstractCatalog {
   @Override
   public boolean tableExists(ObjectPath tablePath) throws CatalogException {
     TableIdentifier identifier = toIdentifier(tablePath);
-    return icebergCatalog.tableExists(identifier)
-        || (canBeView(tablePath) && asViewCatalog.viewExists(identifier));
+    if (icebergCatalog.tableExists(identifier)) {
+      return true;
+    }
+
+    if (!canBeView(tablePath)) {
+      return false;
+    }
+
+    try {
+      return asViewCatalog.viewExists(identifier);
+    } catch (UnsupportedOperationException e) {
+      // implements ViewCatalog but rejects view operations in JDBC catalog with V0 schema
+      return false;
+    }
   }
 
   @Override
