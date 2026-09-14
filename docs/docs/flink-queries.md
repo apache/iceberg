@@ -421,6 +421,9 @@ SELECT * from prod.db.table$metadata_log_entries;
     Queries that select or filter on `properties` read each retained historical metadata file.
     Queries that do not reference `properties` avoid these additional reads.
 
+    If a historical metadata file is missing, `properties` is `NULL` for its log entry.
+    Properties removed from the current table remain queryable in historical log entries while their metadata files are retained.
+
 ### Snapshots
 
 To show the valid snapshots for a table:
