@@ -35,7 +35,7 @@ These notes cover the highlights. For the full list, see the [changelog](https:/
 
 ## Release Highlights
 
-### View Support
+### REST Catalog View Support
 
 This release adds read support for Iceberg views. Views can be created, loaded, listed, registered, and dropped through the REST catalog, and are exposed through a `View` object.
 
@@ -60,7 +60,7 @@ For older REST servers that support the view endpoints but do not advertise them
 
 ### Commit Retry and Concurrency Validation
 
-Writes now [retry on concurrent commits and validate for conflicts](https://github.com/apache/iceberg-python/pull/3320). When a catalog commit fails with `CommitFailedException`, `Transaction.commit_transaction()` automatically refreshes for new commits, validates for conflicts, and does a retry. 
+Writes now [retry on concurrent commits and validate for conflicts](https://github.com/apache/iceberg-python/pull/3320). When a catalog commit fails with `CommitFailedException`, `Transaction.commit_transaction()` refreshes the table, checks for conflicts, and retries the commit.
 
 
 ### Incremental Append Scan
@@ -81,7 +81,7 @@ The v3 [`geometry` and `geography` primitive types](https://github.com/apache/ic
 
 ### File Format Writer API
 
-PyIceberg has begun using the [File Format API](https://iceberg.apache.org/blog/apache-iceberg-file-format-api/)!
+PyIceberg has begun using the [File Format API](https://iceberg.apache.org/blog/apache-iceberg-file-format-api/) for handling Parquet files.
 
 
 ### Catalog and REST Improvements
@@ -140,6 +140,71 @@ Notable correctness fixes in this release:
 - [Third-party GitHub Actions pinned](https://github.com/apache/iceberg-python/pull/3172) to Apache-approved SHAs, with an [allowlist check on every PR](https://github.com/apache/iceberg-python/pull/3550) and [least-privilege workflow permissions](https://github.com/apache/iceberg-python/pull/3082)
 - [Papermill-based tests](https://github.com/apache/iceberg-python/pull/3330) that execute the documentation examples, and a [release verification script](https://github.com/apache/iceberg-python/pull/3777)
 - [PR auto-merge enabled](https://github.com/apache/iceberg-python/pull/3815)
+
+## Contributors
+```
+$ git shortlog --perl-regexp --author='^((?!dependabot\[bot\]).*)$' -sn pyiceberg-0.11.0..pyiceberg-0.12.0
+    44  Kevin Liu
+    36  Yuya Ebihara
+    12  Anas Khan
+    11  Alex Stephen
+     7  geruh
+     5  Minh Vu
+     5  Neelesh Salian
+     4  Gabriel Igliozzi
+     3  Fokko Driesprong
+     3  GayathriSrividya
+     3  Junwang Zhao
+     3  Sotaro Hikita
+     3  jj.lee
+     3  vishnu prakash
+     2  Aaron Niskode-Dossett
+     2  ChangHyeon Im
+     2  David
+     2  David Dallakyan
+     2  Jared Yu (余启正)
+     2  Mrutunjay Kinagi
+     2  Paul Mathew
+     2  Sreesh Maheshwar
+     2  Tanmay Rauth
+     2  Yingjian Wu
+     1  Adam
+     1  Antonio
+     1  Ben Lai
+     1  BharatDeva
+     1  CalebWeisgerber
+     1  Chris Qiu
+     1  David Zhao
+     1  Federico
+     1  James Bornholt
+     1  Jared Yu
+     1  Koen Denecker
+     1  Kristofer Gaudel
+     1  Marcin Szymański
+     1  Ménélik Vero
+     1  Noritaka Sekiyama
+     1  Platon G. Gimp
+     1  Pucheng Yang
+     1  R. Conner Howell
+     1  Rob Reeves
+     1  Ruiyang Wang
+     1  Sam Verhasselt
+     1  Sidra
+     1  Sumanth
+     1  Sung Yun
+     1  Thomas Pfeiffer
+     1  Vova Kot
+     1  Yong Zheng
+     1  abnobdoss
+     1  achasnovskiy
+     1  antonlin1
+     1  barking-code
+     1  committobetter
+     1  rcjverhoef
+     1  shiwk
+     1  spr0els
+```
+We thank all contributors for their efforts in making this release possible!
 
 ## Getting Involved
 
