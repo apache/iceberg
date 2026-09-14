@@ -20,8 +20,6 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
-import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -44,10 +42,11 @@ public class MetricsUtil {
   private MetricsUtil() {}
 
   /**
-   * Copies a metrics object without value, NULL and NaN counts for given fields.
+   * Copies a metrics object without value, NULL and NaN counts or average value sizes for given
+   * fields.
    *
-   * @param excludedFieldIds field IDs for which the counts must be dropped
-   * @return a new metrics object without counts for given fields
+   * @param excludedFieldIds field IDs for which the counts and average value sizes must be dropped
+   * @return a new metrics object without counts or average value sizes for given fields
    */
   public static Metrics copyWithoutFieldCounts(Metrics metrics, Set<Integer> excludedFieldIds) {
     return new Metrics(
@@ -58,13 +57,15 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         metrics.lowerBounds(),
         metrics.upperBounds(),
+        copyWithoutKeys(metrics.avgValueSizes(), excludedFieldIds),
         metrics.originalTypes());
   }
 
   /**
-   * Copies a metrics object without counts and bounds for given fields.
+   * Copies a metrics object without counts, average value sizes, and bounds for given fields.
    *
-   * @param excludedFieldIds field IDs for which the counts and bounds must be dropped
+   * @param excludedFieldIds field IDs for which the counts, average value sizes, and bounds must be
+   *     dropped
    * @return a new metrics object without lower and upper bounds for given fields
    */
   public static Metrics copyWithoutFieldCountsAndBounds(
@@ -77,6 +78,7 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.lowerBounds(), excludedFieldIds),
         copyWithoutKeys(metrics.upperBounds(), excludedFieldIds),
+        copyWithoutKeys(metrics.avgValueSizes(), excludedFieldIds),
         copyWithoutKeys(metrics.originalTypes(), excludedFieldIds));
   }
 
@@ -477,80 +479,5 @@ public class MetricsUtil {
     public <T> void set(int pos, T value) {
       throw new UnsupportedOperationException("StructWithReadableMetrics is read only");
     }
-  }
-
-  static Map<Integer, Long> valueCounts(ContentStats stats) {
-    if (stats == null) {
-      return null;
-    }
-
-    Map<Integer, Long> result = Maps.newHashMap();
-    for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.valueCount() != null) {
-        result.put(fs.fieldId(), fs.valueCount());
-      }
-    }
-
-    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
-  }
-
-  static Map<Integer, Long> nullValueCounts(ContentStats stats) {
-    if (stats == null) {
-      return null;
-    }
-
-    Map<Integer, Long> result = Maps.newHashMap();
-    for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.nullValueCount() != null) {
-        result.put(fs.fieldId(), fs.nullValueCount());
-      }
-    }
-
-    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
-  }
-
-  static Map<Integer, Long> nanValueCounts(ContentStats stats) {
-    if (stats == null) {
-      return null;
-    }
-
-    Map<Integer, Long> result = Maps.newHashMap();
-    for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.nanValueCount() != null) {
-        result.put(fs.fieldId(), fs.nanValueCount());
-      }
-    }
-
-    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
-  }
-
-  static Map<Integer, ByteBuffer> lowerBounds(ContentStats stats) {
-    if (stats == null) {
-      return null;
-    }
-
-    Map<Integer, ByteBuffer> result = Maps.newHashMap();
-    for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.lowerBound() != null && fs.type() != null) {
-        result.put(fs.fieldId(), Conversions.toByteBuffer(fs.type(), fs.lowerBound()));
-      }
-    }
-
-    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
-  }
-
-  static Map<Integer, ByteBuffer> upperBounds(ContentStats stats) {
-    if (stats == null) {
-      return null;
-    }
-
-    Map<Integer, ByteBuffer> result = Maps.newHashMap();
-    for (FieldStats<?> fs : stats.fieldStats()) {
-      if (fs != null && fs.upperBound() != null && fs.type() != null) {
-        result.put(fs.fieldId(), Conversions.toByteBuffer(fs.type(), fs.upperBound()));
-      }
-    }
-
-    return result.isEmpty() ? null : Collections.unmodifiableMap(result);
   }
 }

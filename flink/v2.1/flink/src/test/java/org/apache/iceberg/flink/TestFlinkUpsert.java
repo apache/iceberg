@@ -55,7 +55,7 @@ public class TestFlinkUpsert extends CatalogTestBase {
   private TableEnvironment tEnv;
 
   @Parameters(
-      name = "catalogName={0}, baseNamespace={1}, format={2}, isStreaming={3}, formatVersion={4} ")
+      name = "catalogType={0}, baseNamespace={1}, format={2}, isStreaming={3}, formatVersion={4} ")
   public static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
@@ -63,11 +63,10 @@ public class TestFlinkUpsert extends CatalogTestBase {
       for (int version : org.apache.iceberg.TestHelpers.V2_AND_ABOVE) {
         for (Boolean isStreaming : new Boolean[] {true, false}) {
           // Only test with one catalog as this is a file operation concern.
-          // FlinkCatalogTestBase requires the catalog name start with testhadoop if using hadoop
-          // catalog.
-          String catalogName = "testhadoop";
-          Namespace baseNamespace = Namespace.of("default");
-          parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming, version});
+          parameters.add(
+              new Object[] {
+                CatalogType.HADOOP, Namespace.of("default"), format, isStreaming, version
+              });
         }
       }
     }

@@ -80,6 +80,7 @@ public interface SnapshotUpdate<ThisT> extends PendingUpdate<Snapshot> {
    * Perform operations on a particular branch
    *
    * @param branch which is name of SnapshotRef of type branch.
+   * @return this for method chaining
    */
   default ThisT toBranch(String branch) {
     throw new UnsupportedOperationException(

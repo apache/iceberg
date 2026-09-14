@@ -37,7 +37,7 @@ class TestTrackingStruct {
   private static final int MANIFEST_POSITION_ORDINAL = Tracking.schema().fields().size();
 
   @Test
-  void testFieldAccess() {
+  void fieldAccess() {
     TrackingStruct tracking =
         new TrackingStruct(
             EntryStatus.ADDED, 42L, 10L, 11L, 43L, 1000L, DELETED_POSITIONS, REPLACED_POSITIONS);
@@ -57,7 +57,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testSetByPosition() {
+  void setByPosition() {
     TrackingStruct tracking = new TrackingStruct();
 
     tracking.set(pos("status"), EntryStatus.ADDED.id());
@@ -82,7 +82,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testGetByPosition() {
+  void getByPosition() {
     TrackingStruct tracking =
         new TrackingStruct(
             EntryStatus.ADDED, 42L, 10L, 11L, 43L, 1000L, DELETED_POSITIONS, REPLACED_POSITIONS);
@@ -103,7 +103,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testCopy() {
+  void copy() {
     TrackingStruct tracking =
         new TrackingStruct(
             EntryStatus.MODIFIED, 42L, 10L, 11L, 43L, 1000L, DELETED_POSITIONS, REPLACED_POSITIONS);
@@ -129,7 +129,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testInheritSnapshotId() {
+  void inheritSnapshotId() {
     TrackingStruct tracking =
         new TrackingStruct(EntryStatus.ADDED, null, null, null, null, null, null, null);
 
@@ -140,7 +140,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testInheritSequenceNumberForAddedEntries() {
+  void inheritSequenceNumberForAddedEntries() {
     TrackingStruct tracking =
         new TrackingStruct(EntryStatus.ADDED, 42L, null, null, null, null, null, null);
 
@@ -152,7 +152,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testDoNotInheritSequenceNumberForExistingEntries() {
+  void doNotInheritSequenceNumberForExistingEntries() {
     TrackingStruct tracking =
         new TrackingStruct(EntryStatus.EXISTING, 42L, 5L, 6L, null, null, null, null);
 
@@ -164,7 +164,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testDoNotInheritSequenceNumberForModifiedEntries() {
+  void doNotInheritSequenceNumberForModifiedEntries() {
     TrackingStruct tracking =
         new TrackingStruct(EntryStatus.MODIFIED, 42L, 5L, 6L, null, null, null, null);
 
@@ -176,7 +176,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testExplicitValuesOverrideInheritance() {
+  void explicitValuesOverrideInheritance() {
     TrackingStruct tracking =
         new TrackingStruct(EntryStatus.ADDED, 200L, 75L, 76L, null, null, null, null);
 
@@ -189,7 +189,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testInheritFromRejectsUnequalSequenceNumbers() {
+  void inheritFromRejectsUnequalSequenceNumbers() {
     TrackingStruct tracking =
         new TrackingStruct(EntryStatus.ADDED, 42L, null, null, null, null, null, null);
 
@@ -202,7 +202,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testNoDefaultingWithoutInheritance() {
+  void noDefaultingWithoutInheritance() {
     TrackingStruct tracking =
         new TrackingStruct(EntryStatus.ADDED, null, null, null, null, null, null, null);
 
@@ -213,7 +213,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testInheritFromNullIsNoOp() {
+  void inheritFromNullIsNoOp() {
     TrackingStruct tracking =
         new TrackingStruct(EntryStatus.ADDED, null, null, null, null, null, null, null);
 
@@ -232,14 +232,14 @@ class TestTrackingStruct {
 
   @ParameterizedTest
   @EnumSource(EntryStatus.class)
-  void testIsLiveDelegatesToStatus(EntryStatus status) {
+  void isLiveDelegatesToStatus(EntryStatus status) {
     TrackingStruct tracking = new TrackingStruct(status, null, null, null, null, null, null, null);
 
     assertThat(tracking.isLive()).isEqualTo(status.isLive());
   }
 
   @Test
-  void testInternalSetIgnoresUnknownOrdinal() {
+  void internalSetIgnoresUnknownOrdinal() {
     TrackingStruct tracking =
         new TrackingStruct(
             EntryStatus.ADDED, 42L, 10L, 11L, 43L, 1000L, DELETED_POSITIONS, REPLACED_POSITIONS);
@@ -259,7 +259,7 @@ class TestTrackingStruct {
   }
 
   @Test
-  void testProjectedStructLike() {
+  void projectedStructLike() {
     // project only snapshot_id (field ID 1) and first_row_id (field ID 142)
     Types.StructType projection = Types.StructType.of(Tracking.SNAPSHOT_ID, Tracking.FIRST_ROW_ID);
 
@@ -279,7 +279,7 @@ class TestTrackingStruct {
 
   @ParameterizedTest
   @MethodSource("org.apache.iceberg.TestHelpers#serializers")
-  void testSerializationRoundTrip(TestHelpers.RoundTripSerializer<Tracking> roundTripSerializer)
+  void serializationRoundTrip(TestHelpers.RoundTripSerializer<Tracking> roundTripSerializer)
       throws IOException, ClassNotFoundException {
     TrackingStruct tracking =
         new TrackingStruct(

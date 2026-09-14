@@ -165,6 +165,77 @@ class TestHashKeyGenerator {
   }
 
   @Test
+  void testRangeModeWithEqualityFields() throws Exception {
+    int writeParallelism = 2;
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+    PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
+
+    GenericRowData row1 = GenericRowData.of(1, StringData.fromString("foo"));
+    GenericRowData row2 = GenericRowData.of(1, StringData.fromString("bar"));
+    GenericRowData row3 = GenericRowData.of(2, StringData.fromString("baz"));
+    // SCHEMA has no identifier fields, so the equality fields only come from the record
+    Set<String> equalityColumns = Collections.singleton("id");
+
+    int writeKey1 =
+        getWriteKey(
+            generator,
+            unpartitioned,
+            DistributionMode.RANGE,
+            writeParallelism,
+            equalityColumns,
+            row1);
+    int writeKey2 =
+        getWriteKey(
+            generator,
+            unpartitioned,
+            DistributionMode.RANGE,
+            writeParallelism,
+            equalityColumns,
+            row2);
+    int writeKey3 =
+        getWriteKey(
+            generator,
+            unpartitioned,
+            DistributionMode.RANGE,
+            writeParallelism,
+            equalityColumns,
+            row3);
+
+    assertThat(writeKey1).isEqualTo(writeKey2);
+    assertThat(writeKey2).isNotEqualTo(writeKey3);
+  }
+
+  @Test
+  void testRangeModeFallsBackToDistributionModeNone() throws Exception {
+    int writeParallelism = 2;
+    int maxWriteParallelism = 8;
+    HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
+    Schema noIdSchema = new Schema(Types.NestedField.required(1, "x", Types.StringType.get()));
+    PartitionSpec unpartitioned = PartitionSpec.unpartitioned();
+
+    DynamicRecord record =
+        new DynamicRecord(
+            TABLE_IDENTIFIER,
+            BRANCH,
+            noIdSchema,
+            GenericRowData.of(StringData.fromString("v")),
+            unpartitioned,
+            DistributionMode.RANGE,
+            writeParallelism);
+
+    int writeKey1 = generator.generateKey(record);
+    int writeKey2 = generator.generateKey(record);
+    int writeKey3 = generator.generateKey(record);
+    assertThat(writeKey1).isNotEqualTo(writeKey2);
+    assertThat(writeKey3).isEqualTo(writeKey1);
+
+    assertThat(getSubTaskId(writeKey1, writeParallelism, maxWriteParallelism)).isEqualTo(1);
+    assertThat(getSubTaskId(writeKey2, writeParallelism, maxWriteParallelism)).isEqualTo(0);
+    assertThat(getSubTaskId(writeKey3, writeParallelism, maxWriteParallelism)).isEqualTo(1);
+  }
+
+  @Test
   void testHashModeWithPartitionFieldAndEqualityField() throws Exception {
     int writeParallelism = 2;
     int maxWriteParallelism = 8;

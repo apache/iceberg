@@ -45,7 +45,7 @@ public class MetricsModes {
       return Full.get();
     }
 
-    Matcher truncateMatcher = TRUNCATE.matcher(mode.toLowerCase(Locale.ENGLISH));
+    Matcher truncateMatcher = TRUNCATE.matcher(mode.toLowerCase(Locale.ROOT));
     if (truncateMatcher.matches()) {
       int length = Integer.parseInt(truncateMatcher.group(1));
       return Truncate.withLength(length);

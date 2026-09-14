@@ -65,6 +65,14 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 class ParquetMetrics {
+  /**
+   * Sentinel for a null count that could not be determined. Parquet's {@link
+   * Statistics#getNumNulls()} returns -1 when {@code null_count} is missing from the footer, so the
+   * count must be reported as unknown rather than summed. {@link FieldMetrics} uses negative counts
+   * to mean unknown.
+   */
+  private static final long UNKNOWN_NULL_COUNT = -1L;
+
   private ParquetMetrics() {}
 
   static Iterable<FieldMetrics<?>> fieldMetrics(
@@ -129,6 +137,7 @@ class ParquetMetrics {
     Map<Integer, Long> valueCounts = Maps.newHashMap();
     Map<Integer, Long> nullValueCounts = Maps.newHashMap();
     Map<Integer, Long> nanValueCounts = Maps.newHashMap();
+    Map<Integer, Integer> avgValueSizes = Maps.newHashMap();
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
     Map<Integer, org.apache.iceberg.types.Type> originalTypes = Maps.newHashMap();
@@ -149,6 +158,10 @@ class ParquetMetrics {
 
       if (metrics.nanValueCount() >= 0) {
         nanValueCounts.put(id, metrics.nanValueCount());
+      }
+
+      if (metrics.avgValueSizeInBytes() != null) {
+        avgValueSizes.put(id, metrics.avgValueSizeInBytes());
       }
 
       if (metrics.lowerBound() != null) {
@@ -172,6 +185,7 @@ class ParquetMetrics {
         nanValueCounts,
         lowerBounds,
         upperBounds,
+        avgValueSizes.isEmpty() ? null : avgValueSizes,
         originalTypes);
   }
 
@@ -264,7 +278,11 @@ class ParquetMetrics {
             fieldMetrics.id(),
             fieldMetrics.valueCount(),
             fieldMetrics.nullValueCount(),
-            fieldMetrics.nanValueCount());
+            fieldMetrics.nanValueCount(),
+            null,
+            null,
+            null,
+            fieldMetrics.avgValueSizeInBytes());
       } else {
         T lowerBound = truncateLowerBound(icebergType, fieldMetrics.lowerBound(), truncateLength);
         T upperBound = truncateUpperBound(icebergType, fieldMetrics.upperBound(), truncateLength);
@@ -275,7 +293,8 @@ class ParquetMetrics {
             fieldMetrics.nanValueCount(),
             lowerBound,
             upperBound,
-            icebergType);
+            icebergType,
+            fieldMetrics.avgValueSizeInBytes());
       }
     }
 
@@ -310,7 +329,7 @@ class ParquetMetrics {
           return null;
         }
 
-        nullCount += stats.getNumNulls();
+        nullCount = addNullCount(nullCount, stats);
         valueCount += column.getValueCount();
       }
 
@@ -339,7 +358,7 @@ class ParquetMetrics {
           return null;
         }
 
-        nullCount += stats.getNumNulls();
+        nullCount = addNullCount(nullCount, stats);
         valueCount += column.getValueCount();
 
         if (stats.hasNonNullValue()) {
@@ -385,7 +404,8 @@ class ParquetMetrics {
 
       List<ParquetVariantUtil.VariantMetrics> results =
           Lists.newArrayList(
-              ParquetVariantVisitor.visit(variant, new MetricsVariantVisitor(currentPath())));
+              ParquetVariantVisitor.visit(
+                  variant, new MetricsVariantVisitor(currentPath(), truncateLength(mode))));
 
       if (results.isEmpty()) {
         return ImmutableList.of();
@@ -437,9 +457,11 @@ class ParquetMetrics {
         extends ParquetVariantVisitor<Iterable<ParquetVariantUtil.VariantMetrics>> {
       private final Deque<String> fieldNames = Lists.newLinkedList();
       private final String[] basePath;
+      private final int truncateLength;
 
-      private MetricsVariantVisitor(String[] basePath) {
+      private MetricsVariantVisitor(String[] basePath, int truncateLength) {
         this.basePath = basePath;
+        this.truncateLength = truncateLength;
       }
 
       @Override
@@ -571,7 +593,12 @@ class ParquetMetrics {
           }
 
           valueCount += column.getValueCount();
-          nullCount += hasOnlyNullVariants ? column.getValueCount() : stats.getNumNulls();
+          if (hasOnlyNullVariants) {
+            // every value is a null variant, so the count does not depend on footer null counts
+            nullCount = addKnownNullCount(nullCount, column.getValueCount());
+          } else {
+            nullCount = addNullCount(nullCount, stats);
+          }
         }
 
         return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount);
@@ -599,7 +626,7 @@ class ParquetMetrics {
             return null;
           }
 
-          nullCount += stats.getNumNulls();
+          nullCount = addNullCount(nullCount, stats);
           valueCount += column.getValueCount();
 
           if (stats.hasNonNullValue()) {
@@ -619,15 +646,45 @@ class ParquetMetrics {
           return null;
         }
 
-        if (lowerBound != null && upperBound != null) {
+        if (lowerBound != null && upperBound != null && truncateLength > 0) {
           VariantValue lower = Variants.of(variantType, lowerBound);
           VariantValue upper = Variants.of(variantType, upperBound);
-          return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount, lower, upper);
+          return new ParquetVariantUtil.VariantMetrics(
+              valueCount, nullCount, lower, upper, truncateLength);
         } else {
           return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount);
         }
       }
     }
+  }
+
+  /**
+   * Adds a column chunk's null count to a running total, propagating unknown.
+   *
+   * <p>A chunk that is missing {@code null_count} makes the total unknown because the nulls in that
+   * chunk cannot be counted. Note this is not caught by {@link Statistics#isEmpty()}, which is
+   * false whenever min/max are present.
+   */
+  private static long addNullCount(long nullCount, Statistics<?> stats) {
+    if (!stats.isNumNullsSet()) {
+      // the count is missing from the footer, so getNumNulls would return -1
+      return UNKNOWN_NULL_COUNT;
+    }
+
+    return addKnownNullCount(nullCount, stats.getNumNulls());
+  }
+
+  /**
+   * Adds a known null count to a running total, which may already be unknown because an earlier
+   * chunk was missing its count. Keeping the total unknown makes the result independent of the
+   * order in which chunks are visited.
+   */
+  private static long addKnownNullCount(long nullCount, long numNulls) {
+    if (nullCount == UNKNOWN_NULL_COUNT) {
+      return UNKNOWN_NULL_COUNT;
+    }
+
+    return nullCount + numNulls;
   }
 
   private static int truncateLength(MetricsModes.MetricsMode mode) {

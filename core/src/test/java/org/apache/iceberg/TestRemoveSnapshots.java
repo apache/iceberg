@@ -33,6 +33,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,6 +46,7 @@ import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BulkDeletionFailureException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.puffin.Blob;
@@ -54,6 +56,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
@@ -70,8 +73,12 @@ public class TestRemoveSnapshots extends TestBase {
     return Arrays.asList(
         new Object[] {1, true},
         new Object[] {2, true},
+        new Object[] {3, true},
+        new Object[] {4, true},
         new Object[] {1, false},
-        new Object[] {2, false});
+        new Object[] {2, false},
+        new Object[] {3, false},
+        new Object[] {4, false});
   }
 
   private long waitUntilAfter(long timestampMillis) {
@@ -2164,6 +2171,36 @@ public class TestRemoveSnapshots extends TestBase {
     assertThatThrownBy(() -> table.expireSnapshots().cleanupLevel(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Invalid cleanup level: null");
+  }
+
+  @TestTemplate
+  void readManifestsProjectsManifestContent() throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files are only supported in V2 and later")
+        .isGreaterThanOrEqualTo(2);
+
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    Map<String, ManifestContent> expected =
+        snapshot.allManifests(table.io()).stream()
+            .collect(Collectors.toMap(ManifestFile::path, ManifestFile::content));
+    assertThat(expected).containsValue(ManifestContent.DELETES);
+
+    FileCleanupStrategy cleanup =
+        incrementalCleanup
+            ? new IncrementalFileCleanup(table.io(), null, null, null)
+            : new ReachableFileCleanup(table.io(), null, null, null);
+
+    Map<String, ManifestContent> actual = Maps.newHashMap();
+    try (CloseableIterable<ManifestFile> manifests = cleanup.readManifests(snapshot)) {
+      for (ManifestFile manifest : manifests) {
+        actual.put(manifest.path(), manifest.content());
+      }
+    }
+
+    assertThat(actual).isEqualTo(expected);
   }
 
   private StatisticsFile writeStatsFile(

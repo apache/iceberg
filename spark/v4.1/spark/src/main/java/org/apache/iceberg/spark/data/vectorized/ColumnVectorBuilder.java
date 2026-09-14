@@ -27,7 +27,9 @@ import org.apache.spark.sql.vectorized.ColumnVector;
 class ColumnVectorBuilder {
 
   public ColumnVector build(VectorHolder holder, int numRows) {
-    if (holder.isDummy()) {
+    if (holder instanceof VectorHolder.VariantVectorHolder) {
+      return new VariantColumnVector((VectorHolder.VariantVectorHolder) holder);
+    } else if (holder.isDummy()) {
       if (holder instanceof VectorHolder.DeletedVectorHolder) {
         return new DeletedColumnVector(Types.BooleanType.get());
       } else if (holder instanceof ConstantVectorHolder) {

@@ -97,7 +97,10 @@ public class TestCommitService extends TestBase {
     // [5-7].
     assertThatThrownBy(commitService::close)
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Timeout occurred when waiting for commits");
+        .hasMessageContaining("Timeout occurred when waiting for commits")
+        .hasMessageNotContaining("{}")
+        .hasMessageMatching(
+            ".*\\d+ file groups committed\\. \\d+ file groups remain uncommitted\\..*");
 
     // Wait for the commitService to finish. Committed all file groups or aborted remaining file
     // groups.
