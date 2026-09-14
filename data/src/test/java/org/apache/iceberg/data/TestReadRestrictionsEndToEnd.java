@@ -35,8 +35,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.functions.MaskAlphanum;
-import org.apache.iceberg.functions.UnknownFunction;
+import org.apache.iceberg.functions.IcebergFunctions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -108,7 +107,7 @@ public class TestReadRestrictionsEndToEnd {
   @Test
   public void masksAreEnforcedThroughTheRestCatalog() throws IOException {
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(2)));
+        ReadRestrictions.of(null, ImmutableList.of(IcebergFunctions.maskAlphanum(2)));
 
     try (RESTCatalog catalog = restCatalogReturning(restrictions)) {
       List<Record> records = readAll(catalog.loadTable(TABLE_IDENT));
@@ -142,7 +141,8 @@ public class TestReadRestrictionsEndToEnd {
     // match nothing.
     ReadRestrictions restrictions =
         ReadRestrictions.of(
-            Expressions.equal("email", "alice@example.com"), ImmutableList.of(new MaskAlphanum(2)));
+            Expressions.equal("email", "alice@example.com"),
+            ImmutableList.of(IcebergFunctions.maskAlphanum(2)));
 
     try (RESTCatalog catalog = restCatalogReturning(restrictions)) {
       List<Record> records = readAll(catalog.loadTable(TABLE_IDENT));
@@ -158,7 +158,7 @@ public class TestReadRestrictionsEndToEnd {
     // Per spec, projections referencing columns that are not being read do not apply, so selecting
     // only "id" must succeed even though the server masks "email".
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(2)));
+        ReadRestrictions.of(null, ImmutableList.of(IcebergFunctions.maskAlphanum(2)));
 
     try (RESTCatalog catalog = restCatalogReturning(restrictions)) {
       List<Record> records =
@@ -174,7 +174,7 @@ public class TestReadRestrictionsEndToEnd {
   @Test
   public void unrecognizedActionFailsClosedRatherThanReturningRawValues() throws IOException {
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new UnknownFunction(2, "xxx-not-real")));
+        ReadRestrictions.of(null, ImmutableList.of(IcebergFunctions.fromString("xxx-not-real", 2)));
 
     try (RESTCatalog catalog = restCatalogReturning(restrictions)) {
       Table table = catalog.loadTable(TABLE_IDENT);
@@ -188,7 +188,7 @@ public class TestReadRestrictionsEndToEnd {
   @Test
   public void loadTableFailsWhenAProjectionNamesAFieldIdTheTableNeverHad() throws IOException {
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(999)));
+        ReadRestrictions.of(null, ImmutableList.of(IcebergFunctions.maskAlphanum(999)));
 
     try (RESTCatalog catalog = restCatalogReturning(restrictions)) {
       // validated where the restrictions are attached to the table, so this fails at load rather
@@ -207,7 +207,7 @@ public class TestReadRestrictionsEndToEnd {
     createTableWithRows(evolved).updateSchema().deleteColumn("country").commit();
 
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(3)));
+        ReadRestrictions.of(null, ImmutableList.of(IcebergFunctions.maskAlphanum(3)));
 
     try (RESTCatalog catalog = restCatalogReturning(restrictions)) {
       // field 3 is real, just absent from the current schema, so the table still loads

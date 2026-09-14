@@ -26,8 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.functions.MaskAlphanum;
-import org.apache.iceberg.functions.ShowLast4;
+import org.apache.iceberg.functions.IcebergFunctions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
@@ -52,7 +51,7 @@ public class TestReadRestrictions {
   @Test
   public void validateAcceptsFieldIdsInTheCurrentSchema() {
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(2)));
+        ReadRestrictions.of(null, ImmutableList.of(IcebergFunctions.maskAlphanum(2)));
 
     assertThatCode(() -> restrictions.validate(SCHEMA_HISTORY)).doesNotThrowAnyException();
   }
@@ -61,7 +60,8 @@ public class TestReadRestrictions {
   public void validateAcceptsFieldIdsFromAnOlderSchema() {
     // a time-travel read may legitimately be restricted on a column that has since been dropped, so
     // membership in any schema is enough
-    ReadRestrictions restrictions = ReadRestrictions.of(null, ImmutableList.of(new ShowLast4(3)));
+    ReadRestrictions restrictions =
+        ReadRestrictions.of(null, ImmutableList.of(IcebergFunctions.showLast4(3)));
 
     assertThatCode(() -> restrictions.validate(SCHEMA_HISTORY)).doesNotThrowAnyException();
   }
@@ -69,7 +69,7 @@ public class TestReadRestrictions {
   @Test
   public void validateRejectsFieldIdInNoSchema() {
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(999)));
+        ReadRestrictions.of(null, ImmutableList.of(IcebergFunctions.maskAlphanum(999)));
 
     assertThatThrownBy(() -> restrictions.validate(SCHEMA_HISTORY))
         .isInstanceOf(IllegalArgumentException.class)
@@ -81,7 +81,11 @@ public class TestReadRestrictions {
   public void validateReportsEveryUnknownFieldId() {
     ReadRestrictions restrictions =
         ReadRestrictions.of(
-            null, ImmutableList.of(new MaskAlphanum(2), new MaskAlphanum(998), new ShowLast4(999)));
+            null,
+            ImmutableList.of(
+                IcebergFunctions.maskAlphanum(2),
+                IcebergFunctions.maskAlphanum(998),
+                IcebergFunctions.showLast4(999)));
 
     assertThatThrownBy(() -> restrictions.validate(SCHEMA_HISTORY))
         .isInstanceOf(IllegalArgumentException.class)

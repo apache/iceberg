@@ -30,7 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.functions.Sha256Global;
+import org.apache.iceberg.functions.IcebergFunctions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.ImmutableRemoteSigningConfig;
@@ -569,7 +569,8 @@ public class TestLoadTableResponseParser {
             .withTableMetadata(metadataWithSingleLongColumn())
             .withReadRestrictions(
                 ReadRestrictions.of(
-                    Expressions.equal("country", "US"), ImmutableList.of(new Sha256Global(1))))
+                    Expressions.equal("country", "US"),
+                    ImmutableList.of(IcebergFunctions.sha256Global(1))))
             .build();
 
     // the surrounding metadata document is already pinned by roundTripSerdeV2; assert the node this

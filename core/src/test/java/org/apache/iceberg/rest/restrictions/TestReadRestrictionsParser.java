@@ -26,15 +26,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.functions.IcebergFunction;
-import org.apache.iceberg.functions.MaskAlphanum;
-import org.apache.iceberg.functions.MaskToFixedValue;
-import org.apache.iceberg.functions.ReplaceWithNull;
-import org.apache.iceberg.functions.Sha256Global;
-import org.apache.iceberg.functions.Sha256QueryLocal;
-import org.apache.iceberg.functions.ShowFirst4;
-import org.apache.iceberg.functions.ShowLast4;
-import org.apache.iceberg.functions.TruncateToMonth;
-import org.apache.iceberg.functions.TruncateToYear;
+import org.apache.iceberg.functions.IcebergFunctions;
 import org.apache.iceberg.functions.UnknownFunction;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.Test;
@@ -73,15 +65,15 @@ public class TestReadRestrictionsParser {
   public void allActionTypesRoundTrip() {
     List<IcebergFunction<?, ?>> actions =
         ImmutableList.of(
-            new MaskAlphanum(1),
-            new MaskToFixedValue(2),
-            new ReplaceWithNull(3),
-            new ShowFirst4(4),
-            new ShowLast4(5),
-            new TruncateToYear(6),
-            new TruncateToMonth(7),
-            new Sha256Global(8),
-            new Sha256QueryLocal(9));
+            IcebergFunctions.maskAlphanum(1),
+            IcebergFunctions.maskToFixedValue(2),
+            IcebergFunctions.replaceWithNull(3),
+            IcebergFunctions.showFirst4(4),
+            IcebergFunctions.showLast4(5),
+            IcebergFunctions.truncateToYear(6),
+            IcebergFunctions.truncateToMonth(7),
+            IcebergFunctions.sha256Global(8),
+            IcebergFunctions.sha256QueryLocal(9));
 
     ReadRestrictions restrictions = ReadRestrictions.of(null, actions);
     String json = ReadRestrictionsParser.toJson(restrictions);
@@ -135,7 +127,7 @@ public class TestReadRestrictionsParser {
     Expression filter =
         Expressions.and(Expressions.equal("country", "US"), Expressions.greaterThan("amount", 100));
     List<IcebergFunction<?, ?>> actions =
-        ImmutableList.of(new MaskAlphanum(2), new ReplaceWithNull(3));
+        ImmutableList.of(IcebergFunctions.maskAlphanum(2), IcebergFunctions.replaceWithNull(3));
     ReadRestrictions restrictions = ReadRestrictions.of(filter, actions);
 
     String json = ReadRestrictionsParser.toJson(restrictions);
