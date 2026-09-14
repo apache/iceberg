@@ -310,7 +310,7 @@ public class TestParquet {
   }
 
   @Test
-  public void testColumnStatisticsDefault() throws Exception {
+  public void columnStatisticsDefault() throws Exception {
     writeAndAssertColumnStatistics(
         Collections.emptyMap(),
         ImmutableMap.of("int_field", true, "string_field", true, "long_field", true));
@@ -326,7 +326,7 @@ public class TestParquet {
   }
 
   @Test
-  public void testMultipleColumnsStatisticsDisabled() throws Exception {
+  public void multipleColumnsStatisticsDisabled() throws Exception {
     writeAndAssertColumnStatistics(
         ImmutableMap.of(
             PARQUET_COLUMN_STATS_ENABLED_PREFIX + "int_field", "false",
@@ -335,7 +335,7 @@ public class TestParquet {
   }
 
   @Test
-  public void testAllColumnsStatisticsDisabled() throws Exception {
+  public void allColumnsStatisticsDisabled() throws Exception {
     writeAndAssertColumnStatistics(
         ImmutableMap.of(
             PARQUET_COLUMN_STATS_ENABLED_PREFIX + "int_field", "false",
