@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -125,19 +126,18 @@ class TestMetadataLogEntriesTableProperties {
   }
 
   @Test
-  void returnsNullForUnreadableHistoricalMetadata() throws IOException {
+  public void propagatesHistoricalMetadataReadFailure() {
     TableMetadata current = table.operations().current();
     TableMetadata.MetadataLogEntry previous = Iterables.getOnlyElement(current.previousFiles());
     InputFile previousInputFile = spy(table.io().newInputFile(previous.file()));
-    doThrow(new RuntimeIOException("Failed to read metadata file"))
-        .when(previousInputFile)
-        .newStream();
+    RuntimeIOException failure = new RuntimeIOException("Failed to read metadata file");
+    doThrow(failure).when(previousInputFile).newStream();
     FileIO io = spy(table.io());
     doReturn(previousInputFile).when(io).newInputFile(previous.file());
 
-    DataTask task = planTask(metadataLogEntriesTable(current, io).newScan().select("properties"));
-
-    assertThat(firstColumnValues(task)).containsExactly(null, updatedProperties);
+    assertThatThrownBy(
+            () -> planTask(metadataLogEntriesTable(current, io).newScan().select("properties")))
+        .isSameAs(failure);
   }
 
   private static MetadataLogEntriesTable metadataLogEntriesTable(TableMetadata current, FileIO io) {
