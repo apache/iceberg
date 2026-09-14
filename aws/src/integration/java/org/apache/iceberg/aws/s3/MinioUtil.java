@@ -41,7 +41,11 @@ public class MinioUtil {
   }
 
   public static MinIOContainer createContainer(String tag, AwsCredentials credentials) {
-    var container = new MinIOContainer(DockerImageName.parse("minio/minio").withTag(tag));
+    var image =
+        DockerImageName.parse("quay.io/minio/minio")
+            .asCompatibleSubstituteFor("minio/minio")
+            .withTag(tag);
+    var container = new MinIOContainer(image);
 
     // this enables virtual-host-style requests. see
     // https://github.com/minio/minio/tree/master/docs/config#domain

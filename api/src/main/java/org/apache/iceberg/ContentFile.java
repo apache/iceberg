@@ -100,6 +100,17 @@ public interface ContentFile<F> {
   Map<Integer, ByteBuffer> upperBounds();
 
   /**
+   * Returns if collected, map from column ID to its average value size in memory (uncompressed) in
+   * bytes over non-null values, null otherwise.
+   *
+   * <p>This statistic is not persisted in manifests prior to v4, so it is generally only present on
+   * newly created or written files, and is null for files read back from such manifests.
+   */
+  default Map<Integer, Integer> avgValueSizes() {
+    return null;
+  }
+
+  /**
    * Returns metadata about how this file is encrypted, or null if the file is stored in plain text.
    */
   ByteBuffer keyMetadata();
@@ -187,7 +198,7 @@ public interface ContentFile<F> {
    * to copy data without stats when collecting files.
    *
    * @return a copy of this data file, without lower bounds, upper bounds, value counts, null value
-   *     counts, or nan value counts
+   *     counts, nan value counts, or average value sizes
    */
   F copyWithoutStats();
 
@@ -198,7 +209,7 @@ public interface ContentFile<F> {
    *
    * @param requestedColumnIds column IDs for which to keep stats.
    * @return a copy of data file, with lower bounds, upper bounds, value counts, null value counts,
-   *     and nan value counts for only specific columns.
+   *     nan value counts, and average value sizes for only specific columns.
    */
   default F copyWithStats(Set<Integer> requestedColumnIds) {
     throw new UnsupportedOperationException(
@@ -211,8 +222,8 @@ public interface ContentFile<F> {
    *
    * @param withStats Will copy this file without file stats if set to <code>false</code>.
    * @return a copy of this data file. If <code>withStats</code> is set to <code>false</code> the
-   *     file will not contain lower bounds, upper bounds, value counts, null value counts, or nan
-   *     value counts
+   *     file will not contain lower bounds, upper bounds, value counts, null value counts, nan
+   *     value counts, or average value sizes
    */
   default F copy(boolean withStats) {
     return withStats ? copy() : copyWithoutStats();

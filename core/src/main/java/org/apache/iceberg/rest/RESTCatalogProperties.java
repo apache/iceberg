@@ -58,6 +58,12 @@ public final class RESTCatalogProperties {
   public static final long REST_SCAN_PLANNING_POLL_TIMEOUT_MS_DEFAULT =
       TimeUnit.MINUTES.toMillis(5);
 
+  // Extra poll attempts after the first fetch of a submitted plan. Must be >= 0; 0 means a single
+  // fetch attempt with no retries.
+  public static final String REST_SCAN_PLANNING_POLL_NUM_RETRIES =
+      "rest-scan-planning.poll-num-retries";
+  public static final int REST_SCAN_PLANNING_POLL_NUM_RETRIES_DEFAULT = 10;
+
   // Properties that control the behaviour of the table cache used for freshness-aware table
   // loading.
   public static final String TABLE_CACHE_EXPIRE_AFTER_WRITE_MS =

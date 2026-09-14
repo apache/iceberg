@@ -103,7 +103,7 @@ public class ManifestFiles {
   }
 
   /**
-   * Returns a {@link CloseableIterable} of file paths in the {@link ManifestFile}.
+   * Returns a {@link CloseableIterable} of live file paths in the {@link ManifestFile}.
    *
    * @param manifest a ManifestFile
    * @param io a FileIO
@@ -113,7 +113,7 @@ public class ManifestFiles {
   public static CloseableIterable<String> readPaths(
       ManifestFile manifest, FileIO io, Map<Integer, PartitionSpec> specsById) {
     return CloseableIterable.transform(
-        read(manifest, io, specsById).select(ImmutableList.of("file_path")).liveEntries(),
+        open(manifest, io, specsById).select(ImmutableList.of("file_path")).liveEntries(),
         entry -> entry.file().location());
   }
 

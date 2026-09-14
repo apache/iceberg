@@ -18,10 +18,17 @@
  */
 package org.apache.iceberg.flink.data;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.time.LocalDateTime;
+import java.util.Arrays;
+import org.apache.flink.table.data.ArrayData;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.flink.DataGenerator;
 import org.apache.iceberg.flink.DataGenerators;
 import org.apache.iceberg.flink.TestHelpers;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestStructRowData {
@@ -96,5 +103,23 @@ public class TestStructRowData {
   @Test
   public void testMapOfStruct() {
     testConverter(new DataGenerators.MapOfStruct());
+  }
+
+  @Test
+  public void testArrayOfTimestampRetainsMicros() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(
+                1,
+                "array_of_ts",
+                Types.ListType.ofRequired(101, Types.TimestampType.withoutZone())));
+    LocalDateTime afterEpoch = LocalDateTime.of(2023, 1, 1, 12, 0, 0, 123456000);
+    LocalDateTime beforeEpoch = LocalDateTime.of(1969, 12, 31, 23, 59, 59, 987654000);
+    GenericRecord record = GenericRecord.create(schema);
+    record.setField("array_of_ts", Arrays.asList(afterEpoch, beforeEpoch));
+
+    ArrayData actual = new StructRowData(schema.asStruct()).setStruct(record).getArray(0);
+    assertThat(actual.getTimestamp(0, 6).toLocalDateTime()).isEqualTo(afterEpoch);
+    assertThat(actual.getTimestamp(1, 6).toLocalDateTime()).isEqualTo(beforeEpoch);
   }
 }
