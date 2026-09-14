@@ -20,7 +20,12 @@ package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.Serializable;
 import java.util.Map;
+import java.util.function.Function;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
+import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 
@@ -73,5 +78,66 @@ class TestSerializationUtil {
 
     String roundTripped = SerializationUtil.deserializeFromBase64(encoded);
     assertThat(roundTripped).isEqualTo(original);
+  }
+
+  @Test
+  void serializeToBytesAppliesCustomConfSerializerToHadoopConfigurable() {
+    Configuration conf = new Configuration(false);
+    conf.set("test.key", "test.value");
+    TestHadoopConfigurable configurable = new TestHadoopConfigurable(conf);
+
+    boolean[] confSerializerInvoked = {false};
+    Function<Configuration, SerializableSupplier<Configuration>> confSerializer =
+        c -> {
+          confSerializerInvoked[0] = true;
+          return new SerializableConfiguration(c);
+        };
+
+    SerializationUtil.serializeToBytes(configurable, confSerializer);
+
+    assertThat(configurable.serializeConfWithInvoked)
+        .as("serializeConfWith should be called for a HadoopConfigurable object")
+        .isTrue();
+    assertThat(confSerializerInvoked[0])
+        .as("the provided confSerializer should be applied")
+        .isTrue();
+  }
+
+  @Test
+  void hadoopConfigurableRoundTripPreservesConfiguration() {
+    Configuration conf = new Configuration(false);
+    conf.set("test.key", "test.value");
+    TestHadoopConfigurable configurable = new TestHadoopConfigurable(conf);
+
+    byte[] bytes = SerializationUtil.serializeToBytes(configurable);
+    TestHadoopConfigurable roundTripped = SerializationUtil.deserializeFromBytes(bytes);
+
+    assertThat(roundTripped.getConf().get("test.key")).isEqualTo("test.value");
+  }
+
+  private static class TestHadoopConfigurable implements HadoopConfigurable, Serializable {
+    private SerializableSupplier<Configuration> conf;
+    private transient boolean serializeConfWithInvoked = false;
+
+    TestHadoopConfigurable(Configuration conf) {
+      this.conf = new SerializableConfiguration(conf);
+    }
+
+    @Override
+    public Configuration getConf() {
+      return conf.get();
+    }
+
+    @Override
+    public void setConf(Configuration conf) {
+      this.conf = new SerializableConfiguration(conf);
+    }
+
+    @Override
+    public void serializeConfWith(
+        Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
+      this.serializeConfWithInvoked = true;
+      this.conf = confSerializer.apply(getConf());
+    }
   }
 }
