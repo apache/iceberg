@@ -80,9 +80,6 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(filePath, task.start(), task.length());
 
-    InputFile inputFile = getInputFile(task.file().location());
-    Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with %s", task);
-
     // Retain predicates on non-constant fields for row reader filter
     Map<Integer, ?> idToConstant = constantsMap(task, expectedSchema());
     int[] nonConstantFieldIds =
@@ -95,12 +92,13 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
             task.residual(), expectedSchema(), caseSensitive(), nonConstantFieldIds);
 
     if (ContentFileUtil.isDV(task.file())) {
+      InputFile inputFile = getInputFile(filePath);
+      Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with %s", task);
       return new DVIterator(inputFile, task.file(), expectedSchema(), idToConstant);
     }
 
     return newIterable(
-            inputFile,
-            task.file().format(),
+            task.file(),
             task.start(),
             task.length(),
             residualWithoutConstants,

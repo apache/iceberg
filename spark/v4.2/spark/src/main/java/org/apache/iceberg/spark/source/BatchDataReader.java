@@ -27,8 +27,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
@@ -105,22 +103,13 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(filePath, task.start(), task.length());
 
-    InputFile inputFile = getInputFile(filePath);
-    Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with FileScanTask");
-
     SparkDeleteFilter deleteFilter =
         new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
 
     Map<Integer, ?> idToConstant = constantsMap(task, deleteFilter.requiredSchema());
 
     return newBatchIterable(
-            inputFile,
-            task.file().format(),
-            task.start(),
-            task.length(),
-            task.residual(),
-            idToConstant,
-            deleteFilter)
+            task.file(), task.start(), task.length(), task.residual(), idToConstant, deleteFilter)
         .iterator();
   }
 }

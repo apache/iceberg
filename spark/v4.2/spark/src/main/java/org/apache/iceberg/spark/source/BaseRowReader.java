@@ -19,17 +19,20 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
-import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.formats.DataFileReadBuilder;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
@@ -44,15 +47,39 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
   }
 
   protected CloseableIterable<InternalRow> newIterable(
-      InputFile file,
-      FileFormat format,
+      DataFile file,
       long start,
       long length,
       Expression residual,
       Schema projection,
       Map<Integer, ?> idToConstant) {
     ReadBuilder<InternalRow, ?> reader =
-        FormatModelRegistry.readBuilder(format, InternalRow.class, file);
+        DataFileReadBuilder.read(file, InternalRow.class, this::getInputFile);
+    return configureReader(reader, start, length, residual, projection, idToConstant);
+  }
+
+  protected CloseableIterable<InternalRow> newIterable(
+      DeleteFile file,
+      long start,
+      long length,
+      Expression residual,
+      Schema projection,
+      Map<Integer, ?> idToConstant) {
+    InputFile inputFile = getInputFile(file.location());
+    Preconditions.checkArgument(
+        inputFile != null, "Cannot find input file for location: %s", file.location());
+    ReadBuilder<InternalRow, ?> reader =
+        FormatModelRegistry.readBuilder(file.format(), InternalRow.class, inputFile);
+    return configureReader(reader, start, length, residual, projection, idToConstant);
+  }
+
+  private CloseableIterable<InternalRow> configureReader(
+      ReadBuilder<InternalRow, ?> reader,
+      long start,
+      long length,
+      Expression residual,
+      Schema projection,
+      Map<Integer, ?> idToConstant) {
     return reader
         .project(projection)
         .idToConstant(idToConstant)

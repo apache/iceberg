@@ -21,19 +21,21 @@ package org.apache.iceberg.data;
 import java.io.Serializable;
 import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.DataFileReadBuilder;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.PartitionUtil;
 
@@ -85,12 +87,12 @@ class GenericReader implements Serializable {
   }
 
   private CloseableIterable<Record> openFile(FileScanTask task, Schema fileProjection) {
-    InputFile input = io.newInputFile(task.file());
+    DataFile file = task.file();
+    Map<String, InputFile> inputFiles = ImmutableMap.of(file.location(), io.newInputFile(file));
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
-    ReadBuilder<Record, ?> builder =
-        FormatModelRegistry.readBuilder(task.file().format(), Record.class, input);
+    ReadBuilder<Record, ?> builder = DataFileReadBuilder.read(file, Record.class, inputFiles::get);
     if (reuseContainers) {
       builder = builder.reuseContainers();
     }

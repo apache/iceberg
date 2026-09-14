@@ -36,8 +36,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
@@ -133,16 +131,8 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     // update the current file for Spark's filename() function
     InputFileBlockHolder.set(filePath, task.start(), task.length());
 
-    InputFile location = getInputFile(filePath);
-    Preconditions.checkNotNull(location, "Could not find InputFile");
     return newIterable(
-        location,
-        task.file().format(),
-        task.start(),
-        task.length(),
-        task.residual(),
-        readSchema,
-        idToConstant);
+        task.file(), task.start(), task.length(), task.residual(), readSchema, idToConstant);
   }
 
   @Override
