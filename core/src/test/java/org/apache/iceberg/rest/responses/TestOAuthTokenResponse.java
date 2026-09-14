@@ -132,6 +132,17 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
   }
 
   @Test
+  public void nullExpiresInAndScope() throws Exception {
+    OAuthTokenResponse response =
+        deserialize(
+            "{\"access_token\":\"bearer-token\",\"token_type\":\"bearer\","
+                + "\"expires_in\":null,\"scope\":null}");
+
+    assertThat(response.expiresInSeconds()).isNull();
+    assertThat(response.scopes()).isEmpty();
+  }
+
+  @Test
   void invalidScopeReportedInErrorMsg() {
     assertThatThrownBy(() -> OAuthTokenResponse.builder().addScope("bad scope"))
         .isInstanceOf(IllegalArgumentException.class)

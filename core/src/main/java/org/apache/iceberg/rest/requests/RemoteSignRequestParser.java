@@ -95,15 +95,15 @@ public class RemoteSignRequestParser {
             .uri(uri)
             .headers(headers);
 
-    if (json.has(PROPERTIES)) {
+    if (json.hasNonNull(PROPERTIES)) {
       builder.properties(JsonUtil.getStringMap(PROPERTIES, json));
     }
 
-    if (json.has(BODY)) {
+    if (json.hasNonNull(BODY)) {
       builder.body(JsonUtil.getString(BODY, json));
     }
 
-    if (json.has(PROVIDER)) {
+    if (json.hasNonNull(PROVIDER)) {
       builder.provider(JsonUtil.getString(PROVIDER, json));
     }
 

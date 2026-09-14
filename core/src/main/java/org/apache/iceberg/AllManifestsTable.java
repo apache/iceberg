@@ -123,12 +123,14 @@ public class AllManifestsTable extends BaseMetadataTable {
       FileIO io = table().io();
       Map<Integer, PartitionSpec> specs = Maps.newHashMap(table().specs());
       Schema dataTableSchema = table().schema();
-      Expression filter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
+      Expression rowFilter = filter();
 
       SnapshotEvaluator snapshotEvaluator =
-          new SnapshotEvaluator(filter, MANIFEST_FILE_SCHEMA.asStruct(), isCaseSensitive());
+          new SnapshotEvaluator(rowFilter, MANIFEST_FILE_SCHEMA.asStruct(), isCaseSensitive());
       Iterable<Snapshot> filteredSnapshots =
           Iterables.filter(table().snapshots(), snapshotEvaluator::eval);
+
+      Expression residual = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : rowFilter;
 
       return CloseableIterable.withNoopClose(
           Iterables.transform(
@@ -141,7 +143,7 @@ public class AllManifestsTable extends BaseMetadataTable {
                       schema(),
                       specs,
                       new BaseManifestListFile(snap.manifestListLocation(), snap.keyId()),
-                      filter,
+                      residual,
                       snap.snapshotId());
                 } else {
                   return StaticDataTask.of(
@@ -307,7 +309,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     private final Expression boundExpr;
 
     private SnapshotEvaluator(Expression expr, Types.StructType structType, boolean caseSensitive) {
-      this.boundExpr = Binder.bind(structType, expr, caseSensitive);
+      this.boundExpr = Binder.bind(structType, Expressions.rewriteNot(expr), caseSensitive);
     }
 
     private boolean eval(Snapshot snapshot) {
@@ -333,11 +335,6 @@ public class AllManifestsTable extends BaseMetadataTable {
       @Override
       public Boolean alwaysFalse() {
         return ROWS_CANNOT_MATCH;
-      }
-
-      @Override
-      public Boolean not(Boolean result) {
-        return !result;
       }
 
       @Override
@@ -410,20 +407,16 @@ public class AllManifestsTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
-        if (isSnapshotRef(ref)) {
-          if (!literalSet.contains(snapshotId)) {
-            return ROWS_CANNOT_MATCH;
-          }
+        if (isSnapshotRef(ref) && !literalSet.contains(snapshotId)) {
+          return ROWS_CANNOT_MATCH;
         }
         return ROWS_MIGHT_MATCH;
       }
 
       @Override
       public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
-        if (isSnapshotRef(ref)) {
-          if (literalSet.contains(snapshotId)) {
-            return ROWS_CANNOT_MATCH;
-          }
+        if (isSnapshotRef(ref) && literalSet.contains(snapshotId)) {
+          return ROWS_CANNOT_MATCH;
         }
         return ROWS_MIGHT_MATCH;
       }

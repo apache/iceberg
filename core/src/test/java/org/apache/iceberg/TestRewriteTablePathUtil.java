@@ -20,13 +20,24 @@ package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -198,6 +209,95 @@ public class TestRewriteTablePathUtil extends TestBase {
   }
 
   @Test
+  public void testReplacePathsTreatsPrefixAsLiteral() {
+    // The '.' in the prefix is a literal character, not a regex wildcard; a location matching the
+    // prefix literally is rewritten to the target.
+    String sourcePrefix = "s3://bucket/warehouse.db/table";
+    String targetPrefix = "s3://bucket/restored.db/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+
+    assertThat(RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix).location())
+        .isEqualTo(targetPrefix);
+  }
+
+  @Test
+  public void testReplacePathsRejectsRegexOnlyPrefixMatch() {
+    // Read as a regex, "warehouse.db" would match "warehouseXdb" ('.' matches 'X'). As a literal
+    // prefix it must not, so a location that only matches under regex semantics is rejected.
+    String sourcePrefix = "s3://bucket/warehouse.db/table";
+    String targetPrefix = "s3://bucket/restored.db/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            "s3://bucket/warehouseXdb/table",
+            ImmutableMap.of());
+
+    assertThatThrownBy(
+            () -> RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not start with");
+  }
+
+  @Test
+  public void testReplacePathsTargetWithDollarSign() {
+    // '$1' in the target is a literal path segment, not a regex replacement group reference
+    // (which previously threw IndexOutOfBoundsException: No group 1).
+    String sourcePrefix = "s3://bucket/db/table";
+    String targetPrefix = "s3://bucket/cost$1/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+
+    assertThat(RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix).location())
+        .isEqualTo(targetPrefix);
+  }
+
+  @Test
+  public void testReplacePathsSourceWithUnbalancedBracket() {
+    // An unbalanced '[' in the prefix would be an invalid regex (PatternSyntaxException); as a
+    // literal it matches itself.
+    String sourcePrefix = "s3://bucket/db/table[0";
+    String targetPrefix = "s3://bucket/db/restored";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+
+    assertThat(RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix).location())
+        .isEqualTo(targetPrefix);
+  }
+
+  @Test
+  public void testReplacePathsSourceWithCharacterClass() {
+    // '[0]' is a valid regex character class matching '0', so as a regex it silently missed the
+    // real directory "table[0]" (while matching an unrelated "table0"); as a literal prefix it
+    // must match "table[0]".
+    String sourcePrefix = "s3://bucket/db/table[0]";
+    String targetPrefix = "s3://bucket/db/restored";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), sourcePrefix, ImmutableMap.of());
+
+    assertThat(RewriteTablePathUtil.replacePaths(metadata, sourcePrefix, targetPrefix).location())
+        .isEqualTo(targetPrefix);
+  }
+
+  @Test
+  public void testReplacePathsWithTrailingSeparatorInPrefix() {
+    // A source prefix with a trailing separator still matches the table location.
+    String location = "s3://bucket/warehouse/table";
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA, PartitionSpec.unpartitioned(), location, ImmutableMap.of());
+
+    TableMetadata replaced =
+        RewriteTablePathUtil.replacePaths(metadata, location + "/", "s3://bucket/restored/table");
+    assertThat(replaced.location()).isEqualTo("s3://bucket/restored/table");
+  }
+
+  @Test
   public void testNewPathTableRename() {
     // Rename /tableX to /table (target is substring of source name)
     assertThat(RewriteTablePathUtil.newPath("/tableX/data/file.parquet", "/tableX", "/table"))
@@ -268,13 +368,15 @@ public class TestRewriteTablePathUtil extends TestBase {
     ManifestFile manifest =
         writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES, FILE_B_DELETES);
 
+    OutputFile output =
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
     RewriteTablePathUtil.RewriteResult<DeleteFile> deleteFileRewriteResult =
         RewriteTablePathUtil.rewriteDeleteManifest(
             manifest,
             Set.of(1000L),
-            Files.localOutput(
-                FileFormat.AVRO.addExtension(
-                    temp.resolve("junit" + System.nanoTime()).toFile().toString())),
+            output,
             table.io(),
             formatVersion,
             table.specs(),
@@ -284,6 +386,9 @@ public class TestRewriteTablePathUtil extends TestBase {
             ImmutableMap.of());
 
     assertThat(deleteFileRewriteResult.toRewrite()).hasSize(2);
+    assertThat(deleteFileRewriteResult.rewrittenManifestLengths())
+        .as("recorded length should be keyed by source path and match the rewritten manifest")
+        .containsExactly(entry(manifest.path(), output.toInputFile().getLength()));
   }
 
   // A position delete entry that is not rewritten (e.g. a DELETED entry not copied to the target)
@@ -375,5 +480,155 @@ public class TestRewriteTablePathUtil extends TestBase {
     }
 
     return writer.toManifestFile();
+  }
+
+  @TestTemplate
+  public void testRewriteManifestListStampsMeasuredManifestLengths() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot snapshot = table.currentSnapshot();
+    List<ManifestFile> manifests = snapshot.allManifests(table.io());
+    assertThat(manifests).hasSize(2);
+    ManifestFile measured = manifests.get(0);
+    ManifestFile unmeasured = manifests.get(1);
+
+    String manifestPath = measured.path();
+    String sourcePrefix = manifestPath.substring(0, manifestPath.lastIndexOf("/metadata/"));
+    String targetPrefix = sourcePrefix + "/relocated";
+    String stagingDir = temp.resolve("staging").toString();
+    String outputPath = temp.resolve("rewritten-list-" + System.nanoTime() + ".avro").toString();
+
+    long rewrittenLength = measured.length() + 4242L;
+
+    RewriteTablePathUtil.RewriteResult<ManifestFile> result =
+        RewriteTablePathUtil.rewriteManifestList(
+            snapshot,
+            table.io(),
+            table.ops().current(),
+            ImmutableMap.of(measured.path(), rewrittenLength),
+            sourcePrefix,
+            targetPrefix,
+            stagingDir,
+            outputPath);
+
+    List<ManifestFile> rewritten = ManifestLists.read(table.io().newInputFile(outputPath));
+    assertThat(rewritten).hasSize(2);
+    Map<String, Long> lengthByPath =
+        rewritten.stream().collect(Collectors.toMap(ManifestFile::path, ManifestFile::length));
+
+    String measuredTargetPath =
+        RewriteTablePathUtil.newPath(measured.path(), sourcePrefix, targetPrefix);
+    String unmeasuredTargetPath =
+        RewriteTablePathUtil.newPath(unmeasured.path(), sourcePrefix, targetPrefix);
+    assertThat(lengthByPath)
+        .as("measured manifest should take the mapped length, keyed by its source path")
+        .containsEntry(measuredTargetPath, rewrittenLength);
+    assertThat(lengthByPath)
+        .as("unmeasured manifest should keep its source length")
+        .containsEntry(unmeasuredTargetPath, unmeasured.length());
+
+    assertThat(result.toRewrite())
+        .as("only manifests with a measured length should be rewritten")
+        .extracting(ManifestFile::path)
+        .containsExactly(measured.path());
+    assertThat(result.copyPlan())
+        .as("the copy plan should cover the staged copy of that manifest only")
+        .containsExactly(
+            Pair.of(
+                RewriteTablePathUtil.stagingPath(measured.path(), sourcePrefix, stagingDir),
+                measuredTargetPath));
+  }
+
+  @TestTemplate
+  public void testRewriteDataManifestRecordsRewrittenLength() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    ManifestFile manifest = table.currentSnapshot().allManifests(table.io()).get(0);
+
+    OutputFile output =
+        Files.localOutput(
+            FileFormat.AVRO.addExtension(
+                temp.resolve("junit" + System.nanoTime()).toFile().toString()));
+    RewriteTablePathUtil.RewriteResult<DataFile> result =
+        RewriteTablePathUtil.rewriteDataManifest(
+            manifest,
+            Set.of(table.currentSnapshot().snapshotId()),
+            output,
+            table.io(),
+            formatVersion,
+            table.specs(),
+            "/path/to/",
+            "/path/new/");
+
+    assertThat(result.rewrittenManifestLengths())
+        .as("recorded length should be keyed by source path and match the rewritten manifest")
+        .containsExactly(entry(manifest.path(), output.toInputFile().getLength()));
+  }
+
+  @Test
+  public void testRewriteResultAppendMergesManifestLengths() {
+    RewriteTablePathUtil.RewriteResult<DataFile> first = new RewriteTablePathUtil.RewriteResult<>();
+    first.addRewrittenManifestLength("/path/to/m1.avro", 10L);
+    RewriteTablePathUtil.RewriteResult<DataFile> second =
+        new RewriteTablePathUtil.RewriteResult<>();
+    second.addRewrittenManifestLength("/path/to/m2.avro", 20L);
+
+    assertThat(first.append(second).rewrittenManifestLengths())
+        .containsExactlyInAnyOrderEntriesOf(
+            ImmutableMap.of("/path/to/m1.avro", 10L, "/path/to/m2.avro", 20L));
+    assertThat(first.rewrittenManifestLengths()).isUnmodifiable();
+  }
+
+  @Test
+  void rewritePositionDeleteRejectsRowData() {
+    // Simulates a position delete file written by 1.11 or earlier, which could carry the deleted
+    // row.
+    Schema posDeleteSchema = DeleteSchemaUtil.posDeleteReadSchema(SCHEMA);
+    GenericRecord deleteRecord = GenericRecord.create(posDeleteSchema);
+    deleteRecord.set(0, "/source/table/data/file.parquet");
+    deleteRecord.set(1, 0L);
+    deleteRecord.set(2, GenericRecord.create(SCHEMA));
+
+    DeleteFile deleteFile =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .ofPositionDeletes()
+            .withPath("/source/table/data/deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    assertThatThrownBy(
+            () ->
+                RewriteTablePathUtil.rewritePositionDelete(
+                    deleteFile,
+                    Files.localOutput(java.io.File.createTempFile("junit", null, temp.toFile())),
+                    table.io(),
+                    PartitionSpec.unpartitioned(),
+                    "/source/table",
+                    "/target/table",
+                    new RowCarryingReaderWriter(deleteRecord)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot rewrite position delete file with row data for");
+  }
+
+  /** Returns one position delete record that carries row data, as 1.11 and earlier could write. */
+  private static class RowCarryingReaderWriter
+      implements RewriteTablePathUtil.PositionDeleteReaderWriter {
+    private final Record record;
+
+    RowCarryingReaderWriter(Record record) {
+      this.record = record;
+    }
+
+    @Override
+    public CloseableIterable<Record> reader(
+        InputFile inputFile, FileFormat format, PartitionSpec spec) {
+      return CloseableIterable.withNoopClose(ImmutableList.of(record));
+    }
+
+    @Override
+    public PositionDeleteWriter<Record> writer(
+        OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition) {
+      throw new AssertionError("Should not open a writer for a file that carries row data");
+    }
   }
 }

@@ -114,7 +114,7 @@ Notes:
 **State and restart**
 
 - The PK-index worker keeps a keyed row-position index of the target branch in Flink state and **maintains it incrementally across checkpoints**: each trigger cycle only applies the commits added on the target branch since the last indexed snapshot, and the resulting index is persisted with the next Flink checkpoint. On failover, the worker resumes from the most recent checkpointed index rather than rebuilding from scratch. Its size scales with the number of live rows in the table for the configured equality columns; size Flink state backend, checkpoint storage, and TaskManager memory accordingly. **RocksDB is the preferred state backend** because the PK index can grow beyond the available heap and RocksDB spills to local disk instead of failing with an `OutOfMemoryError`.
-- Full (re)indexing from the target branch head is only triggered in a few cases: cold start with no checkpoint, external commits that advance the target past the currently-indexed snapshot (see below), or when the planner detects that the target branch has diverged from the indexed snapshot (rollback / replace-main / expired marker).
+- Full (re)indexing from the target branch head is only triggered in a few cases: cold start with no checkpoint, external commits that advance the target past the currently-indexed snapshot (see below), when the planner detects that the target branch has diverged from the indexed snapshot (rollback / replace-main / expired marker), or when a staging snapshot is planned again because the cycle that planned it did not commit.
 - The `equalityFieldColumns` set is persisted in operator state. Reconfiguring it across a restart from savepoint is **not supported** and the job will fail fast on restore. Restart from a clean state (no savepoint) if the equality columns change.
 - The committer is intentionally stateless. On restart, the planner rediscovers its position by walking the target branch for the marker property `equality-convert-staging-snapshot` written by the committer. If that marker is no longer reachable on the target branch (target was rolled back, replace-main'ed, or the marker snapshot was expired) the planner fails and requires manual intervention.
 
@@ -433,7 +433,7 @@ You can enable maintenance and configure locks using SQL before executing writes
 
 ```sql
 -- Enable Iceberg V2 Sink and maintenance tasks
-SET 'table.exec.iceberg.use.v2.sink' = 'true';
+SET 'table.exec.iceberg.use-v2-sink' = 'true';
 SET 'flink-maintenance.rewrite.enabled' = 'true';
 SET 'flink-maintenance.expire-snapshots.enabled' = 'true';
 SET 'flink-maintenance.delete-orphan-files.enabled' = 'true';
@@ -453,7 +453,7 @@ SET 'flink-maintenance.delete-orphan-files.min-age-seconds' = '259200';
 SET 'flink-maintenance.lock.type' = 'jdbc';
 SET 'flink-maintenance.lock.lock-id' = 'catalog.db.table';
 SET 'flink-maintenance.lock.jdbc.uri' = 'jdbc:postgresql://localhost:5432/iceberg';
-SET 'flink-maintenance.lock.jdbc.init-lock-tables' = 'true';
+SET 'flink-maintenance.lock.jdbc.init-lock-table' = 'true';
 
 -- Now run writes; maintenance will be scheduled post-commit
 INSERT INTO db.tbl SELECT ...;
@@ -480,7 +480,7 @@ CREATE TABLE db.tbl (
   'flink-maintenance.lock.type' = 'jdbc',
   'flink-maintenance.lock.lock-id' = 'catalog.db.table',
   'flink-maintenance.lock.jdbc.uri' = 'jdbc:postgresql://localhost:5432/iceberg',
-  'flink-maintenance.lock.jdbc.init-lock-tables' = 'true'
+  'flink-maintenance.lock.jdbc.init-lock-table' = 'true'
 );
 ```
 
@@ -554,7 +554,7 @@ These keys are used in SQL (SET or table WITH options) and are applicable when w
 | `flink-maintenance.lock.type` | Set to `jdbc` |  |
 | `flink-maintenance.lock.lock-id` | Unique lock ID per table |  |
 | `flink-maintenance.lock.jdbc.uri` | JDBC URI |  |
-| `flink-maintenance.lock.jdbc.init-lock-tables` | Auto-create lock table | `false` |
+| `flink-maintenance.lock.jdbc.init-lock-table` | Auto-create lock table | `false` |
 
 - ZooKeeper
 

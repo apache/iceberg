@@ -20,6 +20,7 @@ package org.apache.iceberg.parquet;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
@@ -41,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -54,10 +56,12 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -71,6 +75,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.RandomUtil;
 import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.column.Encoding;
@@ -79,9 +84,14 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.hadoop.metadata.FileMetaData;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.LocalOutputFile;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -101,6 +111,53 @@ public class TestParquet {
     try (ParquetFileReader reader =
         ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
       assertThat(reader.getRowGroups()).hasSize(2);
+    }
+  }
+
+  @Test
+  public void rowGroupSizeLargerThanIntegerMax() throws IOException {
+    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("intCol", 1);
+
+    // Values above Integer.MAX_VALUE used to fail in PropertyUtil.propertyAsInt.
+    File file = createTempFile(temp);
+    write(
+        file,
+        schema,
+        ImmutableMap.of(PARQUET_ROW_GROUP_SIZE_BYTES, Long.toString(4L * 1024 * 1024 * 1024)),
+        ParquetAvroWriter::buildWriter,
+        record);
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(file)))) {
+      assertThat(reader.getRowGroups()).hasSize(1);
+    }
+  }
+
+  @Test
+  public void deleteRowGroupSizeLargerThanIntegerMax() throws IOException {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+    Record record = org.apache.iceberg.data.GenericRecord.create(schema);
+    record.setField("id", 1L);
+
+    File file = createTempFile(temp);
+    EqualityDeleteWriter<Record> deleteWriter =
+        Parquet.writeDeletes(Files.localOutput(file))
+            .createWriterFunc(GenericParquetWriter::create)
+            .set(DELETE_PARQUET_ROW_GROUP_SIZE_BYTES, Long.toString(4L * 1024 * 1024 * 1024))
+            .overwrite()
+            .rowSchema(schema)
+            .withSpec(PartitionSpec.unpartitioned())
+            .equalityFieldIds(1)
+            .buildEqualityWriter();
+
+    try (EqualityDeleteWriter<Record> writer = deleteWriter) {
+      writer.write(record);
+    }
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(file)))) {
+      assertThat(reader.getRowGroups()).hasSize(1);
     }
   }
 
@@ -330,6 +387,42 @@ public class TestParquet {
       assertThat(geographyMetrics.nullValueCounts()).containsEntry(1, 0L);
       assertThat(geographyMetrics.lowerBounds()).doesNotContainKey(1);
       assertThat(geographyMetrics.upperBounds()).doesNotContainKey(1);
+    }
+  }
+
+  @Test
+  public void testGeospatialWkbRoundTrip() throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "geom", Types.GeometryType.crs84()),
+            optional(2, "geog", Types.GeographyType.crs84()));
+
+    // Use real WKB points: the geometry/geography columns carry a Parquet geospatial logical type,
+    // so the writer parses each value with a WKB reader to build geospatial statistics. Arbitrary
+    // bytes would fail that parse and be silently omitted from stats.
+    ByteBuffer geomWkb = ByteBuffer.wrap(RandomUtil.wkbPoint(30, 10));
+    ByteBuffer geogWkb = ByteBuffer.wrap(RandomUtil.wkbPoint(-5, 40));
+
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("geom", geomWkb);
+    record.put("geog", geogWkb);
+    GenericData.Record nulls = new GenericData.Record(avroSchema);
+
+    File file = createTempFile(temp);
+    write(file, schema, Collections.emptyMap(), ParquetAvroWriter::buildWriter, record, nulls);
+
+    try (CloseableIterable<GenericData.Record> reader =
+        Parquet.read(Files.localInput(file))
+            .project(schema)
+            .createReaderFunc(fileSchema -> ParquetAvroValueReaders.buildReader(schema, fileSchema))
+            .build()) {
+      List<GenericData.Record> rows = Lists.newArrayList(reader);
+      assertThat(rows).hasSize(2);
+      assertThat(rows.get(0).get("geom")).isEqualTo(geomWkb);
+      assertThat(rows.get(0).get("geog")).isEqualTo(geogWkb);
+      assertThat(rows.get(1).get("geom")).isNull();
+      assertThat(rows.get(1).get("geog")).isNull();
     }
   }
 
@@ -755,5 +848,116 @@ public class TestParquet {
     }
 
     return ids;
+  }
+
+  private static final MessageType MISSING_NULL_COUNT_SCHEMA =
+      org.apache.parquet.schema.Types.buildMessage()
+          .addField(
+              org.apache.parquet.schema.Types.primitive(
+                      PrimitiveTypeName.INT32, org.apache.parquet.schema.Type.Repetition.OPTIONAL)
+                  .id(1)
+                  .named("id"))
+          .named("table");
+
+  private static final PrimitiveType MISSING_NULL_COUNT_ID_TYPE =
+      MISSING_NULL_COUNT_SCHEMA.getType("id").asPrimitiveType();
+
+  @Test
+  public void missingNullCountInSingleRowGroup() {
+    // Parquet reports a missing null_count as -1 from Statistics.getNumNulls(), which must not be
+    // stored as a count. The metric is dropped instead, so the null count is left unknown.
+    Metrics metrics = missingNullCountMetrics(block(statsWithoutNullCount(1, 10), 10));
+
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(1);
+    assertThat(metrics.valueCounts()).containsEntry(1, 10L);
+    // a missing null count does not invalidate the bounds
+    assertThat(metrics.lowerBounds()).containsKey(1);
+    assertThat(metrics.upperBounds()).containsKey(1);
+  }
+
+  @Test
+  public void missingNullCountInOneOfTwoRowGroups() {
+    // without accounting for the -1 sentinel, this sums to an incorrect null count of 0
+    Metrics metrics =
+        missingNullCountMetrics(
+            block(statsWithoutNullCount(1, 10), 10), block(statsWithNullCount(20, 30, 1), 10));
+
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(1);
+    assertThat(metrics.valueCounts()).containsEntry(1, 20L);
+  }
+
+  @Test
+  public void missingNullCountAfterKnownNullCount() {
+    // the -1 sentinel must also be detected when it is not the first row group
+    Metrics metrics =
+        missingNullCountMetrics(
+            block(statsWithNullCount(20, 30, 5), 10), block(statsWithoutNullCount(1, 10), 10));
+
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(1);
+  }
+
+  @Test
+  public void missingNullCountWithCountsMode() {
+    Metrics metrics =
+        missingNullCountMetrics(
+            MetricsConfig.fromProperties(
+                Collections.singletonMap("write.metadata.metrics.default", "counts")),
+            block(statsWithoutNullCount(1, 10), 10),
+            block(statsWithNullCount(20, 30, 1), 10));
+
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(1);
+    assertThat(metrics.valueCounts()).containsEntry(1, 20L);
+  }
+
+  private static Statistics<?> statsWithoutNullCount(int min, int max) {
+    return Statistics.getBuilderForReading(MISSING_NULL_COUNT_ID_TYPE)
+        .withMin(intToLittleEndian(min))
+        .withMax(intToLittleEndian(max))
+        .build();
+  }
+
+  private static Statistics<?> statsWithNullCount(int min, int max, long numNulls) {
+    return Statistics.getBuilderForReading(MISSING_NULL_COUNT_ID_TYPE)
+        .withMin(intToLittleEndian(min))
+        .withMax(intToLittleEndian(max))
+        .withNumNulls(numNulls)
+        .build();
+  }
+
+  private static byte[] intToLittleEndian(int value) {
+    return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array();
+  }
+
+  private static BlockMetaData block(Statistics<?> stats, long valueCount) {
+    ColumnChunkMetaData column =
+        ColumnChunkMetaData.get(
+            ColumnPath.get("id"),
+            MISSING_NULL_COUNT_ID_TYPE,
+            CompressionCodecName.UNCOMPRESSED,
+            null /* encodingStats */,
+            Collections.singleton(Encoding.PLAIN),
+            stats,
+            4L /* firstDataPage */,
+            0L /* dictionaryPageOffset */,
+            valueCount,
+            100L /* totalSize */,
+            100L /* totalUncompressedSize */);
+
+    BlockMetaData block = new BlockMetaData();
+    block.setRowCount(valueCount);
+    block.setTotalByteSize(100L);
+    block.addColumn(column);
+    return block;
+  }
+
+  private static Metrics missingNullCountMetrics(BlockMetaData... blocks) {
+    return missingNullCountMetrics(MetricsConfig.getDefault(), blocks);
+  }
+
+  private static Metrics missingNullCountMetrics(MetricsConfig config, BlockMetaData... blocks) {
+    FileMetaData fileMetaData =
+        new FileMetaData(MISSING_NULL_COUNT_SCHEMA, Collections.emptyMap(), "test-writer");
+    return ParquetUtil.footerMetrics(
+        new ParquetMetadata(fileMetaData, Lists.newArrayList(blocks)), Stream.empty(), config);
   }
 }

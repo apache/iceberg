@@ -120,13 +120,13 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface)
       .flatMap(retention => Option(retention.maxSnapshotAge()))
       .map(retention =>
         TimeUnit
-          .valueOf(retention.timeUnit().getText.toUpperCase(Locale.ENGLISH))
+          .valueOf(retention.timeUnit().getText.toUpperCase(Locale.ROOT))
           .toMillis(retention.number().getText.toLong))
     val branchRetention =
       branchOptionsContext.flatMap(branchOptions => Option(branchOptions.refRetain()))
     val branchRefAgeMs = branchRetention.map(retain =>
       TimeUnit
-        .valueOf(retain.timeUnit().getText.toUpperCase(Locale.ENGLISH))
+        .valueOf(retain.timeUnit().getText.toUpperCase(Locale.ROOT))
         .toMillis(retain.number().getText.toLong))
     val create = createOrReplaceBranchClause.CREATE() != null
     val replace = ctx.createReplaceBranchClause().REPLACE() != null
@@ -160,7 +160,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface)
       val tagRetain = tagOptionsContext.flatMap(tagOptions => Option(tagOptions.refRetain()))
       val tagRefAgeMs = tagRetain.map(retain =>
         TimeUnit
-          .valueOf(retain.timeUnit().getText.toUpperCase(Locale.ENGLISH))
+          .valueOf(retain.timeUnit().getText.toUpperCase(Locale.ROOT))
           .toMillis(retain.number().getText.toLong))
       val tagOptions = TagOptions(snapshotId, tagRefAgeMs)
 

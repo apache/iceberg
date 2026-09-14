@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.iceberg.TestHelpers.RoundTripSerializer;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -32,19 +33,18 @@ import org.mockito.Mockito;
 
 class TestTrackedFileStruct {
   private static final int FORMAT_VERSION_V4 = 4;
-  private static final Types.StructType PARTITION_TYPE =
-      Types.StructType.of(
-          Types.NestedField.optional(1000, "id_bucket", Types.IntegerType.get()),
-          Types.NestedField.optional(1001, "category", Types.StringType.get()));
 
-  private static final List<Types.NestedField> FIELDS =
-      TrackedFile.schemaWithContentStats(PARTITION_TYPE, Types.StructType.of()).fields();
+  private static final List<Types.NestedField> DEFAULT_FIELDS =
+      TrackedFile.schema(Types.StructType.of(), Types.StructType.of()).asStruct().fields();
 
   private static final Tracking TRACKING = Mockito.mock(Tracking.class);
   private static final Tracking TRACKING_COPY = Mockito.mock(Tracking.class);
 
   private static final PartitionData PARTITION = Mockito.mock(PartitionData.class);
   private static final PartitionData PARTITION_COPY = Mockito.mock(PartitionData.class);
+
+  private static final ContentStats CONTENT_STATS = Mockito.mock(ContentStats.class);
+  private static final ContentStats CONTENT_STATS_COPY = Mockito.mock(ContentStats.class);
 
   private static final DeletionVector DELETION_VECTOR = Mockito.mock(DeletionVector.class);
   private static final DeletionVector DELETION_VECTOR_COPY = Mockito.mock(DeletionVector.class);
@@ -55,11 +55,10 @@ class TestTrackedFileStruct {
   static {
     Mockito.when(TRACKING.copy()).thenReturn(TRACKING_COPY);
     Mockito.when(PARTITION.copy()).thenReturn(PARTITION_COPY);
+    Mockito.when(CONTENT_STATS.copy()).thenReturn(CONTENT_STATS_COPY);
     Mockito.when(DELETION_VECTOR.copy()).thenReturn(DELETION_VECTOR_COPY);
     Mockito.when(MANIFEST_INFO.copy()).thenReturn(MANIFEST_INFO_COPY);
   }
-
-  private static final ContentStats CONTENT_STATS = Mockito.mock(ContentStats.class);
 
   @Test
   void fieldAccess() {
@@ -70,10 +69,10 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
-            PARTITION,
             50L,
             512L,
             1,
+            PARTITION,
             CONTENT_STATS,
             5,
             DELETION_VECTOR,
@@ -147,10 +146,10 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
-            PARTITION,
             50L,
             512L,
             1,
+            PARTITION,
             CONTENT_STATS,
             5,
             DELETION_VECTOR,
@@ -188,11 +187,11 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
-            PARTITION,
             50L,
             512L,
             1,
-            null,
+            PARTITION,
+            CONTENT_STATS,
             5,
             DELETION_VECTOR,
             MANIFEST_INFO,
@@ -211,6 +210,106 @@ class TestTrackedFileStruct {
     assertThat(copy.recordCount()).isEqualTo(50L);
     assertThat(copy.fileSizeInBytes()).isEqualTo(512L);
     assertThat(copy.specId()).isEqualTo(1);
+    assertThat(copy.contentStats()).isSameAs(CONTENT_STATS_COPY);
+    assertThat(copy.sortOrderId()).isEqualTo(5);
+    assertThat(copy.deletionVector()).isSameAs(DELETION_VECTOR_COPY);
+    assertThat(copy.manifestInfo()).isSameAs(MANIFEST_INFO_COPY);
+    assertThat(copy.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
+    assertThat(copy.splitOffsets()).containsExactly(100L, 200L);
+    assertThat(copy.equalityIds()).containsExactly(1, 2, 3);
+    assertThat(copy.partition()).isSameAs(PARTITION_COPY);
+
+    // mutable fields are deep-copied, not shared with the original
+    assertThat(copy.keyMetadata()).isNotSameAs(file.keyMetadata());
+  }
+
+  @Test
+  void copyWithStats() {
+    ContentStats stats = Mockito.mock(ContentStats.class);
+    ContentStats statsCopy = Mockito.mock(ContentStats.class);
+    Mockito.when(stats.copy(ImmutableSet.of(1))).thenReturn(statsCopy);
+
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            TRACKING,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/data/00000-0-file.parquet",
+            FileFormat.PARQUET,
+            50L,
+            512L,
+            1,
+            PARTITION,
+            stats,
+            5,
+            DELETION_VECTOR,
+            MANIFEST_INFO,
+            ByteBuffer.wrap(new byte[] {1, 2, 3}),
+            ImmutableList.of(100L, 200L),
+            ImmutableList.of(1, 2, 3));
+
+    TrackedFile copy = file.copyWithStats(ImmutableSet.of(1));
+
+    assertThat(copy).isInstanceOf(TrackedFileStruct.class);
+    assertThat(copy.tracking()).isSameAs(TRACKING_COPY);
+    assertThat(copy.contentType()).isEqualTo(FileContent.DATA);
+    assertThat(copy.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
+    assertThat(copy.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
+    assertThat(copy.fileFormat()).isEqualTo(FileFormat.PARQUET);
+    assertThat(copy.recordCount()).isEqualTo(50L);
+    assertThat(copy.fileSizeInBytes()).isEqualTo(512L);
+    assertThat(copy.specId()).isEqualTo(1);
+    assertThat(copy.contentStats()).isSameAs(statsCopy);
+    assertThat(copy.sortOrderId()).isEqualTo(5);
+    assertThat(copy.deletionVector()).isSameAs(DELETION_VECTOR_COPY);
+    assertThat(copy.manifestInfo()).isSameAs(MANIFEST_INFO_COPY);
+    assertThat(copy.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
+    assertThat(copy.splitOffsets()).containsExactly(100L, 200L);
+    assertThat(copy.equalityIds()).containsExactly(1, 2, 3);
+    assertThat(copy.partition()).isSameAs(PARTITION_COPY);
+
+    // mutable fields are deep-copied, not shared with the original
+    assertThat(copy.keyMetadata()).isNotSameAs(file.keyMetadata());
+  }
+
+  @Test
+  void copyWithoutStats() {
+    ContentStats stats = Mockito.mock(ContentStats.class);
+
+    TrackedFileStruct file =
+        new TrackedFileStruct(
+            TRACKING,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/data/00000-0-file.parquet",
+            FileFormat.PARQUET,
+            50L,
+            512L,
+            1,
+            PARTITION,
+            stats,
+            5,
+            DELETION_VECTOR,
+            MANIFEST_INFO,
+            ByteBuffer.wrap(new byte[] {1, 2, 3}),
+            ImmutableList.of(100L, 200L),
+            ImmutableList.of(1, 2, 3));
+
+    TrackedFile copy = file.copyWithoutStats();
+
+    // should not attempt to copy stats
+    Mockito.verifyNoInteractions(stats);
+
+    assertThat(copy).isInstanceOf(TrackedFileStruct.class);
+    assertThat(copy.tracking()).isSameAs(TRACKING_COPY);
+    assertThat(copy.contentType()).isEqualTo(FileContent.DATA);
+    assertThat(copy.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
+    assertThat(copy.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
+    assertThat(copy.fileFormat()).isEqualTo(FileFormat.PARQUET);
+    assertThat(copy.recordCount()).isEqualTo(50L);
+    assertThat(copy.fileSizeInBytes()).isEqualTo(512L);
+    assertThat(copy.specId()).isEqualTo(1);
+    assertThat(copy.contentStats()).isNull();
     assertThat(copy.sortOrderId()).isEqualTo(5);
     assertThat(copy.deletionVector()).isSameAs(DELETION_VECTOR_COPY);
     assertThat(copy.manifestInfo()).isSameAs(MANIFEST_INFO_COPY);
@@ -244,7 +343,7 @@ class TestTrackedFileStruct {
   @Test
   void structLikeSize() {
     TrackedFileStruct file = new TrackedFileStruct();
-    assertThat(file.size()).isEqualTo(FIELDS.size());
+    assertThat(file.size()).isEqualTo(DEFAULT_FIELDS.size());
   }
 
   @ParameterizedTest
@@ -257,10 +356,10 @@ class TestTrackedFileStruct {
             FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
-            null, // PartitionData has its own serialization tests
             100L,
             1024L,
             7,
+            null, // PartitionData has its own serialization tests
             null,
             1,
             null, // DeletionVector has its own serialization tests
@@ -289,8 +388,8 @@ class TestTrackedFileStruct {
   }
 
   private static int pos(String fieldName) {
-    for (int i = 0; i < FIELDS.size(); i += 1) {
-      if (FIELDS.get(i).name().equals(fieldName)) {
+    for (int i = 0; i < DEFAULT_FIELDS.size(); i += 1) {
+      if (DEFAULT_FIELDS.get(i).name().equals(fieldName)) {
         return i;
       }
     }
