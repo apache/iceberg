@@ -707,7 +707,7 @@ Constraint IDs are assigned from the table's `last-constraint-id`, which is trea
 
 The `expression` of a `check` constraint is serialized as described in the [Iceberg expressions spec](expressions-spec.md) and must use ID references so that it remains bound to the same fields when columns are renamed or reordered.
 
-A check expression is evaluated for each row over the values of that row. Expressions that depend on more than one row, such as aggregates and window functions, and expressions that depend on another table, such as subqueries, must not be used.
+A check expression is evaluated for each row over the values of that row. An expression may reference more than one field of the row, such as `start_date <= end_date`. Expressions that depend on more than one row, such as aggregates and window functions, and expressions that depend on another table, such as subqueries, must not be used.
 
 Iceberg predicates use two-valued logic: a predicate always produces true or false and never produces null, so a comparison with a null operand produces false. This differs from SQL `CHECK`, where a row satisfies a constraint unless the predicate produces false and a null value therefore satisfies the constraint.
 
@@ -765,6 +765,8 @@ Writers must record `constraint-statuses` in every snapshot of a table that has 
 Enforcing a constraint for a commit is not sufficient to list it as `valid`. When the parent snapshot's status is not `validated` or `valid`, rows added by earlier commits were never checked, so the status is `unvalidated` even though the writer verified the rows that it added.
 
 When a constraint becomes enforced, either by being added with `enforced` set to true or by `enforced` changing from false to true, writers should validate the table and record `validated`. A writer that does not validate records `unvalidated`, and the constraint remains `unvalidated` until a later validation records `validated`.
+
+A writer does not have to check every row in a single scan. After checking every row in an ancestor snapshot, a writer may check only the rows added between that ancestor and the current snapshot and record `validated` for the current snapshot. This allows a validation to finish on a table that is written concurrently, without blocking writes or restarting the scan.
 
 A snapshot's `constraint-statuses` must not be modified after the snapshot is created. Recording a different status for a constraint requires a new snapshot. A snapshot that changes only constraint statuses may reuse its parent's manifest list.
 
