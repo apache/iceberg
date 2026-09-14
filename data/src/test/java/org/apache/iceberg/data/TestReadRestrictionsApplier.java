@@ -26,9 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.functions.MaskAlphanum;
-import org.apache.iceberg.functions.ReplaceWithNull;
-import org.apache.iceberg.functions.ShowLast4;
+import org.apache.iceberg.functions.IcebergFunctions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -54,7 +52,7 @@ public class TestReadRestrictionsApplier {
             ImmutableList.of(TEMPLATE.copy(ImmutableMap.of("id", 1L, "email", "a@b.com"))));
 
     CloseableIterable<Record> out =
-        ReadRestrictionsApplier.apply(input, ReadRestrictions.empty(), SCHEMA);
+        ReadRestrictionsApplier.bind(ReadRestrictions.empty(), SCHEMA).apply(input);
 
     assertThat(out).isSameAs(input);
   }
@@ -68,10 +66,10 @@ public class TestReadRestrictionsApplier {
                 TEMPLATE.copy(ImmutableMap.of("id", 2L, "email", "bob123@example.com"))));
 
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(2)));
+        ReadRestrictions.of(null, ImmutableList.of(IcebergFunctions.maskAlphanum(2)));
 
     List<Record> result =
-        Lists.newArrayList(ReadRestrictionsApplier.apply(input, restrictions, SCHEMA));
+        Lists.newArrayList(ReadRestrictionsApplier.bind(restrictions, SCHEMA).apply(input));
 
     assertThat(result).hasSize(2);
     assertThat(result.get(0).getField("id")).isEqualTo(1L);
@@ -89,10 +87,12 @@ public class TestReadRestrictionsApplier {
                         "id", 42L, "email", "alice@example.com", "ssn", "123-45-6789"))));
 
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(2), new ShowLast4(3)));
+        ReadRestrictions.of(
+            null,
+            ImmutableList.of(IcebergFunctions.maskAlphanum(2), IcebergFunctions.showLast4(3)));
 
     List<Record> result =
-        Lists.newArrayList(ReadRestrictionsApplier.apply(input, restrictions, SCHEMA));
+        Lists.newArrayList(ReadRestrictionsApplier.bind(restrictions, SCHEMA).apply(input));
 
     assertThat(result.get(0).getField("id")).isEqualTo(42L);
     assertThat(result.get(0).getField("email")).isEqualTo("xxxxx@xxxxxxx.xxx");
@@ -105,10 +105,10 @@ public class TestReadRestrictionsApplier {
         CloseableIterable.withNoopClose(ImmutableList.of(TEMPLATE.copy(ImmutableMap.of("id", 1L))));
 
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(2)));
+        ReadRestrictions.of(null, ImmutableList.of(IcebergFunctions.maskAlphanum(2)));
 
     List<Record> result =
-        Lists.newArrayList(ReadRestrictionsApplier.apply(input, restrictions, SCHEMA));
+        Lists.newArrayList(ReadRestrictionsApplier.bind(restrictions, SCHEMA).apply(input));
 
     assertThat(result.get(0).getField("email")).isNull();
   }
@@ -121,13 +121,10 @@ public class TestReadRestrictionsApplier {
             optional(
                 2, "contact", Types.StructType.of(optional(3, "email", Types.StringType.get()))));
 
-    CloseableIterable<Record> input =
-        CloseableIterable.withNoopClose(ImmutableList.of(GenericRecord.create(nested)));
-
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(3)));
+        ReadRestrictions.of(null, ImmutableList.of(IcebergFunctions.maskAlphanum(3)));
 
-    assertThatThrownBy(() -> ReadRestrictionsApplier.apply(input, restrictions, nested))
+    assertThatThrownBy(() -> ReadRestrictionsApplier.bind(restrictions, nested))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("nested fields are not yet supported")
         .hasMessageContaining("fieldId=3");
@@ -144,9 +141,10 @@ public class TestReadRestrictionsApplier {
                 template.copy(ImmutableMap.of("id", 2L))));
 
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new MaskAlphanum(2)));
+        ReadRestrictions.of(null, ImmutableList.of(IcebergFunctions.maskAlphanum(2)));
 
-    CloseableIterable<Record> out = ReadRestrictionsApplier.apply(input, restrictions, projection);
+    CloseableIterable<Record> out =
+        ReadRestrictionsApplier.bind(restrictions, projection).apply(input);
 
     // email is not being read, so the projection does not apply and no masking wrapper is added
     assertThat(out).isSameAs(input);
@@ -154,13 +152,10 @@ public class TestReadRestrictionsApplier {
 
   @Test
   public void testReplaceWithNullOnRequiredFieldFailsClosed() {
-    CloseableIterable<Record> input =
-        CloseableIterable.withNoopClose(ImmutableList.of(TEMPLATE.copy()));
-
     ReadRestrictions restrictions =
-        ReadRestrictions.of(null, ImmutableList.of(new ReplaceWithNull(1)));
+        ReadRestrictions.of(null, ImmutableList.of(IcebergFunctions.replaceWithNull(1)));
 
-    assertThatThrownBy(() -> ReadRestrictionsApplier.apply(input, restrictions, SCHEMA))
+    assertThatThrownBy(() -> ReadRestrictionsApplier.bind(restrictions, SCHEMA))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("replace-with-null")
         .hasMessageContaining("required field: id");
@@ -179,7 +174,7 @@ public class TestReadRestrictionsApplier {
         ReadRestrictions.of(Expressions.greaterThan("id", 1L), ImmutableList.of());
 
     List<Record> result =
-        Lists.newArrayList(ReadRestrictionsApplier.apply(input, restrictions, SCHEMA));
+        Lists.newArrayList(ReadRestrictionsApplier.bind(restrictions, SCHEMA).apply(input));
 
     assertThat(result).hasSize(2);
     assertThat(result.get(0).getField("id")).isEqualTo(2L);
@@ -196,10 +191,11 @@ public class TestReadRestrictionsApplier {
 
     ReadRestrictions restrictions =
         ReadRestrictions.of(
-            Expressions.equal("email", "keep@example.com"), ImmutableList.of(new MaskAlphanum(2)));
+            Expressions.equal("email", "keep@example.com"),
+            ImmutableList.of(IcebergFunctions.maskAlphanum(2)));
 
     List<Record> result =
-        Lists.newArrayList(ReadRestrictionsApplier.apply(input, restrictions, SCHEMA));
+        Lists.newArrayList(ReadRestrictionsApplier.bind(restrictions, SCHEMA).apply(input));
 
     assertThat(result).hasSize(1);
     assertThat(result.get(0).getField("id")).isEqualTo(1L);
@@ -217,7 +213,7 @@ public class TestReadRestrictionsApplier {
     ReadRestrictions restrictions = ReadRestrictions.of(null, ImmutableList.of());
 
     List<Record> result =
-        Lists.newArrayList(ReadRestrictionsApplier.apply(input, restrictions, SCHEMA));
+        Lists.newArrayList(ReadRestrictionsApplier.bind(restrictions, SCHEMA).apply(input));
 
     assertThat(result).hasSize(2);
   }

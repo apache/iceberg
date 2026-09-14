@@ -113,11 +113,16 @@ public class IcebergGenerics {
         this.tableScan = tableScan.filter(restrictions.get().rowFilter());
       }
 
+      // Bind before constructing the scan iterable, which starts planning tasks. Binding validates
+      // the restrictions against the projection and can fail; a failure after construction would
+      // leak the iterable, because build() never returns and the caller has nothing to close.
+      BoundReadRestrictions bound =
+          restrictions.isPresent()
+              ? ReadRestrictionsApplier.bind(restrictions.get(), tableScan.schema())
+              : null;
+
       CloseableIterable<Record> records = new TableScanIterable(tableScan, reuseContainers);
-      if (restrictions.isPresent()) {
-        records = ReadRestrictionsApplier.apply(records, restrictions.get(), tableScan.schema());
-      }
-      return records;
+      return bound == null ? records : bound.apply(records);
     }
   }
 }

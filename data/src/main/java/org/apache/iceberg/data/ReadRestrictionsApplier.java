@@ -27,7 +27,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.functions.IcebergFunction;
 import org.apache.iceberg.functions.ReplaceWithNull;
 import org.apache.iceberg.functions.SaltedFunction;
-import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.restrictions.ReadRestrictions;
@@ -35,8 +34,8 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
 
 /**
- * Applies server-provided {@link ReadRestrictions} (row filter + column masks) to a stream of
- * {@link Record}s.
+ * Binds server-provided {@link ReadRestrictions} (row filter + column masks) to a projection,
+ * producing a {@link BoundReadRestrictions} that applies them to a stream of {@link Record}s.
  *
  * <p>The row filter is evaluated per-record against the original column values before any mask is
  * applied, as required by the spec:
@@ -49,8 +48,9 @@ import org.apache.iceberg.util.SerializableFunction;
  * </blockquote>
  *
  * <p>Callers that also push the row filter into {@link org.apache.iceberg.TableScan#filter} get
- * partition/stats-level pruning for free; this applier re-evaluates the filter at the row level so
- * correctness does not depend on whether the surrounding reader honors residual evaluation.
+ * partition/stats-level pruning for free; the bound restrictions re-evaluate the filter at the row
+ * level so correctness does not depend on whether the surrounding reader honors residual
+ * evaluation.
  *
  * <p>Currently supports top-level fields only. Masks on nested fieldIds fail closed at bind time so
  * unmasked nested data cannot leak.
@@ -71,36 +71,23 @@ class ReadRestrictionsApplier {
 
   private ReadRestrictionsApplier() {}
 
-  static CloseableIterable<Record> apply(
-      CloseableIterable<Record> records, ReadRestrictions restrictions, Schema projection) {
-    CloseableIterable<Record> filtered = filterRows(records, restrictions.rowFilter(), projection);
-    return maskColumns(filtered, restrictions.columnProjections(), projection);
-  }
-
-  private static CloseableIterable<Record> filterRows(
-      CloseableIterable<Record> records, Expression rowFilter, Schema projection) {
-    if (rowFilter == null || rowFilter.op() == Expression.Operation.TRUE) {
-      return records;
-    }
-
+  /**
+   * Binds the restrictions to the given projection.
+   *
+   * <p>All validation happens here — unbindable row filters, masks on nested or required fields,
+   * masks whose function cannot bind to the column type — so callers can bind before acquiring a
+   * scan and fail without leaking it.
+   */
+  static BoundReadRestrictions bind(ReadRestrictions restrictions, Schema projection) {
     Types.StructType struct = projection.asStruct();
-    Evaluator evaluator = new Evaluator(struct, rowFilter, true);
-    InternalRecordWrapper wrapper = new InternalRecordWrapper(struct);
-    return CloseableIterable.filter(records, record -> evaluator.eval(wrapper.wrap(record)));
-  }
+    Expression rowFilter = restrictions.rowFilter();
+    Evaluator evaluator =
+        rowFilter == null || rowFilter.op() == Expression.Operation.TRUE
+            ? null
+            : new Evaluator(struct, rowFilter, true);
 
-  private static CloseableIterable<Record> maskColumns(
-      CloseableIterable<Record> records, List<IcebergFunction<?, ?>> actions, Schema projection) {
-    if (actions.isEmpty()) {
-      return records;
-    }
-
-    Map<String, SerializableFunction<Object, Object>> masksByName = bindMasks(actions, projection);
-    if (masksByName.isEmpty()) {
-      return records;
-    }
-
-    return CloseableIterable.transform(records, record -> mask(record, masksByName));
+    return new BoundReadRestrictions(
+        struct, evaluator, bindMasks(restrictions.columnProjections(), projection));
   }
 
   @SuppressWarnings("unchecked")
@@ -156,19 +143,5 @@ class ReadRestrictionsApplier {
     }
 
     return builder.build();
-  }
-
-  private static Record mask(
-      Record record, Map<String, SerializableFunction<Object, Object>> masksByName) {
-    GenericRecord out = GenericRecord.create(record.struct());
-    for (int i = 0; i < record.size(); i++) {
-      out.set(i, record.get(i, Object.class));
-    }
-    for (Map.Entry<String, SerializableFunction<Object, Object>> entry : masksByName.entrySet()) {
-      Object original = out.getField(entry.getKey());
-      Object masked = entry.getValue().apply(original);
-      out.setField(entry.getKey(), masked);
-    }
-    return out;
   }
 }
