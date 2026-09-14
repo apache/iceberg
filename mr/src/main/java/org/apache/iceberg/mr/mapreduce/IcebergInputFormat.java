@@ -23,6 +23,7 @@ import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputFormat;
@@ -52,7 +53,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.DataFileReadBuilder;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.CloseableIterable;
@@ -62,6 +63,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.SerializationUtil;
 import org.apache.iceberg.util.ThreadPools;
@@ -312,9 +314,10 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       InputFile inputFile =
           encryptionManager.decrypt(
               EncryptedFiles.encryptedInput(io.newInputFile(file.location()), file.keyMetadata()));
+      Map<String, InputFile> inputFiles = ImmutableMap.of(file.location(), inputFile);
 
       ReadBuilder<Record, ?> readBuilder =
-          FormatModelRegistry.readBuilder(file.format(), Record.class, inputFile);
+          DataFileReadBuilder.read(file, Record.class, inputFiles::get);
 
       if (reuseContainers) {
         readBuilder = readBuilder.reuseContainers();

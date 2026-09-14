@@ -20,7 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Map;
 import javax.annotation.Nonnull;
-import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
@@ -28,11 +28,10 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.DataFileReadBuilder;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
@@ -63,15 +62,14 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
   }
 
   protected CloseableIterable<ColumnarBatch> newBatchIterable(
-      InputFile inputFile,
-      FileFormat format,
+      DataFile file,
       long start,
       long length,
       Expression residual,
       Map<Integer, ?> idToConstant,
       @Nonnull SparkDeleteFilter deleteFilter) {
     ReadBuilder<ColumnarBatch, ?> readBuilder =
-        FormatModelRegistry.readBuilder(format, ColumnarBatch.class, inputFile);
+        DataFileReadBuilder.read(file, ColumnarBatch.class, this::getInputFile);
 
     if (parquetConf != null) {
       readBuilder = readBuilder.recordsPerBatch(parquetConf.batchSize());

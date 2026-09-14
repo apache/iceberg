@@ -29,6 +29,7 @@ import org.apache.flink.util.OutputTag;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
@@ -41,6 +42,7 @@ import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.formats.DataFileReadBuilder;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
@@ -141,7 +143,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
       boolean staging,
       Collector<IndexCommand> out)
       throws IOException {
-    ContentFile<?> file = task.file();
+    DataFile file = task.file();
     Schema readSchema = appendRowPosition(keySchema);
     PositionDeleteIndex existingDeletes = loadExistingDVs(task, file.location());
 
@@ -152,9 +154,8 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
     Types.StructType partitionType = task.spec().partitionType();
     byte[] partitionBytes = fieldSerializer.encodePartition(partition, partitionType);
 
-    InputFile input = table.io().newInputFile(file.location());
     ReadBuilder<Record, Schema> builder =
-        FormatModelRegistry.readBuilder(file.format(), Record.class, input);
+        DataFileReadBuilder.read(file, Record.class, table.io()::newInputFile);
     try (CloseableIterable<Record> records =
         builder.project(readSchema).reuseContainers().build()) {
       Accessor<StructLike> posAccessor =

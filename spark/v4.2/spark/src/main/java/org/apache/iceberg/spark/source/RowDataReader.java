@@ -29,8 +29,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.spark.rdd.InputFileBlockHolder;
@@ -103,17 +101,8 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
     if (task.isDataTask()) {
       return newDataIterable(task.asDataTask(), readSchema);
     } else {
-      InputFile inputFile = getInputFile(task.file().location());
-      Preconditions.checkNotNull(
-          inputFile, "Could not find InputFile associated with FileScanTask");
       return newIterable(
-          inputFile,
-          task.file().format(),
-          task.start(),
-          task.length(),
-          task.residual(),
-          readSchema,
-          idToConstant);
+          task.file(), task.start(), task.length(), task.residual(), readSchema, idToConstant);
     }
   }
 

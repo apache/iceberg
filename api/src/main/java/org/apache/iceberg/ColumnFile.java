@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.iceberg.types.Types;
 
-interface ColumnFile {
+public interface ColumnFile {
   Types.NestedField FORMAT_VERSION =
       Types.NestedField.required(
           161, "format_version", Types.IntegerType.get(), "Format version of this column file");
