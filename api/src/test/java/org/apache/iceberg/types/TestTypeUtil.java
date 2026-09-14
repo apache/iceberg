@@ -1167,4 +1167,62 @@ public class TestTypeUtil {
     Schema result = TypeUtil.replaceFieldTypes(schema, ImmutableMap.of(99, Types.LongType.get()));
     assertThat(result).isSameAs(schema);
   }
+
+  private static Schema fileSchema() {
+    return new Schema(
+        required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
+  }
+
+  @Test
+  void reassignDocKeepsTheFileType() {
+    Schema schema = new Schema(optional(2, "photo", Types.FileType.of(2)));
+    Schema docSourceSchema = new Schema(optional(2, "photo", Types.FileType.of(2), "image"));
+
+    Schema reassignedSchema = TypeUtil.reassignDoc(schema, docSourceSchema);
+
+    assertThat(reassignedSchema.findField("photo").type()).isEqualTo(Types.FileType.of(2));
+    assertThat(reassignedSchema.findField("photo").doc()).isEqualTo("image");
+  }
+
+  @Test
+  void projectKeepsTheFileTypeWhenAllNestedFieldsRemain() {
+    Schema projected = TypeUtil.project(fileSchema(), Sets.newHashSet(3, 4, 5, 6, 7, 8));
+
+    assertThat(projected.findField("photo").type()).isEqualTo(Types.FileType.of(2));
+  }
+
+  @Test
+  void projectDropsTheFileTypeWhenNestedFieldsArePruned() {
+    Schema projected = TypeUtil.project(fileSchema(), Sets.newHashSet(3));
+
+    assertThat(projected.findField("photo").type().isFileType()).isFalse();
+    assertThat(projected.findField("photo").type().asStructType().fields())
+        .containsExactly(optional(3, "uri", Types.StringType.get()));
+  }
+
+  @Test
+  void selectKeepsTheFileTypeForAWholeFileColumn() {
+    Schema selected = fileSchema().select("photo");
+
+    assertThat(selected.findField("photo").type()).isEqualTo(Types.FileType.of(2));
+    assertThat(selected.findField("id")).isNull();
+  }
+
+  @Test
+  void selectDropsTheFileTypeForASingleNestedField() {
+    Schema selected = fileSchema().select("photo.uri");
+
+    assertThat(selected.findField("photo.uri").fieldId()).isEqualTo(3);
+    assertThat(selected.findField("photo").type().asStructType().fields())
+        .containsExactly(optional(3, "uri", Types.StringType.get()));
+  }
+
+  @Test
+  void replaceFieldTypesDropsTheFileTypeWhenANestedFieldChanges() {
+    Schema replaced =
+        TypeUtil.replaceFieldTypes(fileSchema(), ImmutableMap.of(3, Types.BinaryType.get()));
+
+    assertThat(replaced.findField("photo").type().isFileType()).isFalse();
+    assertThat(replaced.findField("photo.uri").type()).isEqualTo(Types.BinaryType.get());
+  }
 }

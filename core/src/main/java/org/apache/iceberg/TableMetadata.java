@@ -749,7 +749,8 @@ public class TableMetadata implements Serializable {
     return new Builder(this)
         .upgradeFormatVersion(newFormatVersion)
         .removeRef(SnapshotRef.MAIN_BRANCH)
-        .setCurrentSchema(freshSchema, newLastColumnId.get())
+        .setCurrentSchema(
+            freshSchema, Math.max(newLastColumnId.get(), freshSchema.highestFieldId()))
         .setDefaultPartitionSpec(freshSpec)
         .setDefaultSortOrder(freshSortOrder)
         .setLocation(newLocation)

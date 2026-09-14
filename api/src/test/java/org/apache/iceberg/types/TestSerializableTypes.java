@@ -101,6 +101,17 @@ public class TestSerializableTypes {
   }
 
   @Test
+  public void testFiles() throws Exception {
+    Types.FileType file = Types.FileType.of(5);
+
+    Type copy = TestHelpers.roundTripSerialize(file);
+
+    assertThat(copy).as("File serialization should be equal to starting type").isEqualTo(file);
+    assertThat(copy.isFileType()).as("File serialization should preserve the file type").isTrue();
+    assertThat(copy.asFileType().enclosingId()).isEqualTo(5);
+  }
+
+  @Test
   public void testMaps() throws Exception {
     Type[] maps =
         new Type[] {
