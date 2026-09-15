@@ -83,8 +83,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
 
-  // Supplied by the reader so partition() can project the stored union-type tuple onto the file's
-  // own spec. Not serialized: copies materialize the projection into a spec-ordered PartitionData.
   private transient Map<Integer, PartitionSpec> specsById = null;
   private transient Map<Integer, StructProjection> partitionProjections = null;
 
@@ -218,8 +216,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     return fileSizeInBytes;
   }
 
-  // Package-private only so the manifest reader can supply the table specs; other callers construct
-  // partition data directly in the file's own spec order.
   void setSpecsById(Map<Integer, PartitionSpec> newSpecsById) {
     this.specsById = newSpecsById;
   }
