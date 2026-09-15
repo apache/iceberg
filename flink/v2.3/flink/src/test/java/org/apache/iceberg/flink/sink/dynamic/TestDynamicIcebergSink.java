@@ -56,7 +56,9 @@ import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamNode;
 import org.apache.flink.table.catalog.ResolvedSchema;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
@@ -1901,5 +1903,60 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     return TestHelpers.convertRecordToRow(
             RandomGenericData.generate(schema, 1, seedOverride), schema)
         .get(0);
+  }
+
+  @Test
+  void testCaseInsensitiveDataConversionDropsValues() throws Exception {
+    Schema tableSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()),
+            Types.NestedField.optional(3, "extra", Types.StringType.get()));
+
+    TableIdentifier identifier = TableIdentifier.of(DATABASE, "t1");
+    CATALOG_EXTENSION.catalog().createTable(identifier, tableSchema, PartitionSpec.unpartitioned());
+
+    DynamicIcebergSink.forInput(env.fromData(1, 2, 3))
+        .generator(new CaseMismatchGenerator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .writeParallelism(1)
+        .immediateTableUpdate(true)
+        .caseSensitive(false)
+        .append();
+
+    env.execute("case-insensitive data conversion");
+
+    Table table = CATALOG_EXTENSION.catalog().loadTable(identifier);
+    List<Record> records = Lists.newArrayList(IcebergGenerics.read(table).build());
+
+    assertThat(records).hasSize(3);
+    assertThat(records)
+        .allSatisfy(
+            record -> {
+              assertThat(record.getField("id")).isNotNull();
+              assertThat(record.getField("data")).isNotNull();
+            });
+  }
+
+  private static class CaseMismatchGenerator implements DynamicRecordGenerator<Integer> {
+    @Override
+    public void generate(Integer value, Collector<DynamicRecord> out) {
+      Schema inputSchema =
+          new Schema(
+              Types.NestedField.optional(1, "Id", Types.IntegerType.get()),
+              Types.NestedField.optional(2, "Data", Types.StringType.get()));
+      GenericRowData row = new GenericRowData(2);
+      row.setField(0, value);
+      row.setField(1, StringData.fromString("value-" + value));
+      out.collect(
+          new DynamicRecord(
+              TableIdentifier.of(DATABASE, "t1"),
+              "main",
+              inputSchema,
+              row,
+              PartitionSpec.unpartitioned(),
+              DistributionMode.NONE,
+              1));
+    }
   }
 }
