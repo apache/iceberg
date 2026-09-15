@@ -91,7 +91,7 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         snap2.snapshotId(),
         "cdc_view");
 
-    long rowCount = sql("select * from %s", "cdc_view").stream().count();
+    long rowCount = sql("select * from %s", "cdc_view").size();
     assertThat(rowCount).isEqualTo(2);
   }
 
@@ -476,6 +476,37 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
     assertEquals(
         "Rows should match",
         ImmutableList.of(
+            row(2, "b", INSERT, 0, snap1.snapshotId()),
+            row(2, "b", UPDATE_BEFORE, 1, snap2.snapshotId()),
+            row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId()),
+            row(3, "c", INSERT, 1, snap2.snapshotId())),
+        sql("select * from %s order by _change_ordinal, id, data", viewName));
+  }
+
+  @TestTemplate
+  public void testUpdateWithIdentifierFieldAfterUpgradeToV3() {
+    createTableWithIdentifierField();
+
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version' = '3')", tableName);
+    sql("INSERT OVERWRITE %s VALUES (1, 'a'), (2, 'd'), (3, 'c')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    List<Object[]> returns =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', compute_updates => true)",
+            catalogName, tableName);
+
+    String viewName = (String) returns.get(0)[0];
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(1, "a", INSERT, 0, snap1.snapshotId()),
             row(2, "b", INSERT, 0, snap1.snapshotId()),
             row(2, "b", UPDATE_BEFORE, 1, snap2.snapshotId()),
             row(2, "d", UPDATE_AFTER, 1, snap2.snapshotId()),
