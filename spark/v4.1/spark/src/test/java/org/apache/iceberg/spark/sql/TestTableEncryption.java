@@ -42,11 +42,13 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.encryption.Ciphers;
+import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
@@ -239,6 +241,47 @@ public class TestTableEncryption extends CatalogTestBase {
 
     assertEquals(
         "Should return all expected rows",
+        expected,
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testExpireSnapshotsRemovesEncryptionKeys() {
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0)", tableName);
+
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Snapshot current = table.currentSnapshot();
+
+    Snapshot snapshotToExpire =
+        Streams.stream(table.snapshots())
+            .filter(snapshot -> snapshot.parentId() == null)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("Expected a root snapshot"));
+
+    assertThat(((HasTableOperations) table).operations().current().encryptionKeys())
+        .as("Encryption key for snapshotToExpire is in metadata before expiry.")
+        .extracting(EncryptedKey::keyId)
+        .contains(snapshotToExpire.keyId(), current.keyId());
+
+    SparkActions.get()
+        .expireSnapshots(table)
+        .expireSnapshotId(snapshotToExpire.snapshotId())
+        .execute();
+    assertThat(table.snapshot(snapshotToExpire.snapshotId())).isNull();
+
+    assertThat(((HasTableOperations) table).operations().current().encryptionKeys())
+        .as("Expiring snapshot removes encryption key for that snapshot.")
+        .extracting(EncryptedKey::keyId)
+        .doesNotContain(snapshotToExpire.keyId())
+        .contains(current.keyId());
+
+    ImmutableList<Object[]> expected =
+        ImmutableList.of(
+            row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN), row(4L, "d", 4.0F));
+    assertEquals(
+        "Encrypted table is still readable after its expired snapshot's key is removed",
         expected,
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
