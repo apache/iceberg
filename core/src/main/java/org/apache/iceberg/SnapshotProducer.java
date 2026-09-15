@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.StandardEncryptionManager.ManifestListEncryptionKeys;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CleanableFailure;
@@ -113,6 +114,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private MetricsReporter reporter = LoggingMetricsReporter.instance();
   private volatile Long snapshotId = null;
   private TableMetadata base;
+  // Encryption keys required by the manifest list written in the current commit attempt.
+  private ManifestListEncryptionKeys manifestListEncryptionKeys;
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
   private SnapshotAncestryValidator snapshotAncestryValidator =
@@ -353,6 +356,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           replacedRecords);
     }
 
+    ManifestListFile manifestListFile = writer.toManifestListFile();
+    this.manifestListEncryptionKeys = writer.encryptionKeys();
+
     return new BaseSnapshot(
         sequenceNumber,
         snapshotId(),
@@ -364,7 +370,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         manifestList.location(),
         nextRowId,
         assignedRows,
-        writer.toManifestListFile().encryptionKeyID());
+        manifestListFile.encryptionKeyID());
   }
 
   private void runValidations(Snapshot parentSnapshot) {
@@ -498,10 +504,17 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   if (base.snapshot(newSnapshot.snapshotId()) != null) {
                     // this is a rollback operation
                     update.setBranchSnapshot(newSnapshot.snapshotId(), targetBranch);
-                  } else if (stageOnly) {
-                    update.addSnapshot(newSnapshot);
                   } else {
-                    update.setBranchSnapshot(newSnapshot, targetBranch);
+                    if (manifestListEncryptionKeys != null) {
+                      update.addEncryptionKey(manifestListEncryptionKeys.keyEncryptionKey());
+                      update.addEncryptionKey(manifestListEncryptionKeys.manifestListKey());
+                    }
+
+                    if (stageOnly) {
+                      update.addSnapshot(newSnapshot);
+                    } else {
+                      update.setBranchSnapshot(newSnapshot, targetBranch);
+                    }
                   }
 
                   TableMetadata updated = update.build();

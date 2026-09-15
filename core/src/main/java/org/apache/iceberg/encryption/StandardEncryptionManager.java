@@ -184,11 +184,29 @@ public class StandardEncryptionManager implements EncryptionManager {
     return unwrappedKeyCache().get(encryptedKeyMetadata.encryptedById());
   }
 
+  /**
+   * Encrypts and registers manifest-list key metadata.
+   *
+   * @return the ID of the encrypted metadata
+   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link
+   *     #registerManifestListKeyMetadata(NativeEncryptionKeyMetadata)} instead.
+   */
+  @Deprecated
   public String addManifestListKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
+    return registerManifestListKeyMetadata(keyMetadata).manifestListKey().keyId();
+  }
+
+  /**
+   * Encrypts and registers manifest-list key metadata.
+   *
+   * @return the encrypted metadata and its wrapping key
+   */
+  public ManifestListEncryptionKeys registerManifestListKeyMetadata(
+      NativeEncryptionKeyMetadata keyMetadata) {
     String manifestListKeyID = generateKeyId();
     String keyEncryptionKeyID = keyEncryptionKeyID();
-    String keyEncryptionKeyTimestamp =
-        encryptionKeys.get(keyEncryptionKeyID).properties().get(KEY_TIMESTAMP);
+    EncryptedKey keyEncryptionKey = encryptionKeys.get(keyEncryptionKeyID);
+    String keyEncryptionKeyTimestamp = keyEncryptionKey.properties().get(KEY_TIMESTAMP);
     ByteBuffer encryptedKeyMetadata =
         EncryptionUtil.encryptManifestListKeyMetadata(
             unwrappedKeyCache().get(keyEncryptionKeyID), keyEncryptionKeyTimestamp, keyMetadata);
@@ -197,7 +215,7 @@ public class StandardEncryptionManager implements EncryptionManager {
 
     encryptionKeys.put(key.keyId(), key);
 
-    return manifestListKeyID;
+    return new ManifestListEncryptionKeys(keyEncryptionKey, key);
   }
 
   private String generateKeyId() {
@@ -211,6 +229,10 @@ public class StandardEncryptionManager implements EncryptionManager {
     workerRNG().nextBytes(newKey);
     return ByteBuffer.wrap(newKey);
   }
+
+  /** Encrypted manifest-list key metadata and its wrapping key. */
+  public record ManifestListEncryptionKeys(
+      EncryptedKey keyEncryptionKey, EncryptedKey manifestListKey) {}
 
   private class StandardEncryptedOutputFile implements NativeEncryptionOutputFile {
     private final OutputFile plainOutputFile;

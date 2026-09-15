@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -34,6 +35,7 @@ import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionTestHelpers;
 import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.StandardEncryptionManager.ManifestListEncryptionKeys;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
@@ -43,7 +45,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestManifestListEncryption {
   private static final String PATH = "s3://bucket/table/m1.avro";
@@ -96,6 +100,13 @@ public class TestManifestListEncryption {
           DELETED_FILES,
           DELETED_ROWS,
           FIRST_ROW_ID);
+
+  @TempDir private File temp;
+
+  @AfterEach
+  void cleanup() {
+    TestTables.clearTables();
+  }
 
   @Test
   public void testEncryption() throws IOException {
@@ -204,6 +215,129 @@ public class TestManifestListEncryption {
     assertThat(mlkmCount).isEqualTo(1);
   }
 
+  @Test
+  void snapshotKeysSurviveManagerReplacementAndRetry() {
+    // Later manager lookups cannot recover the writer's uncommitted keys.
+    TestTables.TestTable table = createTableWithFreshEncryptionManagers();
+    table.ops().failCommits(1);
+
+    table.newFastAppend().appendFile(TestBase.FILE_A).commit();
+
+    TableMetadata metadata = table.ops().current();
+    assertThat(metadata.encryptionKeys()).hasSize(2);
+    assertThat(readManifestListWithCommittedKeys(metadata, metadata.currentSnapshot())).hasSize(1);
+  }
+
+  @Test
+  void retryDoesNotPersistAbandonedKeys() {
+    EncryptionManager encryptionManager = EncryptionTestHelpers.createEncryptionManager();
+    TestTables.TestTable table = createEncryptedTable(encryptionManager);
+    int failedAttempts = 2;
+    table.ops().failCommits(failedAttempts);
+
+    table.newFastAppend().appendFile(TestBase.FILE_A).commit();
+
+    // The manager retains the KEK and every attempted manifest-list key.
+    assertThat(EncryptionUtil.encryptionKeys(encryptionManager)).hasSize(failedAttempts + 2);
+    TableMetadata metadata = table.ops().current();
+    assertThat(metadata.encryptionKeys()).hasSize(2);
+    assertThat(readManifestListWithCommittedKeys(metadata, metadata.currentSnapshot())).hasSize(1);
+  }
+
+  @Test
+  void keyRotationPreservesSnapshotReadability() {
+    EncryptionManager encryptionManager = EncryptionTestHelpers.createEncryptionManager();
+    TestTables.TestTable table = createEncryptedTable(encryptionManager);
+
+    table.newFastAppend().appendFile(TestBase.FILE_A).commit();
+    Snapshot originalSnapshot = table.currentSnapshot();
+
+    EncryptionTestHelpers.shiftEncryptionManagerTime(
+        encryptionManager, TimeUnit.DAYS.toMillis(800));
+
+    table.newFastAppend().appendFile(TestBase.FILE_B).commit();
+
+    TableMetadata metadata = table.ops().current();
+    assertThat(metadata.encryptionKeys()).hasSize(4);
+    assertThat(readManifestListWithCommittedKeys(metadata, originalSnapshot)).hasSize(1);
+    assertThat(readManifestListWithCommittedKeys(metadata, metadata.currentSnapshot())).hasSize(2);
+  }
+
+  @Test
+  void stagedSnapshotPersistsManifestListKeys() {
+    TestTables.TestTable table = createTableWithFreshEncryptionManagers();
+    table.newFastAppend().appendFile(TestBase.FILE_A).commit();
+    long currentSnapshotId = table.currentSnapshot().snapshotId();
+
+    table.newFastAppend().appendFile(TestBase.FILE_B).stageOnly().commit();
+
+    TableMetadata metadata = table.ops().current();
+    assertThat(metadata.currentSnapshot().snapshotId()).isEqualTo(currentSnapshotId);
+    assertThat(metadata.snapshots()).hasSize(2);
+    assertThat(readManifestListWithCommittedKeys(metadata, metadata.snapshots().get(1))).hasSize(2);
+  }
+
+  @Test
+  void recommittingSnapshotDoesNotAddKeys() {
+    TestTables.TestTable table = createTableWithFreshEncryptionManagers();
+    AppendFiles append = table.newFastAppend();
+    append.commit();
+    List<EncryptedKey> keys = table.ops().current().encryptionKeys();
+    assertThat(keys).hasSize(2);
+
+    append.commit();
+
+    assertThat(table.ops().current().encryptionKeys()).containsExactlyElementsOf(keys);
+    assertThat(table.snapshots()).hasSize(1);
+  }
+
+  private TestTables.TestTable createTableWithFreshEncryptionManagers() {
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations("encrypted", temp) {
+          @Override
+          public EncryptionManager encryption() {
+            return EncryptionTestHelpers.createEncryptionManager(current().encryptionKeys());
+          }
+
+          @Override
+          public FileIO io() {
+            return EncryptingFileIO.combine(super.io(), encryption());
+          }
+        };
+    return createEncryptedTable(ops);
+  }
+
+  private TestTables.TestTable createEncryptedTable(TestTables.TestTableOperations ops) {
+    return TestTables.create(
+        temp, "encrypted", TestBase.SCHEMA, TestBase.SPEC, SortOrder.unsorted(), 3, ops);
+  }
+
+  private TestTables.TestTable createEncryptedTable(EncryptionManager encryptionManager) {
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations(
+            "encrypted",
+            temp,
+            EncryptingFileIO.combine(new TestTables.LocalFileIO(), encryptionManager)) {
+          @Override
+          public EncryptionManager encryption() {
+            return encryptionManager;
+          }
+        };
+    return createEncryptedTable(ops);
+  }
+
+  private List<ManifestFile> readManifestListWithCommittedKeys(
+      TableMetadata metadata, Snapshot snapshot) {
+    try (FileIO io =
+        EncryptingFileIO.combine(
+            new TestTables.LocalFileIO(),
+            EncryptionTestHelpers.createEncryptionManager(metadata.encryptionKeys()))) {
+      return ManifestLists.read(
+          io.newInputFile(
+              new BaseManifestListFile(snapshot.manifestListLocation(), snapshot.keyId())));
+    }
+  }
+
   private ManifestFile writeAndReadEncryptedManifestList(EncryptionManager em) throws IOException {
     FileIO io = new InMemoryFileIO();
     EncryptingFileIO encryptingFileIO = EncryptingFileIO.combine(io, em);
@@ -218,9 +352,17 @@ public class TestManifestListEncryption {
             SNAPSHOT_ID - 1,
             SEQ_NUM,
             SNAPSHOT_FIRST_ROW_ID);
-    writer.add(TEST_MANIFEST);
-    writer.close();
+    try (writer) {
+      assertThatThrownBy(writer::toManifestListFile)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("Cannot build ManifestListFile, writer is not closed");
+      writer.add(TEST_MANIFEST);
+    }
+
     ManifestListFile manifestListFile = writer.toManifestListFile();
+    assertThat(writer.toManifestListFile().encryptionKeyID())
+        .isEqualTo(manifestListFile.encryptionKeyID());
+    ManifestListEncryptionKeys encryptionKeys = writer.encryptionKeys();
 
     // First try to read without decryption
     assertThatThrownBy(() -> ManifestLists.read(outputFile.toInputFile()))
@@ -228,10 +370,14 @@ public class TestManifestListEncryption {
         .hasMessageContaining("Failed to open file")
         .hasCauseInstanceOf(InvalidAvroMagicException.class);
 
-    List<ManifestFile> manifests =
-        ManifestLists.read(encryptingFileIO.newInputFile(manifestListFile));
-    assertThat(manifests.size()).isEqualTo(1);
-
-    return manifests.get(0);
+    try (FileIO readingIO =
+        EncryptingFileIO.combine(
+            io,
+            EncryptionTestHelpers.createEncryptionManager(
+                List.of(encryptionKeys.keyEncryptionKey(), encryptionKeys.manifestListKey())))) {
+      List<ManifestFile> manifests = ManifestLists.read(readingIO.newInputFile(manifestListFile));
+      assertThat(manifests).hasSize(1);
+      return manifests.get(0);
+    }
   }
 }
