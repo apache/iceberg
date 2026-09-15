@@ -470,50 +470,59 @@ public class FlinkCatalog extends AbstractCatalog {
     TableIdentifier identifier = toIdentifier(tablePath);
 
     boolean dropped;
+    Exception notFound = null;
     try {
       dropped = icebergCatalog.dropTable(identifier);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      // some catalogs signal "not a table" by throwing (e.g. Hive for a view entry)
-      if (canBeView(tablePath) && asViewCatalog.dropView(identifier)) {
-        return;
-      }
-
-      if (!ignoreIfNotExists) {
-        throw new TableNotExistException(getName(), tablePath, e);
-      }
-
-      return;
+      // some catalogs signal "not a table" by throwing (e.g. Hive for a view entry), others
+      // return false; either way consult the view catalog before deciding the object is missing
+      dropped = false;
+      notFound = e;
     }
 
-    // others return false for a missing table; consult the view catalog before
-    // deciding the object does not exist
-    if (!dropped) {
-      boolean viewDropped = canBeView(tablePath) && asViewCatalog.dropView(identifier);
-      if (!viewDropped && !ignoreIfNotExists) {
-        throw new TableNotExistException(getName(), tablePath);
+    if (!dropped && canBeView(tablePath)) {
+      try {
+        dropped = asViewCatalog.dropView(identifier);
+      } catch (UnsupportedOperationException e) {
+        // the catalog rejects view operations at runtime, e.g. a JDBC catalog with a V0 schema
+        LOG.warn("Catalog {} rejects view operations; assuming no view support", getName(), e);
       }
+    }
+
+    if (!dropped && !ignoreIfNotExists) {
+      throw new TableNotExistException(getName(), tablePath, notFound);
     }
   }
 
   @Override
   public void renameTable(ObjectPath tablePath, String newTableName, boolean ignoreIfNotExists)
       throws TableNotExistException, TableAlreadyExistException, CatalogException {
+    Preconditions.checkArgument(
+        !newTableName.contains("$"),
+        "Cannot rename %s to %s: '$' denotes a metadata table",
+        tablePath,
+        newTableName);
+
     ObjectPath toPath = new ObjectPath(tablePath.getDatabaseName(), newTableName);
     try {
       icebergCatalog.renameTable(toIdentifier(tablePath), toIdentifier(toPath));
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+      boolean renamed = false;
       if (canBeView(tablePath)) {
         try {
           asViewCatalog.renameView(toIdentifier(tablePath), toIdentifier(toPath));
-          return;
+          renamed = true;
         } catch (NoSuchViewException viewException) {
+          e.addSuppressed(viewException);
+        } catch (UnsupportedOperationException viewException) {
+          // the catalog rejects view operations at runtime, e.g. a JDBC catalog with a V0 schema
           e.addSuppressed(viewException);
         } catch (AlreadyExistsException alreadyExistsException) {
           throw new TableAlreadyExistException(getName(), toPath, alreadyExistsException);
         }
       }
 
-      if (!ignoreIfNotExists) {
+      if (!renamed && !ignoreIfNotExists) {
         throw new TableNotExistException(getName(), tablePath, e);
       }
     } catch (AlreadyExistsException e) {
@@ -608,16 +617,15 @@ public class FlinkCatalog extends AbstractCatalog {
     }
 
     try {
-      // the default catalog is intentionally left unset so that readers resolve it to the
-      // name this catalog is registered under (see toCatalogView)
+      // the expanded query fully qualifies every table reference against this catalog and the
+      // session database, so the view resolves the same way regardless of the reader's session;
+      // the stored defaults record that resolution context (see toCatalogView)
       asViewCatalog
           .buildView(toIdentifier(tablePath))
           .withSchema(FlinkSchemaUtil.convert(view.getResolvedSchema()))
+          .withDefaultCatalog(getName())
           .withDefaultNamespace(appendLevel(baseNamespace, tablePath.getDatabaseName()))
-          // the expanded query fully qualifies every table reference, so the view resolves the
-          // same way regardless of the reader's session; views built programmatically may not
-          // carry an expanded query, in which case the original query is stored as-is
-          .withQuery(FLINK_DIALECT, viewQuery(view))
+          .withQuery(FLINK_DIALECT, view.getExpandedQuery())
           .withProperties(properties)
           .create();
     } catch (AlreadyExistsException e) {
@@ -627,12 +635,6 @@ public class FlinkCatalog extends AbstractCatalog {
     } catch (NoSuchNamespaceException e) {
       throw new DatabaseNotExistException(getName(), tablePath.getDatabaseName(), e);
     }
-  }
-
-  private static String viewQuery(ResolvedCatalogView view) {
-    return StringUtils.isNullOrWhitespaceOnly(view.getExpandedQuery())
-        ? view.getOriginalQuery()
-        : view.getExpandedQuery();
   }
 
   private static void validateTableSchemaAndPartition(CatalogTable ct1, CatalogTable ct2) {

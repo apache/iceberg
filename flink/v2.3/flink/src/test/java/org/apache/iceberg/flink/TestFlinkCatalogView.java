@@ -347,7 +347,7 @@ public class TestFlinkCatalogView extends CatalogTestBase {
         .containsIgnoringCase(
             String.format("FROM `%s`.`%s`.`%s`", catalogName, DATABASE, TABLE_NAME));
     assertThat(view.currentVersion().defaultNamespace()).isEqualTo(icebergNamespace);
-    assertThat(view.currentVersion().defaultCatalog()).isNull();
+    assertThat(view.currentVersion().defaultCatalog()).isEqualTo(catalogName);
     assertThat(view.schema().columns())
         .extracting(Types.NestedField::name)
         .containsExactly("id", "data");
@@ -422,7 +422,8 @@ public class TestFlinkCatalogView extends CatalogTestBase {
 
   @TestTemplate
   public void testCreateViewWithQualifiedCrossDatabaseReference() {
-    // explicitly qualified references are deterministic and remain allowed
+    // an explicitly qualified reference is stored as written, so it resolves the same way from
+    // any session
     sql("CREATE DATABASE %s.db2", catalogName);
     try {
       sql("CREATE TABLE %s.db2.other_t (id BIGINT)", catalogName);
@@ -484,8 +485,11 @@ public class TestFlinkCatalogView extends CatalogTestBase {
         .hasMessageContaining("View with identifier")
         .hasMessageContaining("nonexistent_view")
         .hasMessageContaining("does not exist");
+  }
 
-    // dropping directly through the catalog API also reports the missing view
+  @TestTemplate
+  public void testDropNonexistentViewThroughCatalogApi() {
+    // SQL never reaches the catalog for a missing object; the catalog API reports it itself
     assertThatThrownBy(
             () ->
                 getTableEnv()
@@ -503,6 +507,21 @@ public class TestFlinkCatalogView extends CatalogTestBase {
 
     assertThat(sql("SHOW VIEWS")).containsExactly(Row.of("renamed_view"));
     assertSameElements(expectedRows(), sql("SELECT * FROM renamed_view"));
+  }
+
+  @TestTemplate
+  public void testRenameViewToMetadataTableNameFails() {
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s RENAME TO shadow$snapshots", VIEW_NAME))
+        .hasMessageContaining("Could not execute ALTER VIEW")
+        .cause()
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot rename")
+        .hasMessageContaining("metadata table");
+
+    // the view was not touched by the failed attempt
+    assertThat(sql("SHOW VIEWS")).containsExactly(Row.of(VIEW_NAME));
   }
 
   @TestTemplate
