@@ -49,8 +49,8 @@ public class LabelsParser {
 
     if (!labels.fields().isEmpty()) {
       gen.writeArrayFieldStart(FIELDS);
-      for (FieldLabel fieldLabels : labels.fields()) {
-        FieldLabelParser.toJson(fieldLabels, gen);
+      for (FieldLabel fieldLabel : labels.fields()) {
+        FieldLabelParser.toJson(fieldLabel, gen);
       }
 
       gen.writeEndArray();

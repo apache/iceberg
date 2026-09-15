@@ -40,7 +40,7 @@ public class TestFieldLabelParser {
 
   @Test
   public void roundTrip() {
-    FieldLabel fieldLabels =
+    FieldLabel fieldLabel =
         ImmutableFieldLabel.builder().fieldId(3).labels(ImmutableMap.of("pii", "true")).build();
 
     String expectedJson =
@@ -52,8 +52,8 @@ public class TestFieldLabelParser {
           }
         }""";
 
-    assertThat(FieldLabelParser.toJson(fieldLabels, true)).isEqualTo(expectedJson);
-    assertThat(FieldLabelParser.fromJson(expectedJson)).isEqualTo(fieldLabels);
+    assertThat(FieldLabelParser.toJson(fieldLabel, true)).isEqualTo(expectedJson);
+    assertThat(FieldLabelParser.fromJson(expectedJson)).isEqualTo(fieldLabel);
   }
 
   @Test
@@ -63,10 +63,10 @@ public class TestFieldLabelParser {
 
   @Test
   public void emptyLabelsFromJson() {
-    FieldLabel fieldLabels = FieldLabelParser.fromJson("{\"field-id\": 1, \"labels\": {}}");
+    FieldLabel fieldLabel = FieldLabelParser.fromJson("{\"field-id\": 1, \"labels\": {}}");
 
-    assertThat(fieldLabels.fieldId()).isEqualTo(1);
-    assertThat(fieldLabels.labels()).isEmpty();
+    assertThat(fieldLabel.fieldId()).isEqualTo(1);
+    assertThat(fieldLabel.labels()).isEmpty();
   }
 
   @Test

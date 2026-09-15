@@ -30,21 +30,21 @@ public class FieldLabelParser {
 
   private FieldLabelParser() {}
 
-  public static String toJson(FieldLabel fieldLabels) {
-    return toJson(fieldLabels, false);
+  public static String toJson(FieldLabel fieldLabel) {
+    return toJson(fieldLabel, false);
   }
 
-  public static String toJson(FieldLabel fieldLabels, boolean pretty) {
-    return JsonUtil.generate(gen -> toJson(fieldLabels, gen), pretty);
+  public static String toJson(FieldLabel fieldLabel, boolean pretty) {
+    return JsonUtil.generate(gen -> toJson(fieldLabel, gen), pretty);
   }
 
-  public static void toJson(FieldLabel fieldLabels, JsonGenerator gen) throws IOException {
-    Preconditions.checkArgument(null != fieldLabels, "Invalid field labels: null");
+  public static void toJson(FieldLabel fieldLabel, JsonGenerator gen) throws IOException {
+    Preconditions.checkArgument(null != fieldLabel, "Invalid field label: null");
 
     gen.writeStartObject();
 
-    gen.writeNumberField(FIELD_ID, fieldLabels.fieldId());
-    JsonUtil.writeStringMap(LABELS, fieldLabels.labels(), gen);
+    gen.writeNumberField(FIELD_ID, fieldLabel.fieldId());
+    JsonUtil.writeStringMap(LABELS, fieldLabel.labels(), gen);
 
     gen.writeEndObject();
   }
@@ -54,7 +54,7 @@ public class FieldLabelParser {
   }
 
   public static FieldLabel fromJson(JsonNode json) {
-    Preconditions.checkArgument(null != json, "Cannot parse field labels from null object");
+    Preconditions.checkArgument(null != json, "Cannot parse field label from null object");
 
     return ImmutableFieldLabel.builder()
         .fieldId(JsonUtil.getInt(FIELD_ID, json))
