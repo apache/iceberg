@@ -186,9 +186,16 @@ public class TestSnapshotLoading extends TestBase {
   }
 
   @TestTemplate
-  public void testBuildingNewMetadataTriggersSnapshotLoad() {
-    TableMetadata.buildFrom(latestTableMetadata).removeRef(SnapshotRef.MAIN_BRANCH).build();
+  public void testBuildingNewMetadataDoesNotTriggerSnapshotLoad() {
+    // building new metadata carries the lazy snapshot supplier over instead of loading all
+    // snapshots, so that commits against lazily loaded metadata stay lazy
+    TableMetadata newTableMetadata =
+        TableMetadata.buildFrom(latestTableMetadata).removeRef(SnapshotRef.MAIN_BRANCH).build();
 
+    verify(snapshotsSupplierMock, times(0)).get();
+
+    assertThat(newTableMetadata.snapshots())
+        .containsExactlyElementsOf(originalTableMetadata.snapshots());
     verify(snapshotsSupplierMock, times(1)).get();
   }
 

@@ -1304,7 +1304,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableMetadata current,
       Set<Endpoint> supportedEndpoints) {
     return new RESTTableOperations(
-        restClient, path, readHeaders, mutationHeaderSupplier, fileIO, current, supportedEndpoints);
+        restClient,
+        path,
+        readHeaders,
+        mutationHeaderSupplier,
+        fileIO,
+        RESTTableOperations.UpdateType.SIMPLE,
+        Lists.newArrayList(),
+        current,
+        supportedEndpoints,
+        snapshotMode);
   }
 
   /**
@@ -1346,7 +1355,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         updateType,
         createChanges,
         current,
-        supportedEndpoints);
+        supportedEndpoints,
+        snapshotMode);
   }
 
   /**
