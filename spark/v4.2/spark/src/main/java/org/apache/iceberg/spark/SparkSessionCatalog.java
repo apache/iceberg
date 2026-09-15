@@ -52,6 +52,7 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.catalog.TableSummary;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
@@ -249,6 +250,19 @@ public class SparkSessionCatalog<
     } else {
       // delegate to the session catalog
       return getSessionCatalog().createTable(ident, schema, partitions, properties);
+    }
+  }
+
+  @Override
+  public Table createTableLike(Identifier ident, TableInfo tableInfo, Table sourceTable)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    checkViewNotExists(ident);
+
+    String provider = tableInfo.properties().get("provider");
+    if (useIceberg(provider)) {
+      return icebergCatalog.createTableLike(ident, tableInfo, sourceTable);
+    } else {
+      return getSessionCatalog().createTableLike(ident, tableInfo, sourceTable);
     }
   }
 
