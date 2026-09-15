@@ -194,6 +194,7 @@ class PFOREncoding {
     Preconditions.checkArgument(
         outOffset + requiredSize <= out.remaining(),
         "Cannot encode %s values (%s bytes) into buffer with %s remaining bytes",
+        count,
         requiredSize,
         out.remaining() - outOffset);
 
@@ -266,7 +267,8 @@ class PFOREncoding {
     int expectedSize = encodedSize(count, b1, b2, excCount);
     Preconditions.checkArgument(
         dataOffset + expectedSize <= data.remaining(),
-        "Cannot decode %s values from buffer with %s remaining bytes",
+        "Cannot decode %s values (%s bytes) from buffer with %s remaining bytes",
+        count,
         expectedSize,
         data.remaining() - dataOffset);
 

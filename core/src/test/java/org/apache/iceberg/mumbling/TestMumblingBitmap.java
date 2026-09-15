@@ -227,6 +227,48 @@ class TestMumblingBitmap {
   }
 
   @Test
+  void testMixedSparseAndDenseWithPFORException() {
+    byte[] denseContainer = new byte[32];
+    denseContainer[0] = (byte) 0xFF;
+    denseContainer[1] = (byte) 0xFF;
+    denseContainer[2] = (byte) 0xFF;
+    denseContainer[3] = (byte) 0xFF;
+
+    MumblingBitmap bitmap =
+        bitmap(
+            sparse(0),
+            sparse(1),
+            sparse(2),
+            sparse(3),
+            sparse(4),
+            sparse(5),
+            sparse(6),
+            dense(denseContainer),
+            sparse(8),
+            sparse(9),
+            sparse(10),
+            sparse(11),
+            sparse(12),
+            sparse(13),
+            sparse(14));
+
+    assertThat(bitmap.cardinality()).isEqualTo(46);
+
+    for (int i = 0; i < 15; i += 1) {
+      if (i != 7) {
+        assertThat(bitmap.isSet(256 * i + i)).isTrue();
+      }
+    }
+
+    for (int i = 0; i < 32; i += 1) {
+      assertThat(bitmap.isSet(256 * 7 + i)).isTrue();
+    }
+
+    assertThat(bitmap.isSet(256 * 7 - 1)).isFalse();
+    assertThat(bitmap.isSet(256 * 7 + 32)).isFalse();
+  }
+
+  @Test
   void testBufferWithOffset() {
     // Prepend 4 bytes of garbage before the actual bitmap data
     ByteBuffer buffer = build(sparse(42));

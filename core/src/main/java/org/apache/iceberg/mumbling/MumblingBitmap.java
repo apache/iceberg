@@ -41,6 +41,7 @@ class MumblingBitmap {
   private static final int VERSION = 1;
   private static final int HEADER_SIZE = 6;
   private static final int DENSE_CONTAINER_BIT = 0b0010_0000;
+  private static final int DENSE_CONTAINER_SIZE = 32;
 
   private final ByteBuffer data;
   private final int cardinality;
@@ -61,6 +62,11 @@ class MumblingBitmap {
             | ((data.get(data.position() + 3) & 0xFF) << 16);
     this.containerCount =
         (data.get(data.position() + 4) & 0xFF) | ((data.get(data.position() + 5) & 0xFF) << 8);
+
+    Preconditions.checkState(
+        containerCount <= 8192, "Invalid container count: %s > 8,192 (max)", containerCount);
+    Preconditions.checkState(
+        cardinality <= 2_097_152, "Invalid cardinality: %s > 2,097,152 (max)", cardinality);
   }
 
   /** Returns the number of bits set in the bitmap. */
@@ -137,13 +143,17 @@ class MumblingBitmap {
   }
 
   private static boolean isDense(int descriptor) {
-    return (descriptor & DENSE_CONTAINER_BIT) == DENSE_CONTAINER_BIT;
+    return (descriptor & 0xFF) == DENSE_CONTAINER_BIT;
+  }
+
+  private static boolean isSparse(int descriptor) {
+    return descriptor < DENSE_CONTAINER_SIZE;
   }
 
   /**
-   * Convert an array of lengths into an array of offsets starting at 0.
+   * Convert an array of lengths into an array of offsets starting at the given base.
    *
-   * <p>For example, descriptorsToOffsets([1, 1, 2]) produces [0, 1, 2, 4].
+   * <p>For example, descriptorsToOffsets(0, [1, 1, 2]) produces [0, 1, 2, 4].
    *
    * @param baseOffset initial offset of the first container
    * @param descriptors an array of descriptor bytes
@@ -159,9 +169,12 @@ class MumblingBitmap {
     offsets[0] = baseOffset;
     for (int i = 0; i < descriptors.length; i += 1) {
       if (isDense(descriptors[i])) {
-        offsets[i + 1] = offsets[i] + 32;
-      } else {
+        offsets[i + 1] = offsets[i] + DENSE_CONTAINER_SIZE;
+      } else if (isSparse(descriptors[i])) {
         offsets[i + 1] = offsets[i] + descriptors[i];
+      } else {
+        throw new IllegalStateException(
+            "Invalid descriptor, not sparse or dense: " + descriptors[i]);
       }
     }
   }
