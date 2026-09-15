@@ -35,7 +35,7 @@ on:
     - '.github/workflows/docs-ci.yml'
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/java-ci.yml'
-    - '.github/workflows/jmh-benchmarks-ci.yml'
+    - '.github/workflows/jmh-benchmarks.yml'
     - '.github/workflows/kafka-connect-ci.yml'
     - '.github/workflows/cve-scan.yml'
     - '.github/workflows/labeler.yml'

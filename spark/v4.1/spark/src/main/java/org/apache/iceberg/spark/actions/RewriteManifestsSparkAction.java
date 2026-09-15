@@ -49,6 +49,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.ImmutableRewriteManifests;
 import org.apache.iceberg.actions.RewriteManifests;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -589,8 +590,10 @@ public class RewriteManifestsSparkAction
       return table().specs().get(specId);
     }
 
-    private OutputFile newOutputFile() {
-      return table().io().newOutputFile(newManifestLocation());
+    private EncryptedOutputFile newOutputFile() {
+      Table table = table();
+      OutputFile rawOutputFile = table.io().newOutputFile(newManifestLocation());
+      return table.encryption().encrypt(rawOutputFile);
     }
 
     private String newManifestLocation() {

@@ -36,7 +36,7 @@ on:
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/hive-ci.yml'
     - '.github/workflows/java-ci.yml'
-    - '.github/workflows/jmh-benchmarks-ci.yml'
+    - '.github/workflows/jmh-benchmarks.yml'
     - '.github/workflows/labeler.yml'
     - '.github/workflows/license-check.yml'
     - '.github/workflows/open-api.yml'

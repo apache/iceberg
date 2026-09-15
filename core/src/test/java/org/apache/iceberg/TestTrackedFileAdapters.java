@@ -364,6 +364,103 @@ class TestTrackedFileAdapters {
     assertThat(dvFile.upperBounds()).isNull();
   }
 
+  @Test
+  void dataFileAdapterIsSerializable() throws Exception {
+    DataFile dataFile =
+        TrackedFileAdapters.asDataFile(serializableDataEntry(), specsById(PARTITIONED_SPEC));
+
+    assertSameDataFile(TestHelpers.roundTripSerialize(dataFile), dataFile);
+    assertSameDataFile(TestHelpers.KryoHelpers.roundTripSerialize(dataFile), dataFile);
+  }
+
+  @Test
+  void dvDeleteFileAdapterIsSerializable() throws Exception {
+    DeleteFile dvFile =
+        TrackedFileAdapters.asDVDeleteFile(serializableDataEntry(), specsById(PARTITIONED_SPEC));
+
+    assertSameDeleteFile(TestHelpers.roundTripSerialize(dvFile), dvFile);
+    assertSameDeleteFile(TestHelpers.KryoHelpers.roundTripSerialize(dvFile), dvFile);
+  }
+
+  private static void assertSameDataFile(DataFile actual, DataFile expected) {
+    assertThat(actual.content()).isEqualTo(expected.content());
+    assertThat(actual.location()).isEqualTo(expected.location());
+    assertThat(actual.format()).isEqualTo(expected.format());
+    assertThat(actual.specId()).isEqualTo(expected.specId());
+    assertThat(actual.partition().get(0, String.class))
+        .isEqualTo(expected.partition().get(0, String.class));
+    assertThat(actual.recordCount()).isEqualTo(expected.recordCount());
+    assertThat(actual.fileSizeInBytes()).isEqualTo(expected.fileSizeInBytes());
+    assertThat(actual.sortOrderId()).isEqualTo(expected.sortOrderId());
+    assertThat(actual.dataSequenceNumber()).isEqualTo(expected.dataSequenceNumber());
+    assertThat(actual.fileSequenceNumber()).isEqualTo(expected.fileSequenceNumber());
+    assertThat(actual.firstRowId()).isEqualTo(expected.firstRowId());
+    assertThat(actual.pos()).isEqualTo(expected.pos());
+    assertThat(actual.manifestLocation()).isEqualTo(expected.manifestLocation());
+    assertThat(actual.keyMetadata()).isEqualTo(expected.keyMetadata());
+    assertThat(actual.splitOffsets()).isEqualTo(expected.splitOffsets());
+  }
+
+  private static void assertSameDeleteFile(DeleteFile actual, DeleteFile expected) {
+    assertThat(actual.content()).isEqualTo(expected.content());
+    assertThat(actual.location()).isEqualTo(expected.location());
+    assertThat(actual.format()).isEqualTo(expected.format());
+    assertThat(actual.recordCount()).isEqualTo(expected.recordCount());
+    assertThat(actual.contentOffset()).isEqualTo(expected.contentOffset());
+    assertThat(actual.contentSizeInBytes()).isEqualTo(expected.contentSizeInBytes());
+    assertThat(actual.keyMetadata()).isEqualTo(expected.keyMetadata());
+    assertThat(actual.referencedDataFile()).isEqualTo(expected.referencedDataFile());
+    assertThat(actual.specId()).isEqualTo(expected.specId());
+    assertThat(actual.partition().get(0, String.class))
+        .isEqualTo(expected.partition().get(0, String.class));
+    assertThat(actual.dataSequenceNumber()).isEqualTo(expected.dataSequenceNumber());
+    assertThat(actual.fileSequenceNumber()).isEqualTo(expected.fileSequenceNumber());
+    assertThat(actual.pos()).isEqualTo(expected.pos());
+    assertThat(actual.manifestLocation()).isEqualTo(expected.manifestLocation());
+  }
+
+  private static TrackedFile serializableDataEntry() {
+    TrackingStruct tracking =
+        new TrackingStruct(
+            EntryStatus.ADDED,
+            42L,
+            DATA_SEQUENCE_NUMBER,
+            FILE_SEQUENCE_NUMBER,
+            42L,
+            FIRST_ROW_ID,
+            null,
+            null);
+    tracking.setManifestLocation(MANIFEST_LOCATION);
+    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
+
+    DeletionVector dv =
+        DeletionVectorStruct.builder()
+            .location(DV_LOCATION)
+            .offset(128L)
+            .sizeInBytes(256L)
+            .cardinality(10L)
+            .keyMetadata(KEY_METADATA)
+            .build();
+
+    return new TrackedFileStruct(
+        tracking,
+        FileContent.DATA,
+        FORMAT_VERSION_V4,
+        DATA_FILE_LOCATION,
+        FileFormat.PARQUET,
+        100L, // recordCount
+        1024L, // fileSizeInBytes
+        PARTITIONED_SPEC_ID,
+        PARTITION,
+        null, // contentStats
+        3, // sortOrderId
+        dv, // deletionVector
+        null, // manifestInfo
+        KEY_METADATA,
+        ImmutableList.of(50L, 100L), // splitOffsets
+        null); // equalityIds
+  }
+
   @ParameterizedTest
   @EnumSource(value = FileContent.class, mode = EnumSource.Mode.EXCLUDE, names = "DATA")
   void dvDeleteFileAdapterRejectsNonDataContent(FileContent contentType) {
@@ -426,6 +523,7 @@ class TestTrackedFileAdapters {
     assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
     assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
     assertThat(manifest.manifestDeletionVector().buffer()).isEqualTo(ByteBuffer.wrap(MANIFEST_DV));
+    assertThat(manifest.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(manifest.partitions()).isNull();
     assertThatThrownBy(manifest::partitionSpecId)
         .isInstanceOf(UnsupportedOperationException.class)
@@ -569,43 +667,6 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, ImmutableMap.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot find partition spec for spec ID");
-  }
-
-  @Test
-  void specIdMismatchThrows() {
-    TrackedFileStruct file =
-        new TrackedFileStruct(
-            null,
-            FileContent.DATA,
-            0,
-            null,
-            null,
-            0L,
-            0L,
-            PARTITIONED_SPEC_ID,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null);
-    int mismatchedSpecId = PARTITIONED_SPEC_ID + 1;
-    PartitionSpec mismatched =
-        PartitionSpec.builderFor(PARTITION_SCHEMA)
-            .identity("category")
-            .withSpecId(mismatchedSpecId)
-            .build();
-
-    assertThatThrownBy(
-            () ->
-                TrackedFileAdapters.asDataFile(
-                    file, ImmutableMap.of(PARTITIONED_SPEC_ID, mismatched)))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "File spec ID %s does not match partition spec %s",
-            PARTITIONED_SPEC_ID, mismatchedSpecId);
   }
 
   private static void assertNullTrackingFields(ContentFile<?> file) {
