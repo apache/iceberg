@@ -41,6 +41,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Parameter;
@@ -93,6 +94,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -175,33 +177,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @Override
   protected Table createTable(String name, Schema schema, PartitionSpec spec) {
-    Table table = catalog.createTable(TableIdentifier.of("default", name), schema);
-    TableOperations ops = ((BaseTable) table).operations();
-    TableMetadata meta = ops.current();
-    ops.commit(meta, meta.upgradeToFormatVersion(formatVersion));
-    table
-        .updateProperties()
-        .set(TableProperties.DEFAULT_FILE_FORMAT, format.name())
-        .set(TableProperties.DATA_PLANNING_MODE, planningMode.modeName())
-        .set(TableProperties.DELETE_PLANNING_MODE, planningMode.modeName())
-        .set(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
-        .commit();
-    if (format.equals(FileFormat.PARQUET) || format.equals(FileFormat.ORC)) {
-      String vectorizationEnabled =
-          format.equals(FileFormat.PARQUET)
-              ? TableProperties.PARQUET_VECTORIZATION_ENABLED
-              : TableProperties.ORC_VECTORIZATION_ENABLED;
-      String batchSize =
-          format.equals(FileFormat.PARQUET)
-              ? TableProperties.PARQUET_BATCH_SIZE
-              : TableProperties.ORC_BATCH_SIZE;
-      table.updateProperties().set(vectorizationEnabled, String.valueOf(vectorized)).commit();
-      if (vectorized) {
-        // split 7 records to two batches to cover more code paths
-        table.updateProperties().set(batchSize, "4").commit();
-      }
-    }
-    return table;
+    return createTable(name, schema, formatVersion);
   }
 
   @Override
@@ -413,6 +389,89 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
     assertThat(actual).as("Table should contain expected row").isEqualTo(expected);
     checkDeleteCount(4L);
+  }
+
+  @TestTemplate
+  public void testSharedPositionDeletesAreRetainedDuringPartialDVReplacement() throws IOException {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+    assumeThat(formatVersion).isEqualTo(3);
+
+    String tableName = "test3";
+    Table table = createTable(tableName, SCHEMA, 2);
+
+    GenericRecord record = GenericRecord.create(table.schema());
+    List<Record> firstFileRecords =
+        Lists.newArrayList(
+            record.copy("id", 1, "data", "a"),
+            record.copy("id", 2, "data", "b"),
+            record.copy("id", 3, "data", "c"));
+    List<Record> secondFileRecords =
+        Lists.newArrayList(
+            record.copy("id", 4, "data", "d"),
+            record.copy("id", 5, "data", "e"),
+            record.copy("id", 6, "data", "f"));
+
+    DataFile firstDataFile =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            TestHelpers.Row.of(),
+            firstFileRecords);
+    DataFile secondDataFile =
+        FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            TestHelpers.Row.of(),
+            secondFileRecords);
+    table.newAppend().appendFile(firstDataFile).appendFile(secondDataFile).commit();
+
+    Pair<DeleteFile, CharSequenceSet> sharedPositionDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            TestHelpers.Row.of(),
+            Lists.newArrayList(
+                Pair.of(firstDataFile.location(), 0L),
+                Pair.of(firstDataFile.location(), 1L),
+                Pair.of(secondDataFile.location(), 0L)),
+            2);
+    table
+        .newRowDelta()
+        .addDeletes(sharedPositionDeletes.first())
+        .validateDataFilesExist(sharedPositionDeletes.second())
+        .commit();
+
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+
+    Pair<DeleteFile, CharSequenceSet> secondFileDV =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(temp.resolve("junit" + System.nanoTime()).toFile()),
+            TestHelpers.Row.of(),
+            Lists.newArrayList(
+                Pair.of(secondDataFile.location(), 0L), Pair.of(secondDataFile.location(), 1L)),
+            3);
+    table
+        .newRowDelta()
+        .addDeletes(secondFileDV.first())
+        .validateDataFilesExist(secondFileDV.second())
+        .commit();
+
+    StructLikeSet actual = rowSet(tableName, table, "*");
+    StructLikeSet expected = rowSetWithoutIds(table, firstFileRecords, 1, 2);
+    expected.addAll(rowSetWithoutIds(table, secondFileRecords, 4, 5));
+    assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      List<FileScanTask> fileTasks = Lists.newArrayList(tasks);
+      assertThat(fileTasks).hasSize(2);
+      assertThat(fileTasks).allSatisfy(task -> assertThat(task.deletes()).hasSize(1));
+      assertThat(fileTasks)
+          .extracting(task -> task.file().location(), task -> task.deletes().get(0).format())
+          .containsExactlyInAnyOrder(
+              Tuple.tuple(firstDataFile.location(), FileFormat.PARQUET),
+              Tuple.tuple(secondDataFile.location(), FileFormat.PUFFIN));
+    }
   }
 
   @TestTemplate
@@ -868,5 +927,35 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     records.add(record.copy("id", 121, "data", "f", "_deleted", false));
     records.add(record.copy("id", 122, "data", "g", "_deleted", false));
     return records;
+  }
+
+  private Table createTable(String name, Schema schema, int tableFormatVersion) {
+    Table table = catalog.createTable(TableIdentifier.of("default", name), schema);
+    TableOperations ops = ((BaseTable) table).operations();
+    TableMetadata meta = ops.current();
+    ops.commit(meta, meta.upgradeToFormatVersion(tableFormatVersion));
+    table
+        .updateProperties()
+        .set(TableProperties.DEFAULT_FILE_FORMAT, format.name())
+        .set(TableProperties.DATA_PLANNING_MODE, planningMode.modeName())
+        .set(TableProperties.DELETE_PLANNING_MODE, planningMode.modeName())
+        .set(TableProperties.FORMAT_VERSION, String.valueOf(tableFormatVersion))
+        .commit();
+    if (format.equals(FileFormat.PARQUET) || format.equals(FileFormat.ORC)) {
+      String vectorizationEnabled =
+          format.equals(FileFormat.PARQUET)
+              ? TableProperties.PARQUET_VECTORIZATION_ENABLED
+              : TableProperties.ORC_VECTORIZATION_ENABLED;
+      String batchSize =
+          format.equals(FileFormat.PARQUET)
+              ? TableProperties.PARQUET_BATCH_SIZE
+              : TableProperties.ORC_BATCH_SIZE;
+      table.updateProperties().set(vectorizationEnabled, String.valueOf(vectorized)).commit();
+      if (vectorized) {
+        // split 7 records to two batches to cover more code paths
+        table.updateProperties().set(batchSize, "4").commit();
+      }
+    }
+    return table;
   }
 }
