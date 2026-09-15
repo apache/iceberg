@@ -24,6 +24,8 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type.TypeID;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
@@ -162,7 +164,81 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
   @Override
   public Type primitive(
       org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
+    validatePrimitive(expected, primitive, String.join(".", currentPath()));
     return null;
+  }
+
+  static void validatePrimitive(
+      org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive, String path) {
+    if (expected != null
+        && (expected.typeId() == TypeID.GEOMETRY || expected.typeId() == TypeID.GEOGRAPHY)) {
+      Preconditions.checkArgument(
+          TypeUtil.isPromotionAllowed(MessageTypeToType.convertPrimitive(primitive), expected),
+          "Cannot read Parquet type %s as Iceberg type %s for field %s",
+          primitive,
+          expected,
+          path);
+    }
+  }
+
+  static void validateFallbackType(org.apache.iceberg.types.Type expected, Type type, String path) {
+    if (expected == null) {
+      return;
+    }
+
+    if (expected.isPrimitiveType() || type.isPrimitive()) {
+      if (expected.isPrimitiveType() && type.isPrimitive()) {
+        validatePrimitive(expected.asPrimitiveType(), type.asPrimitiveType(), path);
+      }
+
+      return;
+    }
+
+    GroupType group = type.asGroupType();
+    if (expected.isStructType()) {
+      validateFallbackStruct(expected.asStructType(), group, path);
+    } else if (expected.isListType()) {
+      validateFallbackList(expected.asListType(), group, path);
+    } else if (expected.isMapType()) {
+      validateFallbackMap(expected.asMapType(), group, path);
+    }
+  }
+
+  private static void validateFallbackStruct(StructType expected, GroupType struct, String path) {
+    List<NestedField> expectedFields = expected.fields();
+    int fieldCount = Math.min(expectedFields.size(), struct.getFieldCount());
+    for (int i = 0; i < fieldCount; i += 1) {
+      Type field = struct.getType(i);
+      validateFallbackType(expectedFields.get(i).type(), field, path + "." + field.getName());
+    }
+  }
+
+  private static void validateFallbackList(ListType expected, GroupType list, String path) {
+    Type element = ParquetSchemaUtil.determineListElementType(list);
+    String elementPath = path;
+    if (!element.isRepetition(Type.Repetition.REPEATED)) {
+      elementPath += "." + list.getFieldName(0);
+    }
+
+    validateFallbackType(expected.elementType(), element, elementPath + "." + element.getName());
+  }
+
+  private static void validateFallbackMap(MapType expected, GroupType map, String path) {
+    GroupType repeated = map.getType(0).asGroupType();
+    String repeatedPath = path + "." + repeated.getName();
+    if (repeated.getFieldCount() == 2) {
+      Type key = repeated.getType(0);
+      Type value = repeated.getType(1);
+      validateFallbackType(expected.keyType(), key, repeatedPath + "." + key.getName());
+      validateFallbackType(expected.valueType(), value, repeatedPath + "." + value.getName());
+
+    } else if (repeated.getFieldCount() == 1) {
+      Type keyOrValue = repeated.getType(0);
+      org.apache.iceberg.types.Type expectedKeyOrValue =
+          keyOrValue.getName().equalsIgnoreCase("key") ? expected.keyType() : expected.valueType();
+      validateFallbackType(
+          expectedKeyOrValue, keyOrValue, repeatedPath + "." + keyOrValue.getName());
+    }
   }
 
   private Integer getId(Type type) {
