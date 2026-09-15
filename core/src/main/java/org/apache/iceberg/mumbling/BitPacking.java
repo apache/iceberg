@@ -182,6 +182,7 @@ class BitPacking {
     return byteWidth(count);
   }
 
+  @SuppressWarnings("checkstyle:ParameterName")
   private static int packWord1(int a, int b, int c, int d, int e, int f, int g, int h) {
     return ((a & 0b1) << 7)
         | ((b & 0b1) << 6)
@@ -237,6 +238,7 @@ class BitPacking {
     return byteWidth(2 * count);
   }
 
+  @SuppressWarnings("checkstyle:ParameterName")
   private static int packWord2(int a, int b, int c, int d, int e, int f, int g, int h) {
     return ((a & 0b11) << 14)
         | ((b & 0b11) << 12)
@@ -293,6 +295,7 @@ class BitPacking {
     return byteWidth(3 * count);
   }
 
+  @SuppressWarnings("checkstyle:ParameterName")
   private static int packWord3(int a, int b, int c, int d, int e, int f, int g, int h) {
     return ((a & 0b111) << 21)
         | ((b & 0b111) << 18)
@@ -350,6 +353,7 @@ class BitPacking {
     return byteWidth(4 * count);
   }
 
+  @SuppressWarnings("checkstyle:ParameterName")
   private static int packWord4(int a, int b, int c, int d, int e, int f, int g, int h) {
     return ((a & 0b1111) << 28)
         | ((b & 0b1111) << 24)
@@ -408,6 +412,7 @@ class BitPacking {
     return byteWidth(5 * count);
   }
 
+  @SuppressWarnings("checkstyle:ParameterName")
   private static long packWord5(int a, int b, int c, int d, int e, int f, int g, int h) {
     return ((long) (a & 0b11111) << 35)
         | ((long) (b & 0b11111) << 30)
@@ -467,6 +472,7 @@ class BitPacking {
     return byteWidth(6 * count);
   }
 
+  @SuppressWarnings("checkstyle:ParameterName")
   private static long packWord6(int a, int b, int c, int d, int e, int f, int g, int h) {
     return ((long) (a & 0b111111) << 42)
         | ((long) (b & 0b111111) << 36)
@@ -527,6 +533,7 @@ class BitPacking {
     return byteWidth(7 * count);
   }
 
+  @SuppressWarnings("checkstyle:ParameterName")
   private static long packWord7(int a, int b, int c, int d, int e, int f, int g, int h) {
     return ((long) (a & 0b1111111) << 49)
         | ((long) (b & 0b1111111) << 42)
