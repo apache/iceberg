@@ -364,7 +364,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         manifestList.location(),
         nextRowId,
         assignedRows,
-        writer.toManifestListFile().encryptionKeyID());
+        writer.toManifestListFile().keyId());
   }
 
   private void runValidations(Snapshot parentSnapshot) {

@@ -18,22 +18,24 @@
  */
 package org.apache.iceberg;
 
-import java.nio.ByteBuffer;
-import org.apache.iceberg.encryption.EncryptionManager;
+import java.io.Serializable;
 
-/**
- * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link FileWithKeyId} instead.
- */
-@Deprecated
-public interface ManifestListFile extends FileWithKeyId {
-  /** The manifest list key metadata can be encrypted. Returns ID of encryption key */
-  String encryptionKeyID();
+class BaseFileWithKeyId implements FileWithKeyId, Serializable {
+  private final String location;
+  private final String keyId;
 
-  @Override
-  default String keyId() {
-    return encryptionKeyID();
+  BaseFileWithKeyId(String location, String encryptionKeyID) {
+    this.location = location;
+    this.keyId = encryptionKeyID;
   }
 
-  /** Decrypt and return the manifest list key metadata */
-  ByteBuffer decryptKeyMetadata(EncryptionManager em);
+  @Override
+  public String location() {
+    return location;
+  }
+
+  @Override
+  public String keyId() {
+    return keyId;
+  }
 }
