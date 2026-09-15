@@ -24,13 +24,64 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 
 public class TestSingleValueParser {
+  @Test
+  void optionalNullMapValuesRoundTrip() {
+    Type type = Types.MapType.ofOptional(1, 2, Types.StringType.get(), Types.IntegerType.get());
+    Map<String, Integer> value = new LinkedHashMap<>();
+    value.put("missing", null);
+    value.put("present", 1);
+    String json = SingleValueParser.toJson(type, value);
+    Map<?, ?> parsed = (Map<?, ?>) SingleValueParser.fromJson(type, json);
+
+    assertThat(parsed).isEqualTo(value);
+    assertThat(SingleValueParser.toJson(type, parsed)).isEqualTo(json);
+    assertThatThrownBy(parsed::clear).isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void nestedOptionalNullMapValuesRoundTrip() {
+    Type type =
+        Types.ListType.ofRequired(
+            1, Types.MapType.ofOptional(2, 3, Types.StringType.get(), Types.IntegerType.get()));
+    String json = "[{\"keys\":[\"a\"],\"values\":[null]}]";
+    assertThat(SingleValueParser.toJson(type, SingleValueParser.fromJson(type, json)))
+        .isEqualTo(json);
+  }
+
+  @Test
+  void mapRejectsDuplicateKeyWithNullValue() {
+    Type type = Types.MapType.ofOptional(1, 2, Types.StringType.get(), Types.IntegerType.get());
+    assertThatThrownBy(
+            () -> SingleValueParser.fromJson(type, "{\"keys\":[\"a\",\"a\"],\"values\":[null,1]}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("duplicate key");
+  }
+
+  @Test
+  void mapRejectsNullKey() {
+    Type type = Types.MapType.ofOptional(1, 2, Types.StringType.get(), Types.IntegerType.get());
+    assertThatThrownBy(() -> SingleValueParser.fromJson(type, "{\"keys\":[null],\"values\":[1]}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("null key");
+  }
+
+  @Test
+  void mapRejectsNullRequiredValue() {
+    Type type = Types.MapType.ofRequired(1, 2, Types.StringType.get(), Types.IntegerType.get());
+    assertThatThrownBy(
+            () -> SingleValueParser.fromJson(type, "{\"keys\":[\"a\"],\"values\":[null]}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("null required value");
+  }
 
   @Test
   public void testValidDefaults() throws IOException {
