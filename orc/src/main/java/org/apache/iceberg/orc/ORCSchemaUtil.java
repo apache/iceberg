@@ -217,8 +217,12 @@ public final class ORCSchemaUtil {
         break;
       case STRUCT:
         {
+          Types.StructType structType = type.asStructType();
+          Preconditions.checkArgument(
+              !structType.fields().isEmpty(),
+              "Cannot write struct<> (empty struct) to ORC: ORC does not support empty struct types");
           orcType = TypeDescription.createStruct();
-          for (Types.NestedField field : type.asStructType().fields()) {
+          for (Types.NestedField field : structType.fields()) {
             TypeDescription childType = convert(field.fieldId(), field.type(), field.isRequired());
             if (childType != null) {
               orcType.addField(field.name(), childType);
