@@ -250,6 +250,7 @@ public class IcebergSink
         sinkId,
         metrics,
         maintenanceEnabled,
+        context.getRestoredCheckpointId().isPresent(),
         context.getTaskInfo().getIndexOfThisSubtask());
   }
 
