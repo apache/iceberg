@@ -63,8 +63,8 @@ import scala.collection.immutable.Range;
  * A {@link PartitionReader} that reads multiple sorted files and merges them into a single sorted
  * stream using a k-way heap merge ({@link SortedMerge}).
  *
- * <p>Every file in the task group must have the same sort order. Sort keys on nested fields are not
- * supported.
+ * <p>Every file in the task group must have the same sort order. A sort key on a nested field is
+ * not supported if that field is not in the requested projection.
  */
 class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   private static final Logger LOG = LoggerFactory.getLogger(MergingSortedRowDataReader.class);
