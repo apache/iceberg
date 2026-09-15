@@ -374,6 +374,45 @@ public class TestExpressionUtil {
   }
 
   @Test
+  public void testSanitizeContains() {
+    assertEquals(
+        Expressions.contains("test", "(hash-34d05fb7)"),
+        ExpressionUtil.sanitize(Expressions.contains("test", "aaa")));
+
+    assertEquals(
+        Expressions.contains("data", "(hash-34d05fb7)"),
+        ExpressionUtil.sanitize(STRUCT, Expressions.contains("data", "aaa"), true));
+
+    assertThat(ExpressionUtil.toSanitizedString(Expressions.contains("test", "aaa")))
+        .as("Sanitized string should be identical except for descriptive literal")
+        .isEqualTo("test CONTAINS (hash-34d05fb7)");
+
+    assertThat(ExpressionUtil.toSanitizedString(STRUCT, Expressions.contains("data", "aaa"), true))
+        .as("Sanitized string should be identical except for descriptive literal")
+        .isEqualTo("data CONTAINS (hash-34d05fb7)");
+  }
+
+  @Test
+  public void testSanitizeNotContains() {
+    assertEquals(
+        Expressions.notContains("test", "(hash-34d05fb7)"),
+        ExpressionUtil.sanitize(Expressions.notContains("test", "aaa")));
+
+    assertEquals(
+        Expressions.notContains("data", "(hash-34d05fb7)"),
+        ExpressionUtil.sanitize(STRUCT, Expressions.notContains("data", "aaa"), true));
+
+    assertThat(ExpressionUtil.toSanitizedString(Expressions.notContains("test", "aaa")))
+        .as("Sanitized string should be identical except for descriptive literal")
+        .isEqualTo("test NOT CONTAINS (hash-34d05fb7)");
+
+    assertThat(
+            ExpressionUtil.toSanitizedString(STRUCT, Expressions.notContains("data", "aaa"), true))
+        .as("Sanitized string should be identical except for descriptive literal")
+        .isEqualTo("data NOT CONTAINS (hash-34d05fb7)");
+  }
+
+  @Test
   public void testSanitizeTransformedTerm() {
     assertEquals(
         Expressions.equal(Expressions.truncate("test", 2), "(2-digit-int)"),
@@ -1001,6 +1040,8 @@ public class TestExpressionUtil {
           Expressions.notIn("id", 5, 6),
           Expressions.startsWith("data", "aaa"),
           Expressions.notStartsWith("data", "aaa"),
+          Expressions.contains("data", "aaa"),
+          Expressions.notContains("data", "aaa"),
           Expressions.alwaysTrue(),
           Expressions.alwaysFalse(),
           Expressions.and(Expressions.lessThan("id", 5), Expressions.notNull("data")),

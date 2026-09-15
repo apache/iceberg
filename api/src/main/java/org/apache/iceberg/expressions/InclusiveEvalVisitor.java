@@ -345,6 +345,16 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
   }
 
   @Override
+  public <T> Boolean contains(Bound<T> term, Literal<T> lit) {
+    return ROWS_MIGHT_MATCH;
+  }
+
+  @Override
+  public <T> Boolean notContains(Bound<T> term, Literal<T> lit) {
+    return ROWS_MIGHT_MATCH;
+  }
+
+  @Override
   public <T> Boolean startsWith(Bound<T> term, Literal<T> lit) {
     if (term instanceof BoundTransform && !((BoundTransform<?, ?>) term).transform().isIdentity()) {
       // truncate must be rewritten in binding. the result is either always or never compatible
