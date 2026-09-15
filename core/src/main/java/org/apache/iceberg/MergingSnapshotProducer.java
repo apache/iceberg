@@ -800,7 +800,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         DeleteFileIndex.builderFor(ops().io(), deleteManifests)
             .afterSequenceNumber(startingSequenceNumber)
             .caseSensitive(caseSensitive)
-            .specsById(ops().current().specsById());
+            .specsById(ops().current().specsById())
+            .planWith(workerPool());
 
     if (dataFilter != null) {
       builder.filterData(dataFilter);

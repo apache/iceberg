@@ -29,6 +29,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -776,6 +777,39 @@ public class TestRewriteFiles extends TestBase {
             .validateFromSnapshot(snapshotAfterDeletes)
             .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2)),
         branch);
+  }
+
+  @TestTemplate
+  public void testNewDeleteFileValidationUsesProvidedExecutor() {
+    assumeThat(formatVersion)
+        .as("Rewriting delete files is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
+
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+
+    long snapshotBeforeDeletes = latestSnapshot(table, branch).snapshotId();
+
+    commit(table, table.newRowDelta().addDeletes(fileADeletes()), branch);
+
+    AtomicInteger scanThreadsIndex = new AtomicInteger(0);
+
+    // conflict validation must scan the delete manifest added since snapshotBeforeDeletes to
+    // find the concurrent delete for FILE_A
+    assertThatThrownBy(
+            () ->
+                apply(
+                    table
+                        .newRewrite()
+                        .validateFromSnapshot(snapshotBeforeDeletes)
+                        .scanManifestsWith(newNamedExecutor("rewrite-scan", scanThreadsIndex))
+                        .rewriteFiles(Sets.newSet(FILE_A), Sets.newSet(FILE_A2)),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, found new delete for replaced data file");
+
+    assertThat(scanThreadsIndex.get())
+        .as("Delete conflict validation should scan manifests using the provided pool")
+        .isGreaterThan(0);
   }
 
   @TestTemplate
