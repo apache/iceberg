@@ -398,6 +398,7 @@ class PFOREncoding {
     return ceilDiv(bits, 8);
   }
 
+  @SuppressWarnings("checkstyle:ParameterName")
   private static int ceilDiv(int a, int b) {
     return (a + b - 1) / b;
   }
