@@ -79,6 +79,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
   private ExecutorService workerPool;
   private int continuousEmptyCheckpoints = 0;
   private final boolean tableMaintenanceEnabled;
+  private final boolean restored;
   private final int subtaskId;
 
   IcebergCommitter(
@@ -90,6 +91,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       String sinkId,
       IcebergFilesCommitterMetrics committerMetrics,
       boolean tableMaintenanceEnabled,
+      boolean restored,
       int subtaskId) {
     this.branch = branch;
     this.snapshotProperties = snapshotProperties;
@@ -97,6 +99,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     this.committerMetrics = committerMetrics;
     this.tableLoader = tableLoader;
     this.tableMaintenanceEnabled = tableMaintenanceEnabled;
+    this.restored = restored;
     this.subtaskId = subtaskId;
 
     // IcebergSink#addPreCommitTopology routes all committables to subtask 0 via a .global()
@@ -138,8 +141,11 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     }
 
     IcebergCommittable last = commitRequestMap.lastEntry().getValue().getCommittable();
+    // A stateless start has no committed checkpoints; the table's mark would drop every commit.
     long maxCommittedCheckpointId =
-        SinkUtil.getMaxCommittedCheckpointId(table, last.jobId(), last.operatorId(), branch);
+        restored
+            ? SinkUtil.getMaxCommittedCheckpointId(table, last.jobId(), last.operatorId(), branch)
+            : SinkUtil.INITIAL_CHECKPOINT_ID;
     // Mark the already committed FilesCommittable(s) as finished
     commitRequestMap
         .headMap(maxCommittedCheckpointId, true)
