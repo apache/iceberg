@@ -19,6 +19,7 @@
 package org.apache.iceberg.mumbling;
 
 import java.nio.ByteBuffer;
+import org.apache.iceberg.ManifestBitmap;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -37,7 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  *   <li>Containers: concatenated sparse (0–31 bytes) or dense (32 bytes) containers
  * </ul>
  */
-class MumblingBitmap {
+class MumblingBitmap implements ManifestBitmap {
   private static final int VERSION = 1;
   private static final int HEADER_SIZE = 6;
   private static final int DENSE_CONTAINER_BIT = 0b0010_0000;
@@ -69,7 +70,13 @@ class MumblingBitmap {
         cardinality <= 2_097_152, "Invalid cardinality: %s > 2,097,152 (max)", cardinality);
   }
 
+  @Override
+  public ByteBuffer buffer() {
+    return data;
+  }
+
   /** Returns the number of bits set in the bitmap. */
+  @Override
   public int cardinality() {
     return cardinality;
   }
@@ -79,6 +86,7 @@ class MumblingBitmap {
    *
    * <p>Positions beyond the range of any container are always unset.
    */
+  @Override
   public boolean isSet(int pos) {
     Preconditions.checkArgument(pos >= 0, "Invalid bit position: %s < 0", pos);
     int containerIndex = pos >>> 8;
