@@ -235,27 +235,27 @@ class TestFilePlanner {
             .tableLocation(TABLE_LOCATION)
             .scanMetrics(metrics)
             .build();
-    // the root is read eagerly to route its entries; leaf readers open lazily, so closing the plan
-    // without iterating scans only the root, not the leaf
     planner.planFiles().close();
 
-    assertThat(metrics.scannedDataManifests().value()).isEqualTo(1L);
+    assertThat(metrics.scannedDataManifests().value())
+        .as(
+            "the root is read eagerly but leaf readers open lazily, so closing "
+                + "without iterating scans only the root, not the leaf")
+        .isEqualTo(1L);
   }
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void parallelPlanningMatchesSequential(FileFormat format) throws IOException {
-    // a DV and a residual-bearing filter in the tree so parity actually exercises createTask's DV
-    // branch and per-spec residual keying on worker threads, not just locations
     TrackedFile withDv =
         dataFile(
-            "leaf1.parquet",
+            "leaf1-data.parquet",
             partition(1),
             deletionVector(DV_LOCATION, DV_OFFSET, DV_SIZE_IN_BYTES, DV_CARDINALITY));
     InputFile leaf1 = writeManifest(format, PARTITION_TYPE, ImmutableList.of(withDv));
     InputFile leaf2 =
         writeManifest(
-            format, PARTITION_TYPE, ImmutableList.of(dataFile("leaf2.parquet", partition(1))));
+            format, PARTITION_TYPE, ImmutableList.of(dataFile("leaf2-data.parquet", partition(1))));
     InputFile root =
         writeManifest(
             format,
@@ -309,8 +309,6 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void nonDataEntryInLeafFailsPlanning(FileFormat format) throws IOException {
-    // the planner feeds every leaf entry to the data-file adapter, so a non-data leaf entry
-    // (here a nested manifest) fails planning
     InputFile leaf =
         writeManifest(
             format, EMPTY_PARTITION, ImmutableList.of(dataManifest("nested-leaf.parquet")));
@@ -362,7 +360,7 @@ class TestFilePlanner {
         writeManifest(format, unionType, ImmutableList.of(spec0Keep, spec0Prune, spec1File));
 
     // id = 1 prunes the spec0 file partitioned on id=2; spec1 is not partitioned by id, so its
-    // residual keeps the predicate. A per-spec residual mis-keying would surface here.
+    // residual keeps the predicate.
     List<FileScanTask> tasks =
         plan(root, specsById, planner -> planner.filterData(Expressions.equal("id", 1)));
 
@@ -375,9 +373,8 @@ class TestFilePlanner {
             tuple(resolved("spec0-keep.parquet"), 0, Expressions.alwaysTrue().toString()),
             tuple(resolved("spec1.parquet"), 1, Expressions.equal("id", 1).toString()));
 
-    // data sits at union position 1 but spec1 position 0; the emitted task must expose the
-    // partition in its own spec order so residual evaluation and partition-constant injection read
-    // the right value (this reads id=null without the projection)
+    // `data` sits at union position 1 but spec1 position 0; the emitted task must expose the
+    // partition in its own spec order
     FileScanTask spec1Task =
         tasks.stream().filter(task -> task.spec().specId() == 1).findFirst().orElseThrow();
     assertThat(spec1Task.file().partition().get(0, CharSequence.class)).hasToString("x");
