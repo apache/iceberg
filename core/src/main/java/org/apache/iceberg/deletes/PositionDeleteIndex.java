@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.function.LongConsumer;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public interface PositionDeleteIndex {
@@ -76,6 +77,32 @@ public interface PositionDeleteIndex {
   default void forEach(LongConsumer consumer) {
     if (isNotEmpty()) {
       throw new UnsupportedOperationException(getClass().getName() + " does not support forEach");
+    }
+  }
+
+  /**
+   * Traverses the deleted positions within the given range in ascending order, applying the
+   * provided consumer.
+   *
+   * <p>Callers that test a contiguous range of positions should prefer this method over calling
+   * {@link #isDeleted(long)} once per position.
+   *
+   * @param posStart inclusive beginning of position range
+   * @param posEnd exclusive ending of position range
+   * @param consumer a consumer for the deleted positions in the range
+   * @throws IllegalArgumentException if posStart &gt; posEnd
+   */
+  default void forEachInRange(long posStart, long posEnd, LongConsumer consumer) {
+    Preconditions.checkArgument(
+        posStart <= posEnd,
+        "Start position must not exceed end position: [%s, %s)",
+        posStart,
+        posEnd);
+
+    for (long pos = posStart; pos < posEnd; pos++) {
+      if (isDeleted(pos)) {
+        consumer.accept(pos);
+      }
     }
   }
 

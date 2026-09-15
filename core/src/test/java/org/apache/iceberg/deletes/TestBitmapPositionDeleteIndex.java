@@ -25,8 +25,11 @@ import java.io.IOException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Random;
+import java.util.Set;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.io.Resources;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -35,6 +38,7 @@ public class TestBitmapPositionDeleteIndex {
 
   private static final long BITMAP_OFFSET = 0xFFFFFFFFL + 1L;
   private static final long CONTAINER_OFFSET = Character.MAX_VALUE + 1L;
+  private static final long SEED = 20260818L;
 
   @Test
   public void testForEach() {
@@ -72,6 +76,116 @@ public class TestBitmapPositionDeleteIndex {
     PositionDeleteIndex index = PositionDeleteIndex.empty();
     List<Long> positions = collect(index);
     assertThat(positions).isEmpty();
+  }
+
+  @Test
+  public void testForEachInRange() {
+    PositionDeleteIndex index = indexOf(10L, 11L, 12L, 13L);
+
+    // the beginning is inclusive and the end is exclusive
+    assertThat(collect(index, 11L, 13L)).containsExactly(11L, 12L);
+    assertThat(collect(index, 11L, 12L)).containsExactly(11L);
+
+    // a range that ends where the deletes start
+    assertThat(collect(index, 0L, 10L)).isEmpty();
+
+    // a range that starts after the deletes end
+    assertThat(collect(index, 14L, 24L)).isEmpty();
+  }
+
+  @Test
+  public void testForEachInRangeAscendingOrder() {
+    PositionDeleteIndex index = indexOf(9L, 3L, 7L, 1L, 5L);
+    assertThat(collect(index, 0L, 20L)).containsExactly(1L, 3L, 5L, 7L, 9L);
+  }
+
+  @Test
+  public void testForEachInRangeEmptyRange() {
+    PositionDeleteIndex index = indexOf(0L, 1L, 2L);
+    assertThat(collect(index, 0L, 0L)).isEmpty();
+  }
+
+  @Test
+  public void testForEachInRangeEmptyBitmapIndex() {
+    assertThat(collect(new BitmapPositionDeleteIndex(), 0L, 1000L)).isEmpty();
+  }
+
+  @Test
+  public void testForEachInRangeEmptyIndex() {
+    assertThat(collect(PositionDeleteIndex.empty(), 0L, 1000L)).isEmpty();
+    assertThat(collect(PositionDeleteIndex.empty(), 12345L, 13345L)).isEmpty();
+  }
+
+  @Test
+  public void testForEachInRangeAcrossBitmaps() {
+    long lastPosInFirstBitmap = BITMAP_OFFSET - 1;
+    PositionDeleteIndex index =
+        indexOf(lastPosInFirstBitmap - 1, lastPosInFirstBitmap, BITMAP_OFFSET, BITMAP_OFFSET + 1);
+
+    assertThat(collect(index, lastPosInFirstBitmap - 2, BITMAP_OFFSET + 3))
+        .containsExactly(
+            lastPosInFirstBitmap - 1, lastPosInFirstBitmap, BITMAP_OFFSET, BITMAP_OFFSET + 1);
+  }
+
+  @Test
+  public void testForEachInRangeAcrossContainers() {
+    PositionDeleteIndex index =
+        indexOf(CONTAINER_OFFSET - 2, CONTAINER_OFFSET - 1, CONTAINER_OFFSET, CONTAINER_OFFSET + 1);
+
+    assertThat(collect(index, CONTAINER_OFFSET - 3, CONTAINER_OFFSET + 3))
+        .containsExactly(
+            CONTAINER_OFFSET - 2, CONTAINER_OFFSET - 1, CONTAINER_OFFSET, CONTAINER_OFFSET + 1);
+  }
+
+  @Test
+  public void testForEachInRangeMatchesIsDeleted() {
+    Random random = new Random(SEED);
+    Set<Long> positions = Sets.newHashSet();
+    for (int index = 0; index < 20000; index++) {
+      positions.add((long) random.nextInt(300000));
+    }
+
+    PositionDeleteIndex bitmapIndex = new BitmapPositionDeleteIndex();
+    positions.forEach(bitmapIndex::delete);
+
+    // an index that implements only isDeleted, so the default traversal is used
+    PositionDeleteIndex defaultIndex = new SetBackedPositionDeleteIndex(positions);
+
+    for (int index = 0; index < 500; index++) {
+      long posStart = random.nextInt(300000);
+      long posEnd = posStart + 1 + random.nextInt(6000);
+      List<Long> expected = deletedPositionsInRange(positions, posStart, posEnd);
+      assertThat(collect(bitmapIndex, posStart, posEnd))
+          .as("bitmap at %s", posStart)
+          .isEqualTo(expected);
+      assertThat(collect(defaultIndex, posStart, posEnd))
+          .as("default at %s", posStart)
+          .isEqualTo(expected);
+    }
+  }
+
+  @Test
+  public void testForEachInRangeMatchesIsDeletedAcrossSignedIntBoundary() {
+    // a 32-bit position at or above Integer.MAX_VALUE does not fit in a signed int, and neither
+    // does the end of a range that reaches it, so sweep every range around the boundary
+    long boundary = Integer.MAX_VALUE + 1L;
+    Set<Long> positions = Sets.newHashSet();
+
+    BitmapPositionDeleteIndex index = new BitmapPositionDeleteIndex();
+    index.delete(boundary - 4, boundary + 4);
+    for (long pos = boundary - 4; pos < boundary + 4; pos++) {
+      positions.add(pos);
+    }
+
+    index.serialize(); // triggers runLengthEncode
+
+    for (long posStart = boundary - 12; posStart <= boundary + 6; posStart++) {
+      for (long posEnd = posStart; posEnd <= posStart + 20; posEnd++) {
+        assertThat(collect(index, posStart, posEnd))
+            .as("range [%s, %s)", posStart, posEnd)
+            .isEqualTo(deletedPositionsInRange(positions, posStart, posEnd));
+      }
+    }
   }
 
   @Test
@@ -234,5 +348,61 @@ public class TestBitmapPositionDeleteIndex {
     List<Long> positions = Lists.newArrayList();
     index.forEach(positions::add);
     return positions;
+  }
+
+  private static List<Long> collect(PositionDeleteIndex index, long posStart, long posEnd) {
+    List<Long> positions = Lists.newArrayList();
+    index.forEachInRange(posStart, posEnd, positions::add);
+    return positions;
+  }
+
+  private static List<Long> deletedPositionsInRange(
+      Set<Long> positions, long posStart, long posEnd) {
+    List<Long> deleted = Lists.newArrayList();
+    for (long pos = posStart; pos < posEnd; pos++) {
+      if (positions.contains(pos)) {
+        deleted.add(pos);
+      }
+    }
+    return deleted;
+  }
+
+  private static PositionDeleteIndex indexOf(long... positions) {
+    PositionDeleteIndex index = new BitmapPositionDeleteIndex();
+    for (long position : positions) {
+      index.delete(position);
+    }
+    return index;
+  }
+
+  /** An index that implements only the required methods, so the default traversal is used. */
+  private static class SetBackedPositionDeleteIndex implements PositionDeleteIndex {
+    private final Set<Long> positions;
+
+    SetBackedPositionDeleteIndex(Set<Long> positions) {
+      this.positions = positions;
+    }
+
+    @Override
+    public void delete(long position) {
+      positions.add(position);
+    }
+
+    @Override
+    public void delete(long posStart, long posEnd) {
+      for (long pos = posStart; pos < posEnd; pos++) {
+        positions.add(pos);
+      }
+    }
+
+    @Override
+    public boolean isDeleted(long position) {
+      return positions.contains(position);
+    }
+
+    @Override
+    public boolean isEmpty() {
+      return positions.isEmpty();
+    }
   }
 }
