@@ -22,9 +22,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.net.URISyntaxException;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.apache.hc.core5.net.URIBuilder;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -198,6 +203,93 @@ public class TestRESTUtil {
     assertThat(RESTUtil.decodePathSegment(encodedOldJava)).isNotEqualTo(input).isEqualTo("++%20");
     assertThat(RESTUtil.decodePathSegment(encodedNewJava)).isEqualTo(input);
     assertThat(RESTUtil.decodePathSegment(encodedOther)).isEqualTo(input);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"%1F", "%2D", "%2E", "#", "_"})
+  public void encodeReferencedBy(String namespaceSeparator) {
+    // the separator is used as configured, joining the namespace levels and the view name
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "viewName")),
+                namespaceSeparator))
+        .isEqualTo(String.format("ns%sviewName", namespaceSeparator));
+
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(TableIdentifier.of(Namespace.of("prod", "analytics"), "view")),
+                namespaceSeparator))
+        .isEqualTo(String.format("prod%sanalytics%sview", namespaceSeparator, namespaceSeparator));
+
+    // a chain is joined by a literal comma, outermost first
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(
+                    TableIdentifier.of(Namespace.of("outer_ns"), "outer_view"),
+                    TableIdentifier.of(Namespace.of("inner_ns"), "inner_view")),
+                namespaceSeparator))
+        .isEqualTo(
+            String.format(
+                "outer_ns%souter_view,inner_ns%sinner_view",
+                namespaceSeparator, namespaceSeparator));
+
+    assertThat(RESTUtil.encodeReferencedBy(null, namespaceSeparator)).isNull();
+    assertThat(RESTUtil.encodeReferencedBy(ImmutableList.of(), namespaceSeparator)).isNull();
+  }
+
+  @Test
+  public void encodeReferencedByEncodesReservedCharacters() {
+    String separator = RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+
+    // a space is %20 rather than the + that URLEncoder alone would produce
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(TableIdentifier.of(Namespace.of("ns with spaces"), "view/name")),
+                separator))
+        .isEqualTo("ns%20with%20spaces%1Fview%2Fname");
+
+    // a comma inside a view name is encoded, so splitting the chain on bare commas still works
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "view,name")), separator))
+        .isEqualTo("ns%1Fview%2Cname");
+
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(TableIdentifier.of(Namespace.of("a+b"), "c*d")), separator))
+        .isEqualTo("a%2Bb%1Fc%2Ad");
+
+    // the example given in the referenced-by OpenAPI parameter description
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(
+                    TableIdentifier.of(Namespace.of("prod", "analytics"), "quarterly_view"),
+                    TableIdentifier.of(Namespace.of("prod", "analytics"), "monthly_view")),
+                separator))
+        .isEqualTo("prod%1Fanalytics%1Fquarterly_view,prod%1Fanalytics%1Fmonthly_view");
+  }
+
+  @Test
+  public void encodeReferencedByMatchesParentParamEncoding() {
+    // the spec ties this parameter's encoding to the parent query parameter's rules
+    Namespace namespace = Namespace.of("a b", "c*d", "e+f");
+    String parentValue;
+    try {
+      parentValue =
+          new URIBuilder("http://localhost/v1/namespaces")
+              .addParameter("parent", RESTUtil.namespaceToQueryParam(namespace))
+              .build()
+              .getRawQuery()
+              .substring("parent=".length());
+    } catch (URISyntaxException e) {
+      throw new RuntimeException(e);
+    }
+
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(TableIdentifier.of(namespace, "v")),
+                RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8))
+        .isEqualTo(parentValue + RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8 + "v");
   }
 
   @Test
@@ -426,6 +518,16 @@ public class TestRESTUtil {
         .hasMessage(errorMsg);
 
     assertThatThrownBy(() -> RESTUtil.namespaceFromQueryParam("namespace", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    List<TableIdentifier> chain =
+        ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "viewName"));
+    assertThatThrownBy(() -> RESTUtil.encodeReferencedBy(chain, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.encodeReferencedBy(chain, ""))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(errorMsg);
   }

@@ -21,9 +21,14 @@ package org.apache.iceberg.rest;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hc.core5.net.PercentCodec;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -435,5 +440,46 @@ public class RESTUtil {
    */
   public static Map<String, String> idempotencyHeaders() {
     return ImmutableMap.of(IDEMPOTENCY_KEY_HEADER, UUIDUtil.generateUuidV7().toString());
+  }
+
+  /** Query parameters for the loadCredentials endpoint, from client-side request context. */
+  public static Map<String, String> credentialsQueryParams(Map<String, String> properties) {
+    ImmutableMap.Builder<String, String> queryParams = ImmutableMap.builder();
+    String planId = properties.get(RESTCatalogProperties.REST_SCAN_PLAN_ID);
+    if (planId != null) {
+      queryParams.put(RESTCatalogProperties.PLAN_ID_QUERY_PARAMETER, planId);
+    }
+
+    String referencedBy = properties.get(RESTCatalogProperties.REST_REFERENCED_BY);
+    if (referencedBy != null) {
+      queryParams.put(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, referencedBy);
+    }
+
+    return queryParams.build();
+  }
+
+  /**
+   * Encodes a view chain (outermost first) as the {@code referenced-by} value.
+   *
+   * <p>Within an entry, the namespace levels and the view name are encoded like the {@code parent}
+   * query parameter, as the spec requires, and joined by the namespace separator as-is; entries are
+   * joined by a literal comma. The result is already percent-encoded and must reach the wire
+   * verbatim, see {@link HTTPRequest#requestUri()}.
+   */
+  static String encodeReferencedBy(List<TableIdentifier> referencedBy, String namespaceSeparator) {
+    if (referencedBy == null || referencedBy.isEmpty()) {
+      return null;
+    }
+
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(namespaceSeparator), "Invalid separator: null or empty");
+
+    return referencedBy.stream()
+        .map(
+            ident ->
+                Stream.concat(Arrays.stream(ident.namespace().levels()), Stream.of(ident.name()))
+                    .map(level -> PercentCodec.encode(level, StandardCharsets.UTF_8))
+                    .collect(Collectors.joining(namespaceSeparator)))
+        .collect(Collectors.joining(","));
   }
 }
