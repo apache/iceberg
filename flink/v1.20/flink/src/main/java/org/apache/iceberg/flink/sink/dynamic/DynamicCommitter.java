@@ -114,9 +114,9 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     /*
       Group the incoming commit requests into a three-level structure before committing:
 
-        Map<TableKey, Map<JobOperatorKey, NavigableMap<Long, List<CommitRequest>>>>
+        Map<TableKey, Map<JobOperatorKey, NavigableMap<Long, CommitRequest>>>
               |              |                  |              |
-              |              |                  |              +-- commit requests at that checkpoint
+              |              |                  |              +-- commit request at that checkpoint
               |              |                  +-- checkpointId, sorted ascending so older commits go first
               |              +-- (jobId, operatorId) of the producing aggregator; deduplication against the
               |                  table's snapshot summaries is per (jobId, operatorId), so each group is
@@ -125,26 +125,26 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
       Each (table, branch, checkpoint) triplet must have only one commit request.
       There may be commit requests from previous checkpoints which have not been committed yet.
-
-      We currently keep a List of commit requests per checkpoint instead of a single CommitRequest<DynamicCommittable>
-      to process the Flink state from previous releases, which had multiple commit requests created by the upstream
-      DynamicWriteResultAggregator. Iceberg 1.12 will remove this, and users should upgrade to the 1.11 release first
-      to migrate their state to a single commit request per checkpoint.
     */
-    Map<TableKey, Map<JobOperatorKey, NavigableMap<Long, List<CommitRequest<DynamicCommittable>>>>>
+    Map<TableKey, Map<JobOperatorKey, NavigableMap<Long, CommitRequest<DynamicCommittable>>>>
         commitRequestMap = Maps.newHashMap();
     for (CommitRequest<DynamicCommittable> request : commitRequests) {
       DynamicCommittable committable = request.getCommittable();
-      commitRequestMap
-          .computeIfAbsent(committable.key(), unused -> Maps.newHashMap())
-          .computeIfAbsent(new JobOperatorKey(committable), unused -> Maps.newTreeMap())
-          .computeIfAbsent(committable.checkpointId(), unused -> Lists.newArrayList())
-          .add(request);
+      CommitRequest<DynamicCommittable> previous =
+          commitRequestMap
+              .computeIfAbsent(committable.key(), unused -> Maps.newHashMap())
+              .computeIfAbsent(new JobOperatorKey(committable), unused -> Maps.newTreeMap())
+              .put(committable.checkpointId(), request);
+      Preconditions.checkState(
+          previous == null,
+          "Received multiple commit requests for table %s branch %s at checkpoint %s",
+          committable.key().tableName(),
+          committable.key().branch(),
+          committable.checkpointId());
     }
 
     for (Map.Entry<
-            TableKey,
-            Map<JobOperatorKey, NavigableMap<Long, List<CommitRequest<DynamicCommittable>>>>>
+            TableKey, Map<JobOperatorKey, NavigableMap<Long, CommitRequest<DynamicCommittable>>>>
         tableEntry : commitRequestMap.entrySet()) {
       TableKey tableKey = tableEntry.getKey();
       Table table = catalog.loadTable(TableIdentifier.parse(tableKey.tableName()));
@@ -154,7 +154,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
               ? SnapshotUtil.ancestorsOf(latestSnapshot.snapshotId(), table::snapshot)
               : List.of();
 
-      List<Map.Entry<JobOperatorKey, NavigableMap<Long, List<CommitRequest<DynamicCommittable>>>>>
+      List<Map.Entry<JobOperatorKey, NavigableMap<Long, CommitRequest<DynamicCommittable>>>>
           jobEntries = Lists.newArrayList(tableEntry.getValue().entrySet());
       // Preserve checkpoint order across groups so that older-jobId commits land before newer-jobId
       // ones when the batch mixes committables from different jobIds (e.g. state replay after a
@@ -162,22 +162,20 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       // the inner NavigableMap.
       jobEntries.sort(Comparator.comparingLong(entry -> entry.getValue().firstKey()));
 
-      for (Map.Entry<JobOperatorKey, NavigableMap<Long, List<CommitRequest<DynamicCommittable>>>>
+      for (Map.Entry<JobOperatorKey, NavigableMap<Long, CommitRequest<DynamicCommittable>>>
           jobEntry : jobEntries) {
         JobOperatorKey jobKey = jobEntry.getKey();
         long maxCommittedCheckpointId =
             getMaxCommittedCheckpointId(ancestors, jobKey.jobId(), jobKey.operatorId());
 
-        NavigableMap<Long, List<CommitRequest<DynamicCommittable>>> skippedCommitRequests =
+        NavigableMap<Long, CommitRequest<DynamicCommittable>> skippedCommitRequests =
             jobEntry.getValue().headMap(maxCommittedCheckpointId, true);
         LOG.debug(
             "Skipping {} commit requests: {}", skippedCommitRequests.size(), skippedCommitRequests);
         // Mark the already committed FilesCommittable(s) as finished
-        skippedCommitRequests
-            .values()
-            .forEach(list -> list.forEach(CommitRequest::signalAlreadyCommitted));
+        skippedCommitRequests.values().forEach(CommitRequest::signalAlreadyCommitted);
 
-        NavigableMap<Long, List<CommitRequest<DynamicCommittable>>> uncommitted =
+        NavigableMap<Long, CommitRequest<DynamicCommittable>> uncommitted =
             jobEntry.getValue().tailMap(maxCommittedCheckpointId, false);
         if (!uncommitted.isEmpty()) {
           commitPendingRequests(
@@ -222,24 +220,22 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
   private void commitPendingRequests(
       Table table,
       String branch,
-      NavigableMap<Long, List<CommitRequest<DynamicCommittable>>> commitRequestMap,
+      NavigableMap<Long, CommitRequest<DynamicCommittable>> commitRequestMap,
       String newFlinkJobId,
       String operatorId)
       throws IOException {
     long checkpointId = commitRequestMap.lastKey();
     List<ManifestFile> manifests = Lists.newArrayList();
     NavigableMap<Long, List<WriteResult>> pendingResults = Maps.newTreeMap();
-    for (Map.Entry<Long, List<CommitRequest<DynamicCommittable>>> e : commitRequestMap.entrySet()) {
-      for (CommitRequest<DynamicCommittable> committable : e.getValue()) {
-        for (byte[] manifest : committable.getCommittable().manifests()) {
-          DeltaManifests deltaManifests =
-              SimpleVersionedSerialization.readVersionAndDeSerialize(
-                  DeltaManifestsSerializer.INSTANCE, manifest);
-          pendingResults
-              .computeIfAbsent(e.getKey(), unused -> Lists.newArrayList())
-              .add(FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs()));
-          manifests.addAll(deltaManifests.manifests());
-        }
+    for (Map.Entry<Long, CommitRequest<DynamicCommittable>> e : commitRequestMap.entrySet()) {
+      for (byte[] manifest : e.getValue().getCommittable().manifests()) {
+        DeltaManifests deltaManifests =
+            SimpleVersionedSerialization.readVersionAndDeSerialize(
+                DeltaManifestsSerializer.INSTANCE, manifest);
+        pendingResults
+            .computeIfAbsent(e.getKey(), unused -> Lists.newArrayList())
+            .add(FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs()));
+        manifests.addAll(deltaManifests.manifests());
       }
     }
 

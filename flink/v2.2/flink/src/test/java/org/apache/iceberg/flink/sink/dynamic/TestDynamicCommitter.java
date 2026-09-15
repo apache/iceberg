@@ -633,17 +633,17 @@ class TestDynamicCommitter {
 
     byte[][] deltaManifests1 =
         aggregator.writeToManifests(tableKey1.tableName(), WRITE_RESULT_BY_SPEC, checkpointId1);
-
-    CommitRequest<DynamicCommittable> commitRequest1 =
-        new MockCommitRequest<>(
-            new DynamicCommittable(tableKey1, deltaManifests1, jobId, operatorId, checkpointId1));
-
     byte[][] deltaManifests2 =
         aggregator.writeToManifests(tableKey1.tableName(), WRITE_RESULT_BY_SPEC_2, checkpointId1);
 
-    CommitRequest<DynamicCommittable> commitRequest2 =
+    byte[][] deltaManifests = new byte[deltaManifests1.length + deltaManifests2.length][];
+    System.arraycopy(deltaManifests1, 0, deltaManifests, 0, deltaManifests1.length);
+    System.arraycopy(
+        deltaManifests2, 0, deltaManifests, deltaManifests1.length, deltaManifests2.length);
+
+    CommitRequest<DynamicCommittable> commitRequest1 =
         new MockCommitRequest<>(
-            new DynamicCommittable(tableKey1, deltaManifests2, jobId, operatorId, checkpointId1));
+            new DynamicCommittable(tableKey1, deltaManifests, jobId, operatorId, checkpointId1));
 
     byte[][] deltaManifests3 =
         aggregator.writeToManifests(tableKey2.tableName(), WRITE_RESULT_BY_SPEC_2, checkpointId2);
@@ -666,7 +666,7 @@ class TestDynamicCommitter {
             sinkId,
             committerMetrics);
 
-    dynamicCommitter.commit(Sets.newHashSet(commitRequest1, commitRequest2, commitRequest3));
+    dynamicCommitter.commit(Sets.newHashSet(commitRequest1, commitRequest3));
 
     table.refresh();
     // Two committables, one for each snapshot / table / branch.
@@ -872,17 +872,17 @@ class TestDynamicCommitter {
 
     byte[][] deltaManifest1 =
         aggregator.writeToManifests(tableKey.tableName(), WRITE_RESULT_BY_SPEC, checkpointId);
-
-    CommitRequest<DynamicCommittable> commitRequest1 =
-        new MockCommitRequest<>(
-            new DynamicCommittable(tableKey, deltaManifest1, jobId, operatorId, checkpointId));
-
     byte[][] deltaManifest2 =
         aggregator.writeToManifests(tableKey.tableName(), WRITE_RESULT_BY_SPEC_2, checkpointId);
 
-    CommitRequest<DynamicCommittable> commitRequest2 =
+    byte[][] deltaManifests = new byte[deltaManifest1.length + deltaManifest2.length][];
+    System.arraycopy(deltaManifest1, 0, deltaManifests, 0, deltaManifest1.length);
+    System.arraycopy(
+        deltaManifest2, 0, deltaManifests, deltaManifest1.length, deltaManifest2.length);
+
+    CommitRequest<DynamicCommittable> commitRequest =
         new MockCommitRequest<>(
-            new DynamicCommittable(tableKey, deltaManifest2, jobId, operatorId, checkpointId));
+            new DynamicCommittable(tableKey, deltaManifests, jobId, operatorId, checkpointId));
 
     boolean overwriteMode = false;
     int workerPoolSize = 1;
@@ -898,7 +898,7 @@ class TestDynamicCommitter {
             sinkId,
             committerMetrics);
 
-    dynamicCommitter.commit(Sets.newHashSet(commitRequest1, commitRequest2));
+    dynamicCommitter.commit(Sets.newHashSet(commitRequest));
 
     table.refresh();
     assertThat(table.snapshots()).hasSize(1);
