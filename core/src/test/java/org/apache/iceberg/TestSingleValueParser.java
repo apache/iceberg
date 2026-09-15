@@ -44,7 +44,9 @@ public class TestSingleValueParser {
 
     assertThat(parsed).isEqualTo(value);
     assertThat(SingleValueParser.toJson(type, parsed)).isEqualTo(json);
-    assertThatThrownBy(parsed::clear).isInstanceOf(UnsupportedOperationException.class);
+    assertThatThrownBy(parsed::clear)
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage(null);
   }
 
   @Test
