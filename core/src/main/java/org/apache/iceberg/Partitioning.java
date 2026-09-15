@@ -379,15 +379,14 @@ public class Partitioning {
   private static Set<Integer> commonActiveFieldIds(Schema schema, Collection<PartitionSpec> specs) {
     Set<Integer> commonActiveFieldIds = Sets.newHashSet();
 
-    int specIndex = 0;
+    boolean first = true;
     for (PartitionSpec spec : specs) {
-      if (specIndex == 0) {
+      if (first) {
         commonActiveFieldIds.addAll(activeFieldIds(schema, spec));
+        first = false;
       } else {
         commonActiveFieldIds.retainAll(activeFieldIds(schema, spec));
       }
-
-      specIndex++;
     }
 
     return commonActiveFieldIds;
