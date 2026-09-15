@@ -34,11 +34,13 @@ import org.apache.flink.table.catalog.exceptions.DatabaseAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.connector.sink.DynamicTableSink;
 import org.apache.flink.table.connector.source.DynamicTableSource;
+import org.apache.flink.table.connector.source.lookup.LookupOptions;
 import org.apache.flink.table.factories.DynamicTableSinkFactory;
 import org.apache.flink.table.factories.DynamicTableSourceFactory;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.flink.source.IcebergTableSource;
+import org.apache.iceberg.flink.source.lookup.IcebergLookupOptions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -132,6 +134,12 @@ public class FlinkDynamicTableFactory
     options.add(FlinkCreateTableOptions.CATALOG_TABLE);
     options.add(FlinkCreateTableOptions.USE_DYNAMIC_ICEBERG_SINK);
     options.add(FlinkCreateTableOptions.DYNAMIC_RECORD_GENERATOR_IMPL);
+    options.add(LookupOptions.CACHE_TYPE);
+    options.add(LookupOptions.FULL_CACHE_PERIODIC_RELOAD_INTERVAL);
+    options.add(IcebergLookupOptions.FULL_CACHE_BACKEND);
+    options.add(IcebergLookupOptions.ROCKSDB_CACHE_DIR);
+    options.add(IcebergLookupOptions.FULL_CACHE_EAGER_LOAD);
+    options.add(IcebergLookupOptions.RELOAD_FAILURE_POLICY);
     return options;
   }
 

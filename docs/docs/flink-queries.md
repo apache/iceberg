@@ -92,6 +92,79 @@ SELECT * FROM table /*+ OPTIONS('tag'='t1') */;
 SELECT * FROM table /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'start-tag'='t1', 'end-tag'='t2') */;
 ```
 
+### Lookup Join
+
+Iceberg supports Flink lookup join, which enriches a stream with data from an Iceberg dimension table:
+
+```sql
+-- The OPTIONS hint used in this section requires dynamic table options, which are disabled by default.
+SET table.dynamic-table-options.enabled=true;
+
+SELECT o.order_id, o.user_id, u.name, u.city
+FROM orders AS o
+LEFT JOIN iceberg_catalog.db.user_dim
+  FOR SYSTEM_TIME AS OF o.proc_time AS u
+  ON o.user_id = u.user_id;
+```
+
+The `SET` statement above is session scoped: it enables the `OPTIONS` hint for every example in this section.
+
+Iceberg implements lookup join with a full cache: the whole projected dimension table is loaded into the cache and every lookup is served from it, never falling back to the table. The cache is loaded on the first lookup by default, which blocks that probe row for the duration of the load; set `lookup.full-cache.eager-load` to `true` to load the cache when the lookup function is opened instead, so that no probe row is blocked on the table load.
+
+The cache can be refreshed in the background with the `lookup.full-cache.periodic-reload.interval` option:
+
+```sql
+SELECT o.order_id, o.user_id, u.name, u.city
+FROM orders AS o
+LEFT JOIN iceberg_catalog.db.user_dim
+  /*+ OPTIONS('lookup.full-cache.periodic-reload.interval'='10min') */
+  FOR SYSTEM_TIME AS OF o.proc_time AS u
+  ON o.user_id = u.user_id;
+```
+
+Each load reads one pinned snapshot, so a load never mixes rows from different commits. The snapshot the current cache was loaded from is reported in the `snapshotId` metric and in the lookup function's log.
+
+By default the full cache is kept in memory (`lookup.full-cache.backend=memory`). For dimension tables that are too large to fit on the TaskManager heap, `lookup.full-cache.backend=rocksdb` keeps the cache on the TaskManager local disk instead:
+
+```sql
+SELECT o.order_id, o.user_id, u.name, u.city
+FROM orders AS o
+LEFT JOIN iceberg_catalog.db.user_dim
+  /*+ OPTIONS('lookup.full-cache.backend'='rocksdb', 'lookup.full-cache.rocksdb.dir'='/data/flink/iceberg-lookup') */
+  FOR SYSTEM_TIME AS OF o.proc_time AS u
+  ON o.user_id = u.user_id;
+```
+
+`lookup.full-cache.rocksdb.dir` is required when `lookup.full-cache.backend=rocksdb`. It is a base directory: each operator instance creates its own sub-directory under it and removes it when the lookup function is closed, so point it at a directory on the TaskManager data disk with enough space for the dimension table.
+
+The RocksDB backend uses the `org.rocksdb` classes provided by the cluster. Flink distributions ship them in `$FLINK_HOME/lib` (as `frocksdbjni-*.jar`, required by the RocksDB state backend), so no extra jar is needed. Do not add another `org.rocksdb` jar to `$FLINK_HOME/lib`: `org.rocksdb` is a parent-first package, so a second copy would either be ignored or replace the implementation used by Flink's own RocksDB state backend. Check it with `ls $FLINK_HOME/lib | grep -i rocksdb`, which should show exactly one jar.
+
+#### Lookup cache options
+
+| Option                                      | Default      | Description                                                                                                                                                       |
+| ------------------------------------------- |--------------| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| lookup.cache                                |              | Iceberg lookup join always uses a full cache, so only `FULL` is accepted. `NONE` and `PARTIAL` are rejected, because an Iceberg table cannot be point-looked-up. |
+| lookup.full-cache.backend                   | `memory`     | Storage backend of the full cache: `memory` or `rocksdb`.                                                                                                         |
+| lookup.full-cache.rocksdb.dir               |              | Base directory of the RocksDB cache. Required when the backend is `rocksdb`.                                                                                      |
+| lookup.full-cache.eager-load                | `false`      | Whether to load the cache when the lookup function is opened, instead of on the first lookup.                                                                     |
+| lookup.full-cache.periodic-reload.interval  |              | Background refresh interval of the full cache. If unset, the cache is loaded once and never refreshed.                                                            |
+| lookup.full-cache.reload-failure-policy     | `KEEP_STALE` | What to do when a background refresh fails: `KEEP_STALE` keeps serving the previous cache, `FAIL` fails the job on the next lookup.                               |
+
+#### Lookup cache metrics
+
+The lookup function reports the following metrics under the `icebergLookupCache` group:
+
+| Metric                       | Type    | Description                                                                    |
+| ---------------------------- | ------- | ------------------------------------------------------------------------------ |
+| cacheHit                     | Counter | Lookups that were served from the cache.                                       |
+| cacheMiss                    | Counter | Lookups that found no rows for the key.                                        |
+| reloadSuccess                | Counter | Successful cache loads, including the initial one.                             |
+| reloadFailure                | Counter | Failed cache loads.                                                            |
+| consecutiveReloadFailures    | Gauge   | Failed loads since the last successful one.                                    |
+| snapshotId                   | Gauge   | Snapshot the current cache was loaded from, or `-1` if it has not been loaded. |
+| lastReloadTimeMs             | Gauge   | Timestamp of the last successful load, or `-1`.                                |
+| cachedRows                   | Gauge   | Number of rows in the current cache.                                           |
+
 ## Reading with DataStream
 
 Iceberg support streaming or batch read in Java API now.

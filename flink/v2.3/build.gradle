@@ -69,6 +69,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
     implementation libs.datasketches
     implementation libs.roaringbitmap
+    compileOnly libs.rocksdbjni
 
     testImplementation libs.flink23.connector.test.utils
     testImplementation libs.flink23.core
@@ -125,6 +126,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     testImplementation libs.awaitility
     testImplementation libs.assertj.core
     testImplementation libs.sqlite.jdbc
+    testImplementation libs.rocksdbjni
   }
 
   test {
