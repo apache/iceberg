@@ -23,9 +23,11 @@ import com.google.api.client.util.Maps;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +46,7 @@ import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsPreSigning;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -51,6 +54,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.rest.RemoteSigningClient;
+import org.apache.iceberg.rest.requests.ImmutableRemoteSignRequest;
+import org.apache.iceberg.rest.requests.RemoteSignRequest;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.apache.iceberg.util.ThreadPools;
@@ -69,7 +75,7 @@ import org.slf4j.LoggerFactory;
  * <p>See <a href="https://cloud.google.com/storage/docs/folders#overview">Cloud Storage
  * Overview</a>
  */
-public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
+public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials, SupportsPreSigning {
   private static final Logger LOG = LoggerFactory.getLogger(GCSFileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
@@ -84,6 +90,7 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
   private transient volatile Map<String, PrefixedStorage> storageByPrefix;
   private transient volatile ScheduledFuture<?> refreshFuture;
+  private transient volatile RemoteSigningClient signingClient;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -115,6 +122,32 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   @Override
   public OutputFile newOutputFile(String path) {
     return GCSOutputFile.fromLocation(path, clientForStoragePath(path), metrics);
+  }
+
+  @Override
+  public Map<String, URI> preSign(Collection<String> paths) {
+    return signingClient().preSign(paths, this::remoteSignRequest);
+  }
+
+  private RemoteSignRequest remoteSignRequest(String path) {
+    return ImmutableRemoteSignRequest.builder()
+        .method("GET")
+        .region("") // required by the request schema; Cloud Storage has no region
+        .uri(URI.create(path))
+        .provider(ROOT_STORAGE_PREFIX)
+        .build();
+  }
+
+  private RemoteSigningClient signingClient() {
+    if (null == signingClient) {
+      synchronized (this) {
+        if (null == signingClient) {
+          this.signingClient = RemoteSigningClient.create(properties);
+        }
+      }
+    }
+
+    return signingClient;
   }
 
   @SuppressWarnings("resource")
@@ -284,6 +317,10 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
       if (refreshFuture != null) {
         refreshFuture.cancel(true);
         refreshFuture = null;
+      }
+      if (signingClient != null) {
+        signingClient.close();
+        this.signingClient = null;
       }
     }
   }
