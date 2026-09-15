@@ -38,6 +38,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.FileIdentifier;
 import org.apache.iceberg.actions.FileURI;
 import org.apache.iceberg.actions.ImmutableDeleteOrphanFiles;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -118,6 +119,9 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private static final int MAX_EXECUTOR_LISTING_DEPTH = 2000;
   private static final int MAX_EXECUTOR_LISTING_DIRECT_SUB_DIRS = Integer.MAX_VALUE;
   private static final int DELETE_GROUP_SIZE = 100000;
+  private static final Encoder<FileIdentifier> FILE_IDENTIFIER_ENCODER =
+      Encoders.bean(FileIdentifier.class);
+  private static final Encoder<FileURI> FILE_URI_ENCODER = Encoders.bean(FileURI.class);
 
   private final SerializableConfiguration hadoopConf;
   private final int listingParallelism;
@@ -131,7 +135,6 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Consumer<String> deleteFunc = null;
   private ExecutorService deleteExecutorService = null;
   private boolean usePrefixListing = false;
-  private static final Encoder<FileURI> FILE_URI_ENCODER = Encoders.bean(FileURI.class);
 
   DeleteOrphanFilesSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -255,7 +258,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
   private DeleteOrphanFiles.Result doExecute() {
     Dataset<FileURI> actualFileIdentDS = actualFileIdentDS();
-    Dataset<FileURI> validFileIdentDS = validFileIdentDS();
+    Dataset<FileIdentifier> validFileIdentDS = validFileIdentDS();
 
     Dataset<String> orphanFileDS =
         findOrphanFiles(actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
@@ -349,7 +352,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   @VisibleForTesting
   static Dataset<String> findOrphanFiles(
       Dataset<FileURI> actualFileIdentDS,
-      Dataset<FileURI> validFileIdentDS,
+      Dataset<FileIdentifier> validFileIdentDS,
       PrefixMismatchMode prefixMismatchMode) {
 
     SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
@@ -388,14 +391,17 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
   }
 
-  private Dataset<FileURI> validFileIdentDS() {
+  @VisibleForTesting
+  Dataset<FileIdentifier> validFileIdentDS() {
     // transform before union to avoid extra serialization/deserialization
-    FileInfoToFileURI toFileURI = new FileInfoToFileURI(equalSchemes, equalAuthorities);
+    FileInfoToFileIdentifier toFileIdentifier =
+        new FileInfoToFileIdentifier(equalSchemes, equalAuthorities);
 
-    Dataset<FileURI> contentFileIdentDS = toFileURI.apply(contentFileDS(table));
-    Dataset<FileURI> manifestFileIdentDS = toFileURI.apply(manifestDS(table));
-    Dataset<FileURI> manifestListIdentDS = toFileURI.apply(manifestListDS(table));
-    Dataset<FileURI> otherMetadataFileIdentDS = toFileURI.apply(otherMetadataFileDS(table));
+    Dataset<FileIdentifier> contentFileIdentDS = toFileIdentifier.apply(contentFileDS(table));
+    Dataset<FileIdentifier> manifestFileIdentDS = toFileIdentifier.apply(manifestDS(table));
+    Dataset<FileIdentifier> manifestListIdentDS = toFileIdentifier.apply(manifestListDS(table));
+    Dataset<FileIdentifier> otherMetadataFileIdentDS =
+        toFileIdentifier.apply(otherMetadataFileDS(table));
 
     return contentFileIdentDS
         .union(manifestFileIdentDS)
@@ -524,7 +530,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   private static class FindOrphanFiles
-      implements MapPartitionsFunction<Tuple2<FileURI, FileURI>, String> {
+      implements MapPartitionsFunction<Tuple2<FileURI, FileIdentifier>, String> {
 
     private final PrefixMismatchMode mode;
     private final SetAccumulator<Pair<String, String>> conflicts;
@@ -535,14 +541,14 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
 
     @Override
-    public Iterator<String> call(Iterator<Tuple2<FileURI, FileURI>> rows) throws Exception {
+    public Iterator<String> call(Iterator<Tuple2<FileURI, FileIdentifier>> rows) throws Exception {
       Iterator<String> orphanFiles = Iterators.transform(rows, this::toOrphanFile);
       return Iterators.filter(orphanFiles, Objects::nonNull);
     }
 
-    private String toOrphanFile(Tuple2<FileURI, FileURI> row) {
+    private String toOrphanFile(Tuple2<FileURI, FileIdentifier> row) {
       FileURI actual = row._1;
-      FileURI valid = row._2;
+      FileIdentifier valid = row._2;
 
       if (valid == null) {
         return actual.getUriAsString();
@@ -568,56 +574,77 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   @VisibleForTesting
-  static class StringToFileURI extends ToFileURI<String> {
+  static class StringToFileURI extends ToFileIdentifier<String, FileURI> {
     StringToFileURI(Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
-      super(equalSchemes, equalAuthorities);
+      super(equalSchemes, equalAuthorities, FILE_URI_ENCODER);
     }
 
     @Override
     protected String uriAsString(String input) {
       return input;
     }
+
+    @Override
+    protected FileURI newFileIdentifier(
+        String scheme, String authority, String path, String uriAsString) {
+      return new FileURI(scheme, authority, path, uriAsString);
+    }
   }
 
-  @VisibleForTesting
-  static class FileInfoToFileURI extends ToFileURI<FileInfo> {
-    FileInfoToFileURI(Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
-      super(equalSchemes, equalAuthorities);
+  private static class FileInfoToFileIdentifier extends ToFileIdentifier<FileInfo, FileIdentifier> {
+    FileInfoToFileIdentifier(
+        Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
+      super(equalSchemes, equalAuthorities, FILE_IDENTIFIER_ENCODER);
     }
 
     @Override
     protected String uriAsString(FileInfo fileInfo) {
       return fileInfo.getPath();
     }
+
+    @Override
+    protected FileIdentifier newFileIdentifier(
+        String scheme, String authority, String path, String uriAsString) {
+      return new FileIdentifier(scheme, authority, path);
+    }
   }
 
-  private abstract static class ToFileURI<I> implements MapPartitionsFunction<I, FileURI> {
+  private abstract static class ToFileIdentifier<I, O extends FileIdentifier>
+      implements MapPartitionsFunction<I, O> {
 
-    private final Map<String, String> equalSchemes;
+    private final Encoder<O> encoder;
     private final Map<String, String> equalAuthorities;
+    private final Map<String, String> equalSchemes;
 
-    ToFileURI(Map<String, String> equalSchemes, Map<String, String> equalAuthorities) {
+    ToFileIdentifier(
+        Map<String, String> equalSchemes,
+        Map<String, String> equalAuthorities,
+        Encoder<O> encoder) {
       this.equalSchemes = equalSchemes;
       this.equalAuthorities = equalAuthorities;
+      this.encoder = encoder;
     }
 
     protected abstract String uriAsString(I input);
 
-    Dataset<FileURI> apply(Dataset<I> ds) {
-      return ds.mapPartitions(this, FILE_URI_ENCODER);
+    protected abstract O newFileIdentifier(
+        String scheme, String authority, String path, String uriAsString);
+
+    Dataset<O> apply(Dataset<I> ds) {
+      return ds.mapPartitions(this, encoder);
     }
 
     @Override
-    public Iterator<FileURI> call(Iterator<I> rows) throws Exception {
-      return Iterators.transform(rows, this::toFileURI);
+    public Iterator<O> call(Iterator<I> rows) throws Exception {
+      return Iterators.transform(rows, this::toFileIdentifier);
     }
 
-    private FileURI toFileURI(I input) {
+    private O toFileIdentifier(I input) {
       String uriAsString = uriAsString(input);
       URI uri = new Path(uriAsString).toUri();
       String scheme = equalSchemes.getOrDefault(uri.getScheme(), uri.getScheme());
       String authority = equalAuthorities.getOrDefault(uri.getAuthority(), uri.getAuthority());
-      return new FileURI(scheme, authority, uri.getPath(), uriAsString);
+      return newFileIdentifier(scheme, authority, uri.getPath(), uriAsString);
     }
   }
 }
