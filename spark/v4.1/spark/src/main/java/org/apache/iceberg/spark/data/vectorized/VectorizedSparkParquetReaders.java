@@ -126,5 +126,10 @@ public class VectorizedSparkParquetReaders {
           SparkUtil::internalToSpark,
           bufferAllocator);
     }
+
+    @Override
+    protected boolean readsStructs() {
+      return true;
+    }
   }
 }

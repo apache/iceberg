@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.arrow.vectorized;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.arrow.memory.ArrowBuf;
@@ -47,6 +48,7 @@ import org.apache.iceberg.arrow.vectorized.parquet.VectorizedColumnIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -134,6 +136,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   public void setBatchSize(int batchSize) {
     this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
     this.vectorizedColumnIterator.setBatchSize(batchSize);
+  }
+
+  void registerStructPresence(NullabilityHolder structNulls, int structDefinitionLevel) {
+    vectorizedColumnIterator.addStructPresence(structNulls, structDefinitionLevel);
+  }
+
+  protected VectorizedArrowReader fileBackedLeaf() {
+    return vectorizedColumnIterator != null ? this : null;
   }
 
   @Override
@@ -384,6 +394,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         vectorizedColumnIterator.setRowGroupInfo(
             source.getPageReader(columnDescriptor),
             !ParquetUtil.hasNonDictionaryPages(chunkMetaData));
+  }
+
+  boolean columnInRowGroup(Map<ColumnPath, ColumnChunkMetaData> metadata) {
+    return columnDescriptor != null
+        && metadata.containsKey(ColumnPath.get(columnDescriptor.getPath()));
   }
 
   @Override
@@ -1055,6 +1070,12 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     }
 
     @Override
+    protected VectorizedArrowReader fileBackedLeaf() {
+      VectorizedArrowReader metadataLeaf = metadataReader.fileBackedLeaf();
+      return metadataLeaf != null ? metadataLeaf : valueReader.fileBackedLeaf();
+    }
+
+    @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
       VectorHolder reuseMetadata = null;
       VectorHolder reuseValue = null;
@@ -1091,6 +1112,126 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public String toString() {
       return "VectorizedVariantReader";
+    }
+  }
+
+  static class StructReader extends VectorizedArrowReader {
+    private final List<VectorizedReader<?>> childReaders;
+    private final int structDefinitionLevel;
+    private final VectorizedArrowReader presenceReader;
+    private NullabilityHolder structNulls;
+    private VectorHolder presenceReuse;
+    private boolean presenceAvailable;
+
+    StructReader(
+        Types.NestedField icebergField,
+        List<VectorizedReader<?>> childReaders,
+        int structDefinitionLevel) {
+      this(icebergField, childReaders, structDefinitionLevel, null);
+    }
+
+    StructReader(
+        Types.NestedField icebergField,
+        List<VectorizedReader<?>> childReaders,
+        int structDefinitionLevel,
+        VectorizedArrowReader presenceReader) {
+      super(icebergField);
+      this.childReaders = childReaders;
+      this.structDefinitionLevel = structDefinitionLevel;
+      this.presenceReader = presenceReader;
+    }
+
+    @Override
+    protected VectorizedArrowReader fileBackedLeaf() {
+      for (VectorizedReader<?> child : childReaders) {
+        if (child instanceof VectorizedArrowReader) {
+          VectorizedArrowReader leaf = ((VectorizedArrowReader) child).fileBackedLeaf();
+          if (leaf != null) {
+            return leaf;
+          }
+        }
+      }
+
+      // expose our presence leaf so an ancestor reuses it instead of double-reading the column
+      return presenceReader;
+    }
+
+    @Override
+    public VectorHolder read(VectorHolder reuse, int numValsToRead) {
+      if (structNulls != null) {
+        structNulls.reset();
+      }
+
+      if (presenceReader != null && presenceAvailable) {
+        // populate structNulls as a side effect of a value-column batch read; the values are unused
+        presenceReuse = presenceReader.read(presenceReuse, numValsToRead);
+      }
+
+      List<VectorHolder> reuseChildren = null;
+      if (reuse instanceof VectorHolder.StructVectorHolder) {
+        reuseChildren = ((VectorHolder.StructVectorHolder) reuse).childHolders();
+      }
+
+      List<VectorHolder> childHolders = Lists.newArrayListWithExpectedSize(childReaders.size());
+      for (int idx = 0; idx < childReaders.size(); idx++) {
+        VectorHolder reuseChild = reuseChildren == null ? null : reuseChildren.get(idx);
+        VectorizedArrowReader child = (VectorizedArrowReader) childReaders.get(idx);
+        childHolders.add(child.read(reuseChild, numValsToRead));
+      }
+
+      return new VectorHolder.StructVectorHolder(
+          icebergField(), numValsToRead, childHolders, structNulls);
+    }
+
+    @Override
+    public void setRowGroupInfo(
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+      for (VectorizedReader<?> child : childReaders) {
+        child.setRowGroupInfo(source, metadata);
+      }
+
+      // a partition-constant presence column is absent from the row group, so the struct is present
+      this.presenceAvailable = presenceReader != null && presenceReader.columnInRowGroup(metadata);
+      if (presenceAvailable) {
+        presenceReader.setRowGroupInfo(source, metadata);
+      }
+    }
+
+    @Override
+    public void setBatchSize(int batchSize) {
+      int resolvedBatchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
+      for (VectorizedReader<?> child : childReaders) {
+        child.setBatchSize(resolvedBatchSize);
+      }
+
+      if (presenceReader != null) {
+        presenceReader.setBatchSize(resolvedBatchSize);
+      }
+
+      if (structDefinitionLevel > 0) {
+        // per-row presence from a file leaf under the struct (child or shared presence leaf)
+        VectorizedArrowReader presenceLeaf = fileBackedLeaf();
+        if (presenceLeaf != null) {
+          this.structNulls = new NullabilityHolder(resolvedBatchSize);
+          presenceLeaf.registerStructPresence(structNulls, structDefinitionLevel);
+        }
+      }
+    }
+
+    @Override
+    public void close() {
+      for (VectorizedReader<?> child : childReaders) {
+        child.close();
+      }
+
+      if (presenceReader != null) {
+        presenceReader.close();
+      }
+    }
+
+    @Override
+    public String toString() {
+      return "StructReader(" + childReaders.size() + ")";
     }
   }
 }
