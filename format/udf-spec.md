@@ -130,6 +130,9 @@ separators that this format adds must not be followed by a space. Each type uses
 * Map: `map<key-type,value-type>` (e.g., `map<string,int>`)
 * Struct: `struct<name1:type1,name2:type2,...>` with field names and types (e.g., `struct<id:int,name:string>`)
 
+In a struct field name, `\`, `:`, `,`, `<`, and `>` must each be escaped with a preceding `\`. Without escaping, a
+field name that contains a separator would produce the same string as a different set of fields.
+
 Examples of complete definition-id signatures:
 
 * `int` – single int parameter
@@ -138,6 +141,7 @@ Examples of complete definition-id signatures:
 * `decimal(9, 2),geometry(srid: 3857)` – two parameterized parameters, each keeping its own spaces
 * `geometry(epsg:4326)` – a geometry parameter; CRS values are lowercased, so `geometry(EPSG:4326)` yields this id
 * `geometry(ogc:crs84)` – a geometry parameter declared as `geometry`, since canonical form always carries a CRS
+* `struct<a\:int\,b:int>` – one field named `a:int,b` of type int, distinct from `struct<a:int,b:int>`, which is two fields
 
 #### Specific Name
 
