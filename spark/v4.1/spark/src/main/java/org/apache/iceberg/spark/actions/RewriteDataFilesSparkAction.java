@@ -406,6 +406,31 @@ public class RewriteDataFilesSparkAction
         invalidKeys,
         runner.description());
 
+    // overlap is measured on the table sort order, which does not apply to curve-based rewrites
+    // such as zorder or hilbert, so the option is accepted for the sort strategy only
+    boolean curveRewrite =
+        runner instanceof SparkShufflingFileRewriteRunner
+            && !(runner instanceof SparkSortFileRewriteRunner);
+    Preconditions.checkArgument(
+        !(curveRewrite
+            && options().containsKey(SparkShufflingDataRewritePlanner.MIN_OVERLAP_DEPTH)),
+        "Cannot use '%s' with %s, it applies to the sort strategy only",
+        SparkShufflingDataRewritePlanner.MIN_OVERLAP_DEPTH,
+        runner.description());
+
+    // the overlap is measured on the table sort order, so a sort rewrite must write that order:
+    // otherwise the files selected by overlap would be rewritten on a different key, keep their
+    // overlap on the table key and be selected again on every run
+    if (runner instanceof SparkSortFileRewriteRunner
+        && options().containsKey(SparkShufflingDataRewritePlanner.MIN_OVERLAP_DEPTH)) {
+      SortOrder rewriteOrder = ((SparkSortFileRewriteRunner) runner).sortOrder();
+      Preconditions.checkArgument(
+          rewriteOrder.sameOrder(table.sortOrder()),
+          "Cannot use '%s' with a sort order other than the table sort order: %s",
+          SparkShufflingDataRewritePlanner.MIN_OVERLAP_DEPTH,
+          rewriteOrder);
+    }
+
     planner.init(options());
     runner.init(options());
 

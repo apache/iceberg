@@ -286,12 +286,31 @@ public class BinPackRewriteFilePlanner
     return deleteRatio >= deleteRatioThreshold;
   }
 
+  /**
+   * Names of the columns whose data file bounds are needed for file selection.
+   *
+   * <p>Column bounds are not read while planning by default, since keeping them for every file
+   * raises the memory needed to plan a rewrite. Subclasses that select files based on their values,
+   * rather than on their size or delete count, override this to request bounds for the columns they
+   * inspect — and only those, so file metadata stays small on wide schemas.
+   *
+   * @return the column names to read bounds for, or an empty set to read none
+   */
+  protected Set<String> columnsToIncludeStats() {
+    return ImmutableSet.of();
+  }
+
   private StructLikeMap<List<List<FileScanTask>>> planFileGroups() {
     TableScan scan =
         table().newScan().filter(filter).caseSensitive(caseSensitive).ignoreResiduals();
 
     if (snapshotId != null) {
       scan = scan.useSnapshot(snapshotId);
+    }
+
+    Set<String> statsColumns = columnsToIncludeStats();
+    if (!statsColumns.isEmpty()) {
+      scan = scan.includeColumnStats(statsColumns);
     }
 
     CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles();
