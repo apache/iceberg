@@ -43,10 +43,10 @@ public class TestTimestampLiteralConversions {
     assertThat(timestampNano.value()).isEqualTo(0L);
 
     timestamp = Literal.of("1969-12-31T23:59:59.999999999").to(Types.TimestampType.withoutZone());
-    assertThat(timestamp.value()).isEqualTo(0L);
+    assertThat(timestamp.value()).isEqualTo(-1L);
 
     timestampNano = timestamp.to(Types.TimestampNanoType.withoutZone());
-    assertThat(timestampNano.value()).isEqualTo(0L);
+    assertThat(timestampNano.value()).isEqualTo(-1000L);
 
     timestamp = Literal.of("1969-12-31T23:59:59.999999000").to(Types.TimestampType.withoutZone());
     assertThat(timestamp.value()).isEqualTo(-1L);
@@ -80,7 +80,7 @@ public class TestTimestampLiteralConversions {
 
     ts = Literal.of("1969-12-31T23:59:59.999999999").to(Types.TimestampType.withoutZone());
     dateOrdinal = (Integer) ts.to(Types.DateType.get()).value();
-    assertThat(dateOrdinal).isEqualTo(0).isEqualTo(DateTimeUtil.isoDateToDays("1970-01-01"));
+    assertThat(dateOrdinal).isEqualTo(DateTimeUtil.isoDateToDays("1969-12-31"));
 
     ts = Literal.of("1969-12-31T23:59:59.999999000").to(Types.TimestampType.withoutZone());
     dateOrdinal = (Integer) ts.to(Types.DateType.get()).value();
@@ -100,7 +100,7 @@ public class TestTimestampLiteralConversions {
 
     ts = Literal.of("1969-12-31T23:59:59.999999999").to(Types.TimestampType.withoutZone());
     dateOrdinal = (Integer) ts.to(Types.DateType.get()).value();
-    assertThat(dateOrdinal).isEqualTo(0);
+    assertThat(dateOrdinal).isEqualTo(DateTimeUtil.isoDateToDays("1969-12-31"));
 
     ts = Literal.of("1969-12-31T23:59:59.999999000").to(Types.TimestampType.withoutZone());
     dateOrdinal = (Integer) ts.to(Types.DateType.get()).value();
