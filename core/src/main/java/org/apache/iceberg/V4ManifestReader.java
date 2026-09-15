@@ -355,8 +355,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         projectedIds.add(TrackedFile.RECORD_COUNT.fieldId());
       }
 
-      // add the partition tuple only when it is needed to evaluate a partition filter
-      if (hasPartitionFilter) {
+      // read the partition as the full union tuple with spec_id so partition() can project it
+      if (hasPartitionFilter || projectedIds.contains(TrackedFile.PARTITION_ID)) {
         projectedIds.add(TrackedFile.SPEC_ID.fieldId());
         projectedIds.add(TrackedFile.PARTITION_ID);
         projectedIds.addAll(TypeUtil.getProjectedIds(unionPartitionType));

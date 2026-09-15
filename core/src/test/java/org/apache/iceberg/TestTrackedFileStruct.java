@@ -466,6 +466,40 @@ class TestTrackedFileStruct {
     assertThat(deserialized.equalityIds()).containsExactly(1, 2, 3);
   }
 
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  void materializedPartitionSurvivesSerialization(RoundTripSerializer<TrackedFileStruct> serializer)
+      throws Exception {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "category", Types.StringType.get()));
+    PartitionSpec idSpec =
+        PartitionSpec.builderFor(schema)
+            .withSpecId(0)
+            .add(1, 1000, "id", Transforms.identity())
+            .build();
+    PartitionSpec categorySpec =
+        PartitionSpec.builderFor(schema)
+            .withSpecId(1)
+            .add(2, 1001, "category", Transforms.identity())
+            .build();
+    Map<Integer, PartitionSpec> specsById =
+        ImmutableMap.of(idSpec.specId(), idSpec, categorySpec.specId(), categorySpec);
+
+    Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
+    PartitionData unionPartition = new PartitionData(unionType);
+    unionPartition.set(unionType.fields().indexOf(unionType.field("category")), "books");
+
+    TrackedFileStruct file = trackedFile(categorySpec.specId(), unionPartition);
+    file.setSpecsById(specsById);
+
+    // copy() materializes the projected spec-ordered partition; it must survive serialization even
+    // though specsById is transient and not serialized
+    TrackedFileStruct deserialized = serializer.apply((TrackedFileStruct) file.copy());
+    assertThat(deserialized.partition().get(0, CharSequence.class)).hasToString("books");
+  }
+
   private static int pos(String fieldName) {
     for (int i = 0; i < DEFAULT_FIELDS.size(); i += 1) {
       if (DEFAULT_FIELDS.get(i).name().equals(fieldName)) {

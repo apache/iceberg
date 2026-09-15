@@ -235,26 +235,27 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       return partitionData;
     }
 
-    PartitionSpec spec = specsById.get(specId);
-    if (spec == null) {
-      return partitionData;
-    }
-
-    Types.StructType specType = spec.partitionType();
-    if (partitionData.getPartitionType().equals(specType)) {
-      return partitionData;
-    }
-
-    return partitionProjection(specId, specType).wrap(partitionData);
+    StructProjection projection = partitionProjection(specId);
+    return projection != null ? projection.wrap(partitionData) : partitionData;
   }
 
-  private StructProjection partitionProjection(int id, Types.StructType specType) {
+  // Cached per spec ID; a null entry means the stored tuple already matches the spec.
+  private StructProjection partitionProjection(int id) {
     if (partitionProjections == null) {
       this.partitionProjections = Maps.newHashMap();
     }
 
-    return partitionProjections.computeIfAbsent(
-        id, ignored -> StructProjection.create(partitionData.getPartitionType(), specType));
+    if (!partitionProjections.containsKey(id)) {
+      PartitionSpec spec = specsById.get(id);
+      Types.StructType specType = spec != null ? spec.partitionType() : null;
+      partitionProjections.put(
+          id,
+          specType == null || partitionData.getPartitionType().equals(specType)
+              ? null
+              : StructProjection.create(partitionData.getPartitionType(), specType));
+    }
+
+    return partitionProjections.get(id);
   }
 
   // A standalone, spec-ordered copy of the partition, so a file copy is correct after
