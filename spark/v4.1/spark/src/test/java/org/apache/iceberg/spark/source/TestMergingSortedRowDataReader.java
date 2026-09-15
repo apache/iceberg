@@ -117,6 +117,21 @@ class TestMergingSortedRowDataReader extends TestBase {
   }
 
   @Test
+  void mergeWithCompositeSortKeyBreaksTiesOnSecondColumn() throws IOException {
+    table.replaceSortOrder().asc("id").asc("data").commit();
+
+    DataFile file1 = writeDataFile(record(1, "a"), record(2, "b"));
+    DataFile file2 = writeDataFile(record(1, "c"), record(2, "d"));
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    List<InternalRow> rows = readMerged(table);
+
+    assertThat(extractIds(rows)).containsExactly(1, 1, 2, 2);
+    assertThat(extractData(rows, 1)).containsExactly("a", "c", "b", "d");
+  }
+
+  @Test
   void mergeDescendingOrder() throws IOException {
     table.replaceSortOrder().desc("id").commit();
 
@@ -191,6 +206,31 @@ class TestMergingSortedRowDataReader extends TestBase {
 
     // Ordered by data, not by id.
     assertThat(extractData(rows, 1)).containsExactly("a", "b", "c", "d", "e", "f");
+  }
+
+  @Test
+  void mergeFilesWithDifferentWrittenSchemas() throws IOException {
+    DataFile file1 = writeDataFile(record(1, "a"), record(3, "c"));
+
+    table.updateSchema().addColumn("extra", Types.IntegerType.get()).commit();
+
+    Record record2 = GenericRecord.create(table.schema());
+    record2.setField("id", 2);
+    record2.setField("data", "b");
+    record2.setField("extra", 20);
+    Record record4 = GenericRecord.create(table.schema());
+    record4.setField("id", 4);
+    record4.setField("data", "d");
+    record4.setField("extra", 40);
+    DataFile file2 = writeDataFile(record2, record4);
+
+    table.newAppend().appendFile(file1).appendFile(file2).commit();
+
+    List<InternalRow> rows = readMerged(table);
+
+    assertThat(extractIds(rows)).containsExactly(1, 2, 3, 4);
+    List<Integer> extra = rows.stream().map(row -> row.isNullAt(2) ? null : row.getInt(2)).toList();
+    assertThat(extra).containsExactly(null, 20, null, 40);
   }
 
   @Test
