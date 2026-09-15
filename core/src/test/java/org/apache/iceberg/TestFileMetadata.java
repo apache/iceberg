@@ -24,31 +24,31 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
-public class TestFileMetadata {
+class TestFileMetadata {
 
   @Test
-  public void dvBuilderRejectsNegativeContentOffset() {
+  void dvBuilderRejectsNegativeContentOffset() {
     assertThatThrownBy(() -> validDvBuilder().withContentOffset(-1L).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Content offset must be non-negative for DV");
   }
 
   @Test
-  public void dvBuilderRejectsNegativeContentSize() {
+  void dvBuilderRejectsNegativeContentSize() {
     assertThatThrownBy(() -> validDvBuilder().withContentSizeInBytes(-1L).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Content size must be non-negative for DV");
   }
 
   @Test
-  public void dvBuilderRejectsContentSizeAtIntegerMax() {
+  void dvBuilderRejectsContentSizeAtIntegerMax() {
     assertThatThrownBy(() -> validDvBuilder().withContentSizeInBytes(Integer.MAX_VALUE).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("less than 2GB");
   }
 
   @Test
-  public void dvBuilderAcceptsValidOffsetAndSize() {
+  void dvBuilderAcceptsValidOffsetAndSize() {
     DeleteFile dv = validDvBuilder().withContentOffset(4L).withContentSizeInBytes(4096L).build();
 
     assertThat(dv.contentOffset()).isEqualTo(4L);
@@ -57,7 +57,7 @@ public class TestFileMetadata {
   }
 
   @Test
-  public void dvBuilderAcceptsZeroOffsetAndSize() {
+  void dvBuilderAcceptsZeroOffsetAndSize() {
     assertThatCode(() -> validDvBuilder().build()).doesNotThrowAnyException();
   }
 

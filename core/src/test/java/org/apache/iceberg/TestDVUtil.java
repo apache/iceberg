@@ -21,23 +21,35 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.stream.Stream;
+import org.apache.iceberg.io.FileIO;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public class TestDVUtil {
+class TestDVUtil {
 
   @ParameterizedTest
   @MethodSource("invalidDVs")
-  public void validateDVRejectsInvalidOffsetOrLength(
-      Long offset, Long length, String expectedMessage) {
+  void validateDVRejectsInvalidOffsetOrLength(Long offset, Long length, String expectedMessage) {
     DeleteFile dv = dv(offset, length);
     assertThatThrownBy(() -> DVUtil.validateDV(dv))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(expectedMessage);
+  }
+
+  @ParameterizedTest
+  @MethodSource("invalidDVs")
+  void readDVRejectsInvalidOffsetOrLength(Long offset, Long length, String expectedMessage) {
+    DeleteFile dv = dv(offset, length);
+    FileIO io = mock(FileIO.class);
+    assertThatThrownBy(() -> DVUtil.readDV(dv, io))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(expectedMessage);
+    verifyNoInteractions(io);
   }
 
   private static Stream<Arguments> invalidDVs() {
@@ -52,7 +64,7 @@ public class TestDVUtil {
 
   @ParameterizedTest
   @MethodSource("validDVs")
-  public void validateDVAcceptsValidOffsetAndLength(Long offset, Long length) {
+  void validateDVAcceptsValidOffsetAndLength(Long offset, Long length) {
     DeleteFile dv = dv(offset, length);
     assertThatCode(() -> DVUtil.validateDV(dv)).doesNotThrowAnyException();
   }
@@ -64,6 +76,7 @@ public class TestDVUtil {
 
   private static DeleteFile dv(Long offset, Long length) {
     DeleteFile dv = mock(DeleteFile.class);
+    when(dv.format()).thenReturn(FileFormat.PUFFIN);
     when(dv.location()).thenReturn("/tmp/test.puffin");
     when(dv.referencedDataFile()).thenReturn("/tmp/data.parquet");
     when(dv.contentOffset()).thenReturn(offset);
