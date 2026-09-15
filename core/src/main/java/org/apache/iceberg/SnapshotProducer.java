@@ -45,6 +45,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.events.CreateSnapshotEvent;
@@ -57,9 +58,12 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
+import org.apache.iceberg.metrics.CounterResult;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
+import org.apache.iceberg.metrics.ImmutableCommitMetricsResult;
 import org.apache.iceberg.metrics.ImmutableCommitReport;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -479,6 +483,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   public void commit() {
     // this is always set to the latest commit attempt's snapshot id.
     AtomicLong newSnapshotId = new AtomicLong(-1L);
+    // this is always set to the metadata file size written by the latest commit attempt, and stays
+    // null when the table operations implementation cannot report it
+    AtomicReference<Long> metadataFileSizeInBytes = new AtomicReference<>();
     try (Timed ignore = commitMetrics().totalDuration().start()) {
       try {
         Tasks.foreach(ops)
@@ -519,6 +526,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   // to ensure that if a concurrent operation assigns the UUID, this operation will
                   // not fail.
                   taskOps.commit(base, updated.withUUID());
+                  metadataFileSizeInBytes.set(taskOps.metadataFileSizeInBytes());
                 });
 
       } catch (CommitStateUnknownException commitStateUnknownException) {
@@ -563,13 +571,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
 
     try {
-      notifyListeners();
+      notifyListeners(metadataFileSizeInBytes.get());
     } catch (Throwable e) {
       LOG.warn("Failed to notify event listeners", e);
     }
   }
 
-  private void notifyListeners() {
+  private void notifyListeners(Long metadataFileSizeInBytes) {
     try {
       Object event = updateEvent();
       if (event != null) {
@@ -578,6 +586,17 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         if (event instanceof CreateSnapshotEvent) {
           CreateSnapshotEvent createSnapshotEvent = (CreateSnapshotEvent) event;
 
+          CommitMetricsResult commitMetricsResult =
+              CommitMetricsResult.from(commitMetrics(), createSnapshotEvent.summary());
+          if (metadataFileSizeInBytes != null) {
+            commitMetricsResult =
+                ImmutableCommitMetricsResult.builder()
+                    .from(commitMetricsResult)
+                    .metadataFileSizeInBytes(
+                        CounterResult.of(MetricsContext.Unit.BYTES, metadataFileSizeInBytes))
+                    .build();
+          }
+
           reporter.report(
               ImmutableCommitReport.builder()
                   .tableName(createSnapshotEvent.tableName())
@@ -585,8 +604,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   .operation(createSnapshotEvent.operation())
                   .sequenceNumber(createSnapshotEvent.sequenceNumber())
                   .metadata(EnvironmentContext.get())
-                  .commitMetrics(
-                      CommitMetricsResult.from(commitMetrics(), createSnapshotEvent.summary()))
+                  .commitMetrics(commitMetricsResult)
                   .build());
         }
       }
