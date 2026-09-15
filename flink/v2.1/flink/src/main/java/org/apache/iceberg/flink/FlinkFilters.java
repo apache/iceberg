@@ -34,6 +34,7 @@ import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.functions.FunctionDefinition;
+import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.Expressions;
@@ -246,21 +247,87 @@ public class FlinkFilters {
     org.apache.flink.table.expressions.Expression left = args.get(0);
     org.apache.flink.table.expressions.Expression right = args.get(1);
 
-    if (left instanceof FieldReferenceExpression && right instanceof ValueLiteralExpression) {
+    if (left instanceof FieldReferenceExpression) {
       String name = ((FieldReferenceExpression) left).getName();
-      Optional<Object> lit = convertLiteral((ValueLiteralExpression) right);
+      Optional<Object> lit = convertLiteral(right);
       if (lit.isPresent()) {
         return Optional.of(convertLR.apply(name, lit.get()));
       }
-    } else if (left instanceof ValueLiteralExpression
-        && right instanceof FieldReferenceExpression) {
-      Optional<Object> lit = convertLiteral((ValueLiteralExpression) left);
+    } else if (right instanceof FieldReferenceExpression) {
       String name = ((FieldReferenceExpression) right).getName();
+      Optional<Object> lit = convertLiteral(left);
       if (lit.isPresent()) {
         return Optional.of(convertRL.apply(name, lit.get()));
       }
     }
 
     return Optional.empty();
+  }
+
+  /**
+   * Resolves a literal value from either a plain literal or an explicit CAST of a literal (e.g.
+   * {@code CAST('NaN' AS DOUBLE)}), which Flink does not always constant-fold into a {@link
+   * ValueLiteralExpression} before filter pushdown runs.
+   */
+  private static Optional<Object> convertLiteral(
+      org.apache.flink.table.expressions.Expression expression) {
+    if (expression instanceof ValueLiteralExpression) {
+      return convertLiteral((ValueLiteralExpression) expression);
+    }
+
+    if (expression instanceof CallExpression) {
+      CallExpression call = (CallExpression) expression;
+      FunctionDefinition function = call.getFunctionDefinition();
+      List<ResolvedExpression> children = call.getResolvedChildren();
+      if ((BuiltInFunctionDefinitions.CAST.equals(function)
+              || BuiltInFunctionDefinitions.TRY_CAST.equals(function))
+          && !children.isEmpty()) {
+        return convertLiteral(children.get(0))
+            .flatMap(value -> coerceCastLiteral(value, call.getOutputDataType().getLogicalType()));
+      }
+    }
+
+    return Optional.empty();
+  }
+
+  /**
+   * Coerces a literal value to the type targeted by an explicit CAST. Only floating point targets
+   * are supported, since that is the standard SQL idiom for expressing NaN/Infinity literals; any
+   * other target type is left unconverted so the filter is safely skipped for pushdown rather than
+   * risk a mis-coerced predicate.
+   */
+  private static Optional<Object> coerceCastLiteral(Object value, LogicalType targetType) {
+    switch (targetType.getTypeRoot()) {
+      case DOUBLE:
+        if (value instanceof Double) {
+          return Optional.of(value);
+        } else if (value instanceof Number) {
+          return Optional.of(((Number) value).doubleValue());
+        } else if (value instanceof String) {
+          try {
+            return Optional.of(Double.parseDouble((String) value));
+          } catch (NumberFormatException e) {
+            return Optional.empty();
+          }
+        }
+        return Optional.empty();
+
+      case FLOAT:
+        if (value instanceof Float) {
+          return Optional.of(value);
+        } else if (value instanceof Number) {
+          return Optional.of(((Number) value).floatValue());
+        } else if (value instanceof String) {
+          try {
+            return Optional.of(Float.parseFloat((String) value));
+          } catch (NumberFormatException e) {
+            return Optional.empty();
+          }
+        }
+        return Optional.empty();
+
+      default:
+        return Optional.empty();
+    }
   }
 }
