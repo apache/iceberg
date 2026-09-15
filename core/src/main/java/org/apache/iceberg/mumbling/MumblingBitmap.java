@@ -46,8 +46,8 @@ class MumblingBitmap {
   private final ByteBuffer data;
   private final int cardinality;
   private final int containerCount;
-  private int[] descriptors = null;
-  private int[] offsets = null;
+  private volatile int[] descriptors = null;
+  private volatile int[] offsets = null;
 
   MumblingBitmap(ByteBuffer data) {
     int version = data.get(data.position()) & 0xFF;
@@ -134,12 +134,16 @@ class MumblingBitmap {
    * Decode the descriptor array and produce an array of absolute container offsets in the buffer.
    */
   private void decodeDescriptors() {
-    this.descriptors = new int[containerCount];
+    int[] descriptorArray = new int[containerCount];
     int bytesRead = PFOREncoding.decode(data, HEADER_SIZE, descriptors, 0, containerCount);
 
-    this.offsets = new int[containerCount + 1];
+    int[] offsetArray = new int[containerCount + 1];
     int firstContainerOffset = data.position() + HEADER_SIZE + bytesRead;
     descriptorsToOffsets(firstContainerOffset, descriptors, offsets);
+
+    // update the references last so that only valid values are available
+    this.descriptors = descriptorArray;
+    this.offsets = offsetArray;
   }
 
   private static boolean isDense(int descriptor) {
