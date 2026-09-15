@@ -21,58 +21,68 @@ package org.apache.iceberg.flink;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.nio.file.Path;
 import org.apache.flink.table.api.ValidationException;
+import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 /**
- * A catalog can implement {@link org.apache.iceberg.catalog.ViewCatalog} but still reject view
- * operations at runtime — a JDBC catalog with a V0 schema throws {@link
- * UnsupportedOperationException} from every view method. Table operations through such a catalog
- * must keep working as if views were not supported.
+ * A catalog can implement {@link ViewCatalog} but still reject view operations at runtime: a JDBC
+ * catalog with the V0 schema throws {@link UnsupportedOperationException} from every view method.
+ * Table operations through such a catalog must keep working as if views were not supported.
  */
-public class TestFlinkCatalogViewIncapableCatalog extends TestBase {
+class TestFlinkCatalogViewIncapableCatalog extends TestBase {
 
   private static final String CATALOG_NAME = "jdbc_v0";
+  private static final String DATABASE = "db_v0";
+  private static final String TABLE_NAME = "t";
 
-  @TempDir private Path warehouse;
-
-  @AfterEach
-  public void cleanCatalog() {
-    sql("USE CATALOG default_catalog");
-    dropCatalog(CATALOG_NAME, true);
-  }
-
-  @Test
-  public void testTableOperationsWithViewIncapableCatalog() {
+  @BeforeEach
+  void createCatalogAndTable() {
     sql(
         "CREATE CATALOG %s WITH ("
             + "'type'='iceberg', "
             + "'catalog-impl'='org.apache.iceberg.jdbc.JdbcCatalog', "
             + "'uri'='jdbc:sqlite:%s/catalog.db', "
             + "'warehouse'='file://%s/warehouse')",
-        CATALOG_NAME, warehouse, warehouse);
+        CATALOG_NAME, temporaryDirectory, temporaryDirectory);
     sql("USE CATALOG %s", CATALOG_NAME);
-    sql("CREATE DATABASE db_v0");
-    sql("USE db_v0");
-    sql("CREATE TABLE t (id BIGINT)");
-    sql("INSERT INTO t VALUES (1)");
+    sql("CREATE DATABASE %s", DATABASE);
+    sql("USE %s", DATABASE);
+    sql("CREATE TABLE %s (id BIGINT)", TABLE_NAME);
+    sql("INSERT INTO %s VALUES (1)", TABLE_NAME);
+  }
 
-    // none of these may surface the catalog's UnsupportedOperationException
-    assertThat(sql("SHOW TABLES")).containsExactly(Row.of("t"));
+  @AfterEach
+  void cleanCatalog() {
+    dropCatalog(CATALOG_NAME, true);
+  }
+
+  @Test
+  void listViews() {
     assertThat(sql("SHOW VIEWS")).isEmpty();
-    assertSameElements(Lists.newArrayList(Row.of(1L)), sql("SELECT * FROM t"));
-    assertThat(
-            getTableEnv()
-                .getCatalog(CATALOG_NAME)
-                .get()
-                .tableExists(new ObjectPath("db_v0", "missing")))
-        .isFalse();
+  }
+
+  @Test
+  void listTables() {
+    assertThat(sql("SHOW TABLES")).containsExactly(Row.of(TABLE_NAME));
+  }
+
+  @Test
+  void tableExists() {
+    Catalog flinkCatalog = getTableEnv().getCatalog(CATALOG_NAME).get();
+    assertThat(flinkCatalog.tableExists(new ObjectPath(DATABASE, TABLE_NAME))).isTrue();
+    assertThat(flinkCatalog.tableExists(new ObjectPath(DATABASE, "missing"))).isFalse();
+  }
+
+  @Test
+  void getTable() {
+    assertSameElements(Lists.newArrayList(Row.of(1L)), sql("SELECT * FROM %s", TABLE_NAME));
     assertThatThrownBy(() -> sql("SELECT * FROM missing"))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Object 'missing' not found");
