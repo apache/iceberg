@@ -112,7 +112,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return true;
     }
 
-    // partition() is already projected to the file's own spec, so evaluate it directly
     boolean matches = evaluator.eval(trackedFile.partition());
     if (!matches) {
       incrementSkipCount(trackedFile.contentType());
@@ -160,7 +159,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       ((TrackingStruct) tracking).setManifestLocation(manifest.path());
     }
 
-    // supply the specs so partition() projects the stored union tuple onto the file's own spec
     if (trackedFile instanceof TrackedFileStruct) {
       ((TrackedFileStruct) trackedFile).setSpecsById(specsById);
     }

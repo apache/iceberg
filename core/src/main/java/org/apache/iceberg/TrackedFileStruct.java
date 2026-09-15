@@ -235,7 +235,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     return projection != null ? projection.wrap(partitionData) : partitionData;
   }
 
-  // Cached per spec ID; a null entry means the stored tuple already matches the spec.
   private StructProjection partitionProjection(int id) {
     if (partitionProjections == null) {
       this.partitionProjections = Maps.newHashMap();
@@ -244,6 +243,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     if (!partitionProjections.containsKey(id)) {
       PartitionSpec spec = specsById.get(id);
       Types.StructType specType = spec != null ? spec.partitionType() : null;
+      // null when the stored tuple already matches the spec, so partition() passes it through
       partitionProjections.put(
           id,
           specType == null || partitionData.getPartitionType().equals(specType)
@@ -254,8 +254,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     return partitionProjections.get(id);
   }
 
-  // A standalone, spec-ordered copy of the partition, so a file copy is correct after
-  // serialization without the specs context that drives the projection.
   private PartitionData materializedPartition() {
     if (partitionData == null) {
       return null;

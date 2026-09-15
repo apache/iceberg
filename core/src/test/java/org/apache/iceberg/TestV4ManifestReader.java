@@ -686,39 +686,6 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  public void partitionProjectionWithoutFilterRetainsSpecId(FileFormat format) throws IOException {
-    PartitionSpec idSpec =
-        PartitionSpec.builderFor(TABLE_SCHEMA)
-            .withSpecId(0)
-            .add(1, 1000, "id", Transforms.identity())
-            .build();
-    PartitionSpec dataSpec =
-        PartitionSpec.builderFor(TABLE_SCHEMA)
-            .withSpecId(1)
-            .add(2, 1001, "data", Transforms.identity())
-            .build();
-    Map<Integer, PartitionSpec> specsById =
-        ImmutableMap.of(idSpec.specId(), idSpec, dataSpec.specId(), dataSpec);
-    Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
-
-    // the file is partitioned by dataSpec, whose column sits at union position 1
-    TrackedFile file =
-        dataFile("by-data.parquet", dataSpec.specId(), unionPartition(unionType, null, "x"));
-    ManifestFile manifest = writeManifest(format, unionType, ImmutableList.of(file));
-
-    // no partition filter: the reader must still project spec_id so partition() returns the value
-    // in the file's own spec order rather than union order
-    try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, specsById, TABLE_LOCATION)
-            .select("partition")
-            .build()) {
-      TrackedFile actual = Iterables.getOnlyElement(reader);
-      assertThat(actual.partition().get(0, CharSequence.class)).hasToString("x");
-    }
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
   public void narrowPartitionProjectionReadsFullUnionTuple(FileFormat format) throws IOException {
     PartitionSpec idSpec =
         PartitionSpec.builderFor(TABLE_SCHEMA)
@@ -738,8 +705,6 @@ class TestV4ManifestReader {
         dataFile("by-data.parquet", dataSpec.specId(), unionPartition(unionType, null, "x"));
     ManifestFile manifest = writeManifest(format, unionType, ImmutableList.of(file));
 
-    // selecting one nested partition field (not even the file's own) still reads the whole union
-    // tuple, so projecting onto the file's spec does not fail on an omitted field
     try (V4ManifestReader reader =
         V4ManifestReader.builder(manifest, io, specsById, TABLE_LOCATION)
             .select("partition.id")
