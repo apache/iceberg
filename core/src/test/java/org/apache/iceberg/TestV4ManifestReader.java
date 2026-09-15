@@ -705,6 +705,8 @@ class TestV4ManifestReader {
         dataFile("by-data.parquet", dataSpec.specId(), unionPartition(unionType, null, "x"));
     ManifestFile manifest = writeManifest(format, unionType, ImmutableList.of(file));
 
+    // select id, which this file's spec does not use; the reader must still read the whole union
+    // tuple (including data) so partition() can project it onto the file's data spec
     try (V4ManifestReader reader =
         V4ManifestReader.builder(manifest, io, specsById, TABLE_LOCATION)
             .select("partition.id")
