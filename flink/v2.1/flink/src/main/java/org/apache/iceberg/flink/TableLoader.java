@@ -117,6 +117,25 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
       this.identifier = tableIdentifier.toString();
     }
 
+    CatalogLoader catalogLoader() {
+      return catalogLoader;
+    }
+
+    /** Re-parsed from the stored string, as {@link TableIdentifier} is not serializable. */
+    TableIdentifier tableIdentifier() {
+      return TableIdentifier.parse(identifier);
+    }
+
+    /**
+     * The catalog {@link #open()} loaded, or null when this loader is not open. Exposed so that
+     * state only a live catalog knows — a REST catalog's server-assigned {@code prefix} — can be
+     * read from a catalog the caller opened anyway, rather than by opening another. See {@link
+     * IcebergLineageUtil#restPrefixOf}.
+     */
+    Catalog catalog() {
+      return catalog;
+    }
+
     @Override
     public void open() {
       catalog = catalogLoader.loadCatalog();

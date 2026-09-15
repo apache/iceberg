@@ -37,6 +37,8 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     // dropwizard histogram metrics (optional in Flink)
     compileOnly libs.flink21.metrics.dropwizard
     compileOnly libs.flink21.streaming.java
+    // FLIP-314 lineage interfaces (org.apache.flink.streaming.api.lineage.*) live in flink-runtime.
+    compileOnly libs.flink21.runtime
     compileOnly "${libs.flink21.streaming.java.get().module}:${libs.flink21.streaming.java.get().getVersion()}:tests"
     compileOnly libs.flink21.table.api.java.bridge
     compileOnly "org.apache.flink:flink-table-planner_${scalaVersion}:${libs.versions.flink21.get()}"
