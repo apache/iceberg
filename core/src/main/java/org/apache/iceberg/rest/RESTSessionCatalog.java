@@ -36,6 +36,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.EnvironmentContext;
+import org.apache.iceberg.Labels;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetadataUpdate;
@@ -554,6 +555,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     List<Credential> credentials = response.credentials();
     RemoteSigningConfig remoteSigningConfig = response.remoteSigningConfig();
+    Labels labels = response.labels();
     RESTClient tableClient = client.withAuthSession(tableSession);
     Supplier<BaseTable> tableSupplier =
         createTableSupplier(
@@ -563,7 +565,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             tableClient,
             tableConf,
             credentials,
-            remoteSigningConfig);
+            remoteSigningConfig,
+            labels);
 
     String eTag = responseHeaders.getOrDefault(HttpHeaders.ETAG, null);
     if (eTag != null) {
@@ -584,7 +587,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       RESTClient tableClient,
       Map<String, String> tableConf,
       List<Credential> credentials,
-      RemoteSigningConfig remoteSigningConfig) {
+      RemoteSigningConfig remoteSigningConfig,
+      Labels labels) {
     return () -> {
       RESTTableOperations ops =
           newTableOps(
@@ -598,13 +602,16 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable table = restTableForScanPlanning(ops, identifier, tableClient, tableConf);
+      RESTTable table = restTableForScanPlanning(ops, identifier, tableClient, tableConf, labels);
       if (table != null) {
         return table;
       }
 
       return new BaseTable(
-          ops, fullTableName(identifier), metricsReporter(paths.metrics(identifier), tableClient));
+          ops,
+          fullTableName(identifier),
+          metricsReporter(paths.metrics(identifier), tableClient),
+          labels);
     };
   }
 
@@ -612,7 +619,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       TableOperations ops,
       TableIdentifier finalIdentifier,
       RESTClient restClient,
-      Map<String, String> tableConf) {
+      Map<String, String> tableConf,
+      Labels labels) {
     String planningModeServerConfig = tableConf.get(RESTCatalogProperties.SCAN_PLANNING_MODE);
     ScanPlanningMode serverScanPlanningMode =
         planningModeServerConfig == null
@@ -657,7 +665,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           paths,
           endpoints,
           properties(),
-          conf);
+          conf,
+          labels);
     }
 
     // Default to client-side planning
@@ -745,13 +754,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     trackFileIO(ops);
 
-    RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient, tableConf);
+    RESTTable restTable =
+        restTableForScanPlanning(ops, ident, tableClient, tableConf, response.labels());
     if (restTable != null) {
       return restTable;
     }
 
     return new BaseTable(
-        ops, fullTableName(ident), metricsReporter(paths.metrics(ident), tableClient));
+        ops,
+        fullTableName(ident),
+        metricsReporter(paths.metrics(ident), tableClient),
+        response.labels());
   }
 
   @Override
@@ -1019,13 +1032,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       trackFileIO(ops);
 
-      RESTTable restTable = restTableForScanPlanning(ops, ident, tableClient, tableConf);
+      RESTTable restTable =
+          restTableForScanPlanning(ops, ident, tableClient, tableConf, response.labels());
       if (restTable != null) {
         return restTable;
       }
 
       return new BaseTable(
-          ops, fullTableName(ident), metricsReporter(paths.metrics(ident), tableClient));
+          ops,
+          fullTableName(ident),
+          metricsReporter(paths.metrics(ident), tableClient),
+          response.labels());
     }
 
     @Override

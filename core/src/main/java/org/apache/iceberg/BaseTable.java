@@ -40,20 +40,32 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * when reading the table data after deserialization.
  */
 public class BaseTable
-    implements Table, HasTableOperations, Serializable, SupportsDistributedScanPlanning {
+    implements Table,
+        HasTableOperations,
+        Serializable,
+        SupportsDistributedScanPlanning,
+        SupportsLabels {
   private final TableOperations ops;
   private final String name;
   private MetricsReporter reporter;
+  // Ephemeral catalog enrichment, not table state, so it is not preserved across serialization.
+  private final transient Labels labels;
 
   public BaseTable(TableOperations ops, String name) {
     this(ops, name, LoggingMetricsReporter.instance());
   }
 
   public BaseTable(TableOperations ops, String name, MetricsReporter reporter) {
+    this(ops, name, reporter, Labels.EMPTY);
+  }
+
+  public BaseTable(TableOperations ops, String name, MetricsReporter reporter, Labels labels) {
     Preconditions.checkNotNull(reporter, "reporter cannot be null");
+    Preconditions.checkNotNull(labels, "labels cannot be null");
     this.ops = ops;
     this.name = name;
     this.reporter = reporter;
+    this.labels = labels;
   }
 
   public MetricsReporter reporter() {
@@ -72,6 +84,12 @@ public class BaseTable
   @Override
   public String name() {
     return name;
+  }
+
+  @Override
+  public Labels labels() {
+    // labels is null only when this instance was deserialized bypassing writeReplace (e.g. Kryo).
+    return labels != null ? labels : Labels.EMPTY;
   }
 
   @Override
