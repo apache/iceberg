@@ -25,7 +25,7 @@ import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
 import org.apache.iceberg.encryption.StandardEncryptionManager;
-import org.apache.iceberg.encryption.StandardEncryptionManager.ManifestListEncryptionKeys;
+import org.apache.iceberg.encryption.StandardEncryptionManager.FileEncryptionKeys;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -39,7 +39,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   private final OutputFile outputFile;
   private boolean closed = false;
   private ManifestListFile manifestListFile;
-  private ManifestListEncryptionKeys encryptionKeys;
+  private FileEncryptionKeys encryptionKeys;
 
   private ManifestListWriter(
       OutputFile file, EncryptionManager encryptionManager, Map<String, String> meta) {
@@ -103,11 +103,10 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     if (manifestListFile == null) {
       if (manifestListKeyMetadata != null && manifestListKeyMetadata.encryptionKey() != null) {
         this.encryptionKeys =
-            standardEncryptionManager.registerManifestListKeyMetadata(
+            standardEncryptionManager.registerKeyMetadata(
                 manifestListKeyMetadata.copyWithLength(writer.length()));
         this.manifestListFile =
-            new BaseManifestListFile(
-                outputFile.location(), encryptionKeys.manifestListKey().keyId());
+            new BaseManifestListFile(outputFile.location(), encryptionKeys.fileKey().keyId());
       } else {
         this.manifestListFile = new BaseManifestListFile(outputFile.location(), null);
       }
@@ -116,7 +115,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     return manifestListFile;
   }
 
-  ManifestListEncryptionKeys encryptionKeys() {
+  FileEncryptionKeys encryptionKeys() {
     toManifestListFile();
     return encryptionKeys;
   }

@@ -189,21 +189,20 @@ public class StandardEncryptionManager implements EncryptionManager {
    *
    * @return the ID of the encrypted metadata
    * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link
-   *     #registerManifestListKeyMetadata(NativeEncryptionKeyMetadata)} instead.
+   *     #registerKeyMetadata(NativeEncryptionKeyMetadata)} instead.
    */
   @Deprecated
   public String addManifestListKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
-    return registerManifestListKeyMetadata(keyMetadata).manifestListKey().keyId();
+    return registerKeyMetadata(keyMetadata).fileKey().keyId();
   }
 
   /**
-   * Encrypts and registers manifest-list key metadata.
+   * Encrypts and registers key metadata.
    *
    * @return the encrypted metadata and its wrapping key
    */
-  public ManifestListEncryptionKeys registerManifestListKeyMetadata(
-      NativeEncryptionKeyMetadata keyMetadata) {
-    String manifestListKeyID = generateKeyId();
+  public FileEncryptionKeys registerKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
+    String fileKeyID = generateKeyId();
     String keyEncryptionKeyID = keyEncryptionKeyID();
     EncryptedKey keyEncryptionKey = encryptionKeys.get(keyEncryptionKeyID);
     String keyEncryptionKeyTimestamp = keyEncryptionKey.properties().get(KEY_TIMESTAMP);
@@ -211,11 +210,11 @@ public class StandardEncryptionManager implements EncryptionManager {
         EncryptionUtil.encryptManifestListKeyMetadata(
             unwrappedKeyCache().get(keyEncryptionKeyID), keyEncryptionKeyTimestamp, keyMetadata);
     BaseEncryptedKey key =
-        new BaseEncryptedKey(manifestListKeyID, encryptedKeyMetadata, keyEncryptionKeyID, null);
+        new BaseEncryptedKey(fileKeyID, encryptedKeyMetadata, keyEncryptionKeyID, null);
 
     encryptionKeys.put(key.keyId(), key);
 
-    return new ManifestListEncryptionKeys(keyEncryptionKey, key);
+    return new FileEncryptionKeys(keyEncryptionKey, key);
   }
 
   private String generateKeyId() {
@@ -230,9 +229,8 @@ public class StandardEncryptionManager implements EncryptionManager {
     return ByteBuffer.wrap(newKey);
   }
 
-  /** Encrypted manifest-list key metadata and its wrapping key. */
-  public record ManifestListEncryptionKeys(
-      EncryptedKey keyEncryptionKey, EncryptedKey manifestListKey) {}
+  /** Encrypted key metadata and its wrapping key. */
+  public record FileEncryptionKeys(EncryptedKey keyEncryptionKey, EncryptedKey fileKey) {}
 
   private class StandardEncryptedOutputFile implements NativeEncryptionOutputFile {
     private final OutputFile plainOutputFile;

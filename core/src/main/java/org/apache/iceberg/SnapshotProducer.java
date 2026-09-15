@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.StandardEncryptionManager.ManifestListEncryptionKeys;
+import org.apache.iceberg.encryption.StandardEncryptionManager.FileEncryptionKeys;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CleanableFailure;
@@ -115,7 +115,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private volatile Long snapshotId = null;
   private TableMetadata base;
   // Encryption keys required by the manifest list written in the current commit attempt.
-  private ManifestListEncryptionKeys manifestListEncryptionKeys;
+  private FileEncryptionKeys manifestListEncryptionKeys;
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
   private SnapshotAncestryValidator snapshotAncestryValidator =
@@ -507,7 +507,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   } else {
                     if (manifestListEncryptionKeys != null) {
                       update.addEncryptionKey(manifestListEncryptionKeys.keyEncryptionKey());
-                      update.addEncryptionKey(manifestListEncryptionKeys.manifestListKey());
+                      update.addEncryptionKey(manifestListEncryptionKeys.fileKey());
                     }
 
                     if (stageOnly) {

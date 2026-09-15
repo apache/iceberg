@@ -35,7 +35,7 @@ import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionTestHelpers;
 import org.apache.iceberg.encryption.EncryptionUtil;
-import org.apache.iceberg.encryption.StandardEncryptionManager.ManifestListEncryptionKeys;
+import org.apache.iceberg.encryption.StandardEncryptionManager.FileEncryptionKeys;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
@@ -362,7 +362,7 @@ public class TestManifestListEncryption {
     ManifestListFile manifestListFile = writer.toManifestListFile();
     assertThat(writer.toManifestListFile().encryptionKeyID())
         .isEqualTo(manifestListFile.encryptionKeyID());
-    ManifestListEncryptionKeys encryptionKeys = writer.encryptionKeys();
+    FileEncryptionKeys encryptionKeys = writer.encryptionKeys();
 
     // First try to read without decryption
     assertThatThrownBy(() -> ManifestLists.read(outputFile.toInputFile()))
@@ -374,7 +374,7 @@ public class TestManifestListEncryption {
         EncryptingFileIO.combine(
             io,
             EncryptionTestHelpers.createEncryptionManager(
-                List.of(encryptionKeys.keyEncryptionKey(), encryptionKeys.manifestListKey())))) {
+                List.of(encryptionKeys.keyEncryptionKey(), encryptionKeys.fileKey())))) {
       List<ManifestFile> manifests = ManifestLists.read(readingIO.newInputFile(manifestListFile));
       assertThat(manifests).hasSize(1);
       return manifests.get(0);
