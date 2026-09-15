@@ -686,6 +686,38 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  public void narrowPartitionProjectionReadsFullUnionTuple(FileFormat format) throws IOException {
+    PartitionSpec idSpec =
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .withSpecId(0)
+            .add(1, 1000, "id", Transforms.identity())
+            .build();
+    PartitionSpec dataSpec =
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .withSpecId(1)
+            .add(2, 1001, "data", Transforms.identity())
+            .build();
+    Map<Integer, PartitionSpec> specsById =
+        ImmutableMap.of(idSpec.specId(), idSpec, dataSpec.specId(), dataSpec);
+    Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
+
+    TrackedFile file =
+        dataFile("by-data.parquet", dataSpec.specId(), unionPartition(unionType, null, "x"));
+    ManifestFile manifest = writeManifest(format, unionType, ImmutableList.of(file));
+
+    // select id, which this file's spec does not use; the reader must still read the whole union
+    // tuple (including data) so partition() can project it onto the file's data spec
+    try (V4ManifestReader reader =
+        V4ManifestReader.builder(manifest, io, specsById, TABLE_LOCATION)
+            .select("partition.id")
+            .build()) {
+      TrackedFile actual = Iterables.getOnlyElement(reader);
+      assertThat(actual.partition().get(0, CharSequence.class)).hasToString("x");
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void partialFilterStillPrunesOnCompatibleField(FileFormat format) throws IOException {
     // the spec partitions on id only; a filter of id = 1 AND data = 'z' should still prune by id
     // even though data is not a partition source
