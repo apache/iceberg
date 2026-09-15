@@ -19,9 +19,22 @@
 package org.apache.iceberg.expressions;
 
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
-public class Zorder extends MultiColumnTerm {
-  public Zorder(List<NamedReference<?>> refs) {
-    super(refs);
+/**
+ * A {@link Term} over an ordered list of column references.
+ *
+ * <p>Shared base of multi-column expressions such as {@link Zorder} and {@link Hilbert}, which
+ * differ only in how an engine combines the referenced columns.
+ */
+public abstract class MultiColumnTerm implements Term {
+  private final List<NamedReference<?>> refs;
+
+  protected MultiColumnTerm(List<NamedReference<?>> refs) {
+    this.refs = ImmutableList.copyOf(refs);
+  }
+
+  public List<NamedReference<?>> refs() {
+    return refs;
   }
 }
