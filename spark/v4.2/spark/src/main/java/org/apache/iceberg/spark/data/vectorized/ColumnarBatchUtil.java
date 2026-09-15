@@ -145,10 +145,16 @@ public class ColumnarBatchUtil {
 
     PositionDeleteIndex deletedPositions = deletes.deletedRowPositions();
 
-    if (deletedPositions != null && !deletes.hasEqDeletes()) {
-      IsDeletedCollector collector = new IsDeletedCollector(deletes, isDeleted, rowStartPosInBatch);
-      deletedPositions.forEachInRange(
-          rowStartPosInBatch, rowStartPosInBatch + batchSize, collector);
+    if (!deletes.hasEqDeletes()) {
+      // positions in a batch form a contiguous ascending range, so the index can be traversed once
+      // for the whole range instead of being probed once per row
+      if (deletedPositions != null) {
+        IsDeletedCollector collector =
+            new IsDeletedCollector(deletes, isDeleted, rowStartPosInBatch);
+        deletedPositions.forEachInRange(
+            rowStartPosInBatch, rowStartPosInBatch + batchSize, collector);
+      }
+
       return isDeleted;
     }
 
