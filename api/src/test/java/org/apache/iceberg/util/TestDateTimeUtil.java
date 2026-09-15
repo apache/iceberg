@@ -81,11 +81,14 @@ public class TestDateTimeUtil {
             ? DateTimeUtil.timestamptzFromMicros(Long.MAX_VALUE).plusNanos(1000)
             : DateTimeUtil.timestamptzFromMicros(Long.MIN_VALUE).minusNanos(1);
     assertThatThrownBy(() -> DateTimeUtil.microsFromInstant(timestamp.toInstant()))
-        .isInstanceOf(ArithmeticException.class);
+        .isInstanceOf(ArithmeticException.class)
+        .hasMessage("long overflow");
     assertThatThrownBy(() -> DateTimeUtil.microsFromTimestamp(timestamp.toLocalDateTime()))
-        .isInstanceOf(ArithmeticException.class);
+        .isInstanceOf(ArithmeticException.class)
+        .hasMessage("long overflow");
     assertThatThrownBy(() -> DateTimeUtil.microsFromTimestamptz(timestamp))
-        .isInstanceOf(ArithmeticException.class);
+        .isInstanceOf(ArithmeticException.class)
+        .hasMessage("long overflow");
   }
 
   @Test
