@@ -40,12 +40,19 @@ public class Hours<T> extends TimeTransform<T> {
   @SuppressWarnings("unchecked")
   protected Transform<T, Integer> toEnum(Type type) {
     return (Transform<T, Integer>)
-        fromSourceType(type, null, Timestamps.MICROS_TO_HOUR, Timestamps.NANOS_TO_HOUR);
+        fromSourceType(
+            type,
+            null,
+            Timestamps.MICROS_TO_HOUR,
+            Timestamps.NANOS_TO_HOUR,
+            UUIDv7Timestamps.UUID_TO_HOUR);
   }
 
   @Override
   public boolean canTransform(Type type) {
-    return type.typeId() == Type.TypeID.TIMESTAMP || type.typeId() == Type.TypeID.TIMESTAMP_NANO;
+    return type.typeId() == Type.TypeID.TIMESTAMP
+        || type.typeId() == Type.TypeID.TIMESTAMP_NANO
+        || type.typeId() == Type.TypeID.UUID;
   }
 
   @Override
