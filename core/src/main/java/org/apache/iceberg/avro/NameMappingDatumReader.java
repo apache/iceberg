@@ -19,6 +19,7 @@
 package org.apache.iceberg.avro;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.avro.Schema;
 import org.apache.avro.io.DatumReader;
@@ -31,7 +32,8 @@ import org.apache.iceberg.mapping.NameMapping;
  *
  * @param <D> Java class of datums produced by this reader
  */
-public class NameMappingDatumReader<D> implements DatumReader<D>, SupportsRowPosition {
+public class NameMappingDatumReader<D>
+    implements DatumReader<D>, SupportsRowPosition, AvroFileMetadataAware {
   private final NameMapping nameMapping;
   private final DatumReader<D> wrapped;
 
@@ -61,6 +63,13 @@ public class NameMappingDatumReader<D> implements DatumReader<D>, SupportsRowPos
   public void setRowPositionSupplier(Supplier<Long> posSupplier) {
     if (wrapped instanceof SupportsRowPosition) {
       ((SupportsRowPosition) wrapped).setRowPositionSupplier(posSupplier);
+    }
+  }
+
+  @Override
+  public void setFileMetadata(Map<String, String> fileMetadata) {
+    if (wrapped instanceof AvroFileMetadataAware) {
+      ((AvroFileMetadataAware) wrapped).setFileMetadata(fileMetadata);
     }
   }
 }
