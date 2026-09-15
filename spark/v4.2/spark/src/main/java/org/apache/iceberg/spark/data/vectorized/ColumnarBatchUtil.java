@@ -66,10 +66,12 @@ public class ColumnarBatchUtil {
 
     PositionDeleteIndex deletedPositions = deletes.deletedRowPositions();
 
-    // positions in a batch form a contiguous ascending range, so the index can be traversed once
-    // for the whole range instead of being probed once per row
-    if (deletedPositions != null && !deletes.hasEqDeletes()) {
-      return buildRowIdMapping(deletedPositions, deletes, rowStartPosInBatch, batchSize);
+    if (!deletes.hasEqDeletes()) {
+      // positions in a batch form a contiguous ascending range, so the index can be traversed once
+      // for the whole range instead of being probed once per row
+      return deletedPositions == null
+          ? null
+          : buildRowIdMapping(deletedPositions, deletes, rowStartPosInBatch, batchSize);
     }
 
     Predicate<InternalRow> eqDeleteFilter = deletes.eqDeletedRowFilter();
@@ -97,12 +99,13 @@ public class ColumnarBatchUtil {
       DeleteFilter<InternalRow> deletes,
       long rowStartPosInBatch,
       int batchSize) {
-    RowIdMappingBuilder builder = new RowIdMappingBuilder(deletes, rowStartPosInBatch, batchSize);
-    deletedPositions.forEachInRange(rowStartPosInBatch, rowStartPosInBatch + batchSize, builder);
-    builder.appendRemainingLiveRows();
+    RowIdMappingCollector collector =
+        new RowIdMappingCollector(deletes, rowStartPosInBatch, batchSize);
+    deletedPositions.forEachInRange(rowStartPosInBatch, rowStartPosInBatch + batchSize, collector);
+    collector.appendRemainingLiveRows();
 
-    int liveRowId = builder.liveRowCount();
-    return liveRowId == batchSize ? null : Pair.of(builder.rowIdMapping(), liveRowId);
+    int liveRowId = collector.liveRowCount();
+    return liveRowId == batchSize ? null : Pair.of(collector.rowIdMapping(), liveRowId);
   }
 
   /**
@@ -143,8 +146,9 @@ public class ColumnarBatchUtil {
     PositionDeleteIndex deletedPositions = deletes.deletedRowPositions();
 
     if (deletedPositions != null && !deletes.hasEqDeletes()) {
-      IsDeletedBuilder builder = new IsDeletedBuilder(deletes, isDeleted, rowStartPosInBatch);
-      deletedPositions.forEachInRange(rowStartPosInBatch, rowStartPosInBatch + batchSize, builder);
+      IsDeletedCollector collector = new IsDeletedCollector(deletes, isDeleted, rowStartPosInBatch);
+      deletedPositions.forEachInRange(
+          rowStartPosInBatch, rowStartPosInBatch + batchSize, collector);
       return isDeleted;
     }
 
@@ -211,7 +215,7 @@ public class ColumnarBatchUtil {
   /**
    * Consumes deleted positions in ascending order, filling the gaps between them with live row IDs.
    */
-  private static class RowIdMappingBuilder implements LongConsumer {
+  private static class RowIdMappingCollector implements LongConsumer {
     private final DeleteFilter<InternalRow> deletes;
     private final long rowStartPosInBatch;
     private final int batchSize;
@@ -219,7 +223,8 @@ public class ColumnarBatchUtil {
     private int nextRowId = 0;
     private int liveRowId = 0;
 
-    RowIdMappingBuilder(DeleteFilter<InternalRow> deletes, long rowStartPosInBatch, int batchSize) {
+    RowIdMappingCollector(
+        DeleteFilter<InternalRow> deletes, long rowStartPosInBatch, int batchSize) {
       this.deletes = deletes;
       this.rowStartPosInBatch = rowStartPosInBatch;
       this.batchSize = batchSize;
@@ -256,12 +261,12 @@ public class ColumnarBatchUtil {
   }
 
   /** Consumes deleted positions in a batch range, marking them in the given array. */
-  private static class IsDeletedBuilder implements LongConsumer {
+  private static class IsDeletedCollector implements LongConsumer {
     private final DeleteFilter<InternalRow> deletes;
     private final boolean[] isDeleted;
     private final long rowStartPosInBatch;
 
-    IsDeletedBuilder(
+    IsDeletedCollector(
         DeleteFilter<InternalRow> deletes, boolean[] isDeleted, long rowStartPosInBatch) {
       this.deletes = deletes;
       this.isDeleted = isDeleted;

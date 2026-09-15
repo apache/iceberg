@@ -462,6 +462,21 @@ public class TestRoaringPositionBitmap {
   }
 
   @TestTemplate
+  public void testForEachInRangeAcrossSignedIntBoundary() {
+    long boundary = Integer.MAX_VALUE + 1L;
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+    bitmap.setRange(boundary - 4, boundary + 4);
+    bitmap.runLengthEncode();
+
+    assertThat(collectInRange(bitmap, boundary - 1, boundary + 1))
+        .containsExactly(boundary - 1, boundary);
+    assertThat(collectInRange(bitmap, boundary - 4, boundary + 4))
+        .hasSize(8)
+        .startsWith(boundary - 4)
+        .endsWith(boundary + 3);
+  }
+
+  @TestTemplate
   public void testCardinality() {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
 

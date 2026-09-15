@@ -19,6 +19,7 @@
 package org.apache.iceberg.deletes;
 
 import java.util.function.LongConsumer;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class EmptyPositionDeleteIndex implements PositionDeleteIndex {
 
@@ -51,7 +52,13 @@ class EmptyPositionDeleteIndex implements PositionDeleteIndex {
   }
 
   @Override
-  public void forEachInRange(long posStart, long posEnd, LongConsumer consumer) {}
+  public void forEachInRange(long posStart, long posEnd, LongConsumer consumer) {
+    Preconditions.checkArgument(
+        posStart <= posEnd,
+        "Start position must not exceed end position: [%s, %s)",
+        posStart,
+        posEnd);
+  }
 
   @Override
   public String toString() {

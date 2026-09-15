@@ -91,6 +91,7 @@ public class TestColumnarBatchUtil {
 
     // Mock DeleteFilter
     when(deleteFilter.hasPosDeletes()).thenReturn(false);
+    when(deleteFilter.hasEqDeletes()).thenReturn(true);
     when(deleteFilter.deletedRowPositions()).thenReturn(null);
     when(deleteFilter.eqDeletedRowFilter()).thenReturn(eqDeletePredicate);
 
@@ -195,6 +196,7 @@ public class TestColumnarBatchUtil {
     // Mimic real eqDeletedRowFilter(): keep row only if it does NOT match delete condition
     Predicate<InternalRow> eqDeletePredicate =
         Stream.of(rawEqDelete).map(Predicate::negate).reduce(Predicate::and).orElse(t -> true);
+    when(deleteFilter.hasEqDeletes()).thenReturn(true);
     when(deleteFilter.eqDeletedRowFilter()).thenReturn(eqDeletePredicate);
 
     var isDeleted = ColumnarBatchUtil.buildIsDeleted(columnVectors, deleteFilter, 0, 5);

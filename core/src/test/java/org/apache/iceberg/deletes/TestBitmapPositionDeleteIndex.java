@@ -165,6 +165,30 @@ public class TestBitmapPositionDeleteIndex {
   }
 
   @Test
+  public void testForEachInRangeMatchesIsDeletedAcrossSignedIntBoundary() {
+    // a 32-bit position at or above Integer.MAX_VALUE does not fit in a signed int, and neither
+    // does the end of a range that reaches it, so sweep every range around the boundary
+    long boundary = Integer.MAX_VALUE + 1L;
+    Set<Long> positions = Sets.newHashSet();
+
+    BitmapPositionDeleteIndex index = new BitmapPositionDeleteIndex();
+    index.delete(boundary - 4, boundary + 4);
+    for (long pos = boundary - 4; pos < boundary + 4; pos++) {
+      positions.add(pos);
+    }
+
+    index.serialize(); // triggers runLengthEncode
+
+    for (long posStart = boundary - 12; posStart <= boundary + 6; posStart++) {
+      for (long posEnd = posStart; posEnd <= posStart + 20; posEnd++) {
+        assertThat(collect(index, posStart, posEnd))
+            .as("range [%s, %s)", posStart, posEnd)
+            .isEqualTo(deletedPositionsInRange(positions, posStart, posEnd));
+      }
+    }
+  }
+
+  @Test
   public void testMergeBitmapIndexWithNonEmpty() {
     long pos1 = 10L; // Container 0 (high bits = 0)
     long pos2 = 1L << 33; // Container 1 (high bits = 1)

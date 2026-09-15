@@ -27,6 +27,7 @@ import java.util.function.LongConsumer;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.roaringbitmap.RelativeRangeConsumer;
 import org.roaringbitmap.RoaringBitmap;
 
 /**
@@ -54,7 +55,6 @@ class RoaringPositionBitmap {
   private static final RoaringBitmap[] EMPTY_BITMAP_ARRAY = new RoaringBitmap[0];
   private static final long BITMAP_COUNT_SIZE_BYTES = 8L;
   private static final long BITMAP_KEY_SIZE_BYTES = 4L;
-  private static final long MAX_POS_32_BITS = 0xFFFFFFFFL;
 
   private RoaringBitmap[] bitmaps;
 
@@ -202,6 +202,7 @@ class RoaringPositionBitmap {
    * @param posStartInclusive inclusive beginning of position range
    * @param posEndExclusive exclusive ending of position range
    * @param consumer a consumer for the positions that are set within the range
+   * @throws IllegalArgumentException if posStartInclusive &gt; posEndExclusive
    */
   public void forEachInRange(long posStartInclusive, long posEndExclusive, LongConsumer consumer) {
     Preconditions.checkArgument(
@@ -223,9 +224,7 @@ class RoaringPositionBitmap {
     for (int key = startKey; key <= endKey && key < bitmaps.length; key++) {
       long lowStart = key == startKey ? Integer.toUnsignedLong(pos32Bits(posStartInclusive)) : 0L;
       long lowEnd =
-          key == endKey
-              ? Integer.toUnsignedLong(pos32Bits(posEndExclusive - 1)) + 1
-              : MAX_POS_32_BITS + 1;
+          key == endKey ? Integer.toUnsignedLong(pos32Bits(posEndExclusive - 1)) + 1 : 1L << 32;
       forEachInRange(key, bitmaps[key], lowStart, lowEnd, consumer);
     }
   }
@@ -383,10 +382,40 @@ class RoaringPositionBitmap {
       int key, RoaringBitmap bitmap, long lowStart, long lowEnd, LongConsumer consumer) {
     for (long low = lowStart; low < lowEnd; ) {
       int length = (int) Math.min(lowEnd - low, Integer.MAX_VALUE);
-      bitmap.forEachInRange(
-          (int) low, length, (int pos32Bits) -> consumer.accept(toPosition(key, pos32Bits)));
+      bitmap.forAllInRange((int) low, length, new RangeConsumer(key, low, consumer));
       low += length;
     }
+  }
+
+  // reports the set positions within a range, which are given relative to the start of the range
+  private static class RangeConsumer implements RelativeRangeConsumer {
+    private final int key;
+    private final long lowStart;
+    private final LongConsumer consumer;
+
+    RangeConsumer(int key, long lowStart, LongConsumer consumer) {
+      this.key = key;
+      this.lowStart = lowStart;
+      this.consumer = consumer;
+    }
+
+    @Override
+    public void acceptPresent(int relativePos) {
+      consumer.accept(toPosition(key, (int) (lowStart + relativePos)));
+    }
+
+    @Override
+    public void acceptAbsent(int relativePos) {}
+
+    @Override
+    public void acceptAllPresent(int relativeFrom, int relativeTo) {
+      for (int relativePos = relativeFrom; relativePos < relativeTo; relativePos++) {
+        consumer.accept(toPosition(key, (int) (lowStart + relativePos)));
+      }
+    }
+
+    @Override
+    public void acceptAllAbsent(int relativeFrom, int relativeTo) {}
   }
 
   private static void validatePosition(long pos) {
