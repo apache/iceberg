@@ -300,38 +300,31 @@ class ManifestGroup {
 
     CloseableIterable<ManifestFile> closeableDataManifests =
         CloseableIterable.withNoopClose(dataManifests);
+    Predicate<ManifestFile> manifestPredicate =
+        manifest -> {
+          if (evalCache != null && !evalCache.get(manifest.partitionSpecId()).eval(manifest)) {
+            return false;
+          }
+          // only scan manifests that have entries other than deletes
+          // remove any manifests that don't have any existing or added files. if either the added
+          // or existing files count is missing, the manifest must be scanned.
+          if (ignoreDeleted && !(manifest.hasAddedFiles() || manifest.hasExistingFiles())) {
+            return false;
+          }
+          // only scan manifests that have entries other than existing
+          // remove any manifests that don't have any deleted or added files. if either the added or
+          // deleted files count is missing, the manifest must be scanned.
+          if (ignoreExisting && !(manifest.hasAddedFiles() || manifest.hasDeletedFiles())) {
+            return false;
+          }
+          return true;
+        };
     CloseableIterable<ManifestFile> matchingManifests =
-        evalCache == null
-            ? closeableDataManifests
-            : CloseableIterable.filter(
-                scanMetrics.skippedDataManifests(),
-                closeableDataManifests,
-                manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
-
-    if (ignoreDeleted) {
-      // only scan manifests that have entries other than deletes
-      // remove any manifests that don't have any existing or added files. if either the added or
-      // existing files count is missing, the manifest must be scanned.
-      matchingManifests =
-          CloseableIterable.filter(
-              scanMetrics.skippedDataManifests(),
-              matchingManifests,
-              manifest -> manifest.hasAddedFiles() || manifest.hasExistingFiles());
-    }
-
-    if (ignoreExisting) {
-      // only scan manifests that have entries other than existing
-      // remove any manifests that don't have any deleted or added files. if either the added or
-      // deleted files count is missing, the manifest must be scanned.
-      matchingManifests =
-          CloseableIterable.filter(
-              scanMetrics.skippedDataManifests(),
-              matchingManifests,
-              manifest -> manifest.hasAddedFiles() || manifest.hasDeletedFiles());
-    }
-
-    matchingManifests =
-        CloseableIterable.count(scanMetrics.scannedDataManifests(), matchingManifests);
+        CloseableIterable.filter(
+            closeableDataManifests,
+            manifestPredicate,
+            manifest -> scanMetrics.scannedDataManifests().increment(),
+            manifest -> scanMetrics.skippedDataManifests().increment());
 
     return Iterables.transform(
         matchingManifests,
