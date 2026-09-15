@@ -127,7 +127,8 @@ class CommitState {
       return false;
     }
 
-    if (reportedPartitions.containsAll(expectedPartitions)) {
+    int missingPartitionCount = Sets.difference(expectedPartitions, reportedPartitions).size();
+    if (missingPartitionCount == 0) {
       LOG.info(
           "Commit {} ready, received responses for all {} expected partitions",
           currentCommitId,
@@ -136,9 +137,9 @@ class CommitState {
     }
 
     LOG.info(
-        "Commit {} not ready, received responses for {} of {} expected partitions, waiting for more",
+        "Commit {} not ready, waiting for {} of {} expected partitions",
         currentCommitId,
-        Sets.intersection(reportedPartitions, expectedPartitions).size(),
+        missingPartitionCount,
         expectedPartitions.size());
 
     return false;

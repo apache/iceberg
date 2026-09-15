@@ -469,6 +469,15 @@ public class TestCoordinator extends ChannelTestBase {
     return coordinator;
   }
 
+  private MemberDescription member(String memberId, TopicPartition... partitions) {
+    return new MemberDescription(
+        memberId,
+        Optional.empty(),
+        "client",
+        "host",
+        new MemberAssignment(ImmutableSet.copyOf(partitions)));
+  }
+
   private void assertCommitTable(int idx, UUID commitId, OffsetDateTime ts) {
     byte[] bytes = producer.history().get(idx).value();
     Event commitTable = AvroUtil.decode(bytes);
@@ -493,14 +502,8 @@ public class TestCoordinator extends ChannelTestBase {
   @ValueSource(longs = {1, 3})
   void repeatedDataCompleteWaitsForEveryExpectedPartition(long repeatedWrittenOffset) {
     MemberDescription member =
-        new MemberDescription(
-            "member",
-            Optional.empty(),
-            "client",
-            "host",
-            new MemberAssignment(
-                ImmutableSet.of(
-                    new TopicPartition(SRC_TOPIC_NAME, 0), new TopicPartition(SRC_TOPIC_NAME, 1))));
+        member(
+            "member", new TopicPartition(SRC_TOPIC_NAME, 0), new TopicPartition(SRC_TOPIC_NAME, 1));
     Coordinator coordinator = startCoordinator(ImmutableList.of(member));
     TopicPartition controlPartition = new TopicPartition(CTL_TOPIC_NAME, 0);
     long initialOffset = 1L;
@@ -511,15 +514,7 @@ public class TestCoordinator extends ChannelTestBase {
         ((StartCommit) AvroUtil.decode(producer.history().get(0).value()).payload()).commitId();
 
     DataFile dataFile = EventTestUtil.createDataFile();
-    Event written =
-        new Event(
-            config.connectGroupId(),
-            new DataWritten(
-                StructType.of(),
-                commitId,
-                TableReference.of("catalog", TABLE_IDENTIFIER, table.uuid()),
-                ImmutableList.of(dataFile),
-                ImmutableList.of()));
+    Event written = dataWrittenEvent(commitId, dataFile);
     OffsetDateTime missingPartitionTimestamp = EventTestUtil.now();
     OffsetDateTime firstPartitionTimestamp = missingPartitionTimestamp.plusSeconds(1);
     Event firstPartitionReady =
@@ -586,14 +581,8 @@ public class TestCoordinator extends ChannelTestBase {
   @Test
   void unexpectedPartitionDoesNotCompleteCommit() {
     MemberDescription member =
-        new MemberDescription(
-            "member",
-            Optional.empty(),
-            "client",
-            "host",
-            new MemberAssignment(
-                ImmutableSet.of(
-                    new TopicPartition(SRC_TOPIC_NAME, 0), new TopicPartition(SRC_TOPIC_NAME, 1))));
+        member(
+            "member", new TopicPartition(SRC_TOPIC_NAME, 0), new TopicPartition(SRC_TOPIC_NAME, 1));
     Coordinator coordinator = startCoordinator(ImmutableList.of(member));
     TopicPartition controlPartition = new TopicPartition(CTL_TOPIC_NAME, 0);
     long initialOffset = 1L;
@@ -623,6 +612,83 @@ public class TestCoordinator extends ChannelTestBase {
     assertCommitComplete(1, commitId, timestamp);
     assertThat(consumer.committed(ImmutableSet.of(controlPartition)).get(controlPartition).offset())
         .isEqualTo(missingPartitionOffset + 1);
+  }
+
+  @Test
+  void overlappingMemberAssignmentsRequireEachDistinctPartition() {
+    TopicPartition sharedPartition = new TopicPartition(SRC_TOPIC_NAME, 0);
+    TopicPartition otherPartition = new TopicPartition(SRC_TOPIC_NAME, 1);
+    Coordinator coordinator =
+        startCoordinator(
+            ImmutableList.of(
+                member("first-member", sharedPartition),
+                member("second-member", sharedPartition, otherPartition)));
+    TopicPartition controlPartition = new TopicPartition(CTL_TOPIC_NAME, 0);
+    long initialOffset = 1L;
+    consumer.commitSync(ImmutableMap.of(controlPartition, new OffsetAndMetadata(initialOffset)));
+
+    coordinator.process();
+    UUID commitId =
+        ((StartCommit) AvroUtil.decode(producer.history().get(0).value()).payload()).commitId();
+    DataFile dataFile = EventTestUtil.createDataFile();
+    consumer.addRecord(
+        new ConsumerRecord<>(
+            CTL_TOPIC_NAME,
+            0,
+            initialOffset,
+            "key",
+            AvroUtil.encode(dataWrittenEvent(commitId, dataFile))));
+    OffsetDateTime otherPartitionTimestamp = EventTestUtil.now();
+    addReadyRecord(
+        initialOffset + 1,
+        commitId,
+        new TopicPartitionOffset(
+            sharedPartition.topic(),
+            sharedPartition.partition(),
+            1L,
+            otherPartitionTimestamp.plusSeconds(1)));
+    coordinator.process();
+
+    assertCommitPending(controlPartition, initialOffset);
+
+    long otherPartitionOffset = initialOffset + 2;
+    addReadyRecord(
+        otherPartitionOffset,
+        commitId,
+        new TopicPartitionOffset(
+            otherPartition.topic(), otherPartition.partition(), 1L, otherPartitionTimestamp));
+    coordinator.process();
+
+    table.refresh();
+    assertThat(producer.history()).hasSize(3);
+    assertCommitTable(1, commitId, otherPartitionTimestamp);
+    assertCommitComplete(2, commitId, otherPartitionTimestamp);
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(table.currentSnapshot())
+                .build()
+                .addedDataFiles())
+        .extracting(DataFile::location)
+        .containsExactly(dataFile.location());
+    long committedOffset = otherPartitionOffset + 1;
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(COMMIT_ID_SNAPSHOT_PROP, commitId.toString())
+        .containsEntry(OFFSETS_SNAPSHOT_PROP, String.format("{\"0\":%d}", committedOffset))
+        .containsEntry(VALID_THROUGH_TS_SNAPSHOT_PROP, otherPartitionTimestamp.toString());
+    assertThat(consumer.committed(ImmutableSet.of(controlPartition)).get(controlPartition).offset())
+        .isEqualTo(committedOffset);
+  }
+
+  private Event dataWrittenEvent(UUID commitId, DataFile dataFile) {
+    return new Event(
+        config.connectGroupId(),
+        new DataWritten(
+            StructType.of(),
+            commitId,
+            TableReference.of("catalog", TABLE_IDENTIFIER, table.uuid()),
+            ImmutableList.of(dataFile),
+            ImmutableList.of()));
   }
 
   private void addReadyRecord(long offset, UUID commitId, TopicPartitionOffset assignment) {
