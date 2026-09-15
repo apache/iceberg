@@ -174,6 +174,16 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
   }
 
   /**
+   * Concurrently added DVs can be merged into this operation's DVs only when this operation does
+   * not add or remove data files and does not require concurrent delete files to fail via {@link
+   * #validateNoConflictingDeleteFiles()}.
+   */
+  @Override
+  protected boolean canMergeConcurrentDVs() {
+    return !validateNewDeleteFiles && !addsDataFiles() && !deletesDataFiles();
+  }
+
+  /**
    * Validates that the data files removed in this commit do not overlap with data files with delete
    * files added
    */
