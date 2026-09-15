@@ -22,6 +22,7 @@ import static org.apache.avro.Schema.Type.UNION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -282,6 +283,56 @@ public abstract class TestReadProjection {
     assertThat((float) projectedLocation.getField("long"))
         .as("Should project longitude")
         .isCloseTo(-1.539054f, within(0.000001f));
+  }
+
+  @TestTemplate
+  void requiredInnerStructUnderPresentParentReadsPresent() throws Exception {
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+    Schema writeSchema =
+        new Schema(
+            Types.NestedField.optional(
+                1,
+                "outer",
+                Types.StructType.of(
+                    Types.NestedField.required(2, "real", Types.LongType.get()),
+                    Types.NestedField.required(
+                        3,
+                        "inner",
+                        Types.StructType.of(
+                            Types.NestedField.required(4, "orig", Types.LongType.get()))))));
+
+    Types.StructType outerType = writeSchema.findType("outer").asStructType();
+    Record record = GenericRecord.create(writeSchema);
+    Record outer = GenericRecord.create(outerType);
+    Record inner = GenericRecord.create(outerType.field("inner").type().asStructType());
+    inner.setField("orig", 200L);
+    outer.setField("real", 100L);
+    outer.setField("inner", inner);
+    record.setField("outer", outer);
+
+    // project outer's stored field plus only a field added to the required inner after the write
+    Schema readSchema =
+        new Schema(
+            Types.NestedField.optional(
+                1,
+                "outer",
+                Types.StructType.of(
+                    Types.NestedField.required(2, "real", Types.LongType.get()),
+                    Types.NestedField.required(
+                        3,
+                        "inner",
+                        Types.StructType.of(
+                            Types.NestedField.optional(5, "added", Types.IntegerType.get()))))));
+
+    Record projected = writeAndRead("required_inner_added_field", writeSchema, readSchema, record);
+    Record projectedOuter = (Record) projected.getField("outer");
+    assertThat(projectedOuter).as("present parent should project").isNotNull();
+    assertThat((long) projectedOuter.getField("real")).isEqualTo(100L);
+    Record projectedInner = (Record) projectedOuter.getField("inner");
+    assertThat(projectedInner)
+        .as("required inner under a present parent should be present, not null")
+        .isNotNull();
+    assertThat(projectedInner.getField("added")).as("added field should be null").isNull();
   }
 
   @TestTemplate

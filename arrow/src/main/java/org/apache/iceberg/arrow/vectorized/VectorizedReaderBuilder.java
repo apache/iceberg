@@ -27,6 +27,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.ConstantVectorReader;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetVariantVisitor;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
@@ -102,27 +103,32 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   @Override
   public VectorizedReader<?> message(
       Types.StructType expected, MessageType message, List<VectorizedReader<?>> fieldReaders) {
-    GroupType groupType = message.asGroupType();
-    Map<Integer, VectorizedReader<?>> readersById = Maps.newHashMap();
-    List<Type> fields = groupType.getFields();
-
-    IntStream.range(0, fields.size())
-        .filter(pos -> fields.get(pos).getId() != null)
-        .forEach(pos -> readersById.put(fields.get(pos).getId().intValue(), fieldReaders.get(pos)));
-
     List<Types.NestedField> icebergFields =
         expected != null ? expected.fields() : ImmutableList.of();
+    return vectorizedReader(
+        reorderFields(icebergFields, message.asGroupType().getFields(), fieldReaders));
+  }
 
-    List<VectorizedReader<?>> reorderedFields =
-        Lists.newArrayListWithExpectedSize(icebergFields.size());
+  private List<VectorizedReader<?>> reorderFields(
+      List<Types.NestedField> expectedFields,
+      List<Type> parquetFields,
+      List<VectorizedReader<?>> fieldReaders) {
+    Map<Integer, VectorizedReader<?>> readersById = Maps.newHashMap();
+    IntStream.range(0, parquetFields.size())
+        .filter(pos -> parquetFields.get(pos).getId() != null)
+        .forEach(
+            pos ->
+                readersById.put(parquetFields.get(pos).getId().intValue(), fieldReaders.get(pos)));
 
-    for (Types.NestedField field : icebergFields) {
+    List<VectorizedReader<?>> reordered = Lists.newArrayListWithExpectedSize(expectedFields.size());
+    for (Types.NestedField field : expectedFields) {
       VectorizedReader<?> reader =
           VectorizedArrowReader.replaceWithMetadataReader(
               field, readersById.get(field.fieldId()), idToConstant, setArrowValidityVector);
-      reorderedFields.add(defaultReader(field, reader));
+      reordered.add(defaultReader(field, reader));
     }
-    return vectorizedReader(reorderedFields);
+
+    return reordered;
   }
 
   private VectorizedReader<?> defaultReader(Types.NestedField field, VectorizedReader<?> reader) {
@@ -148,11 +154,55 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   @Override
   public VectorizedReader<?> struct(
       Types.StructType expected, GroupType groupType, List<VectorizedReader<?>> fieldReaders) {
-    if (expected != null) {
-      throw new UnsupportedOperationException(
-          "Vectorized reads are not supported yet for struct fields");
+    if (expected == null) {
+      return null;
     }
-    return null;
+
+    // no field ID / no matching Iceberg field: fall back like primitive()
+    if (groupType.getId() == null) {
+      return null;
+    }
+
+    Types.NestedField structField = icebergSchema.findField(groupType.getId().intValue());
+    if (structField == null) {
+      return null;
+    }
+
+    List<VectorizedReader<?>> reorderedFields =
+        reorderFields(expected.fields(), groupType.getFields(), fieldReaders);
+
+    int structDefinitionLevel = parquetSchema.getMaxDefinitionLevel(currentPath());
+
+    VectorizedArrowReader presenceReader = null;
+    // must agree with ParquetSchemaUtil.PresenceColumnSelector, which retains this presence column
+    if (structDefinitionLevel > 0 && !hasFileBackedLeaf(reorderedFields)) {
+      ColumnDescriptor presence =
+          ParquetSchemaUtil.selectPresenceColumn(parquetSchema, currentPath());
+      // list/map are not vectorized, so the presence leaf is always rep level 0 (iterator
+      // precondition)
+      if (presence != null && presence.getMaxRepetitionLevel() == 0) {
+        presenceReader =
+            new VectorizedArrowReader(
+                presence,
+                ParquetSchemaUtil.presenceField(presence),
+                rootAllocator,
+                setArrowValidityVector);
+      }
+    }
+
+    return new VectorizedArrowReader.VectorizedStructReader(
+        structField, reorderedFields, structDefinitionLevel, presenceReader);
+  }
+
+  private boolean hasFileBackedLeaf(List<VectorizedReader<?>> readers) {
+    for (VectorizedReader<?> child : readers) {
+      if (child instanceof VectorizedArrowReader
+          && ((VectorizedArrowReader) child).fileBackedLeaf() != null) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   @Override
