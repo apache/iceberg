@@ -31,13 +31,13 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public class TestBaseDeleteLoader {
+class TestBaseDeleteLoader {
 
   private static final String DATA_FILE = "/tmp/data.parquet";
 
   @ParameterizedTest
   @MethodSource("invalidDVs")
-  public void loadPositionDeletesRejectsInvalidOffsetOrSize(
+  void loadPositionDeletesRejectsInvalidOffsetOrSize(
       Long offset, Long size, String expectedMessage) {
     DeleteFile dv = dv(offset, size);
     DeleteLoader loader = new BaseDeleteLoader(file -> failingInputFile());
@@ -53,9 +53,6 @@ public class TestBaseDeleteLoader {
         Arguments.of(0L, -1L, "length must be non-negative"));
   }
 
-  // Returns a DV mock reporting the given (offset, size). A mock bypasses the FileMetadata builder,
-  // which now rejects negative values at construction time, so it stands in for a corrupted
-  // manifest.
   private static DeleteFile dv(Long offset, Long size) {
     DeleteFile dv = mock(DeleteFile.class);
     when(dv.format()).thenReturn(FileFormat.PUFFIN);
@@ -66,8 +63,6 @@ public class TestBaseDeleteLoader {
     return dv;
   }
 
-  // Validation must fire before any I/O. If it does not, the loader calls this and the test fails
-  // with a clear message instead of an obscure stack trace.
   private static InputFile failingInputFile() {
     throw new AssertionError("DV validation should reject the invalid metadata before any I/O");
   }
