@@ -37,6 +37,8 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InvalidProducerEpochException;
+import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,8 +58,8 @@ abstract class Channel {
   private final String producerId;
 
   Channel(
-      String name,
       String consumerGroupId,
+      String transactionalId,
       IcebergSinkConfig config,
       KafkaClientFactory clientFactory,
       SinkTaskContext context) {
@@ -65,7 +67,6 @@ abstract class Channel {
     this.connectGroupId = config.connectGroupId();
     this.context = context;
 
-    String transactionalId = config.transactionalPrefix() + name + config.transactionalSuffix();
     this.producer = clientFactory.createProducer(transactionalId);
     this.consumer = clientFactory.createConsumer(consumerGroupId);
     this.admin = clientFactory.createAdmin();
@@ -147,10 +148,17 @@ abstract class Channel {
   }
 
   /**
-   * Commit consumer offsets. Only commits offsets if it has not committed offsets before or the
-   * value is greater than the cached offset.
+   * Commits consumer offsets in a separate Kafka transaction on the coordinator's transactional
+   * producer, committing a partition's offset only when it advances past the last committed value.
+   * The producer uses a connector-stable {@code transactional.id}, so a newly elected coordinator's
+   * {@code initTransactions()} bumps the producer epoch and fences a superseded coordinator, whose
+   * offset commit then fails with a {@link org.apache.kafka.common.errors.ProducerFencedException}.
    *
-   * <p>Note: there is a risk that two parallel coordinators may overwrite each other's offsets.
+   * <p>This transaction covers only the consumer offset commit, not the Iceberg table snapshot
+   * commit. The snapshot commit runs outside any Kafka transaction, so a stale coordinator can
+   * still land a snapshot in the window between the new coordinator's {@code initTransactions()}
+   * and its own fenced offset commit; that case is guarded separately at the Iceberg level by the
+   * {@code SnapshotAncestryValidator} offset validator, not by epoch fencing.
    */
   protected void commitConsumerOffsets() {
     Map<TopicPartition, OffsetAndMetadata> offsetsToCommit = Maps.newHashMap();
@@ -177,10 +185,35 @@ abstract class Channel {
 
     if (!offsetsToCommit.isEmpty()) {
       LOG.debug("Committing consumer offsets: {}", offsetsToCommit);
-      consumer.commitSync(offsetsToCommit);
+      synchronized (producer) {
+        producer.beginTransaction();
+        try {
+          producer.sendOffsetsToTransaction(offsetsToCommit, consumer.groupMetadata());
+          producer.commitTransaction();
+        } catch (Exception e) {
+          // fenced producers are fatal and can't abort, so only non-fenced producers abort
+          if (!isProducerFenced(e)) {
+            abortTransaction();
+          }
+          throw e;
+        }
+      }
       offsetsToCommit.forEach(
           (topicPartition, metadata) ->
               committedOffsets.put(topicPartition.partition(), metadata.offset()));
+    }
+  }
+
+  private static boolean isProducerFenced(Exception error) {
+    return error instanceof ProducerFencedException
+        || error instanceof InvalidProducerEpochException;
+  }
+
+  private void abortTransaction() {
+    try {
+      producer.abortTransaction();
+    } catch (Exception e) {
+      LOG.warn("Error aborting producer transaction", e);
     }
   }
 
