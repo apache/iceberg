@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
@@ -57,7 +58,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.data.AvroDataTestBase;
 import org.apache.iceberg.spark.data.GenericsHelpers;
 import org.apache.iceberg.spark.data.RandomData;
@@ -66,11 +66,13 @@ import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetOutputFormat;
-import org.apache.parquet.schema.GroupType;
-import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.Type;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
@@ -236,7 +238,7 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
       long seed,
       float nullPercentage,
       Function<Record, Record> transform) {
-    Iterable<Record> data = RandomGenericData.generate(schema, numRecords, seed);
+    Iterable<Record> data = RandomGenericData.generate(schema, numRecords, seed, nullPercentage);
     return transform == IDENTITY ? data : Iterables.transform(data, transform);
   }
 
@@ -332,17 +334,205 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
 
   @Test
   @Override
-  public void testNestedStruct() {
-    assertThatThrownBy(
-            () ->
-                VectorizedSparkParquetReaders.buildReader(
-                    TypeUtil.assignIncreasingFreshIds(
-                        new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))),
-                    new MessageType(
-                        "struct", new GroupType(Type.Repetition.OPTIONAL, "struct").withId(1)),
-                    Maps.newHashMap()))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Vectorized reads are not supported yet for struct fields");
+  public void testNestedStruct() throws IOException {
+    writeAndValidate(
+        TypeUtil.assignIncreasingFreshIds(new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))));
+  }
+
+  @Test
+  void nullableNestedStruct() throws IOException {
+    writeAndValidate(
+        TypeUtil.assignIncreasingFreshIds(new Schema(optional(1, "struct", SUPPORTED_PRIMITIVES))),
+        getNumRows(),
+        0L,
+        0.5f,
+        true);
+  }
+
+  @Test
+  void nestedStructWithinStruct() throws IOException {
+    writeAndValidate(
+        TypeUtil.assignIncreasingFreshIds(
+            new Schema(
+                optional(
+                    1, "outer", Types.StructType.of(required(2, "inner", SUPPORTED_PRIMITIVES))))),
+        getNumRows(),
+        0L,
+        0.5f,
+        true);
+  }
+
+  @Test
+  void threeLevelNestedStruct() throws IOException {
+    writeAndValidate(
+        TypeUtil.assignIncreasingFreshIds(
+            new Schema(
+                optional(
+                    1,
+                    "outer",
+                    Types.StructType.of(
+                        optional(
+                            2,
+                            "middle",
+                            Types.StructType.of(required(3, "inner", SUPPORTED_PRIMITIVES))))))),
+        getNumRows(),
+        0L,
+        0.5f,
+        true);
+  }
+
+  @Test
+  void dictionaryEncodedStructChild() throws IOException {
+    // A small row count keeps the struct's child columns dictionary-encoded (the dictionary stays
+    // under the fallback threshold). Assert the child is actually dictionary-encoded so this cannot
+    // silently degrade into a plain-encoding test, then validate the vectorized read.
+    Schema schema =
+        TypeUtil.assignIncreasingFreshIds(
+            new Schema(
+                optional(
+                    1,
+                    "struct",
+                    Types.StructType.of(
+                        required(2, "id", Types.LongType.get()),
+                        optional(3, "int_data", Types.IntegerType.get())))));
+    int numRows = 1000;
+    File dataFile = temp.resolve("dict-struct.parquet").toFile();
+    Iterable<Record> data =
+        RandomGenericData.generateDictionaryEncodableRecords(schema, numRows, 0L, 0.5f);
+    try (FileAppender<Record> writer = getParquetWriter(schema, dataFile)) {
+      writer.addAll(data);
+    }
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(
+            HadoopInputFile.fromPath(
+                new org.apache.hadoop.fs.Path(dataFile.toString()), new Configuration()))) {
+      boolean childUsesDictionary = false;
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          if (column.getPath().toDotString().endsWith("int_data")) {
+            childUsesDictionary = column.getEncodings().stream().anyMatch(Encoding::usesDictionary);
+          }
+        }
+      }
+
+      assertThat(childUsesDictionary)
+          .as("struct child int_data should be dictionary-encoded")
+          .isTrue();
+    }
+
+    assertRecordsMatch(schema, numRows, data, dataFile, false, BATCH_SIZE);
+  }
+
+  @Test
+  void nestedStructWithReorderedAndDefaultedFields() throws IOException {
+    Schema writeSchema =
+        new Schema(
+            optional(
+                1,
+                "struct",
+                Types.StructType.of(
+                    required(2, "id", Types.LongType.get()),
+                    optional(3, "data", Types.StringType.get()))));
+    Schema expectedSchema =
+        new Schema(
+            optional(
+                1,
+                "struct",
+                Types.StructType.of(
+                    optional(3, "data", Types.StringType.get()),
+                    required(2, "id", Types.LongType.get()),
+                    Types.NestedField.optional("added")
+                        .withId(4)
+                        .ofType(Types.IntegerType.get())
+                        .withInitialDefault(Literal.of(42))
+                        .build())));
+    writeAndValidate(
+        writeSchema, expectedSchema, getNumRows(), 0L, 0.5f, true, BATCH_SIZE, IDENTITY);
+  }
+
+  @Test
+  void nestedStructProjectingOnlyAddedField() throws IOException {
+    // project only a field added after the file was written: the struct must read per-row null
+    Schema writeSchema =
+        new Schema(
+            optional(
+                1,
+                "struct",
+                Types.StructType.of(
+                    required(2, "id", Types.LongType.get()),
+                    optional(3, "data", Types.StringType.get()))));
+    Schema expectedSchema =
+        new Schema(
+            optional(
+                1,
+                "struct",
+                Types.StructType.of(
+                    Types.NestedField.optional(4, "added", Types.IntegerType.get()))));
+    writeAndValidate(
+        writeSchema, expectedSchema, getNumRows(), 0L, 0.5f, true, BATCH_SIZE, IDENTITY);
+  }
+
+  @Test
+  void deeplyNestedStructProjectingOnlyAddedField() throws IOException {
+    // outer and inner both project only an added field: they must share one presence read
+    Schema writeSchema =
+        new Schema(
+            optional(
+                1,
+                "outer",
+                Types.StructType.of(
+                    optional(
+                        2,
+                        "inner",
+                        Types.StructType.of(required(3, "id", Types.LongType.get()))))));
+    Schema expectedSchema =
+        new Schema(
+            optional(
+                1,
+                "outer",
+                Types.StructType.of(
+                    optional(
+                        2,
+                        "inner",
+                        Types.StructType.of(
+                            Types.NestedField.optional(4, "added", Types.IntegerType.get()))))));
+    writeAndValidate(
+        writeSchema, expectedSchema, getNumRows(), 0L, 0.5f, true, BATCH_SIZE, IDENTITY);
+  }
+
+  @Test
+  void nestedStructWithPromotedChild() throws IOException {
+    Schema writeSchema =
+        new Schema(
+            optional(
+                1,
+                "struct",
+                Types.StructType.of(
+                    required(2, "id", Types.LongType.get()),
+                    optional(3, "int_data", Types.IntegerType.get()),
+                    optional(4, "float_data", Types.FloatType.get()))));
+    Schema expectedSchema =
+        new Schema(
+            optional(
+                1,
+                "struct",
+                Types.StructType.of(
+                    required(2, "id", Types.LongType.get()),
+                    optional(3, "int_data", Types.LongType.get()),
+                    optional(4, "float_data", Types.DoubleType.get()))));
+    writeAndValidate(
+        writeSchema, expectedSchema, getNumRows(), 0L, 0.5f, true, BATCH_SIZE, IDENTITY);
+  }
+
+  @Test
+  void allNullNestedStruct() throws IOException {
+    writeAndValidate(
+        TypeUtil.assignIncreasingFreshIds(new Schema(optional(1, "struct", SUPPORTED_PRIMITIVES))),
+        getNumRows(),
+        0L,
+        1.0f,
+        true);
   }
 
   @Test

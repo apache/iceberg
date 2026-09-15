@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -184,8 +185,21 @@ public class ParquetSchemaUtil {
   }
 
   /** Shallowest leaf under path; its definition level shows whether the struct is present. */
-  static ColumnDescriptor selectPresenceColumn(MessageType fileSchema, String[] path) {
+  public static ColumnDescriptor selectPresenceColumn(MessageType fileSchema, String[] path) {
     return selectPresenceColumn(fileSchema, path, leafColumns(fileSchema, path));
+  }
+
+  /** Iceberg field for a non-projected presence leaf, so a reader can allocate a value vector. */
+  public static Types.NestedField presenceField(ColumnDescriptor leaf) {
+    PrimitiveType primitive = leaf.getPrimitiveType();
+    Preconditions.checkArgument(
+        primitive.getId() != null,
+        "Cannot build presence field for column without an ID: %s",
+        leaf);
+    return Types.NestedField.optional(
+        primitive.getId().intValue(),
+        primitive.getName(),
+        new MessageTypeToType(name -> null).primitive(primitive));
   }
 
   private static ColumnDescriptor selectPresenceColumn(
