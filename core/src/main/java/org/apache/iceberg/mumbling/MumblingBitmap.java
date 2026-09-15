@@ -143,11 +143,11 @@ class MumblingBitmap implements ManifestBitmap {
    */
   private void decodeDescriptors() {
     int[] descriptorArray = new int[containerCount];
-    int bytesRead = PFOREncoding.decode(data, HEADER_SIZE, descriptors, 0, containerCount);
+    int bytesRead = PFOREncoding.decode(data, HEADER_SIZE, descriptorArray, 0, containerCount);
 
     int[] offsetArray = new int[containerCount + 1];
     int firstContainerOffset = data.position() + HEADER_SIZE + bytesRead;
-    descriptorsToOffsets(firstContainerOffset, descriptors, offsets);
+    descriptorsToOffsets(firstContainerOffset, descriptorArray, offsetArray);
 
     // update the references last so that only valid values are available
     this.descriptors = descriptorArray;
