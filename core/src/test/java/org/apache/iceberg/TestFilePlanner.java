@@ -166,7 +166,11 @@ class TestFilePlanner {
         .allSatisfy(
             delete -> {
               assertThat(delete.content()).isEqualTo(FileContent.POSITION_DELETES);
+              assertThat(delete.location()).isEqualTo(DV_LOCATION);
               assertThat(delete.referencedDataFile()).isEqualTo(resolved("with-dv.parquet"));
+              assertThat(delete.recordCount()).isEqualTo(DV_CARDINALITY);
+              assertThat(delete.contentOffset()).isEqualTo(DV_OFFSET);
+              assertThat(delete.contentSizeInBytes()).isEqualTo(DV_SIZE_IN_BYTES);
             });
   }
 
@@ -180,7 +184,6 @@ class TestFilePlanner {
     List<FileScanTask> withResidual =
         plan(
             root, PARTITIONED_SPECS, planner -> planner.filterData(Expressions.equal("data", "x")));
-    // the identity partition on id leaves the data predicate as a residual
     assertThat(withResidual.get(0).residual())
         .hasToString(Expressions.equal("data", "x").toString());
 
@@ -294,7 +297,6 @@ class TestFilePlanner {
     InputFile root =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(deleteManifest("deletes.avro")));
 
-    // delete content is only produced by upgraded trees; that path is not yet implemented
     FilePlanner planner =
         FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS)
             .tableLocation(TABLE_LOCATION)
@@ -326,8 +328,8 @@ class TestFilePlanner {
 
   @Test
   void emptyRootYieldsNoTasks() throws IOException {
-    // an empty root has no plannable entries regardless of manifest format; AVRO is used because
-    // the Parquet writer does not materialize a file when no records are appended
+    // Avro is used because the Parquet writer does not materialize a file when no records are
+    // appended.
     InputFile root = writeManifest(FileFormat.AVRO, EMPTY_PARTITION, ImmutableList.of());
 
     assertThat(plan(root, UNPARTITIONED_SPECS)).isEmpty();
@@ -372,6 +374,13 @@ class TestFilePlanner {
         .containsExactlyInAnyOrder(
             tuple(resolved("spec0-keep.parquet"), 0, Expressions.alwaysTrue().toString()),
             tuple(resolved("spec1.parquet"), 1, Expressions.equal("id", 1).toString()));
+
+    // data sits at union position 1 but spec1 position 0; the emitted task must expose the
+    // partition in its own spec order so residual evaluation and partition-constant injection read
+    // the right value (this reads id=null without the projection)
+    FileScanTask spec1Task =
+        tasks.stream().filter(task -> task.spec().specId() == 1).findFirst().orElseThrow();
+    assertThat(spec1Task.file().partition().get(0, CharSequence.class)).hasToString("x");
   }
 
   @ParameterizedTest
@@ -427,8 +436,6 @@ class TestFilePlanner {
     }
   }
 
-  // the root manifest is supplied to the planner by its caller; the reader only needs its location
-  // and format version, so a lightweight stand-in stands in for a table-metadata-sourced root
   private static ManifestFile asManifest(InputFile file) {
     return new RootManifestFile(file, SNAPSHOT_ID, /* keyMetadata= */ null);
   }
@@ -546,7 +553,6 @@ class TestFilePlanner {
       FileFormat format, Types.StructType partitionType, Iterable<TrackedFile> files)
       throws IOException {
     Schema writeSchema = TrackedFile.schema(partitionType, Types.StructType.of());
-    // write under the table location so a leaf's resolved reference round-trips to the file on disk
     OutputFile out =
         fileIO.newOutputFile(
             TABLE_LOCATION
