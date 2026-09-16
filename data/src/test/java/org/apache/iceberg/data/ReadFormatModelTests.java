@@ -2172,7 +2172,6 @@ public abstract class ReadFormatModelTests<T> {
   void testSchemaEvolutionDropAndReAddSameNameColumn(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_EVOLUTION_BY_FIELD_ID);
 
-
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema writeSchema = dataGenerator.schema();
 
