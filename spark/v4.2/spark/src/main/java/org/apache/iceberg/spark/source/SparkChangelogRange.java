@@ -20,9 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.BaseScanTaskGroup;
@@ -34,6 +32,8 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.connector.catalog.ChangelogContext;
 import org.apache.spark.sql.connector.catalog.ChangelogContext.DeduplicationMode;
@@ -83,7 +83,7 @@ class SparkChangelogRange {
   }
 
   void validateVersions(Table table) {
-    Set<Long> versions = new HashSet<>();
+    Set<Long> versions = Sets.newHashSet();
     for (Snapshot snapshot : SnapshotUtil.currentAncestors(table)) {
       versions.add(snapshot.sequenceNumber());
     }
@@ -106,7 +106,7 @@ class SparkChangelogRange {
         "Cannot read CDC: snapshot %s is not an ancestor of %s",
         startExclusive,
         endInclusive);
-    List<Snapshot> snapshots = new ArrayList<>();
+    List<Snapshot> snapshots = Lists.newArrayList();
     for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(table, endInclusive, startExclusive)) {
       if (includes(snapshot)) {
         snapshots.add(snapshot);
@@ -117,30 +117,23 @@ class SparkChangelogRange {
       return Collections.emptyList();
     }
 
-    Set<Long> snapshotIds = new HashSet<>();
+    Set<Long> snapshotIds = Sets.newHashSet();
     for (Snapshot snapshot : snapshots) {
-      Preconditions.checkArgument(
-          snapshot.firstRowId() != null,
-          "Cannot read Spark CDC from snapshot %s without row lineage",
-          snapshot.snapshotId());
+      validateSnapshot(snapshot);
       snapshotIds.add(snapshot.snapshotId());
     }
 
     IncrementalChangelogScan boundedScan =
         scan.fromSnapshotInclusive(snapshots.get(snapshots.size() - 1).snapshotId())
             .toSnapshot(snapshots.get(0).snapshotId());
-    List<ScanTaskGroup<ChangelogScanTask>> result = new ArrayList<>();
+    List<ScanTaskGroup<ChangelogScanTask>> result = Lists.newArrayList();
     try (CloseableIterable<ScanTaskGroup<ChangelogScanTask>> groups = boundedScan.planTasks()) {
       for (ScanTaskGroup<ChangelogScanTask> group : groups) {
-        List<ChangelogScanTask> tasks = new ArrayList<>();
+        List<ChangelogScanTask> tasks = Lists.newArrayList();
         for (ChangelogScanTask task : group.tasks()) {
           // Commit timestamps need not follow snapshot order. Filter whole commits, not rows.
           if (snapshotIds.contains(task.commitSnapshotId())) {
-            Preconditions.checkArgument(
-                task instanceof ContentScanTask<?> contentTask
-                    && contentTask.file().firstRowId() != null,
-                "Cannot read Spark CDC from a file without row lineage in snapshot %s",
-                task.commitSnapshotId());
+            validateTaskLineage(task);
             tasks.add(task);
           }
         }
@@ -154,6 +147,26 @@ class SparkChangelogRange {
     }
 
     return result;
+  }
+
+  private void validateSnapshot(Snapshot snapshot) {
+    Preconditions.checkArgument(
+        snapshot.sequenceNumber() > 0,
+        "Cannot read Spark CDC from snapshot %s without a commit sequence number",
+        snapshot.snapshotId());
+    Preconditions.checkArgument(
+        !requiresPostProcessing() || snapshot.firstRowId() != null,
+        "Cannot read Spark CDC from snapshot %s without row lineage",
+        snapshot.snapshotId());
+  }
+
+  private void validateTaskLineage(ChangelogScanTask task) {
+    Preconditions.checkArgument(
+        !requiresPostProcessing()
+            || (task instanceof ContentScanTask<?> contentTask
+                && contentTask.file().firstRowId() != null),
+        "Cannot read Spark CDC from a file without row lineage in snapshot %s",
+        task.commitSnapshotId());
   }
 
   private static long parseVersion(String version) {

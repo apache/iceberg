@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.ChangelogScanTask;
@@ -191,7 +190,7 @@ class SparkChangelogMicroBatchStream extends SparkMicroBatchStreamBase {
           end.snapshotId());
     }
 
-    List<Snapshot> snapshots = new ArrayList<>();
+    List<Snapshot> snapshots = Lists.newArrayList();
     SnapshotUtil.ancestorsBetween(table(), end.snapshotId(), startSnapshotId)
         .forEach(snapshots::add);
     Collections.reverse(snapshots);

@@ -70,20 +70,7 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
   @Override
   public Scan build() {
     if (cdcRange != null) {
-      Preconditions.checkArgument(
-          readConf().startSnapshotId() == null
-              && readConf().endSnapshotId() == null
-              && readConf().startTimestamp() == null
-              && readConf().endTimestamp() == null,
-          "Use Spark CDC startingVersion/endingVersion or startingTimestamp/endingTimestamp options");
-      Schema readProjection = projectionWithMetadataColumns();
-      IncrementalChangelogScan scan =
-          buildIcebergScan(
-              ChangelogUtil.changelogSchema(SparkChangelogTable.dropCdcMetadata(readProjection)),
-              null,
-              null);
-      return new SparkChangelogScan(
-          spark(), table(), scan, readConf(), readProjection, filters(), cdcRange);
+      return buildCdcScan();
     }
 
     Long startSnapshotId = readConf().startSnapshotId();
@@ -126,6 +113,23 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
     Schema projection = projectionWithMetadataColumns();
     IncrementalChangelogScan scan = buildIcebergScan(projection, startSnapshotId, endSnapshotId);
     return new SparkChangelogScan(spark(), table(), scan, readConf(), projection, filters());
+  }
+
+  private SparkChangelogScan buildCdcScan() {
+    Preconditions.checkArgument(
+        readConf().startSnapshotId() == null
+            && readConf().endSnapshotId() == null
+            && readConf().startTimestamp() == null
+            && readConf().endTimestamp() == null,
+        "Use Spark CDC startingVersion/endingVersion or startingTimestamp/endingTimestamp options");
+    Schema readProjection = projectionWithMetadataColumns();
+    IncrementalChangelogScan scan =
+        buildIcebergScan(
+            ChangelogUtil.changelogSchema(SparkChangelogTable.dropCdcMetadata(readProjection)),
+            null,
+            null);
+    return new SparkChangelogScan(
+        spark(), table(), scan, readConf(), readProjection, filters(), cdcRange);
   }
 
   private IncrementalChangelogScan buildIcebergScan(

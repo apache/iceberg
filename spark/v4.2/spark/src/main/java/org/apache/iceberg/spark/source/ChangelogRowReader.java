@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -41,6 +40,7 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.rdd.InputFileBlockHolder;
@@ -99,10 +99,10 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
                 MetadataColumns.CHANGE_TYPE.fieldId(),
                 MetadataColumns.CHANGE_ORDINAL.fieldId(),
                 MetadataColumns.COMMIT_SNAPSHOT_ID.fieldId());
-    List<Integer> fieldIds = new ArrayList<>();
+    List<Integer> fieldIds = Lists.newArrayList();
     dataSchema(expectedSchema).columns().forEach(field -> fieldIds.add(field.fieldId()));
     fieldIds.addAll(metadataIds);
-    List<Expression> expressions = new ArrayList<>();
+    List<Expression> expressions = Lists.newArrayList();
     for (Types.NestedField field : expectedSchema.columns()) {
       expressions.add(
           new BoundReference(

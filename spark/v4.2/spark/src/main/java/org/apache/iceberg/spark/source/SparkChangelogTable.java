@@ -112,12 +112,18 @@ public class SparkChangelogTable
     this.icebergChangelogSchema = ChangelogUtil.changelogSchema(table.schema());
     this.cdcRange = context != null ? new SparkChangelogRange(context) : null;
     Preconditions.checkArgument(
-        cdcRange == null || TableUtil.supportsRowLineage(table),
-        "Spark CDC requires an Iceberg table with row lineage");
+        cdcRange == null || TableUtil.formatVersion(table) >= 2,
+        "Spark CDC requires format version 2 or later for commit sequence numbers");
+    Preconditions.checkArgument(
+        cdcRange == null
+            || !cdcRange.requiresPostProcessing()
+            || TableUtil.supportsRowLineage(table),
+        "Spark CDC post-processing requires row lineage. "
+            + "Use deduplicationMode=none with computeUpdates=false for raw changes");
     this.sparkCdcSchema =
         cdcRange != null
             ? TypeUtil.join(
-                cdcDataSchema(table),
+                cdcDataSchema(table, cdcRange.requiresPostProcessing()),
                 new Schema(
                     MetadataColumns.CHANGE_TYPE, COMMIT_VERSION_FIELD, COMMIT_TIMESTAMP_FIELD))
             : null;
@@ -125,7 +131,16 @@ public class SparkChangelogTable
   }
 
   static Schema cdcDataSchema(Table table) {
-    return TypeUtil.join(table.schema(), new Schema(ROW_ID_FIELD, ROW_VERSION_FIELD));
+    return cdcDataSchema(table, true);
+  }
+
+  private static Schema cdcDataSchema(Table table, boolean requiresRowLineage) {
+    // Raw CDC can expose older files whose lineage is unknown without inventing an identity.
+    Schema lineageSchema =
+        requiresRowLineage
+            ? new Schema(ROW_ID_FIELD, ROW_VERSION_FIELD)
+            : new Schema(MetadataColumns.ROW_ID, MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER);
+    return TypeUtil.join(table.schema(), lineageSchema);
   }
 
   static Schema dropCdcMetadata(Schema schema) {
