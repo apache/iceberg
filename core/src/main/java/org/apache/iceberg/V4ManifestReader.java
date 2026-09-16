@@ -25,6 +25,7 @@ import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.InclusiveStatsEvaluator;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
@@ -65,6 +66,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final FileIO io;
   private final Schema readSchema;
   private final String tableLocation;
+  private final InclusiveStatsEvaluator statsFilter;
   private final Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters; // by spec ID
   private final boolean includeAll;
   private final Set<Integer> requestedStatsFieldIds;
@@ -75,6 +77,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       FileIO io,
       Schema readSchema,
       String tableLocation,
+      InclusiveStatsEvaluator statsFilter,
       Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters,
       boolean includeAll,
       Set<Integer> requestedStatsFieldIds,
@@ -83,6 +86,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     this.io = io;
     this.readSchema = readSchema;
     this.tableLocation = tableLocation;
+    this.statsFilter = statsFilter;
     this.partitionFilters = partitionFilters;
     this.includeAll = includeAll;
     this.requestedStatsFieldIds = requestedStatsFieldIds;
@@ -97,18 +101,30 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   /** Returns copies of the tracked files that match this reader's configured filters. */
   @Override
   public CloseableIterator<TrackedFile> iterator() {
-    CloseableIterable<TrackedFile> entries = CloseableIterable.transform(open(), this::prepare);
-    if (!partitionFilters.isEmpty()) {
-      // manifests have no partition, so the partition filter cannot apply to them
-      entries =
-          CloseableIterable.filter(entries, entry -> isManifest(entry) || matchesPartition(entry));
-    }
+    CloseableIterable<TrackedFile> files = CloseableIterable.transform(open(), this::prepare);
 
     if (!includeAll) {
-      entries = CloseableIterable.filter(entries, entry -> entry.tracking().isLive());
+      files = CloseableIterable.filter(files, file -> file.tracking().isLive());
     }
 
-    return CloseableIterable.transform(entries, this::copyResolved).iterator();
+    if (statsFilter != null) {
+      files =
+          CloseableIterable.filter(
+              this::incrementSkipCount,
+              files,
+              file -> statsFilter.eval(file.contentStats(), file.recordCount()));
+    } else {
+      files =
+          CloseableIterable.filter(
+              this::incrementSkipCount, files, file -> file.recordCount() != 0L);
+    }
+
+    if (!partitionFilters.isEmpty()) {
+      // manifests have no partition, so the partition filter cannot apply to them
+      files = CloseableIterable.filter(files, file -> isManifest(file) || matchesPartition(file));
+    }
+
+    return CloseableIterable.transform(files, this::copyResolved).iterator();
   }
 
   private boolean matchesPartition(TrackedFile trackedFile) {
@@ -128,19 +144,21 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     StructProjection projection = partitionFilter.second();
     boolean matches = evaluator.eval(projection.wrap(trackedFile.partition()));
     if (!matches) {
-      incrementSkipCount(trackedFile.contentType());
+      incrementSkipCount(trackedFile);
     }
 
     return matches;
   }
 
-  private void incrementSkipCount(FileContent content) {
-    switch (content) {
+  private void incrementSkipCount(TrackedFile file) {
+    switch (file.contentType()) {
       case DATA -> scanMetrics.skippedDataFiles().increment();
       case EQUALITY_DELETES -> scanMetrics.skippedDeleteFiles().increment();
       case DATA_MANIFEST -> scanMetrics.skippedDataManifests().increment();
       case DELETE_MANIFEST -> scanMetrics.skippedDeleteManifests().increment();
-      default -> throw new UnsupportedOperationException("Unsupported content type: " + content);
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported content type: " + file.contentType());
     }
   }
 
@@ -376,10 +394,19 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           io,
           readSchema(!partitionFilters.isEmpty()),
           tableLocation,
+          statsFilter(),
           partitionFilters,
           includeAll,
           requestedStatsFieldIds,
           scanMetrics);
+    }
+
+    private InclusiveStatsEvaluator statsFilter() {
+      if (rowFilter != null && rowFilter != Expressions.alwaysTrue()) {
+        return new InclusiveStatsEvaluator(tableSchema, rowFilter, caseSensitive);
+      } else {
+        return null;
+      }
     }
 
     private Map<Integer, Pair<Evaluator, StructProjection>> projectFilters() {
