@@ -58,11 +58,14 @@ import org.apache.iceberg.actions.RepairTable;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.BaseDVFileWriter;
+import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -523,6 +526,65 @@ public class TestRepairTableAction extends TestBase {
   }
 
   @TestTemplate
+  public void testRepairPreservesDeletionVectorFields() throws IOException {
+    assumeThat(formatVersion)
+        .as("deletion vectors are only written in format version 3 or higher")
+        .isGreaterThanOrEqualTo(3);
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+    DataFile dataFile = onlyDataFile(table);
+
+    // a deletion vector (a Puffin blob) shares a delete manifest with a repairable equality
+    // delete. repair skips the vector because its metrics cannot be read, but still rewrites the
+    // manifest to fix the equality delete, re-serializing the vector through SparkDeleteFile. its
+    // v3 fields must survive that round trip.
+    DeleteFile dv = writeDV(table, dataFile, 1);
+
+    DeleteFile eqDelete = writeEqDeletes(table, "c1", 1);
+    DeleteFile corruptEqEntry =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .copy(eqDelete)
+            .ofEqualityDeletes(
+                eqDelete.equalityFieldIds().stream().mapToInt(Integer::intValue).toArray())
+            .withRecordCount(eqDelete.recordCount() + 100)
+            .withFileSizeInBytes(eqDelete.fileSizeInBytes() + 4096)
+            .build();
+
+    // commit both together so the deletion vector and the equality delete share one delete manifest
+    table.newRowDelta().addDeletes(dv).addDeletes(corruptEqEntry).commit();
+    table.refresh();
+    assertThat(table.currentSnapshot().deleteManifests(table.io()))
+        .as("the deletion vector and the equality delete must share a single manifest")
+        .hasSize(1);
+
+    RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
+
+    assertThat(result.repairedEntryCount())
+        .as("only the equality delete is repairable; a deletion vector's metrics cannot be read")
+        .isEqualTo(1);
+
+    table.refresh();
+    Map<String, DeleteFile> repairedByPath = Maps.newHashMap();
+    for (ManifestFile manifest : table.currentSnapshot().deleteManifests(table.io())) {
+      for (DeleteFile file : readDeleteFiles(table, manifest)) {
+        repairedByPath.put(file.location(), file);
+      }
+    }
+
+    DeleteFile repairedDv = repairedByPath.get(dv.location());
+    assertThat(repairedDv).as("the deletion vector must survive the repair").isNotNull();
+    assertThat(repairedDv.referencedDataFile())
+        .as("the referenced data file of the deletion vector must survive the repair")
+        .isEqualTo(dv.referencedDataFile());
+    assertThat(repairedDv.contentOffset())
+        .as("the content offset of the deletion vector must survive the repair")
+        .isEqualTo(dv.contentOffset());
+    assertThat(repairedDv.contentSizeInBytes())
+        .as("the content size of the deletion vector must survive the repair")
+        .isEqualTo(dv.contentSizeInBytes());
+  }
+
+  @TestTemplate
   public void testRepairSucceedsWithConcurrentAppend() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
@@ -856,6 +918,22 @@ public class TestRepairTableAction extends TestBase {
     OutputFile output =
         Files.localOutput(File.createTempFile("pos-deletes", ".parquet", temp.toFile()));
     return FileHelpers.writeDeleteFile(table, output, null, deletes, formatVersion).first();
+  }
+
+  private DeleteFile writeDV(Table table, DataFile dataFile, int numPositionsToDelete)
+      throws IOException {
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+    DVFileWriter writer = new BaseDVFileWriter(fileFactory, path -> null);
+    try (DVFileWriter closeableWriter = writer) {
+      for (int position = 0; position < numPositionsToDelete; position++) {
+        closeableWriter.delete(dataFile.location(), position, table.spec(), dataFile.partition());
+      }
+    }
+
+    List<DeleteFile> deleteFiles = writer.result().deleteFiles();
+    assertThat(deleteFiles).hasSize(1);
+    return deleteFiles.get(0);
   }
 
   private void replaceManifestWithCorruptStats(Table table, DataFile file) throws IOException {
