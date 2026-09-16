@@ -46,9 +46,9 @@ abstract class BaseHttpFile {
   private final CloseableHttpClient client;
   private final SerializableMap<String, String> properties;
 
-  protected final String location;
-  protected final String url;
-  protected final MetricsContext metrics;
+  private final String location;
+  private final String url;
+  private final MetricsContext metrics;
 
   BaseHttpFile(
       CloseableHttpClient client,
@@ -64,6 +64,18 @@ abstract class BaseHttpFile {
     this.url = url;
     this.properties = SerializableMap.copyOf(properties == null ? Map.of() : properties);
     this.metrics = metrics;
+  }
+
+  public String location() {
+    return location;
+  }
+
+  protected String url() {
+    return url;
+  }
+
+  protected MetricsContext metrics() {
+    return metrics;
   }
 
   protected CloseableHttpClient client() {

@@ -124,7 +124,7 @@ class HttpInputFile extends BaseHttpFile implements InputFile {
       long fetchedLength = fetchContentLength();
       if (fetchedLength == UNKNOWN_LENGTH) {
         throw new RuntimeIOException(
-            "Cannot determine content length for %s", BaseHttpFile.redact(location));
+            "Cannot determine content length for %s", BaseHttpFile.redact(location()));
       }
 
       this.length = fetchedLength;
@@ -136,21 +136,16 @@ class HttpInputFile extends BaseHttpFile implements InputFile {
   @Override
   public SeekableInputStream newStream() {
     if (hasSharedClient()) {
-      return new HttpInputStream(client(), location, url, chunkSize, metrics);
+      return new HttpInputStream(client(), location(), url(), chunkSize, metrics());
     }
 
-    return new HttpInputStream(newHttpClient(), location, url, chunkSize, metrics, true);
-  }
-
-  @Override
-  public String location() {
-    return location;
+    return new HttpInputStream(newHttpClient(), location(), url(), chunkSize, metrics(), true);
   }
 
   @Override
   public boolean exists() {
     try (CloseableHttpClient httpClient = hasSharedClient() ? null : newHttpClient()) {
-      HttpGet request = new HttpGet(url);
+      HttpGet request = new HttpGet(url());
       request.setHeader(HttpHeaders.RANGE, "bytes=0-0");
       CloseableHttpClient requestClient = hasSharedClient() ? client() : httpClient;
       return requestClient.execute(
@@ -162,7 +157,7 @@ class HttpInputFile extends BaseHttpFile implements InputFile {
               });
     } catch (IOException e) {
       throw new RuntimeIOException(
-          e, "Failed to check existence of %s", BaseHttpFile.redact(location));
+          e, "Failed to check existence of %s", BaseHttpFile.redact(location()));
     }
   }
 
@@ -172,7 +167,7 @@ class HttpInputFile extends BaseHttpFile implements InputFile {
    */
   private long fetchContentLength() {
     try (CloseableHttpClient httpClient = hasSharedClient() ? null : newHttpClient()) {
-      HttpGet request = new HttpGet(url);
+      HttpGet request = new HttpGet(url());
       request.setHeader(HttpHeaders.RANGE, "bytes=0-0");
       CloseableHttpClient requestClient = hasSharedClient() ? client() : httpClient;
 
@@ -185,22 +180,22 @@ class HttpInputFile extends BaseHttpFile implements InputFile {
               case OK -> parseLengthFrom200(response);
               case NOT_FOUND ->
                   throw new NotFoundException(
-                      "Location does not exist: %s", BaseHttpFile.redact(location));
+                      "Location does not exist: %s", BaseHttpFile.redact(location()));
               case FORBIDDEN ->
                   throw new ForbiddenException(
-                      "Access forbidden for %s", BaseHttpFile.redact(location));
+                      "Access forbidden for %s", BaseHttpFile.redact(location()));
               case RANGE_NOT_SATISFIABLE, RETRYABLE, FAILURE ->
                   throw new IOException(
                       String.format(
                           Locale.ROOT,
                           "Unexpected HTTP %d for %s",
                           statusCode,
-                          BaseHttpFile.redact(url)));
+                          BaseHttpFile.redact(url())));
             };
           });
     } catch (IOException e) {
       throw new RuntimeIOException(
-          e, "Failed to fetch content length for %s", BaseHttpFile.redact(location));
+          e, "Failed to fetch content length for %s", BaseHttpFile.redact(location()));
     }
   }
 
