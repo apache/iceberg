@@ -200,6 +200,64 @@ public class TestMetricsModes {
   }
 
   @TestTemplate
+  public void testMetricsConfigInferredDefaultModeForEscapedColumn() throws IOException {
+    // "$data" is not a valid Avro/Parquet name and is sanitized to "_x24data" when written, so a
+    // data file schema resolves the column mode by the sanitized name (see issue #11950).
+    Schema schema =
+        new Schema(
+            required(1, "col1", Types.IntegerType.get()),
+            required(2, "$data", Types.IntegerType.get()),
+            required(3, "col3", Types.IntegerType.get()));
+
+    Table table =
+        TestTables.create(
+            tableDir,
+            "test",
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+
+    // only infer a default for the first two columns, disabling metrics for the rest
+    table
+        .updateProperties()
+        .set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "2")
+        .commit();
+
+    MetricsConfig config = MetricsConfig.forTable(table);
+
+    // the inferred default applies whether the column is queried by its original or sanitized name
+    assertThat(config.columnMode("$data")).isEqualTo(Truncate.withLength(16));
+    assertThat(config.columnMode("_x24data")).isEqualTo(Truncate.withLength(16));
+    assertThat(config.columnMode("col3")).isEqualTo(None.get());
+  }
+
+  @TestTemplate
+  public void testMetricsConfigExplicitOverrideForEscapedColumn() throws IOException {
+    Schema schema = new Schema(required(1, "$data", Types.IntegerType.get()));
+
+    Table table =
+        TestTables.create(
+            tableDir,
+            "test",
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            formatVersion);
+
+    table
+        .updateProperties()
+        .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "$data", "full")
+        .commit();
+
+    MetricsConfig config = MetricsConfig.forTable(table);
+
+    // the explicit override is honored whether queried by the original or sanitized name
+    assertThat(config.columnMode("$data")).isEqualTo(Full.get());
+    assertThat(config.columnMode("_x24data")).isEqualTo(Full.get());
+  }
+
+  @TestTemplate
   public void testMetricsVariantSupported() {
     assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
     Schema schema =
