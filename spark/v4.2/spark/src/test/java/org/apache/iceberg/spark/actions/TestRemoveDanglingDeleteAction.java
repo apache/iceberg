@@ -36,6 +36,7 @@ public class TestRemoveDanglingDeleteAction extends TestRemoveDanglingDeleteFile
         SparkSession.builder()
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
             .config(TestBase.DISABLE_UI)
             .getOrCreate();
   }
