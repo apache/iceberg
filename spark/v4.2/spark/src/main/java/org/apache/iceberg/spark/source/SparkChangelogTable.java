@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.MetadataColumns;
@@ -26,14 +27,19 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.catalog.Changelog;
 import org.apache.spark.sql.connector.catalog.ChangelogContext;
+import org.apache.spark.sql.connector.catalog.ChangelogContext.DeduplicationMode;
 import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.MetadataColumn;
 import org.apache.spark.sql.connector.catalog.SupportsMetadataColumns;
@@ -95,6 +101,8 @@ public class SparkChangelogTable
           "Iceberg snapshot commit timestamp");
 
   private final Table table;
+  private final ChangelogContext context;
+  private final String[] identifierColumns;
   private final Schema icebergChangelogSchema;
   private final SparkChangelogRange cdcRange;
   private final Schema sparkCdcSchema;
@@ -108,7 +116,19 @@ public class SparkChangelogTable
   }
 
   public SparkChangelogTable(Table table, ChangelogContext context) {
+    this(table, context, CaseInsensitiveStringMap.empty());
+  }
+
+  public SparkChangelogTable(
+      Table table, ChangelogContext context, CaseInsensitiveStringMap options) {
     this.table = table;
+    this.context = context;
+    this.identifierColumns = identifierColumns(table.schema(), options);
+    Preconditions.checkArgument(
+        identifierColumns.length == 0
+            || (context != null
+                && context.deduplicationMode() == DeduplicationMode.DROP_CARRYOVERS),
+        "Business-key CDC requires deduplicationMode=dropCarryovers");
     this.icebergChangelogSchema = ChangelogUtil.changelogSchema(table.schema());
     this.cdcRange = context != null ? new SparkChangelogRange(context) : null;
     Preconditions.checkArgument(
@@ -117,17 +137,59 @@ public class SparkChangelogTable
     Preconditions.checkArgument(
         cdcRange == null
             || !cdcRange.requiresPostProcessing()
+            || identifierColumns.length > 0
             || TableUtil.supportsRowLineage(table),
         "Spark CDC post-processing requires row lineage. "
             + "Use deduplicationMode=none with computeUpdates=false for raw changes");
     this.sparkCdcSchema =
         cdcRange != null
             ? TypeUtil.join(
-                cdcDataSchema(table, cdcRange.requiresPostProcessing()),
+                cdcDataSchema(
+                    table, identifierColumns.length == 0 && cdcRange.requiresPostProcessing()),
                 new Schema(
                     MetadataColumns.CHANGE_TYPE, COMMIT_VERSION_FIELD, COMMIT_TIMESTAMP_FIELD))
             : null;
     this.sparkCdcColumns = cdcRange != null ? toColumns(sparkCdcSchema) : null;
+  }
+
+  private static String[] identifierColumns(Schema schema, CaseInsensitiveStringMap options) {
+    String value = options.get(SparkReadOptions.CDC_IDENTIFIER_COLUMNS);
+    if (value == null) {
+      return new String[0];
+    }
+
+    List<String> names = Splitter.on(',').trimResults().splitToList(value);
+    String[] resolved = new String[names.size()];
+    boolean caseSensitive = SparkUtil.caseSensitive(SparkSession.active());
+    Set<String> seen = Sets.newHashSet();
+    for (int index = 0; index < names.size(); index++) {
+      String name = names.get(index);
+      Types.NestedField field =
+          caseSensitive
+              ? schema.asStruct().field(name)
+              : schema.asStruct().caseInsensitiveField(name);
+      Preconditions.checkArgument(
+          field != null && field.type().isPrimitiveType(),
+          "CDC identifier column must be an existing top-level primitive field: %s",
+          name);
+      Preconditions.checkArgument(
+          seen.add(field.name()), "Duplicate CDC identifier column: %s", name);
+      resolved[index] = field.name();
+    }
+
+    return resolved;
+  }
+
+  /** Identifier fields consumed by the Iceberg CDC resolution rule. */
+  public String[] identifierColumns() {
+    return identifierColumns.clone();
+  }
+
+  /** Raw input for the Iceberg business-key CDC resolution rule. */
+  public SparkChangelogTable rawChangelog() {
+    Preconditions.checkState(identifierColumns.length > 0, "Not a business-key changelog");
+    return new SparkChangelogTable(
+        table, new ChangelogContext(context.range(), DeduplicationMode.NONE, false));
   }
 
   static Schema cdcDataSchema(Table table) {
@@ -176,7 +238,7 @@ public class SparkChangelogTable
 
   @Override
   public boolean containsCarryoverRows() {
-    return true;
+    return identifierColumns.length == 0;
   }
 
   @Override
@@ -186,11 +248,17 @@ public class SparkChangelogTable
 
   @Override
   public boolean representsUpdateAsDeleteAndInsert() {
-    return true;
+    return identifierColumns.length == 0 || !context.computeUpdates();
   }
 
   @Override
   public NamedReference[] rowId() {
+    if (identifierColumns.length > 0) {
+      return Arrays.stream(identifierColumns)
+          .map(name -> Spark3Util.toNamedReference("`" + name.replace("`", "``") + "`"))
+          .toArray(NamedReference[]::new);
+    }
+
     return new NamedReference[] {Spark3Util.toNamedReference(MetadataColumns.ROW_ID.name())};
   }
 
@@ -201,6 +269,8 @@ public class SparkChangelogTable
 
   @Override
   public ScanBuilder newScanBuilder(CaseInsensitiveStringMap options) {
+    Preconditions.checkState(
+        identifierColumns.length == 0, "Business-key CDC requires IcebergSparkSessionExtensions");
     if (cdcRange == null) {
       return new SparkChangelogScanBuilder(spark(), table, icebergChangelogSchema, options);
     }

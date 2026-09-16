@@ -199,7 +199,8 @@ public class SparkCatalog extends BaseCatalog {
       Identifier ident, ChangelogContext context, CaseInsensitiveStringMap options)
       throws NoSuchTableException {
     try {
-      return new SparkChangelogTable(icebergCatalog.loadTable(buildIdentifier(ident)), context);
+      return new SparkChangelogTable(
+          icebergCatalog.loadTable(buildIdentifier(ident)), context, options);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       throw new NoSuchTableException(ident);
     }
