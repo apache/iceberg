@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import org.apache.iceberg.mumbling.MumblingBitmapTestUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +31,8 @@ class TestManifestInfoStruct {
   @Test
   void fieldAccess() {
     ManifestInfoStruct info =
-        new ManifestInfoStruct(10, 20, 3, 2, 1000L, 2000L, 300L, 200L, 5L, new byte[] {0xF}, 1L);
+        new ManifestInfoStruct(
+            10, 20, 3, 2, 1000L, 2000L, 300L, 200L, 5L, MumblingBitmapTestUtil.emptyBitmapBytes());
 
     assertThat(info.addedFilesCount()).isEqualTo(10);
     assertThat(info.existingFilesCount()).isEqualTo(20);
@@ -42,8 +43,9 @@ class TestManifestInfoStruct {
     assertThat(info.deletedRowsCount()).isEqualTo(300L);
     assertThat(info.replacedRowsCount()).isEqualTo(200L);
     assertThat(info.minSequenceNumber()).isEqualTo(5L);
-    assertThat(info.dv()).isNotNull();
-    assertThat(info.dvCardinality()).isEqualTo(1L);
+    assertThat(info.manifestDeletionVector().buffer())
+        .isEqualTo(MumblingBitmapTestUtil.emptyBitmap().buffer());
+    assertThat(info.manifestDeletionVector().cardinality()).isEqualTo(0);
   }
 
   @Test
@@ -59,8 +61,7 @@ class TestManifestInfoStruct {
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(new byte[] {0xF}))
-            .dvCardinality(1L)
+            .manifestDeletionVector(MumblingBitmapTestUtil.emptyBitmap())
             .build();
 
     ManifestInfoStruct copy = info.copy();
@@ -74,10 +75,10 @@ class TestManifestInfoStruct {
     assertThat(copy.deletedRowsCount()).isEqualTo(300L);
     assertThat(copy.replacedRowsCount()).isEqualTo(200L);
     assertThat(copy.minSequenceNumber()).isEqualTo(5L);
-    assertThat(copy.dvCardinality()).isEqualTo(1L);
 
     // verify deep copy of dv byte array
-    assertThat(copy.dv().array()).isNotSameAs(info.dv().array());
+    assertThat(copy.manifestDeletionVector().buffer().array())
+        .isNotSameAs(info.manifestDeletionVector().buffer().array());
   }
 
   @Test
@@ -95,8 +96,7 @@ class TestManifestInfoStruct {
             .minSequenceNumber(0L)
             .build();
 
-    assertThat(info.dv()).isNull();
-    assertThat(info.dvCardinality()).isNull();
+    assertThat(info.manifestDeletionVector()).isNull();
   }
 
   @Test
@@ -132,8 +132,7 @@ class TestManifestInfoStruct {
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(new byte[] {0xF}))
-            .dvCardinality(1L)
+            .manifestDeletionVector(MumblingBitmapTestUtil.emptyBitmap())
             .build();
 
     // unknown ordinals from a newer format version are silently ignored
@@ -149,8 +148,8 @@ class TestManifestInfoStruct {
     assertThat(info.deletedRowsCount()).isEqualTo(300L);
     assertThat(info.replacedRowsCount()).isEqualTo(200L);
     assertThat(info.minSequenceNumber()).isEqualTo(5L);
-    assertThat(info.dv()).isEqualTo(ByteBuffer.wrap(new byte[] {0xF}));
-    assertThat(info.dvCardinality()).isEqualTo(1L);
+    assertThat(info.manifestDeletionVector().buffer())
+        .isEqualTo(MumblingBitmapTestUtil.emptyBitmap().buffer());
   }
 
   @Test
@@ -166,8 +165,7 @@ class TestManifestInfoStruct {
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(new byte[] {0xF}))
-            .dvCardinality(1L)
+            .manifestDeletionVector(MumblingBitmapTestUtil.emptyBitmap())
             .build();
 
     ManifestInfoStruct deserialized = TestHelpers.roundTripSerialize(info);
@@ -181,8 +179,8 @@ class TestManifestInfoStruct {
     assertThat(deserialized.deletedRowsCount()).isEqualTo(300L);
     assertThat(deserialized.replacedRowsCount()).isEqualTo(200L);
     assertThat(deserialized.minSequenceNumber()).isEqualTo(5L);
-    assertThat(deserialized.dv()).isEqualTo(ByteBuffer.wrap(new byte[] {0xF}));
-    assertThat(deserialized.dvCardinality()).isEqualTo(1L);
+    assertThat(deserialized.manifestDeletionVector().buffer())
+        .isEqualTo(MumblingBitmapTestUtil.emptyBitmap().buffer());
   }
 
   @Test
@@ -411,13 +409,6 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void builderRejectsNegativeDvCardinality() {
-    assertThatThrownBy(() -> ManifestInfoStruct.builder().dvCardinality(-1L))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid DV cardinality: -1 (must be >= 0)");
-  }
-
-  @Test
   void builderRejectsRowsWithoutFiles() {
     assertThatThrownBy(
             () ->
@@ -510,43 +501,6 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void builderDvPairingValidation() {
-    assertThatThrownBy(
-            () ->
-                ManifestInfoStruct.builder()
-                    .addedFilesCount(0)
-                    .existingFilesCount(0)
-                    .deletedFilesCount(0)
-                    .replacedFilesCount(0)
-                    .addedRowsCount(0L)
-                    .existingRowsCount(0L)
-                    .deletedRowsCount(0L)
-                    .replacedRowsCount(0L)
-                    .minSequenceNumber(0L)
-                    .dv(ByteBuffer.wrap(new byte[] {0xF}))
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid DV and cardinality: must both be null or non-null");
-
-    assertThatThrownBy(
-            () ->
-                ManifestInfoStruct.builder()
-                    .addedFilesCount(0)
-                    .existingFilesCount(0)
-                    .deletedFilesCount(0)
-                    .replacedFilesCount(0)
-                    .addedRowsCount(0L)
-                    .existingRowsCount(0L)
-                    .deletedRowsCount(0L)
-                    .replacedRowsCount(0L)
-                    .minSequenceNumber(0L)
-                    .dvCardinality(1L)
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid DV and cardinality: must both be null or non-null");
-  }
-
-  @Test
   void kryoSerializationRoundTrip() throws IOException {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
@@ -559,8 +513,7 @@ class TestManifestInfoStruct {
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(new byte[] {0xF}))
-            .dvCardinality(1L)
+            .manifestDeletionVector(MumblingBitmapTestUtil.emptyBitmap())
             .build();
 
     ManifestInfoStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(info);
@@ -574,7 +527,7 @@ class TestManifestInfoStruct {
     assertThat(deserialized.deletedRowsCount()).isEqualTo(300L);
     assertThat(deserialized.replacedRowsCount()).isEqualTo(200L);
     assertThat(deserialized.minSequenceNumber()).isEqualTo(5L);
-    assertThat(deserialized.dv()).isEqualTo(ByteBuffer.wrap(new byte[] {0xF}));
-    assertThat(deserialized.dvCardinality()).isEqualTo(1L);
+    assertThat(deserialized.manifestDeletionVector().buffer())
+        .isEqualTo(MumblingBitmapTestUtil.emptyBitmap().buffer());
   }
 }

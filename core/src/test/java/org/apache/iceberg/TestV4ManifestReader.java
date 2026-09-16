@@ -988,7 +988,7 @@ class TestV4ManifestReader {
   }
 
   private static TrackedFile manifestRef(FileContent content, String location) {
-    ManifestInfo info = new ManifestInfoStruct(1, 0, 0, 0, 1L, 0L, 0L, 0L, 1L, null, null);
+    ManifestInfo info = new ManifestInfoStruct(1, 0, 0, 0, 1L, 0L, 0L, 0L, 1L, null);
     return new TrackedFileStruct(
         addedTracking(),
         content,

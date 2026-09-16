@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.iceberg.avro.SupportsIndexProjection;
+import org.apache.iceberg.mumbling.MumblingBitmaps;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
@@ -40,8 +41,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
           ManifestInfo.DELETED_ROWS_COUNT,
           ManifestInfo.REPLACED_ROWS_COUNT,
           ManifestInfo.MIN_SEQUENCE_NUMBER,
-          ManifestInfo.DV,
-          ManifestInfo.DV_CARDINALITY);
+          ManifestInfo.DV);
 
   private int addedFilesCount = -1;
   private int existingFilesCount = -1;
@@ -53,7 +53,6 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
   private long replacedRowsCount = -1L;
   private long minSequenceNumber = -1L;
   private byte[] dv = null;
-  private Long dvCardinality = null;
 
   ManifestInfoStruct(Types.StructType type) {
     super(BASE_TYPE, type);
@@ -71,7 +70,6 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     this.replacedRowsCount = toCopy.replacedRowsCount;
     this.minSequenceNumber = toCopy.minSequenceNumber;
     this.dv = toCopy.dv != null ? Arrays.copyOf(toCopy.dv, toCopy.dv.length) : null;
-    this.dvCardinality = toCopy.dvCardinality;
   }
 
   ManifestInfoStruct(
@@ -84,8 +82,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       long deletedRowsCount,
       long replacedRowsCount,
       long minSequenceNumber,
-      byte[] dv,
-      Long dvCardinality) {
+      byte[] dv) {
     super(BASE_TYPE.fields().size());
     this.addedFilesCount = addedFilesCount;
     this.existingFilesCount = existingFilesCount;
@@ -97,7 +94,6 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     this.replacedRowsCount = replacedRowsCount;
     this.minSequenceNumber = minSequenceNumber;
     this.dv = dv;
-    this.dvCardinality = dvCardinality;
   }
 
   @Override
@@ -146,13 +142,8 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
   }
 
   @Override
-  public ByteBuffer dv() {
-    return dv != null ? ByteBuffer.wrap(dv) : null;
-  }
-
-  @Override
-  public Long dvCardinality() {
-    return dvCardinality;
+  public ManifestBitmap manifestDeletionVector() {
+    return dv != null ? MumblingBitmaps.read(ByteBuffer.wrap(dv)) : null;
   }
 
   @Override
@@ -186,9 +177,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       case 8:
         return minSequenceNumber;
       case 9:
-        return dv();
-      case 10:
-        return dvCardinality;
+        return dv != null ? ByteBuffer.wrap(dv) : null;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -227,9 +216,6 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       case 9:
         this.dv = ByteBuffers.toByteArray((ByteBuffer) value);
         break;
-      case 10:
-        this.dvCardinality = (Long) value;
-        break;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -252,7 +238,6 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
         .add("replaced_rows_count", replacedRowsCount)
         .add("min_sequence_number", minSequenceNumber)
         .add("dv", dv == null ? "null" : "(binary)")
-        .add("dv_cardinality", dvCardinality)
         .toString();
   }
 
@@ -267,7 +252,6 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     private Long replacedRowsCount = null;
     private Long minSequenceNumber = null;
     private byte[] dv = null;
-    private Long dvCardinality = null;
 
     Builder addedFilesCount(int count) {
       Preconditions.checkArgument(
@@ -331,16 +315,9 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       return this;
     }
 
-    Builder dv(ByteBuffer buffer) {
-      Preconditions.checkArgument(buffer != null, "Invalid DV: null");
-      this.dv = ByteBuffers.toByteArray(buffer);
-      return this;
-    }
-
-    Builder dvCardinality(long cardinality) {
-      Preconditions.checkArgument(
-          cardinality >= 0, "Invalid DV cardinality: %s (must be >= 0)", cardinality);
-      this.dvCardinality = cardinality;
+    Builder manifestDeletionVector(ManifestBitmap bitmap) {
+      Preconditions.checkArgument(bitmap != null, "Invalid manifest deletion vector: null");
+      this.dv = ByteBuffers.toByteArray(bitmap.buffer());
       return this;
     }
 
@@ -383,9 +360,6 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
           "Invalid replaced counts: %s rows in %s files",
           replacedRowsCount,
           replacedFilesCount);
-      Preconditions.checkArgument(
-          (dv == null) == (dvCardinality == null),
-          "Invalid DV and cardinality: must both be null or non-null");
       return new ManifestInfoStruct(
           addedFilesCount,
           existingFilesCount,
@@ -396,8 +370,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
           deletedRowsCount,
           replacedRowsCount,
           minSequenceNumber,
-          dv,
-          dvCardinality);
+          dv);
     }
   }
 }
