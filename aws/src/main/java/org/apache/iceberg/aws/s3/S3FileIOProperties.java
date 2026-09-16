@@ -1006,7 +1006,7 @@ public class S3FileIOProperties implements Serializable {
    *     S3Client.builder().applyMutation(s3FileIOProperties::applyS3ServiceConfigurations)
    * </pre>
    */
-  public <T extends S3ClientBuilder> void applyServiceConfigurations(T builder) {
+  public <T extends S3BaseClientBuilder> void applyServiceConfigurations(T builder) {
     builder
         .dualstackEnabled(isDualStackEnabled)
         .crossRegionAccessEnabled(isCrossRegionAccessEnabled)
