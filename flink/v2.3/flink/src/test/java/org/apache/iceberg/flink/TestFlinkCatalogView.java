@@ -396,6 +396,18 @@ public class TestFlinkCatalogView extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testCreateViewWithMetadataTableNameFails() {
+    assertThatThrownBy(() -> sql("CREATE VIEW shadow$snapshots AS SELECT id FROM %s", TABLE_NAME))
+        .hasMessageContaining("Could not execute CreateTable")
+        .cause()
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot create view")
+        .hasMessageContaining("metadata table");
+
+    assertThat(sql("SHOW VIEWS")).isEmpty();
+  }
+
+  @TestTemplate
   public void testCreateViewWithUnqualifiedCrossDatabaseReference() {
     // the stored expanded query fully qualifies the reference at creation time, so the view
     // resolves against the table the creator saw, regardless of the reader's session database

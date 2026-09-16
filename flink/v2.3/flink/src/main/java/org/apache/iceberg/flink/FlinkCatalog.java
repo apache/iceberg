@@ -540,6 +540,10 @@ public class FlinkCatalog extends AbstractCatalog {
       }
 
       Preconditions.checkArgument(
+          !tablePath.getObjectName().contains("$"),
+          "Cannot create view %s: '$' denotes a metadata table",
+          tablePath);
+      Preconditions.checkArgument(
           table instanceof ResolvedCatalogView,
           "Expected a ResolvedCatalogView but got: %s",
           table.getClass().getName());
