@@ -83,7 +83,7 @@ public class TestReferencedByQueryParam {
   public void loadTableSendsReferencedBy() {
     restCatalog.loadTable(TABLE_IDENT, referencedBy("outer_view"));
 
-    // the test adapter uses %2E as the namespace separator
+    // the test adapter uses %2E as the namespace separator, so it reaches the wire decoded
     Mockito.verify(adapter)
         .execute(
             matches(
@@ -94,7 +94,7 @@ public class TestReferencedByQueryParam {
                     "snapshots",
                     "all",
                     RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER,
-                    "ns%2Eouter_view")),
+                    "ns.outer_view")),
             eq(LoadTableResponse.class),
             any(),
             any());
@@ -129,7 +129,7 @@ public class TestReferencedByQueryParam {
                 "v1/namespaces/ns/views/test_view",
                 Map.of(),
                 ImmutableMap.of(
-                    RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns%2Eouter_view")),
+                    RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns.outer_view")),
             eq(LoadViewResponse.class),
             any(),
             any());
@@ -167,7 +167,7 @@ public class TestReferencedByQueryParam {
                 "v1/namespaces/ns/views/test_view",
                 Map.of(),
                 ImmutableMap.of(
-                    RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns%2Eouter_view")),
+                    RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns.outer_view")),
             eq(LoadViewResponse.class),
             any(),
             any());
@@ -196,7 +196,7 @@ public class TestReferencedByQueryParam {
     Table table = restCatalog.loadTable(TABLE_IDENT, referencedBy("outer_view"));
 
     assertThat(table.io().properties())
-        .containsEntry(RESTCatalogProperties.REST_REFERENCED_BY, "ns%2Eouter_view");
+        .containsEntry(RESTCatalogProperties.REST_REFERENCED_BY, "ns.outer_view");
   }
 
   @Test
@@ -227,7 +227,28 @@ public class TestReferencedByQueryParam {
                     "snapshots",
                     "all",
                     RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER,
-                    "ns%2Eouter_view")),
+                    "ns.outer_view")),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void refreshKeepsSendingReferencedBy() {
+    Table table = restCatalog.loadTable(TABLE_IDENT, referencedBy("outer_view"));
+    Mockito.clearInvocations(adapter);
+
+    table.refresh();
+
+    // refresh() also runs on stale reads and commit retries, and sends no snapshots parameter
+    Mockito.verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                "v1/namespaces/ns/tables/test_table",
+                Map.of(),
+                ImmutableMap.of(
+                    RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns.outer_view")),
             eq(LoadTableResponse.class),
             any(),
             any());

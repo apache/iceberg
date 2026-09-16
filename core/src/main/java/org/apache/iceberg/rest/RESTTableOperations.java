@@ -61,6 +61,7 @@ class RESTTableOperations implements TableOperations {
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
   private final Set<Endpoint> endpoints;
+  private final Map<String, String> readQueryParams;
   private UpdateType updateType;
   private TableMetadata current;
 
@@ -80,7 +81,8 @@ class RESTTableOperations implements TableOperations {
         UpdateType.SIMPLE,
         Lists.newArrayList(),
         current,
-        endpoints);
+        endpoints,
+        Map.of());
   }
 
   RESTTableOperations(
@@ -92,7 +94,17 @@ class RESTTableOperations implements TableOperations {
       List<MetadataUpdate> createChanges,
       TableMetadata current,
       Set<Endpoint> endpoints) {
-    this(client, path, headers, headers, io, updateType, createChanges, current, endpoints);
+    this(
+        client,
+        path,
+        headers,
+        headers,
+        io,
+        updateType,
+        createChanges,
+        current,
+        endpoints,
+        Map.of());
   }
 
   RESTTableOperations(
@@ -102,7 +114,8 @@ class RESTTableOperations implements TableOperations {
       Supplier<Map<String, String>> mutationHeaders,
       FileIO io,
       TableMetadata current,
-      Set<Endpoint> endpoints) {
+      Set<Endpoint> endpoints,
+      Map<String, String> readQueryParams) {
     this(
         client,
         path,
@@ -112,7 +125,8 @@ class RESTTableOperations implements TableOperations {
         UpdateType.SIMPLE,
         Lists.newArrayList(),
         current,
-        endpoints);
+        endpoints,
+        readQueryParams);
   }
 
   RESTTableOperations(
@@ -124,9 +138,11 @@ class RESTTableOperations implements TableOperations {
       UpdateType updateType,
       List<MetadataUpdate> createChanges,
       TableMetadata current,
-      Set<Endpoint> endpoints) {
+      Set<Endpoint> endpoints,
+      Map<String, String> readQueryParams) {
     this.client = client;
     this.path = path;
+    this.readQueryParams = readQueryParams;
     this.readHeaders = readHeaders;
     this.mutationHeaders = mutationHeaders;
     this.io = io;
@@ -150,7 +166,12 @@ class RESTTableOperations implements TableOperations {
   public TableMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     return updateCurrentMetadata(
-        client.get(path, LoadTableResponse.class, readHeaders, ErrorHandlers.tableErrorHandler()));
+        client.get(
+            path,
+            readQueryParams,
+            LoadTableResponse.class,
+            readHeaders,
+            ErrorHandlers.tableErrorHandler()));
   }
 
   @Override

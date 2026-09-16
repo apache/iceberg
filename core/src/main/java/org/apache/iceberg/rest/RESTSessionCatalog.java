@@ -610,6 +610,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       LoadContext loadContext,
       List<Credential> credentials,
       RemoteSigningConfig remoteSigningConfig) {
+    Map<String, String> readQueryParams =
+        referencedByParam(loadContext, RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
+
     return () -> {
       RESTTableOperations ops =
           newTableOps(
@@ -620,7 +623,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               tableFileIO(
                   identifier, context, tableConf, loadContext, credentials, remoteSigningConfig),
               tableMetadata,
-              endpoints);
+              endpoints,
+              readQueryParams);
 
       trackFileIO(ops);
 
@@ -1340,8 +1344,40 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       FileIO fileIO,
       TableMetadata current,
       Set<Endpoint> supportedEndpoints) {
+    return newTableOps(
+        restClient,
+        path,
+        readHeaders,
+        mutationHeaderSupplier,
+        fileIO,
+        current,
+        supportedEndpoints,
+        Map.of());
+  }
+
+  /**
+   * Create a new {@link RESTTableOperations} instance that sends the given query parameters on read
+   * requests. Table loads go through this overload, so a subclass that overrides only the variant
+   * without {@code readQueryParams} does not cover them.
+   */
+  protected RESTTableOperations newTableOps(
+      RESTClient restClient,
+      String path,
+      Supplier<Map<String, String>> readHeaders,
+      Supplier<Map<String, String>> mutationHeaderSupplier,
+      FileIO fileIO,
+      TableMetadata current,
+      Set<Endpoint> supportedEndpoints,
+      Map<String, String> readQueryParams) {
     return new RESTTableOperations(
-        restClient, path, readHeaders, mutationHeaderSupplier, fileIO, current, supportedEndpoints);
+        restClient,
+        path,
+        readHeaders,
+        mutationHeaderSupplier,
+        fileIO,
+        current,
+        supportedEndpoints,
+        readQueryParams);
   }
 
   /**
@@ -1383,7 +1419,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         updateType,
         createChanges,
         current,
-        supportedEndpoints);
+        supportedEndpoints,
+        Map.of());
   }
 
   /**
