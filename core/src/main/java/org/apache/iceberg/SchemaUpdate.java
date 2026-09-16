@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -44,6 +45,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -199,6 +201,260 @@ class SchemaUpdate implements UpdateSchema {
     deletes.add(field.fieldId());
 
     return this;
+  }
+
+  @Override
+  public UpdateSchema undeleteColumn(String name) {
+    Types.NestedField currentField = findField(name);
+    Preconditions.checkArgument(
+        currentField == null || deletes.contains(currentField.fieldId()),
+        "Cannot undelete column: name already exists: %s",
+        name);
+
+    validateNoCaseCollision(name);
+    validateNoPendingUndelete(name);
+
+    // a single history pass resolves both the winning field and the schema that holds it
+    Schema winningSchema =
+        base != null ? UndeleteUtils.findWinningSchema(base.schemas(), name) : null;
+    Preconditions.checkArgument(
+        winningSchema != null,
+        "Cannot undelete column: no deleted column with that name: %s",
+        name);
+    Types.NestedField historicalField = winningSchema.findField(name);
+    validateNoPendingUndelete(historicalField);
+
+    int parentId = resolveParentForRestore(winningSchema, name, historicalField);
+    validateNoCollisionUnderParent(parentId, historicalField);
+    validateParentGenerations(parentId, winningSchema, historicalField);
+
+    int containingIndex =
+        UndeleteUtils.newestContainingSnapshotIndex(base, historicalField.fieldId());
+    boolean preserveRequiredness = containingIndex == 0;
+    if (historicalField.isRequired() && !preserveRequiredness) {
+      throw new IllegalArgumentException(
+          unsafeRequiredRestoreMessage(name, historicalField.fieldId(), containingIndex));
+    }
+
+    // restore the original field ID so reads of data written before the delete keep resolving
+    Types.NestedField.Builder builder = Types.NestedField.from(historicalField);
+    if (!preserveRequiredness) {
+      builder.asOptional();
+    }
+    Types.NestedField restored = builder.build();
+
+    // the restore supersedes a pending delete of the same field
+    deletes.remove(Integer.valueOf(restored.fieldId()));
+
+    boolean inPlaceReplacement =
+        base != null && base.schema().findField(restored.fieldId()) != null;
+
+    addedNameToId.put(caseSensitivityAwareName(name), restored.fieldId());
+    if (parentId != TABLE_ROOT_ID) {
+      idToParent.put(restored.fieldId(), parentId);
+    }
+
+    updates.put(restored.fieldId(), restored);
+    // replacement, not addition: parentToAddedIds would append a duplicate of the live field
+    if (!inPlaceReplacement) {
+      parentToAddedIds.put(parentId, restored.fieldId());
+    }
+
+    return this;
+  }
+
+  private void validateNoCollisionUnderParent(int parentId, Types.NestedField historicalField) {
+    Types.StructType container =
+        parentId == TABLE_ROOT_ID
+            ? schema.asStruct()
+            : schema.findField(parentId).type().asNestedType().asStructType();
+    String leaf = historicalField.name();
+
+    // siblings keep their effective names: pending renames and deletions apply before the restore
+    for (Types.NestedField sibling : container.fields()) {
+      if (deletes.contains(sibling.fieldId())) {
+        continue;
+      }
+
+      String effectiveName = effectiveSiblingName(sibling);
+      if (!effectiveName.equalsIgnoreCase(leaf)) {
+        continue;
+      }
+
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot undelete column: case-insensitive collision between %s and existing column:"
+                  + " %s",
+              siblingPath(parentId, leaf), siblingPath(parentId, effectiveName)));
+    }
+
+    for (int addedId : parentToAddedIds.get(parentId)) {
+      Types.NestedField pending = updates.get(addedId);
+      if (pending != null && pending.name().equalsIgnoreCase(leaf)) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Cannot undelete column: case-insensitive collision between %s and pending"
+                    + " column: %s",
+                siblingPath(parentId, leaf), pending.name()));
+      }
+    }
+  }
+
+  private String effectiveSiblingName(Types.NestedField sibling) {
+    Types.NestedField updated = updates.get(sibling.fieldId());
+    return updated != null ? updated.name() : sibling.name();
+  }
+
+  private String siblingPath(int parentId, String leaf) {
+    List<String> segments = Lists.newArrayList();
+    Integer current = parentId != TABLE_ROOT_ID ? parentId : null;
+    while (current != null) {
+      Types.NestedField committed = schema.findField(current);
+      Types.NestedField updated = updates.get(current);
+      segments.add(
+          updated != null
+              ? updated.name()
+              : committed != null ? committed.name() : String.valueOf(current));
+      current = idToParent.get(current);
+    }
+
+    Collections.reverse(segments);
+    return segments.isEmpty() ? leaf : String.join(".", segments) + "." + leaf;
+  }
+
+  private void validateNoCaseCollision(String name) {
+    Types.NestedField collision = schema.caseInsensitiveFindField(name);
+    if (collision != null && !deletes.contains(collision.fieldId())) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot undelete column: case-insensitive collision between %s and existing column:"
+                  + " %s",
+              name, collision.name()));
+    }
+
+    for (String addedName : addedNameToId.keySet()) {
+      if (addedName.toLowerCase(Locale.ROOT).equals(name.toLowerCase(Locale.ROOT))) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Cannot undelete column: case-insensitive collision between %s and pending"
+                    + " column: %s",
+                name, addedName));
+      }
+    }
+  }
+
+  private void validateNoPendingUndelete(String name) {
+    Preconditions.checkArgument(
+        !addedNameToId.containsKey(caseSensitivityAwareName(name)),
+        "Cannot undelete column twice in one update: %s",
+        name);
+  }
+
+  private void validateNoPendingUndelete(Types.NestedField historicalField) {
+    Preconditions.checkArgument(
+        !addedNameToId.containsValue(historicalField.fieldId()),
+        "Cannot undelete column twice in one update: %s",
+        historicalField.name());
+
+    Types.NestedField liveField = base.schema().findField(historicalField.fieldId());
+    if (liveField != null && !deletes.contains(liveField.fieldId())) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot undelete column: field ID %s is still present as %s",
+              historicalField.fieldId(), liveField.name()));
+    }
+  }
+
+  private int resolveParentForRestore(
+      Schema winningSchema, String name, Types.NestedField historicalField) {
+    List<Integer> ancestorIds =
+        UndeleteUtils.structAncestorIds(winningSchema, historicalField.fieldId());
+    for (int index = ancestorIds.size() - 1; index >= 0; index -= 1) {
+      int ancestorId = ancestorIds.get(index);
+      Types.NestedField currentParent = schema.findField(ancestorId);
+      if (currentParent == null) {
+        String historicalName = winningSchema.findColumnName(ancestorId);
+        Preconditions.checkArgument(
+            schema.findField(historicalName) == null,
+            "Cannot undelete column %s: its parent was recreated with a new field ID, so data"
+                + " written under the previous parent is unreachable through it",
+            name);
+        throw new IllegalArgumentException(
+            String.format("Cannot find parent struct: %s", historicalName));
+      }
+
+      Preconditions.checkArgument(
+          currentParent.type().isNestedType() && currentParent.type().asNestedType().isStructType(),
+          "Cannot undelete into non-struct column: %s: %s",
+          schema.findColumnName(ancestorId),
+          currentParent.type());
+    }
+
+    for (int ancestorId : ancestorIds) {
+      Preconditions.checkArgument(
+          !deletes.contains(ancestorId),
+          "Cannot undelete into a column that will be deleted: %s",
+          schema.findColumnName(ancestorId));
+    }
+
+    return ancestorIds.isEmpty() ? TABLE_ROOT_ID : ancestorIds.get(ancestorIds.size() - 1);
+  }
+
+  // Parquet matches IDs at every nesting level, so a recreated parent makes old values unreadable
+  private void validateParentGenerations(
+      int parentId, Schema winningSchema, Types.NestedField historicalField) {
+    List<Integer> historicalIds =
+        UndeleteUtils.structAncestorIds(winningSchema, historicalField.fieldId());
+    List<Integer> currentIds = currentAncestorChain(parentId);
+    while (currentIds.size() > historicalIds.size()) {
+      // a pending addition has no historical counterpart
+      currentIds.remove(0);
+    }
+
+    for (int depth = 0; depth < Math.min(currentIds.size(), historicalIds.size()); depth += 1) {
+      Preconditions.checkArgument(
+          currentIds.get(depth).equals(historicalIds.get(depth)),
+          "Cannot undelete column %s: its parent was recreated with a new field ID, so data written"
+              + " under the previous parent is unreachable through it",
+          historicalField.name());
+    }
+  }
+
+  private List<Integer> currentAncestorChain(int parentId) {
+    List<Integer> chain = Lists.newArrayList();
+    Integer current = parentId != TABLE_ROOT_ID ? parentId : null;
+    while (current != null) {
+      chain.add(current);
+      current = idToParent.get(current);
+    }
+
+    Collections.reverse(chain);
+    return chain;
+  }
+
+  private String unsafeRequiredRestoreMessage(String name, int fieldId, int index) {
+    String reason;
+    if (index == UndeleteUtils.UNRESOLVABLE_LINEAGE) {
+      reason =
+          String.format(
+              "cannot resolve schema for snapshot %s",
+              UndeleteUtils.unresolvableAncestorId(base, fieldId));
+    } else if (index == UndeleteUtils.PRUNED_LINEAGE) {
+      reason = "snapshot lineage could not be verified";
+    } else {
+      long containingSnapshotId =
+          SnapshotUtil.ancestorIds(base.currentSnapshot(), base::snapshot).get(index);
+      reason =
+          String.format(
+              "snapshots newer than snapshot %s, which was the last to contain the column, may "
+                  + "contain rows without values",
+              containingSnapshotId);
+    }
+
+    return String.format(
+        "Cannot undelete required column %s: %s. Only nullable columns or tables unchanged since "
+            + "the drop can be undeleted",
+        name, reason);
   }
 
   @Override
