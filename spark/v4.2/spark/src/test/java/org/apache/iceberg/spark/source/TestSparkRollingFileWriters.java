@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.Arrays;
 import java.util.List;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TestRollingFileWriters;
@@ -28,6 +31,20 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class TestSparkRollingFileWriters extends TestRollingFileWriters<InternalRow> {
+
+  // Vortex has no Spark 4.2 integration yet -- spark/v4.2 has no iceberg-vortex
+  // dependency and SparkFormatModels registers no Vortex model -- so it is excluded
+  // from the parameter matrix inherited from the shared test base.
+  @Parameters(name = "formatVersion = {0}, fileFormat = {1}, Partitioned = {2}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {2, FileFormat.AVRO, false},
+        new Object[] {2, FileFormat.AVRO, true},
+        new Object[] {2, FileFormat.PARQUET, false},
+        new Object[] {2, FileFormat.PARQUET, true},
+        new Object[] {2, FileFormat.ORC, false},
+        new Object[] {2, FileFormat.ORC, true});
+  }
 
   @Override
   protected FileWriterFactory<InternalRow> newWriterFactory(

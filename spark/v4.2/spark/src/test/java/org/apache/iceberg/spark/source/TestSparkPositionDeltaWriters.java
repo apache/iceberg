@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.Arrays;
 import java.util.List;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TestPositionDeltaWriters;
@@ -31,6 +34,17 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class TestSparkPositionDeltaWriters extends TestPositionDeltaWriters<InternalRow> {
+
+  // Vortex has no Spark 4.2 integration yet -- spark/v4.2 has no iceberg-vortex
+  // dependency and SparkFormatModels registers no Vortex model -- so it is excluded
+  // from the parameter matrix inherited from the shared test base.
+  @Parameters(name = "formatVersion = {0}, fileFormat = {1}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {2, FileFormat.AVRO},
+        new Object[] {2, FileFormat.ORC},
+        new Object[] {2, FileFormat.PARQUET});
+  }
 
   @Override
   protected FileWriterFactory<InternalRow> newWriterFactory(
