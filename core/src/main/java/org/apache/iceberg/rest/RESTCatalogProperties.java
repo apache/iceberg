@@ -32,6 +32,9 @@ public final class RESTCatalogProperties {
   public static final SnapshotMode SNAPSHOT_LOADING_MODE_DEFAULT = SnapshotMode.ALL;
   public static final String SNAPSHOTS_QUERY_PARAMETER = "snapshots";
 
+  public static final String REFERENCED_BY_QUERY_PARAMETER = "referenced-by";
+  public static final String PLAN_ID_QUERY_PARAMETER = "planId";
+
   public static final String METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   public static final boolean METRICS_REPORTING_ENABLED_DEFAULT = true;
 
@@ -53,10 +56,18 @@ public final class RESTCatalogProperties {
 
   public static final String REST_SCAN_PLAN_ID = "rest-scan-plan-id";
 
+  public static final String REST_REFERENCED_BY = "rest-referenced-by";
+
   public static final String REST_SCAN_PLANNING_POLL_TIMEOUT_MS =
       "rest-scan-planning.poll-timeout-ms";
   public static final long REST_SCAN_PLANNING_POLL_TIMEOUT_MS_DEFAULT =
       TimeUnit.MINUTES.toMillis(5);
+
+  // Extra poll attempts after the first fetch of a submitted plan. Must be >= 0; 0 means a single
+  // fetch attempt with no retries.
+  public static final String REST_SCAN_PLANNING_POLL_NUM_RETRIES =
+      "rest-scan-planning.poll-num-retries";
+  public static final int REST_SCAN_PLANNING_POLL_NUM_RETRIES_DEFAULT = 10;
 
   // Properties that control the behaviour of the table cache used for freshness-aware table
   // loading.

@@ -73,10 +73,8 @@ public class Files {
 
     @Override
     public PositionOutputStream createOrOverwrite() {
-      if (file.exists()) {
-        if (!file.delete()) {
-          throw new RuntimeIOException("Failed to delete: %s", file);
-        }
+      if (file.exists() && !file.delete()) {
+        throw new RuntimeIOException("Failed to delete: %s", file);
       }
       return create();
     }

@@ -42,10 +42,11 @@ public class MetricsUtil {
   private MetricsUtil() {}
 
   /**
-   * Copies a metrics object without value, NULL and NaN counts for given fields.
+   * Copies a metrics object without value, NULL and NaN counts or average value sizes for given
+   * fields.
    *
-   * @param excludedFieldIds field IDs for which the counts must be dropped
-   * @return a new metrics object without counts for given fields
+   * @param excludedFieldIds field IDs for which the counts and average value sizes must be dropped
+   * @return a new metrics object without counts or average value sizes for given fields
    */
   public static Metrics copyWithoutFieldCounts(Metrics metrics, Set<Integer> excludedFieldIds) {
     return new Metrics(
@@ -56,13 +57,15 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         metrics.lowerBounds(),
         metrics.upperBounds(),
+        copyWithoutKeys(metrics.avgValueSizes(), excludedFieldIds),
         metrics.originalTypes());
   }
 
   /**
-   * Copies a metrics object without counts and bounds for given fields.
+   * Copies a metrics object without counts, average value sizes, and bounds for given fields.
    *
-   * @param excludedFieldIds field IDs for which the counts and bounds must be dropped
+   * @param excludedFieldIds field IDs for which the counts, average value sizes, and bounds must be
+   *     dropped
    * @return a new metrics object without lower and upper bounds for given fields
    */
   public static Metrics copyWithoutFieldCountsAndBounds(
@@ -75,6 +78,7 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.lowerBounds(), excludedFieldIds),
         copyWithoutKeys(metrics.upperBounds(), excludedFieldIds),
+        copyWithoutKeys(metrics.avgValueSizes(), excludedFieldIds),
         copyWithoutKeys(metrics.originalTypes(), excludedFieldIds));
   }
 

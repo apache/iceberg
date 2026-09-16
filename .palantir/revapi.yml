@@ -635,6 +635,9 @@ acceptedBreaks:
     - code: "java.field.removed"
       old: "field org.apache.iceberg.rest.RESTUtil.NAMESPACE_SPLITTER"
       justification: "Removed deprecated functionality scheduled for removal in 1.12.0"
+    - code: "java.field.removed"
+      old: "field org.apache.iceberg.util.ThreadPools.WORKER_THREAD_POOL_SIZE_PROP"
+      justification: "Removed deprecated API scheduled for removal in 1.12.0"
     - code: "java.field.removedWithConstant"
       old: "field org.apache.iceberg.PartitionStatsHandler.PARTITION_FIELD_ID"
       justification: "Removed deprecated functionality for partition stats"
@@ -772,6 +775,26 @@ acceptedBreaks:
       old: "method org.apache.avro.Schema org.apache.iceberg.avro.AvroSchemaUtil::pruneColumns(org.apache.avro.Schema,\
         \ java.util.Set<java.lang.Integer>, org.apache.iceberg.mapping.NameMapping)"
       justification: "Removed deprecated API scheduled for removal in 1.12.0"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.DeleteFileIndex org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDeleteFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression, org.apache.iceberg.util.PartitionSet,\
+        \ org.apache.iceberg.Snapshot) @ org.apache.iceberg.BaseOverwriteFiles"
+      justification: "Internal validation helper, not an extension point"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.DeleteFileIndex org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDeleteFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression, org.apache.iceberg.util.PartitionSet,\
+        \ org.apache.iceberg.Snapshot) @ org.apache.iceberg.BaseReplacePartitions"
+      justification: "Internal validation helper, not an extension point"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.DeleteFileIndex org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDeleteFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression, org.apache.iceberg.util.PartitionSet,\
+        \ org.apache.iceberg.Snapshot) @ org.apache.iceberg.BaseRowDelta"
+      justification: "Internal validation helper, not an extension point"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.DeleteFileIndex org.apache.iceberg.MergingSnapshotProducer<ThisT>::addedDeleteFiles(org.apache.iceberg.TableMetadata,\
+        \ java.lang.Long, org.apache.iceberg.expressions.Expression, org.apache.iceberg.util.PartitionSet,\
+        \ org.apache.iceberg.Snapshot) @ org.apache.iceberg.StreamingDelete"
+      justification: "Internal validation helper, not an extension point"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.ManifestReader<org.apache.iceberg.DataFile>\
         \ org.apache.iceberg.ManifestFiles::read(org.apache.iceberg.ManifestFile,\

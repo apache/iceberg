@@ -38,6 +38,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.iceberg.BaseTable;
@@ -1061,6 +1062,80 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     return new CatalogWithAdapter(catalog, adapter);
   }
 
+  /**
+   * Catalog whose fetch-planning responses stay {@link PlanStatus#SUBMITTED} so client polling can
+   * be tested. When {@code submittedFetchLimit} is null, every fetch stays submitted. Otherwise
+   * only the first {@code submittedFetchLimit} fetches are overridden and later calls return the
+   * real completed plan.
+   */
+  private CatalogWithAdapter catalogWithSubmittedPlanningResults(
+      String catalogName,
+      Map<String, String> extraProperties,
+      AtomicInteger fetchAttempts,
+      Integer submittedFetchLimit) {
+    List<Endpoint> endpoints =
+        endpointsWithPlanning(
+            Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
+            Endpoint.V1_CANCEL_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
+
+    RESTCatalogAdapter adapter =
+        Mockito.spy(
+            new RESTCatalogAdapter(backendCatalog) {
+              @Override
+              public <T extends RESTResponse> T execute(
+                  HTTPRequest request,
+                  Class<T> responseType,
+                  Consumer<ErrorResponse> errorHandler,
+                  Consumer<Map<String, String>> responseHeaders,
+                  ParserContext parserContext) {
+                if (ResourcePaths.config().equals(request.path())) {
+                  return castResponse(
+                      responseType, ConfigResponse.builder().withEndpoints(endpoints).build());
+                }
+                T response =
+                    super.execute(
+                        request, responseType, errorHandler, responseHeaders, parserContext);
+                if (response instanceof LoadTableResponse) {
+                  return castResponse(
+                      responseType,
+                      withPlanningMode(
+                          (LoadTableResponse) response,
+                          RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
+                }
+
+                if (response instanceof FetchPlanningResultResponse) {
+                  int attempt = fetchAttempts == null ? 0 : fetchAttempts.incrementAndGet();
+                  if (submittedFetchLimit == null || attempt <= submittedFetchLimit) {
+                    return castResponse(
+                        responseType,
+                        FetchPlanningResultResponse.builder()
+                            .withPlanStatus(PlanStatus.SUBMITTED)
+                            .build());
+                  }
+                }
+
+                return response;
+              }
+            });
+
+    adapter.setPlanningBehavior(TestPlanningBehavior.builder().asynchronous().build());
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        catalogName,
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
+            .put(
+                RESTCatalogProperties.SCAN_PLANNING_MODE,
+                RESTCatalogProperties.ScanPlanningMode.SERVER.modeName())
+            .putAll(extraProperties)
+            .build());
+    return new CatalogWithAdapter(catalog, adapter);
+  }
+
   @Test
   public void serverDoesNotSupportPlanningEndpoint() throws IOException {
     // Server requires server-side planning but doesn't support the endpoint - should fail
@@ -1155,67 +1230,14 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
   @Test
   public void asyncPlanningRespectsConfigurablePollTimeout() {
-    // Create an adapter that always returns SUBMITTED (never completes)
-    List<Endpoint> endpoints =
-        endpointsWithPlanning(
-            Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
-            Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
-            Endpoint.V1_CANCEL_TABLE_SCAN_PLAN,
-            Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithSubmittedPlanningResults(
+            "test-poll-timeout",
+            ImmutableMap.of(RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS, "1"),
+            null,
+            null);
 
-    RESTCatalogAdapter adapter =
-        Mockito.spy(
-            new RESTCatalogAdapter(backendCatalog) {
-              @Override
-              public <T extends RESTResponse> T execute(
-                  HTTPRequest request,
-                  Class<T> responseType,
-                  Consumer<ErrorResponse> errorHandler,
-                  Consumer<Map<String, String>> responseHeaders,
-                  ParserContext parserContext) {
-                if (ResourcePaths.config().equals(request.path())) {
-                  return castResponse(
-                      responseType, ConfigResponse.builder().withEndpoints(endpoints).build());
-                }
-                T response =
-                    super.execute(
-                        request, responseType, errorHandler, responseHeaders, parserContext);
-                if (response instanceof LoadTableResponse) {
-                  return castResponse(
-                      responseType,
-                      withPlanningMode(
-                          (LoadTableResponse) response,
-                          RESTCatalogProperties.ScanPlanningMode.SERVER.modeName()));
-                }
-
-                // Override fetch responses to always return SUBMITTED so the poll never completes
-                if (response instanceof FetchPlanningResultResponse) {
-                  return castResponse(
-                      responseType,
-                      FetchPlanningResultResponse.builder()
-                          .withPlanStatus(PlanStatus.SUBMITTED)
-                          .build());
-                }
-
-                return response;
-              }
-            });
-
-    adapter.setPlanningBehavior(TestPlanningBehavior.builder().asynchronous().build());
-
-    RESTCatalog catalog =
-        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    catalog.initialize(
-        "test-poll-timeout",
-        ImmutableMap.of(
-            CatalogProperties.FILE_IO_IMPL,
-            "org.apache.iceberg.inmemory.InMemoryFileIO",
-            RESTCatalogProperties.SCAN_PLANNING_MODE,
-            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName(),
-            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS,
-            "1"));
-
-    RESTTable table = restTableFor(catalog, "poll_timeout_test");
+    RESTTable table = restTableFor(catalogWithAdapter.catalog, "poll_timeout_test");
     setParserContext(table);
     RESTTableScan scan = restTableScanFor(table);
 
@@ -1282,6 +1304,83 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
     assertThatThrownBy(scan::planFiles)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("must be positive");
+  }
+
+  @Test
+  public void asyncPlanningRespectsConfigurablePollRetries() {
+    AtomicInteger fetchAttempts = new AtomicInteger();
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithSubmittedPlanningResults(
+            "test-poll-retries",
+            ImmutableMap.of(RESTCatalogProperties.REST_SCAN_PLANNING_POLL_NUM_RETRIES, "0"),
+            fetchAttempts,
+            null);
+
+    RESTTable table = restTableFor(catalogWithAdapter.catalog, "poll_retries_test");
+    setParserContext(table);
+    RESTTableScan scan = restTableScanFor(table);
+
+    // With 0 retries and a server that never completes, planFiles should fail after one attempt
+    assertThatThrownBy(scan::planFiles)
+        .isInstanceOf(RemotePlanTimeoutException.class)
+        .hasMessageContaining("did not complete within configured limits")
+        .hasMessageContaining("maxRetries=0");
+    assertThat(fetchAttempts).hasValue(1);
+  }
+
+  @Test
+  public void asyncPlanningSucceedsWithCustomRetries() {
+    // Keep the plan SUBMITTED for the first two fetches so planning only completes because more
+    // than one retry is allowed. A retry count of 1 would exhaust the budget before the third
+    // fetch.
+    int submittedResponses = 2;
+    AtomicInteger fetchAttempts = new AtomicInteger();
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithSubmittedPlanningResults(
+            "test-custom-retries",
+            ImmutableMap.of(RESTCatalogProperties.REST_SCAN_PLANNING_POLL_NUM_RETRIES, "2"),
+            fetchAttempts,
+            submittedResponses);
+
+    RESTTable table = restTableFor(catalogWithAdapter.catalog, "custom_retries_success");
+    setParserContext(table);
+
+    assertThat(table.newScan().planFiles()).hasSize(1);
+    // initial fetch plus retries: two SUBMITTED responses followed by a completed one
+    assertThat(fetchAttempts).hasValue(submittedResponses + 1);
+  }
+
+  @Test
+  public void asyncPlanningRejectsInvalidRetries() {
+    List<Endpoint> endpoints =
+        endpointsWithPlanning(
+            Endpoint.V1_SUBMIT_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN,
+            Endpoint.V1_CANCEL_TABLE_SCAN_PLAN,
+            Endpoint.V1_FETCH_TABLE_SCAN_PLAN_TASKS);
+
+    CatalogWithAdapter catalogWithAdapter =
+        catalogWithEndpoints(endpoints, TestPlanningBehavior.builder().asynchronous().build());
+
+    // re-initialize with an invalid retry count
+    catalogWithAdapter.catalog.initialize(
+        "test-invalid-retries",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO",
+            RESTCatalogProperties.SCAN_PLANNING_MODE,
+            RESTCatalogProperties.ScanPlanningMode.SERVER.modeName(),
+            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_NUM_RETRIES,
+            "-1"));
+
+    RESTTable table = restTableFor(catalogWithAdapter.catalog, "invalid_retries_test");
+    setParserContext(table);
+    RESTTableScan scan = restTableScanFor(table);
+
+    assertThatThrownBy(scan::planFiles)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid value for rest-scan-planning.poll-num-retries: -1 (must be non-negative)");
   }
 
   @ParameterizedTest

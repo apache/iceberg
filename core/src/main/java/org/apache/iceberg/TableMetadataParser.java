@@ -128,8 +128,8 @@ public class TableMetadataParser {
     boolean isGzip = Codec.fromFileName(outputFile.location()) == Codec.GZIP;
     OutputStream stream = overwrite ? outputFile.createOrOverwrite() : outputFile.create();
     try (OutputStream ou = isGzip ? new GZIPOutputStream(stream) : stream;
-        OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8)) {
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+        OutputStreamWriter writer = new OutputStreamWriter(ou, StandardCharsets.UTF_8);
+        JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
       toJson(metadata, generator);
       generator.flush();
     } catch (IOException e) {
@@ -151,8 +151,8 @@ public class TableMetadataParser {
   }
 
   public static String toJson(TableMetadata metadata) {
-    try (StringWriter writer = new StringWriter()) {
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+    try (StringWriter writer = new StringWriter();
+        JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
       toJson(metadata, generator);
       generator.flush();
       return writer.toString();
