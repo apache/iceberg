@@ -130,7 +130,7 @@ Example descriptors:
 | `20` | `0010 0000` | Dense container stored in 32 bytes |
 
 The descriptor array is encoded using patched frame of reference (PFOR)
-documented in [Appendix A](pfor). PFOR was chosen because it can efficiently
+documented in [Appendix A][pfor]. PFOR was chosen because it can efficiently
 store mostly uniform container sizes along with occasional larger values. The
 binary representation for descriptors also allows saving at least 2 bits per
 value.
