@@ -556,26 +556,12 @@ public class TestCoordinator extends ChannelTestBase {
         new TopicPartitionOffset(SRC_TOPIC_NAME, 1, 1L, missingPartitionTimestamp));
     coordinator.process();
 
-    table.refresh();
-    assertThat(producer.history()).hasSize(3);
-    assertCommitTable(1, commitId, missingPartitionTimestamp);
-    assertCommitComplete(2, commitId, missingPartitionTimestamp);
-    assertThat(table.snapshots()).hasSize(1);
-    assertThat(
-            SnapshotChanges.builderFor(table)
-                .snapshot(table.currentSnapshot())
-                .build()
-                .addedDataFiles())
-        .extracting(DataFile::location)
-        .containsExactly(dataFile.location());
-
-    long committedOffset = missingPartitionOffset + 1;
-    assertThat(table.currentSnapshot().summary())
-        .containsEntry(COMMIT_ID_SNAPSHOT_PROP, commitId.toString())
-        .containsEntry(OFFSETS_SNAPSHOT_PROP, String.format("{\"0\":%d}", committedOffset))
-        .containsEntry(VALID_THROUGH_TS_SNAPSHOT_PROP, missingPartitionTimestamp.toString());
-    assertThat(consumer.committed(ImmutableSet.of(controlPartition)).get(controlPartition).offset())
-        .isEqualTo(committedOffset);
+    assertCommitCompleted(
+        commitId,
+        dataFile,
+        missingPartitionTimestamp,
+        controlPartition,
+        missingPartitionOffset + 1);
   }
 
   @Test
@@ -659,25 +645,8 @@ public class TestCoordinator extends ChannelTestBase {
             otherPartition.topic(), otherPartition.partition(), 1L, otherPartitionTimestamp));
     coordinator.process();
 
-    table.refresh();
-    assertThat(producer.history()).hasSize(3);
-    assertCommitTable(1, commitId, otherPartitionTimestamp);
-    assertCommitComplete(2, commitId, otherPartitionTimestamp);
-    assertThat(table.snapshots()).hasSize(1);
-    assertThat(
-            SnapshotChanges.builderFor(table)
-                .snapshot(table.currentSnapshot())
-                .build()
-                .addedDataFiles())
-        .extracting(DataFile::location)
-        .containsExactly(dataFile.location());
-    long committedOffset = otherPartitionOffset + 1;
-    assertThat(table.currentSnapshot().summary())
-        .containsEntry(COMMIT_ID_SNAPSHOT_PROP, commitId.toString())
-        .containsEntry(OFFSETS_SNAPSHOT_PROP, String.format("{\"0\":%d}", committedOffset))
-        .containsEntry(VALID_THROUGH_TS_SNAPSHOT_PROP, otherPartitionTimestamp.toString());
-    assertThat(consumer.committed(ImmutableSet.of(controlPartition)).get(controlPartition).offset())
-        .isEqualTo(committedOffset);
+    assertCommitCompleted(
+        commitId, dataFile, otherPartitionTimestamp, controlPartition, otherPartitionOffset + 1);
   }
 
   private Event dataWrittenEvent(UUID commitId, DataFile dataFile) {
@@ -703,6 +672,32 @@ public class TestCoordinator extends ChannelTestBase {
     table.refresh();
     assertThat(table.currentSnapshot()).isNull();
     assertThat(producer.history()).hasSize(1);
+    assertThat(consumer.committed(ImmutableSet.of(controlPartition)).get(controlPartition).offset())
+        .isEqualTo(committedOffset);
+  }
+
+  private void assertCommitCompleted(
+      UUID commitId,
+      DataFile dataFile,
+      OffsetDateTime validThroughTs,
+      TopicPartition controlPartition,
+      long committedOffset) {
+    table.refresh();
+    assertThat(producer.history()).hasSize(3);
+    assertCommitTable(1, commitId, validThroughTs);
+    assertCommitComplete(2, commitId, validThroughTs);
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(
+            SnapshotChanges.builderFor(table)
+                .snapshot(table.currentSnapshot())
+                .build()
+                .addedDataFiles())
+        .extracting(DataFile::location)
+        .containsExactly(dataFile.location());
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(COMMIT_ID_SNAPSHOT_PROP, commitId.toString())
+        .containsEntry(OFFSETS_SNAPSHOT_PROP, String.format("{\"0\":%d}", committedOffset))
+        .containsEntry(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
     assertThat(consumer.committed(ImmutableSet.of(controlPartition)).get(controlPartition).offset())
         .isEqualTo(committedOffset);
   }
