@@ -1067,6 +1067,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
               statsLocation.toString(),
               puffinWriter.fileSize(),
               puffinWriter.footerSize(),
+              null,
               puffinWriter.writtenBlobsMetadata().stream()
                   .map(GenericBlobMetadata::from)
                   .collect(ImmutableList.toImmutableList()));

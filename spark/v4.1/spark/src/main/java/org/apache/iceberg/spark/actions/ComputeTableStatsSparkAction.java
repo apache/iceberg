@@ -33,6 +33,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.ComputeTableStats;
 import org.apache.iceberg.actions.ImmutableComputeTableStats;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.puffin.Blob;
@@ -110,15 +112,20 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
 
   private StatisticsFile writeStatsFile(List<Blob> blobs) {
     LOG.info("Writing stats for table {} for snapshot {}", table.name(), snapshotId());
-    OutputFile outputFile = table.io().newOutputFile(outputPath());
+    EncryptingFileIO io = EncryptingFileIO.combine(table.io(), table.encryption());
+    EncryptedOutputFile encryptedOutputFile = io.newEncryptingOutputFile(outputPath());
+    OutputFile outputFile = encryptedOutputFile.encryptingOutputFile();
+
     try (PuffinWriter writer = Puffin.write(outputFile).createdBy(appIdentifier()).build()) {
       blobs.forEach(writer::add);
       writer.finish();
+      long fileSize = writer.fileSize();
       return new GenericStatisticsFile(
           snapshotId(),
           outputFile.location(),
-          writer.fileSize(),
+          fileSize,
           writer.footerSize(),
+          table.encryption().encryptKeyMetadata(encryptedOutputFile.keyMetadata(), fileSize),
           GenericBlobMetadata.from(writer.writtenBlobsMetadata()));
     } catch (IOException e) {
       throw new RuntimeIOException(e);

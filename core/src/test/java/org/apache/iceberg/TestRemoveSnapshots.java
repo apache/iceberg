@@ -2192,6 +2192,7 @@ public class TestRemoveSnapshots extends TestBase {
           statsLocation,
           puffinWriter.fileSize(),
           puffinWriter.footerSize(),
+          null,
           puffinWriter.writtenBlobsMetadata().stream()
               .map(GenericBlobMetadata::from)
               .collect(ImmutableList.toImmutableList()));
@@ -2204,6 +2205,7 @@ public class TestRemoveSnapshots extends TestBase {
         statisticsFile.path(),
         statisticsFile.fileSizeInBytes(),
         statisticsFile.fileFooterSizeInBytes(),
+        null,
         statisticsFile.blobMetadata());
   }
 

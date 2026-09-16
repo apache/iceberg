@@ -250,6 +250,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
             "/test/statistics/file.puffin",
             100,
             42,
+            null,
             ImmutableList.of(
                 new GenericBlobMetadata(
                     DUMMY_BLOB_TYPE,
@@ -292,6 +293,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
             "/test/statistics/file.puffin",
             100,
             42,
+            null,
             ImmutableList.of(
                 new GenericBlobMetadata(
                     APACHE_DATASKETCHES_THETA_V1,
@@ -319,6 +321,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
             "/test/statistics/file2.puffin",
             100,
             42,
+            null,
             ImmutableList.of(
                 new GenericBlobMetadata(
                     APACHE_DATASKETCHES_THETA_V1,
@@ -385,6 +388,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
             "/test/statistics/file.puffin",
             100,
             42,
+            null,
             ImmutableList.of(
                 new GenericBlobMetadata(
                     APACHE_DATASKETCHES_THETA_V1,
@@ -445,6 +449,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
             "/test/statistics/file.puffin",
             100,
             42,
+            null,
             ImmutableList.of(
                 new GenericBlobMetadata(
                     APACHE_DATASKETCHES_THETA_V1,

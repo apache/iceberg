@@ -826,6 +826,7 @@ public class TestMetadataUpdateParser {
                 "s3://bucket/warehouse/stats.puffin",
                 124L,
                 27L,
+                null,
                 ImmutableList.of(
                     new GenericBlobMetadata(
                         "boring-type",
