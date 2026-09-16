@@ -634,11 +634,9 @@ public class TestAggregatePushDown extends CatalogTestBase {
     sql(
         "CREATE TABLE %s (id BIGINT, struct_with_int STRUCT<c1:INT>) USING iceberg PARTITIONED BY (bucket(8, id))",
         tableName);
-
     sql("INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", NULL))", tableName);
     sql("INSERT INTO TABLE %s VALUES (null, named_struct(\"c1\", 2))", tableName);
     sql("INSERT INTO TABLE %s VALUES (2, named_struct(\"c1\", 3))", tableName);
-
     String query = "SELECT COUNT(%s), MAX(%s), MIN(%s) FROM %s";
     String aggField = "id";
     assertAggregates(sql(query, aggField, aggField, aggField, tableName), 2L, 2L, 1L);
@@ -974,5 +972,192 @@ public class TestAggregatePushDown extends CatalogTestBase {
     expected2.add(new Object[] {-7777, 9999, 6L});
     assertEquals(
         "min/max/count push down", expected2, rowsToJava(unboundedPushdownDs.collectAsList()));
+  }
+
+  @TestTemplate
+  public void testGroupByIdentityPartitionColumnCountPushDown() {
+    sql(
+        "CREATE TABLE %s (id LONG, data STRING, category STRING) USING iceberg PARTITIONED BY (category)",
+        tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES "
+            + "(1, 'a', 'fruit'), (2, 'b', 'fruit'), (3, 'c', 'fruit'),"
+            + "(4, 'd', 'veggie'), (5, 'e', 'veggie'),"
+            + "(6, 'f', 'dairy')",
+        tableName);
+
+    String select = "SELECT category, count(*) FROM %s GROUP BY category";
+
+    assertExplainContains(sql("EXPLAIN " + select, tableName), "localtablescan");
+
+    List<Object[]> actual = sql(select, tableName);
+    assertThat(actual).hasSize(3);
+
+    actual.sort((a, b) -> ((String) a[0]).compareTo((String) b[0]));
+
+    assertEquals(
+        "group by partition count push down",
+        Lists.newArrayList(
+            new Object[] {"dairy", 1L}, new Object[] {"fruit", 3L}, new Object[] {"veggie", 2L}),
+        actual);
+  }
+
+  @TestTemplate
+  public void testGroupByIdentityPartitionColumnWithMinMax() {
+    sql(
+        "CREATE TABLE %s (id LONG, price DOUBLE, region STRING) USING iceberg PARTITIONED BY (region)",
+        tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES "
+            + "(1, 10.0, 'east'), (2, 20.0, 'east'), (3, 30.0, 'east'),"
+            + "(4, 5.0, 'west'), (5, 50.0, 'west'),"
+            + "(6, 100.0, 'north')",
+        tableName);
+
+    String select = "SELECT region, count(*), max(price), min(price) FROM %s GROUP BY region";
+
+    assertExplainContains(sql("EXPLAIN " + select, tableName), "localtablescan");
+
+    List<Object[]> actual = sql(select, tableName);
+    assertThat(actual).hasSize(3);
+
+    actual.sort((a, b) -> ((String) a[0]).compareTo((String) b[0]));
+
+    assertEquals(
+        "group by partition with min/max push down",
+        Lists.newArrayList(
+            new Object[] {"east", 3L, 30.0, 10.0},
+            new Object[] {"north", 1L, 100.0, 100.0},
+            new Object[] {"west", 2L, 50.0, 5.0}),
+        actual);
+  }
+
+  @TestTemplate
+  public void testGroupByNonPartitionColumnNoPushDown() {
+    sql(
+        "CREATE TABLE %s (id LONG, data STRING, category STRING) USING iceberg PARTITIONED BY (category)",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a', 'x'), (2, 'b', 'x'), (3, 'a', 'y')", tableName);
+
+    String select = "SELECT data, count(*) FROM %s GROUP BY data";
+
+    List<Object[]> explain = sql("EXPLAIN " + select, tableName);
+    String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
+
+    assertThat(explainString)
+        .as("non-partition group by should not be pushed down to LocalTableScan")
+        .doesNotContain("localtablescan");
+
+    List<Object[]> actual = sql(select, tableName);
+    assertThat(actual).hasSize(2);
+  }
+
+  @TestTemplate
+  public void testGroupByPartitionColumnMultipleInserts() {
+    sql(
+        "CREATE TABLE %s (id LONG, amount DOUBLE, city STRING) USING iceberg PARTITIONED BY (city)",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 100.0, 'NYC'), (2, 200.0, 'NYC')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (3, 50.0, 'NYC'), (4, 300.0, 'SF')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (5, 150.0, 'SF'), (6, 75.0, 'LA')", tableName);
+
+    String select = "SELECT city, count(*), max(amount), min(amount) FROM %s GROUP BY city";
+
+    List<Object[]> actual = sql(select, tableName);
+    assertThat(actual).hasSize(3);
+
+    actual.sort((a, b) -> ((String) a[0]).compareTo((String) b[0]));
+
+    assertEquals(
+        "group by partition with multiple files per partition",
+        Lists.newArrayList(
+            new Object[] {"LA", 1L, 75.0, 75.0},
+            new Object[] {"NYC", 3L, 200.0, 50.0},
+            new Object[] {"SF", 2L, 300.0, 150.0}),
+        actual);
+  }
+
+  @TestTemplate
+  public void testGroupByPartitionColumnAfterSpecEvolution() {
+    sql(
+        "CREATE TABLE %s (id LONG, amount DOUBLE, region STRING) USING iceberg PARTITIONED BY (region)",
+        tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 10.0, 'east'), (2, 20.0, 'west')", tableName);
+
+    validationCatalog.loadTable(tableIdent).updateSpec().addField("id").commit();
+
+    sql("INSERT INTO TABLE %s VALUES (3, 30.0, 'east'), (4, 40.0, 'west')", tableName);
+
+    String select = "SELECT region, count(*), max(amount) FROM %s GROUP BY region";
+
+    List<Object[]> actual = sql(select, tableName);
+    assertThat(actual).hasSize(2);
+
+    actual.sort((a, b) -> ((String) a[0]).compareTo((String) b[0]));
+
+    assertEquals(
+        "group by partition after spec evolution",
+        Lists.newArrayList(new Object[] {"east", 2L, 30.0}, new Object[] {"west", 2L, 40.0}),
+        actual);
+  }
+
+  @TestTemplate
+  public void testGroupByPartitionRemovedInNewSpecFallsBack() {
+    sql(
+        "CREATE TABLE %s (id LONG, amount DOUBLE, region STRING) USING iceberg PARTITIONED BY (region)",
+        tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, 10.0, 'east'), (2, 20.0, 'west')", tableName);
+
+    validationCatalog
+        .loadTable(tableIdent)
+        .updateSpec()
+        .removeField("region")
+        .addField("id")
+        .commit();
+
+    sql("INSERT INTO TABLE %s VALUES (3, 30.0, 'east'), (4, 40.0, 'west')", tableName);
+
+    String select = "SELECT region, count(*) FROM %s GROUP BY region";
+
+    List<Object[]> actual = sql(select, tableName);
+    actual.sort((a, b) -> ((String) a[0]).compareTo((String) b[0]));
+    assertEquals(
+        "group by with removed partition field",
+        Lists.newArrayList(new Object[] {"east", 2L}, new Object[] {"west", 2L}),
+        actual);
+  }
+
+  @TestTemplate
+  public void testGroupByPartitionColumnWithNullValues() {
+    sql(
+        "CREATE TABLE %s (id LONG, amount DOUBLE, region STRING) USING iceberg PARTITIONED BY (region)",
+        tableName);
+
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, 10.0, 'east'), (2, 20.0, null), (3, 30.0, 'east'), (4, 40.0, null)",
+        tableName);
+
+    String select = "SELECT region, count(*), max(amount) FROM %s GROUP BY region";
+
+    List<Object[]> actual = sql(select, tableName);
+    assertThat(actual).hasSize(2);
+
+    actual.sort(
+        (a, b) -> {
+          if (a[0] == null) {
+            return -1;
+          }
+          if (b[0] == null) {
+            return 1;
+          }
+          return ((String) a[0]).compareTo((String) b[0]);
+        });
+
+    assertEquals(
+        "group by partition with null values",
+        Lists.newArrayList(new Object[] {null, 2L, 40.0}, new Object[] {"east", 2L, 30.0}),
+        actual);
   }
 }
