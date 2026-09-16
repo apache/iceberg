@@ -90,7 +90,7 @@ public class TestPuffinWriter {
   }
 
   @Test
-  public void overwriteExistingFile() throws Exception {
+  void overwriteExistingFile() throws Exception {
     InMemoryOutputFile outputFile = new InMemoryOutputFile();
     try (PuffinWriter writer = Puffin.write(outputFile).createdBy("original").build()) {
       writer.add(
