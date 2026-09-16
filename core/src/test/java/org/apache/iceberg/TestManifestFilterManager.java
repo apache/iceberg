@@ -37,6 +37,80 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestManifestFilterManager extends TestBase {
 
   @TestTemplate
+  public void removedDataFileSkipsDeleteManifestsInOtherPartitions() throws IOException {
+    assumeThat(formatVersion).as("DVs are only written in v3 and later").isGreaterThanOrEqualTo(3);
+
+    // FILE_A is in data_bucket=0 and FILE_B is in data_bucket=1
+    ManifestFile manifestA = writeDeleteManifest(formatVersion, 1L, newDV(FILE_A));
+    ManifestFile manifestB = writeDeleteManifest(formatVersion, 1L, newDV(FILE_B));
+
+    CountingFilterManager filterManager = new CountingFilterManager();
+    filterManager.removeDanglingDeletesFor(ImmutableSet.of(FILE_A));
+
+    List<ManifestFile> filtered =
+        filterManager.filterManifests(SCHEMA, ImmutableList.of(manifestA, manifestB));
+
+    assertThat(filterManager.opened)
+        .as("Only the delete manifest covering the removed data file's partition should be read")
+        .containsExactly(manifestA.path());
+
+    assertThat(filtered.get(0).path())
+        .as("The manifest holding the dangling DV should be rewritten")
+        .isNotEqualTo(manifestA.path());
+    assertThat(filtered.get(1))
+        .as("The manifest in an unrelated partition should pass through untouched")
+        .isEqualTo(manifestB);
+  }
+
+  @TestTemplate
+  public void obsoleteDeleteFilesAreStillFoundInOtherPartitions() throws IOException {
+    assumeThat(formatVersion).as("DVs are only written in v3 and later").isGreaterThanOrEqualTo(3);
+
+    ManifestEntry<DeleteFile> entry =
+        manifestEntry(ManifestEntry.Status.EXISTING, 1L, 5L, 5L, newDV(FILE_B));
+    ManifestFile manifestB = writeManifest(1L, entry);
+    assertThat(manifestB.minSequenceNumber()).isEqualTo(5L);
+
+    // cannot partition prune the delete manifest due to the minSequenceNumber
+    CountingFilterManager obsolete = new CountingFilterManager();
+    obsolete.removeDanglingDeletesFor(ImmutableSet.of(FILE_A));
+    obsolete.dropDeleteFilesOlderThan(6L);
+    obsolete.filterManifests(SCHEMA, ImmutableList.of(manifestB));
+
+    assertThat(obsolete.opened)
+        .as("A manifest that can hold a delete file below the sequence number must still be read")
+        .containsExactly(manifestB.path());
+
+    // can partition prune the delete manifest due to the minSequenceNumber
+    CountingFilterManager notObsolete = new CountingFilterManager();
+    notObsolete.removeDanglingDeletesFor(ImmutableSet.of(FILE_A));
+    notObsolete.dropDeleteFilesOlderThan(5L);
+    notObsolete.filterManifests(SCHEMA, ImmutableList.of(manifestB));
+
+    assertThat(notObsolete.opened)
+        .as("A manifest whose delete files are not obsolete must still be pruned by partition")
+        .isEmpty();
+  }
+
+  @TestTemplate
+  public void removedDataFileWithoutDanglingDVsReadsNothing() throws IOException {
+    assumeThat(formatVersion).as("DVs are only written in v3 and later").isGreaterThanOrEqualTo(3);
+
+    ManifestFile manifestB = writeDeleteManifest(formatVersion, 1L, newDV(FILE_B));
+
+    CountingFilterManager filterManager = new CountingFilterManager();
+    filterManager.removeDanglingDeletesFor(ImmutableSet.of(FILE_A));
+
+    List<ManifestFile> filtered =
+        filterManager.filterManifests(SCHEMA, ImmutableList.of(manifestB));
+
+    assertThat(filterManager.opened)
+        .as("No delete manifest can hold a DV for the removed data file, so none should be read")
+        .isEmpty();
+    assertThat(filtered).containsExactly(manifestB);
+  }
+
+  @TestTemplate
   public void obsoleteDeleteFilesAreFoundWithoutRemovedDataFiles() throws IOException {
     assumeThat(formatVersion).as("delete files require v2+").isGreaterThanOrEqualTo(2);
 
