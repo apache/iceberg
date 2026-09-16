@@ -21,11 +21,15 @@ package org.apache.iceberg.mumbling;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.ManifestBitmap;
 
-/** Factory for reading Mumbling bitmaps. */
 public class MumblingBitmaps {
   private MumblingBitmaps() {}
 
-  /** Returns a read-only view of the Mumbling bitmap serialized in the buffer. */
+  /**
+   * Returns a {@link ManifestBitmap} from a serialized representation.
+   *
+   * @param buffer a buffer containing a serialized Mumbling bitmap
+   * @return the bitmap deserialized from the buffer
+   */
   public static ManifestBitmap read(ByteBuffer buffer) {
     return new MumblingBitmap(buffer);
   }

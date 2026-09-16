@@ -119,7 +119,7 @@ class TestTrackedFileAdapters {
           .deletedRowsCount(200L)
           .replacedRowsCount(0L)
           .minSequenceNumber(7L)
-          .manifestDeletionVector(MumblingBitmapTestUtil.emptyBitmap())
+          .dv(ByteBuffer.wrap(MumblingBitmapTestUtil.bitmapBytes()))
           .build();
 
   @Test
@@ -521,8 +521,8 @@ class TestTrackedFileAdapters {
     assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
     assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
     assertThat(manifest.manifestDeletionVector().buffer())
-        .isEqualTo(MumblingBitmapTestUtil.emptyBitmap().buffer());
-    assertThat(manifest.manifestDeletionVector().cardinality()).isEqualTo(0);
+        .isEqualTo(ByteBuffer.wrap(MumblingBitmapTestUtil.bitmapBytes()));
+    assertThat(manifest.manifestDeletionVector().cardinality()).isEqualTo(1);
     assertThat(manifest.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(manifest.partitions()).isNull();
     assertThatThrownBy(manifest::partitionSpecId)

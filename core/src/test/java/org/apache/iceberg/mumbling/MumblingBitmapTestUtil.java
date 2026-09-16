@@ -20,18 +20,33 @@ package org.apache.iceberg.mumbling;
 
 import java.nio.ByteBuffer;
 import org.apache.iceberg.ManifestBitmap;
+import org.apache.iceberg.util.ByteBuffers;
 
-/** Test fixtures for Mumbling bitmaps. */
 public class MumblingBitmapTestUtil {
   private MumblingBitmapTestUtil() {}
 
-  /** Returns the serialized bytes of an empty Mumbling bitmap (version 1, cardinality 0). */
-  public static byte[] emptyBitmapBytes() {
-    return new byte[] {0x01, 0x00, 0x00, 0x00, 0x00, 0x00};
+  /** Returns the serialized bytes of a Mumbling bitmap with bit 0 set. */
+  public static byte[] bitmapBytes() {
+    byte[] container = {0};
+    int[] descriptors = {container.length};
+
+    ByteBuffer buffer =
+        ByteBuffer.allocate(6 + PFOREncoding.estimateEncodedSize(1) + container.length);
+    buffer.put(0, (byte) 1);
+    buffer.put(1, (byte) 1);
+    buffer.put(2, (byte) 0);
+    buffer.put(3, (byte) 0);
+    buffer.put(4, (byte) 1);
+    buffer.put(5, (byte) 0);
+    int descriptorSize = PFOREncoding.encode(descriptors, 0, buffer, 6, 1);
+    buffer.put(6 + descriptorSize, container);
+    buffer.limit(6 + descriptorSize + container.length);
+
+    return ByteBuffers.toByteArray(buffer);
   }
 
-  /** Returns a read-only empty Mumbling bitmap (cardinality 0). */
-  public static ManifestBitmap emptyBitmap() {
-    return MumblingBitmaps.read(ByteBuffer.wrap(emptyBitmapBytes()));
+  /** Returns a Mumbling bitmap with bit 0 set. */
+  public static ManifestBitmap bitmap() {
+    return MumblingBitmaps.read(ByteBuffer.wrap(bitmapBytes()));
   }
 }
