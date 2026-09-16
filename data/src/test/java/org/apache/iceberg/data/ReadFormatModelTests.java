@@ -179,6 +179,9 @@ public abstract class ReadFormatModelTests<T> {
   static final String FEATURE_NATIVE_ENCRYPTION = "nativeEncryption";
   static final String FEATURE_AES_STREAM_ENCRYPTION = "aesStreamEncryption";
   static final String FEATURE_VARIANT = "variant";
+  static final String FEATURE_WRITER_PROPERTIES = "writerProperties";
+  static final String FEATURE_WRITER_METADATA = "writerMetadata";
+  static final String FEATURE_EVOLUTION_BY_FIELD_ID = "evolutionByFieldId";
 
   private static final Map<FileFormat, String[]> MISSING_FEATURES =
       Map.of(
@@ -201,7 +204,19 @@ public abstract class ReadFormatModelTests<T> {
             FEATURE_VARIANT
           },
           FileFormat.PARQUET,
-          new String[] {FEATURE_AES_STREAM_ENCRYPTION});
+          new String[] {FEATURE_AES_STREAM_ENCRYPTION},
+          FileFormat.VORTEX,
+          new String[] {
+            // Vortex files store no Iceberg field ids, so columns bind by name and renames (or
+            // dropping and re-adding a name) cannot be resolved.
+            FEATURE_EVOLUTION_BY_FIELD_ID,
+            // Vortex has no write property whose effect is observable in the written file, and
+            // the writer does not persist user key-value metadata.
+            FEATURE_WRITER_PROPERTIES,
+            FEATURE_WRITER_METADATA,
+            FEATURE_AES_STREAM_ENCRYPTION,
+            FEATURE_NATIVE_ENCRYPTION
+          });
 
   private static final FileFormat[] FILE_FORMATS = FileFormatTestSupport.formats();
 
@@ -2155,6 +2170,8 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionDropAndReAddSameNameColumn(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_EVOLUTION_BY_FIELD_ID);
+
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema writeSchema = dataGenerator.schema();
@@ -2246,6 +2263,8 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionRenameColumn(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_EVOLUTION_BY_FIELD_ID);
+
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema writeSchema = dataGenerator.schema();
 

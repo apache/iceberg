@@ -201,6 +201,8 @@ public abstract class BaseFormatModelTests<T> extends ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterSet(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_WRITER_PROPERTIES);
+
     writeAndAssertDataWriterWithConfig(
         fileFormat,
         (writerBuilder, format) -> testPropertiesToSet(format).forEach(writerBuilder::set),
@@ -210,6 +212,8 @@ public abstract class BaseFormatModelTests<T> extends ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterSetAll(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_WRITER_PROPERTIES);
+
     writeAndAssertDataWriterWithConfig(
         fileFormat,
         (writerBuilder, format) -> writerBuilder.setAll(testPropertiesToSet(format)),
@@ -219,6 +223,8 @@ public abstract class BaseFormatModelTests<T> extends ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterMeta(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_WRITER_METADATA);
+
     writeAndAssertDataWriterWithConfig(
         fileFormat,
         (writerBuilder, format) -> writerBuilder.meta("tck.meta.key", "tck-meta-value"),
@@ -229,6 +235,8 @@ public abstract class BaseFormatModelTests<T> extends ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterMetaMap(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_WRITER_METADATA);
+
     writeAndAssertDataWriterWithConfig(
         fileFormat,
         (writerBuilder, format) ->
