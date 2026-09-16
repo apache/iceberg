@@ -63,6 +63,7 @@ class RESTTableOperations implements TableOperations {
   private final Set<Endpoint> endpoints;
   private UpdateType updateType;
   private TableMetadata current;
+  private Map<String, String> readQueryParams = Map.of();
 
   RESTTableOperations(
       RESTClient client,
@@ -146,11 +147,21 @@ class RESTTableOperations implements TableOperations {
     return current;
   }
 
+  /** Sets query parameters to send on read requests, such as the referenced-by view chain. */
+  void setReadQueryParams(Map<String, String> params) {
+    this.readQueryParams = params;
+  }
+
   @Override
   public TableMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     return updateCurrentMetadata(
-        client.get(path, LoadTableResponse.class, readHeaders, ErrorHandlers.tableErrorHandler()));
+        client.get(
+            path,
+            readQueryParams,
+            LoadTableResponse.class,
+            readHeaders,
+            ErrorHandlers.tableErrorHandler()));
   }
 
   @Override
