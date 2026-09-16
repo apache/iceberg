@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -78,6 +79,31 @@ class TestFlinkCatalogViewIncapableCatalog extends TestBase {
     Catalog flinkCatalog = getTableEnv().getCatalog(CATALOG_NAME).get();
     assertThat(flinkCatalog.tableExists(new ObjectPath(DATABASE, TABLE_NAME))).isTrue();
     assertThat(flinkCatalog.tableExists(new ObjectPath(DATABASE, "missing"))).isFalse();
+  }
+
+  @Test
+  void dropTable() throws Exception {
+    Catalog flinkCatalog = getTableEnv().getCatalog(CATALOG_NAME).get();
+    flinkCatalog.dropTable(new ObjectPath(DATABASE, "missing"), true);
+    assertThatThrownBy(() -> flinkCatalog.dropTable(new ObjectPath(DATABASE, "missing"), false))
+        .isInstanceOf(TableNotExistException.class)
+        .hasMessageContaining("missing");
+
+    sql("DROP TABLE %s", TABLE_NAME);
+    assertThat(sql("SHOW TABLES")).isEmpty();
+  }
+
+  @Test
+  void renameTable() throws Exception {
+    Catalog flinkCatalog = getTableEnv().getCatalog(CATALOG_NAME).get();
+    flinkCatalog.renameTable(new ObjectPath(DATABASE, "missing"), "renamed", true);
+    assertThatThrownBy(
+            () -> flinkCatalog.renameTable(new ObjectPath(DATABASE, "missing"), "renamed", false))
+        .isInstanceOf(TableNotExistException.class)
+        .hasMessageContaining("missing");
+
+    sql("ALTER TABLE %s RENAME TO renamed", TABLE_NAME);
+    assertThat(sql("SHOW TABLES")).containsExactly(Row.of("renamed"));
   }
 
   @Test
