@@ -139,8 +139,8 @@ Examples of complete definition-id signatures:
 * `int,string` – two parameters: int and string
 * `int,list<int>,struct<id:int,name:string>` – three parameters: an int, a list and a struct
 * `decimal(9, 2),geometry(srid: 3857)` – two parameterized parameters, each keeping its own spaces
-* `geometry(epsg:4326)` – a geometry parameter; CRS values are lowercased, so `geometry(EPSG:4326)` yields this id
-* `geometry(ogc:crs84)` – a geometry parameter declared as `geometry`, since canonical form always carries a CRS
+* `geometry(EPSG:4326)` – a geometry parameter with an explicit CRS
+* `geometry(OGC:CRS84)` – a geometry parameter declared as `geometry`, since canonical form always carries a CRS
 * `struct<a\:int\,b:int>` – one field named `a:int,b` of type int, distinct from `struct<a:int,b:int>`, which is two fields
 
 #### Specific Name
