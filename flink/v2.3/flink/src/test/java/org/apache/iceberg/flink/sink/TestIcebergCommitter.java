@@ -241,18 +241,38 @@ class TestIcebergCommitter extends TestBase {
   @TestTemplate
   public void testCommitTxnAfterStatelessRestart() throws Exception {
     RowData rowFromPreviousRun = SimpleDataUtil.createRowData(0, "hello0");
-    commitCheckpoint(getCommitter(), 5, "data-previous-run", rowFromPreviousRun);
+    DataFile dataFileFromPreviousRun =
+        writeDataFile("data-previous-run", ImmutableList.of(rowFromPreviousRun));
+
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        preRestartHarness = getTestHarness()) {
+      preRestartHarness.open();
+      processElement(jobId, 5, preRestartHarness, 1, OPERATOR_ID, dataFileFromPreviousRun);
+      preRestartHarness.notifyOfCompletedCheckpoint(5);
+    }
+
+    assertSnapshotSize(1);
     assertMaxCommittedCheckpointId(jobId, 5);
 
-    IcebergCommitter committer = getCommitter(false);
     List<RowData> rows = Lists.newArrayList(rowFromPreviousRun);
-    for (int i = 1; i <= 3; i++) {
-      RowData row = SimpleDataUtil.createRowData(i, "hello" + i);
-      commitCheckpoint(committer, i, "data-after-restart-" + i, row);
-      rows.add(row);
-      assertSnapshotSize(i + 1);
-      assertMaxCommittedCheckpointId(jobId, i);
-      SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows), branch);
+    // A stateless restart opens a fresh operator instance without restoring prior state, so
+    // IcebergSink#createCommitter must see an empty context.getRestoredCheckpointId().
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        afterRestartHarness = getTestHarness()) {
+      afterRestartHarness.open();
+
+      for (int i = 1; i <= 3; i++) {
+        RowData row = SimpleDataUtil.createRowData(i, "hello" + i);
+        DataFile dataFile = writeDataFile("data-after-restart-" + i, ImmutableList.of(row));
+        processElement(jobId, i, afterRestartHarness, 1, OPERATOR_ID, dataFile);
+        afterRestartHarness.notifyOfCompletedCheckpoint(i);
+        rows.add(row);
+        assertSnapshotSize(i + 1);
+        assertMaxCommittedCheckpointId(jobId, i);
+        SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows), branch);
+      }
     }
   }
 
