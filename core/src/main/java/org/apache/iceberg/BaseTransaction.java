@@ -74,6 +74,7 @@ public class BaseTransaction implements Transaction {
   private TableMetadata base;
   private TableMetadata current;
   private boolean hasLastOpCommitted;
+  private boolean commitAttempted;
   private final MetricsReporter reporter;
 
   BaseTransaction(
@@ -96,6 +97,7 @@ public class BaseTransaction implements Transaction {
     this.base = ops.current();
     this.type = type;
     this.hasLastOpCommitted = true;
+    this.commitAttempted = false;
     this.reporter = reporter;
   }
 
@@ -250,6 +252,8 @@ public class BaseTransaction implements Transaction {
   public void commitTransaction() {
     Preconditions.checkState(
         hasLastOpCommitted, "Cannot commit transaction: last operation has not committed");
+
+    this.commitAttempted = true;
 
     switch (type) {
       case CREATE_TABLE:
@@ -410,6 +414,21 @@ public class BaseTransaction implements Transaction {
     } catch (RuntimeException e) {
       LOG.warn("Failed to load committed metadata, skipping clean-up", e);
     }
+  }
+
+  @Override
+  public void abortTransaction() {
+    if (commitAttempted) {
+      // the commit may have succeeded even though it threw, for example when it fails with
+      // CommitStateUnknownException or when the catalog requires strict cleanup. The commit path
+      // already deleted whatever was safe to delete, so cleaning up here could remove metadata
+      // that a committed snapshot references.
+      LOG.warn(
+          "Not cleaning up {}: a commit was already attempted for this transaction", tableName);
+      return;
+    }
+
+    cleanUp();
   }
 
   protected void cleanUp() {
