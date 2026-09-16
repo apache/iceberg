@@ -49,6 +49,17 @@ class TestManifestInfoStruct {
   }
 
   @Test
+  void manifestDeletionVectorIsReused() {
+    ManifestInfoStruct info =
+        new ManifestInfoStruct(
+            10, 20, 3, 2, 1000L, 2000L, 300L, 200L, 5L, MumblingBitmapTestUtil.emptyBitmapBytes());
+
+    assertThat(info.manifestDeletionVector())
+        .as("manifest deletion vector should be materialized once and reused")
+        .isSameAs(info.manifestDeletionVector());
+  }
+
+  @Test
   void copy() {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()

@@ -54,6 +54,8 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
   private long minSequenceNumber = -1L;
   private byte[] dv = null;
 
+  private transient ManifestBitmap manifestDeletionVector = null;
+
   ManifestInfoStruct(Types.StructType type) {
     super(BASE_TYPE, type);
   }
@@ -143,7 +145,11 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
 
   @Override
   public ManifestBitmap manifestDeletionVector() {
-    return dv != null ? MumblingBitmaps.read(ByteBuffer.wrap(dv)) : null;
+    if (manifestDeletionVector == null && dv != null) {
+      this.manifestDeletionVector = MumblingBitmaps.read(ByteBuffer.wrap(dv));
+    }
+
+    return manifestDeletionVector;
   }
 
   @Override
@@ -215,6 +221,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
         break;
       case 9:
         this.dv = ByteBuffers.toByteArray((ByteBuffer) value);
+        this.manifestDeletionVector = null;
         break;
       default:
         // ignore the object, it must be from a newer version of the format
