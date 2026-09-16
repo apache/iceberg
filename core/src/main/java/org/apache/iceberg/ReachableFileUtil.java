@@ -99,36 +99,57 @@ public class ReachableFileUtil {
   }
 
   /**
-   * Returns locations of manifest lists in a table.
-   *
-   * @param table table for which manifestList needs to be fetched
-   * @return the location of manifest lists
+   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link #rootLocations(Table)}. The
+   *     method returns v4+ root manifest locations too, so the name no longer matches its behavior.
    */
+  @Deprecated
   public static List<String> manifestListLocations(Table table) {
-    return manifestListLocations(table, null);
+    return rootLocations(table, null);
   }
 
   /**
-   * Returns locations of manifest lists in a table.
-   *
-   * @param table table for which manifestList needs to be fetched
-   * @param snapshotIds ids of snapshots for which manifest lists will be returned
-   * @return the location of manifest lists
+   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link #rootLocations(Table, Set)}.
+   *     The method returns v4+ root manifest locations too, so the name no longer matches its
+   *     behavior.
    */
+  @Deprecated
   public static List<String> manifestListLocations(Table table, Set<Long> snapshotIds) {
+    return rootLocations(table, snapshotIds);
+  }
+
+  /**
+   * Returns the root location for every snapshot in the table — a manifest list for v3 and earlier,
+   * or a root manifest for v4+.
+   *
+   * @param table table whose root locations should be fetched
+   * @return the root location per snapshot
+   */
+  public static List<String> rootLocations(Table table) {
+    return rootLocations(table, null);
+  }
+
+  /**
+   * Returns the root location for each snapshot filtered by id — a manifest list for v3 and
+   * earlier, or a root manifest for v4+.
+   *
+   * @param table table whose root locations should be fetched
+   * @param snapshotIds ids of snapshots to include, or null for every snapshot
+   * @return the root location per matching snapshot
+   */
+  public static List<String> rootLocations(Table table, Set<Long> snapshotIds) {
     Iterable<Snapshot> snapshots = table.snapshots();
     if (snapshotIds != null) {
       snapshots = Iterables.filter(snapshots, s -> snapshotIds.contains(s.snapshotId()));
     }
 
-    List<String> manifestListLocations = Lists.newArrayList();
+    List<String> rootLocations = Lists.newArrayList();
     for (Snapshot snapshot : snapshots) {
-      String manifestListLocation = snapshot.manifestListLocation();
-      if (manifestListLocation != null) {
-        manifestListLocations.add(manifestListLocation);
+      String location = snapshot.rootLocation();
+      if (location != null) {
+        rootLocations.add(location);
       }
     }
-    return manifestListLocations;
+    return rootLocations;
   }
 
   /**

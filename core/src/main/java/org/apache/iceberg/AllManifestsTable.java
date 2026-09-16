@@ -136,13 +136,13 @@ public class AllManifestsTable extends BaseMetadataTable {
           Iterables.transform(
               filteredSnapshots,
               snap -> {
-                if (snap.manifestListLocation() != null) {
+                if (snap.rootLocation() != null) {
                   return new ManifestListReadTask(
                       dataTableSchema,
                       io,
                       schema(),
                       specs,
-                      new BaseManifestListFile(snap.manifestListLocation(), snap.keyId()),
+                      new BaseFileWithKeyId(snap.rootLocation(), snap.keyId()),
                       residual,
                       snap.snapshotId());
                 } else {
@@ -165,7 +165,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     private final FileIO io;
     private final Schema schema;
     private final Map<Integer, PartitionSpec> specs;
-    private final ManifestListFile manifestList;
+    private final FileWithKeyId manifestList;
     private final Expression residual;
     private final long referenceSnapshotId;
     private DataFile lazyDataFile = null;
@@ -175,7 +175,7 @@ public class AllManifestsTable extends BaseMetadataTable {
         FileIO io,
         Schema schema,
         Map<Integer, PartitionSpec> specs,
-        ManifestListFile manifestList,
+        FileWithKeyId manifestList,
         Expression residual,
         long referenceSnapshotId) {
       this.dataTableSchema = dataTableSchema;
@@ -276,7 +276,7 @@ public class AllManifestsTable extends BaseMetadataTable {
       return specs;
     }
 
-    ManifestListFile manifestList() {
+    FileWithKeyId manifestList() {
       return manifestList;
     }
 
