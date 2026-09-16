@@ -462,8 +462,8 @@ public class RESTUtil {
    * Encodes a view chain (outermost first) as the {@code referenced-by} value.
    *
    * <p>Within an entry, the namespace levels and the view name are encoded like the {@code parent}
-   * query parameter, as the spec requires, and joined by the namespace separator as-is; entries are
-   * joined by a literal comma. The result is already percent-encoded and must reach the wire
+   * query parameter, as the spec requires, and joined by the encoded namespace separator; entries
+   * are joined by a literal comma. The result is already percent-encoded and must reach the wire
    * verbatim, see {@link HTTPRequest#requestUri()}.
    */
   static String encodeReferencedBy(List<TableIdentifier> referencedBy, String namespaceSeparator) {
@@ -474,12 +474,14 @@ public class RESTUtil {
     Preconditions.checkArgument(
         !Strings.isNullOrEmpty(namespaceSeparator), "Invalid separator: null or empty");
 
+    String separator = encodePathSegment(decodeString(namespaceSeparator));
+
     return referencedBy.stream()
         .map(
             ident ->
                 Stream.concat(Arrays.stream(ident.namespace().levels()), Stream.of(ident.name()))
-                    .map(level -> PercentCodec.encode(level, StandardCharsets.UTF_8))
-                    .collect(Collectors.joining(namespaceSeparator)))
+                    .map(RESTUtil::encodePathSegment)
+                    .collect(Collectors.joining(separator)))
         .collect(Collectors.joining(","));
   }
 }

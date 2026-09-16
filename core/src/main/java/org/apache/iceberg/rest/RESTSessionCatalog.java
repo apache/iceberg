@@ -610,6 +610,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       LoadContext loadContext,
       List<Credential> credentials,
       RemoteSigningConfig remoteSigningConfig) {
+    Map<String, String> readQueryParams =
+        referencedByParam(loadContext, RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER);
+
     return () -> {
       RESTTableOperations ops =
           newTableOps(
@@ -621,6 +624,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   identifier, context, tableConf, loadContext, credentials, remoteSigningConfig),
               tableMetadata,
               endpoints);
+      ops.setReadQueryParams(readQueryParams);
 
       trackFileIO(ops);
 
