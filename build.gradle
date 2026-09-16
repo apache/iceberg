@@ -417,6 +417,13 @@ project(':iceberg-core') {
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
 
+    // OAuth2
+    compileOnly(libs.nimbus.oauth2.oidc.sdk) {
+      exclude group: 'net.minidev', module: 'accessors-smart'
+      exclude group: 'com.github.stephenc.jcip', module: 'jcip-annotations'
+    }
+    compileOnly libs.nimbus.jose.jwt
+
     testImplementation libs.jetty.servlet
     testImplementation libs.jakarta.servlet
     testImplementation libs.jetty.compression.server
