@@ -31,6 +31,7 @@ import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogView;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.ResolvedCatalogView;
+import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.types.Row;
@@ -110,6 +111,21 @@ public class TestFlinkCatalogView extends CatalogTestBase {
 
   private List<Row> expectedRows() {
     return Lists.newArrayList(Row.of(1L, "a"), Row.of(2L, "b"), Row.of(3L, "c"));
+  }
+
+  private static ResolvedCatalogView simpleResolvedView() {
+    ResolvedSchema resolvedSchema = FlinkSchemaUtil.toResolvedSchema(VIEW_SCHEMA);
+    // Flink's Schema class clashes with the imported Iceberg Schema, so it is qualified once here
+    CatalogView view =
+        CatalogView.of(
+            org.apache.flink.table.api.Schema.newBuilder()
+                .fromResolvedSchema(resolvedSchema)
+                .build(),
+            null,
+            "SELECT 1",
+            "SELECT 1",
+            Maps.newHashMap());
+    return new ResolvedCatalogView(view, resolvedSchema);
   }
 
   @TestTemplate
@@ -568,7 +584,51 @@ public class TestFlinkCatalogView extends CatalogTestBase {
     assertThat(view.versions()).hasSize(2);
     assertThat(view.schema().columns()).extracting(Types.NestedField::name).containsExactly("id");
     assertThat(view.currentVersion().defaultNamespace()).isEqualTo(icebergNamespace);
-    assertThat(view.currentVersion().defaultCatalog()).isNull();
+    assertThat(view.currentVersion().defaultCatalog()).isEqualTo(catalogName);
+    // the replaced query is stored the same way a created one is: fully qualified
+    assertThat(view.sqlFor("flink").sql())
+        .containsIgnoringCase(
+            String.format("FROM `%s`.`%s`.`%s`", catalogName, DATABASE, TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testAlterViewNotSupportedByCatalog() throws Exception {
+    // reaching the no-view-catalog branch of alterTable requires the catalog API: a view can
+    // never exist in a Hadoop catalog, so SQL cannot get this far
+    String noViewCatalog = catalogName + "_alter_nv";
+    sql(
+        "CREATE CATALOG %s WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='file://%s/alter_nv')",
+        noViewCatalog, warehouseRoot());
+    try {
+      assertThatThrownBy(
+              () ->
+                  getTableEnv()
+                      .getCatalog(noViewCatalog)
+                      .get()
+                      .alterTable(new ObjectPath(DATABASE, VIEW_NAME), simpleResolvedView(), false))
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessageContaining("Altering a view is not supported by catalog")
+          .hasMessageContaining(noViewCatalog);
+    } finally {
+      dropCatalog(noViewCatalog, true);
+    }
+  }
+
+  @TestTemplate
+  public void testAlterViewNotExists() throws Exception {
+    // SQL pre-checks existence in the CatalogManager, so the catalog API is the only way to
+    // exercise these branches
+    Catalog flinkCatalog = getTableEnv().getCatalog(catalogName).get();
+    ObjectPath path = new ObjectPath(DATABASE, "nonexistent_view");
+    ResolvedCatalogView resolvedView = simpleResolvedView();
+
+    assertThatThrownBy(() -> flinkCatalog.alterTable(path, resolvedView, false))
+        .isInstanceOf(TableNotExistException.class)
+        .hasMessageContaining("nonexistent_view")
+        .hasMessageContaining("does not exist");
+
+    // with ignoreIfNotExists the missing view is silently skipped
+    flinkCatalog.alterTable(path, resolvedView, true);
   }
 
   @TestTemplate
@@ -586,8 +646,7 @@ public class TestFlinkCatalogView extends CatalogTestBase {
     // property updates arrive through the catalog API, e.g. from the Hive dialect
     sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
 
-    org.apache.flink.table.catalog.Catalog flinkCatalog =
-        getTableEnv().getCatalog(catalogName).get();
+    Catalog flinkCatalog = getTableEnv().getCatalog(catalogName).get();
     ObjectPath path = new ObjectPath(DATABASE, VIEW_NAME);
     CatalogView current = (CatalogView) flinkCatalog.getTable(path);
 
@@ -626,7 +685,15 @@ public class TestFlinkCatalogView extends CatalogTestBase {
     assertThatThrownBy(() -> sql("ALTER VIEW %s AS SELECT id FROM %s", VIEW_NAME, TABLE_NAME))
         .hasMessageContaining("Could not execute AlterTable")
         .rootCause()
-        .hasMessageContaining("dialect");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Cannot replace view due to loss of view dialects")
+        .hasMessageContaining(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED);
+
+    // the view was not touched by the failed attempt
+    View view = viewCatalog().loadView(TableIdentifier.of(icebergNamespace, VIEW_NAME));
+    assertThat(view.versions()).hasSize(1);
+    assertThat(view.currentVersion().representations()).hasSize(2);
+    assertSameElements(expectedRows(), sql("SELECT * FROM %s", VIEW_NAME));
   }
 
   @TestTemplate
@@ -640,7 +707,9 @@ public class TestFlinkCatalogView extends CatalogTestBase {
     try {
       assertThatThrownBy(() -> sql("SELECT * FROM %s.%s.%s", strictCatalog, DATABASE, VIEW_NAME))
           .rootCause()
-          .hasMessageContaining("does not have a flink dialect");
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessageContaining("does not have a flink dialect representation")
+          .hasMessageContaining(FlinkCatalogFactory.VIEW_DIALECT_STRICT);
 
       // the default (lenient) catalog still reads it
       assertSameElements(expectedRows(), sql("SELECT * FROM %s", VIEW_NAME));
