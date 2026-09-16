@@ -167,8 +167,31 @@ public interface Snapshot extends Serializable {
    * Return the location of this snapshot's manifest list, or null if it is not separate.
    *
    * @return the location of the manifest list for this Snapshot
+   * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link #rootLocation()}, which returns
+   *     the manifest list for v3 and earlier and the root manifest for v4+.
    */
+  @Deprecated
   String manifestListLocation();
+
+  /**
+   * Returns the location of this snapshot's root metadata file — a manifest list for v3 and
+   * earlier, or a root manifest for v4+.
+   *
+   * @return the location of the root file for this Snapshot
+   */
+  default String rootLocation() {
+    return manifestListLocation();
+  }
+
+  /**
+   * Returns the format version this snapshot was written under, or 0 if the snapshot does not
+   * report one.
+   *
+   * @return the snapshot's format version
+   */
+  default int formatVersion() {
+    return 0;
+  }
 
   /**
    * Return the id of the schema used when this snapshot was created, or null if this information is

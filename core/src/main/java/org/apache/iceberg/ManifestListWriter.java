@@ -93,7 +93,7 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     return null;
   }
 
-  public ManifestListFile toManifestListFile() {
+  public FileWithKeyId toManifestListFile() {
     if (manifestListKeyMetadata != null && manifestListKeyMetadata.encryptionKey() != null) {
       String manifestListKeyID =
           standardEncryptionManager.addManifestListKeyMetadata(
