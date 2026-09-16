@@ -698,6 +698,10 @@ public class CatalogHandlers {
             .withDefaultCatalog(request.viewVersion().defaultCatalog())
             .withLocation(request.location());
 
+    if (request.viewVersion().storageTable() != null) {
+      viewBuilder.withStorageTableIdentifier(request.viewVersion().storageTable());
+    }
+
     Set<String> unsupportedRepresentations =
         request.viewVersion().representations().stream()
             .filter(r -> !(r instanceof SQLViewRepresentation))
