@@ -179,6 +179,8 @@ public abstract class ReadFormatModelTests<T> {
   static final String FEATURE_NATIVE_ENCRYPTION = "nativeEncryption";
   static final String FEATURE_AES_STREAM_ENCRYPTION = "aesStreamEncryption";
   static final String FEATURE_VARIANT = "variant";
+  static final String FEATURE_FIXED = "fixed";
+  static final String FEATURE_WRITER_OVERWRITE = "writerOverwrite";
   static final String FEATURE_WRITER_PROPERTIES = "writerProperties";
   static final String FEATURE_WRITER_METADATA = "writerMetadata";
   static final String FEATURE_EVOLUTION_BY_FIELD_ID = "evolutionByFieldId";
@@ -210,6 +212,12 @@ public abstract class ReadFormatModelTests<T> {
             // Vortex files store no Iceberg field ids, so columns bind by name and renames (or
             // dropping and re-adding a name) cannot be resolved.
             FEATURE_EVOLUTION_BY_FIELD_ID,
+            // Vortex has no fixed-width binary type; the writer rejects Iceberg FIXED columns
+            // and directs callers to BINARY instead.
+            FEATURE_FIXED,
+            // The Vortex appender neither rejects a write to an existing location nor reads back
+            // correctly from one that was overwritten in place.
+            FEATURE_WRITER_OVERWRITE,
             // Vortex has no write property whose effect is observable in the written file, and
             // the writer does not persist user key-value metadata.
             FEATURE_WRITER_PROPERTIES,
@@ -1445,6 +1453,8 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testPrimitiveDefaultValuesNotApplied(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_FIXED);
+
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
     Schema readSchema = filterUnsupported(DataGenerators.PrimitiveDefaults.READ_SCHEMA);
@@ -2430,9 +2440,14 @@ public abstract class ReadFormatModelTests<T> {
   }
 
   private static boolean supportsGenerator(FileFormat fileFormat, DataGenerator generator) {
-    boolean hasVariant =
-        TypeUtil.find(generator.schema(), type -> type.typeId() == Type.TypeID.VARIANT) != null;
-    return !hasVariant || supportsFeature(fileFormat, FEATURE_VARIANT);
+    return supportsType(fileFormat, generator, Type.TypeID.VARIANT, FEATURE_VARIANT)
+        && supportsType(fileFormat, generator, Type.TypeID.FIXED, FEATURE_FIXED);
+  }
+
+  private static boolean supportsType(
+      FileFormat fileFormat, DataGenerator generator, Type.TypeID typeId, String feature) {
+    boolean hasType = TypeUtil.find(generator.schema(), type -> type.typeId() == typeId) != null;
+    return !hasType || supportsFeature(fileFormat, feature);
   }
 
   /**

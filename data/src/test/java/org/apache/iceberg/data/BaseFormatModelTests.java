@@ -166,6 +166,8 @@ public abstract class BaseFormatModelTests<T> extends ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterOverwrite(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_WRITER_OVERWRITE);
+
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
 
@@ -184,6 +186,8 @@ public abstract class BaseFormatModelTests<T> extends ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testDataWriterNoOverwriteFailsIfFileExists(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_WRITER_OVERWRITE);
+
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
 
