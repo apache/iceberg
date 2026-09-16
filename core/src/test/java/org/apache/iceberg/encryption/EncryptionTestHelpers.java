@@ -30,6 +30,10 @@ public class EncryptionTestHelpers {
   private EncryptionTestHelpers() {}
 
   public static EncryptionManager createEncryptionManager() {
+    return createEncryptionManager(List.of());
+  }
+
+  public static EncryptionManager createEncryptionManager(List<EncryptedKey> keys) {
     Map<String, String> catalogProperties = Maps.newHashMap();
     catalogProperties.put(
         CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
@@ -37,7 +41,7 @@ public class EncryptionTestHelpers {
     tableProperties.put(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1);
 
     return EncryptionUtil.createEncryptionManager(
-        List.of(), tableProperties, EncryptionUtil.createKmsClient(catalogProperties));
+        keys, tableProperties, EncryptionUtil.createKmsClient(catalogProperties));
   }
 
   public static String keyEncryptionKeyID(EncryptionManager em) {
