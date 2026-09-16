@@ -21,6 +21,7 @@ package org.apache.iceberg.actions;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,6 +38,7 @@ import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -126,7 +128,23 @@ public class RemoveDanglingDeleteFilesAction
       return EMPTY_RESULT;
     }
 
-    RewriteFiles rewriteFiles = table.newRewrite().validateFromSnapshot(snapshot.snapshotId());
+    long snapshotId = snapshot.snapshotId();
+    RewriteFiles rewriteFiles =
+        table
+            .newRewrite()
+            .validateFromSnapshot(snapshotId)
+            // validate on every commit attempt, including retries after concurrent updates
+            .validateWith(
+                snapshots -> {
+                  Iterator<Snapshot> iterator = snapshots.iterator();
+                  Snapshot currentSnapshot = iterator.hasNext() ? iterator.next() : null;
+                  ValidationException.check(
+                      currentSnapshot != null && currentSnapshot.snapshotId() == snapshotId,
+                      "Cannot remove dangling deletes: current snapshot changed from %s to %s",
+                      snapshotId,
+                      currentSnapshot != null ? currentSnapshot.snapshotId() : null);
+                  return true;
+                });
     for (DeleteFile deleteFile : danglingDeletes) {
       LOG.debug("Removing dangling delete file {}", deleteFile.location());
       rewriteFiles.deleteFile(deleteFile);
