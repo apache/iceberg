@@ -330,8 +330,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
                 assertThat(sql("SELECT * FROM %s WHERE p2 LIKE '%%keep'", tableName))
                     .as("Rows must match")
                     .containsExactlyInAnyOrder(
-                        row("a", "x", "keep", "old-match"),
-                        row("b", "z", "keep", "new-match")));
+                        row("a", "x", "keep", "old-match"), row("b", "z", "keep", "new-match")));
     assertInputPartitions(plan, 2);
   }
 
