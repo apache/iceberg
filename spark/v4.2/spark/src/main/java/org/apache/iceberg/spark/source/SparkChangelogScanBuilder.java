@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -26,22 +27,65 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.SupportsPushDownLimit;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
+import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
 public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
     implements SupportsPushDownV2Filters, SupportsPushDownRequiredColumns, SupportsPushDownLimit {
 
+  private final SparkChangelogRange cdcRange;
+
   SparkChangelogScanBuilder(
       SparkSession spark, Table table, Schema schema, CaseInsensitiveStringMap options) {
+    this(spark, table, schema, options, null);
+  }
+
+  SparkChangelogScanBuilder(
+      SparkSession spark,
+      Table table,
+      Schema schema,
+      CaseInsensitiveStringMap options,
+      SparkChangelogRange cdcRange) {
     super(spark, table, schema, options);
+    this.cdcRange = cdcRange;
+  }
+
+  @Override
+  public void pruneColumns(StructType requestedType) {
+    if (cdcRange == null) {
+      super.pruneColumns(requestedType);
+    }
+  }
+
+  @Override
+  public Predicate[] pushPredicates(Predicate[] predicates) {
+    return cdcRange != null ? predicates : super.pushPredicates(predicates);
   }
 
   @Override
   public Scan build() {
+    if (cdcRange != null) {
+      Preconditions.checkArgument(
+          readConf().startSnapshotId() == null
+              && readConf().endSnapshotId() == null
+              && readConf().startTimestamp() == null
+              && readConf().endTimestamp() == null,
+          "Use Spark CDC startingVersion/endingVersion or startingTimestamp/endingTimestamp options");
+      Schema readProjection = projectionWithMetadataColumns();
+      IncrementalChangelogScan scan =
+          buildIcebergScan(
+              ChangelogUtil.changelogSchema(SparkChangelogTable.dropCdcMetadata(readProjection)),
+              null,
+              null);
+      return new SparkChangelogScan(
+          spark(), table(), scan, readConf(), readProjection, filters(), cdcRange);
+    }
+
     Long startSnapshotId = readConf().startSnapshotId();
     Long endSnapshotId = readConf().endSnapshotId();
     Long startTimestamp = readConf().startTimestamp();

@@ -28,6 +28,7 @@ import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
@@ -42,6 +43,7 @@ import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
+import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.types.StructType;
 
 class SparkChangelogScan implements Scan, SupportsReportStatistics {
@@ -56,6 +58,8 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   private final List<Expression> filters;
   private final Long startSnapshotId;
   private final Long endSnapshotId;
+  private final SparkChangelogRange cdcRange;
+  private final Long batchEndSnapshotId;
 
   // lazy variables
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups = null;
@@ -68,7 +72,17 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
       SparkReadConf readConf,
       Schema projection,
       List<Expression> filters) {
+    this(spark, table, scan, readConf, projection, filters, null);
+  }
 
+  SparkChangelogScan(
+      SparkSession spark,
+      Table table,
+      IncrementalChangelogScan scan,
+      SparkReadConf readConf,
+      Schema projection,
+      List<Expression> filters,
+      SparkChangelogRange cdcRange) {
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), projection);
 
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
@@ -79,6 +93,12 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
     this.filters = filters != null ? filters : Collections.emptyList();
     this.startSnapshotId = readConf.startSnapshotId();
     this.endSnapshotId = readConf.endSnapshotId();
+    this.cdcRange = cdcRange;
+    Snapshot currentSnapshot = table.currentSnapshot();
+    this.batchEndSnapshotId =
+        cdcRange != null && currentSnapshot != null
+            ? Long.valueOf(currentSnapshot.snapshotId())
+            : null;
     if (scan == null) {
       this.taskGroups = Collections.emptyList();
     }
@@ -113,7 +133,25 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         hashCode());
   }
 
+  @Override
+  public MicroBatchStream toMicroBatchStream(String checkpointLocation) {
+    if (cdcRange == null) {
+      throw new UnsupportedOperationException("Changelog streaming is only supported through CDC");
+    }
+
+    return new SparkChangelogMicroBatchStream(
+        sparkContext, table, readConf, projection, checkpointLocation, cdcRange);
+  }
+
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups() {
+    if (taskGroups == null && cdcRange != null) {
+      cdcRange.validateVersions(table);
+      this.taskGroups =
+          batchEndSnapshotId == null
+              ? Collections.emptyList()
+              : cdcRange.planTasks(table, scan, null, batchEndSnapshotId);
+    }
+
     if (taskGroups == null) {
       try (CloseableIterable<ScanTaskGroup<ChangelogScanTask>> groups = scan.planTasks()) {
         this.taskGroups = Lists.newArrayList(groups);
@@ -129,11 +167,12 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   public String description() {
     return String.format(
         Locale.ROOT,
-        "IcebergChangelogScan(table=%s, fromSnapshotId=%d, toSnapshotId=%d, filters=%s)",
+        "IcebergChangelogScan(table=%s, fromSnapshotId=%d, toSnapshotId=%d, filters=%s, cdcRange=%s)",
         table,
         startSnapshotId,
         endSnapshotId,
-        filtersDesc());
+        filtersDesc(),
+        cdcRange);
   }
 
   @Override
@@ -152,13 +191,22 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field IDs
         && filtersDesc().equals(that.filtersDesc())
         && Objects.equals(startSnapshotId, that.startSnapshotId)
-        && Objects.equals(endSnapshotId, that.endSnapshotId);
+        && Objects.equals(endSnapshotId, that.endSnapshotId)
+        && Objects.equals(cdcRange, that.cdcRange)
+        && Objects.equals(batchEndSnapshotId, that.batchEndSnapshotId);
   }
 
   @Override
   public int hashCode() {
     return Objects.hash(
-        table.name(), table.uuid(), readSchema(), filtersDesc(), startSnapshotId, endSnapshotId);
+        table.name(),
+        table.uuid(),
+        readSchema(),
+        filtersDesc(),
+        startSnapshotId,
+        endSnapshotId,
+        cdcRange,
+        batchEndSnapshotId);
   }
 
   private String filtersDesc() {
