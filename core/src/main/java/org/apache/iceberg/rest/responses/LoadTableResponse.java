@@ -123,7 +123,7 @@ public class LoadTableResponse implements RESTResponse {
     private final Map<String, String> config = Maps.newHashMap();
     private final List<Credential> credentials = Lists.newArrayList();
     private RemoteSigningConfig remoteSigningConfig = RemoteSigningConfig.EMPTY;
-    private Labels labels;
+    private Labels labels = Labels.EMPTY;
 
     private Builder() {}
 
