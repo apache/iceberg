@@ -1259,7 +1259,7 @@ public class TestExpressionUtil {
     assertEquals(
         Expressions.equal(
             "var",
-            "[(hash-2024a117), {(hash-a): (2-digit-INT8)}, [(2-digit-INT8), (timestamp), (date)]]"),
+            "[(hash-2024a117), {(hash-3c2569b2): (2-digit-INT8)}, [(2-digit-INT8), (timestamp), (date)]]"),
         ExpressionUtil.sanitize(bound));
   }
 
@@ -1428,27 +1428,27 @@ public class TestExpressionUtil {
     assertEquals(
         Expressions.equal(
             "var",
-            "{(hash-event_array): "
-                + "[(hash-2024a117), {(hash-event_array): (2-digit-INT8)}, [(2-digit-INT8), (timestamp), (date)]], (hash-event_binary): (hash-04584bd6), "
-                + "(hash-event_bool_f): (hash-3682a0b4), "
-                + "(hash-event_bool_t): (hash-451a5465), "
-                + "(hash-event_date): (date), "
-                + "(hash-event_double): (-224-digit-DOUBLE), "
-                + "(hash-event_float): (7-digit-FLOAT), "
-                + "(hash-event_id_16): (4-digit-INT16), "
-                + "(hash-event_id_32): (10-digit-INT32), "
-                + "(hash-event_id_64): (19-digit-INT64), "
-                + "(hash-event_id_8): (2-digit-INT8), "
-                + "(hash-event_id_dec16): (10-digit-DECIMAL16), "
-                + "(hash-event_id_dec4): (6-digit-DECIMAL4), "
-                + "(hash-event_id_dec8): (10-digit-DECIMAL8), "
-                + "(hash-event_name): (hash-79b17dd6), "
-                + "(hash-event_time): (time), "
-                + "(hash-event_timestamp_ntz): (timestamp), "
-                + "(hash-event_timestamp_ntz_nanos): (timestamp), "
-                + "(hash-event_timestamp_tz): (timestamp), "
-                + "(hash-event_timestamp_tz_nanos): (timestamp), "
-                + "(hash-event_uuid): (hash-54e07fa7)}"),
+            "{(hash-532ef2e6): "
+                + "[(hash-2024a117), {(hash-532ef2e6): (2-digit-INT8)}, [(2-digit-INT8), (timestamp), (date)]], (hash-3f649bcf): (hash-04584bd6), "
+                + "(hash-4b01a0ed): (hash-3682a0b4), "
+                + "(hash-1bd8a103): (hash-451a5465), "
+                + "(hash-6348197a): (date), "
+                + "(hash-6d9223cf): (-224-digit-DOUBLE), "
+                + "(hash-48f8c332): (7-digit-FLOAT), "
+                + "(hash-3d832416): (4-digit-INT16), "
+                + "(hash-3a94d07e): (10-digit-INT32), "
+                + "(hash-7e8b90d2): (19-digit-INT64), "
+                + "(hash-1586f0bd): (2-digit-INT8), "
+                + "(hash-34a9baf1): (10-digit-DECIMAL16), "
+                + "(hash-49183206): (6-digit-DECIMAL4), "
+                + "(hash-5d805b2d): (10-digit-DECIMAL8), "
+                + "(hash-7818b108): (hash-79b17dd6), "
+                + "(hash-414aac55): (time), "
+                + "(hash-17f2562b): (timestamp), "
+                + "(hash-41c420ff): (timestamp), "
+                + "(hash-15b5d3cc): (timestamp), "
+                + "(hash-31a712e1): (timestamp), "
+                + "(hash-1bcce418): (hash-54e07fa7)}"),
         ExpressionUtil.sanitize(bound));
   }
 
