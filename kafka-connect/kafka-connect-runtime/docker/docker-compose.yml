@@ -16,34 +16,48 @@
 # under the License.
 
 volumes:
-  data: {}
+  object-store-data: {}
 
 services:
-  minio:
-    image: quay.io/minio/minio
-    hostname: minio
+  object-store:
+    image: rustfs/rustfs:1.0.0
+    hostname: object-store
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
+      - RUSTFS_ACCESS_KEY=minioadmin
+      - RUSTFS_SECRET_KEY=minioadmin
+      - RUSTFS_CONSOLE_ENABLE=true
     ports:
       - 9000:9000
       - 9001:9001
     volumes:
-      - data:/data
-    command: server /data --console-address ":9001"
+      - object-store-data:/data
+    command: /data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:9000/health/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
   create-bucket:
-    image: quay.io/minio/mc
+    image: amazon/aws-cli:2.36.44
     depends_on:
-      - minio
-    volumes:
-      - data:/data
-    entrypoint: mc mb /data/bucket
+      object-store:
+        condition: service_healthy
+    environment:
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ENDPOINT_URL=http://object-store:9000
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - aws s3api head-bucket --bucket bucket || aws s3api create-bucket --bucket bucket
 
   iceberg:
     image: apache/iceberg-rest-fixture
     depends_on:
-      - create-bucket
+      create-bucket:
+        condition: service_completed_successfully
     hostname: iceberg
     ports:
       - 8181:8181
@@ -52,7 +66,7 @@ services:
       - CATALOG_WAREHOUSE=s3://bucket/warehouse/
       - CATALOG_URI=jdbc:sqlite:/tmp/iceberg_catalog.db?journal_mode=WAL
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
-      - CATALOG_S3_ENDPOINT=http://minio:9000
+      - CATALOG_S3_ENDPOINT=http://object-store:9000
       - CATALOG_S3_PATH__STYLE__ACCESS=true
       - CATALOG_S3_ACCESS__KEY__ID=minioadmin
       - CATALOG_S3_SECRET__ACCESS__KEY=minioadmin

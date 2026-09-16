@@ -88,7 +88,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
-import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import software.amazon.awssdk.awscore.AwsServiceClientConfiguration;
@@ -115,10 +115,9 @@ import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
 @Testcontainers
 public class TestS3FileIO {
-  @Container private final MinIOContainer minio = createMinIOContainer();
+  @Container private final GenericContainer<?> rustfs = createContainer();
 
-  private final SerializableSupplier<S3Client> s3 =
-      () -> MinioUtil.createS3Client(minio, legacyMd5PluginEnabled());
+  private final SerializableSupplier<S3Client> s3 = () -> RustFSUtil.createS3Client(rustfs);
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3.get()));
   private final Random random = new Random(1);
   private final int numBucketsForBatchDeletion = 3;
@@ -136,14 +135,10 @@ public class TestS3FileIO {
           "s3.delete.batch-size",
           Integer.toString(batchDeletionSize));
 
-  protected MinIOContainer createMinIOContainer() {
-    MinIOContainer container = MinioUtil.createContainer();
+  protected GenericContainer<?> createContainer() {
+    GenericContainer<?> container = RustFSUtil.createContainer();
     container.start();
     return container;
-  }
-
-  protected boolean legacyMd5PluginEnabled() {
-    return false;
   }
 
   @BeforeEach
@@ -205,6 +200,27 @@ public class TestS3FileIO {
   @Test
   public void testDeleteFilesSingleBatchWithRemainder() {
     testBatchDelete(batchDeletionSize + 1);
+  }
+
+  @Test
+  void bulkDeleteWithLegacyMd5() throws IOException {
+    try (S3FileIO fileIO = new S3FileIO(() -> RustFSUtil.createS3Client(rustfs, true))) {
+      fileIO.initialize(properties);
+      List<String> paths = Lists.newArrayList();
+      for (int i = 0; i < batchDeletionSize + 1; i++) {
+        String path = String.format("s3://%s/legacy-md5/file-%s", S3_GENERAL_PURPOSE_BUCKET, i);
+        try (OutputStream stream = fileIO.newOutputFile(path).createOrOverwrite()) {
+          stream.write(0);
+        }
+
+        paths.add(path);
+      }
+
+      fileIO.deleteFiles(paths);
+      for (String path : paths) {
+        assertThat(fileIO.newInputFile(path).exists()).isFalse();
+      }
+    }
   }
 
   @Test

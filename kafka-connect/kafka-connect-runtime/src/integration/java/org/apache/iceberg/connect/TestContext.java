@@ -43,7 +43,7 @@ public class TestContext {
   public static final ObjectMapper MAPPER = new ObjectMapper();
   public static final int CONNECT_PORT = 8083;
 
-  private static final int MINIO_PORT = 9000;
+  private static final int S3_PORT = 9000;
   private static final int CATALOG_PORT = 8181;
   private static final String BOOTSTRAP_SERVERS = "localhost:29092";
   private static final String AWS_ACCESS_KEY = "minioadmin";
@@ -61,7 +61,8 @@ public class TestContext {
     ComposeContainer container =
         new ComposeContainer(new File("./docker/docker-compose.yml"))
             .withStartupTimeout(Duration.ofMinutes(2))
-            .waitingFor("connect", Wait.forHttp("/connectors"));
+            .waitingFor("connect", Wait.forHttp("/connectors"))
+            .waitingFor("iceberg", Wait.forHealthcheck());
     container.start();
   }
 
@@ -82,7 +83,7 @@ public class TestContext {
         ImmutableMap.<String, String>builder()
             .put(CatalogProperties.URI, localCatalogUri)
             .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.aws.s3.S3FileIO")
-            .put("s3.endpoint", "http://localhost:" + MINIO_PORT)
+            .put("s3.endpoint", "http://localhost:" + S3_PORT)
             .put("s3.access-key-id", AWS_ACCESS_KEY)
             .put("s3.secret-access-key", AWS_SECRET_KEY)
             .put("s3.path-style-access", "true")
@@ -100,7 +101,7 @@ public class TestContext {
         .put(
             "iceberg.catalog." + CatalogProperties.FILE_IO_IMPL,
             "org.apache.iceberg.aws.s3.S3FileIO")
-        .put("iceberg.catalog.s3.endpoint", "http://minio:" + MINIO_PORT)
+        .put("iceberg.catalog.s3.endpoint", "http://object-store:" + S3_PORT)
         .put("iceberg.catalog.s3.access-key-id", AWS_ACCESS_KEY)
         .put("iceberg.catalog.s3.secret-access-key", AWS_SECRET_KEY)
         .put("iceberg.catalog.s3.path-style-access", true)

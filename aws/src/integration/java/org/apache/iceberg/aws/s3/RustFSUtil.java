@@ -19,7 +19,8 @@
 package org.apache.iceberg.aws.s3;
 
 import java.net.URI;
-import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
@@ -29,49 +30,49 @@ import software.amazon.awssdk.services.s3.LegacyMd5Plugin;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
-public class MinioUtil {
-  public static final String LATEST_TAG = "latest";
-  // This version doesn't support strong integrity checks
-  static final String LEGACY_TAG = "RELEASE.2024-12-18T13-15-44Z";
+public class RustFSUtil {
+  private static final String IMAGE = "rustfs/rustfs:1.0.0";
+  private static final int S3_PORT = 9000;
+  private static final AwsCredentials DEFAULT_CREDENTIALS =
+      AwsBasicCredentials.create("admin", "password");
 
-  private MinioUtil() {}
+  private RustFSUtil() {}
 
-  public static MinIOContainer createContainer() {
-    return createContainer(LATEST_TAG, null);
+  public static GenericContainer<?> createContainer() {
+    return createContainer(DEFAULT_CREDENTIALS);
   }
 
-  public static MinIOContainer createContainer(String tag, AwsCredentials credentials) {
-    var image =
-        DockerImageName.parse("quay.io/minio/minio")
-            .asCompatibleSubstituteFor("minio/minio")
-            .withTag(tag);
-    var container = new MinIOContainer(image);
-
-    // this enables virtual-host-style requests. see
-    // https://github.com/minio/minio/tree/master/docs/config#domain
-    container.withEnv("MINIO_DOMAIN", "localhost");
-
-    if (credentials != null) {
-      container.withUserName(credentials.accessKeyId());
-      container.withPassword(credentials.secretAccessKey());
-    }
-
+  public static GenericContainer<?> createContainer(AwsCredentials credentials) {
+    var container = new GenericContainer<>(DockerImageName.parse(IMAGE));
+    container.withExposedPorts(S3_PORT);
+    container.withEnv("RUSTFS_ACCESS_KEY", credentials.accessKeyId());
+    container.withEnv("RUSTFS_SECRET_KEY", credentials.secretAccessKey());
+    container.withEnv("RUSTFS_CONSOLE_ENABLE", "false");
+    container.withCommand("/data");
+    container.waitingFor(Wait.forHttp("/health/ready").forPort(S3_PORT));
     return container;
   }
 
-  public static S3Client createS3Client(MinIOContainer container) {
+  public static URI endpoint(GenericContainer<?> container) {
+    return URI.create("http://" + container.getHost() + ":" + container.getMappedPort(S3_PORT));
+  }
+
+  public static S3Client createS3Client(GenericContainer<?> container) {
     return createS3Client(container, false);
   }
 
-  public static S3Client createS3Client(MinIOContainer container, boolean legacyMd5PluginEnabled) {
-    URI uri = URI.create(container.getS3URL());
+  public static S3Client createS3Client(
+      GenericContainer<?> container, boolean legacyMd5PluginEnabled) {
+    URI uri = endpoint(container);
     S3ClientBuilder builder = S3Client.builder();
     if (legacyMd5PluginEnabled) {
       builder.addPlugin(LegacyMd5Plugin.create());
     }
     builder.credentialsProvider(
         StaticCredentialsProvider.create(
-            AwsBasicCredentials.create(container.getUserName(), container.getPassword())));
+            AwsBasicCredentials.create(
+                container.getEnvMap().get("RUSTFS_ACCESS_KEY"),
+                container.getEnvMap().get("RUSTFS_SECRET_KEY"))));
     builder.applyMutation(mutator -> mutator.endpointOverride(uri));
     builder.region(Region.US_EAST_1);
     builder.forcePathStyle(true); // OSX won't resolve subdomains
