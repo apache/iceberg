@@ -24,7 +24,7 @@ import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.ArrayList;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -33,6 +33,7 @@ import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -59,6 +60,155 @@ class TestSparkChangelog extends TestBaseWithCatalog {
   @AfterEach
   void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @TestTemplate
+  void readsRawCopyOnWriteChangesWithoutRowLineage() {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='2', 'write.update.mode'='copy-on-write')",
+        tableName);
+    sql("INSERT INTO %s SELECT /*+ COALESCE(1) */ * FROM VALUES (1, 'a'), (2, 'b')", tableName);
+    sql("UPDATE %s SET data = 'updated' WHERE id = 1", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshot = table.currentSnapshot();
+    long version = snapshot.sequenceNumber();
+    Timestamp timestamp = new Timestamp(snapshot.timestampMillis());
+    Dataset<Row> changes =
+        spark.sql(
+            String.format(
+                "SELECT * FROM %s CHANGES FROM VERSION %d TO VERSION %d "
+                    + "WITH (deduplicationMode = 'none', computeUpdates = 'false')",
+                tableName, version, version));
+
+    assertThat(changes.schema().fieldNames())
+        .containsExactly(
+            "id",
+            "data",
+            "_row_id",
+            "_last_updated_sequence_number",
+            "_change_type",
+            "_commit_version",
+            "_commit_timestamp");
+    assertThat(changes.schema().apply("_row_id").nullable()).isTrue();
+    assertThat(changes.schema().apply("_last_updated_sequence_number").nullable()).isTrue();
+    assertThat(changes.collectAsList())
+        .containsExactlyInAnyOrder(
+            RowFactory.create(1L, "a", null, null, "delete", version, timestamp),
+            RowFactory.create(1L, "updated", null, null, "insert", version, timestamp),
+            RowFactory.create(2L, "b", null, null, "delete", version, timestamp),
+            RowFactory.create(2L, "b", null, null, "insert", version, timestamp));
+  }
+
+  @TestTemplate
+  void resumesRawStreamWithoutRowLineage() throws Exception {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='2', 'write.delete.mode'='copy-on-write')",
+        tableName);
+    sql("INSERT INTO %s SELECT /*+ COALESCE(1) */ * FROM VALUES (1, 'a'), (2, 'b')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    long firstVersion = table.currentSnapshot().sequenceNumber();
+    Dataset<Row> changes =
+        spark
+            .readStream()
+            .option("deduplicationMode", "none")
+            .option("computeUpdates", "false")
+            .option("startingVersion", String.valueOf(firstVersion))
+            .changes(tableName);
+    String checkpoint = temp.resolve("raw-cdc-checkpoint").toString();
+    String output = temp.resolve("raw-cdc-output").toString();
+    writeAvailableChanges(changes, checkpoint, output);
+    assertThat(spark.read().parquet(output).count()).isEqualTo(2);
+
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+    table.refresh();
+    long deleteVersion = table.currentSnapshot().sequenceNumber();
+    writeAvailableChanges(changes, checkpoint, output);
+    Dataset<Row> result = spark.read().parquet(output);
+    assertThat(result.select("id", "data", "_change_type", "_commit_version").collectAsList())
+        .containsExactlyInAnyOrder(
+            RowFactory.create(1L, "a", "insert", firstVersion),
+            RowFactory.create(2L, "b", "insert", firstVersion),
+            RowFactory.create(1L, "a", "delete", deleteVersion),
+            RowFactory.create(2L, "b", "delete", deleteVersion),
+            RowFactory.create(2L, "b", "insert", deleteVersion));
+    assertThat(
+            result
+                .filter("_row_id IS NOT NULL OR _last_updated_sequence_number IS NOT NULL")
+                .count())
+        .isZero();
+  }
+
+  private void writeAvailableChanges(Dataset<Row> changes, String checkpoint, String output)
+      throws Exception {
+    StreamingQuery query =
+        changes
+            .writeStream()
+            .format("parquet")
+            .option("checkpointLocation", checkpoint)
+            .trigger(Trigger.AvailableNow())
+            .start(output);
+    try {
+      assertThat(query.awaitTermination(60_000)).isTrue();
+    } finally {
+      query.stop();
+    }
+  }
+
+  @TestTemplate
+  void rejectsPostProcessingWithoutRowLineage() {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='2')",
+        tableName);
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    List<Map<String, String>> options =
+        List.of(
+            Map.of(),
+            Map.of("deduplicationMode", "dropCarryovers"),
+            Map.of("deduplicationMode", "netChanges"),
+            Map.of("computeUpdates", "true"),
+            Map.of("deduplicationMode", "none", "computeUpdates", "true"));
+    for (Map<String, String> option : options) {
+      assertThatThrownBy(() -> spark.read().options(option).changes(tableName).collectAsList())
+          .hasStackTraceContaining("Spark CDC post-processing requires row lineage");
+    }
+  }
+
+  @TestTemplate
+  void rejectsRawCdcWithoutCommitSequenceNumbers() {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='1')",
+        tableName);
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    assertThatThrownBy(
+            () ->
+                spark.read().option("deduplicationMode", "none").changes(tableName).collectAsList())
+        .hasStackTraceContaining("format version 2 or later");
+
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='2')", tableName);
+    assertThatThrownBy(
+            () ->
+                spark.read().option("deduplicationMode", "none").changes(tableName).collectAsList())
+        .hasStackTraceContaining("without a commit sequence number");
+  }
+
+  @TestTemplate
+  void rawCdcStillRejectsDeleteFiles() {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='2', 'write.delete.mode'='merge-on-read')",
+        tableName);
+    sql("INSERT INTO %s SELECT /*+ COALESCE(1) */ * FROM VALUES (1, 'a'), (2, 'b')", tableName);
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.currentSnapshot().deleteManifests(table.io())).isNotEmpty();
+    assertThatThrownBy(
+            () ->
+                spark.read().option("deduplicationMode", "none").changes(tableName).collectAsList())
+        .hasStackTraceContaining("Delete files are currently not supported in changelog scans");
   }
 
   @TestTemplate
@@ -319,7 +469,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  void rejectsHistoryWithoutRowLineageAfterUpgrade() {
+  void readsRawHistoryButRejectsPostProcessingAfterUpgrade() {
     sql(
         "CREATE TABLE %s (id bigint, data string) USING iceberg "
             + "TBLPROPERTIES ('format-version'='2')",
@@ -329,10 +479,22 @@ class TestSparkChangelog extends TestBaseWithCatalog {
     long version = table.currentSnapshot().sequenceNumber();
     sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='3')", tableName);
     table.refresh();
+    assertThat(
+            spark
+                .read()
+                .option("deduplicationMode", "none")
+                .option("startingVersion", String.valueOf(version))
+                .option("endingVersion", String.valueOf(version))
+                .changes(tableName)
+                .select("id", "data", "_row_id", "_last_updated_sequence_number", "_change_type")
+                .collectAsList())
+        .containsExactly(RowFactory.create(1L, "a", null, null, "insert"));
     ChangelogContext context =
-        context(
+        new ChangelogContext(
             new ChangelogRange.VersionRange(
-                String.valueOf(version), Optional.of(String.valueOf(version)), true, true));
+                String.valueOf(version), Optional.of(String.valueOf(version)), true, true),
+            DeduplicationMode.DROP_CARRYOVERS,
+            false);
     assertThatThrownBy(
             () ->
                 new SparkChangelogTable(table, context)
@@ -535,7 +697,7 @@ class TestSparkChangelog extends TestBaseWithCatalog {
 
   private List<Object[]> readChanges(MicroBatchStream stream, Offset start, Offset end)
       throws Exception {
-    List<Object[]> rows = new ArrayList<>();
+    List<Object[]> rows = Lists.newArrayList();
     for (InputPartition partition : stream.planInputPartitions(start, end)) {
       try (PartitionReader<InternalRow> reader =
           stream.createReaderFactory().createReader(partition)) {
