@@ -113,15 +113,16 @@ public class TestMultipleClients extends BaseTestIceberg {
 
   @Test
   void listNestedNamespacesFromAnotherClient() {
-    // pins the other client to the current ref hash
+    // make the other client resolve its reference now, so the hash it caches is older than the
+    // commits below
     assertThat(anotherCatalog.listNamespaces()).isEmpty();
 
     catalog.createNamespace(Namespace.of("db1"), Collections.emptyMap());
     catalog.createNamespace(Namespace.of("db1", "sub1"), Collections.emptyMap());
 
-    // the other client is still on the old ref hash, but listing reads the HEAD of the ref
+    // the parent check must read the HEAD of the ref, not the hash the other client cached
     assertThat(anotherCatalog.listNamespaces(Namespace.of("db1")))
-        .containsExactlyInAnyOrder(Namespace.of("db1", "sub1"));
+        .containsExactly(Namespace.of("db1", "sub1"));
   }
 
   @Test
