@@ -36,6 +36,15 @@ public class FlinkReadConf {
     this.confParser = new FlinkConfParser(table, readOptions, readableConfig);
   }
 
+  /**
+   * Creates a read conf without a table, so table properties are not available. The {@link
+   * #splitSize()}, {@link #splitLookback()} and {@link #splitFileOpenCost()} getters fall back to
+   * their global defaults instead of the table's {@code read.split.*} properties.
+   */
+  public FlinkReadConf(Map<String, String> readOptions, ReadableConfig readableConfig) {
+    this.confParser = new FlinkConfParser(readOptions, readableConfig);
+  }
+
   public Long snapshotId() {
     return confParser.longConf().option(FlinkReadOptions.SNAPSHOT_ID.key()).parseOptional();
   }
@@ -62,6 +71,16 @@ public class FlinkReadConf {
         .option(FlinkReadOptions.CASE_SENSITIVE)
         .flinkConfig(FlinkReadOptions.CASE_SENSITIVE_OPTION)
         .defaultValue(FlinkReadOptions.CASE_SENSITIVE_OPTION.defaultValue())
+        .parse();
+  }
+
+  public boolean aggregatePushDownEnabled() {
+    return confParser
+        .booleanConf()
+        .option(FlinkReadOptions.AGGREGATE_PUSH_DOWN_ENABLED)
+        .flinkConfig(FlinkConfigOptions.TABLE_EXEC_ICEBERG_AGGREGATE_PUSH_DOWN_ENABLED)
+        .defaultValue(
+            FlinkConfigOptions.TABLE_EXEC_ICEBERG_AGGREGATE_PUSH_DOWN_ENABLED.defaultValue())
         .parse();
   }
 

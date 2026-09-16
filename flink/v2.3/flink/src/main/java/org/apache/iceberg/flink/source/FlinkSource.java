@@ -45,7 +45,6 @@ import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.util.PropertyUtil;
 
 /**
  * Flink source builder for old {@link SourceFunction} implementation.
@@ -310,9 +309,5 @@ public class FlinkSource {
             .transform(readerOperatorName, typeInfo, StreamingReaderOperator.factory(format));
       }
     }
-  }
-
-  public static boolean isBounded(Map<String, String> properties) {
-    return !PropertyUtil.propertyAsBoolean(properties, FlinkReadOptions.STREAMING, false);
   }
 }
