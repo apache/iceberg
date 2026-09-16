@@ -34,6 +34,7 @@ public interface Labels {
   List<FieldLabel> fields();
 
   /** Returns true when there are neither object-level nor field-level labels. */
+  @Value.Derived
   default boolean isEmpty() {
     return objectLabels().isEmpty() && fields().isEmpty();
   }

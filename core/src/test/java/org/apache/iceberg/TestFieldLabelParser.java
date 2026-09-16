@@ -25,10 +25,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
-public class TestFieldLabelParser {
+class TestFieldLabelParser {
 
   @Test
-  public void nullCheck() {
+  void nullCheck() {
     assertThatThrownBy(() -> FieldLabelParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid field labels: null");
@@ -39,7 +39,7 @@ public class TestFieldLabelParser {
   }
 
   @Test
-  public void roundTrip() {
+  void roundTrip() {
     FieldLabel fieldLabel =
         ImmutableFieldLabel.builder().fieldId(3).labels(ImmutableMap.of("pii", "true")).build();
 
@@ -57,12 +57,12 @@ public class TestFieldLabelParser {
   }
 
   @Test
-  public void emptyLabels() {
+  void emptyLabels() {
     assertThat(ImmutableFieldLabel.builder().fieldId(1).build().labels()).isEmpty();
   }
 
   @Test
-  public void emptyLabelsFromJson() {
+  void emptyLabelsFromJson() {
     FieldLabel fieldLabel = FieldLabelParser.fromJson("{\"field-id\": 1, \"labels\": {}}");
 
     assertThat(fieldLabel.fieldId()).isEqualTo(1);
@@ -70,14 +70,14 @@ public class TestFieldLabelParser {
   }
 
   @Test
-  public void missingLabelsFromJson() {
+  void missingLabelsFromJson() {
     assertThatThrownBy(() -> FieldLabelParser.fromJson("{\"field-id\": 1}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing map: labels");
   }
 
   @Test
-  public void emptyJson() {
+  void emptyJson() {
     assertThatThrownBy(() -> FieldLabelParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing int: field-id");

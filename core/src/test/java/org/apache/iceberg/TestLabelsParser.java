@@ -25,10 +25,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
-public class TestLabelsParser {
+class TestLabelsParser {
 
   @Test
-  public void nullCheck() {
+  void nullCheck() {
     assertThatThrownBy(() -> LabelsParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid labels: null");
@@ -39,7 +39,7 @@ public class TestLabelsParser {
   }
 
   @Test
-  public void emptyLabels() {
+  void emptyLabels() {
     Labels labels = ImmutableLabels.builder().build();
     assertThat(labels.isEmpty()).isTrue();
 
@@ -55,7 +55,7 @@ public class TestLabelsParser {
   }
 
   @Test
-  public void objectLabelsOnly() {
+  void objectLabelsOnly() {
     Labels labels =
         ImmutableLabels.builder()
             .objectLabels(ImmutableMap.of("owner", "team-a", "sensitivity", "high"))
@@ -75,7 +75,7 @@ public class TestLabelsParser {
   }
 
   @Test
-  public void fieldLabelsOnly() {
+  void fieldLabelsOnly() {
     Labels labels =
         ImmutableLabels.builder()
             .addFields(
@@ -101,7 +101,7 @@ public class TestLabelsParser {
   }
 
   @Test
-  public void objectAndFieldLabel() {
+  void objectAndFieldLabel() {
     Labels labels =
         ImmutableLabels.builder()
             .objectLabels(ImmutableMap.of("owner", "team-a"))
