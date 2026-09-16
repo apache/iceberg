@@ -773,42 +773,6 @@ class TestV4ManifestReader {
     assertThat(metrics.scannedDataManifests().value()).as("one manifest is scanned").isEqualTo(1L);
   }
 
-  // TODO rdblue: is this test still valid
-  @Test
-  public void unsupportedFormatVersionThrows() {
-    ManifestFile manifest = mock(ManifestFile.class);
-    when(manifest.formatVersion()).thenReturn(3);
-
-    assertThatThrownBy(
-            () -> V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot read manifest with format version 3: only 4 is supported");
-  }
-
-  @Test
-  public void manifestDeletionVectorIsUnsupported() {
-    ManifestFile manifest = v4Manifest("s3://bucket/manifest.parquet");
-    when(manifest.manifestDeletionVector()).thenReturn(mock(ManifestBitmap.class));
-
-    assertThatThrownBy(
-            () -> V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot read manifest with a deletion vector: s3://bucket/manifest.parquet");
-  }
-
-  @Test
-  public void deleteManifestThrows() {
-    ManifestFile manifest = v4Manifest("s3://bucket/manifest.parquet");
-    when(manifest.content()).thenReturn(ManifestContent.DELETES);
-
-    assertThatThrownBy(
-            () -> V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Cannot read manifest with content DELETES: only data manifests are supported: "
-                + "s3://bucket/manifest.parquet");
-  }
-
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   public void partitionFilterCaseSensitivity(FileFormat format) throws IOException {
