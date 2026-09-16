@@ -125,13 +125,22 @@ public class TestMetadataUpdateParser {
   }
 
   @Test
+  public void testAddSchemaFromJsonWithDeprecatedLastColumnId() {
+    String action = MetadataUpdateParser.ADD_SCHEMA;
+    Schema schema = ID_DATA_SCHEMA;
+    String json =
+        String.format(
+            "{\"action\":\"add-schema\",\"schema\":%s,\"last-column-id\":34}",
+            SchemaParser.toJson(schema));
+    MetadataUpdate actualUpdate = new MetadataUpdate.AddSchema(schema);
+    assertEquals(action, actualUpdate, MetadataUpdateParser.fromJson(json));
+  }
+
+  @Test
   public void testAddSchemaToJson() {
     Schema schema = ID_DATA_SCHEMA;
-    int lastColumnId = schema.highestFieldId();
     String expected =
-        String.format(
-            "{\"action\":\"add-schema\",\"schema\":%s,\"last-column-id\":%d}",
-            SchemaParser.toJson(schema), lastColumnId);
+        String.format("{\"action\":\"add-schema\",\"schema\":%s}", SchemaParser.toJson(schema));
     MetadataUpdate update = new MetadataUpdate.AddSchema(schema);
     String actual = MetadataUpdateParser.toJson(update);
     assertThat(actual)
