@@ -142,7 +142,6 @@ class RESTTableOperations implements TableOperations {
       Map<String, String> readQueryParams) {
     this.client = client;
     this.path = path;
-    this.readQueryParams = readQueryParams;
     this.readHeaders = readHeaders;
     this.mutationHeaders = mutationHeaders;
     this.io = io;
@@ -155,6 +154,7 @@ class RESTTableOperations implements TableOperations {
       this.current = current;
     }
     this.endpoints = endpoints;
+    this.readQueryParams = readQueryParams;
   }
 
   @Override

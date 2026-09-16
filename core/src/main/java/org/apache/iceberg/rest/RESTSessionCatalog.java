@@ -776,7 +776,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 response.credentials(),
                 response.remoteSigningConfig()),
             response.tableMetadata(),
-            endpoints);
+            endpoints,
+            Map.of());
 
     trackFileIO(ops);
 
@@ -1051,7 +1052,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   response.credentials(),
                   response.remoteSigningConfig()),
               response.tableMetadata(),
-              endpoints);
+              endpoints,
+              Map.of());
 
       trackFileIO(ops);
 
@@ -1322,20 +1324,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   /**
    * Create a new {@link RESTTableOperations} instance for simple table operations.
    *
-   * <p>This method can be overridden in subclasses to provide custom table operations
-   * implementations.
-   *
-   * @param restClient the REST client to use for communicating with the catalog server
-   * @param path the REST path for the table
-   * @param readHeaders a supplier for additional HTTP headers to include in read requests
-   *     (GET/HEAD)
-   * @param mutationHeaderSupplier a supplier for additional HTTP headers to include in mutation
-   *     requests (POST/DELETE)
-   * @param fileIO the FileIO implementation for reading and writing table metadata and data files
-   * @param current the current table metadata
-   * @param supportedEndpoints the set of supported REST endpoints
-   * @return a new RESTTableOperations instance
+   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link #newTableOps(RESTClient,
+   *     String, Supplier, Supplier, FileIO, TableMetadata, Set, Map)} instead.
    */
+  @Deprecated
   protected RESTTableOperations newTableOps(
       RESTClient restClient,
       String path,
@@ -1356,9 +1348,23 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   /**
-   * Create a new {@link RESTTableOperations} instance that sends the given query parameters on read
-   * requests. Table loads go through this overload, so a subclass that overrides only the variant
-   * without {@code readQueryParams} does not cover them.
+   * Create a new {@link RESTTableOperations} instance for simple table operations.
+   *
+   * <p>This method can be overridden in subclasses to provide custom table operations
+   * implementations.
+   *
+   * @param restClient the REST client to use for communicating with the catalog server
+   * @param path the REST path for the table
+   * @param readHeaders a supplier for additional HTTP headers to include in read requests
+   *     (GET/HEAD)
+   * @param mutationHeaderSupplier a supplier for additional HTTP headers to include in mutation
+   *     requests (POST/DELETE)
+   * @param fileIO the FileIO implementation for reading and writing table metadata and data files
+   * @param current the current table metadata
+   * @param supportedEndpoints the set of supported REST endpoints
+   * @param readQueryParams query parameters to send on read requests, such as the referenced-by
+   *     view chain the table was loaded through
+   * @return a new RESTTableOperations instance
    */
   protected RESTTableOperations newTableOps(
       RESTClient restClient,
