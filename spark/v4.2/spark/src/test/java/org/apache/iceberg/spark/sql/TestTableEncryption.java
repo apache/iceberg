@@ -42,11 +42,13 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.encryption.Ciphers;
+import org.apache.iceberg.encryption.EncryptedKey;
 import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
@@ -423,6 +425,45 @@ public class TestTableEncryption extends CatalogTestBase {
     assertThat(catalog.tableExists(tableIdent)).as("Table should not exist").isFalse();
     assertThat(dataFiles)
         .allSatisfy(filePath -> assertThat(localInput(filePath).exists()).isFalse());
+  }
+
+  @TestTemplate
+  void readAfterRemovingExpiredSnapshotKey() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snapshotToExpire = table.currentSnapshot();
+
+    sql("INSERT INTO %s VALUES (4, 'd', 4.0)", tableName);
+    table.refresh();
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    assertThat(snapshotToExpire.keyId()).isNotNull().isNotEqualTo(currentSnapshot.keyId());
+    assertThat(currentSnapshot.keyId()).isNotNull();
+    assertThat(((HasTableOperations) table).operations().current().encryptionKeys())
+        .extracting(EncryptedKey::keyId)
+        .contains(snapshotToExpire.keyId(), currentSnapshot.keyId());
+
+    SparkActions.get()
+        .expireSnapshots(table)
+        .expireSnapshotId(snapshotToExpire.snapshotId())
+        .cleanExpiredMetadata(true)
+        .execute();
+
+    Table reloaded = validationCatalog.loadTable(tableIdent);
+    assertThat(reloaded.snapshot(snapshotToExpire.snapshotId())).isNull();
+    assertThat(reloaded.io().newInputFile(snapshotToExpire.manifestListLocation()).exists())
+        .isFalse();
+    assertThat(((HasTableOperations) reloaded).operations().current().encryptionKeys())
+        .extracting(EncryptedKey::keyId)
+        .doesNotContain(snapshotToExpire.keyId())
+        .contains(currentSnapshot.keyId());
+
+    sql("REFRESH TABLE %s", tableName);
+    assertEquals(
+        "Should read all rows after removing the expired snapshot's manifest list key",
+        ImmutableList.of(
+            row(1L, "a", 1.0F), row(2L, "b", 2.0F), row(3L, "c", Float.NaN), row(4L, "d", 4.0F)),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   private void checkMetadataFileEncryption(InputFile file) throws IOException {
