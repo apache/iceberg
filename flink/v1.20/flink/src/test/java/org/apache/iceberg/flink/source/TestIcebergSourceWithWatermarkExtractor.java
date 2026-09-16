@@ -318,7 +318,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
    * continue reading the files, but the watermark alignment will still prevent the paused reader to
    * continue.
    *
-   * <p>After adding some records with new timestamps the blocked reader is un-paused, and both ot
+   * <p>After adding some records with new timestamps the blocked reader is un-paused, and both of
    * the readers continue reading.
    */
   @Test

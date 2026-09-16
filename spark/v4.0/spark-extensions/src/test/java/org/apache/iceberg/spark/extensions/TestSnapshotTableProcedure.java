@@ -119,7 +119,7 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testSnapshotWithAlternateLocation() throws IOException {
     assumeThat(catalogName)
-        .as("No Snapshoting with Alternate locations with Hadoop Catalogs")
+        .as("No Snapshotting with Alternate locations with Hadoop Catalogs")
         .doesNotContain("hadoop");
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     String snapshotLocation = Files.createTempDirectory(temp, "junit").toFile().toString();
