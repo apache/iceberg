@@ -176,6 +176,10 @@ public class SchemaParser {
   }
 
   private static Type typeFromJson(JsonNode json) {
+    return typeFromJson(json, null);
+  }
+
+  private static Type typeFromJson(JsonNode json, String fieldName) {
     if (json.isTextual()) {
       return Types.fromTypeName(json.asText());
     } else if (json.isObject()) {
@@ -183,11 +187,11 @@ public class SchemaParser {
       if (typeObj != null) {
         String type = typeObj.asText();
         if (STRUCT.equals(type)) {
-          return structFromJson(json);
+          return structFromJson(json, fieldName);
         } else if (LIST.equals(type)) {
-          return listFromJson(json);
+          return listFromJson(json, fieldName);
         } else if (MAP.equals(type)) {
-          return mapFromJson(json);
+          return mapFromJson(json, fieldName);
         }
       }
     }
@@ -218,7 +222,7 @@ public class SchemaParser {
     }
   }
 
-  private static Types.StructType structFromJson(JsonNode json) {
+  private static Types.StructType structFromJson(JsonNode json, String parentName) {
     JsonNode fieldArray = JsonUtil.get(FIELDS, json);
     Preconditions.checkArgument(
         fieldArray.isArray(), "Cannot parse struct fields from non-array: %s", fieldArray);
@@ -232,13 +236,15 @@ public class SchemaParser {
 
       int id = JsonUtil.getInt(ID, field);
       String name = JsonUtil.getString(NAME, field);
-      Type type = typeFromJson(JsonUtil.get(TYPE, field));
+      String fieldName = childName(parentName, name);
+      Type type = typeFromJson(JsonUtil.get(TYPE, field), fieldName);
+      boolean isRequired = JsonUtil.getBool(REQUIRED, field);
+      validateUnknownFieldOptional(fieldName, isRequired, type);
 
       Literal<?> initialDefault = defaultFromJson(INITIAL_DEFAULT, type, field);
       Literal<?> writeDefault = defaultFromJson(WRITE_DEFAULT, type, field);
 
       String doc = JsonUtil.getStringOrNull(DOC, field);
-      boolean isRequired = JsonUtil.getBool(REQUIRED, field);
       fields.add(
           fieldBuilder(isRequired, name)
               .withId(id)
@@ -252,10 +258,12 @@ public class SchemaParser {
     return Types.StructType.of(fields);
   }
 
-  private static Types.ListType listFromJson(JsonNode json) {
+  private static Types.ListType listFromJson(JsonNode json, String fieldName) {
     int elementId = JsonUtil.getInt(ELEMENT_ID, json);
-    Type elementType = typeFromJson(JsonUtil.get(ELEMENT, json));
+    String elementName = childName(fieldName, ELEMENT);
+    Type elementType = typeFromJson(JsonUtil.get(ELEMENT, json), elementName);
     boolean isRequired = JsonUtil.getBool(ELEMENT_REQUIRED, json);
+    validateUnknownFieldOptional(elementName, isRequired, elementType);
 
     if (isRequired) {
       return Types.ListType.ofRequired(elementId, elementType);
@@ -264,20 +272,39 @@ public class SchemaParser {
     }
   }
 
-  private static Types.MapType mapFromJson(JsonNode json) {
+  private static Types.MapType mapFromJson(JsonNode json, String fieldName) {
     int keyId = JsonUtil.getInt(KEY_ID, json);
-    Type keyType = typeFromJson(JsonUtil.get(KEY, json));
+    String keyName = childName(fieldName, KEY);
+    Type keyType = typeFromJson(JsonUtil.get(KEY, json), keyName);
+    validateUnknownFieldOptional(keyName, true, keyType);
 
     int valueId = JsonUtil.getInt(VALUE_ID, json);
-    Type valueType = typeFromJson(JsonUtil.get(VALUE, json));
+    String valueName = childName(fieldName, VALUE);
+    Type valueType = typeFromJson(JsonUtil.get(VALUE, json), valueName);
 
     boolean isRequired = JsonUtil.getBool(VALUE_REQUIRED, json);
+    validateUnknownFieldOptional(valueName, isRequired, valueType);
 
     if (isRequired) {
       return Types.MapType.ofRequired(keyId, valueId, keyType, valueType);
     } else {
       return Types.MapType.ofOptional(keyId, valueId, keyType, valueType);
     }
+  }
+
+  private static String childName(String parentName, String name) {
+    if (parentName != null) {
+      return parentName + "." + name;
+    }
+
+    return name;
+  }
+
+  private static void validateUnknownFieldOptional(String name, boolean isRequired, Type type) {
+    Preconditions.checkArgument(
+        !isRequired || !type.equals(Types.UnknownType.get()),
+        "Unknown type field '%s' must be optional",
+        name);
   }
 
   public static Schema fromJson(JsonNode json) {
