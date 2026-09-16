@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
@@ -33,8 +32,6 @@ import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TestFileWriterFactory;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.StructLikeSet;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.TestTemplate;
 
 public class TestFlinkFileWriterFactory extends TestFileWriterFactory<RowData> {
 
@@ -80,9 +77,4 @@ public class TestFlinkFileWriterFactory extends TestFileWriterFactory<RowData> {
     }
     return set;
   }
-
-  @Disabled("Position deletes with row data are no longer supported")
-  @Override
-  @TestTemplate
-  public void testPositionDeleteWriterWithRow() throws IOException {}
 }

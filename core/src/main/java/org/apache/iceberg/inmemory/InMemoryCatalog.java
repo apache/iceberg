@@ -101,6 +101,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     this.warehouseLocation = warehouse.replaceAll("/*$", "");
     this.io = CatalogUtil.loadFileIO(InMemoryFileIO.class.getName(), properties, null);
     this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(io);
     closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
   }
@@ -332,7 +333,9 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public void close() throws IOException {
-    closeableGroup.close();
+    if (closeableGroup != null) {
+      closeableGroup.close();
+    }
     namespaces.clear();
     tables.clear();
     views.clear();

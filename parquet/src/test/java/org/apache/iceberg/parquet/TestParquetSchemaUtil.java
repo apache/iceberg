@@ -22,13 +22,17 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.variants.Variant;
+import org.apache.parquet.column.schema.EdgeInterpolationAlgorithm;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -339,6 +343,90 @@ public class TestParquetSchemaUtil {
   }
 
   @Test
+  public void testGeospatialTypeRoundTrip() {
+    List<Types.NestedField> fields =
+        Lists.newArrayList(
+            required(1, "geom_default", Types.GeometryType.crs84()),
+            optional(2, "geom_3857", Types.GeometryType.of("EPSG:3857")),
+            required(3, "geog_default", Types.GeographyType.crs84()));
+    // cover the by-name algorithm mapping for every edge algorithm in both directions
+    int nextId = fields.size() + 1;
+    for (EdgeAlgorithm algorithm : EdgeAlgorithm.values()) {
+      fields.add(
+          optional(nextId++, "geog_" + algorithm, Types.GeographyType.of("EPSG:4326", algorithm)));
+    }
+
+    Schema schema = new Schema(fields);
+    MessageType messageType = ParquetSchemaUtil.convert(schema, "geo_table");
+    Schema actualSchema = ParquetSchemaUtil.convert(messageType);
+    assertThat(actualSchema.asStruct())
+        .as("Schema must round-trip through Parquet geometry/geography logical types")
+        .isEqualTo(schema.asStruct());
+  }
+
+  @Test
+  public void testGeospatialAnnotationsWithOmittedParameters() {
+    // unset CRS and algorithm parameters must map to Iceberg's defaults, and explicit values
+    // (including explicit default values) must be preserved
+    MessageType messageType =
+        org.apache.parquet.schema.Types.buildMessage()
+            .required(PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.geometryType(null))
+            .id(1)
+            .named("geom_bare")
+            .optional(PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.geometryType("OGC:CRS84"))
+            .id(2)
+            .named("geom_explicit_default")
+            .required(PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.geographyType(null, null))
+            .id(3)
+            .named("geog_bare")
+            .optional(PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.geographyType("EPSG:4326", null))
+            .id(4)
+            .named("geog_crs_only")
+            .optional(PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.geographyType(null, EdgeInterpolationAlgorithm.ANDOYER))
+            .id(5)
+            .named("geog_algorithm_only")
+            .optional(PrimitiveTypeName.BINARY)
+            .as(
+                LogicalTypeAnnotation.geographyType(
+                    "EPSG:4326", EdgeInterpolationAlgorithm.SPHERICAL))
+            .id(6)
+            .named("geog_explicit_spherical")
+            .named("geo_table");
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "geom_bare", Types.GeometryType.crs84()),
+            optional(2, "geom_explicit_default", Types.GeometryType.crs84()),
+            required(3, "geog_bare", Types.GeographyType.crs84()),
+            optional(4, "geog_crs_only", Types.GeographyType.of("EPSG:4326")),
+            optional(
+                5,
+                "geog_algorithm_only",
+                Types.GeographyType.of(Types.GeographyType.DEFAULT_CRS, EdgeAlgorithm.ANDOYER)),
+            optional(
+                6,
+                "geog_explicit_spherical",
+                Types.GeographyType.of("EPSG:4326", EdgeAlgorithm.SPHERICAL)));
+
+    Schema actualSchema = ParquetSchemaUtil.convert(messageType);
+    assertThat(actualSchema.asStruct())
+        .as("Geometry and geography annotations must convert to the expected Iceberg types")
+        .isEqualTo(expectedSchema.asStruct());
+    assertThat(actualSchema.findType("geom_bare").toString()).isEqualTo("geometry(OGC:CRS84)");
+    assertThat(actualSchema.findType("geom_explicit_default").toString())
+        .isEqualTo("geometry(OGC:CRS84)");
+    assertThat(actualSchema.findType("geog_bare").toString())
+        .isEqualTo("geography(OGC:CRS84, spherical)");
+    assertThat(actualSchema.findType("geog_explicit_spherical").toString())
+        .isEqualTo("geography(EPSG:4326, spherical)");
+  }
+
+  @Test
   public void testSchemaConversionForHiveStyleLists() {
     String parquetSchemaString =
         "message spark_schema {\n"
@@ -496,6 +584,38 @@ public class TestParquetSchemaUtil {
                     1001, Types.ListType.ofRequired(1000, Types.IntegerType.get()))));
 
     Schema actualSchema = ParquetSchemaUtil.convert(parquetScehma);
+    assertThat(actualSchema.asStruct())
+        .as("Schema must match")
+        .isEqualTo(expectedSchema.asStruct());
+  }
+
+  @Test
+  public void testTimestampNanoConversionPreservesUnit() {
+    // INT64 + TIMESTAMP(NANOS) must round-trip back to Iceberg as timestamp_ns, not micros. A
+    // micros field is included to confirm the unit branch leaves the existing mapping untouched.
+    MessageType messageType =
+        org.apache.parquet.schema.Types.buildMessage()
+            .required(PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .id(1)
+            .named("ts_tz_ns")
+            .optional(PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .id(2)
+            .named("ts_ns")
+            .required(PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .id(3)
+            .named("ts_tz_micros")
+            .named("table");
+
+    Schema expectedSchema =
+        new Schema(
+            required(1, "ts_tz_ns", Types.TimestampNanoType.withZone()),
+            optional(2, "ts_ns", Types.TimestampNanoType.withoutZone()),
+            required(3, "ts_tz_micros", Types.TimestampType.withZone()));
+
+    Schema actualSchema = ParquetSchemaUtil.convert(messageType);
     assertThat(actualSchema.asStruct())
         .as("Schema must match")
         .isEqualTo(expectedSchema.asStruct());

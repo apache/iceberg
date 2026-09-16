@@ -139,17 +139,6 @@ public class ContentCache {
     cache.invalidate(key);
   }
 
-  /**
-   * @deprecated since 1.7.0, will be removed in 1.12.0; This method does only best-effort
-   *     invalidation and is susceptible to a race condition. If the caller changed the state that
-   *     could be cached (perhaps files on the storage) and calls this method, there is no guarantee
-   *     that the cache will not contain stale entries some time after this method returns.
-   */
-  @Deprecated
-  public void invalidateAll() {
-    cache.invalidateAll();
-  }
-
   public void cleanUp() {
     cache.cleanUp();
   }

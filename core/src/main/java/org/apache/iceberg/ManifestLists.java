@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -30,6 +31,15 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 class ManifestLists {
   private ManifestLists() {}
+
+  static InputFile newInputFile(FileIO io, ManifestListFile manifestList) {
+    InputFile input = io.newInputFile(manifestList);
+    if (ManifestFiles.cachingEnabled(io)) {
+      return ManifestFiles.contentCache(io).tryCache(input);
+    }
+
+    return input;
+  }
 
   static List<ManifestFile> read(InputFile manifestList) {
     try (CloseableIterable<ManifestFile> files =

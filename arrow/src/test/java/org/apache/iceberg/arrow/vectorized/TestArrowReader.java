@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -386,6 +387,72 @@ public class TestArrowReader {
     }
 
     assertThat(totalRowsRead).as("Should read all rows").isEqualTo(millisValues.size());
+  }
+
+  /**
+   * Reads a decimal(38, 0) column whose values exceed Long.MAX_VALUE. Decimals with precision &gt;=
+   * 19 are stored as a FIXED_LEN_BYTE_ARRAY, and reading them must not narrow the unscaled value
+   * through {@code BigInteger.longValue()}. This reproduces a bug where the binary-backed decimal
+   * accessor silently truncated such values.
+   */
+  @Test
+  public void testHighPrecisionDecimalIsReadCorrectly() throws Exception {
+    tables = new HadoopTables();
+    int precision = 38;
+    int scale = 0;
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "decimal", Types.DecimalType.of(precision, scale)));
+    Table table = tables.create(schema, tableLocation);
+
+    // Both values have an unscaled magnitude well beyond Long.MAX_VALUE (~9.2e18).
+    List<BigDecimal> values =
+        Lists.newArrayList(
+            new BigDecimal(new BigInteger("12345678901234567890"), scale),
+            new BigDecimal(new BigInteger("99999999999999999999999999999999999999"), scale));
+
+    List<GenericRecord> records = Lists.newArrayListWithCapacity(values.size());
+    for (BigDecimal value : values) {
+      GenericRecord record = GenericRecord.create(schema);
+      record.setField("decimal", value);
+      records.add(record);
+    }
+
+    File parquetFile = File.createTempFile("decimal", ".parquet", tempDir);
+    assertThat(parquetFile.delete()).isTrue();
+    FileAppender<GenericRecord> appender =
+        Parquet.write(Files.localOutput(parquetFile))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build();
+    try {
+      appender.addAll(records);
+    } finally {
+      appender.close();
+    }
+
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withInputFile(localInput(parquetFile))
+            .withMetrics(appender.metrics())
+            .withFormat(FileFormat.PARQUET)
+            .build();
+    table.newAppend().appendFile(dataFile).commit();
+
+    int rowIndex = 0;
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        for (int i = 0; i < batch.numRows(); i++) {
+          assertThat(batch.column(0).getDecimal(i, precision, scale))
+              .as("decimal(%d, %d) value at row %d must not be truncated", precision, scale, i)
+              .isEqualTo(values.get(rowIndex));
+          rowIndex++;
+        }
+      }
+    }
+
+    assertThat(rowIndex).isEqualTo(values.size());
   }
 
   @ParameterizedTest

@@ -44,6 +44,7 @@ public interface ReadBuilder<D, S> {
    *
    * @param start the start position for this read
    * @param length the length of the range this read should scan
+   * @return this for method chaining
    */
   ReadBuilder<D, S> split(long start, long length);
 
@@ -69,6 +70,7 @@ public interface ReadBuilder<D, S> {
    * must respect this setting. The default value is <code>true</code>.
    *
    * @param caseSensitive indicates if filtering is case-sensitive
+   * @return this for method chaining
    */
   ReadBuilder<D, S> caseSensitive(boolean caseSensitive);
 
@@ -79,6 +81,7 @@ public interface ReadBuilder<D, S> {
    * the caller's responsibility to apply the filter again.
    *
    * @param filter the filter to set
+   * @return this for method chaining
    */
   ReadBuilder<D, S> filter(Expression filter);
 

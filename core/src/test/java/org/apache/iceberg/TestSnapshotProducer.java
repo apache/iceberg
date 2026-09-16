@@ -28,6 +28,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -251,5 +253,27 @@ public class TestSnapshotProducer extends TestBase {
 
     ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
     assertThat(readAvroCodec(new File(manifest.path()))).isEqualTo("snappy");
+  }
+
+  @TestTemplate
+  public void testWriteManifestsWithNullExecutorThrows() {
+    assertThatThrownBy(() -> table.newAppend().writeManifestsWith(null, 4))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Executor service cannot be null");
+  }
+
+  @TestTemplate
+  public void testWriteManifestsWithInvalidParallelismThrows() {
+    ExecutorService executor = Executors.newFixedThreadPool(4);
+    try {
+      assertThatThrownBy(() -> table.newAppend().writeManifestsWith(executor, 0))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Parallelism must be greater than 0");
+      assertThatThrownBy(() -> table.newAppend().writeManifestsWith(executor, -1))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("Parallelism must be greater than 0");
+    } finally {
+      executor.shutdownNow();
+    }
   }
 }

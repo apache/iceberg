@@ -41,7 +41,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ThreadPools;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -91,11 +90,6 @@ public class TestMergeAppend extends TestBase {
     assertThat(listManifestFiles()).as("Table should start empty").isEmpty();
 
     int multiplier = 3;
-    assumeThat(ThreadPools.WORKER_THREAD_POOL_SIZE)
-        .as(
-            "Worker thread pool size should be at least 3 to test manifest file ordering with multiple threads")
-        .isGreaterThanOrEqualTo(multiplier);
-
     int groupSize = SnapshotProducer.MIN_FILE_GROUP_SIZE;
     List<DataFile> dataFiles = Lists.newArrayList();
 
@@ -107,6 +101,7 @@ public class TestMergeAppend extends TestBase {
 
     AppendFiles append = table.newAppend();
     dataFiles.forEach(append::appendFile);
+    append.writeManifestsWith(Executors.newFixedThreadPool(multiplier), multiplier);
     append.commit();
 
     Snapshot snapshot = table.currentSnapshot();
@@ -379,6 +374,71 @@ public class TestMergeAppend extends TestBase {
         .as("Thread should be created in provided pool")
         .isGreaterThan(0);
     assertThat(snapshot).isNotNull();
+  }
+
+  @TestTemplate
+  public void testAppendWithWriteManifestsExecutor() {
+    assertEmptyTable();
+
+    AtomicInteger commitThreadsIndex = new AtomicInteger(0);
+    Snapshot snapshot =
+        commit(
+            table,
+            table
+                .newAppend()
+                .appendFile(FILE_A)
+                .appendFile(FILE_B)
+                .writeManifestsWith(newNamedExecutor("commit", commitThreadsIndex), 1),
+            branch);
+    assertThat(commitThreadsIndex.get())
+        .as("Thread should be created in provided commit pool")
+        .isGreaterThan(0);
+
+    assertThat(snapshot).isNotNull();
+    assertThat(snapshot.allManifests(table.io())).hasSize(1);
+    long snapshotId = snapshot.snapshotId();
+    validateManifest(
+        snapshot.allManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(snapshotId, snapshotId),
+        files(FILE_A, FILE_B),
+        statuses(Status.ADDED, Status.ADDED));
+  }
+
+  @TestTemplate
+  public void testAppendWithSeparateScanAndWriteExecutors() {
+    assertEmptyTable();
+
+    AtomicInteger scanThreadsIndex = new AtomicInteger(0);
+    AtomicInteger commitThreadsIndex = new AtomicInteger(0);
+    Snapshot snapshot =
+        commit(
+            table,
+            table
+                .newAppend()
+                .appendFile(FILE_A)
+                .appendFile(FILE_B)
+                .scanManifestsWith(newNamedExecutor("scan", scanThreadsIndex))
+                .writeManifestsWith(newNamedExecutor("commit", commitThreadsIndex), 1),
+            branch);
+    assertThat(scanThreadsIndex.get())
+        .as("Thread should be created in provided scan pool")
+        .isGreaterThan(0);
+    assertThat(commitThreadsIndex.get())
+        .as("Thread should be created in provided commit pool")
+        .isGreaterThan(0);
+
+    assertThat(snapshot).isNotNull();
+    assertThat(snapshot.allManifests(table.io())).hasSize(1);
+    long snapshotId = snapshot.snapshotId();
+    validateManifest(
+        snapshot.allManifests(table.io()).get(0),
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(snapshotId, snapshotId),
+        files(FILE_A, FILE_B),
+        statuses(Status.ADDED, Status.ADDED));
   }
 
   @TestTemplate

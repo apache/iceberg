@@ -143,6 +143,7 @@ class ParquetFilters {
         case LONG:
         case TIME:
         case TIMESTAMP:
+        case TIMESTAMP_NANO:
           return pred(op, FilterApi.longColumn(path), getParquetPrimitive(lit));
         case FLOAT:
           return pred(op, FilterApi.floatColumn(path), getParquetPrimitive(lit));
@@ -247,7 +248,7 @@ class ParquetFilters {
 
     @Override
     public <R> R accept(Visitor<R> visitor) {
-      throw new UnsupportedOperationException("AlwaysTrue is a placeholder only");
+      throw new UnsupportedOperationException("AlwaysFalse is a placeholder only");
     }
   }
 }

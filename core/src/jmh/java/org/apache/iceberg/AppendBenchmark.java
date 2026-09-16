@@ -71,7 +71,19 @@ public class AppendBenchmark {
           required(10, "str_col4", Types.StringType.get()),
           required(11, "str_col5", Types.StringType.get()),
           required(12, "str_col6", Types.StringType.get()),
-          required(13, "str_col7", Types.StringType.get()));
+          required(13, "str_col7", Types.StringType.get()),
+          required(14, "time_col", Types.TimeType.get()),
+          required(
+              15,
+              "struct_col",
+              Types.StructType.of(
+                  required(16, "nested_int", Types.IntegerType.get()),
+                  required(17, "nested_str", Types.StringType.get()))),
+          required(
+              18,
+              "map_col",
+              Types.MapType.ofRequired(19, 20, Types.StringType.get(), Types.LongType.get())),
+          required(21, "list_col", Types.ListType.ofRequired(22, Types.StringType.get())));
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
   private static final HadoopTables TABLES = new HadoopTables();
 

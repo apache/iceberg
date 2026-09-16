@@ -157,7 +157,7 @@ public class MetricsReporterFactoryForTests implements MetricReporterFactory {
   }
 
   private static String longName(List<String> parts) {
-    return parts.stream().map(s -> s.replaceAll("\\.", "_")).collect(Collectors.joining("."));
+    return parts.stream().map(s -> s.replace(".", "_")).collect(Collectors.joining("."));
   }
 
   private static class TestMetricsReporter implements MetricReporter {

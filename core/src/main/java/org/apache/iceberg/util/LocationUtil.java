@@ -65,7 +65,7 @@ public class LocationUtil {
    * file:}), per <a href="https://datatracker.ietf.org/doc/html/rfc3986#section-3.1">RFC 3986
    * section 3.1</a>.
    */
-  private static boolean hasScheme(String location) {
+  public static boolean hasScheme(String location) {
     for (int i = 0; i < location.length(); i += 1) {
       char ch = location.charAt(i);
       if (ch == ':') {

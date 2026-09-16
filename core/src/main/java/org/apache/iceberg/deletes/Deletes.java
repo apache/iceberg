@@ -29,6 +29,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -51,6 +52,11 @@ public class Deletes {
       POSITION_DELETE_SCHEMA.accessorForField(MetadataColumns.DELETE_FILE_POS.fieldId());
 
   private Deletes() {}
+
+  public static DVFileWriter writeDVs(
+      EncryptedOutputFile outputFile, Function<String, PositionDeleteIndex> loadPreviousDeletes) {
+    return new BaseDVFileWriter(loadPreviousDeletes, () -> outputFile);
+  }
 
   public static <T> CloseableIterable<T> filter(
       CloseableIterable<T> rows, Function<T, StructLike> rowToDeleteKey, StructLikeSet deleteSet) {
@@ -141,11 +147,15 @@ public class Deletes {
     CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
 
     try (CloseableIterable<T> deletes = posDeletes) {
+      String lastFilePath = null;
+      PositionDeleteIndex index = null;
       for (T delete : deletes) {
         CharSequence filePath = (CharSequence) FILENAME_ACCESSOR.get(delete);
         long position = (long) POSITION_ACCESSOR.get(delete);
-        PositionDeleteIndex index =
-            indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
+        if (lastFilePath == null || !lastFilePath.contentEquals(filePath)) {
+          lastFilePath = filePath.toString();
+          index = indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
+        }
         index.delete(position);
       }
     } catch (IOException e) {

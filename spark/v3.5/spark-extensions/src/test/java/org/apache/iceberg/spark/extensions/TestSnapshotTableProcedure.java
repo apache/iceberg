@@ -23,11 +23,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.GenericData;
+import org.apache.commons.io.FileUtils;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Schema;
@@ -373,5 +376,43 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
         }
       }
     }
+  }
+
+  @TestTemplate
+  public void testSnapshotMissingFilesFailByDefault() throws IOException {
+    createPartitionedSourceWithMissingFiles();
+
+    assertThatThrownBy(
+            () -> sql("CALL %s.system.snapshot('%s', '%s')", catalogName, SOURCE_NAME, tableName))
+        .as("Snapshot should fail by default when source files are missing")
+        .hasRootCauseInstanceOf(FileNotFoundException.class);
+  }
+
+  @TestTemplate
+  public void testSnapshotIgnoreMissingFiles() throws IOException {
+    createPartitionedSourceWithMissingFiles();
+
+    Object result =
+        scalarSql(
+            "CALL %s.system.snapshot(source_table => '%s', table => '%s', ignore_missing_files => true)",
+            catalogName, SOURCE_NAME, tableName);
+    assertThat(result).as("Should have imported only the surviving partition").isEqualTo(1L);
+
+    assertEquals(
+        "Snapshot table should only contain rows from the surviving partition",
+        ImmutableList.of(row("b", 2L)),
+        sql("SELECT * FROM %s", tableName));
+  }
+
+  private void createPartitionedSourceWithMissingFiles() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s (id, data) VALUES (1, 'a'), (2, 'b')", SOURCE_NAME);
+
+    // Remove one partition's directory while leaving the catalog entry intact to simulate a
+    // concurrent deletion racing with the snapshot.
+    FileUtils.deleteDirectory(new File(location, "id=1"));
   }
 }

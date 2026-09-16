@@ -31,6 +31,7 @@ github:
   enabled_merge_buttons:
     merge: false
     squash: true
+    squash_commit_message: PR_TITLE_AND_COMMIT_DETAILS
     rebase: true
 
   pull_requests:
@@ -49,8 +50,6 @@ github:
     issues: true
     projects: true
   collaborators:  # Note: the number of collaborators is limited to 10
-    - chenjunjiedada
-    - jun-he
     - marton-bod
     - samarthjain
     - SreeramGarlapati
@@ -59,6 +58,8 @@ github:
     - ajantha-bhat
     - jbonofre
     - manuzhang
+    - anuragmantri
+    - nssalian
   ghp_branch: gh-pages
   ghp_path: /
 

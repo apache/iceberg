@@ -499,7 +499,9 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
 
   @Override
   public void close() throws IOException {
-    closeableGroup.close();
+    if (closeableGroup != null) {
+      closeableGroup.close();
+    }
   }
 
   /**
