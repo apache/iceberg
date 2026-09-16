@@ -23,9 +23,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ManifestListFile;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.OutputFile;
@@ -179,6 +183,36 @@ public class EncryptionUtil {
         "Retrieving encryption keys requires a StandardEncryptionManager");
     StandardEncryptionManager sem = (StandardEncryptionManager) em;
     return sem.encryptionKeys();
+  }
+
+  /**
+   * Adds {@link EncryptedKey}'s from the {@param encryptionManager} that are needed to read the
+   * snapshots in the given {@param metadata}.
+   */
+  public static TableMetadata addEmKeysToMetadata(
+      TableMetadata metadata, EncryptionManager encryptionManager) {
+    if (!(encryptionManager instanceof StandardEncryptionManager standardEncryptionManager)) {
+      return metadata;
+    }
+    Set<String> referencedEncryptionKeys =
+        Sets.union(
+            metadata.snapshots().stream()
+                .map(Snapshot::keyId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toUnmodifiableSet()),
+            metadata.encryptionKeys().stream()
+                .map(EncryptedKey::encryptedById)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toUnmodifiableSet()));
+    TableMetadata.Builder metadataBuilder = TableMetadata.buildFrom(metadata);
+    standardEncryptionManager.encryptionKeys().values().stream()
+        .filter(
+            encryptedKey ->
+                referencedEncryptionKeys.contains(encryptedKey.keyId())
+                    // The KEK may not be referenced but must still be saved in the metadata.
+                    || standardEncryptionManager.keyEncryptionKeyID().equals(encryptedKey.keyId()))
+        .forEach(metadataBuilder::addEncryptionKey);
+    return metadataBuilder.build();
   }
 
   /**
