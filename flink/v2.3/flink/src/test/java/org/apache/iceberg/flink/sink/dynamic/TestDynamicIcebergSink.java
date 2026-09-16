@@ -1906,7 +1906,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  void testCaseInsensitiveDataConversionDropsValues() throws Exception {
+  void testCaseInsensitiveDataConversionDoesNotDropValues() throws Exception {
     Schema tableSchema =
         new Schema(
             Types.NestedField.optional(1, "id", Types.IntegerType.get()),
@@ -1933,9 +1933,12 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(records)
         .allSatisfy(
             record -> {
-              assertThat(record.getField("id")).isNotNull();
-              assertThat(record.getField("data")).isNotNull();
+              Integer id = (Integer) record.getField("id");
+              assertThat(id).isIn(1, 2, 3);
+              assertThat(record.getField("data")).isEqualTo("value-" + id);
+              assertThat(record.getField("extra")).isNull();
             });
+    assertThat(records).extracting(r -> r.getField("id")).containsExactlyInAnyOrder(1, 2, 3);
   }
 
   private static class CaseMismatchGenerator implements DynamicRecordGenerator<Integer> {

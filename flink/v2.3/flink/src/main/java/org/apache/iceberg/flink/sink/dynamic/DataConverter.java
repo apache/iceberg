@@ -35,7 +35,6 @@ import org.apache.flink.table.types.logical.DecimalType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
@@ -66,7 +65,7 @@ interface DataConverter {
   }
 
   static DataConverter getNullable(
-      LogicalType sourceType, LogicalType targetType, Boolean caseSensitive) {
+      LogicalType sourceType, LogicalType targetType, boolean caseSensitive) {
     return nullable(get(sourceType, targetType, caseSensitive));
   }
 
@@ -138,7 +137,7 @@ interface DataConverter {
     private final RowData.FieldGetter[] fieldGetters;
     private final DataConverter[] dataConverters;
 
-    RowDataConverter(RowType sourceType, RowType targetType, Boolean caseSensitive) {
+    RowDataConverter(RowType sourceType, RowType targetType, boolean caseSensitive) {
       this.fieldGetters = new RowData.FieldGetter[targetType.getFields().size()];
       this.dataConverters = new DataConverter[targetType.getFields().size()];
 
@@ -248,11 +247,15 @@ interface DataConverter {
     int matchingIndex = -1;
     for (int i = 0; i < sourceType.getFieldCount(); i++) {
       if (sourceType.getFields().get(i).getName().equalsIgnoreCase(targetName)) {
-        Preconditions.checkArgument(
-            matchingIndex == -1,
-            "Ambiguous case-insensitive source field match for '%s' in %s",
-            targetName,
-            sourceType);
+        if (matchingIndex != -1) {
+          throw new IllegalArgumentException(
+              String.format(
+                  "Ambiguous case-insensitive source field match for '%s': '%s' and '%s' in %s",
+                  targetName,
+                  sourceType.getFields().get(matchingIndex).getName(),
+                  sourceType.getFields().get(i).getName(),
+                  sourceType));
+        }
         matchingIndex = i;
       }
     }
