@@ -56,6 +56,9 @@ public class SparkSQLProperties {
   // When set, new snapshots will be committed to this branch.
   public static final String WAP_BRANCH = "spark.wap.branch";
 
+  // Controls custom snapshot properties from session configuration.
+  public static final String SNAPSHOT_PROPERTY_PREFIX = "spark.sql.iceberg.snapshot-property.";
+
   // Controls write compress options
   public static final String COMPRESSION_CODEC = "spark.sql.iceberg.compression-codec";
   public static final String COMPRESSION_LEVEL = "spark.sql.iceberg.compression-level";
