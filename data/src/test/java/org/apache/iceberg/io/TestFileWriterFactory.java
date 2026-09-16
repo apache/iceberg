@@ -26,7 +26,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -64,15 +63,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
   @Parameters(name = "formatVersion = {0}, fileFormat = {1}, Partitioned = {2}")
   protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {2, FileFormat.AVRO, false},
-        new Object[] {2, FileFormat.AVRO, true},
-        new Object[] {2, FileFormat.PARQUET, false},
-        new Object[] {2, FileFormat.PARQUET, true},
-        new Object[] {2, FileFormat.ORC, false},
-        new Object[] {2, FileFormat.ORC, true},
-        new Object[] {2, FileFormat.VORTEX, false},
-        new Object[] {2, FileFormat.VORTEX, true});
+    return partitionedFormatParameters(2);
   }
 
   private static final String PARTITION_VALUE = "aaa";

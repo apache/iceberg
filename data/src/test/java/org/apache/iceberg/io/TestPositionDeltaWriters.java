@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -44,11 +43,7 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
 
   @Parameters(name = "formatVersion = {0}, fileFormat = {1}")
   protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {2, FileFormat.AVRO},
-        new Object[] {2, FileFormat.ORC},
-        new Object[] {2, FileFormat.PARQUET},
-        new Object[] {2, FileFormat.VORTEX});
+    return formatParameters(2);
   }
 
   private static final long TARGET_FILE_SIZE = 128L * 1024 * 1024;

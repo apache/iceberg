@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -57,11 +56,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
   @Parameters(name = "formatVersion = {0}, fileFormat = {1}")
   protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {2, FileFormat.AVRO},
-        new Object[] {2, FileFormat.PARQUET},
-        new Object[] {2, FileFormat.ORC},
-        new Object[] {2, FileFormat.VORTEX});
+    return formatParameters(2);
   }
 
   private static final long TARGET_FILE_SIZE = 128L * 1024 * 1024;

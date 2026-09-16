@@ -18,12 +18,9 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import java.util.Arrays;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
@@ -34,16 +31,6 @@ import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.StructLikeSet;
 
 public class TestFlinkPositionDeltaWriters extends TestPositionDeltaWriters<RowData> {
-
-  // FlinkFileWriterFactory has no Vortex support, so the Vortex case the base class enumerates is
-  // left out here.
-  @Parameters(name = "formatVersion = {0}, fileFormat = {1}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {2, FileFormat.AVRO},
-        new Object[] {2, FileFormat.ORC},
-        new Object[] {2, FileFormat.PARQUET});
-  }
 
   @Override
   protected FileWriterFactory<RowData> newWriterFactory(
