@@ -55,6 +55,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
@@ -148,6 +149,7 @@ public class VortexFormatModel<D, S, R>
     private MetricsConfig metricsConfig = MetricsConfig.getDefault();
     private int workerThreads = TableProperties.VORTEX_WORKER_THREADS_DEFAULT;
     private long splitSize = TableProperties.WRITE_VORTEX_SPLIT_SIZE_DEFAULT;
+    private final Map<String, byte[]> fileMetadata = Maps.newLinkedHashMap();
 
     private WriteBuilderWrapper(
         EncryptedOutputFile outputFile,
@@ -187,12 +189,17 @@ public class VortexFormatModel<D, S, R>
 
     @Override
     public ModelWriteBuilder<D, S> meta(String property, String value) {
-      // Vortex files carry no user-defined key/value metadata.
+      Preconditions.checkArgument(
+          !VortexSchemas.ICEBERG_SCHEMA_KEY.equals(property),
+          "Cannot set reserved file metadata key: %s",
+          VortexSchemas.ICEBERG_SCHEMA_KEY);
+      fileMetadata.put(property, value.getBytes(StandardCharsets.UTF_8));
       return this;
     }
 
     @Override
     public ModelWriteBuilder<D, S> meta(Map<String, String> properties) {
+      properties.forEach(this::meta);
       return this;
     }
 
@@ -280,6 +287,7 @@ public class VortexFormatModel<D, S, R>
         // columns renamed since the file was written.
         vortexWriter =
             VortexWriter.builder(session, outputStream, vortexSchema, vortexAllocator)
+                .metadata(fileMetadata)
                 .putMetadata(
                     VortexSchemas.ICEBERG_SCHEMA_KEY,
                     SchemaParser.toJson(writeSchema).getBytes(StandardCharsets.UTF_8))

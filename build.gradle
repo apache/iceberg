@@ -483,7 +483,7 @@ project(':iceberg-data') {
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-orc', configuration: 'testArtifacts')
     testImplementation(testFixtures(project(':iceberg-parquet')))
-    testRuntimeOnly project(':iceberg-vortex')
+    testImplementation project(':iceberg-vortex')
   }
 
   test {

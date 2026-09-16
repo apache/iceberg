@@ -19,6 +19,7 @@
 package org.apache.iceberg.data.vortex;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.FileFormat;
@@ -32,14 +33,15 @@ import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.vortex.VortexFiles;
 
 /**
  * {@link FileFormatTestSupport} for Vortex.
  *
  * <p>This lives in the {@code iceberg-data} test sources rather than in {@code iceberg-vortex}
- * because the TCK classes that consume it ship in the {@code iceberg-data} test artifact, which
- * only has {@code iceberg-vortex} as a runtime dependency. Everything here therefore goes through
- * {@link FormatModelRegistry} instead of referencing Vortex classes directly.
+ * because the TCK classes that consume it ship in the {@code iceberg-data} test artifact. It is
+ * only ever instantiated when {@code iceberg-vortex} is on the classpath -- see {@link
+ * FileFormatTestSupport#all()}.
  */
 public class VortexFormat implements FileFormatTestSupport {
   @Override
@@ -67,22 +69,21 @@ public class VortexFormat implements FileFormatTestSupport {
   @Override
   public Map<String, String> testPropertiesToSet() {
     throw new UnsupportedOperationException(
-        "Vortex has no write property whose effect is observable in the written file; "
-            + "tests that need one are gated on FEATURE_WRITER_PROPERTIES");
+        "Vortex has no write properties: the writer accepts none today, though some are "
+            + "planned. Tests that need one are gated on FEATURE_WRITER_PROPERTIES");
   }
 
   @Override
   public boolean checkTestProperties(InputFile inputFile) {
     throw new UnsupportedOperationException(
-        "Vortex has no write property whose effect is observable in the written file; "
-            + "tests that need one are gated on FEATURE_WRITER_PROPERTIES");
+        "Vortex has no write properties: the writer accepts none today, though some are "
+            + "planned. Tests that need one are gated on FEATURE_WRITER_PROPERTIES");
   }
 
   @Override
-  public String metadataValue(InputFile inputFile, String key) {
-    throw new UnsupportedOperationException(
-        "Vortex files do not persist user key-value metadata; "
-            + "tests that need it are gated on FEATURE_WRITER_METADATA");
+  public String metadataValue(InputFile inputFile, String key) throws IOException {
+    byte[] value = VortexFiles.metadata(inputFile).get(key);
+    return value == null ? null : new String(value, StandardCharsets.UTF_8);
   }
 
   @Override

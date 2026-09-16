@@ -209,19 +209,15 @@ public abstract class ReadFormatModelTests<T> {
           new String[] {FEATURE_AES_STREAM_ENCRYPTION},
           FileFormat.VORTEX,
           new String[] {
-            // Vortex files store no Iceberg field ids, so columns bind by name and renames (or
-            // dropping and re-adding a name) cannot be resolved.
-            FEATURE_EVOLUTION_BY_FIELD_ID,
             // Vortex has no fixed-width binary type; the writer rejects Iceberg FIXED columns
             // and directs callers to BINARY instead.
             FEATURE_FIXED,
             // The Vortex appender neither rejects a write to an existing location nor reads back
             // correctly from one that was overwritten in place.
             FEATURE_WRITER_OVERWRITE,
-            // Vortex has no write property whose effect is observable in the written file, and
-            // the writer does not persist user key-value metadata.
+            // Vortex has no write properties -- the writer accepts none today, though some are
+            // planned -- so there is nothing to set and nothing to observe in the written file.
             FEATURE_WRITER_PROPERTIES,
-            FEATURE_WRITER_METADATA,
             FEATURE_AES_STREAM_ENCRYPTION,
             FEATURE_NATIVE_ENCRYPTION
           });
