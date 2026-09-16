@@ -678,12 +678,14 @@ public class FlinkCatalog extends AbstractCatalog {
 
     SQLViewRepresentation currentRepresentation = view.sqlFor(FLINK_DIALECT);
     if (currentRepresentation == null
-        || !newView.getOriginalQuery().equals(currentRepresentation.sql())) {
-      // a new query becomes a new view version; the stored resolution context is preserved
+        || !newView.getExpandedQuery().equals(currentRepresentation.sql())) {
+      // a new query becomes a new view version, stored the same way createIcebergView stores
+      // one: the expanded query, with the defaults recording the resolution context
       view.replaceVersion()
-          .withQuery(FLINK_DIALECT, newView.getOriginalQuery())
+          .withQuery(FLINK_DIALECT, newView.getExpandedQuery())
           .withSchema(FlinkSchemaUtil.convert(newView.getResolvedSchema()))
-          .withDefaultNamespace(view.currentVersion().defaultNamespace())
+          .withDefaultCatalog(getName())
+          .withDefaultNamespace(appendLevel(baseNamespace, tablePath.getDatabaseName()))
           .commit();
     }
 
