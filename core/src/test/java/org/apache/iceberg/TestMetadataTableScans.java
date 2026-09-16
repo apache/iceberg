@@ -22,6 +22,10 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 import java.io.File;
 import java.io.IOException;
@@ -39,6 +43,9 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.puffin.StandardBlobTypes;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -1101,6 +1108,60 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
+  public void puffinFilesTableSchema() {
+    Table puffinFilesTable = new PuffinFilesTable(table);
+    Types.StructType actual = puffinFilesTable.newScan().schema().asStruct();
+    Types.StructType expected =
+        new Schema(
+                required(1, "snapshot_id", Types.LongType.get(), "ID of the selected snapshot"),
+                required(
+                    2,
+                    "file_path",
+                    Types.StringType.get(),
+                    "Fully qualified location of the Puffin file"),
+                required(
+                    3,
+                    "source",
+                    Types.StringType.get(),
+                    "Metadata source that associates the Puffin file with the selected snapshot"),
+                required(
+                    4,
+                    "file_size_in_bytes",
+                    Types.LongType.get(),
+                    "Total size of the Puffin file in bytes"),
+                required(
+                    5,
+                    "referenced_blob_count",
+                    Types.IntegerType.get(),
+                    "Number of distinct blobs in the Puffin file referenced by the selected snapshot"),
+                required(
+                    6,
+                    "referenced_blob_types",
+                    Types.ListType.ofRequired(7, Types.StringType.get()),
+                    "Distinct types of blobs referenced by the selected snapshot"),
+                required(
+                    8,
+                    "referenced_fields",
+                    Types.ListType.ofRequired(
+                        9,
+                        Types.StructType.of(
+                            required(
+                                10,
+                                "field_id",
+                                Types.IntegerType.get(),
+                                "Field ID referenced by at least one blob"),
+                            optional(
+                                11,
+                                "current_field_name",
+                                Types.StringType.get(),
+                                "Name currently assigned to the field ID; null if no longer present"))),
+                    "Distinct fields referenced across the selected blobs"))
+            .asStruct();
+
+    assertThat(actual).isEqualTo(expected);
+  }
+
+  @TestTemplate
   public void partitionSpecEvolutionAdditive() {
     preparePartitionedTable();
 
@@ -2033,6 +2094,662 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     }
 
     assertThat(actualContents).containsExactlyInAnyOrder(0, 0, 0, 0, 2, 2);
+  }
+
+  @TestTemplate
+  public void puffinFilesTableNoPuffinFiles() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Table puffinFilesTable = new PuffinFilesTable(table);
+
+    assertThat(rowCount(puffinFilesTable.newScan()))
+        .as("Puffin files table should have no rows without statistics files or deletion vectors")
+        .isEqualTo(0);
+  }
+
+  @TestTemplate
+  public void puffinFilesTableStatisticsFile() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    StatisticsFile statisticsFile =
+        newStatisticsFile(
+            snapshot,
+            "test",
+            ImmutableList.of(
+                newBlobMetadata(
+                    snapshot, StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1, ImmutableList.of(1)),
+                newBlobMetadata(
+                    snapshot,
+                    StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
+                    ImmutableList.of(2))));
+
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    List<StructLike> rows = rows(new PuffinFilesTable(table).newScan());
+    assertThat(rows).hasSize(1);
+
+    StructLike row = rows.get(0);
+    assertThat(row.get(0, Long.class)).isEqualTo(snapshot.snapshotId());
+    assertThat(row.get(1, String.class)).isEqualTo(statisticsFile.path());
+    assertThat(row.get(2, String.class)).isEqualTo("statistics");
+    assertThat(row.get(3, Long.class)).isEqualTo(617L);
+    assertThat(row.get(4, Integer.class)).isEqualTo(2);
+    assertThat(row.get(5, List.class))
+        .containsExactly(StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1);
+    assertReferencedFields(row, referencedField(1, "id"), referencedField(2, "data"));
+  }
+
+  @TestTemplate
+  public void puffinFilesTableProjection() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    StatisticsFile statisticsFile =
+        newStatisticsFile(
+            snapshot,
+            "projected",
+            ImmutableList.of(
+                newBlobMetadata(
+                    snapshot,
+                    StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
+                    ImmutableList.of(1))));
+
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    TableScan scan =
+        new PuffinFilesTable(table).newScan().select("file_path", "referenced_blob_count");
+
+    Types.StructType expected =
+        new Schema(
+                required(
+                    2,
+                    "file_path",
+                    Types.StringType.get(),
+                    "Fully qualified location of the Puffin file"),
+                required(
+                    5,
+                    "referenced_blob_count",
+                    Types.IntegerType.get(),
+                    "Number of distinct blobs in the Puffin file referenced by the selected snapshot"))
+            .asStruct();
+
+    assertThat(scan.schema().asStruct()).isEqualTo(expected);
+
+    List<StructLike> rows = rows(scan);
+    assertThat(rows).hasSize(1);
+    assertThat(rows.get(0).get(0, String.class)).isEqualTo(statisticsFile.path());
+    assertThat(rows.get(0).get(1, Integer.class)).isEqualTo(1);
+  }
+
+  @TestTemplate
+  public void puffinFilesTableAggregatesReferencedMetadata() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    StatisticsFile statisticsFile =
+        newStatisticsFile(
+            snapshot,
+            "mixed",
+            ImmutableList.of(
+                newBlobMetadata(
+                    snapshot, StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1, ImmutableList.of(1)),
+                newBlobMetadata(
+                    snapshot, StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1, ImmutableList.of(1)),
+                newBlobMetadata(snapshot, "test-custom-blob-v1", ImmutableList.of(2))));
+
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    List<StructLike> rows = rows(new PuffinFilesTable(table).newScan());
+    assertThat(rows).hasSize(1);
+
+    StructLike row = rows.get(0);
+    assertThat(row.get(4, Integer.class)).isEqualTo(3);
+    assertThat(row.get(5, List.class))
+        .containsExactly(StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1, "test-custom-blob-v1");
+    assertReferencedFields(row, referencedField(1, "id"), referencedField(2, "data"));
+  }
+
+  @TestTemplate
+  public void puffinFilesTableResolvesRenamedFieldNames() throws IOException {
+    table.updateSchema().addColumn("renamed_column", Types.IntegerType.get()).commit();
+    int fieldId = table.schema().findField("renamed_column").fieldId();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    StatisticsFile statisticsFile =
+        newStatisticsFile(
+            snapshot,
+            "rename",
+            ImmutableList.of(
+                newBlobMetadata(
+                    snapshot,
+                    StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
+                    ImmutableList.of(fieldId))));
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    table.updateSchema().renameColumn("renamed_column", "new_name").commit();
+
+    List<StructLike> rows = rows(new PuffinFilesTable(table).newScan());
+    assertThat(rows).hasSize(1);
+    assertReferencedFields(rows.get(0), referencedField(fieldId, "new_name"));
+  }
+
+  @TestTemplate
+  public void puffinFilesTableStatisticsTimeTravel() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    StatisticsFile firstStatistics =
+        newStatisticsFile(
+            firstSnapshot,
+            "first",
+            ImmutableList.of(
+                newBlobMetadata(
+                    firstSnapshot,
+                    StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
+                    ImmutableList.of(1))));
+    table.updateStatistics().setStatistics(firstStatistics).commit();
+
+    table.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+    StatisticsFile secondStatistics =
+        newStatisticsFile(
+            secondSnapshot,
+            "second",
+            ImmutableList.of(
+                newBlobMetadata(
+                    secondSnapshot,
+                    StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
+                    ImmutableList.of(2))));
+    table.updateStatistics().setStatistics(secondStatistics).commit();
+
+    Table puffinFilesTable = new PuffinFilesTable(table);
+
+    List<StructLike> firstRows =
+        rows(puffinFilesTable.newScan().useSnapshot(firstSnapshot.snapshotId()));
+    assertThat(firstRows).hasSize(1);
+    assertThat(firstRows.get(0).get(0, Long.class)).isEqualTo(firstSnapshot.snapshotId());
+    assertThat(firstRows.get(0).get(1, String.class)).isEqualTo(firstStatistics.path());
+
+    List<StructLike> secondRows =
+        rows(puffinFilesTable.newScan().useSnapshot(secondSnapshot.snapshotId()));
+    assertThat(secondRows).hasSize(1);
+    assertThat(secondRows.get(0).get(0, Long.class)).isEqualTo(secondSnapshot.snapshotId());
+    assertThat(secondRows.get(0).get(1, String.class)).isEqualTo(secondStatistics.path());
+  }
+
+  @TestTemplate
+  public void puffinFilesTableUsesCurrentStatisticsRegistrationForTimeTravel() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snapshot = table.currentSnapshot();
+
+    StatisticsFile firstStatistics =
+        newStatisticsFile(
+            snapshot,
+            "registered-first",
+            ImmutableList.of(
+                newBlobMetadata(
+                    snapshot,
+                    StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
+                    ImmutableList.of(1))));
+    table.updateStatistics().setStatistics(firstStatistics).commit();
+
+    StatisticsFile replacementStatistics =
+        newStatisticsFile(
+            snapshot,
+            "registered-replacement",
+            ImmutableList.of(
+                newBlobMetadata(
+                    snapshot,
+                    StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
+                    ImmutableList.of(2))));
+    table.updateStatistics().setStatistics(replacementStatistics).commit();
+
+    Table puffinFilesTable = new PuffinFilesTable(table);
+    List<StructLike> replacementRows =
+        rows(puffinFilesTable.newScan().useSnapshot(snapshot.snapshotId()));
+    assertThat(replacementRows).hasSize(1);
+    assertThat(replacementRows.get(0).get(1, String.class)).isEqualTo(replacementStatistics.path());
+
+    table.updateStatistics().removeStatistics(snapshot.snapshotId()).commit();
+
+    assertThat(rows(puffinFilesTable.newScan().useSnapshot(snapshot.snapshotId()))).isEmpty();
+  }
+
+  @TestTemplate
+  public void puffinFilesTableIgnoresNonPuffinDeleteFiles() throws IOException {
+    assumeThat(formatVersion).as("This test requires a V2 table").isEqualTo(2);
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).commit();
+
+    assertThat(rows(new PuffinFilesTable(table).newScan())).isEmpty();
+  }
+
+  @TestTemplate
+  public void puffinFilesTableIncludesStatisticsAndDeletionVectors() throws IOException {
+    assumeThat(formatVersion).as("Deletion vectors require V3 tables").isGreaterThanOrEqualTo(3);
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    String puffinPath = table.location() + "/data/current-dv.puffin";
+    DeleteFile deletionVector = newDeletionVector(puffinPath, 100L, FILE_A, 4L, 44L, 1L);
+    table.newRowDelta().addDeletes(deletionVector).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    StatisticsFile statisticsFile =
+        newStatisticsFile(
+            snapshot,
+            "current",
+            ImmutableList.of(
+                newBlobMetadata(
+                    snapshot,
+                    StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
+                    ImmutableList.of(1))));
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    List<StructLike> rows = rows(new PuffinFilesTable(table).newScan());
+    assertThat(rows).hasSize(2);
+
+    Map<String, StructLike> rowsBySource =
+        rows.stream().collect(Collectors.toMap(row -> row.get(2, String.class), row -> row));
+    assertThat(rowsBySource).containsOnlyKeys("statistics", "deletion_vector");
+    assertThat(rowsBySource.get("statistics").get(1, String.class))
+        .isEqualTo(statisticsFile.path());
+    assertThat(rowsBySource.get("deletion_vector").get(1, String.class)).isEqualTo(puffinPath);
+  }
+
+  @TestTemplate
+  public void puffinFilesTableAppliesSourceFilter() throws IOException {
+    assumeThat(formatVersion).as("Deletion vectors require V3 tables").isGreaterThanOrEqualTo(3);
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    String puffinPath = table.location() + "/data/source-filter-dv.puffin";
+    DeleteFile deletionVector = newDeletionVector(puffinPath, 100L, FILE_A, 4L, 44L, 1L);
+    table.newRowDelta().addDeletes(deletionVector).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    StatisticsFile statisticsFile =
+        newStatisticsFile(
+            snapshot,
+            "source-filter",
+            ImmutableList.of(
+                newBlobMetadata(
+                    snapshot,
+                    StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
+                    ImmutableList.of(1))));
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    Table puffinFilesTable = new PuffinFilesTable(table);
+    List<StructLike> statisticsRows =
+        rows(puffinFilesTable.newScan().filter(Expressions.equal("source", "statistics")));
+    assertThat(statisticsRows).hasSize(1);
+    assertThat(statisticsRows.get(0).get(1, String.class)).isEqualTo(statisticsFile.path());
+    assertThat(statisticsRows.get(0).get(2, String.class)).isEqualTo("statistics");
+
+    List<StructLike> deletionVectorRows =
+        rows(puffinFilesTable.newScan().filter(Expressions.equal("source", "deletion_vector")));
+    assertThat(deletionVectorRows).hasSize(1);
+    assertThat(deletionVectorRows.get(0).get(1, String.class)).isEqualTo(puffinPath);
+    assertThat(deletionVectorRows.get(0).get(2, String.class)).isEqualTo("deletion_vector");
+
+    assertThat(rows(puffinFilesTable.newScan().filter(Expressions.equal("source", "unknown"))))
+        .isEmpty();
+  }
+
+  @TestTemplate
+  public void puffinFilesTablePrunesDeletionVectorSource() throws IOException {
+    assumeThat(formatVersion).as("Deletion vectors require V3 tables").isGreaterThanOrEqualTo(3);
+
+    File tableLocation = temp.resolve("source-pruning").toFile();
+    TestTables.LocalFileIO spyFileIO = spy(new TestTables.LocalFileIO());
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations("source_pruning", tableLocation, spyFileIO);
+    this.table =
+        TestTables.create(
+            tableLocation,
+            "source_pruning",
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            ops);
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    String puffinPath = table.location() + "/data/pruned-dv.puffin";
+    DeleteFile deletionVector = newDeletionVector(puffinPath, 100L, FILE_A, 4L, 44L, 1L);
+    table.newRowDelta().addDeletes(deletionVector).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    String deleteManifestPath = snapshot.deleteManifests(table.io()).get(0).path();
+    StatisticsFile statisticsFile =
+        newStatisticsFile(
+            snapshot,
+            "pruned",
+            ImmutableList.of(
+                newBlobMetadata(
+                    snapshot,
+                    StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
+                    ImmutableList.of(1))));
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    clearInvocations(spyFileIO);
+
+    Table puffinFilesTable = new PuffinFilesTable(table);
+    List<StructLike> rows =
+        rows(puffinFilesTable.newScan().filter(Expressions.equal("source", "statistics")));
+
+    assertThat(rows).hasSize(1);
+    assertThat(rows.get(0).get(1, String.class)).isEqualTo(statisticsFile.path());
+    verify(spyFileIO, never()).newInputFile(deleteManifestPath);
+  }
+
+  @TestTemplate
+  public void puffinFilesTableAppliesFilePathFilter() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    StatisticsFile statisticsFile =
+        newStatisticsFile(
+            snapshot,
+            "residual",
+            ImmutableList.of(
+                newBlobMetadata(
+                    snapshot,
+                    StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
+                    ImmutableList.of(1))));
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    Table puffinFilesTable = new PuffinFilesTable(table);
+    Expression filter = Expressions.equal("file_path", "/missing.puffin");
+
+    try (CloseableIterable<FileScanTask> tasks =
+        puffinFilesTable.newScan().filter(filter).planFiles()) {
+      List<FileScanTask> plannedTasks = Lists.newArrayList(tasks);
+      assertThat(plannedTasks).hasSize(1);
+      assertThat(plannedTasks.get(0).residual()).isEqualTo(Expressions.alwaysTrue());
+      assertThat(Lists.newArrayList(plannedTasks.get(0).asDataTask().rows())).isEmpty();
+    }
+  }
+
+  @TestTemplate
+  public void puffinFilesTableDoesNotPruneNonSourceNegation() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    StatisticsFile statisticsFile =
+        newStatisticsFile(
+            snapshot,
+            "non-source-negation",
+            ImmutableList.of(
+                newBlobMetadata(
+                    snapshot,
+                    StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
+                    ImmutableList.of(1))));
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    Table puffinFilesTable = new PuffinFilesTable(table);
+    List<StructLike> rows =
+        rows(
+            puffinFilesTable
+                .newScan()
+                .filter(Expressions.not(Expressions.equal("file_path", "/missing.puffin"))));
+
+    assertThat(rows).hasSize(1);
+    assertThat(rows.get(0).get(1, String.class)).isEqualTo(statisticsFile.path());
+  }
+
+  @TestTemplate
+  public void puffinFilesTableAggregatesDeletionVectorsByPuffinPath() throws IOException {
+    assumeThat(formatVersion).as("Deletion vectors require V3 tables").isGreaterThanOrEqualTo(3);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    String puffinPath = table.location() + "/data/shared-dvs.puffin";
+    DeleteFile firstDV = newDeletionVector(puffinPath, 200L, FILE_A, 4L, 42L, 1L);
+    DeleteFile secondDV = newDeletionVector(puffinPath, 200L, FILE_B, 46L, 44L, 2L);
+    table.newRowDelta().addDeletes(firstDV).addDeletes(secondDV).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    List<StructLike> rows = rows(new PuffinFilesTable(table).newScan());
+
+    assertThat(rows).hasSize(1);
+    StructLike row = rows.get(0);
+    assertThat(row.get(0, Long.class)).isEqualTo(snapshot.snapshotId());
+    assertThat(row.get(1, String.class)).isEqualTo(puffinPath);
+    assertThat(row.get(2, String.class)).isEqualTo("deletion_vector");
+    assertThat(row.get(3, Long.class)).isEqualTo(200L);
+    assertThat(row.get(4, Integer.class)).isEqualTo(2);
+    assertThat(row.get(5, List.class)).containsExactly(StandardBlobTypes.DV_V1);
+    assertReferencedFields(
+        row,
+        referencedField(
+            MetadataColumns.ROW_POSITION.fieldId(), MetadataColumns.ROW_POSITION.name()));
+  }
+
+  @TestTemplate
+  public void puffinFilesTableKeepsIdenticalBlobRangesInDifferentFiles() throws IOException {
+    assumeThat(formatVersion).as("Deletion vectors require V3 tables").isGreaterThanOrEqualTo(3);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    String firstPuffinPath = table.location() + "/data/first-dv.puffin";
+    String secondPuffinPath = table.location() + "/data/second-dv.puffin";
+    DeleteFile firstDV = newDeletionVector(firstPuffinPath, 100L, FILE_A, 4L, 44L, 1L);
+    DeleteFile secondDV = newDeletionVector(secondPuffinPath, 100L, FILE_B, 4L, 44L, 1L);
+    table.newRowDelta().addDeletes(firstDV).addDeletes(secondDV).commit();
+
+    List<StructLike> rows = rows(new PuffinFilesTable(table).newScan());
+    assertThat(rows).hasSize(2);
+
+    Map<String, StructLike> rowsByPath =
+        rows.stream().collect(Collectors.toMap(row -> row.get(1, String.class), row -> row));
+    assertThat(rowsByPath).containsOnlyKeys(firstPuffinPath, secondPuffinPath);
+    assertThat(rowsByPath.get(firstPuffinPath).get(4, Integer.class)).isEqualTo(1);
+    assertThat(rowsByPath.get(secondPuffinPath).get(4, Integer.class)).isEqualTo(1);
+  }
+
+  @TestTemplate
+  public void puffinFilesTableDeletionVectorTimeTravel() throws IOException {
+    assumeThat(formatVersion).as("Deletion vectors require V3 tables").isGreaterThanOrEqualTo(3);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    String firstPuffinPath = table.location() + "/data/first-snapshot-dv.puffin";
+    DeleteFile firstDV = newDeletionVector(firstPuffinPath, 100L, FILE_A, 4L, 44L, 1L);
+    table.newRowDelta().addDeletes(firstDV).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    String secondPuffinPath = table.location() + "/data/second-snapshot-dv.puffin";
+    DeleteFile secondDV = newDeletionVector(secondPuffinPath, 100L, FILE_B, 4L, 44L, 1L);
+    table.newRowDelta().addDeletes(secondDV).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    Table puffinFilesTable = new PuffinFilesTable(table);
+
+    List<StructLike> firstRows =
+        rows(puffinFilesTable.newScan().useSnapshot(firstSnapshot.snapshotId()));
+    assertThat(firstRows).hasSize(1);
+    assertThat(firstRows.get(0).get(0, Long.class)).isEqualTo(firstSnapshot.snapshotId());
+    assertThat(firstRows.get(0).get(1, String.class)).isEqualTo(firstPuffinPath);
+
+    List<StructLike> secondRows =
+        rows(puffinFilesTable.newScan().useSnapshot(secondSnapshot.snapshotId()));
+    assertThat(secondRows).hasSize(2);
+    assertThat(secondRows.stream().map(row -> row.get(0, Long.class)).collect(Collectors.toSet()))
+        .containsOnly(secondSnapshot.snapshotId());
+    assertThat(secondRows.stream().map(row -> row.get(1, String.class)).collect(Collectors.toSet()))
+        .containsExactlyInAnyOrder(firstPuffinPath, secondPuffinPath);
+  }
+
+  @TestTemplate
+  public void puffinFilesTableScanOnBranch() throws IOException {
+    assumeThat(formatVersion).as("Deletion vectors require V3 tables").isGreaterThanOrEqualTo(3);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    String branchPuffinPath = table.location() + "/data/branch-dv.puffin";
+    DeleteFile branchDV = newDeletionVector(branchPuffinPath, 100L, FILE_A, 4L, 44L, 1L);
+    table.newRowDelta().addDeletes(branchDV).commit();
+    table.manageSnapshots().createBranch("testBranch").commit();
+
+    String mainPuffinPath = table.location() + "/data/main-dv.puffin";
+    DeleteFile mainDV = newDeletionVector(mainPuffinPath, 100L, FILE_B, 4L, 44L, 1L);
+    table.newRowDelta().addDeletes(mainDV).commit();
+
+    Table puffinFilesTable = new PuffinFilesTable(table);
+
+    List<StructLike> branchRows = rows(puffinFilesTable.newScan().useRef("testBranch"));
+    assertThat(branchRows).hasSize(1);
+    assertThat(branchRows.get(0).get(1, String.class)).isEqualTo(branchPuffinPath);
+
+    List<StructLike> mainRows = rows(puffinFilesTable.newScan());
+    assertThat(mainRows).hasSize(2);
+    assertThat(mainRows.stream().map(row -> row.get(1, String.class)).collect(Collectors.toSet()))
+        .containsExactlyInAnyOrder(branchPuffinPath, mainPuffinPath);
+  }
+
+  @TestTemplate
+  public void puffinFilesTableAllowsNullNamesForDroppedFields() throws IOException {
+    table.updateSchema().addColumn("dropped_column", Types.IntegerType.get()).commit();
+    int fieldId = table.schema().findField("dropped_column").fieldId();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    StatisticsFile statisticsFile =
+        newStatisticsFile(
+            snapshot,
+            "dropped",
+            ImmutableList.of(
+                newBlobMetadata(
+                    snapshot,
+                    StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
+                    ImmutableList.of(fieldId))));
+
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+    table.updateSchema().deleteColumn("dropped_column").commit();
+
+    List<StructLike> rows = rows(new PuffinFilesTable(table).newScan());
+
+    assertThat(rows).hasSize(1);
+    assertReferencedFields(rows.get(0), referencedField(fieldId, null));
+  }
+
+  @TestTemplate
+  public void puffinFilesTableEmptyTable() throws IOException {
+    Table puffinFilesTable = new PuffinFilesTable(table);
+
+    assertThat(rowCount(puffinFilesTable.newScan()))
+        .as("Puffin files table should be empty when the table has no snapshot")
+        .isEqualTo(0);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static void assertReferencedFields(StructLike row, ReferencedField... expectedFields) {
+    List<StructLike> actualFields = row.get(6, List.class);
+    assertThat(actualFields).hasSize(expectedFields.length);
+
+    for (int index = 0; index < expectedFields.length; index += 1) {
+      ReferencedField expectedField = expectedFields[index];
+      StructLike actualField = actualFields.get(index);
+
+      assertThat(actualField.get(0, Integer.class))
+          .as("Referenced field ID at position %s", index)
+          .isEqualTo(expectedField.fieldId());
+      assertThat(actualField.get(1, String.class))
+          .as("Current field name at position %s", index)
+          .isEqualTo(expectedField.currentFieldName());
+    }
+  }
+
+  private static ReferencedField referencedField(int fieldId, String currentFieldName) {
+    return new ReferencedField(fieldId, currentFieldName);
+  }
+
+  private static class ReferencedField {
+    private final int fieldId;
+    private final String currentFieldName;
+
+    private ReferencedField(int fieldId, String currentFieldName) {
+      this.fieldId = fieldId;
+      this.currentFieldName = currentFieldName;
+    }
+
+    private int fieldId() {
+      return fieldId;
+    }
+
+    private String currentFieldName() {
+      return currentFieldName;
+    }
+  }
+
+  private StatisticsFile newStatisticsFile(
+      Snapshot snapshot, String suffix, List<BlobMetadata> blobMetadata) {
+    String statisticsPath =
+        table.location() + "/metadata/" + snapshot.snapshotId() + "-" + suffix + ".stats";
+    return new GenericStatisticsFile(
+        snapshot.snapshotId(), statisticsPath, 617L, 523L, blobMetadata);
+  }
+
+  private BlobMetadata newBlobMetadata(Snapshot snapshot, String type, List<Integer> fieldIds) {
+    return new GenericBlobMetadata(
+        type,
+        snapshot.snapshotId(),
+        snapshot.sequenceNumber(),
+        fieldIds,
+        ImmutableMap.of("ndv", "2"));
+  }
+
+  private DeleteFile newDeletionVector(
+      String puffinPath,
+      long puffinFileSize,
+      DataFile referencedDataFile,
+      long contentOffset,
+      long contentSizeInBytes,
+      long recordCount) {
+    return FileMetadata.deleteFileBuilder(table.spec())
+        .ofPositionDeletes()
+        .withFormat(FileFormat.PUFFIN)
+        .withPath(puffinPath)
+        .withPartition(referencedDataFile.partition())
+        .withFileSizeInBytes(puffinFileSize)
+        .withReferencedDataFile(referencedDataFile.location())
+        .withContentOffset(contentOffset)
+        .withContentSizeInBytes(contentSizeInBytes)
+        .withRecordCount(recordCount)
+        .build();
+  }
+
+  private static List<StructLike> rows(TableScan scan) throws IOException {
+    ImmutableList.Builder<StructLike> rows = ImmutableList.builder();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      for (FileScanTask task : tasks) {
+        assertThat(task).isInstanceOf(DataTask.class);
+
+        try (CloseableIterable<StructLike> taskRows = task.asDataTask().rows()) {
+          for (StructLike row : taskRows) {
+            rows.add(copyRow(row));
+          }
+        }
+      }
+    }
+
+    return rows.build();
+  }
+
+  private static StructLike copyRow(StructLike row) {
+    Object[] values = new Object[row.size()];
+
+    for (int pos = 0; pos < row.size(); pos += 1) {
+      values[pos] = row.get(pos, Object.class);
+    }
+
+    return TestHelpers.Row.of(values);
   }
 
   private int rowCount(TableScan scan) throws IOException {
