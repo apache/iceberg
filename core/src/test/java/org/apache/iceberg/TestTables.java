@@ -260,7 +260,7 @@ public class TestTables {
     }
   }
 
-  static TableMetadata readMetadata(String tableName) {
+  public static TableMetadata readMetadata(String tableName) {
     synchronized (METADATA) {
       return METADATA.get(tableName);
     }
