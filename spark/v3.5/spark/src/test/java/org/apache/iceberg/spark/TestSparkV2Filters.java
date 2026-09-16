@@ -226,6 +226,22 @@ public class TestSparkV2Filters {
               .as("StartsWith must match")
               .isEqualTo(expectedStartsWith.toString());
 
+          Predicate contains = new Predicate("CONTAINS", attrAndStr);
+          Expression expectedContains = Expressions.contains(unquoted, "iceberg");
+          Expression actualContains = SparkV2Filters.convert(contains);
+          assertThat(actualContains)
+              .asString()
+              .as("Contains must match")
+              .isEqualTo(expectedContains.toString());
+
+          Predicate notContains = new Not(contains);
+          Expression expectedNotContains = Expressions.not(expectedContains);
+          Expression actualNotContains = SparkV2Filters.convert(notContains);
+          assertThat(actualNotContains)
+              .asString()
+              .as("NotContains must match")
+              .isEqualTo(expectedNotContains.toString());
+
           Predicate in = new Predicate("IN", attrAndValue);
           Expression expectedIn = Expressions.in(unquoted, 1);
           Expression actualIn = SparkV2Filters.convert(in);

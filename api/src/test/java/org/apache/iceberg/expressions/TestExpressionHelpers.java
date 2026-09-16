@@ -22,6 +22,7 @@ import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.bucket;
+import static org.apache.iceberg.expressions.Expressions.contains;
 import static org.apache.iceberg.expressions.Expressions.day;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
@@ -33,6 +34,7 @@ import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.month;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notContains;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNull;
@@ -178,7 +180,9 @@ public class TestExpressionHelpers {
           {or(equal("a", 5), isNull("a")), not(and(notEqual("a", 5), notNull("a")))},
           {or(equal("a", 5), notNull("a")), or(equal("a", 5), not(isNull("a")))},
           {startsWith("s", "hello"), not(notStartsWith("s", "hello"))},
-          {notStartsWith("s", "world"), not(startsWith("s", "world"))}
+          {notStartsWith("s", "world"), not(startsWith("s", "world"))},
+          {contains("s", "hello"), not(notContains("s", "hello"))},
+          {notContains("s", "world"), not(contains("s", "world"))}
         };
 
     for (Expression[] pair : expressions) {
