@@ -44,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -123,6 +124,10 @@ class TestV4ManifestReader {
       idPartitionedDataFileWithoutStats("s3://bucket/table/id=1/file-a.parquet", idPartition(1));
   private static final TrackedFile FILE_B =
       idPartitionedDataFileWithoutStats("s3://bucket/table/id=2/file-b.parquet", idPartition(2));
+  private static final TrackedFile FILE_C =
+      unpartitionedDataFileWithStats("s3://bucket/table/file-c.parquet", CONTENT_STATS);
+  private static final TrackedFile FILE_D =
+      unpartitionedFileWithoutStats("s3://bucket/table/file-d.parquet");
   private static final TrackedFile EQ_DELETES_A =
       idPartitionedDeleteFileWithoutStats(
           "s3://bucket/table/id=1/eq-deletes-a.parquet", idPartition(1));
@@ -130,9 +135,12 @@ class TestV4ManifestReader {
       idPartitionedDeleteFileWithoutStats(
           "s3://bucket/table/id=2/eq-deletes-b.parquet", idPartition(2));
   private static final TrackedFile DATA_MANIFEST_REF =
-      manifestRef(FileContent.DATA_MANIFEST, "s3://bucket/table/data-leaf.parquet");
+      manifestRefWithoutStats(FileContent.DATA_MANIFEST, "s3://bucket/table/data-leaf.parquet");
   private static final TrackedFile DELETE_MANIFEST_REF =
-      manifestRef(FileContent.DELETE_MANIFEST, "s3://bucket/table/delete-leaf.parquet");
+      manifestRefWithoutStats(FileContent.DELETE_MANIFEST, "s3://bucket/table/delete-leaf.parquet");
+  private static final TrackedFile DATA_MANIFEST_WITH_STATS_REF =
+      manifestRefWithStats(
+          FileContent.DATA_MANIFEST, "s3://bucket/table/metadata/data-leaf-stats.parquet");
 
   private static final List<FileFormat> MANIFEST_FORMATS =
       ImmutableList.of(FileFormat.AVRO, FileFormat.PARQUET);
@@ -717,8 +725,7 @@ class TestV4ManifestReader {
     assertThat(actualUnpartitioned.partition()).isNull();
   }
 
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
+  @Test
   public void statsFilterMissingColumnFailure() {
     // stats for the filter's columns are resolved against the table schema
     V4ManifestReader.Builder builder =
@@ -730,6 +737,274 @@ class TestV4ManifestReader {
     assertThatThrownBy(() -> read(builder))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'missing' in struct: %s", TABLE_SCHEMA.asStruct());
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void statsFilterRecordCountFiltering(FileFormat format) throws IOException {
+    TrackedFile emptyTrackedFile =
+        new TrackedFileStruct(
+            ADDED_TRACKING,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/table/empty-file.parquet",
+            FileFormat.PARQUET,
+            0, // file contains no records
+            100L,
+            null,
+            null,
+            null,
+            SortOrder.unsorted().orderId(),
+            null,
+            null,
+            null,
+            List.of(4L),
+            null);
+
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(emptyTrackedFile, FILE_D));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .metricsConfig(METRICS_CONFIG);
+
+    List<TrackedFile> actualFiles = read(builder);
+
+    assertThat(actualFiles)
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(FILE_D);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void statsFilterInvalidRecordCountNotFiltered(FileFormat format) throws IOException {
+    // A bug in old writers produced Avro files with record_count=-1 (unknown)
+    TrackedFile invalidRecordCountFile =
+        new TrackedFileStruct(
+            ADDED_TRACKING,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/table/very-old.avro",
+            FileFormat.AVRO,
+            -1, // mimic invalid record count in old Avro metadata
+            100L,
+            null,
+            null,
+            null,
+            SortOrder.unsorted().orderId(),
+            null,
+            null,
+            null,
+            List.of(4L),
+            null);
+
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(invalidRecordCountFile, FILE_D));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .metricsConfig(METRICS_CONFIG);
+
+    List<TrackedFile> actualFiles = read(builder);
+
+    assertThat(actualFiles)
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(invalidRecordCountFile, FILE_D);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void statsFilterDataFileBoundsFiltering(FileFormat format) throws IOException {
+    // FILE_C has stats {id in [0, 99], data in [a, z]}, FILE_D has no stats
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(FILE_C, FILE_D));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .filter(Expressions.equal("id", 105)) // eliminates FILE_C
+            .metricsConfig(METRICS_CONFIG);
+
+    List<TrackedFile> actualFiles = read(builder);
+
+    assertThat(actualFiles)
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(FILE_D);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void statsFilterManifestBoundsFiltering(FileFormat format) throws IOException {
+    // DATA_MANIFEST_WITH_STATS_REF has stats {id in [0, 99], data in [a, z]}
+    ManifestFile manifest =
+        writeManifest(
+            format,
+            UNPARTITIONED_TYPE,
+            ImmutableList.of(DATA_MANIFEST_REF, DATA_MANIFEST_WITH_STATS_REF));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .filter(Expressions.equal("id", 105)) // eliminates the manifest with stats
+            .metricsConfig(METRICS_CONFIG);
+
+    List<TrackedFile> actualFiles = read(builder);
+
+    assertThat(actualFiles)
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(DATA_MANIFEST_REF);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void statsFilterBoundsFilteringWithForScanPlanning(FileFormat format) throws IOException {
+    // FILE_C has stats {id in [0, 99], data in [a, z]}, FILE_D has no stats
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(FILE_C, FILE_D));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .forScanPlanning() // does not project unused stats
+            .filter(Expressions.equal("id", 105)) // eliminates FILE_C
+            .metricsConfig(METRICS_CONFIG);
+
+    List<TrackedFile> actualFiles = read(builder);
+
+    assertThat(actualFiles)
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(FILE_D);
+  }
+
+  @ParameterizedTest
+  @FieldSource("PROJECTION_CASES")
+  public void statsFilterBoundsFilteringWithProjection(Consumer<V4ManifestReader.Builder> config)
+      throws IOException {
+    // FILE_C has stats {id in [0, 99], data in [a, z]}, FILE_D has no stats
+    // config projects just the file location, but stats are automatically projected for the filter
+    ManifestFile manifest =
+        writeManifest(FileFormat.PARQUET, UNPARTITIONED_TYPE, ImmutableList.of(FILE_C, FILE_D));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .filter(Expressions.equal("id", 105)) // eliminates FILE_C
+            .metricsConfig(METRICS_CONFIG);
+
+    config.accept(builder);
+
+    List<TrackedFile> actualFiles = read(builder);
+
+    assertThat(actualFiles).extracting(TrackedFile::location).containsExactly(FILE_D.location());
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void statsFilterCaseSensitivity(FileFormat format) throws IOException {
+    // FILE_C has stats {id in [0, 99], data in [a, z]}, FILE_D has no stats
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(FILE_C, FILE_D));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .filter(Expressions.equal("ID", 105)) // eliminates FILE_C
+            .metricsConfig(METRICS_CONFIG);
+
+    assertThatThrownBy(() -> read(builder))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'ID' in struct");
+
+    List<TrackedFile> actualFiles = read(builder.caseSensitive(false));
+
+    assertThat(actualFiles)
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(FILE_D);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void statsFilterBoundsFilteringUpdatesMetricsSkipCounts(FileFormat format)
+      throws IOException {
+    ManifestFile manifest =
+        writeManifest(
+            format,
+            UNPARTITIONED_TYPE,
+            ImmutableList.of(DATA_MANIFEST_REF, DATA_MANIFEST_WITH_STATS_REF, FILE_C, FILE_D));
+
+    ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .scanMetrics(metrics)
+            .filter(Expressions.equal("id", 105)) // eliminates manifest with stats and FILE_C
+            .metricsConfig(METRICS_CONFIG);
+
+    List<TrackedFile> actualFiles = read(builder);
+
+    assertThat(actualFiles)
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(DATA_MANIFEST_REF, FILE_D);
+
+    assertThat(metrics.skippedDataFiles().value()).as("FILE_C should be pruned").isEqualTo(1L);
+    assertThat(metrics.skippedDeleteFiles().value()).as("No deletes are present").isEqualTo(0L);
+    assertThat(metrics.skippedDataManifests().value())
+        .as("Manifest with stats should be pruned")
+        .isEqualTo(1L);
+    assertThat(metrics.skippedDeleteManifests().value())
+        .as("No delete manifests are present")
+        .isEqualTo(0L);
+    assertThat(metrics.scannedDataManifests().value())
+        .as("The root manifest was scanned")
+        .isEqualTo(1L);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void partitionFilterBucketPartitionID(FileFormat format) throws IOException {
+    PartitionSpec bucketSpec =
+        PartitionSpec.builderFor(TABLE_SCHEMA).withSpecId(2).bucket("id", 100).build();
+
+    Map<Integer, PartitionSpec> bucketSpecs = ImmutableMap.of(bucketSpec.specId(), bucketSpec);
+
+    int fileBucketNum = 7;
+
+    TrackedFile bucketPartitionedFile =
+        new TrackedFileStruct(
+            ADDED_TRACKING,
+            FileContent.DATA,
+            FORMAT_VERSION_V4,
+            "s3://bucket/table/bucket=7/data-file.parquet",
+            FileFormat.AVRO,
+            10,
+            100L,
+            bucketSpec.specId(),
+            partition(bucketSpec, fileBucketNum),
+            CONTENT_STATS,
+            SortOrder.unsorted().orderId(),
+            null, // dv
+            null, // manifest info
+            null, // key metadata
+            List.of(4L),
+            null); // eq delete ids
+
+    ManifestFile manifest =
+        writeManifest(
+            format, bucketSpec.partitionType(), ImmutableList.of(bucketPartitionedFile, FILE_D));
+
+    int queryId = 34; // in the content stats range for id: [0, 99]
+
+    Transform<Integer, Integer> bucket100 = Transforms.bucket(100);
+    int queryBucketNum = bucket100.bind(Types.IntegerType.get()).apply(queryId);
+    assertThat(queryBucketNum)
+        .as("Query filter ID should NOT be in the data file bucket")
+        .isNotEqualTo(fileBucketNum);
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, bucketSpecs)
+            .filter(Expressions.equal("id", queryId))
+            .metricsConfig(METRICS_CONFIG);
+
+    List<TrackedFile> actualFiles = read(builder);
+
+    assertThat(actualFiles)
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(FILE_D);
   }
 
   @ParameterizedTest
@@ -1009,7 +1284,7 @@ class TestV4ManifestReader {
         writeManifest(
             format,
             UNPARTITIONED_TYPE,
-            manifestRef(FileContent.DATA_MANIFEST, "metadata/leaf.avro"));
+            manifestRefWithoutStats(FileContent.DATA_MANIFEST, "metadata/leaf.avro"));
 
     V4ManifestReader.Builder builder =
         V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
@@ -1019,7 +1294,8 @@ class TestV4ManifestReader {
     assertThat(readOne(builder))
         .usingComparator(FILE_COMPARATOR)
         .isEqualTo(
-            manifestRef(FileContent.DATA_MANIFEST, "s3://bucket/db/table/metadata/leaf.avro"));
+            manifestRefWithoutStats(
+                FileContent.DATA_MANIFEST, "s3://bucket/db/table/metadata/leaf.avro"));
   }
 
   @ParameterizedTest
@@ -1077,6 +1353,10 @@ class TestV4ManifestReader {
         .build();
   }
 
+  private static TrackedFile unpartitionedDataFileWithStats(String location, ContentStats stats) {
+    return unpartitionedDataFile(ADDED_TRACKING, location, stats, null /* no DV */);
+  }
+
   private static TrackedFile unpartitionedFileWithoutStats(String location) {
     return unpartitionedFileWithStatus(EntryStatus.ADDED, location);
   }
@@ -1129,26 +1409,18 @@ class TestV4ManifestReader {
   }
 
   private static TrackedFile unpartitionedDataWithDVFile(String location, String dvLocation) {
-    return new TrackedFileStruct(
-        ADDED_TRACKING,
-        FileContent.DATA,
-        FORMAT_VERSION_V4,
-        location,
-        FileFormat.PARQUET,
-        RECORD_COUNT,
-        FILE_SIZE_IN_BYTES,
-        null,
-        null,
-        null, // content_stats
-        null, // sort_order_id
-        dv(dvLocation),
-        null, // manifest_info
-        null, // key_metadata
-        ImmutableList.of(4L), // split offsets
-        null); // equality_ids
+    return unpartitionedDataFile(ADDED_TRACKING, location, null, dv(dvLocation));
   }
 
-  private static TrackedFile manifestRef(FileContent content, String location) {
+  private static TrackedFile manifestRefWithoutStats(FileContent content, String location) {
+    return manifestRef(content, location, null /* no stats */);
+  }
+
+  private static TrackedFile manifestRefWithStats(FileContent content, String location) {
+    return manifestRef(content, location, CONTENT_STATS);
+  }
+
+  private static TrackedFile manifestRef(FileContent content, String location, ContentStats stats) {
     return new TrackedFileStruct(
         ADDED_TRACKING,
         content,
@@ -1159,7 +1431,7 @@ class TestV4ManifestReader {
         FILE_SIZE_IN_BYTES,
         null, // spec_id: a manifest reference has no spec
         null, // partition: a manifest reference has no partition tuple
-        null, // content_stats
+        stats, // content_stats
         null, // sort_order_id
         null, // deletion_vector
         MANIFEST_INFO,
@@ -1179,6 +1451,11 @@ class TestV4ManifestReader {
             null, // first row id
             null, // deleted positions
             null); // replaced positions
+    return unpartitionedDataFile(tracking, location, null /* no stats */, null /* no DV */);
+  }
+
+  private static TrackedFile unpartitionedDataFile(
+      Tracking tracking, String location, ContentStats stats, DeletionVector dv) {
     return new TrackedFileStruct(
         tracking,
         FileContent.DATA,
@@ -1189,9 +1466,9 @@ class TestV4ManifestReader {
         FILE_SIZE_IN_BYTES,
         null, // unpartitioned
         null, // null partition data
-        null, // content stats
+        stats,
         SortOrder.unsorted().orderId(),
-        null, // dv
+        dv,
         null, // manifest info
         null, // key metadata
         ImmutableList.of(4L), // split offsets
