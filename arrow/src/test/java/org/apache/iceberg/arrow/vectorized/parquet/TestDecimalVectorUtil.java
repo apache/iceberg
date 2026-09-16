@@ -21,7 +21,10 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
+import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.DecimalVector;
 import org.junit.jupiter.api.Test;
 
 public class TestDecimalVectorUtil {
@@ -71,5 +74,52 @@ public class TestDecimalVectorUtil {
     assertThatThrownBy(() -> DecimalVectorUtil.padBigEndianBytes(bytes, 16))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Buffer size of 17 is larger than requested size of 16");
+  }
+
+  @Test
+  public void testSetBigEndian() {
+    BigDecimal value = new BigDecimal("12345.67");
+    try (RootAllocator allocator = new RootAllocator();
+        DecimalVector vector = new DecimalVector("decimal", allocator, 20, value.scale())) {
+      vector.allocateNew(1);
+
+      DecimalVectorUtil.setBigEndian(vector, 0, value.unscaledValue().toByteArray());
+      vector.setValueCount(1);
+
+      assertThat(vector.getObject(0)).isEqualTo(value);
+    }
+  }
+
+  @Test
+  public void testSetBigEndianNegative() {
+    BigDecimal value = new BigDecimal("-12345.67");
+    try (RootAllocator allocator = new RootAllocator();
+        DecimalVector vector = new DecimalVector("decimal", allocator, 20, value.scale())) {
+      vector.allocateNew(1);
+
+      // the unscaled value is negative, so padBigEndianBytes has to sign-extend with 0xFF
+      DecimalVectorUtil.setBigEndian(vector, 0, value.unscaledValue().toByteArray());
+      vector.setValueCount(1);
+
+      assertThat(vector.getObject(0)).isEqualTo(value);
+    }
+  }
+
+  @Test
+  public void testSetBigEndianWithFullWidthInput() {
+    BigDecimal value = new BigDecimal(BigInteger.ONE.shiftLeft(120));
+    byte[] bigEndianBytes = value.unscaledValue().toByteArray();
+    // the input already fills the 16-byte decimal width, so no padding is applied
+    assertThat(bigEndianBytes).hasSize(DecimalVector.TYPE_WIDTH);
+
+    try (RootAllocator allocator = new RootAllocator();
+        DecimalVector vector = new DecimalVector("decimal", allocator, 38, 0)) {
+      vector.allocateNew(1);
+
+      DecimalVectorUtil.setBigEndian(vector, 0, bigEndianBytes);
+      vector.setValueCount(1);
+
+      assertThat(vector.getObject(0)).isEqualTo(value);
+    }
   }
 }
