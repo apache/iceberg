@@ -37,6 +37,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.ExpireSnapshots.CleanupLevel;
 import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.ManifestFile;
@@ -211,6 +212,64 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(table.snapshots()).as("Table does not have 1 snapshot after expiration").hasSize(1);
 
     checkExpirationResults(1L, 0L, 0L, 1L, 2L, results);
+  }
+
+  @TestTemplate
+  public void testMetadataOnlyCleanupLevelRetainsContentFiles() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    table.newOverwrite().deleteFile(FILE_A).addFile(FILE_B).commit();
+
+    table.newFastAppend().appendFile(FILE_C).commit();
+
+    long end = rightAfterSnapshot();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    ExpireSnapshots.Result results =
+        SparkActions.get()
+            .expireSnapshots(table)
+            .expireOlderThan(end)
+            .cleanupLevel(CleanupLevel.METADATA_ONLY)
+            .deleteWith(deletedFiles::add)
+            .execute();
+
+    assertThat(table.snapshots()).as("Table does not have 1 snapshot after expiration").hasSize(1);
+
+    // same metadata files as CleanupLevel.ALL, but FILE_A is retained
+    checkExpirationResults(0L, 0L, 0L, 1L, 2L, results);
+    assertThat(deletedFiles).doesNotContain(FILE_A.location());
+  }
+
+  @TestTemplate
+  public void testNoneCleanupLevelRetainsAllFiles() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    table.newOverwrite().deleteFile(FILE_A).addFile(FILE_B).commit();
+
+    table.newFastAppend().appendFile(FILE_C).commit();
+
+    long end = rightAfterSnapshot();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    ExpireSnapshots.Result results =
+        SparkActions.get()
+            .expireSnapshots(table)
+            .expireOlderThan(end)
+            .cleanupLevel(CleanupLevel.NONE)
+            .deleteWith(deletedFiles::add)
+            .execute();
+
+    assertThat(table.snapshots()).as("Table does not have 1 snapshot after expiration").hasSize(1);
+
+    checkExpirationResults(0L, 0L, 0L, 0L, 0L, results);
+    assertThat(deletedFiles).isEmpty();
+  }
+
+  @TestTemplate
+  public void testInvalidCleanupLevel() {
+    assertThatThrownBy(() -> SparkActions.get().expireSnapshots(table).cleanupLevel(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid cleanup level: null");
   }
 
   @TestTemplate
