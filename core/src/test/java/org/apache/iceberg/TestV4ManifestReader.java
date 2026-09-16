@@ -576,7 +576,9 @@ class TestV4ManifestReader {
     when(manifest.formatVersion()).thenReturn(3);
 
     assertThatThrownBy(
-            () -> V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION))
+            () ->
+                V4ManifestReader.builder(
+                    manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot read manifest with format version 3: only 4 is supported");
   }
@@ -587,7 +589,9 @@ class TestV4ManifestReader {
     when(manifest.manifestDeletionVector()).thenReturn(mock(ManifestBitmap.class));
 
     assertThatThrownBy(
-            () -> V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION))
+            () ->
+                V4ManifestReader.builder(
+                    manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot read manifest with a deletion vector: s3://bucket/manifest.parquet");
   }
@@ -598,7 +602,9 @@ class TestV4ManifestReader {
     when(manifest.content()).thenReturn(ManifestContent.DELETES);
 
     assertThatThrownBy(
-            () -> V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION))
+            () ->
+                V4ManifestReader.builder(
+                    manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Cannot read manifest with content DELETES: only data manifests are supported: "
@@ -801,7 +807,8 @@ class TestV4ManifestReader {
     ManifestFile manifest = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(file));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, "s3://bucket/db/table/")
+        V4ManifestReader.builder(
+                manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, "s3://bucket/db/table/")
             .build()) {
       TrackedFile actual = Iterables.getOnlyElement(reader);
       assertThat(actual.location()).isEqualTo("s3://bucket/db/table//data/00000-0.parquet");

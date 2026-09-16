@@ -111,7 +111,7 @@ class TestV4ManifestReaderStats {
     assertThatThrownBy(
             () ->
                 V4ManifestReader.builder(
-                        manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+                        manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
                     .projectStats((int[]) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid field IDs: null");
@@ -138,7 +138,7 @@ class TestV4ManifestReaderStats {
   @FieldSource("MANIFEST_FORMATS")
   void statsAreReadWithMetricsConfig(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-    InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
+    ManifestFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
 
     MetricsConfig metricsConfig =
         MetricsConfig.from(
@@ -151,7 +151,7 @@ class TestV4ManifestReaderStats {
             null);
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .metricsConfig(metricsConfig)
             .build()) {
       ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
@@ -174,7 +174,7 @@ class TestV4ManifestReaderStats {
   void schemaProjectionStatsAreReadWhenOmittedByMetricsConfig(FileFormat format)
       throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-    InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
+    ManifestFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
 
     // the projection is based on the manifest schema, so it determines the stats that are read even
     // though the metrics config would not produce stats for measure
@@ -187,7 +187,7 @@ class TestV4ManifestReaderStats {
             null);
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .project(projection)
             .metricsConfig(metricsConfig)
             .build()) {
@@ -273,11 +273,11 @@ class TestV4ManifestReaderStats {
   @FieldSource("MANIFEST_FORMATS")
   void projectStatsWithoutFieldIdsStillReadsFilterStats(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-    InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
+    ManifestFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
 
     // requesting no field IDs opts out of every field's stats, but not out of what the filter needs
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .projectStats(List.of())
             .filter(Expressions.equal("data", "m"))
             .build()) {
@@ -352,7 +352,7 @@ class TestV4ManifestReaderStats {
   @FieldSource("MANIFEST_FORMATS")
   void singleStatsFieldIsReadForSchemaProjection(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-    InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
+    ManifestFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
 
     // a projection may narrow stats to a single field rather than to whole stats structs
     Types.NestedField dataStats = CONTENT_STATS_TYPE.field("data");
@@ -365,7 +365,7 @@ class TestV4ManifestReaderStats {
                     dataStats.type().asStructType().field(StatsUtil.LOWER_BOUND_NAME))));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .project(new Schema(TrackedFile.LOCATION, StatsUtil.contentStatsField(lowerBoundOnly)))
             .build()) {
       ContentStats stats = Iterables.getOnlyElement(reader).contentStats();
@@ -384,7 +384,7 @@ class TestV4ManifestReaderStats {
   @FieldSource("MANIFEST_FORMATS")
   void filterStatsAreProjectedWhenNarrowedBySchemaProjection(FileFormat format) throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-    InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
+    ManifestFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
 
     // the projection carries stats for data, but without the bounds that the filter is evaluated
     // against, so the stats that are read for data must be widened back to the full stats struct
@@ -405,7 +405,7 @@ class TestV4ManifestReaderStats {
         .isNull();
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .project(new Schema(TrackedFile.LOCATION, StatsUtil.contentStatsField(narrowStatsType)))
             .filter(Expressions.equal("data", "m"))
             .build()) {
@@ -463,12 +463,12 @@ class TestV4ManifestReaderStats {
   void projectStatsAndFilterStatsAreCombinedWithoutScanPlanning(FileFormat format)
       throws IOException {
     TrackedFile file = fileWithStats("s3://bucket/file.parquet", contentStats());
-    InputFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
+    ManifestFile manifest = writeManifest(format, CONTENT_STATS_TYPE, List.of(file));
 
     // projectStats narrows stats to the requested fields and the fields the filter needs, which
     // does not depend on scan planning
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
+        V4ManifestReader.builder(manifest, io, TABLE_SCHEMA, UNPARTITIONED_SPECS, TABLE_LOCATION)
             .projectStats(ID_FIELD_ID)
             .filter(Expressions.equal("data", "m"))
             .build()) {
@@ -701,7 +701,8 @@ class TestV4ManifestReaderStats {
     ManifestFile manifest = writeManifest(format, statsType, List.of(file));
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, schema, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
+        V4ManifestReader.builder(manifest, io, schema, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build()) {
       FieldStats<?> actual = Iterables.getOnlyElement(reader).contentStats().statsFor(fieldId);
 
       assertThat(actual.type()).isEqualTo(varStatsType);
@@ -751,7 +752,8 @@ class TestV4ManifestReaderStats {
     ManifestFile manifest = writeManifest(format, statsType, files);
 
     try (V4ManifestReader reader =
-        V4ManifestReader.builder(manifest, io, schema, UNPARTITIONED_SPECS, TABLE_LOCATION).build()) {
+        V4ManifestReader.builder(manifest, io, schema, UNPARTITIONED_SPECS, TABLE_LOCATION)
+            .build()) {
       List<TrackedFile> read = Lists.newArrayList(reader);
 
       FieldStats<?> firstStats = read.get(0).contentStats().statsFor(fieldId);
