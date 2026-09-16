@@ -82,6 +82,89 @@ public class UUIDUtil {
     return buffer;
   }
 
+  /** Length of a UUID in its canonical 8-4-4-4-12 textual form. */
+  private static final int UUID_TEXT_LENGTH = 36;
+
+  private static final int[] DASH_POSITIONS = {8, 13, 18, 23};
+
+  /**
+   * Writes the UUID given in canonical textual form as 16 big-endian bytes.
+   *
+   * <p>The text is read directly from ASCII bytes, so this avoids the {@code String} allocation and
+   * UTF-8 decode, and the {@link UUID#fromString} parse and {@code UUID} allocation, that a caller
+   * holding raw bytes would otherwise pay per value. The result is identical to {@code
+   * convertToByteBuffer(UUID.fromString(new String(uuidText, StandardCharsets.UTF_8)), reuse)} for
+   * every canonical UUID.
+   *
+   * <p>Only the canonical form is accepted: 32 hexadecimal digits in 8-4-4-4-12 groups separated by
+   * {@code '-'}. Digits may be upper or lower case. Unlike {@link UUID#fromString}, shortened
+   * groups are rejected rather than zero-extended.
+   *
+   * @param uuidText ASCII bytes of a canonical UUID
+   * @param offset start of the UUID text within {@code uuidText}
+   * @param length length of the UUID text, which must be 36
+   * @param reuse buffer to write into, or null to allocate one
+   * @return a buffer of 16 bytes positioned at 0
+   */
+  public static ByteBuffer convertToByteBuffer(
+      byte[] uuidText, int offset, int length, ByteBuffer reuse) {
+    Preconditions.checkArgument(uuidText != null, "Invalid UUID text: null");
+    Preconditions.checkArgument(
+        length == UUID_TEXT_LENGTH, "Invalid UUID text: expected 36 characters, got %s", length);
+    Preconditions.checkArgument(
+        offset >= 0 && offset + length <= uuidText.length,
+        "UUID text out of bounds, offset=%s, length=%s, array length=%s",
+        offset,
+        length,
+        uuidText.length);
+    for (int dash : DASH_POSITIONS) {
+      Preconditions.checkArgument(
+          uuidText[offset + dash] == '-', "Invalid UUID text: expected '-' at position %s", dash);
+    }
+
+    // 8-4-4 before the third dash forms the most significant bits, 4-12 after it the least
+    long mostSigBits = readHex(uuidText, offset, 8);
+    mostSigBits = (mostSigBits << 16) | readHex(uuidText, offset + 9, 4);
+    mostSigBits = (mostSigBits << 16) | readHex(uuidText, offset + 14, 4);
+
+    long leastSigBits = readHex(uuidText, offset + 19, 4);
+    leastSigBits = (leastSigBits << 48) | readHex(uuidText, offset + 24, 12);
+
+    ByteBuffer buffer = reuse != null ? reuse : ByteBuffer.allocate(16);
+    buffer.order(ByteOrder.BIG_ENDIAN);
+    buffer.putLong(0, mostSigBits);
+    buffer.putLong(8, leastSigBits);
+    return buffer;
+  }
+
+  /** See {@link #convertToByteBuffer(byte[], int, int, ByteBuffer)}. */
+  public static ByteBuffer convertToByteBuffer(byte[] uuidText, ByteBuffer reuse) {
+    Preconditions.checkArgument(uuidText != null, "Invalid UUID text: null");
+    return convertToByteBuffer(uuidText, 0, uuidText.length, reuse);
+  }
+
+  /** Reads {@code count} hexadecimal digits as an unsigned value. */
+  private static long readHex(byte[] text, int offset, int count) {
+    long value = 0;
+    for (int i = 0; i < count; i += 1) {
+      value = (value << 4) | hexDigit(text[offset + i]);
+    }
+    return value;
+  }
+
+  private static int hexDigit(byte character) {
+    if (character >= '0' && character <= '9') {
+      return character - '0';
+    } else if (character >= 'a' && character <= 'f') {
+      return character - 'a' + 10;
+    } else if (character >= 'A' && character <= 'F') {
+      return character - 'A' + 10;
+    }
+
+    throw new IllegalArgumentException(
+        String.format("Invalid UUID text: '%s' is not a hexadecimal digit", (char) character));
+  }
+
   /**
    * Generate a RFC 9562 UUIDv7.
    *
