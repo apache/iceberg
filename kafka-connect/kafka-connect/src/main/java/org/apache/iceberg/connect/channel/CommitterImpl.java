@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberDescription;
+import org.apache.kafka.common.ConsumerGroupState;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
@@ -81,10 +82,12 @@ public class CommitterImpl implements Committer {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
     }
 
-    Collection<MemberDescription> members = groupDesc.members();
-    if (containsFirstPartition(members, currentAssignedPartitions)) {
-      membersWhenWorkerIsCoordinator = members;
-      return true;
+    if (groupDesc.state() == ConsumerGroupState.STABLE) {
+      Collection<MemberDescription> members = groupDesc.members();
+      if (containsFirstPartition(members, currentAssignedPartitions)) {
+        membersWhenWorkerIsCoordinator = members;
+        return true;
+      }
     }
 
     return false;
