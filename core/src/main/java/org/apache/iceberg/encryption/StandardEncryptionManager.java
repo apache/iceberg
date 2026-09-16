@@ -230,7 +230,23 @@ public class StandardEncryptionManager implements EncryptionManager {
   }
 
   /** Encrypted key metadata and its wrapping key. */
-  public record FileEncryptionKeys(EncryptedKey keyEncryptionKey, EncryptedKey fileKey) {}
+  public static final class FileEncryptionKeys {
+    private final EncryptedKey keyEncryptionKey;
+    private final EncryptedKey fileKey;
+
+    private FileEncryptionKeys(EncryptedKey keyEncryptionKey, EncryptedKey fileKey) {
+      this.keyEncryptionKey = keyEncryptionKey;
+      this.fileKey = fileKey;
+    }
+
+    public EncryptedKey keyEncryptionKey() {
+      return keyEncryptionKey;
+    }
+
+    public EncryptedKey fileKey() {
+      return fileKey;
+    }
+  }
 
   private class StandardEncryptedOutputFile implements NativeEncryptionOutputFile {
     private final OutputFile plainOutputFile;
