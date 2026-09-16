@@ -27,6 +27,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,7 @@ import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.vortex.PositionDeleteVortexWriter;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -273,7 +275,15 @@ public class VortexFormatModel<D, S, R>
       NativeWritable outputStream = VortexIO.writable(outputFile.encryptingOutputFile());
       VortexWriter vortexWriter;
       try {
-        vortexWriter = VortexWriter.create(session, outputStream, vortexSchema, vortexAllocator);
+        // Persist the Iceberg schema in the file's metadata. Vortex drops Arrow field metadata, so
+        // this is the only channel that carries Iceberg field ids, and readers need them to rebind
+        // columns renamed since the file was written.
+        vortexWriter =
+            VortexWriter.builder(session, outputStream, vortexSchema, vortexAllocator)
+                .putMetadata(
+                    VortexSchemas.ICEBERG_SCHEMA_KEY,
+                    SchemaParser.toJson(writeSchema).getBytes(StandardCharsets.UTF_8))
+                .build();
       } catch (IOException | RuntimeException e) {
         try {
           outputStream.close();
@@ -309,6 +319,7 @@ public class VortexFormatModel<D, S, R>
     private PositionDeleteIndex posDeletes;
     private int workerThreads = TableProperties.VORTEX_WORKER_THREADS_DEFAULT;
     private boolean reuseContainers = false;
+    private NameMapping nameMapping;
 
     private ReadBuilderWrapper(
         InputFile inputFile,
@@ -393,7 +404,8 @@ public class VortexFormatModel<D, S, R>
     }
 
     @Override
-    public ReadBuilder<D, S> withNameMapping(NameMapping nameMapping) {
+    public ReadBuilder<D, S> withNameMapping(NameMapping newNameMapping) {
+      this.nameMapping = newNameMapping;
       return this;
     }
 
@@ -418,16 +430,16 @@ public class VortexFormatModel<D, S, R>
       // Compute the columns to scan from the data file. Constants (identity partition values and
       // metadata columns such as _file, _spec_id and _partition) come from idToConstant, and
       // _is_deleted is synthesized by the reader, so none of those are projected from the file.
-      // _pos is excluded here too, but when it is requested it is materialized separately from
-      // Vortex's `row_idx` scan expression (see VortexIterable) rather than read from the file.
+      // _pos is excluded here too: when it is requested it is materialized from Vortex's `row_idx`
+      // scan expression (see VortexIterable) rather than read from the file. Every other metadata
+      // column stays in the projection, because the row lineage columns are stored in the data
+      // file when the engine does not supply an inheritance base; VortexIterable drops any column
+      // the file turns out not to have.
       Map<Integer, ?> constants = idToConstant == null ? Collections.emptyMap() : idToConstant;
-      List<String> projection =
+      List<Types.NestedField> projection =
           schema.columns().stream()
-              .filter(
-                  field ->
-                      !constants.containsKey(field.fieldId())
-                          && !MetadataColumns.isMetadataColumn(field.name()))
-              .map(Types.NestedField::name)
+              .filter(field -> !constants.containsKey(field.fieldId()))
+              .filter(field -> !isSynthesizedColumn(field))
               .toList();
 
       boolean includeRowPosition =
@@ -459,8 +471,15 @@ public class VortexFormatModel<D, S, R>
           reuseContainers,
           readerFunc,
           batchReaderFunc,
+          nameMapping,
           caseSensitive,
           workerThreads);
+    }
+
+    /** Columns the reader materializes itself rather than reading from the data file. */
+    private static boolean isSynthesizedColumn(Types.NestedField field) {
+      return field.fieldId() == MetadataColumns.ROW_POSITION.fieldId()
+          || field.fieldId() == MetadataColumns.IS_DELETED.fieldId();
     }
 
     /**

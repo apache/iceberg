@@ -24,19 +24,19 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
-import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BinaryUtil;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.util.UnicodeUtil;
 
@@ -61,7 +61,26 @@ final class VortexMetrics {
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   static Metrics fromWriteSummary(
       Schema schema, MetricsConfig metricsConfig, VortexWriteSummary summary) {
-    List<Types.NestedField> columns = schema.columns();
+    return fromWriteSummary(schema, metricsConfig, summary, ImmutableMap.of());
+  }
+
+  /**
+   * Builds metrics from Vortex's native write summary, preferring bounds from {@code exactBounds}
+   * for the columns it covers.
+   *
+   * <p>Vortex truncates the string bounds it reports, widening them to a prefix range rather than
+   * the exact value. That is fine for pruning but loses information a caller may need exactly, so a
+   * writer that tracked a column itself can supply the precise bounds here.
+   */
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  static Metrics fromWriteSummary(
+      Schema schema,
+      MetricsConfig metricsConfig,
+      VortexWriteSummary summary,
+      Map<Integer, Pair<Object, Object>> exactBounds) {
+    // Vortex reports statistics per stored column, and unknown columns are not stored, so the
+    // indexes it returns line up with the written columns rather than with schema.columns().
+    List<Types.NestedField> columns = VortexSchemas.writtenFields(schema.columns());
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     Map<Integer, Long> valueCounts = Maps.newHashMap();
     Map<Integer, Long> nullValueCounts = Maps.newHashMap();
@@ -99,11 +118,14 @@ final class VortexMetrics {
 
       int truncateLength = truncateLength(mode);
 
+      Pair<Object, Object> exact = exactBounds.get(id);
       Object lowerValue =
-          colStats
-              .lowerBound()
-              .map(bound -> toIcebergBound(type.asPrimitiveType(), bound))
-              .orElse(null);
+          exact != null
+              ? exact.first()
+              : colStats
+                  .lowerBound()
+                  .map(bound -> toIcebergBound(type.asPrimitiveType(), bound))
+                  .orElse(null);
       if (lowerValue != null) {
         Object truncated = truncateLowerBound(type, lowerValue, truncateLength);
         if (truncated != null) {
@@ -113,10 +135,12 @@ final class VortexMetrics {
       }
 
       Object upperValue =
-          colStats
-              .upperBound()
-              .map(bound -> toIcebergBound(type.asPrimitiveType(), bound))
-              .orElse(null);
+          exact != null
+              ? exact.second()
+              : colStats
+                  .upperBound()
+                  .map(bound -> toIcebergBound(type.asPrimitiveType(), bound))
+                  .orElse(null);
       if (upperValue != null) {
         Object truncated = truncateUpperBound(type, upperValue, truncateLength);
         if (truncated != null) {
@@ -170,67 +194,6 @@ final class VortexMetrics {
               : null;
       default -> null;
     };
-  }
-
-  static Metrics buildMetrics(
-      long rowCount, Schema schema, MetricsConfig metricsConfig, Stream<FieldMetrics<?>> fields) {
-    Map<Integer, Long> valueCounts = Maps.newHashMap();
-    Map<Integer, Long> nullValueCounts = Maps.newHashMap();
-    Map<Integer, Long> nanValueCounts = Maps.newHashMap();
-    Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
-    Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
-    Map<Integer, Type> originalTypes = Maps.newHashMap();
-
-    fields.forEach(
-        fieldMetrics -> {
-          int id = fieldMetrics.id();
-          MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, id);
-
-          if (mode == MetricsModes.None.get()) {
-            return;
-          }
-
-          valueCounts.put(id, fieldMetrics.valueCount());
-          nullValueCounts.put(id, fieldMetrics.nullValueCount());
-
-          if (fieldMetrics.nanValueCount() >= 0) {
-            nanValueCounts.put(id, fieldMetrics.nanValueCount());
-          }
-
-          if (mode == MetricsModes.Counts.get()) {
-            return;
-          }
-
-          if (fieldMetrics.hasBounds()) {
-            Types.NestedField field = schema.findField(id);
-            Type type = field.type();
-            int truncateLength = truncateLength(mode);
-
-            Object lower = truncateLowerBound(type, fieldMetrics.lowerBound(), truncateLength);
-            if (lower != null) {
-              lowerBounds.put(id, Conversions.toByteBuffer(type, lower));
-              originalTypes.put(id, type);
-            }
-
-            Object upper = truncateUpperBound(type, fieldMetrics.upperBound(), truncateLength);
-            if (upper != null) {
-              upperBounds.put(id, Conversions.toByteBuffer(type, upper));
-              originalTypes.put(id, type);
-            }
-          }
-        });
-
-    addVariantValueCounts(rowCount, schema, metricsConfig, valueCounts);
-
-    return new Metrics(
-        rowCount,
-        null, // columnSizes are only available when metrics come from a VortexWriteSummary
-        valueCounts,
-        nullValueCounts,
-        nanValueCounts.isEmpty() ? null : nanValueCounts,
-        lowerBounds.isEmpty() ? null : lowerBounds,
-        upperBounds.isEmpty() ? null : upperBounds,
-        originalTypes.isEmpty() ? null : originalTypes);
   }
 
   private static void addVariantValueCounts(

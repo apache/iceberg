@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.sql;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.entry;
 
 import java.util.List;
 import org.apache.iceberg.Table;
@@ -64,17 +65,17 @@ public class TestSparkVortexVariantRead extends TestBase {
     sql("DROP TABLE IF EXISTS %s", TABLE);
     sql(
         "CREATE TABLE %s (id BIGINT, v1 VARIANT, v2 VARIANT, values ARRAY<BIGINT>, "
-            + "details STRUCT<existing: STRING>) USING iceberg "
+            + "props MAP<STRING, BIGINT>, details STRUCT<existing: STRING>) USING iceberg "
             + "TBLPROPERTIES ('format-version'='3', 'write.format.default'='vortex')",
         TABLE);
 
     sql(
         "INSERT INTO %s SELECT 1, parse_json('{\"a\":1}'), parse_json('{\"x\":10}'), "
-            + "array(1L, NULL, 3L), named_struct('existing', 'one')",
+            + "array(1L, NULL, 3L), map('k1', 1L, 'k2', NULL), named_struct('existing', 'one')",
         TABLE);
     sql(
         "INSERT INTO %s SELECT 2, parse_json('{\"b\":2}'), parse_json('{\"y\":20}'), "
-            + "array(), named_struct('existing', 'two')",
+            + "array(), map(), named_struct('existing', 'two')",
         TABLE);
   }
 
@@ -106,8 +107,26 @@ public class TestSparkVortexVariantRead extends TestBase {
   }
 
   @Test
+  public void readMapWithVariantProjection() {
+    // Projecting a variant forces the row-based reader, exercising SparkVortexValueReaders#map.
+    List<Row> rows = spark.table(TABLE).select("id", "v1", "props").orderBy("id").collectAsList();
+
+    assertThat(rows.get(0).getJavaMap(2)).containsExactly(entry("k1", 1L), entry("k2", null));
+    assertThat(rows.get(1).getJavaMap(2)).isEmpty();
+  }
+
+  @Test
+  public void readMapOnColumnarPath() {
+    // Without a variant in the projection the columnar Vortex reader handles the map column.
+    List<Row> rows = spark.table(TABLE).select("id", "props").orderBy("id").collectAsList();
+
+    assertThat(rows.get(0).getJavaMap(1)).containsExactly(entry("k1", 1L), entry("k2", null));
+    assertThat(rows.get(1).getJavaMap(1)).isEmpty();
+  }
+
+  @Test
   public void readNullVariant() {
-    sql("INSERT INTO %s SELECT 3, NULL, NULL, NULL, NULL", TABLE);
+    sql("INSERT INTO %s SELECT 3, NULL, NULL, NULL, NULL, NULL", TABLE);
 
     List<Row> rows = spark.table(TABLE).select("id", "v1").where("id = 3").collectAsList();
     assertThat(rows).hasSize(1);

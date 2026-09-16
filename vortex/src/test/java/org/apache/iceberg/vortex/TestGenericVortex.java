@@ -119,7 +119,7 @@ public class TestGenericVortex extends DataTestBase {
 
   @Override
   protected boolean supportsUnknown() {
-    return false;
+    return true;
   }
 
   @Override
@@ -134,6 +134,16 @@ public class TestGenericVortex extends DataTestBase {
 
   @Override
   protected boolean supportsDefaultValues() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsRowLineage() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsGeospatial() {
     return true;
   }
 
@@ -196,11 +206,10 @@ public class TestGenericVortex extends DataTestBase {
   }
 
   private static void assumeSupported(Schema schema) {
-    assumeThat(
-            TypeUtil.find(
-                schema,
-                type -> type.typeId() == Type.TypeID.MAP || type.typeId() == Type.TypeID.FIXED))
-        .as("Vortex does not yet support maps or fixed")
+    // Vortex has no fixed-width binary type, so Iceberg FIXED cannot be written at all. Any
+    // scenario whose schema contains one, at any depth, is skipped along with it.
+    assumeThat(TypeUtil.find(schema, type -> type.typeId() == Type.TypeID.FIXED))
+        .as("Vortex has no fixed-width binary type")
         .isNull();
   }
 

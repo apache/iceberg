@@ -19,9 +19,6 @@
 package org.apache.iceberg.vortex;
 
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.iceberg.Schema;
@@ -37,6 +34,8 @@ public abstract class VortexSchemaWithTypeVisitor<T> {
   public abstract T struct(Types.StructType iStruct, List<Field> fields, List<T> children);
 
   public abstract T list(Types.ListType iList, Field listField, T element);
+
+  public abstract T map(Types.MapType iMap, Field mapField, T key, T value);
 
   public abstract T primitive(Type.PrimitiveType iPrimitive, Field primField);
 
@@ -60,13 +59,30 @@ public abstract class VortexSchemaWithTypeVisitor<T> {
     } else if (arrowType instanceof ArrowType.List
         || arrowType instanceof ArrowType.LargeList
         || arrowType instanceof ArrowType.FixedSizeList) {
-      Types.ListType list = iType != null ? iType.asListType() : null;
-      Field element = field.getChildren().get(0);
-      return visitor.list(
-          list, field, visit(list != null ? list.elementType() : null, element, visitor));
+      return visitList(iType != null ? iType.asListType() : null, field, visitor);
+    } else if (arrowType instanceof ArrowType.Map) {
+      return visitMap(iType != null ? iType.asMapType() : null, field, visitor);
     } else {
       return visitor.primitive(iType != null ? iType.asPrimitiveType() : null, field);
     }
+  }
+
+  private static <T> T visitList(
+      Types.ListType list, Field listField, VortexSchemaWithTypeVisitor<T> visitor) {
+    Field element = listField.getChildren().get(0);
+    return visitor.list(
+        list, listField, visit(list != null ? list.elementType() : null, element, visitor));
+  }
+
+  /** Arrow maps nest their key and value under a single non-nullable {@code entries} struct. */
+  private static <T> T visitMap(
+      Types.MapType map, Field mapField, VortexSchemaWithTypeVisitor<T> visitor) {
+    List<Field> entries = mapField.getChildren().get(0).getChildren();
+    return visitor.map(
+        map,
+        mapField,
+        visit(map != null ? map.keyType() : null, entries.get(0), visitor),
+        visit(map != null ? map.valueType() : null, entries.get(1), visitor));
   }
 
   private static boolean isVariant(Type iType, Field field) {
@@ -85,19 +101,19 @@ public abstract class VortexSchemaWithTypeVisitor<T> {
       return visitor.struct(null, fields, results);
     }
 
-    // Arrow/Vortex schemas carry no Iceberg field ids, so expected struct fields are bound to file
-    // columns by name (the top-level reader resolves columns the same way). Driving the walk from
-    // the expected fields lets a projection reorder, drop, or add struct fields relative to the
+    // Expected struct fields are bound to file columns by Iceberg id when the file carries them
+    // (VortexIterable tags the Arrow schema from the file's stored Iceberg schema) and by name
+    // otherwise; the top-level reader resolves columns the same way. Driving the walk from the
+    // expected fields lets a projection reorder, drop, or add struct fields relative to the
     // physical file layout. The returned fields/children are aligned to the expected fields, with a
     // null entry wherever the file does not contain the expected field.
-    Map<String, Field> fileFieldsByName =
-        fields.stream().collect(Collectors.toUnmodifiableMap(Field::getName, Function.identity()));
+    VortexSchemas.FieldBinding binding = VortexSchemas.FieldBinding.of(fields);
 
     List<Types.NestedField> expectedFields = struct.fields();
     List<Field> matchedFields = Lists.newArrayListWithExpectedSize(expectedFields.size());
     List<T> results = Lists.newArrayListWithExpectedSize(expectedFields.size());
     for (Types.NestedField expectedField : expectedFields) {
-      Field fileField = fileFieldsByName.get(expectedField.name());
+      Field fileField = binding.resolve(expectedField);
       matchedFields.add(fileField);
       results.add(fileField == null ? null : visit(expectedField.type(), fileField, visitor));
     }

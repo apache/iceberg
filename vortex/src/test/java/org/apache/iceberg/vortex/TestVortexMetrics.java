@@ -30,11 +30,8 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Stream;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
@@ -57,6 +54,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.Variants;
@@ -76,133 +74,33 @@ public class TestVortexMetrics {
   @TempDir private Path temp;
 
   @Test
-  public void testFieldMetricsFromWriter() {
-    VortexValueWriter<Record> writer = GenericVortexWriter.buildWriter(SCHEMA);
-
-    addRecord(writer, 1L, "Alice", 1000L, 4.5);
-    addRecord(writer, 2L, "Bob", null, Double.NaN);
-    addRecord(writer, 3L, "Carol", 3000L, 3.2);
-
-    Map<Integer, FieldMetrics<?>> metricsMap = collectMetricsById(writer);
-
-    // id: required, all non-null
-    FieldMetrics<?> idMetrics = metricsMap.get(1);
-    assertThat(idMetrics.valueCount()).isEqualTo(3);
-    assertThat(idMetrics.nullValueCount()).isEqualTo(0);
-    assertThat(idMetrics.lowerBound()).isEqualTo(1L);
-    assertThat(idMetrics.upperBound()).isEqualTo(3L);
-
-    // name: optional, all present
-    FieldMetrics<?> nameMetrics = metricsMap.get(2);
-    assertThat(nameMetrics.valueCount()).isEqualTo(3);
-    assertThat(nameMetrics.nullValueCount()).isEqualTo(0);
-    assertThat(nameMetrics.lowerBound()).isEqualTo("Alice");
-    assertThat(nameMetrics.upperBound()).isEqualTo("Carol");
-
-    // salary: optional, one null
-    FieldMetrics<?> salaryMetrics = metricsMap.get(3);
-    assertThat(salaryMetrics.valueCount()).isEqualTo(3);
-    assertThat(salaryMetrics.nullValueCount()).isEqualTo(1);
-    assertThat(salaryMetrics.lowerBound()).isEqualTo(1000L);
-    assertThat(salaryMetrics.upperBound()).isEqualTo(3000L);
-
-    // rating: double with NaN
-    FieldMetrics<?> ratingMetrics = metricsMap.get(4);
-    assertThat(ratingMetrics.valueCount()).isEqualTo(3);
-    assertThat(ratingMetrics.nullValueCount()).isEqualTo(0);
-    assertThat(ratingMetrics.nanValueCount()).isEqualTo(1);
-    assertThat(ratingMetrics.lowerBound()).isEqualTo(3.2);
-    assertThat(ratingMetrics.upperBound()).isEqualTo(4.5);
-  }
-
-  @Test
-  public void testBuildMetricsFullMode() {
-    VortexValueWriter<Record> writer = GenericVortexWriter.buildWriter(SCHEMA);
-
-    addRecord(writer, 1L, "Alice", 1000L, 4.5);
-    addRecord(writer, 2L, "Bob", null, 3.2);
-
-    Metrics metrics =
-        VortexMetrics.buildMetrics(2L, SCHEMA, MetricsConfig.getDefault(), writer.metrics());
-
-    assertThat(metrics.recordCount()).isEqualTo(2L);
-
-    // value counts
-    assertThat(metrics.valueCounts()).containsEntry(1, 2L);
-    assertThat(metrics.valueCounts()).containsEntry(2, 2L);
-    assertThat(metrics.valueCounts()).containsEntry(3, 2L);
-
-    // null counts
-    assertThat(metrics.nullValueCounts()).containsEntry(1, 0L);
-    assertThat(metrics.nullValueCounts()).containsEntry(3, 1L);
-
-    // bounds are ByteBuffers
-    assertThat(
-            (Object) Conversions.fromByteBuffer(Types.LongType.get(), metrics.lowerBounds().get(1)))
-        .isEqualTo(1L);
-    assertThat(
-            (Object) Conversions.fromByteBuffer(Types.LongType.get(), metrics.upperBounds().get(1)))
-        .isEqualTo(2L);
-
-    assertThat(
-            Conversions.fromByteBuffer(Types.StringType.get(), metrics.lowerBounds().get(2))
-                .toString())
-        .isEqualTo("Alice");
-    assertThat(
-            Conversions.fromByteBuffer(Types.StringType.get(), metrics.upperBounds().get(2))
-                .toString())
-        .isEqualTo("Bob");
-  }
-
-  @Test
-  public void testMetricsCountsMode() {
+  void summaryMetricsInCountsMode() throws Exception {
     MetricsConfig countsConfig =
         MetricsConfig.fromProperties(
             ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts"));
+    Schema schema = new Schema(optional(1, "name", Types.StringType.get()));
+    FileAppender<Record> appender = buildAppender(schema, "counts.vortex", countsConfig);
+    appender.add(stringRecord(schema, "Alice"));
+    appender.close();
 
-    VortexValueWriter<Record> writer = GenericVortexWriter.buildWriter(SCHEMA);
-    addRecord(writer, 1L, "Alice", 1000L, 4.5);
-
-    Metrics metrics = VortexMetrics.buildMetrics(1L, SCHEMA, countsConfig, writer.metrics());
-
-    assertThat(metrics.recordCount()).isEqualTo(1L);
+    Metrics metrics = appender.metrics();
     assertThat(metrics.valueCounts()).containsEntry(1, 1L);
     assertThat(metrics.nullValueCounts()).containsEntry(1, 0L);
-
-    // no bounds in counts mode
     assertThat(metrics.lowerBounds()).isNull();
     assertThat(metrics.upperBounds()).isNull();
   }
 
   @Test
-  public void testVariantColumnReportsRowCountWithoutBounds() {
-    Schema variantSchema =
-        new Schema(
-            required(1, "id", Types.LongType.get()),
-            optional(2, "payload", Types.VariantType.get()));
-    FieldMetrics<Long> idMetrics = new FieldMetrics<>(1, 3, 0, 10L, 12L);
-
-    Metrics metrics =
-        VortexMetrics.buildMetrics(
-            3L, variantSchema, MetricsConfig.getDefault(), Stream.of(idMetrics));
-
-    assertThat(metrics.valueCounts()).containsEntry(2, 3L);
-    assertThat(metrics.nullValueCounts()).doesNotContainKey(2);
-    assertThat(metrics.lowerBounds()).doesNotContainKey(2);
-    assertThat(metrics.upperBounds()).doesNotContainKey(2);
-  }
-
-  @Test
-  public void testMetricsNoneMode() {
+  void summaryMetricsInNoneMode() throws Exception {
     MetricsConfig noneConfig =
         MetricsConfig.fromProperties(
             ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none"));
+    Schema schema = new Schema(optional(1, "name", Types.StringType.get()));
+    FileAppender<Record> appender = buildAppender(schema, "none.vortex", noneConfig);
+    appender.add(stringRecord(schema, "Alice"));
+    appender.close();
 
-    VortexValueWriter<Record> writer = GenericVortexWriter.buildWriter(SCHEMA);
-    addRecord(writer, 1L, "Alice", 1000L, 4.5);
-
-    Metrics metrics = VortexMetrics.buildMetrics(1L, SCHEMA, noneConfig, writer.metrics());
-
+    Metrics metrics = appender.metrics();
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.valueCounts()).isEmpty();
     assertThat(metrics.nullValueCounts()).isEmpty();
@@ -211,61 +109,31 @@ public class TestVortexMetrics {
   }
 
   @Test
-  public void testMetricsTruncateMode() {
+  void summaryMetricsRespectTruncateMode() throws Exception {
+    // Iceberg truncation applies on top of whatever bounds Vortex reports.
     MetricsConfig truncateConfig =
         MetricsConfig.fromProperties(
-            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(2)"));
+            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(3)"));
+    Schema schema = new Schema(optional(1, "name", Types.StringType.get()));
+    FileAppender<Record> appender = buildAppender(schema, "truncate.vortex", truncateConfig);
+    appender.add(stringRecord(schema, "abcdef"));
+    appender.close();
 
-    Schema stringSchema = new Schema(required(1, "name", Types.StringType.get()));
-
-    FieldMetrics<String> fieldMetrics = new FieldMetrics<>(1, 1, 0, "abcdef", "abcdef");
-
-    Metrics metrics =
-        VortexMetrics.buildMetrics(1L, stringSchema, truncateConfig, Stream.of(fieldMetrics));
-
-    // lower bound should be truncated to "ab"
-    ByteBuffer lowerBound = metrics.lowerBounds().get(1);
-    assertThat(Conversions.fromByteBuffer(Types.StringType.get(), lowerBound).toString())
-        .isEqualTo("ab");
-
-    // upper bound should be truncated to "ac" (truncateStringMax increments last char)
-    ByteBuffer upperBound = metrics.upperBounds().get(1);
-    assertThat(Conversions.fromByteBuffer(Types.StringType.get(), upperBound).toString())
-        .isEqualTo("ac");
+    Metrics metrics = appender.metrics();
+    assertThat(
+            Conversions.fromByteBuffer(Types.StringType.get(), metrics.lowerBounds().get(1))
+                .toString())
+        .isEqualTo("abc");
+    assertThat(
+            Conversions.fromByteBuffer(Types.StringType.get(), metrics.upperBounds().get(1))
+                .toString())
+        .isEqualTo("abd");
   }
 
-  @Test
-  public void testAllNullColumn() {
-    VortexValueWriter<Record> writer = GenericVortexWriter.buildWriter(SCHEMA);
-    addRecord(writer, 1L, null, null, null);
-    addRecord(writer, 2L, null, null, null);
-
-    Map<Integer, FieldMetrics<?>> metricsMap = collectMetricsById(writer);
-
-    FieldMetrics<?> nameMetrics = metricsMap.get(2);
-    assertThat(nameMetrics.valueCount()).isEqualTo(2);
-    assertThat(nameMetrics.nullValueCount()).isEqualTo(2);
-    assertThat(nameMetrics.hasBounds()).isFalse();
-  }
-
-  @Test
-  public void testAllNaNDoubleColumn() {
-    Schema doubleSchema = new Schema(required(1, "val", Types.DoubleType.get()));
-    VortexValueWriter<Record> writer = GenericVortexWriter.buildWriter(doubleSchema);
-
-    GenericRecord record = GenericRecord.create(doubleSchema);
-    record.set(0, Double.NaN);
-    // write directly through tracker, not through VectorSchemaRoot
-    // Just test FieldMetrics directly
-    FieldMetrics<Double> fieldMetrics = new FieldMetrics<>(1, 2, 0, 2L, null, null);
-
-    Metrics metrics =
-        VortexMetrics.buildMetrics(
-            2L, doubleSchema, MetricsConfig.getDefault(), Stream.of(fieldMetrics));
-
-    assertThat(metrics.nanValueCounts()).containsEntry(1, 2L);
-    assertThat(metrics.lowerBounds()).isNull();
-    assertThat(metrics.upperBounds()).isNull();
+  private static Record stringRecord(Schema schema, String value) {
+    Record record = GenericRecord.create(schema);
+    record.setField("name", value);
+    return record;
   }
 
   @Test
@@ -407,7 +275,39 @@ public class TestVortexMetrics {
     assertThat(metrics.upperBounds()).isNull();
   }
 
+  @Test
+  void summaryMetricsForMapReportCountsWithoutBounds() throws Exception {
+    // Vortex only computes statistics for top-level columns, so a map column carries no bounds.
+    Schema schema =
+        new Schema(
+            optional(
+                1,
+                "props",
+                Types.MapType.ofOptional(2, 3, Types.StringType.get(), Types.IntegerType.get())));
+
+    Record first = GenericRecord.create(schema);
+    first.setField("props", ImmutableMap.of("a", 1, "b", 2));
+    Record second = GenericRecord.create(schema);
+    second.setField("props", null);
+
+    FileAppender<Record> appender = buildAppender(schema, "map.vortex");
+    appender.add(first);
+    appender.add(second);
+    appender.close();
+
+    Metrics metrics = appender.metrics();
+    assertThat(metrics.recordCount()).isEqualTo(2L);
+    assertThat(metrics.columnSizes()).containsKey(1);
+    assertThat(metrics.lowerBounds()).isNull();
+    assertThat(metrics.upperBounds()).isNull();
+  }
+
   private FileAppender<Record> buildAppender(Schema schema, String fileName) throws Exception {
+    return buildAppender(schema, fileName, MetricsConfig.getDefault());
+  }
+
+  private FileAppender<Record> buildAppender(
+      Schema schema, String fileName, MetricsConfig metricsConfig) throws Exception {
     VortexFormatModel<Record, Void, VortexRowReader<?>> model =
         VortexFormatModel.create(
             Record.class,
@@ -419,29 +319,15 @@ public class TestVortexMetrics {
     return model
         .writeBuilder(EncryptedFiles.plainAsEncryptedOutput(outputFile))
         .schema(schema)
+        .metricsConfig(metricsConfig)
         .content(FileContent.DATA)
         .build();
   }
 
   @Test
-  void appenderCollectsMetricsIndependentlyOfValueWriter() throws Exception {
+  void appenderCollectsMetricsFromTheWrittenFile() throws Exception {
     Schema schema = new Schema(optional(1, "value", Types.IntegerType.get()));
-    VortexValueWriter<Record> delegate = GenericVortexWriter.buildWriter(schema);
-    VortexValueWriter<Record> writerWithoutMetrics = delegate::write;
-    VortexFormatModel<Record, Void, VortexRowReader<?>> model =
-        VortexFormatModel.create(
-            Record.class,
-            Void.class,
-            (icebergSchema, fileSchema, engineSchema) -> writerWithoutMetrics,
-            (VortexFormatModel.ReaderFunction<Record>) GenericVortexReader::buildReader);
-    OutputFile outputFile = Files.localOutput(temp.resolve("metrics.vortex").toFile());
-
-    FileAppender<Record> appender =
-        model
-            .writeBuilder(EncryptedFiles.plainAsEncryptedOutput(outputFile))
-            .schema(schema)
-            .content(FileContent.DATA)
-            .build();
+    FileAppender<Record> appender = buildAppender(schema, "metrics.vortex");
     Record first = GenericRecord.create(schema);
     first.setField("value", 10);
     appender.add(first);
@@ -450,7 +336,6 @@ public class TestVortexMetrics {
     appender.add(second);
     appender.close();
 
-    assertThat(writerWithoutMetrics.metrics()).isEmpty();
     assertThat(appender.metrics().valueCounts()).containsEntry(1, 2L);
     assertThat(appender.metrics().nullValueCounts()).containsEntry(1, 1L);
     assertThat(
@@ -499,6 +384,33 @@ public class TestVortexMetrics {
   }
 
   @Test
+  void positionDeleteFileIsFileScopedForLongPaths() throws Exception {
+    // Iceberg infers that a delete file covers a single data file from an equal lower and upper
+    // bound on file_path, and only rewrites deletes it can attribute to one data file. Vortex's
+    // native string statistics report a truncated prefix range, so a realistic path would compare
+    // unequal and the delete file would read as partition scoped.
+    String longPath =
+        "/warehouse/default/table/data/00000-0-abcdef01-2345-6789-abcd-ef0123456789-00001.parquet";
+    assertThat(longPath.length()).isGreaterThan(64);
+
+    OutputFile outputFile = Files.localOutput(temp.resolve("long-path-deletes.vortex").toFile());
+    PositionDeleteWriter<Void> writer =
+        FormatModelRegistry.<Void>positionDeleteWriteBuilder(
+                FileFormat.VORTEX, EncryptedFiles.plainAsEncryptedOutput(outputFile))
+            .metricsConfig(MetricsConfig.forPositionDelete())
+            .spec(PartitionSpec.unpartitioned())
+            .build();
+    PositionDelete<Void> delete = PositionDelete.create();
+    writer.write(delete.set(longPath, 1L, null));
+    writer.write(delete.set(longPath, 3L, null));
+    writer.close();
+
+    DeleteFile deleteFile = writer.toDeleteFile();
+    assertThat(ContentFileUtil.referencedDataFile(deleteFile)).hasToString(longPath);
+    assertThat(ContentFileUtil.isFileScoped(deleteFile)).isTrue();
+  }
+
+  @Test
   void positionDeleteFilePreservesBounds() throws Exception {
     OutputFile outputFile = Files.localOutput(temp.resolve("position-delete-file.vortex").toFile());
     PositionDeleteWriter<Void> writer =
@@ -526,40 +438,5 @@ public class TestVortexMetrics {
             Conversions.<Long>fromByteBuffer(
                 Types.LongType.get(), deleteFile.upperBounds().get(positionId)))
         .isEqualTo(3L);
-  }
-
-  private static void addRecord(
-      VortexValueWriter<Record> writer, Long id, String name, Long salary, Double rating) {
-    // We can't write through VectorSchemaRoot in unit tests (needs Arrow allocation),
-    // but GenericVortexWriter tracks metrics before writing to vectors.
-    // Use reflection-free approach: call the writer's metrics tracking directly.
-    // Actually, the GenericVortexWriter.write() will throw on null root vectors,
-    // so let's use the tracker-level testing approach via metrics() directly.
-    // For integration testing we'd need the full Arrow stack.
-    //
-    // Instead, let's test the tracker directly through GenericVortexWriter internals.
-    GenericRecord record = GenericRecord.create(SCHEMA);
-    record.set(0, id);
-    record.set(1, name);
-    record.set(2, salary);
-    record.set(3, rating);
-
-    // We need to create an actual VectorSchemaRoot for the write call.
-    // Use a shared helper that creates an Arrow root.
-    try (org.apache.arrow.memory.BufferAllocator allocator =
-            new org.apache.arrow.memory.RootAllocator();
-        org.apache.arrow.vector.VectorSchemaRoot root =
-            org.apache.arrow.vector.VectorSchemaRoot.create(
-                VortexSchemas.toArrowSchema(SCHEMA), allocator)) {
-      root.allocateNew();
-      writer.write(record, root, 0);
-    }
-  }
-
-  private static Map<Integer, FieldMetrics<?>> collectMetricsById(
-      VortexValueWriter<Record> writer) {
-    Map<Integer, FieldMetrics<?>> map = new java.util.HashMap<>();
-    writer.metrics().forEach(m -> map.put(m.id(), m));
-    return map;
   }
 }

@@ -19,32 +19,69 @@
 package org.apache.iceberg.data.vortex;
 
 import java.nio.charset.StandardCharsets;
-import java.util.stream.Stream;
+import java.util.Comparator;
+import java.util.Map;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.iceberg.FieldMetrics;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.vortex.VortexExactBounds;
 import org.apache.iceberg.vortex.VortexValueWriter;
 
 /**
  * Writes {@link PositionDelete} objects to Arrow vectors for Vortex position delete file output.
  *
  * <p>The output schema is [file_path: string, pos: long].
+ *
+ * <p>The paths are tracked as they are written because Vortex reports string bounds as a truncated
+ * prefix range. Iceberg reads a delete file as covering a single data file when {@code file_path}'s
+ * bounds are equal, and only rewrites deletes it can attribute to one data file, so a truncated
+ * bound would leave every delete file looking partition scoped.
  */
-public class PositionDeleteVortexWriter<D> implements VortexValueWriter<PositionDelete<D>> {
+public class PositionDeleteVortexWriter<D>
+    implements VortexValueWriter<PositionDelete<D>>, VortexExactBounds {
+  private static final Comparator<CharSequence> PATHS = Comparators.charSequences();
+
+  private String lowerPath = null;
+  private String upperPath = null;
+
   @Override
   public void write(PositionDelete<D> datum, VectorSchemaRoot root, int rowIndex) {
     VarCharVector pathVector = (VarCharVector) root.getVector(0);
-    byte[] pathBytes = datum.path().toString().getBytes(StandardCharsets.UTF_8);
-    pathVector.setSafe(rowIndex, pathBytes);
+    // Copied rather than referenced: callers reuse a single PositionDelete across rows, so a path
+    // this writer retains has to be independent of it.
+    String path = datum.path().toString();
+    pathVector.setSafe(rowIndex, path.getBytes(StandardCharsets.UTF_8));
+
+    if (lowerPath == null || PATHS.compare(path, lowerPath) < 0) {
+      this.lowerPath = path;
+    }
+
+    if (upperPath == null || PATHS.compare(path, upperPath) > 0) {
+      this.upperPath = path;
+    }
 
     BigIntVector posVector = (BigIntVector) root.getVector(1);
     posVector.setSafe(rowIndex, datum.pos());
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * <p>Only {@code file_path} is tracked. Vortex reports exact bounds for the numeric {@code pos}
+   * column, so there is nothing to correct there.
+   */
   @Override
-  public Stream<FieldMetrics<?>> metrics() {
-    return Stream.empty();
+  public Map<Integer, Pair<Object, Object>> exactBounds() {
+    if (lowerPath == null) {
+      return ImmutableMap.of();
+    }
+
+    return ImmutableMap.of(
+        MetadataColumns.DELETE_FILE_PATH.fieldId(), Pair.of(lowerPath, upperPath));
   }
 }

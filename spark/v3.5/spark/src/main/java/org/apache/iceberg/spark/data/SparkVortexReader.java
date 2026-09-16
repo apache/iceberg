@@ -39,6 +39,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.vortex.BoundVortexReader;
 import org.apache.iceberg.vortex.VortexRowReader;
 import org.apache.iceberg.vortex.VortexSchemaWithTypeVisitor;
+import org.apache.iceberg.vortex.VortexSchemas;
 import org.apache.iceberg.vortex.VortexValueReader;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
@@ -67,11 +68,7 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
       Map<Integer, ?> idToConstant) {
     Map<Integer, ?> constants = idToConstant == null ? Collections.emptyMap() : idToConstant;
 
-    List<Field> fileFields = fileArrowSchema.getFields();
-    Map<String, Field> arrowFieldsByName = Maps.newHashMapWithExpectedSize(fileFields.size());
-    for (Field field : fileFields) {
-      arrowFieldsByName.put(field.getName(), field);
-    }
+    VortexSchemas.FieldBinding binding = VortexSchemas.FieldBinding.of(fileArrowSchema.getFields());
 
     List<Types.NestedField> expected = readSchema.columns();
     this.readers = new VortexValueReader<?>[expected.size()];
@@ -87,7 +84,7 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
         this.columnNames[i] = field.name();
       } else if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()
           && constants.get(id) instanceof Long seqNumber) {
-        if (arrowFieldsByName.containsKey(field.name())) {
+        if (binding.resolveByName(field.name()) != null) {
           // Stored values win; nulls inherit the file's sequence number.
           this.readers[i] = GenericVortexReaders.longsOrDefault(seqNumber);
           this.columnNames[i] = field.name();
@@ -101,7 +98,7 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
       } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
         this.readers[i] = GenericVortexReaders.constants(false);
       } else {
-        Field arrowField = arrowFieldsByName.get(field.name());
+        Field arrowField = binding.resolve(field);
         if (arrowField == null) {
           this.readers[i] = defaultReader(field);
         } else {
@@ -206,6 +203,12 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
     }
 
     @Override
+    public VortexValueReader<?> map(
+        Types.MapType iMap, Field mapField, VortexValueReader<?> key, VortexValueReader<?> value) {
+      return SparkVortexValueReaders.map(key, value);
+    }
+
+    @Override
     public VortexValueReader<?> variant(Types.VariantType variantType, Field variantField) {
       // Spark 3.5 has no VariantType/VariantVal, so variant columns cannot be read here.
       throw new UnsupportedOperationException("Variant is not supported for Spark 3.5");
@@ -221,6 +224,10 @@ public class SparkVortexReader implements VortexRowReader<InternalRow> {
         case DOUBLE -> doubleReader(primField.getType());
         case STRING -> SparkVortexValueReaders.utf8String(primField.getType());
         case BINARY -> SparkVortexValueReaders.bytes(primField.getType());
+          // Reached for a list element or map key/value: a struct field of type unknown is not in
+          // the file at all, so it never gets here. Spark models unknown as NullType, whose only
+          // value is null.
+        case UNKNOWN -> GenericVortexReaders.unknowns();
         case DECIMAL -> SparkVortexValueReaders.decimals();
         case TIMESTAMP, TIMESTAMP_NANO -> {
           ArrowType.Timestamp ts = (ArrowType.Timestamp) primField.getType();

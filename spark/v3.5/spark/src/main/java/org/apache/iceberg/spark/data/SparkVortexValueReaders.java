@@ -33,15 +33,21 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.ViewVarBinaryVector;
 import org.apache.arrow.vector.ViewVarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.MapVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.vortex.BoundVortexReader;
 import org.apache.iceberg.vortex.VortexArrowProperties;
+import org.apache.iceberg.vortex.VortexSchemas;
 import org.apache.iceberg.vortex.VortexValueReader;
+import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
+import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 
@@ -94,6 +100,50 @@ public class SparkVortexValueReaders {
 
   static VortexValueReader<ArrayData> list(VortexValueReader<?> elementReader) {
     return new ListReader(elementReader);
+  }
+
+  static VortexValueReader<MapData> map(
+      VortexValueReader<?> keyReader, VortexValueReader<?> valueReader) {
+    return new MapReader(keyReader, valueReader);
+  }
+
+  private static class MapReader extends BoundVortexReader<MapData> {
+    private final VortexValueReader<?> keyReader;
+    private final VortexValueReader<?> valueReader;
+    private MapVector mapVector;
+
+    private MapReader(VortexValueReader<?> keyReader, VortexValueReader<?> valueReader) {
+      this.keyReader = keyReader;
+      this.valueReader = valueReader;
+    }
+
+    @Override
+    protected void bindVector(FieldVector vector) {
+      this.mapVector = (MapVector) vector;
+      StructVector entries = (StructVector) mapVector.getDataVector();
+      FieldVector keys = entries.getChild(VortexSchemas.MAP_KEY_NAME, FieldVector.class);
+      FieldVector values = entries.getChild(VortexSchemas.MAP_VALUE_NAME, FieldVector.class);
+      Preconditions.checkState(
+          keys != null && values != null,
+          "Vortex batch is missing map entry children: %s",
+          entries.getField());
+      keyReader.bind(keys);
+      valueReader.bind(values);
+    }
+
+    @Override
+    public MapData readNonNull(int row) {
+      int start = mapVector.getElementStartIndex(row);
+      int end = mapVector.getElementEndIndex(row);
+      Object[] keys = new Object[end - start];
+      Object[] values = new Object[end - start];
+      for (int index = start; index < end; index++) {
+        keys[index - start] = keyReader.read(index);
+        values[index - start] = valueReader.read(index);
+      }
+
+      return new ArrayBasedMapData(new GenericArrayData(keys), new GenericArrayData(values));
+    }
   }
 
   private static class ListReader extends BoundVortexReader<ArrayData> {

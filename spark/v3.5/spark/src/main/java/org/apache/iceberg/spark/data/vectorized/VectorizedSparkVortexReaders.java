@@ -25,6 +25,7 @@ import org.apache.arrow.vector.BaseIntVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.StructVector;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -32,6 +33,7 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.vortex.VortexArrowProperties;
 import org.apache.iceberg.vortex.VortexBatchReader;
+import org.apache.iceberg.vortex.VortexSchemas;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ColumnVector;
@@ -55,22 +57,30 @@ public class VectorizedSparkVortexReaders {
       Schema icebergSchema,
       org.apache.arrow.vector.types.pojo.Schema vortexSchema,
       Map<Integer, ?> idToConstant) {
-    return new ConstantAwareBatchReader(icebergSchema, idToConstant);
+    return new ConstantAwareBatchReader(icebergSchema, vortexSchema, idToConstant);
   }
 
   static final class ConstantAwareBatchReader implements VortexBatchReader<ColumnarBatch> {
     private final List<Types.NestedField> columns;
+    private final VortexSchemas.FieldBinding binding;
     private final Map<Integer, ?> idToConstant;
 
-    // Resolves expected column position -> Arrow batch column index, computed by name from the
-    // first batch. -1 marks a constant column not backed by a batch column. Vortex returns only the
+    // Resolves expected column position -> Arrow batch column index, computed from the first
+    // batch. -1 marks a constant column not backed by a batch column. Vortex returns only the
     // projected (non-constant, file-resident) columns, so the batch is not positionally aligned
-    // with
-    // the reader schema.
+    // with the reader schema.
     private int[] batchColumnIndex;
 
-    ConstantAwareBatchReader(Schema readerSchema, Map<Integer, ?> idToConstant) {
+    // The id-annotated Arrow field backing each expected column, parallel to batchColumnIndex.
+    // Batch vectors carry no field ids, so nested fields are bound through these instead.
+    private Field[] batchColumnField;
+
+    ConstantAwareBatchReader(
+        Schema readerSchema,
+        org.apache.arrow.vector.types.pojo.Schema fileArrowSchema,
+        Map<Integer, ?> idToConstant) {
       this.columns = readerSchema.columns();
+      this.binding = VortexSchemas.FieldBinding.of(fileArrowSchema.getFields());
       this.idToConstant = idToConstant == null ? Collections.emptyMap() : idToConstant;
     }
 
@@ -79,20 +89,27 @@ public class VectorizedSparkVortexReaders {
       int rowCount = batch.getRowCount();
       List<FieldVector> fieldVectors = batch.getFieldVectors();
       if (batchColumnIndex == null) {
+        this.batchColumnField = new Field[columns.size()];
         this.batchColumnIndex = resolveColumns(fieldVectors);
       }
 
       // Build columns in reader-schema order so they line up with Spark's expected output schema.
       ColumnVector[] vectors = new ColumnVector[columns.size()];
       for (int i = 0; i < columns.size(); i++) {
-        vectors[i] = columnVector(columns.get(i), batchColumnIndex[i], fieldVectors, rowCount);
+        vectors[i] =
+            columnVector(
+                columns.get(i), batchColumnIndex[i], batchColumnField[i], fieldVectors, rowCount);
       }
 
       return new ColumnarBatch(vectors, rowCount);
     }
 
     private ColumnVector columnVector(
-        Types.NestedField field, int columnIndex, List<FieldVector> fieldVectors, int rowCount) {
+        Types.NestedField field,
+        int columnIndex,
+        Field fileField,
+        List<FieldVector> fieldVectors,
+        int rowCount) {
       int id = field.fieldId();
       if (columnIndex >= 0
           && id == MetadataColumns.ROW_ID.fieldId()
@@ -106,7 +123,8 @@ public class VectorizedSparkVortexReaders {
         // Stored values win; nulls inherit the file's sequence number.
         return new LongOrDefaultColumnVector(seqNumber, fieldVectors.get(columnIndex));
       } else if (columnIndex >= 0) {
-        return new VortexArrowColumnVector(fieldVectors.get(columnIndex));
+        return new VortexArrowColumnVector(
+            fieldVectors.get(columnIndex), fileField, fileField == null ? null : field.type());
       } else if (idToConstant.containsKey(id)) {
         return new ConstantColumnVector(field.type(), rowCount, idToConstant.get(id));
       } else if (id == MetadataColumns.IS_DELETED.fieldId()) {
@@ -139,8 +157,12 @@ public class VectorizedSparkVortexReaders {
         } else if (idToConstant.containsKey(field.fieldId())) {
           indexes[i] = -1;
         } else {
-          Integer index = nameToIndex.get(field.name());
+          // The scan projects each column under its name in the file, which differs from the
+          // expected field's name when the column was renamed after the file was written.
+          Field fileField = binding.resolve(field);
+          Integer index = fileField == null ? null : nameToIndex.get(fileField.getName());
           indexes[i] = index == null ? -1 : index;
+          batchColumnField[i] = index == null ? null : fileField;
         }
       }
 

@@ -29,6 +29,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.BaseIntVector;
@@ -51,6 +52,7 @@ import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.ViewVarBinaryVector;
 import org.apache.arrow.vector.ViewVarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -59,6 +61,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.UUIDUtil;
@@ -109,6 +112,14 @@ public class GenericVortexReaders {
     }
 
     return vector.getObjectNotNull(row);
+  }
+
+  /**
+   * Reads an Iceberg {@code unknown} column, whose values are always null. The column is stored as
+   * an Arrow null vector, which holds no values to read.
+   */
+  public static VortexValueReader<Void> unknowns() {
+    return new ConstantReader<>(null);
   }
 
   public static VortexValueReader<Boolean> bools() {
@@ -210,6 +221,11 @@ public class GenericVortexReaders {
     return new ListReader<>(elementReader);
   }
 
+  public static <K, V> VortexValueReader<Map<K, V>> map(
+      VortexValueReader<K> keyReader, VortexValueReader<V> valueReader) {
+    return new MapReader<>(keyReader, valueReader);
+  }
+
   /**
    * Returns a reader that always produces {@code constant}, ignoring the bound vector and row.
    *
@@ -301,6 +317,42 @@ public class GenericVortexReaders {
         elements.add(elementReader.read(i));
       }
       return elements;
+    }
+  }
+
+  private static class MapReader<K, V> extends BoundVortexReader<Map<K, V>> {
+    private final VortexValueReader<K> keyReader;
+    private final VortexValueReader<V> valueReader;
+    private MapVector mapVector;
+
+    private MapReader(VortexValueReader<K> keyReader, VortexValueReader<V> valueReader) {
+      this.keyReader = keyReader;
+      this.valueReader = valueReader;
+    }
+
+    @Override
+    protected void bindVector(FieldVector vector) {
+      this.mapVector = (MapVector) vector;
+      StructVector entries = (StructVector) mapVector.getDataVector();
+      FieldVector keys = entries.getChild(VortexSchemas.MAP_KEY_NAME, FieldVector.class);
+      FieldVector values = entries.getChild(VortexSchemas.MAP_VALUE_NAME, FieldVector.class);
+      Preconditions.checkState(
+          keys != null && values != null,
+          "Vortex batch is missing map entry children: %s",
+          entries.getField());
+      keyReader.bind(keys);
+      valueReader.bind(values);
+    }
+
+    @Override
+    public Map<K, V> readNonNull(int row) {
+      int start = mapVector.getElementStartIndex(row);
+      int end = mapVector.getElementEndIndex(row);
+      Map<K, V> entries = Maps.newLinkedHashMapWithExpectedSize(end - start);
+      for (int i = start; i < end; i++) {
+        entries.put(keyReader.read(i), valueReader.read(i));
+      }
+      return entries;
     }
   }
 

@@ -196,6 +196,19 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         LOCAL,
         3
       },
+      // Vortex reads are always vectorized, so the flag has no effect and is fixed at false.
+      {
+        "testhadoop",
+        SparkCatalog.class.getName(),
+        ImmutableMap.of("type", "hadoop"),
+        FileFormat.VORTEX,
+        false,
+        WRITE_DISTRIBUTION_MODE_HASH,
+        true,
+        null,
+        LOCAL,
+        2
+      },
       {
         "spark_catalog",
         SparkSessionCatalog.class.getName(),

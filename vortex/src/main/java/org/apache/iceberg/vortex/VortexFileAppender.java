@@ -34,6 +34,7 @@ import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 /**
  * A {@link FileAppender} that writes data to Vortex files via the Arrow C-data interface.
@@ -58,6 +59,9 @@ class VortexFileAppender<D> implements FileAppender<D> {
   private final org.apache.iceberg.Schema icebergSchema;
   private final MetricsConfig metricsConfig;
   private final long splitSize;
+  // Set when the value writer tracked columns whose Vortex statistics are too coarse to use as
+  // written; null otherwise. See VortexExactBounds.
+  private final VortexExactBounds exactBounds;
 
   // Nominal per-row width used to size rows buffered before the first batch is handed to the
   // native writer, so rolling writers see a non-zero length as soon as rows are buffered.
@@ -84,6 +88,7 @@ class VortexFileAppender<D> implements FileAppender<D> {
       org.apache.iceberg.Schema icebergSchema,
       MetricsConfig metricsConfig,
       long splitSize) {
+    this.exactBounds = valueWriter instanceof VortexExactBounds bounds ? bounds : null;
     this.writer = writer;
     this.valueWriter = valueWriter;
     this.allocator = allocator != null ? allocator : VortexArrowBridge.arrowAllocator();
@@ -144,7 +149,12 @@ class VortexFileAppender<D> implements FileAppender<D> {
     Preconditions.checkState(closed, "Cannot return metrics while appending to an open file");
     Preconditions.checkState(summary != null, "Vortex writer did not produce a write summary");
     if (metrics == null) {
-      metrics = VortexMetrics.fromWriteSummary(icebergSchema, metricsConfig, summary);
+      metrics =
+          VortexMetrics.fromWriteSummary(
+              icebergSchema,
+              metricsConfig,
+              summary,
+              exactBounds == null ? ImmutableMap.of() : exactBounds.exactBounds());
     }
 
     return metrics;

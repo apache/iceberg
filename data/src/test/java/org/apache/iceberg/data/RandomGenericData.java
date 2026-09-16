@@ -267,7 +267,10 @@ public class RandomGenericData {
     public Object primitive(Type.PrimitiveType primitive) {
       Object result = randomValue(primitive, random);
       switch (primitive.typeId()) {
+          // Geometry and geography are WKB, which uses the same ByteBuffer form as binary.
         case BINARY:
+        case GEOMETRY:
+        case GEOGRAPHY:
           return ByteBuffer.wrap((byte[]) result);
         case UUID:
           return UUID.nameUUIDFromBytes((byte[]) result);

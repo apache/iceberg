@@ -47,7 +47,8 @@ public abstract class TestPositionDeltaWriters<T> extends WriterTestBase<T> {
     return Arrays.asList(
         new Object[] {2, FileFormat.AVRO},
         new Object[] {2, FileFormat.ORC},
-        new Object[] {2, FileFormat.PARQUET});
+        new Object[] {2, FileFormat.PARQUET},
+        new Object[] {2, FileFormat.VORTEX});
   }
 
   private static final long TARGET_FILE_SIZE = 128L * 1024 * 1024;

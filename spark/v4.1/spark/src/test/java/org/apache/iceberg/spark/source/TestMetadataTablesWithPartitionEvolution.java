@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.FileFormat.AVRO;
 import static org.apache.iceberg.FileFormat.ORC;
 import static org.apache.iceberg.FileFormat.PARQUET;
+import static org.apache.iceberg.FileFormat.VORTEX;
 import static org.apache.iceberg.MetadataTableType.ALL_DATA_FILES;
 import static org.apache.iceberg.MetadataTableType.ALL_ENTRIES;
 import static org.apache.iceberg.MetadataTableType.ENTRIES;
@@ -88,6 +89,7 @@ public class TestMetadataTablesWithPartitionEvolution extends CatalogTestBase {
       },
       {"testhadoop", SparkCatalog.class.getName(), ImmutableMap.of("type", "hadoop"), PARQUET, 1},
       {"testhadoop", SparkCatalog.class.getName(), ImmutableMap.of("type", "hadoop"), PARQUET, 2},
+      {"testhadoop", SparkCatalog.class.getName(), ImmutableMap.of("type", "hadoop"), VORTEX, 2},
       {
         "spark_catalog",
         SparkSessionCatalog.class.getName(),

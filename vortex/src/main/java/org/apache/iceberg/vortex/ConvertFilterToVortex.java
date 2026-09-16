@@ -28,6 +28,7 @@ import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
+import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -40,7 +41,11 @@ import org.apache.iceberg.util.ByteBuffers;
  * Convert an Iceberg filter expression into a valid Vortex pruning predicate that can be pushed
  * into the scan node.
  *
- * <p>Filters that cannot be translated will default to {@code ALWAYS_TRUE} to be skipped.
+ * <p>A pushed-down filter only has to avoid reading rows that cannot match: {@code
+ * ReadBuilder#filter} lets a reader return unfiltered or partially filtered rows and makes the
+ * caller re-apply the filter. Every expression produced here is therefore allowed to match more
+ * rows than the Iceberg predicate, but must never match fewer, and anything that cannot be
+ * translated within that rule becomes {@code ALWAYS_TRUE}.
  */
 public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVisitor<Expression> {
   static final Expression ALWAYS_TRUE = Expression.literal(true);
@@ -124,8 +129,9 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
   @Override
   public <T> Expression predicate(BoundPredicate<T> pred) {
     if (!(pred.term() instanceof BoundReference<T> term)) {
-      throw new UnsupportedOperationException(
-          "Cannot convert non-reference to Vortex filter: " + pred.term());
+      // Transform terms (bucket, truncate, ...) have no Vortex equivalent. Drop the predicate
+      // rather than failing the scan: the caller re-applies the filter anyway.
+      return UNCONVERTIBLE;
     }
 
     Expression vortexTerm = column(term.fieldId());
@@ -135,6 +141,10 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
 
     if (pred.isLiteralPredicate()) {
       org.apache.iceberg.expressions.Literal<T> icebergLit = pred.asLiteralPredicate().literal();
+      if (pred.op() == Operation.STARTS_WITH || pred.op() == Operation.NOT_STARTS_WITH) {
+        return fromStartsWith(pred.op(), vortexTerm, icebergLit.value(), term.type());
+      }
+
       Expression vortexLit = toVortexLiteral(icebergLit.value(), term.type());
       if (vortexLit == UNCONVERTIBLE) {
         return UNCONVERTIBLE;
@@ -145,6 +155,8 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
     } else if (pred.isSetPredicate()) {
       Set<T> literalSet = pred.asSetPredicate().literalSet();
       if (literalSet.size() > SET_PREDICATE_LIMIT) {
+        // Expanding a huge set into a chain of equalities makes the native expression more
+        // expensive than the scan it saves, so the predicate is dropped and applied by the engine.
         return UNCONVERTIBLE;
       }
 
@@ -221,6 +233,7 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
             decimal.unscaledValue(), decimalType.precision(), decimalType.scale());
       }
       case DATE -> Expression.literalDate((Integer) value, Expression.TimeUnit.DAYS);
+        // Vortex has no time literal and no time DType, so a time predicate cannot be expressed.
       case TIME -> UNCONVERTIBLE;
       case TIMESTAMP -> {
         Types.TimestampType timestampType = (Types.TimestampType) termType;
@@ -299,8 +312,48 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
           yield Expression.not(child);
         }
       }
+        // IS_NAN / NOT_NAN: Vortex compares NaN as equal to itself, so `f == f` matches NaN rows
+        // and `f != f` matches none. Nothing available here isolates NaN, and every near miss
+        // drops rows the predicate matches, so the predicate is left to the engine.
       default -> UNCONVERTIBLE;
     };
+  }
+
+  /**
+   * Translates STARTS_WITH / NOT_STARTS_WITH into a Vortex LIKE over a prefix pattern.
+   *
+   * <p>Vortex LIKE treats {@code %} and {@code _} as wildcards and {@code \\} as the escape
+   * character, and silently drops a backslash that does not introduce a valid escape, so every one
+   * of those characters in the prefix has to be escaped.
+   *
+   * <p>NOT LIKE does not match null, but Iceberg's {@code notStartsWith} does (it is defined as the
+   * negation of {@code startsWith}, which is false for null), so nulls are added back explicitly.
+   */
+  private Expression fromStartsWith(Operation op, Expression term, Object prefix, Type termType) {
+    if (termType.typeId() != Type.TypeID.STRING) {
+      return UNCONVERTIBLE;
+    }
+
+    Expression pattern = Expression.literal(likePrefixPattern(prefix.toString()));
+    if (op == Operation.STARTS_WITH) {
+      return Expression.like(term, pattern, false, false);
+    }
+
+    return Expression.or(Expression.isNull(term), Expression.like(term, pattern, true, false));
+  }
+
+  private static String likePrefixPattern(String prefix) {
+    StringBuilder pattern = new StringBuilder(prefix.length() + 8);
+    for (int index = 0; index < prefix.length(); index++) {
+      char character = prefix.charAt(index);
+      if (character == '\\' || character == '%' || character == '_') {
+        pattern.append('\\');
+      }
+
+      pattern.append(character);
+    }
+
+    return pattern.append('%').toString();
   }
 
   private <T> Expression fromSetPredicate(

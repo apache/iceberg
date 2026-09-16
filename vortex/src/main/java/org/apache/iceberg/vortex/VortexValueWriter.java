@@ -18,9 +18,7 @@
  */
 package org.apache.iceberg.vortex;
 
-import java.util.stream.Stream;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.iceberg.FieldMetrics;
 
 /**
  * Interface for writing a datum of type {@code D} into Arrow vectors for Vortex file output.
@@ -38,15 +36,4 @@ public interface VortexValueWriter<D> {
    * allocated with sufficient capacity.
    */
   void write(D datum, VectorSchemaRoot root, int rowIndex);
-
-  /**
-   * Returns per-field metrics collected during writes.
-   *
-   * <p>Implementations that track metrics should return one {@link FieldMetrics} per column,
-   * containing value counts, null counts, NaN counts, and lower/upper bounds. File-level Vortex
-   * metrics are collected from Arrow batches by the appender and do not depend on this method.
-   */
-  default Stream<FieldMetrics<?>> metrics() {
-    return Stream.empty();
-  }
 }

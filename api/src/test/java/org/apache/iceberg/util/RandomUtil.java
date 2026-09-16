@@ -20,6 +20,8 @@ package org.apache.iceberg.util;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +37,19 @@ import org.apache.iceberg.types.Types;
 public class RandomUtil {
 
   private RandomUtil() {}
+
+  /**
+   * Little-endian WKB encoding of a 2D point: byte order, geometry type 1, then the coordinates.
+   */
+  private static byte[] wkbPoint(double longitude, double latitude) {
+    return ByteBuffer.allocate(21)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .put((byte) 1)
+        .putInt(1)
+        .putDouble(longitude)
+        .putDouble(latitude)
+        .array();
+  }
 
   private static boolean negate(int num) {
     return num % 2 == 1;
@@ -150,6 +165,12 @@ public class RandomUtil {
         byte[] binary = new byte[random.nextInt(50)];
         random.nextBytes(binary);
         return binary;
+
+      case GEOMETRY:
+      case GEOGRAPHY:
+        // Both are stored as WKB (see the geospatial appendix of the spec), so generate a
+        // well-formed little-endian 2D point rather than arbitrary bytes.
+        return wkbPoint(random.nextDouble() * 360 - 180, random.nextDouble() * 180 - 90);
 
       case DECIMAL:
         Types.DecimalType type = (Types.DecimalType) primitive;

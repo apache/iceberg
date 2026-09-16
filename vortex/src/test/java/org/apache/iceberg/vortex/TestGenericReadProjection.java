@@ -37,8 +37,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.StructType;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
 
 public class TestGenericReadProjection extends TestReadProjection {
   @Override
@@ -65,45 +63,10 @@ public class TestGenericReadProjection extends TestReadProjection {
     }
   }
 
-  // Projection binds columns by name (see GenericVortexReader and VortexSchemaWithTypeVisitor) and
-  // the scan drops columns absent from the file (VortexIterable), so reordered, subset, missing,
-  // nested-struct, and list projections all work. The tests left disabled below each hit a
-  // *renamed* column (testListOfStructsProjection only in its trailing y->z sub-case): rebinding a
-  // renamed column to its old physical column requires Iceberg field ids stored in the file. Vortex
-  // drops Arrow field and schema metadata on write (verified empirically), so there is no field-id
-  // channel to persist and name-based binding cannot recover a rename. Re-enable if/when Vortex
-  // preserves field metadata or otherwise exposes field ids.
-
-  @Test
-  @Override
-  @Disabled(
-      "Rename resolution needs Iceberg field ids in the file, but Vortex drops Arrow metadata, so "
-          + "a renamed column cannot be bound to its old physical column by name.")
-  public void testRename() {}
-
-  @Test
-  @Override
-  @Disabled(
-      "Rename resolution needs Iceberg field ids in the file, but Vortex drops Arrow metadata, so "
-          + "a renamed column cannot be bound to its old physical column by name.")
-  public void testRenamedAddedField() {}
-
-  @Test
-  @Override
-  @Disabled(
-      "List-of-structs projection works by name, but the trailing y->z rename sub-case needs "
-          + "Iceberg field ids the Vortex file does not carry, so the renamed element field reads "
-          + "null.")
-  public void testListOfStructsProjection() {}
-
   private static void assumeSupported(Schema schema) {
-    // Lists and structs project by name now; maps and fixed stay out of these projection scenarios
-    // because they have no Vortex reader yet.
-    assumeThat(
-            TypeUtil.find(
-                schema,
-                type -> type.typeId() == Type.TypeID.MAP || type.typeId() == Type.TypeID.FIXED))
-        .as("Vortex does not yet support maps or fixed in projection scenarios")
+    // Vortex has no fixed-width binary type, so Iceberg FIXED cannot be written at all.
+    assumeThat(TypeUtil.find(schema, type -> type.typeId() == Type.TypeID.FIXED))
+        .as("Vortex has no fixed-width binary type")
         .isNull();
   }
 

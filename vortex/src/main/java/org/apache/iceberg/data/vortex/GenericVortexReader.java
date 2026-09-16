@@ -66,11 +66,7 @@ public class GenericVortexReader implements VortexRowReader<Record> {
     this.structType = expectedSchema.asStruct();
     Map<Integer, ?> constants = idToConstant == null ? Collections.emptyMap() : idToConstant;
 
-    List<Field> fileFields = fileArrowSchema.getFields();
-    Map<String, Field> arrowFieldsByName = Maps.newHashMapWithExpectedSize(fileFields.size());
-    for (Field field : fileFields) {
-      arrowFieldsByName.put(field.getName(), field);
-    }
+    VortexSchemas.FieldBinding binding = VortexSchemas.FieldBinding.of(fileArrowSchema.getFields());
 
     GenericReadBuilder builder = new GenericReadBuilder();
     List<Types.NestedField> expectedFields = structType.fields();
@@ -80,7 +76,7 @@ public class GenericVortexReader implements VortexRowReader<Record> {
     for (int i = 0; i < expectedFields.size(); i++) {
       Types.NestedField field = expectedFields.get(i);
       int id = field.fieldId();
-      if (initLineageReader(i, field, constants, arrowFieldsByName)) {
+      if (initLineageReader(i, field, constants, binding)) {
         continue;
       }
 
@@ -94,7 +90,7 @@ public class GenericVortexReader implements VortexRowReader<Record> {
         this.readers[i] = GenericVortexReaders.longs();
         this.columnNames[i] = field.name();
       } else {
-        Field arrowField = arrowFieldsByName.get(field.name());
+        Field arrowField = binding.resolve(field);
         if (arrowField == null) {
           if (field.initialDefault() != null) {
             this.readers[i] =
@@ -110,7 +106,9 @@ public class GenericVortexReader implements VortexRowReader<Record> {
           }
         } else {
           this.readers[i] = VortexSchemaWithTypeVisitor.visit(field.type(), arrowField, builder);
-          this.columnNames[i] = field.name();
+          // The scan projects the file's column name, which differs from the expected field's name
+          // when the column was renamed after the file was written.
+          this.columnNames[i] = arrowField.getName();
         }
       }
     }
@@ -127,7 +125,7 @@ public class GenericVortexReader implements VortexRowReader<Record> {
       int pos,
       Types.NestedField field,
       Map<Integer, ?> constants,
-      Map<String, Field> arrowFieldsByName) {
+      VortexSchemas.FieldBinding binding) {
     int id = field.fieldId();
     if (id == MetadataColumns.ROW_ID.fieldId() && constants.get(id) instanceof Long firstRowId) {
       this.readers[pos] = GenericVortexReaders.rowIds(firstRowId);
@@ -137,7 +135,7 @@ public class GenericVortexReader implements VortexRowReader<Record> {
 
     if (id == MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()
         && constants.get(id) instanceof Long seqNumber) {
-      if (arrowFieldsByName.containsKey(field.name())) {
+      if (binding.resolveByName(field.name()) != null) {
         this.readers[pos] = GenericVortexReaders.longsOrDefault(seqNumber);
         this.columnNames[pos] = field.name();
       } else {
@@ -241,11 +239,18 @@ public class GenericVortexReader implements VortexRowReader<Record> {
     }
 
     @Override
+    public VortexValueReader<?> map(
+        Types.MapType iMap, Field mapField, VortexValueReader<?> key, VortexValueReader<?> value) {
+      return GenericVortexReaders.map(key, value);
+    }
+
+    @Override
     public VortexValueReader<?> primitive(Type.PrimitiveType iPrimitive, Field primField) {
       if ((iPrimitive != null && iPrimitive.typeId() == Type.TypeID.UUID)
           || VortexSchemas.isUuidField(primField)) {
         return GenericVortexReaders.uuids();
       }
+
       ArrowType arrowType = primField.getType();
       if (arrowType instanceof ArrowType.Int intType) {
         if (intType.getBitWidth() > Integer.SIZE) {
@@ -273,7 +278,9 @@ public class GenericVortexReader implements VortexRowReader<Record> {
     }
 
     private static VortexValueReader<?> simpleReader(ArrowType arrowType) {
-      if (arrowType instanceof ArrowType.Bool) {
+      if (arrowType instanceof ArrowType.Null) {
+        return GenericVortexReaders.unknowns();
+      } else if (arrowType instanceof ArrowType.Bool) {
         return GenericVortexReaders.bools();
       } else if (arrowType instanceof ArrowType.Decimal) {
         return GenericVortexReaders.decimals();

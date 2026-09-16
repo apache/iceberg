@@ -25,9 +25,11 @@ import dev.vortex.api.Scan;
 import dev.vortex.api.ScanOptions;
 import dev.vortex.api.Session;
 import dev.vortex.io.NativeReadable;
+import dev.vortex.jni.NativeFiles;
 import dev.vortex.jni.NativeRuntime;
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -41,14 +43,17 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,13 +72,14 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       rowReaderFunc;
   private final Function<org.apache.arrow.vector.types.pojo.Schema, VortexBatchReader<T>>
       batchReaderFunction;
-  private final List<String> projection;
+  private final List<Types.NestedField> projection;
+  private final NameMapping nameMapping;
   private final boolean caseSensitive;
   private final int workerThreads;
 
   VortexIterable(
       InputFile inputFile,
-      List<String> projection,
+      List<Types.NestedField> projection,
       Optional<Expression> filterPredicate,
       long[] splitByteRange,
       byte[] posDeleteBitmap,
@@ -83,6 +89,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       boolean reuseContainers,
       Function<org.apache.arrow.vector.types.pojo.Schema, VortexRowReader<T>> readerFunction,
       Function<org.apache.arrow.vector.types.pojo.Schema, VortexBatchReader<T>> batchReaderFunction,
+      NameMapping nameMapping,
       boolean caseSensitive,
       int workerThreads) {
     this.inputFile = inputFile;
@@ -96,6 +103,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     this.reuseContainers = reuseContainers;
     this.rowReaderFunc = readerFunction;
     this.batchReaderFunction = batchReaderFunction;
+    this.nameMapping = nameMapping;
     this.caseSensitive = caseSensitive;
     this.workerThreads = workerThreads;
   }
@@ -151,6 +159,16 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     org.apache.arrow.vector.types.pojo.Schema fileArrowSchema =
         VortexSchemas.toArrowSchema(vortexArrowSchema);
 
+    // A file whose writer stored an Iceberg schema in Vortex file metadata carries field ids: tag
+    // the Arrow fields with them so readers bind columns by id. A file that stores no schema is
+    // exactly the case a name mapping exists for; without either, binding falls back to by name.
+    Schema fileIcebergSchema = readIcebergSchema(session, readable);
+    if (fileIcebergSchema != null) {
+      fileArrowSchema = VortexSchemas.withFieldIds(fileArrowSchema, fileIcebergSchema);
+    } else if (nameMapping != null) {
+      fileArrowSchema = VortexSchemas.withFieldIds(fileArrowSchema, nameMapping);
+    }
+
     Optional<dev.vortex.api.Expression> scanFilter =
         filterPredicate.map(
             icebergExpression -> {
@@ -159,11 +177,11 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
                   icebergFileSchema, icebergExpression, caseSensitive);
             });
 
-    // Vortex resolves projected columns by name and errors on any name not in the file. Drop
-    // requested columns the file does not contain (e.g. fields added after the file was written) so
-    // the reader fills them with null/constants instead of crashing the scan. Binding is by name:
-    // Vortex stores no Iceberg field ids (its Java bindings drop Arrow field/schema metadata), so a
-    // column renamed since write time cannot be rebound to its old physical column here.
+    // Vortex resolves projected columns by name and errors on any name not in the file. Each
+    // expected column is bound to the file column with the same Iceberg id (so a column renamed
+    // since write time is projected under its physical name) and is dropped when the file has no
+    // such column, e.g. a field added after the file was written: the reader then fills it with a
+    // default, a constant, or null instead of crashing the scan.
     Set<String> fileColumns =
         fileArrowSchema.getFields().stream()
             .map(Field::getName)
@@ -171,13 +189,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
 
     ImmutableList.Builder<String> fieldNames = ImmutableList.builder();
     ImmutableList.Builder<dev.vortex.api.Expression> expressions = ImmutableList.builder();
-
-    for (String name : projection) {
-      if (fileColumns.contains(name)) {
-        fieldNames.add(name);
-        expressions.add(dev.vortex.api.Expression.column(name));
-      }
-    }
+    addColumnProjections(fileArrowSchema, fieldNames, expressions);
 
     // Row position is not a stored column. When requested, materialize it from Vortex's `row_idx`
     // scan expression packed under the _pos metadata-column name, and append a matching _pos field
@@ -235,6 +247,46 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     } else {
       VortexBatchReader<T> batchTransform = batchReaderFunction.apply(readerArrowSchema);
       return new VortexBatchIterator<>(batchIterator, batchTransform);
+    }
+  }
+
+  private void addColumnProjections(
+      org.apache.arrow.vector.types.pojo.Schema fileArrowSchema,
+      ImmutableList.Builder<String> fieldNames,
+      ImmutableList.Builder<dev.vortex.api.Expression> expressions) {
+    VortexSchemas.FieldBinding binding = VortexSchemas.FieldBinding.of(fileArrowSchema.getFields());
+    for (Types.NestedField field : projection) {
+      Field fileField = binding.resolve(field);
+      if (fileField != null) {
+        fieldNames.add(fileField.getName());
+        expressions.add(dev.vortex.api.Expression.column(fileField.getName()));
+      }
+    }
+  }
+
+  /**
+   * Reads the Iceberg schema the file was written with from Vortex file metadata, or returns null
+   * when the file carries none. A file that has no entry is not an error, and neither is one whose
+   * entry will not parse: both fall back to binding by name rather than failing the scan.
+   */
+  private Schema readIcebergSchema(Session session, NativeReadable readable) {
+    byte[] json;
+    try {
+      json = NativeFiles.readMetadata(session, readable).get(VortexSchemas.ICEBERG_SCHEMA_KEY);
+    } catch (RuntimeException e) {
+      LOG.warn("Failed to read Vortex file metadata for {}", inputFile.location(), e);
+      return null;
+    }
+
+    if (json == null) {
+      return null;
+    }
+
+    try {
+      return SchemaParser.fromJson(new String(json, StandardCharsets.UTF_8));
+    } catch (RuntimeException e) {
+      LOG.warn("Ignoring unreadable Iceberg schema in {}", inputFile.location(), e);
+      return null;
     }
   }
 
