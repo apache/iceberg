@@ -103,6 +103,47 @@ For `string` and `binary` inputs, it keeps the first `width` characters or bytes
 These functions are especially useful when you want to inspect how Iceberg transforms values or
 when writing filters for queries and row-level operations that align with partition transforms.
 
+### Native change data capture in Spark 4.2
+
+Native CDC reads use Iceberg snapshot sequence numbers as commit versions. The bounds below
+include commits 20 through 25. Required snapshots and their data files must still be retained.
+The current implementation supports copy-on-write changes in format v2 and later; delete-file
+changelog scans are not supported.
+
+Without row lineage, raw mode returns all added and removed rows, including unchanged rows
+copied during a file rewrite:
+
+```sql
+SELECT * FROM prod.db.table CHANGES FROM VERSION 20 TO VERSION 25
+WITH (deduplicationMode = 'none', computeUpdates = 'false');
+```
+
+To remove carry-over and compute update images using business keys, enable
+[Iceberg SQL extensions](spark-configuration.md#sql-extensions) and explicitly supply
+`identifier-columns`:
+
+```sql
+SELECT * FROM prod.db.table CHANGES FROM VERSION 20 TO VERSION 25
+WITH (`identifier-columns` = 'id',
+      deduplicationMode = 'dropCarryovers',
+      computeUpdates = 'true');
+```
+
+`identifier-columns` is a comma-separated list of top-level primitive column names, such as
+`tenant_id,id`. Names follow Spark's case-sensitivity setting. This mode uses the same iterators
+as `create_changelog_view`: remove equal DELETE/INSERT carry-over rows, then pair changes by
+the business key within each commit. Keys must identify rows unambiguously; ambiguous duplicate
+keys can fail update reconstruction. Changing the key produces a delete and a separate insert.
+Setting `computeUpdates=false` still removes carry-over but leaves the `delete` and `insert` labels.
+This mode supports batch reads with `dropCarryovers`; it rejects streaming, `none`, and `netChanges`.
+
+Native output contains user columns plus `_change_type`, `_commit_version`, `_commit_timestamp`,
+`_row_id`, and `_last_updated_sequence_number`. Update images use `update_preimage` and
+`update_postimage`. Business-key mode returns null for both lineage columns, even when the source
+has lineage, because it processes rows by values and business keys. It preserves commit versions
+and timestamps. Without `identifier-columns`, native post-processing uses Iceberg row lineage
+and requires valid lineage in the selected snapshots and files.
+
 ### Time travel Queries with SQL
 Spark supports time travel in SQL queries using `TIMESTAMP AS OF` or `VERSION AS OF` clauses.
 The `VERSION AS OF` clause can contain a long snapshot ID or a string branch or tag name.

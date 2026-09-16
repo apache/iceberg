@@ -157,6 +157,24 @@ class TestSparkChangelog extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  void rejectsBusinessKeyReadWithoutExtensions() {
+    sql(
+        "CREATE TABLE %s (id bigint, data string) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='2')",
+        tableName);
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .option("identifier-columns", "id")
+                    .option("computeUpdates", "true")
+                    .changes(tableName)
+                    .collectAsList())
+        .hasStackTraceContaining("Business-key CDC requires IcebergSparkSessionExtensions");
+  }
+
+  @TestTemplate
   void rejectsPostProcessingWithoutRowLineage() {
     sql(
         "CREATE TABLE %s (id bigint, data string) USING iceberg "
