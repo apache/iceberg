@@ -27,6 +27,8 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.file.Files;
