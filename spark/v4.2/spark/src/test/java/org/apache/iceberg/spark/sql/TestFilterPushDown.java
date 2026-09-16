@@ -306,6 +306,36 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void partitionPredicatePushdownAfterDroppingMiddlePartitionField() {
+    sql(
+        "CREATE TABLE %s (p0 STRING, p1 STRING, p2 STRING, data STRING) "
+            + "USING iceberg PARTITIONED BY (p0, p1, p2)",
+        tableName);
+    configurePlanningMode(planningMode);
+
+    setSmallSplitSize();
+    sql("INSERT INTO %s VALUES ('a', 'x', 'keep', 'old-match')", tableName);
+    sql("INSERT INTO %s VALUES ('a', 'y', 'drop', 'old-non-match')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateSpec().removeField("p1").commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    sql("INSERT INTO %s VALUES ('b', 'z', 'keep', 'new-match')", tableName);
+    sql("INSERT INTO %s VALUES ('b', 'z', 'drop', 'new-non-match')", tableName);
+
+    SparkPlan plan =
+        executeAndKeepPlan(
+            () ->
+                assertThat(sql("SELECT * FROM %s WHERE p2 LIKE '%%keep'", tableName))
+                    .as("Rows must match")
+                    .containsExactlyInAnyOrder(
+                        row("a", "x", "keep", "old-match"),
+                        row("b", "z", "keep", "new-match")));
+    assertInputPartitions(plan, 2);
+  }
+
+  @TestTemplate
   public void partitionPredicatePushdownForNestedField() {
     sql(
         "CREATE TABLE %s (s STRUCT<tz: STRING, x: INT>, data STRING) "
