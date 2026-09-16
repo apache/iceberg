@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.UUID;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.iceberg.variants.Variant;
 import org.apache.iceberg.variants.VariantMetadata;
@@ -131,6 +132,12 @@ public class Conversions {
         variantMetadata.writeTo(variantBuffer, 0);
         variantValue.writeTo(variantBuffer, variantMetadata.sizeInBytes());
         return variantBuffer;
+      case GEOMETRY:
+      case GEOGRAPHY:
+        // Geometry and geography lower/upper bounds are single points encoded as an
+        // x:y:z:m concatenation of 8-byte little-endian IEEE 754 doubles. See the
+        // Bound Serialization section of the Iceberg spec.
+        return ((GeospatialBound) value).toByteBuffer();
       case UNKNOWN:
         // underlying type not known
         return null;
@@ -196,6 +203,9 @@ public class Conversions {
         return new BigDecimal(new BigInteger(unscaledBytes), decimal.scale());
       case VARIANT:
         return Variant.from(tmp);
+      case GEOMETRY:
+      case GEOGRAPHY:
+        return GeospatialBound.fromByteBuffer(tmp);
       case UNKNOWN:
         // underlying type not known
         return null;

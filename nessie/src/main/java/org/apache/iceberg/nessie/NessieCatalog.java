@@ -422,7 +422,7 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
         fromReference.equalsIgnoreCase(toReference),
         "Cannot rename %s '%s' on reference '%s' to '%s' on reference '%s':"
             + " source and target references must be the same.",
-        NessieUtil.contentTypeString(type).toLowerCase(Locale.ENGLISH),
+        NessieUtil.contentTypeString(type).toLowerCase(Locale.ROOT),
         fromTableReference.getName(),
         fromReference,
         toTableReference.getName(),

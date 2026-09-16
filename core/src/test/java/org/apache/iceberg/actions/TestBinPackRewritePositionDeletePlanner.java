@@ -98,6 +98,24 @@ class TestBinPackRewritePositionDeletePlanner {
   }
 
   @Test
+  void partitionDescription() {
+    addFiles();
+    BinPackRewritePositionDeletePlanner planner = new BinPackRewritePositionDeletePlanner(table);
+    planner.init(REWRITE_ALL);
+
+    FileRewritePlan<FileGroupInfo, PositionDeletesScanTask, DeleteFile, RewritePositionDeletesGroup>
+        plan = planner.plan();
+
+    List<RewritePositionDeletesGroup> groups = Lists.newArrayList(plan.groups().iterator());
+    assertThat(groups)
+        .extracting(group -> group.info().partition().toString())
+        .containsExactlyInAnyOrder(
+            FILE_1.partition().toString(),
+            FILE_2.partition().toString(),
+            FILE_3.partition().toString());
+  }
+
+  @Test
   void testUnpartitionedTable() {
     table.updateSpec().removeField("data_bucket").commit();
     table.refresh();
@@ -239,6 +257,7 @@ class TestBinPackRewritePositionDeletePlanner {
                 BinPackRewritePositionDeletePlanner.MIN_INPUT_FILES,
                 BinPackRewritePositionDeletePlanner.REWRITE_ALL,
                 BinPackRewritePositionDeletePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                BinPackRewritePositionDeletePlanner.MAX_FILE_GROUP_INPUT_FILES,
                 RewriteDataFiles.REWRITE_JOB_ORDER));
   }
 

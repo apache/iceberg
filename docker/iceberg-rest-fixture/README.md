@@ -42,8 +42,13 @@ underscores become dashes (`-`). Names are lowercased.
 | `CATALOG_IO__IMPL` | `io-impl` |
 | `CATALOG_JDBC_USER` | `jdbc.user` |
 
-If `catalog-impl` and `uri` are unset, the fixture defaults to an in-memory
-SQLite `JdbcCatalog`.
+If `catalog-impl` and `uri` are unset, the fixture defaults to a SQLite
+`JdbcCatalog` at `/tmp/iceberg_catalog.db` opened in WAL mode
+(`jdbc:sqlite:/tmp/iceberg_catalog.db?journal_mode=WAL`), so concurrent
+clients don't fail with `SQLITE_BUSY`.
+
+Keep the `?journal_mode=WAL` suffix if you override `CATALOG_URI` with another
+SQLite path.
 
 ### Catalog name
 
@@ -55,6 +60,30 @@ or PyIceberg), override the `catalog.name` property:
 docker run -e CATALOG_CATALOG_NAME=mycatalog -p 8181:8181 apache/iceberg-rest-fixture
 ```
 
+
+### Logging
+
+By default, the fixture logs at `INFO`. To reduce log output, set `LOG_LEVEL`
+to another slf4j-simple level such as `WARN`, `ERROR`, or `OFF`:
+
+```bash
+docker run -e LOG_LEVEL=WARN -p 8181:8181 apache/iceberg-rest-fixture
+```
+
+To use a full slf4j-simple properties file, mount a directory containing
+`simplelogger.properties` and set `LOG_CONFIG_DIR` to that directory:
+
+```bash
+docker run \
+  -v "$PWD/simplelogger.properties:/etc/iceberg-rest/simplelogger.properties:ro" \
+  -e LOG_CONFIG_DIR=/etc/iceberg-rest \
+  -p 8181:8181 \
+  apache/iceberg-rest-fixture
+```
+
+If both `LOG_LEVEL` and `LOG_CONFIG_DIR` are set, `LOG_LEVEL` overrides the
+default log level from `simplelogger.properties`; the properties file can still
+configure other slf4j-simple settings.
 
 ## Build the Docker Image
 
@@ -115,5 +144,3 @@ Snapshots             Snapshots
 Properties            write.object-storage.enabled  true                                                                                                                        
                       write.object-storage.path     s3://iceberg-test-data/tpc/tpc-ds/3.2.0/1000/iceberg/customer/data
 ```
-
-

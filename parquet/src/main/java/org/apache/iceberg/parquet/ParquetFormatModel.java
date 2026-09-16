@@ -46,9 +46,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ParquetFormatModel<D, S, R>
     extends BaseFormatModel<D, S, ParquetValueWriter<?>, R, MessageType> {
+  private static final Logger LOG = LoggerFactory.getLogger(ParquetFormatModel.class);
+
   private final boolean isBatchReader;
   private final VariantShreddingAnalyzer<D, S> variantAnalyzer;
   private final Function<S, UnaryOperator<D>> copyFuncFactory;
@@ -292,12 +296,17 @@ public class ParquetFormatModel<D, S, R>
       Preconditions.checkState(copyFuncFactory != null, "copyFuncFactory must not be null");
       UnaryOperator<D> copyFunc = copyFuncFactory.apply(engineSchema);
       Preconditions.checkState(copyFunc != null, "copyFunc must not return null");
+      LOG.debug("Building shredded variant appender with bufferSize={}", bufferSize);
 
       return new BufferedFileAppender<>(
           bufferSize,
           bufferedRows -> {
             Map<Integer, Type> shreddedTypes =
                 variantAnalyzer.analyzeVariantColumns(bufferedRows, schema, engineSchema);
+            LOG.debug(
+                "Variant inference: rows={}, shredded fields={}",
+                bufferedRows.size(),
+                shreddedTypes.size());
 
             if (!shreddedTypes.isEmpty()) {
               internal.variantShreddingFunc((fieldId, name) -> shreddedTypes.get(fieldId));

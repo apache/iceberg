@@ -53,23 +53,24 @@ public class TestHashWriter {
     Schema schema = new Schema(Types.NestedField.required(1, "col1", Types.StringType.get()));
     TableMetadata tableMetadata =
         TableMetadata.newTableMetadata(
-            schema, PartitionSpec.unpartitioned(), null, icebergTblProperties);
+            schema, PartitionSpec.unpartitioned(), "file:///tmp/table", icebergTblProperties);
 
-    JsonGenerator generator = JsonUtil.factory().createGenerator(hashWriter);
-    TableMetadataParser.toJson(tableMetadata, generator);
+    try (JsonGenerator generator = JsonUtil.factory().createGenerator(hashWriter)) {
+      TableMetadataParser.toJson(tableMetadata, generator);
 
-    // Expecting to see 3 write() invocations (and therefore incremental hash calculations)
-    verify(hashWriter, times(3)).write(any(char[].class), anyInt(), anyInt());
+      // Expecting to see 3 write() invocations (and therefore incremental hash calculations)
+      verify(hashWriter, times(3)).write(any(char[].class), anyInt(), anyInt());
 
-    // +1 after flushing
-    generator.flush();
-    verify(hashWriter, times(4)).write(any(char[].class), anyInt(), anyInt());
+      // +1 after flushing
+      generator.flush();
+      verify(hashWriter, times(4)).write(any(char[].class), anyInt(), anyInt());
 
-    // Expected hash is calculated on the whole object i.e. without streaming
-    byte[] expectedHash =
-        MessageDigest.getInstance("SHA-256")
-            .digest(TableMetadataParser.toJson(tableMetadata).getBytes(StandardCharsets.UTF_8));
-    assertThat(hashWriter.getHash()).isEqualTo(expectedHash);
-    assertThatThrownBy(() -> hashWriter.getHash()).hasMessageContaining("HashWriter is closed.");
+      // Expected hash is calculated on the whole object i.e. without streaming
+      byte[] expectedHash =
+          MessageDigest.getInstance("SHA-256")
+              .digest(TableMetadataParser.toJson(tableMetadata).getBytes(StandardCharsets.UTF_8));
+      assertThat(hashWriter.getHash()).isEqualTo(expectedHash);
+      assertThatThrownBy(() -> hashWriter.getHash()).hasMessageContaining("HashWriter is closed.");
+    }
   }
 }

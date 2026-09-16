@@ -360,8 +360,8 @@ public class TestVortexMetrics {
             .build();
 
     PositionDelete<Void> delete = PositionDelete.create();
-    appender.add(delete.set("file-a.parquet", 1L, null));
-    appender.add(delete.set("file-a.parquet", 3L, null));
+    appender.add(delete.set("file-a.parquet", 1L));
+    appender.add(delete.set("file-a.parquet", 3L));
     appender.close();
 
     Metrics metrics = appender.metrics();
@@ -401,8 +401,8 @@ public class TestVortexMetrics {
             .spec(PartitionSpec.unpartitioned())
             .build();
     PositionDelete<Void> delete = PositionDelete.create();
-    writer.write(delete.set(longPath, 1L, null));
-    writer.write(delete.set(longPath, 3L, null));
+    writer.write(delete.set(longPath, 1L));
+    writer.write(delete.set(longPath, 3L));
     writer.close();
 
     DeleteFile deleteFile = writer.toDeleteFile();
@@ -419,8 +419,8 @@ public class TestVortexMetrics {
             .spec(PartitionSpec.unpartitioned())
             .build();
     PositionDelete<Void> delete = PositionDelete.create();
-    writer.write(delete.set("file-a.parquet", 1L, null));
-    writer.write(delete.set("file-a.parquet", 3L, null));
+    writer.write(delete.set("file-a.parquet", 1L));
+    writer.write(delete.set("file-a.parquet", 3L));
     writer.close();
 
     DeleteFile deleteFile = writer.toDeleteFile();

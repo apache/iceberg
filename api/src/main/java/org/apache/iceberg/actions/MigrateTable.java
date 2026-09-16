@@ -72,6 +72,18 @@ public interface MigrateTable extends Action<MigrateTable, MigrateTable.Result> 
     throw new UnsupportedOperationException("Setting executor service is not supported");
   }
 
+  /**
+   * Enables ignoring {@link java.io.FileNotFoundException} when listing source data files. When
+   * enabled, source data files that have disappeared (for example, because a partition directory
+   * was removed by concurrent cleanup) are skipped with a warning instead of failing the migration.
+   * The default is to fail.
+   *
+   * @return this for method chaining
+   */
+  default MigrateTable ignoreMissingFiles() {
+    throw new UnsupportedOperationException("Ignoring missing files is not supported");
+  }
+
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns the number of migrated data files. */

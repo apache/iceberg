@@ -77,6 +77,11 @@ public class OSSFileIO implements FileIO {
   }
 
   @Override
+  public InputFile newInputFile(String path, long length) {
+    return new OSSInputFile(client(), new OSSURI(path), aliyunProperties, length, metrics);
+  }
+
+  @Override
   public OutputFile newOutputFile(String path) {
     return new OSSOutputFile(client(), new OSSURI(path), aliyunProperties, metrics);
   }

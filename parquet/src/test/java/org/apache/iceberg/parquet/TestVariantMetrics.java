@@ -18,22 +18,31 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.InternalWriter;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -48,6 +57,15 @@ import org.apache.iceberg.variants.VariantPrimitive;
 import org.apache.iceberg.variants.VariantTestUtil;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
+import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
+import org.apache.parquet.schema.MessageType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -64,6 +82,16 @@ public class TestVariantMetrics {
   private static final VariantMetadata EMPTY = Variants.emptyMetadata();
 
   private static final String ROOT_FIELD = "$";
+
+  private static final byte[] BINARY_20_BYTES = new byte[20];
+  private static final byte[] BINARY_20_BYTES_ALL_FF = new byte[20];
+
+  static {
+    for (int i = 0; i < 20; i += 1) {
+      BINARY_20_BYTES[i] = (byte) (i + 1);
+      BINARY_20_BYTES_ALL_FF[i] = (byte) 0xFF;
+    }
+  }
 
   private static final VariantValue[] PRIMITIVES =
       new VariantValue[] {
@@ -214,6 +242,336 @@ public class TestVariantMetrics {
         .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 1L)));
 
     assertThat(metrics).extracting("originalTypes").isEqualTo(Map.of(1, Types.LongType.get()));
+  }
+
+  @Test
+  public void testShreddedBinaryBoundsTruncation() throws IOException {
+    // binary longer than the 16-byte truncation length so the bounds are truncated
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMin(ByteBuffer.wrap(BINARY_20_BYTES), 16)));
+
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMax(ByteBuffer.wrap(BINARY_20_BYTES), 16)));
+  }
+
+  @Test
+  public void testShreddedBinaryUpperBoundOverflow() throws IOException {
+    // an all-0xFF binary cannot be truncated up so the upper bound is omitted
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES_ALL_FF));
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(
+            Variants.of(BinaryUtil.truncateBinaryMin(ByteBuffer.wrap(BINARY_20_BYTES_ALL_FF), 16)));
+
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isNull();
+  }
+
+  @Test
+  public void testShreddedBinaryBoundsTruncateLength() throws IOException {
+    // a per-column truncate(8) overrides the default 16-byte truncation
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
+
+    MetricsConfig metricsConfig =
+        MetricsConfig.from(
+            ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "truncate(8)"),
+            SCHEMA,
+            null);
+
+    Metrics metrics =
+        writeParquetWithMetricsConfig(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            metricsConfig,
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMin(ByteBuffer.wrap(BINARY_20_BYTES), 8)));
+
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(BinaryUtil.truncateBinaryMax(ByteBuffer.wrap(BINARY_20_BYTES), 8)));
+  }
+
+  @Test
+  public void testShreddedBinaryBoundsFull() throws IOException {
+    // full mode leaves the bounds untruncated
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
+
+    MetricsConfig metricsConfig =
+        MetricsConfig.from(
+            ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "full"),
+            SCHEMA,
+            null);
+
+    Metrics metrics =
+        writeParquetWithMetricsConfig(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            metricsConfig,
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(ByteBuffer.wrap(BINARY_20_BYTES)));
+
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(ByteBuffer.wrap(BINARY_20_BYTES)));
+  }
+
+  @Test
+  public void testShreddedBinaryBoundsCounts() throws IOException {
+    // counts mode drops shredded bounds
+    VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
+
+    MetricsConfig metricsConfig =
+        MetricsConfig.from(
+            ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "counts"),
+            SCHEMA,
+            null);
+
+    Metrics metrics =
+        writeParquetWithMetricsConfig(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            metricsConfig,
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.valueCounts()).containsKey(2);
+    assertThat(metrics.lowerBounds()).doesNotContainKey(2);
+    assertThat(metrics.upperBounds()).doesNotContainKey(2);
+  }
+
+  @Test
+  public void testShreddedStringBoundsTruncateLength() throws IOException {
+    // a per-column truncate(8) overrides the default 16-char truncation
+    VariantValue value = Variants.of("iceberg_variant");
+
+    MetricsConfig metricsConfig =
+        MetricsConfig.from(
+            ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "truncate(8)"),
+            SCHEMA,
+            null);
+
+    Metrics metrics =
+        writeParquetWithMetricsConfig(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            metricsConfig,
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(UnicodeUtil.truncateStringMin("iceberg_variant", 8)));
+
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(UnicodeUtil.truncateStringMax("iceberg_variant", 8)));
+  }
+
+  @Test
+  public void testShreddedStringBoundsFull() throws IOException {
+    // full mode leaves the string bound untruncated
+    VariantValue value = Variants.of("iceberg_variant_full");
+
+    MetricsConfig metricsConfig =
+        MetricsConfig.from(
+            ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "full"),
+            SCHEMA,
+            null);
+
+    Metrics metrics =
+        writeParquetWithMetricsConfig(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            metricsConfig,
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of("iceberg_variant_full"));
+
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of("iceberg_variant_full"));
+  }
+
+  @Test
+  public void testShreddedStringBoundsCounts() throws IOException {
+    // counts mode must not truncate the shredded string bound: truncate length 0 would throw
+    VariantValue value = Variants.of("iceberg_variant");
+
+    MetricsConfig metricsConfig =
+        MetricsConfig.from(
+            ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "counts"),
+            SCHEMA,
+            null);
+
+    Metrics metrics =
+        writeParquetWithMetricsConfig(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            metricsConfig,
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()),
+            null);
+
+    assertThat(metrics.valueCounts()).containsKey(2);
+    assertThat(metrics.lowerBounds()).doesNotContainKey(2);
+    assertThat(metrics.upperBounds()).doesNotContainKey(2);
+  }
+
+  @Test
+  public void testShreddedStringBoundsAcrossRowGroups() throws IOException {
+    // shredded string bounds must use UTF-8 order (Comparators.charSequences), like the scan path;
+    // String.compareTo (UTF-16) sorts a supplementary char below U+E000 and would invert the bounds
+    String belowSurrogate = new String(Character.toChars(0xE000));
+    String supplementary = new String(Character.toChars(0x10000));
+
+    Variant[] rows = new Variant[300];
+    for (int i = 0; i < rows.length; i += 1) {
+      rows[i] = Variant.of(EMPTY, Variants.of(i < 150 ? belowSurrogate : supplementary));
+    }
+
+    // a tiny row-group size forces multiple row groups so cross-chunk bound aggregation runs
+    Metrics metrics =
+        writeParquetWithRowGroupSize(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(Variants.of(belowSurrogate)),
+            "1",
+            rows);
+
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(belowSurrogate));
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(supplementary));
+  }
+
+  @Test
+  public void testMissingNullCountAcrossRowGroups() throws IOException {
+    // A variant column chunk may omit null_count in its footer statistics, which Parquet reports
+    // as -1. When one row group is missing the count and another has it, the total must be
+    // reported as unknown rather than summing the -1 into a lower count.
+    ParquetMetadata footer =
+        footer(Variant.of(EMPTY, Variants.of(1)), null, null); // 1 value, 2 nulls
+
+    // build a two row group footer: the first as written, the second with null_count removed
+    // from the variant sub columns
+    BlockMetaData withCount = footer.getBlocks().get(0);
+    BlockMetaData withoutCount = dropVariantNullCounts(footer.getBlocks().get(0));
+    ParquetMetadata twoRowGroups =
+        new ParquetMetadata(footer.getFileMetaData(), Lists.newArrayList(withCount, withoutCount));
+
+    Metrics metrics =
+        ParquetUtil.footerMetrics(twoRowGroups, Stream.empty(), MetricsConfig.getDefault());
+
+    // the variant column (id 2) null count is unknown because one row group did not report it
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(2);
+    assertThat(metrics.valueCounts()).containsEntry(2, 6L);
+  }
+
+  @Test
+  public void testShreddedNullVariantsWithMissingNullCount() throws IOException {
+    // A shredded column's value column holds only null variants, so its null count comes from the
+    // value count, not the footer. Shredded bounds survive a row group that omits null_count.
+    VariantValue value = Variants.of(1234);
+    ParquetMetadata footer =
+        footer(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(value),
+            Variant.of(EMPTY, value),
+            Variant.of(EMPTY, Variants.ofNull()));
+
+    BlockMetaData withCount = footer.getBlocks().get(0);
+    BlockMetaData withoutCount = dropVariantNullCounts(footer.getBlocks().get(0));
+    ParquetMetadata twoRowGroups =
+        new ParquetMetadata(footer.getFileMetaData(), Lists.newArrayList(withCount, withoutCount));
+
+    Metrics metrics =
+        ParquetUtil.footerMetrics(twoRowGroups, Stream.empty(), MetricsConfig.getDefault());
+
+    // the shredded bounds survive: the all-null value column does not depend on footer null counts
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(value);
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(value);
+  }
+
+  /** Rebuilds a row group with null_count removed from the variant column's statistics. */
+  private static BlockMetaData dropVariantNullCounts(BlockMetaData block) {
+    BlockMetaData result = new BlockMetaData();
+    result.setRowCount(block.getRowCount());
+    result.setTotalByteSize(block.getTotalByteSize());
+
+    for (ColumnChunkMetaData column : block.getColumns()) {
+      Statistics<?> stats = column.getStatistics();
+      if (column.getPath().toDotString().startsWith("var")) {
+        Statistics.Builder builder = Statistics.getBuilderForReading(column.getPrimitiveType());
+        if (stats.hasNonNullValue()) {
+          builder.withMin(stats.getMinBytes()).withMax(stats.getMaxBytes());
+        }
+
+        stats = builder.build(); // built without withNumNulls, so getNumNulls returns -1
+      }
+
+      result.addColumn(
+          ColumnChunkMetaData.get(
+              column.getPath(),
+              column.getPrimitiveType(),
+              column.getCodec(),
+              column.getEncodingStats(),
+              column.getEncodings(),
+              stats,
+              column.getFirstDataPageOffset(),
+              column.getDictionaryPageOffset(),
+              column.getValueCount(),
+              column.getTotalSize(),
+              column.getTotalUncompressedSize()));
+    }
+
+    return result;
+  }
+
+  private ParquetMetadata footer(Variant... variants) throws IOException {
+    return footer(null, variants);
+  }
+
+  private ParquetMetadata footer(VariantShreddingFunction shredding, Variant... variants)
+      throws IOException {
+    InMemoryOutputFile out = new InMemoryOutputFile();
+    writeVariants(out, shredding, builder -> {}, variants);
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(out.toInputFile()))) {
+      return reader.getFooter();
+    }
   }
 
   @Test
@@ -479,27 +837,146 @@ public class TestVariantMetrics {
         .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
   }
 
-  private Metrics writeParquet(VariantShreddingFunction shredding, Variant... variants)
-      throws IOException {
+  @Test
+  public void testShreddedValueColumnWithEmptyStats() throws IOException {
+    // typed bounds are dropped when value-column stats are missing on a shredded variant
     OutputFile out = new InMemoryOutputFile();
     GenericRecord record = GenericRecord.create(SCHEMA);
 
-    FileAppender<Record> writer =
+    VariantShreddingFunction shredding =
+        (id, name) -> ParquetVariantUtil.toParquetSchema(Variants.of((byte) 0));
+    MessageType parquetSchema = ParquetSchemaUtil.convert(SCHEMA, "table", shredding);
+    ParquetProperties props = ParquetProperties.builder().withStatisticsEnabled(false).build();
+
+    // Parquet.write() cannot disable stats on variant sub-columns (no field IDs)
+    ParquetWriter<Record> writer =
+        new ParquetWriter<>(
+            new Configuration(),
+            out,
+            SCHEMA,
+            parquetSchema,
+            1024,
+            ImmutableMap.of(),
+            (s, m) -> InternalWriter.create(s.asStruct(), m),
+            CompressionCodecName.SNAPPY,
+            props,
+            MetricsConfig.getDefault(),
+            ParquetFileWriter.Mode.CREATE,
+            null,
+            false);
+
+    try (writer) {
+      record.setField("id", 1L);
+      record.setField("var", Variant.of(EMPTY, Variants.of((byte) 5)));
+      writer.add(record);
+    }
+
+    Metrics metrics = writer.metrics();
+    assertThat(metrics.recordCount()).isEqualTo(1L);
+    assertThat(metrics.lowerBounds()).doesNotContainKey(2);
+    assertThat(metrics.upperBounds()).doesNotContainKey(2);
+  }
+
+  @Test
+  public void testUniformShreddedFieldRetainsBounds() throws IOException {
+    List<VariantValue> rows = List.of(Variants.of(10), Variants.of(20), Variants.of(30));
+    org.apache.parquet.schema.Type shredded =
+        new VariantValueShreddingAnalyzer().analyzeAndCreateSchema(rows, 0);
+    assertThat(shredded).isNotNull();
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> shredded,
+            Variant.of(EMPTY, Variants.of(10)),
+            Variant.of(EMPTY, Variants.of(20)),
+            Variant.of(EMPTY, Variants.of(30)));
+
+    assertThat(metrics.lowerBounds()).containsKey(2);
+    assertThat(metrics.upperBounds()).containsKey(2);
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(bytes -> Variant.from(bytes).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(10));
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(bytes -> Variant.from(bytes).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(30));
+  }
+
+  @Test
+  public void testMixedFieldNotShreddedOmitsBounds() throws IOException {
+    List<VariantValue> rows =
+        List.of(Variants.of(10), Variants.of(20), Variants.of(30), Variants.of("iceberg"));
+    org.apache.parquet.schema.Type shredded =
+        new VariantValueShreddingAnalyzer().analyzeAndCreateSchema(rows, 0);
+    assertThat(shredded).isNull();
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> shredded,
+            Variant.of(EMPTY, Variants.of(10)),
+            Variant.of(EMPTY, Variants.of(20)),
+            Variant.of(EMPTY, Variants.of(30)),
+            Variant.of(EMPTY, Variants.of("iceberg")));
+
+    assertThat(metrics.lowerBounds()).doesNotContainKey(2);
+    assertThat(metrics.upperBounds()).doesNotContainKey(2);
+  }
+
+  private Metrics writeParquet(VariantShreddingFunction shredding, Variant... variants)
+      throws IOException {
+    return writeParquetWithMetricsConfig(shredding, MetricsConfig.getDefault(), variants);
+  }
+
+  private Metrics writeParquetWithMetricsConfig(
+      VariantShreddingFunction shredding, MetricsConfig metricsConfig, Variant... variants)
+      throws IOException {
+    return writeVariants(shredding, builder -> builder.metricsConfig(metricsConfig), variants)
+        .metrics();
+  }
+
+  private Metrics writeParquetWithRowGroupSize(
+      VariantShreddingFunction shredding, String rowGroupSizeBytes, Variant... variants)
+      throws IOException {
+    return writeVariants(
+            shredding,
+            builder -> builder.set(PARQUET_ROW_GROUP_SIZE_BYTES, rowGroupSizeBytes),
+            variants)
+        .metrics();
+  }
+
+  /**
+   * Writes the given variants to an in-memory Parquet file and returns the closed appender. The
+   * {@code options} consumer applies writer options that vary between callers.
+   */
+  private FileAppender<Record> writeVariants(
+      VariantShreddingFunction shredding,
+      Consumer<Parquet.WriteBuilder> options,
+      Variant... variants)
+      throws IOException {
+    return writeVariants(new InMemoryOutputFile(), shredding, options, variants);
+  }
+
+  private FileAppender<Record> writeVariants(
+      OutputFile out,
+      VariantShreddingFunction shredding,
+      Consumer<Parquet.WriteBuilder> options,
+      Variant... variants)
+      throws IOException {
+    Parquet.WriteBuilder builder =
         Parquet.write(out)
             .schema(SCHEMA)
             .variantShreddingFunc(shredding)
-            .createWriterFunc(fileSchema -> InternalWriter.create(SCHEMA.asStruct(), fileSchema))
-            .build();
+            .createWriterFunc(fileSchema -> InternalWriter.create(SCHEMA.asStruct(), fileSchema));
+    options.accept(builder);
 
-    try (writer) {
+    GenericRecord record = GenericRecord.create(SCHEMA);
+    try (FileAppender<Record> writer = builder.build()) {
       for (int id = 0; id < variants.length; id += 1) {
         record.setField("id", (long) id);
         record.setField("var", variants[id]);
         writer.add(record);
       }
+      return writer;
     }
-
-    return writer.metrics();
   }
 
   private static VariantValue increment(VariantValue value) {

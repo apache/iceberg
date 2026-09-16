@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.formats;
 
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
+import java.lang.reflect.Method;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.InputFile;
@@ -84,6 +86,42 @@ class TestFormatModelRegistry {
             () -> FormatModelRegistry.register(new DummyParquetFormatModel(Object.class, null)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot register class");
+  }
+
+  @Test
+  void registerToleratesMissingClass() {
+    assertThatNoException().isThrownBy(() -> register("org.apache.iceberg.formats.DoesNotExist"));
+    assertThat(FormatModelRegistry.models()).isEmpty();
+  }
+
+  @Test
+  void registerToleratesNoClassDefFoundErrorOnInvoke() {
+    assertThatNoException().isThrownBy(() -> register(ThrowsOnInvoke.class.getName()));
+    assertThat(FormatModelRegistry.models()).isEmpty();
+  }
+
+  @Test
+  void registerToleratesExceptionInInitializerErrorOnInvoke() {
+    assertThatNoException().isThrownBy(() -> register(ThrowsInitErrorOnInvoke.class.getName()));
+    assertThat(FormatModelRegistry.models()).isEmpty();
+  }
+
+  private static void register(String className) throws ReflectiveOperationException {
+    Method register = FormatModelRegistry.class.getDeclaredMethod("register", String.class);
+    register.setAccessible(true);
+    register.invoke(null, className);
+  }
+
+  public static class ThrowsOnInvoke {
+    public static void register() {
+      throw new NoClassDefFoundError("some/missing/TransitiveDependency");
+    }
+  }
+
+  public static class ThrowsInitErrorOnInvoke {
+    public static void register() {
+      throw new ExceptionInInitializerError(new RuntimeException("lazy init failed"));
+    }
   }
 
   private static class DummyParquetFormatModel implements FormatModel<Object, Object> {

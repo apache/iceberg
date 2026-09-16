@@ -157,6 +157,24 @@ public class TypeUtil {
     return project(schema, projectedIds);
   }
 
+  /**
+   * Returns a copy of the schema with the type of each field in {@code replacementsById} replaced
+   * by its mapped type. Fields not in the map are unchanged.
+   *
+   * @param schema a schema
+   * @param replacementsById a map from field ID to the type that should replace the field's type
+   * @return a schema with the replaced field types
+   */
+  public static Schema replaceFieldTypes(Schema schema, Map<Integer, Type> replacementsById) {
+    Types.StructType struct = visit(schema, new ReplaceTypeById(replacementsById)).asStructType();
+    if (struct.equals(schema.asStruct())) {
+      return schema;
+    }
+
+    return new Schema(
+        schema.schemaId(), struct.fields(), schema.getAliases(), schema.identifierFieldIds());
+  }
+
   public static Schema join(Schema left, Schema right) {
     List<Types.NestedField> joinedColumns = Lists.newArrayList(left.columns());
     for (Types.NestedField rightColumn : right.columns()) {
@@ -191,6 +209,19 @@ public class TypeUtil {
   public static Map<Integer, String> indexQuotedNameById(
       Types.StructType struct, Function<String, String> quotingFunc) {
     IndexByName indexer = new IndexByName(quotingFunc);
+    visit(struct, indexer);
+    return indexer.byId();
+  }
+
+  /**
+   * Indexes the fields of a struct from ID to a flattened name that can be used for stats struct
+   * field names.
+   *
+   * @param struct a struct type
+   * @return an index from field ID to short names, joined by _
+   */
+  public static Map<Integer, String> indexStatsNames(Types.StructType struct) {
+    IndexByName indexer = new IndexByName("_", Function.identity(), true /* use short names */);
     visit(struct, indexer);
     return indexer.byId();
   }

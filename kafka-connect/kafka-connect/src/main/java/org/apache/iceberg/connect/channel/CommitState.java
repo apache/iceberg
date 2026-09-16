@@ -22,6 +22,7 @@ import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -38,6 +39,7 @@ class CommitState {
 
   private final List<Envelope> commitBuffer = Lists.newArrayList();
   private final List<DataComplete> readyBuffer = Lists.newArrayList();
+  private int receivedPartitionCount = 0;
   private long startTime;
   private UUID currentCommitId;
   private final IcebergSinkConfig config;
@@ -63,6 +65,8 @@ class CommitState {
       LOG.warn(
           "Received commit ready when no commit in progress, this can happen during recovery. Commit ID: {}",
           dataComplete.commitId());
+    } else if (Objects.equals(currentCommitId, dataComplete.commitId())) {
+      receivedPartitionCount += dataComplete.assignments().size();
     }
   }
 
@@ -90,6 +94,7 @@ class CommitState {
 
   void endCurrentCommit() {
     readyBuffer.clear();
+    receivedPartitionCount = 0;
     currentCommitId = null;
   }
 
@@ -113,12 +118,6 @@ class CommitState {
     if (!isCommitInProgress()) {
       return false;
     }
-
-    int receivedPartitionCount =
-        readyBuffer.stream()
-            .filter(payload -> payload.commitId().equals(currentCommitId))
-            .mapToInt(payload -> payload.assignments().size())
-            .sum();
 
     if (receivedPartitionCount >= expectedPartitionCount) {
       LOG.info(

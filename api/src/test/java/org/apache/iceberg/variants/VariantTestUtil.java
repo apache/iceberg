@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.util.ByteBuffers;
 
 public class VariantTestUtil {
 
@@ -107,24 +108,13 @@ public class VariantTestUtil {
     return (byte) (((offsetSize - 1) << 6) | (isSorted ? 0b10000 : 0) | 0b0001);
   }
 
-  /** A hacky absolute put for ByteBuffer */
-  private static int writeBufferAbsolute(ByteBuffer buffer, int offset, ByteBuffer toCopy) {
-    int originalPosition = buffer.position();
-    buffer.position(offset);
-    ByteBuffer copy = toCopy.duplicate();
-    buffer.put(copy); // duplicate so toCopy is not modified
-    buffer.position(originalPosition);
-    Preconditions.checkArgument(copy.remaining() <= 0, "Not fully written");
-    return toCopy.remaining();
-  }
-
   /** Creates a random string primitive of the given length for forcing large offset sizes */
   public static VariantPrimitive<?> createString(String string) {
     byte[] utf8 = string.getBytes(StandardCharsets.UTF_8);
     ByteBuffer buffer = ByteBuffer.allocate(5 + utf8.length).order(ByteOrder.LITTLE_ENDIAN);
     buffer.put(0, primitiveHeader(16));
     buffer.putInt(1, utf8.length);
-    writeBufferAbsolute(buffer, 5, ByteBuffer.wrap(utf8));
+    buffer.put(5, ByteBuffer.wrap(utf8), 0, utf8.length);
     return SerializedPrimitive.from(buffer, buffer.get(0));
   }
 
@@ -136,7 +126,7 @@ public class VariantTestUtil {
     byte[] utf8 = string.getBytes(StandardCharsets.UTF_8);
     ByteBuffer buffer = ByteBuffer.allocate(1 + utf8.length).order(ByteOrder.LITTLE_ENDIAN);
     buffer.put(0, VariantUtil.shortStringHeader(utf8.length));
-    writeBufferAbsolute(buffer, 1, ByteBuffer.wrap(utf8));
+    buffer.put(1, ByteBuffer.wrap(utf8), 0, utf8.length);
     return SerializedShortString.from(buffer, buffer.get(0));
   }
 
@@ -154,8 +144,8 @@ public class VariantTestUtil {
     ByteBuffer value = VariantTestUtil.createObject(meta, data);
     ByteBuffer buffer =
         ByteBuffer.allocate(meta.remaining() + value.remaining()).order(ByteOrder.LITTLE_ENDIAN);
-    writeBufferAbsolute(buffer, 0, meta);
-    writeBufferAbsolute(buffer, meta.remaining(), value);
+    buffer.put(0, meta, meta.position(), meta.remaining());
+    buffer.put(meta.remaining(), value, value.position(), value.remaining());
     return buffer;
   }
 
@@ -193,23 +183,24 @@ public class VariantTestUtil {
     ByteBuffer buffer = ByteBuffer.allocate(totalSize).order(ByteOrder.LITTLE_ENDIAN);
 
     buffer.put(0, header);
-    VariantUtil.writeLittleEndianUnsigned(buffer, numElements, 1, offsetSize);
+    ByteBuffers.writeLittleEndianUnsigned(buffer, numElements, 1, offsetSize);
 
     // write offsets and strings
     int nextOffset = 0;
     int index = 0;
     for (ByteBuffer nameBuffer : nameBuffers) {
       // write the offset and the string
-      VariantUtil.writeLittleEndianUnsigned(
+      ByteBuffers.writeLittleEndianUnsigned(
           buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);
-      int nameSize = writeBufferAbsolute(buffer, dataOffset + nextOffset, nameBuffer);
+      buffer.put(
+          dataOffset + nextOffset, nameBuffer, nameBuffer.position(), nameBuffer.remaining());
       // update the offset and index
-      nextOffset += nameSize;
+      nextOffset += nameBuffer.remaining();
       index += 1;
     }
 
     // write the final size of the data section
-    VariantUtil.writeLittleEndianUnsigned(
+    ByteBuffers.writeLittleEndianUnsigned(
         buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);
 
     return buffer;
@@ -255,9 +246,9 @@ public class VariantTestUtil {
     List<String> sortedFieldNames = data.keySet().stream().sorted().collect(Collectors.toList());
     for (String fieldName : sortedFieldNames) {
       int id = metadata.id(fieldName);
-      VariantUtil.writeLittleEndianUnsigned(
+      ByteBuffers.writeLittleEndianUnsigned(
           buffer, id, fieldIdListOffset + (index * fieldIdSize), fieldIdSize);
-      VariantUtil.writeLittleEndianUnsigned(
+      ByteBuffers.writeLittleEndianUnsigned(
           buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);
       int valueSize = data.get(fieldName).writeTo(buffer, dataOffset + nextOffset);
 
@@ -267,7 +258,7 @@ public class VariantTestUtil {
     }
 
     // write the final size of the data section
-    VariantUtil.writeLittleEndianUnsigned(
+    ByteBuffers.writeLittleEndianUnsigned(
         buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);
 
     return buffer;
@@ -304,7 +295,7 @@ public class VariantTestUtil {
     int index = 0;
     for (VariantValue value : values) {
       // write the offset and value
-      VariantUtil.writeLittleEndianUnsigned(
+      ByteBuffers.writeLittleEndianUnsigned(
           buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);
       int valueSize = value.writeTo(buffer, dataOffset + nextOffset);
       // update next offset and index
@@ -313,7 +304,7 @@ public class VariantTestUtil {
     }
 
     // write the final size of the data section
-    VariantUtil.writeLittleEndianUnsigned(
+    ByteBuffers.writeLittleEndianUnsigned(
         buffer, nextOffset, offsetListOffset + (index * offsetSize), offsetSize);
 
     return buffer;

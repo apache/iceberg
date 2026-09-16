@@ -43,6 +43,17 @@ public interface PartitionStatisticsScan {
   PartitionStatisticsScan filter(Expression filter);
 
   /**
+   * Create a new scan from this that will configure whether column name matches in filter
+   * expressions are case-sensitive. Default is true.
+   *
+   * @param caseSensitive whether column name matches in filter expressions should be case-sensitive
+   * @return a new scan based on this with the given case sensitivity
+   */
+  default PartitionStatisticsScan caseSensitive(boolean caseSensitive) {
+    throw new UnsupportedOperationException("caseSensitive is not supported");
+  }
+
+  /**
    * Create a new scan from this with the schema as its projection.
    *
    * @param schema a projection schema

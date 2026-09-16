@@ -190,7 +190,7 @@ public class OAuth2Util {
           config.credential(),
           config.scope(),
           config.oauth2ServerUri(),
-          ImmutableMap.of());
+          optionalOAuthParams);
     }
   }
 
@@ -369,11 +369,11 @@ public class OAuth2Util {
             .withTokenType(JsonUtil.getString(TOKEN_TYPE, json))
             .withIssuedTokenType(JsonUtil.getStringOrNull(ISSUED_TOKEN_TYPE, json));
 
-    if (json.has(EXPIRES_IN)) {
+    if (json.hasNonNull(EXPIRES_IN)) {
       builder.setExpirationInSeconds(JsonUtil.getInt(EXPIRES_IN, json));
     }
 
-    if (json.has(SCOPE)) {
+    if (json.hasNonNull(SCOPE)) {
       builder.addScopes(parseScope(JsonUtil.getString(SCOPE, json)));
     }
 
@@ -564,7 +564,7 @@ public class OAuth2Util {
             client, config, basicHeaders, token(), tokenType(), optionalOAuthParams());
       } else {
         return fetchToken(
-            client, Map.of(), credential(), scope(), oauth2ServerUri(), ImmutableMap.of());
+            client, Map.of(), credential(), scope(), oauth2ServerUri(), optionalOAuthParams());
       }
     }
 

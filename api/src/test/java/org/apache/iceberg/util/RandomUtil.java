@@ -38,19 +38,6 @@ public class RandomUtil {
 
   private RandomUtil() {}
 
-  /**
-   * Little-endian WKB encoding of a 2D point: byte order, geometry type 1, then the coordinates.
-   */
-  private static byte[] wkbPoint(double longitude, double latitude) {
-    return ByteBuffer.allocate(21)
-        .order(ByteOrder.LITTLE_ENDIAN)
-        .put((byte) 1)
-        .putInt(1)
-        .putDouble(longitude)
-        .putDouble(latitude)
-        .array();
-  }
-
   private static boolean negate(int num) {
     return num % 2 == 1;
   }
@@ -166,17 +153,17 @@ public class RandomUtil {
         random.nextBytes(binary);
         return binary;
 
-      case GEOMETRY:
-      case GEOGRAPHY:
-        // Both are stored as WKB (see the geospatial appendix of the spec), so generate a
-        // well-formed little-endian 2D point rather than arbitrary bytes.
-        return wkbPoint(random.nextDouble() * 360 - 180, random.nextDouble() * 180 - 90);
-
       case DECIMAL:
         Types.DecimalType type = (Types.DecimalType) primitive;
         BigInteger unscaled = randomUnscaled(type.precision(), random);
         BigDecimal bigDecimal = new BigDecimal(unscaled, type.scale());
         return negate(choice) ? bigDecimal.negate() : bigDecimal;
+
+      case GEOMETRY:
+      case GEOGRAPHY:
+        // geometry and geography values are stored as WKB
+        return wkbPoint(
+            (random.nextDouble() * 360.0) - 180.0, (random.nextDouble() * 180.0) - 90.0);
 
       default:
         throw new IllegalArgumentException(
@@ -223,10 +210,25 @@ public class RandomUtil {
         byte[] uuidBytes = new byte[16];
         random.nextBytes(uuidBytes);
         return uuidBytes;
+      case GEOMETRY:
+      case GEOGRAPHY:
+        // a small set of distinct points so the WKB column stays dictionary encodable
+        return wkbPoint(value, value);
       default:
         throw new IllegalArgumentException(
             "Cannot generate random value for unknown type: " + primitive);
     }
+  }
+
+  /** Encodes a point as little-endian WKB, the on-disk representation for geo values. */
+  public static byte[] wkbPoint(double xCoord, double yCoord) {
+    return ByteBuffer.allocate(21)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .put((byte) 1) // byte order: little endian
+        .putInt(1) // WKB geometry type: Point
+        .putDouble(xCoord)
+        .putDouble(yCoord)
+        .array();
   }
 
   private static final long FIFTY_YEARS_IN_MICROS =

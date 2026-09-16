@@ -58,16 +58,6 @@ public class TableReference implements IndexedRecord {
           NestedField.optional(TABLE_UUID, "table_uuid", UUIDType.get()));
   private static final Schema AVRO_SCHEMA = AvroUtil.convert(ICEBERG_SCHEMA, TableReference.class);
 
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link TableReference#of(String,
-   *     TableIdentifier, UUID)}
-   */
-  @Deprecated
-  public static TableReference of(String catalog, TableIdentifier tableIdentifier) {
-    return new TableReference(
-        catalog, Arrays.asList(tableIdentifier.namespace().levels()), tableIdentifier.name(), null);
-  }
-
   public static TableReference of(String catalog, TableIdentifier tableIdentifier, UUID tableUuid) {
     return new TableReference(
         catalog,
@@ -79,21 +69,6 @@ public class TableReference implements IndexedRecord {
   // Used by Avro reflection to instantiate this class when reading events
   public TableReference(Schema avroSchema) {
     this.avroSchema = avroSchema;
-  }
-
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0; use {@link TableReference#of(String,
-   *     TableIdentifier, UUID)}.
-   */
-  @Deprecated
-  public TableReference(String catalog, List<String> namespace, String name) {
-    Preconditions.checkNotNull(catalog, "Catalog cannot be null");
-    Preconditions.checkNotNull(namespace, "Namespace cannot be null");
-    Preconditions.checkNotNull(name, "Name cannot be null");
-    this.catalog = catalog;
-    this.namespace = namespace;
-    this.name = name;
-    this.avroSchema = AVRO_SCHEMA;
   }
 
   private TableReference(String catalog, List<String> namespace, String name, UUID uuid) {

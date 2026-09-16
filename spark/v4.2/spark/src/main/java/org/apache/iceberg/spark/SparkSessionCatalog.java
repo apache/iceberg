@@ -1,0 +1,667 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.spark;
+
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.source.HasIcebergCatalog;
+import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
+import org.apache.spark.sql.catalyst.analysis.NonEmptyNamespaceException;
+import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
+import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
+import org.apache.spark.sql.connector.catalog.CatalogExtension;
+import org.apache.spark.sql.connector.catalog.CatalogPlugin;
+import org.apache.spark.sql.connector.catalog.FunctionCatalog;
+import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.NamespaceChange;
+import org.apache.spark.sql.connector.catalog.StagedTable;
+import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
+import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
+import org.apache.spark.sql.connector.catalog.Table;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.connector.catalog.TableSummary;
+import org.apache.spark.sql.connector.catalog.View;
+import org.apache.spark.sql.connector.catalog.ViewCatalog;
+import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
+import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+
+/**
+ * A Spark catalog that can also load non-Iceberg tables.
+ *
+ * @param <T> CatalogPlugin class to avoid casting to TableCatalog, FunctionCatalog and
+ *     SupportsNamespaces.
+ */
+public class SparkSessionCatalog<
+        T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
+    extends BaseCatalog implements CatalogExtension {
+  private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
+
+  private String catalogName = null;
+  private TableCatalog icebergCatalog = null;
+  private StagingTableCatalog asStagingCatalog = null;
+  private ViewCatalog asViewCatalog = null;
+  private T sessionCatalog = null;
+  private boolean createParquetAsIceberg = false;
+  private boolean createAvroAsIceberg = false;
+  private boolean createOrcAsIceberg = false;
+
+  /**
+   * Build a {@link SparkCatalog} to be used for Iceberg operations.
+   *
+   * <p>The default implementation creates a new SparkCatalog with the session catalog's name and
+   * options.
+   *
+   * @param name catalog name
+   * @param options catalog options
+   * @return a SparkCatalog to be used for Iceberg tables
+   */
+  protected TableCatalog buildSparkCatalog(String name, CaseInsensitiveStringMap options) {
+    SparkCatalog newCatalog = new SparkCatalog();
+    newCatalog.initialize(name, options);
+    return newCatalog;
+  }
+
+  @Override
+  public String[] defaultNamespace() {
+    return DEFAULT_NAMESPACE;
+  }
+
+  @Override
+  public String[][] listNamespaces() throws NoSuchNamespaceException {
+    return getSessionCatalog().listNamespaces();
+  }
+
+  @Override
+  public String[][] listNamespaces(String[] namespace) throws NoSuchNamespaceException {
+    return getSessionCatalog().listNamespaces(namespace);
+  }
+
+  @Override
+  public boolean namespaceExists(String[] namespace) {
+    return getSessionCatalog().namespaceExists(namespace);
+  }
+
+  @Override
+  public Map<String, String> loadNamespaceMetadata(String[] namespace)
+      throws NoSuchNamespaceException {
+    return getSessionCatalog().loadNamespaceMetadata(namespace);
+  }
+
+  @Override
+  public void createNamespace(String[] namespace, Map<String, String> metadata)
+      throws NamespaceAlreadyExistsException {
+    getSessionCatalog().createNamespace(namespace, metadata);
+  }
+
+  @Override
+  public void alterNamespace(String[] namespace, NamespaceChange... changes)
+      throws NoSuchNamespaceException {
+    getSessionCatalog().alterNamespace(namespace, changes);
+  }
+
+  @Override
+  public boolean dropNamespace(String[] namespace, boolean cascade)
+      throws NoSuchNamespaceException, NonEmptyNamespaceException {
+    return getSessionCatalog().dropNamespace(namespace, cascade);
+  }
+
+  @Override
+  public Identifier[] listTables(String[] namespace) throws NoSuchNamespaceException {
+    // delegate to the session catalog because all tables share the same namespace
+    return getSessionCatalog().listTables(namespace);
+  }
+
+  @Override
+  public TableSummary[] listTableSummaries(String[] namespace)
+      throws NoSuchNamespaceException, NoSuchTableException {
+    Set<Identifier> viewIdentifiers = sessionViews(namespace);
+    Set<Identifier> icebergTableIdentifiers = icebergTables(namespace, viewIdentifiers);
+    return Arrays.stream(getSessionCatalog().listTableSummaries(namespace))
+        .map(summary -> relationSummary(summary, viewIdentifiers, icebergTableIdentifiers))
+        .filter(summary -> !isViewType(summary.tableType()))
+        .toArray(TableSummary[]::new);
+  }
+
+  @Override
+  public TableSummary[] listRelationSummaries(String[] namespace)
+      throws NoSuchNamespaceException, NoSuchTableException {
+    Set<Identifier> sessionViews = sessionViews(namespace);
+    Set<Identifier> icebergTables = icebergTables(namespace, sessionViews);
+    Map<Identifier, TableSummary> summaries = new LinkedHashMap<>();
+    for (TableSummary summary : getSessionCatalog().listTableSummaries(namespace)) {
+      summaries.put(summary.identifier(), relationSummary(summary, sessionViews, icebergTables));
+    }
+
+    for (Identifier identifier : sessionViews) {
+      summaries.putIfAbsent(identifier, TableSummary.of(identifier, TableSummary.VIEW_TABLE_TYPE));
+    }
+
+    for (Identifier identifier : icebergViews(namespace)) {
+      summaries.putIfAbsent(identifier, TableSummary.of(identifier, TableSummary.VIEW_TABLE_TYPE));
+    }
+
+    return summaries.values().toArray(new TableSummary[0]);
+  }
+
+  private TableSummary relationSummary(
+      TableSummary summary,
+      Set<Identifier> sessionViewIdentifiers,
+      Set<Identifier> icebergTableIdentifiers) {
+    Identifier identifier = summary.identifier();
+    if (!sessionViewIdentifiers.contains(identifier) && !isViewType(summary.tableType())) {
+      return summary;
+    } else if (icebergTableIdentifiers.contains(identifier)) {
+      return TableSummary.of(identifier, TableSummary.EXTERNAL_TABLE_TYPE);
+    }
+
+    return TableSummary.of(identifier, TableSummary.VIEW_TABLE_TYPE);
+  }
+
+  private static boolean isViewType(String tableType) {
+    return TableSummary.VIEW_TABLE_TYPE.equals(tableType)
+        || TableSummary.METRIC_VIEW_TABLE_TYPE.equals(tableType);
+  }
+
+  @Override
+  public Table loadTable(Identifier ident) throws NoSuchTableException {
+    try {
+      return icebergCatalog.loadTable(ident);
+    } catch (NoSuchTableException e) {
+      return getSessionCatalog().loadTable(ident);
+    }
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
+    try {
+      return icebergCatalog.loadTable(ident, version);
+    } catch (NoSuchTableException e) {
+      return getSessionCatalog().loadTable(ident, version);
+    }
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
+    try {
+      return icebergCatalog.loadTable(ident, timestamp);
+    } catch (NoSuchTableException e) {
+      return getSessionCatalog().loadTable(ident, timestamp);
+    }
+  }
+
+  @Override
+  public void invalidateTable(Identifier ident) {
+    // We do not need to check whether the table exists and whether
+    // it is an Iceberg table to reduce remote service requests.
+    icebergCatalog.invalidateTable(ident);
+    getSessionCatalog().invalidateTable(ident);
+  }
+
+  @Override
+  public boolean tableExists(Identifier ident) {
+    return icebergCatalog.tableExists(ident) || getSessionCatalog().tableExists(ident);
+  }
+
+  @Override
+  public Table createTable(
+      Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    checkViewNotExists(ident);
+
+    String provider = properties.get("provider");
+    if (useIceberg(provider)) {
+      return icebergCatalog.createTable(ident, schema, partitions, properties);
+    } else {
+      // delegate to the session catalog
+      return getSessionCatalog().createTable(ident, schema, partitions, properties);
+    }
+  }
+
+  @Override
+  public StagedTable stageCreate(
+      Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    checkViewNotExists(ident);
+
+    String provider = properties.get("provider");
+    TableCatalog catalog;
+    if (useIceberg(provider)) {
+      if (asStagingCatalog != null) {
+        return asStagingCatalog.stageCreate(ident, schema, partitions, properties);
+      }
+      catalog = icebergCatalog;
+    } else {
+      catalog = getSessionCatalog();
+    }
+
+    // create the table with the session catalog, then wrap it in a staged table that will delete to
+    // roll back
+    Table table = catalog.createTable(ident, schema, partitions, properties);
+    return new RollbackStagedTable(catalog, ident, table);
+  }
+
+  @Override
+  public StagedTable stageReplace(
+      Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
+      throws NoSuchNamespaceException, NoSuchTableException {
+    String provider = properties.get("provider");
+    TableCatalog catalog;
+    if (useIceberg(provider)) {
+      if (asStagingCatalog != null) {
+        return asStagingCatalog.stageReplace(ident, schema, partitions, properties);
+      }
+      catalog = icebergCatalog;
+    } else {
+      catalog = getSessionCatalog();
+    }
+
+    // attempt to drop the table and fail if it doesn't exist
+    if (!catalog.dropTable(ident)) {
+      throw new NoSuchTableException(ident);
+    }
+
+    try {
+      // create the table with the session catalog, then wrap it in a staged table that will delete
+      // to roll back
+      Table table = catalog.createTable(ident, schema, partitions, properties);
+      return new RollbackStagedTable(catalog, ident, table);
+
+    } catch (TableAlreadyExistsException e) {
+      // the table was deleted, but now already exists again. retry the replace.
+      return stageReplace(ident, schema, partitions, properties);
+    }
+  }
+
+  @Override
+  public StagedTable stageCreateOrReplace(
+      Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
+      throws NoSuchNamespaceException {
+    if (viewExists(ident)) {
+      // StagingTableCatalog does not declare a checked collision exception for create-or-replace.
+      throw new AlreadyExistsException(
+          "Cannot create or replace table %s: a view with the same name already exists", ident);
+    }
+
+    String provider = properties.get("provider");
+    TableCatalog catalog;
+    if (useIceberg(provider)) {
+      if (asStagingCatalog != null) {
+        return asStagingCatalog.stageCreateOrReplace(ident, schema, partitions, properties);
+      }
+      catalog = icebergCatalog;
+    } else {
+      catalog = getSessionCatalog();
+    }
+
+    // drop the table if it exists
+    catalog.dropTable(ident);
+
+    try {
+      // create the table with the session catalog, then wrap it in a staged table that will delete
+      // to roll back
+      Table sessionCatalogTable = catalog.createTable(ident, schema, partitions, properties);
+      return new RollbackStagedTable(catalog, ident, sessionCatalogTable);
+
+    } catch (TableAlreadyExistsException e) {
+      // the table was deleted, but now already exists again. retry the replace.
+      return stageCreateOrReplace(ident, schema, partitions, properties);
+    }
+  }
+
+  @Override
+  public Table alterTable(Identifier ident, TableChange... changes) throws NoSuchTableException {
+    if (icebergCatalog.tableExists(ident)) {
+      return icebergCatalog.alterTable(ident, changes);
+    } else {
+      return getSessionCatalog().alterTable(ident, changes);
+    }
+  }
+
+  @Override
+  public boolean dropTable(Identifier ident) {
+    // no need to check table existence to determine which catalog to use. if a table doesn't exist
+    // then both are
+    // required to return false.
+    return icebergCatalog.dropTable(ident) || getSessionCatalog().dropTable(ident);
+  }
+
+  @Override
+  public boolean purgeTable(Identifier ident) {
+    // no need to check table existence to determine which catalog to use. if a table doesn't exist
+    // then both are
+    // required to return false.
+    return icebergCatalog.purgeTable(ident) || getSessionCatalog().purgeTable(ident);
+  }
+
+  @Override
+  public void renameTable(Identifier from, Identifier to)
+      throws NoSuchTableException, TableAlreadyExistsException {
+    checkViewNotExists(to);
+
+    // rename is not supported by HadoopCatalog. to avoid UnsupportedOperationException for session
+    // catalog tables,
+    // check table existence first to ensure that the table belongs to the Iceberg catalog.
+    if (icebergCatalog.tableExists(from)) {
+      icebergCatalog.renameTable(from, to);
+    } else {
+      getSessionCatalog().renameTable(from, to);
+    }
+  }
+
+  @Override
+  public final void initialize(String name, CaseInsensitiveStringMap options) {
+    super.initialize(name, options);
+
+    if (options.containsKey(CatalogUtil.ICEBERG_CATALOG_TYPE)
+        && options
+            .get(CatalogUtil.ICEBERG_CATALOG_TYPE)
+            .equalsIgnoreCase(CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE)) {
+      validateHmsUri(options.get(CatalogProperties.URI));
+    }
+
+    this.catalogName = name;
+    this.icebergCatalog = buildSparkCatalog(name, options);
+    if (icebergCatalog instanceof StagingTableCatalog) {
+      this.asStagingCatalog = (StagingTableCatalog) icebergCatalog;
+    }
+
+    if (icebergCatalog instanceof ViewCatalog) {
+      this.asViewCatalog = (ViewCatalog) icebergCatalog;
+    }
+
+    this.createParquetAsIceberg = options.getBoolean("parquet-enabled", createParquetAsIceberg);
+    this.createAvroAsIceberg = options.getBoolean("avro-enabled", createAvroAsIceberg);
+    this.createOrcAsIceberg = options.getBoolean("orc-enabled", createOrcAsIceberg);
+  }
+
+  private void validateHmsUri(String catalogHmsUri) {
+    if (catalogHmsUri == null) {
+      return;
+    }
+
+    Configuration conf = SparkSession.active().sessionState().newHadoopConf();
+    String envHmsUri = conf.get(HiveConf.ConfVars.METASTOREURIS.varname, null);
+    if (envHmsUri == null) {
+      return;
+    }
+
+    Preconditions.checkArgument(
+        catalogHmsUri.equals(envHmsUri),
+        "Inconsistent Hive metastore URIs: %s (Spark session) != %s (spark_catalog)",
+        envHmsUri,
+        catalogHmsUri);
+  }
+
+  @Override
+  @SuppressWarnings("unchecked")
+  public void setDelegateCatalog(CatalogPlugin sparkSessionCatalog) {
+    if (sparkSessionCatalog instanceof TableCatalog
+        && sparkSessionCatalog instanceof FunctionCatalog
+        && sparkSessionCatalog instanceof SupportsNamespaces) {
+      this.sessionCatalog = (T) sparkSessionCatalog;
+    } else {
+      throw new IllegalArgumentException("Invalid session catalog: " + sparkSessionCatalog);
+    }
+  }
+
+  @Override
+  public String name() {
+    return catalogName;
+  }
+
+  private boolean useIceberg(String provider) {
+    if (provider == null || "iceberg".equalsIgnoreCase(provider)) {
+      return true;
+    } else if (createParquetAsIceberg && "parquet".equalsIgnoreCase(provider)) {
+      return true;
+    } else if (createAvroAsIceberg && "avro".equalsIgnoreCase(provider)) {
+      return true;
+    } else if (createOrcAsIceberg && "orc".equalsIgnoreCase(provider)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private T getSessionCatalog() {
+    Preconditions.checkNotNull(
+        sessionCatalog,
+        "Delegated SessionCatalog is missing. "
+            + "Please make sure your are replacing Spark's default catalog, named 'spark_catalog'.");
+    return sessionCatalog;
+  }
+
+  @Override
+  public Catalog icebergCatalog() {
+    Preconditions.checkArgument(
+        icebergCatalog instanceof HasIcebergCatalog,
+        "Cannot return underlying Iceberg Catalog, wrapped catalog does not contain an Iceberg Catalog");
+    return ((HasIcebergCatalog) icebergCatalog).icebergCatalog();
+  }
+
+  @Override
+  public TableIdentifier icebergIdentifier(Identifier identifier) {
+    Preconditions.checkArgument(
+        icebergCatalog instanceof HasIcebergCatalog,
+        "Cannot map identifier, wrapped catalog does not contain an Iceberg Catalog");
+    return ((HasIcebergCatalog) icebergCatalog).icebergIdentifier(identifier);
+  }
+
+  @Override
+  public org.apache.iceberg.catalog.ViewCatalog icebergViewCatalog() {
+    Preconditions.checkArgument(
+        icebergCatalog instanceof HasIcebergCatalog,
+        "Cannot return underlying Iceberg view catalog, wrapped catalog does not contain an Iceberg Catalog");
+    return ((HasIcebergCatalog) icebergCatalog).icebergViewCatalog();
+  }
+
+  private boolean isViewCatalog() {
+    return getSessionCatalog() instanceof ViewCatalog;
+  }
+
+  @Override
+  public boolean functionExists(Identifier ident) {
+    return super.functionExists(ident) || getSessionCatalog().functionExists(ident);
+  }
+
+  @Override
+  public UnboundFunction loadFunction(Identifier ident) throws NoSuchFunctionException {
+    try {
+      return super.loadFunction(ident);
+    } catch (NoSuchFunctionException e) {
+      return getSessionCatalog().loadFunction(ident);
+    }
+  }
+
+  @Override
+  public Identifier[] listViews(String... namespace) {
+    Set<Identifier> views = sessionViews(namespace);
+    views.addAll(icebergViews(namespace));
+    return views.toArray(new Identifier[0]);
+  }
+
+  private Set<Identifier> sessionViews(String[] namespace) {
+    Set<Identifier> views = Sets.newLinkedHashSet();
+    try {
+      if (isViewCatalog()) {
+        views.addAll(Arrays.asList(getSessionCatalog().listViews(namespace)));
+      } else {
+        getSessionCatalog().listTables(namespace);
+      }
+    } catch (NoSuchNamespaceException e) {
+      throw new RuntimeException(e);
+    }
+
+    return views;
+  }
+
+  private Set<Identifier> icebergViews(String[] namespace) {
+    Set<Identifier> views = Sets.newLinkedHashSet();
+    if (null != asViewCatalog) {
+      try {
+        views.addAll(Arrays.asList(asViewCatalog.listViews(namespace)));
+      } catch (NoSuchNamespaceException e) {
+        // The session catalog owns namespaces, so a valid namespace may not exist in Iceberg.
+      }
+    }
+
+    return views;
+  }
+
+  private Set<Identifier> icebergTables(String[] namespace, Set<Identifier> sessionViews)
+      throws NoSuchTableException {
+    Set<Identifier> tables = Sets.newHashSet();
+    if (sessionViews.isEmpty()) {
+      return tables;
+    }
+
+    try {
+      for (TableSummary summary : icebergCatalog.listTableSummaries(namespace)) {
+        if (sessionViews.contains(summary.identifier())) {
+          tables.add(summary.identifier());
+        }
+      }
+    } catch (NoSuchNamespaceException e) {
+      // The session catalog owns namespaces, so a valid namespace may not exist in Iceberg.
+    }
+
+    tables.removeIf(identifier -> !icebergCatalog.tableExists(identifier));
+    return tables;
+  }
+
+  @Override
+  public boolean viewExists(Identifier ident) {
+    return (asViewCatalog != null && asViewCatalog.viewExists(ident))
+        || (isViewCatalog() && getSessionCatalog().viewExists(ident));
+  }
+
+  @Override
+  public View loadView(Identifier ident) throws NoSuchViewException {
+    if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+      return asViewCatalog.loadView(ident);
+    } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
+      return getSessionCatalog().loadView(ident);
+    }
+
+    throw new NoSuchViewException(ident);
+  }
+
+  @Override
+  public View createView(Identifier ident, View view)
+      throws ViewAlreadyExistsException, NoSuchNamespaceException {
+    Preconditions.checkArgument(view != null, "Invalid view metadata: null");
+    checkTableNotExists(ident);
+
+    if (null != asViewCatalog) {
+      return asViewCatalog.createView(ident, view);
+    } else if (isViewCatalog()) {
+      return getSessionCatalog().createView(ident, view);
+    }
+
+    throw new UnsupportedOperationException(
+        "Creating a view is not supported by catalog: " + catalogName);
+  }
+
+  @Override
+  public View replaceView(Identifier ident, View view) throws NoSuchViewException {
+    if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+      return asViewCatalog.replaceView(ident, view);
+    } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
+      return getSessionCatalog().replaceView(ident, view);
+    }
+
+    throw new NoSuchViewException(ident);
+  }
+
+  @Override
+  public View createOrReplaceView(Identifier ident, View view)
+      throws ViewAlreadyExistsException, NoSuchNamespaceException {
+    checkTableNotExists(ident);
+
+    if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+      return asViewCatalog.createOrReplaceView(ident, view);
+    } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
+      return getSessionCatalog().createOrReplaceView(ident, view);
+    } else if (null != asViewCatalog) {
+      return asViewCatalog.createOrReplaceView(ident, view);
+    } else if (isViewCatalog()) {
+      return getSessionCatalog().createOrReplaceView(ident, view);
+    }
+
+    throw new UnsupportedOperationException(
+        "Creating or replacing a view is not supported by catalog: " + catalogName);
+  }
+
+  @Override
+  public boolean dropView(Identifier ident) {
+    if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+      return asViewCatalog.dropView(ident);
+    } else if (isViewCatalog()) {
+      return getSessionCatalog().dropView(ident);
+    }
+
+    return false;
+  }
+
+  @Override
+  public void renameView(Identifier fromIdentifier, Identifier toIdentifier)
+      throws NoSuchViewException, ViewAlreadyExistsException {
+    checkTableNotExists(toIdentifier);
+
+    if (null != asViewCatalog && asViewCatalog.viewExists(fromIdentifier)) {
+      asViewCatalog.renameView(fromIdentifier, toIdentifier);
+    } else if (isViewCatalog()) {
+      getSessionCatalog().renameView(fromIdentifier, toIdentifier);
+    } else {
+      throw new UnsupportedOperationException(
+          "Renaming a view is not supported by catalog: " + catalogName);
+    }
+  }
+
+  private void checkTableNotExists(Identifier ident) throws ViewAlreadyExistsException {
+    if (tableExists(ident)) {
+      throw new ViewAlreadyExistsException(ident);
+    }
+  }
+
+  private void checkViewNotExists(Identifier ident) throws TableAlreadyExistsException {
+    if (viewExists(ident)) {
+      throw new TableAlreadyExistsException(ident);
+    }
+  }
+}

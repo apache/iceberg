@@ -22,7 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import static org.mockito.Mockito.when;
 
+import java.net.URI;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.rest.RESTCatalogProperties;
@@ -31,14 +36,23 @@ import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.responses.ImmutableRemoteSignResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.rest.responses.RemoteSignResponse;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.signer.AwsSignerExecutionAttribute;
+import software.amazon.awssdk.core.interceptor.ExecutionAttributes;
+import software.amazon.awssdk.http.SdkHttpFullRequest;
+import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.utils.IoUtils;
 
 class TestS3V4RestSignerClient {
@@ -96,6 +110,69 @@ class TestS3V4RestSignerClient {
     S3V4RestSignerClient.authManager = null;
   }
 
+  /**
+   * A server may write the Cache-Control field name in any case, and HTTP/2 requires it to be
+   * lowercase, so the spelling it chose must not decide whether the signed component is cached.
+   */
+  @SuppressWarnings("deprecation")
+  @ParameterizedTest
+  @ValueSource(strings = {"Cache-Control", "cache-control"})
+  void signedComponentIsCachedRegardlessOfCacheControlHeaderCase(String cacheControlHeader)
+      throws Exception {
+    // the signing cache is static and keyed on method, region and URI
+    URI uri = URI.create("https://bucket.s3.us-west-2.amazonaws.com/" + UUID.randomUUID());
+    AtomicInteger signRequests = new AtomicInteger();
+
+    when(S3V4RestSignerClient.httpClient.post(
+            Mockito.anyString(),
+            Mockito.any(),
+            Mockito.eq(RemoteSignResponse.class),
+            Mockito.anyMap(),
+            Mockito.any(),
+            Mockito.any()))
+        .thenAnswer(
+            invocation -> {
+              signRequests.incrementAndGet();
+              Consumer<Map<String, String>> responseHeaders = invocation.getArgument(5);
+              responseHeaders.accept(Map.of(cacheControlHeader, "private"));
+              return ImmutableRemoteSignResponse.builder()
+                  .uri(uri)
+                  .headers(Map.of("Authorization", List.of("AWS4-HMAC-SHA256 Credential=key")))
+                  .build();
+            });
+
+    ExecutionAttributes executionAttributes =
+        ExecutionAttributes.builder()
+            .put(
+                AwsSignerExecutionAttribute.AWS_CREDENTIALS,
+                AwsBasicCredentials.create("accessKeyId", "secretAccessKey"))
+            .put(AwsSignerExecutionAttribute.SIGNING_REGION, Region.US_WEST_2)
+            .put(AwsSignerExecutionAttribute.SERVICE_SIGNING_NAME, "s3")
+            .build();
+
+    try (S3V4RestSignerClient client =
+        ImmutableS3V4RestSignerClient.builder()
+            .properties(
+                Map.of(
+                    CatalogProperties.URI,
+                    "https://signer.com",
+                    RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                    "v1/namespaces/ns1/tables/t1/sign",
+                    OAuth2Properties.TOKEN,
+                    "token"))
+            .build()) {
+      SdkHttpFullRequest request =
+          SdkHttpFullRequest.builder().uri(uri).method(SdkHttpMethod.GET).build();
+
+      client.sign(request, executionAttributes);
+      client.sign(request, executionAttributes);
+    }
+
+    assertThat(signRequests.get())
+        .as("the signed component should be cached, so the repeated request must not sign again")
+        .isEqualTo(1);
+  }
+
   @ParameterizedTest
   @MethodSource("validOAuth2Properties")
   void authSessionOAuth2(Map<String, String> properties, String expectedScope, String expectedToken)
@@ -122,19 +199,19 @@ class TestS3V4RestSignerClient {
         // No OAuth2 data
         Arguments.of(
             Map.of(
-                RESTCatalogProperties.SIGNER_URI,
+                CatalogProperties.URI,
                 "https://signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
-                "v1/sign/s3"),
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                "v1/namespaces/ns1/tables/t1/sign"),
             "sign",
             null),
         // Token only
         Arguments.of(
             Map.of(
-                RESTCatalogProperties.SIGNER_URI,
+                CatalogProperties.URI,
                 "https://signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
-                "v1/sign/s3",
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                "v1/namespaces/ns1/tables/t1/sign",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.TOKEN,
@@ -144,10 +221,10 @@ class TestS3V4RestSignerClient {
         // Credential only: expect a token to be fetched
         Arguments.of(
             Map.of(
-                RESTCatalogProperties.SIGNER_URI,
+                CatalogProperties.URI,
                 "https://signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
-                "v1/sign/s3",
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                "v1/namespaces/ns1/tables/t1/sign",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.CREDENTIAL,
@@ -157,10 +234,10 @@ class TestS3V4RestSignerClient {
         // Token and credential: should use token as is, not fetch a new one
         Arguments.of(
             Map.of(
-                RESTCatalogProperties.SIGNER_URI,
+                CatalogProperties.URI,
                 "https://signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
-                "v1/sign/s3",
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                "v1/namespaces/ns1/tables/t1/sign",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.TOKEN,
@@ -172,10 +249,10 @@ class TestS3V4RestSignerClient {
         // Custom scope
         Arguments.of(
             Map.of(
-                RESTCatalogProperties.SIGNER_URI,
+                CatalogProperties.URI,
                 "https://signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
-                "v1/sign/s3",
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                "v1/namespaces/ns1/tables/t1/sign",
                 AuthProperties.AUTH_TYPE,
                 AuthProperties.AUTH_TYPE_OAUTH2,
                 OAuth2Properties.CREDENTIAL,
@@ -204,11 +281,9 @@ class TestS3V4RestSignerClient {
         // Only legacy properties
         Arguments.of(
             Map.of(
-                CatalogProperties.URI,
-                "https://catalog.com",
-                S3V4RestSignerClient.S3_SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://legacy-signer.com",
-                S3V4RestSignerClient.S3_SIGNER_ENDPOINT,
+                RESTCatalogProperties.SIGNER_ENDPOINT,
                 "v1/legacy/sign"),
             "https://legacy-signer.com",
             "https://legacy-signer.com/v1/legacy/sign"),
@@ -216,10 +291,8 @@ class TestS3V4RestSignerClient {
         Arguments.of(
             Map.of(
                 CatalogProperties.URI,
-                "https://catalog.com",
-                RESTCatalogProperties.SIGNER_URI,
                 "https://new-signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
                 "v1/new/sign"),
             "https://new-signer.com",
             "https://new-signer.com/v1/new/sign"),
@@ -227,21 +300,14 @@ class TestS3V4RestSignerClient {
         Arguments.of(
             Map.of(
                 CatalogProperties.URI,
-                "https://catalog.com",
-                RESTCatalogProperties.SIGNER_URI,
                 "https://new-signer.com",
-                RESTCatalogProperties.SIGNER_ENDPOINT,
+                RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
                 "v1/new/sign",
-                S3V4RestSignerClient.S3_SIGNER_URI,
+                RESTCatalogProperties.SIGNER_URI,
                 "https://legacy-signer.com",
-                S3V4RestSignerClient.S3_SIGNER_ENDPOINT,
+                RESTCatalogProperties.SIGNER_ENDPOINT,
                 "v1/legacy/sign"),
             "https://legacy-signer.com",
-            "https://legacy-signer.com/v1/legacy/sign"),
-        // No signer properties: the catalog URI and the deprecated default endpoint are used
-        Arguments.of(
-            Map.of(CatalogProperties.URI, "https://catalog.com"),
-            "https://catalog.com",
-            "https://catalog.com/" + S3V4RestSignerClient.S3_SIGNER_DEFAULT_ENDPOINT));
+            "https://legacy-signer.com/v1/legacy/sign"));
   }
 }

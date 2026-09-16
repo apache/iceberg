@@ -363,20 +363,14 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     PartitionSpec bucketSpec = table.specs().get(1);
     PartitionSpec identitySpec = table.specs().get(2);
 
-    writer.write(positionDelete(dataFile1.location(), 0L, null), unpartitionedSpec, null);
-    writer.write(positionDelete(dataFile1.location(), 1L, null), unpartitionedSpec, null);
+    writer.write(positionDelete(dataFile1.location(), 0L), unpartitionedSpec, null);
+    writer.write(positionDelete(dataFile1.location(), 1L), unpartitionedSpec, null);
     writer.write(
-        positionDelete(dataFile2.location(), 0L, null),
-        bucketSpec,
-        partitionKey(bucketSpec, "bbb"));
+        positionDelete(dataFile2.location(), 0L), bucketSpec, partitionKey(bucketSpec, "bbb"));
     writer.write(
-        positionDelete(dataFile2.location(), 1L, null),
-        bucketSpec,
-        partitionKey(bucketSpec, "bbb"));
+        positionDelete(dataFile2.location(), 1L), bucketSpec, partitionKey(bucketSpec, "bbb"));
     writer.write(
-        positionDelete(dataFile3.location(), 0L, null),
-        identitySpec,
-        partitionKey(identitySpec, "ccc"));
+        positionDelete(dataFile3.location(), 0L), identitySpec, partitionKey(identitySpec, "ccc"));
 
     writer.close();
 
@@ -425,24 +419,18 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     PartitionSpec bucketSpec = table.specs().get(1);
     PartitionSpec identitySpec = table.specs().get(2);
 
-    writer.write(positionDelete("file-1.parquet", 0L, null), unpartitionedSpec, null);
-    writer.write(positionDelete("file-1.parquet", 1L, null), unpartitionedSpec, null);
+    writer.write(positionDelete("file-1.parquet", 0L), unpartitionedSpec, null);
+    writer.write(positionDelete("file-1.parquet", 1L), unpartitionedSpec, null);
+    writer.write(positionDelete("file-2.parquet", 0L), bucketSpec, partitionKey(bucketSpec, "bbb"));
+    writer.write(positionDelete("file-2.parquet", 1L), bucketSpec, partitionKey(bucketSpec, "bbb"));
     writer.write(
-        positionDelete("file-2.parquet", 0L, null), bucketSpec, partitionKey(bucketSpec, "bbb"));
+        positionDelete("file-3.parquet", 0L), identitySpec, partitionKey(identitySpec, "ccc"));
     writer.write(
-        positionDelete("file-2.parquet", 1L, null), bucketSpec, partitionKey(bucketSpec, "bbb"));
-    writer.write(
-        positionDelete("file-3.parquet", 0L, null),
-        identitySpec,
-        partitionKey(identitySpec, "ccc"));
-    writer.write(
-        positionDelete("file-4.parquet", 0L, null),
-        identitySpec,
-        partitionKey(identitySpec, "ddd"));
+        positionDelete("file-4.parquet", 0L), identitySpec, partitionKey(identitySpec, "ddd"));
 
     assertThatThrownBy(
             () -> {
-              PositionDelete<T> positionDelete = positionDelete("file-5.parquet", 1L, null);
+              PositionDelete<T> positionDelete = positionDelete("file-5.parquet", 1L);
               writer.write(positionDelete, identitySpec, partitionKey(identitySpec, "ccc"));
             })
         .isInstanceOf(IllegalStateException.class)
@@ -451,7 +439,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
 
     assertThatThrownBy(
             () -> {
-              PositionDelete<T> positionDelete = positionDelete("file-1.parquet", 3L, null);
+              PositionDelete<T> positionDelete = positionDelete("file-1.parquet", 3L);
               writer.write(positionDelete, unpartitionedSpec, null);
             })
         .isInstanceOf(IllegalStateException.class)
@@ -493,10 +481,10 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     PartitionSpec spec = table.spec();
 
     // write deletes for both data files
-    writer.write(positionDelete(dataFile1.location(), 0L, null), spec, null);
-    writer.write(positionDelete(dataFile1.location(), 1L, null), spec, null);
-    writer.write(positionDelete(dataFile2.location(), 0L, null), spec, null);
-    writer.write(positionDelete(dataFile2.location(), 1L, null), spec, null);
+    writer.write(positionDelete(dataFile1.location(), 0L), spec, null);
+    writer.write(positionDelete(dataFile1.location(), 1L), spec, null);
+    writer.write(positionDelete(dataFile2.location(), 0L), spec, null);
+    writer.write(positionDelete(dataFile2.location(), 1L), spec, null);
     writer.close();
 
     // verify the writer result
@@ -641,29 +629,19 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     PartitionSpec bucketSpec = table.specs().get(1);
     PartitionSpec identitySpec = table.specs().get(2);
 
-    writer.write(positionDelete(dataFile1.location(), 1L, null), unpartitionedSpec, null);
+    writer.write(positionDelete(dataFile1.location(), 1L), unpartitionedSpec, null);
     writer.write(
-        positionDelete(dataFile2.location(), 1L, null),
-        bucketSpec,
-        partitionKey(bucketSpec, "bbb"));
+        positionDelete(dataFile2.location(), 1L), bucketSpec, partitionKey(bucketSpec, "bbb"));
     writer.write(
-        positionDelete(dataFile2.location(), 0L, null),
-        bucketSpec,
-        partitionKey(bucketSpec, "bbb"));
+        positionDelete(dataFile2.location(), 0L), bucketSpec, partitionKey(bucketSpec, "bbb"));
     writer.write(
-        positionDelete(dataFile3.location(), 1L, null),
-        identitySpec,
-        partitionKey(identitySpec, "ccc"));
+        positionDelete(dataFile3.location(), 1L), identitySpec, partitionKey(identitySpec, "ccc"));
     writer.write(
-        positionDelete(dataFile3.location(), 2L, null),
-        identitySpec,
-        partitionKey(identitySpec, "ccc"));
-    writer.write(positionDelete(dataFile1.location(), 0L, null), unpartitionedSpec, null);
+        positionDelete(dataFile3.location(), 2L), identitySpec, partitionKey(identitySpec, "ccc"));
+    writer.write(positionDelete(dataFile1.location(), 0L), unpartitionedSpec, null);
     writer.write(
-        positionDelete(dataFile3.location(), 0L, null),
-        identitySpec,
-        partitionKey(identitySpec, "ccc"));
-    writer.write(positionDelete(dataFile1.location(), 2L, null), unpartitionedSpec, null);
+        positionDelete(dataFile3.location(), 0L), identitySpec, partitionKey(identitySpec, "ccc"));
+    writer.write(positionDelete(dataFile1.location(), 2L), unpartitionedSpec, null);
 
     writer.close();
 
@@ -712,10 +690,10 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     PartitionSpec spec = table.spec();
 
     // write deletes for both data files (the order of records is mixed)
-    writer.write(positionDelete(dataFile1.location(), 1L, null), spec, null);
-    writer.write(positionDelete(dataFile2.location(), 0L, null), spec, null);
-    writer.write(positionDelete(dataFile1.location(), 0L, null), spec, null);
-    writer.write(positionDelete(dataFile2.location(), 1L, null), spec, null);
+    writer.write(positionDelete(dataFile1.location(), 1L), spec, null);
+    writer.write(positionDelete(dataFile2.location(), 0L), spec, null);
+    writer.write(positionDelete(dataFile1.location(), 0L), spec, null);
+    writer.write(positionDelete(dataFile2.location(), 1L), spec, null);
     writer.close();
 
     // verify the writer result

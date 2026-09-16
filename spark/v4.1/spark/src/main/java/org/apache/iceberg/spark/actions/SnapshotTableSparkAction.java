@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.Snapshot;
@@ -56,6 +57,7 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
   private Identifier destTableIdent;
   private String destTableLocation = null;
   private ExecutorService executorService;
+  private boolean ignoreMissingFiles = false;
 
   SnapshotTableSparkAction(
       SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
@@ -107,6 +109,12 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
   }
 
   @Override
+  public SnapshotTableSparkAction ignoreMissingFiles() {
+    this.ignoreMissingFiles = true;
+    return this;
+  }
+
+  @Override
   public SnapshotTable.Result execute() {
     String desc = String.format("Snapshotting table %s as %s", sourceTableIdent(), destTableIdent);
     JobGroupInfo info = newJobGroupInfo("SNAPSHOT-TABLE", desc);
@@ -144,7 +152,14 @@ public class SnapshotTableSparkAction extends BaseTableCreationSparkAction<Snaps
       String stagingLocation = getMetadataLocation(icebergTable);
       LOG.info("Generating Iceberg metadata for {} in {}", destTableIdent(), stagingLocation);
       SparkTableUtil.importSparkTable(
-          spark(), v1TableIdent, icebergTable, stagingLocation, executorService);
+          spark(),
+          v1TableIdent,
+          icebergTable,
+          stagingLocation,
+          Collections.emptyMap(),
+          false,
+          ignoreMissingFiles,
+          executorService);
 
       LOG.info("Committing staged changes to {}", destTableIdent());
       stagedTable.commitStagedChanges();
