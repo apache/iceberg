@@ -21,9 +21,11 @@ package org.apache.iceberg.flink.data;
 import java.util.Deque;
 import java.util.List;
 import org.apache.flink.table.types.logical.ArrayType;
+import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.MapType;
+import org.apache.flink.table.types.logical.MultisetType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
 import org.apache.flink.table.types.logical.VariantType;
@@ -112,8 +114,13 @@ public class ParquetWithFlinkSchemaVisitor<T> {
             "Invalid map: repeated group does not have 2 fields");
 
         Preconditions.checkArgument(
-            sType instanceof MapType, "Invalid map: %s is not a map", sType);
-        MapType map = (MapType) sType;
+            sType instanceof MapType || sType instanceof MultisetType,
+            "Invalid map: %s is not a map",
+            sType);
+        // A Flink MULTISET<T> is converted to an Iceberg map<T, int> of element to occurrence
+        // count by FlinkTypeToType#visit(MultisetType), and RowData represents both as MapData,
+        // so the multiset is visited as its equivalent map.
+        MapType map = toMapType(sType);
         RowField keyField =
             new RowField("key", map.getKeyType(), "key of " + map.asSummaryString());
         RowField valueField =
@@ -238,5 +245,14 @@ public class ParquetWithFlinkSchemaVisitor<T> {
     List<String> list = Lists.newArrayList(fieldNames.descendingIterator());
     list.add(name);
     return list.toArray(new String[0]);
+  }
+
+  private static MapType toMapType(LogicalType sType) {
+    if (sType instanceof MultisetType) {
+      return new MapType(
+          sType.isNullable(), ((MultisetType) sType).getElementType(), new IntType(false));
+    }
+
+    return (MapType) sType;
   }
 }
