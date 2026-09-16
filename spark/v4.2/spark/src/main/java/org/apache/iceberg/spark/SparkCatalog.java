@@ -38,6 +38,8 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortField;
 import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
@@ -218,17 +220,27 @@ public class SparkCatalog extends BaseCatalog {
       throws TableAlreadyExistsException, NoSuchNamespaceException {
     // Spark intentionally excludes the source table's properties from tableInfo and leaves it to
     // the connector to decide which to clone via sourceTable. Clone the source Iceberg table's
-    // properties and sort order, then let user-specified LIKE options (in tableInfo) take
+    // schema, properties and sort order, then let user-specified LIKE options (in tableInfo) take
     // precedence.
-    Schema icebergSchema = SparkSchemaUtil.convert(tableInfo.schema());
+    Schema icebergSchema;
     Map<String, String> properties = Maps.newHashMap();
     SortOrder sortOrder = SortOrder.unsorted();
 
     if (sourceTable instanceof SparkTable) {
       org.apache.iceberg.Table sourceIcebergTable = ((SparkTable) sourceTable).table();
+      icebergSchema = sourceIcebergTable.schema();
       properties.putAll(sourceIcebergTable.properties());
+      properties.remove(TableProperties.WRITE_METADATA_LOCATION);
+      properties.remove(TableProperties.WRITE_DATA_LOCATION);
+      properties.remove(TableProperties.OBJECT_STORE_PATH);
+      properties.remove(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+      properties.put(
+          TableProperties.FORMAT_VERSION,
+          String.valueOf(TableUtil.formatVersion(sourceIcebergTable)));
       sortOrder =
           copySortOrder(sourceIcebergTable.schema(), icebergSchema, sourceIcebergTable.sortOrder());
+    } else {
+      icebergSchema = SparkSchemaUtil.convert(tableInfo.schema());
     }
 
     properties.putAll(tableInfo.properties());
