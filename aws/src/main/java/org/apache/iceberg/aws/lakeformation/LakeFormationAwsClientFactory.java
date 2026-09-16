@@ -54,7 +54,6 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
 
   private String dbName;
   private String tableName;
-  private String glueCatalogId;
   private String glueAccountId;
 
   public LakeFormationAwsClientFactory() {}
@@ -70,7 +69,6 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
         AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX);
     this.dbName = catalogProperties.get(AwsProperties.LAKE_FORMATION_DB_NAME);
     this.tableName = catalogProperties.get(AwsProperties.LAKE_FORMATION_TABLE_NAME);
-    this.glueCatalogId = catalogProperties.get(AwsProperties.GLUE_CATALOG_ID);
     this.glueAccountId = catalogProperties.get(AwsProperties.GLUE_ACCOUNT_ID);
   }
 
@@ -114,13 +112,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
         tableName != null && !tableName.isEmpty(), "Table name can not be empty");
 
     GetTableResponse response =
-        glue()
-            .getTable(
-                GetTableRequest.builder()
-                    .catalogId(glueCatalogId)
-                    .databaseName(dbName)
-                    .name(tableName)
-                    .build());
+        glue().getTable(GetTableRequest.builder().databaseName(dbName).name(tableName).build());
     return response.table().isRegisteredWithLakeFormation();
   }
 
