@@ -18,64 +18,33 @@
  */
 package org.apache.iceberg.arrow.vectorized;
 
-import java.util.Arrays;
-
 /**
- * Instances of this class simply track whether a value at an index is null. For simplicity and
- * performance, it is expected that various setter methods {@link #setNull(int)}, {@link
- * #setNulls(int, int)}, {@link #setNotNull(int)} and {@link #setNotNulls(int, int)} are invoked
- * with monotonically increasing values for the index parameter.
+ * Tracks whether a value at an index is null and the Parquet definition level associated with it.
+ * For simplicity and performance, it is expected that the setter methods {@link #setNull(int,
+ * int)}, {@link #setNulls(int, int, int)}, {@link #setNotNull(int, int)} and {@link
+ * #setNotNulls(int, int, int)} are invoked with monotonically increasing values for the index
+ * parameter.
  */
-public class NullabilityHolder {
-  private final byte[] isNull;
-  private int numNulls;
-  private final byte[] nonNulls;
-  private final byte[] nulls;
+public interface NullabilityHolder {
 
-  public NullabilityHolder(int size) {
-    this.isNull = new byte[size];
-    this.nonNulls = new byte[size];
-    Arrays.fill(nonNulls, (byte) 0);
-    this.nulls = new byte[size];
-    Arrays.fill(nulls, (byte) 1);
-  }
+  int size();
 
-  public int size() {
-    return isNull.length;
-  }
+  void setNull(int index, int definitionLevel);
 
-  public void setNull(int index) {
-    isNull[index] = 1;
-    numNulls++;
-  }
+  void setNotNull(int index, int definitionLevel);
 
-  public void setNotNull(int index) {
-    isNull[index] = 0;
-  }
+  void setNulls(int startIndex, int num, int definitionLevel);
 
-  public void setNulls(int startIndex, int num) {
-    System.arraycopy(nulls, 0, isNull, startIndex, num);
-    numNulls += num;
-  }
-
-  public void setNotNulls(int startIndex, int num) {
-    System.arraycopy(nonNulls, 0, isNull, startIndex, num);
-  }
+  void setNotNulls(int startIndex, int num, int definitionLevel);
 
   /** Returns 1 if null, 0 otherwise. */
-  public byte isNullAt(int index) {
-    return isNull[index];
-  }
+  byte isNullAt(int index);
 
-  public boolean hasNulls() {
-    return numNulls > 0;
-  }
+  int definitionLevelAt(int index);
 
-  public int numNulls() {
-    return numNulls;
-  }
+  boolean hasNulls();
 
-  public void reset() {
-    numNulls = 0;
-  }
+  int numNulls();
+
+  void reset();
 }

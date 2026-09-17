@@ -100,6 +100,10 @@ public abstract class BasePageIterator {
     return triplesCount;
   }
 
+  protected int nextRepetitionLevel() {
+    return repetitionLevels != null ? repetitionLevels.nextInt() : 0;
+  }
+
   public boolean hasNext() {
     return hasNext;
   }
