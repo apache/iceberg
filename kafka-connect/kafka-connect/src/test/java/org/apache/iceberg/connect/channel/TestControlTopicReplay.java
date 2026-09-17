@@ -109,6 +109,8 @@ class TestControlTopicReplay extends ChannelTestBase {
     addDataComplete(3L, commitId, 1);
     coordinator.process();
 
+    // Simulate a rebalance by rewinding the consumer and replaying records before the commit
+    // is ready, since a snapshot would record these offsets and filter them.
     consumer.seek(new TopicPartition(CTL_TOPIC_NAME, 0), 0L);
     addDataWritten(0L, commitId, file1);
     addDataComplete(1L, commitId, 0);
