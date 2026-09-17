@@ -317,7 +317,7 @@ public interface Catalog {
    * @param cascade if true, drop all tables in the namespace before dropping the namespace
    * @return true if the namespace was dropped, false if it did not exist
    * @throws UnsupportedOperationException if namespace operations are not supported
-  * @throws NamespaceNotEmptyException if the namespace is not empty
+   * @throws NamespaceNotEmptyException if the namespace is not empty
    */
   default boolean dropNamespace(Namespace namespace, boolean cascade) {
     if (!(this instanceof SupportsNamespaces)) {
