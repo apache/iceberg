@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -84,7 +85,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private int[] equalityIds = null;
 
   private transient Map<Integer, PartitionSpec> specsById = null;
-  private transient Map<Integer, StructProjection> partitionProjections = null;
+  private transient Map<Integer, Function<PartitionData, StructLike>> partitionProjections = null;
 
   /** Used by internal readers to instantiate this class with a projection schema. */
   TrackedFileStruct(Types.StructType projection) {
@@ -231,27 +232,27 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       return partitionData;
     }
 
-    StructProjection projection = partitionProjection(specId);
-    return projection != null ? projection.wrap(partitionData) : partitionData;
+    return partitionProjection(specId).apply(partitionData);
   }
 
-  private StructProjection partitionProjection(int id) {
+  private Function<PartitionData, StructLike> partitionProjection(int partitionSpecId) {
     if (partitionProjections == null) {
       this.partitionProjections = Maps.newHashMap();
     }
 
-    if (!partitionProjections.containsKey(id)) {
-      PartitionSpec spec = specsById.get(id);
-      Types.StructType specType = spec != null ? spec.partitionType() : null;
-      // null when the stored tuple already matches the spec, so partition() passes it through
-      partitionProjections.put(
-          id,
-          specType == null || partitionData.getPartitionType().equals(specType)
-              ? null
-              : StructProjection.create(partitionData.getPartitionType(), specType));
+    return partitionProjections.computeIfAbsent(partitionSpecId, this::newPartitionProjection);
+  }
+
+  private Function<PartitionData, StructLike> newPartitionProjection(int partitionSpecId) {
+    PartitionSpec spec = specsById.get(partitionSpecId);
+    Types.StructType specType = spec != null ? spec.partitionType() : null;
+    if (specType == null || partitionData.getPartitionType().equals(specType)) {
+      return partition -> partition;
     }
 
-    return partitionProjections.get(id);
+    StructProjection projection =
+        StructProjection.create(partitionData.getPartitionType(), specType);
+    return projection::wrap;
   }
 
   private PartitionData materializedPartition() {
