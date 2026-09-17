@@ -23,6 +23,9 @@ public class SparkReadOptions {
 
   private SparkReadOptions() {}
 
+  // Comma-separated top-level fields for business-key CDC processing in Spark 4.2
+  public static final String CDC_IDENTIFIER_COLUMNS = "identifier-columns";
+
   // legacy time travel option that is no longer supported
   public static final String LEGACY_SNAPSHOT_ID = "snapshot-id";
 

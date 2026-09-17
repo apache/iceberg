@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.ChangelogScanTask;
+import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.IncrementalChangelogScan;
@@ -105,7 +106,13 @@ public class TestChangelogReader extends TestBase {
 
     for (ScanTaskGroup<ChangelogScanTask> taskGroup : taskGroups) {
       ChangelogRowReader reader =
-          new ChangelogRowReader(table, table.io(), taskGroup, table.schema(), false, true);
+          new ChangelogRowReader(
+              table,
+              table.io(),
+              taskGroup,
+              ChangelogUtil.changelogSchema(table.schema()),
+              false,
+              true);
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
@@ -136,7 +143,13 @@ public class TestChangelogReader extends TestBase {
 
     for (ScanTaskGroup<ChangelogScanTask> taskGroup : taskGroups) {
       ChangelogRowReader reader =
-          new ChangelogRowReader(table, table.io(), taskGroup, table.schema(), false, true);
+          new ChangelogRowReader(
+              table,
+              table.io(),
+              taskGroup,
+              ChangelogUtil.changelogSchema(table.schema()),
+              false,
+              true);
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
@@ -170,7 +183,13 @@ public class TestChangelogReader extends TestBase {
 
     for (ScanTaskGroup<ChangelogScanTask> taskGroup : taskGroups) {
       ChangelogRowReader reader =
-          new ChangelogRowReader(table, table.io(), taskGroup, table.schema(), false, true);
+          new ChangelogRowReader(
+              table,
+              table.io(),
+              taskGroup,
+              ChangelogUtil.changelogSchema(table.schema()),
+              false,
+              true);
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
@@ -197,7 +216,13 @@ public class TestChangelogReader extends TestBase {
 
     for (ScanTaskGroup<ChangelogScanTask> taskGroup : taskGroups) {
       ChangelogRowReader reader =
-          new ChangelogRowReader(table, table.io(), taskGroup, table.schema(), false, true);
+          new ChangelogRowReader(
+              table,
+              table.io(),
+              taskGroup,
+              ChangelogUtil.changelogSchema(table.schema()),
+              false,
+              true);
       while (reader.next()) {
         rows.add(reader.get().copy());
       }
