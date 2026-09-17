@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -32,6 +33,11 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
@@ -42,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -98,6 +105,101 @@ class TestMetadataLogEntriesTableProperties {
                 .description(
                     "Current metadata should be reused rather than loading the file twice"))
         .newInputFile(current.metadataFileLocation());
+  }
+
+  @Test
+  public void usesPlanningExecutorForHistoricalProperties() throws IOException {
+    TableMetadata current = table.operations().current();
+    AtomicInteger planThreadCount = new AtomicInteger();
+    ExecutorService planExecutor =
+        Executors.newSingleThreadExecutor(
+            runnable -> {
+              planThreadCount.incrementAndGet();
+              return new Thread(runnable);
+            });
+
+    try {
+      DataTask task =
+          planTask(
+              metadataLogEntriesTable(current, table.io())
+                  .newScan()
+                  .select("properties")
+                  .planWith(planExecutor));
+
+      assertThat(firstColumnValues(task)).containsExactly(initialProperties, updatedProperties);
+      assertThat(planThreadCount.get()).isEqualTo(1);
+    } finally {
+      planExecutor.shutdownNow();
+    }
+  }
+
+  @Test
+  public void preservesFilePropertyAssociationsWhenPlanningTasksFinishOutOfOrder()
+      throws IOException {
+    table.updateProperties().set(PROPERTY, "new_key").commit();
+    Map<String, String> newProperties = ImmutableMap.copyOf(table.properties());
+    TableMetadata current = table.operations().current();
+    assertThat(current.previousFiles())
+        .as("Two historical metadata files are required to test out-of-order completion")
+        .hasSize(2);
+
+    ExecutorService backingExecutor = Executors.newFixedThreadPool(2);
+    ExecutorService planExecutor = mock(ExecutorService.class);
+    AtomicInteger submittedTasks = new AtomicInteger();
+    CountDownLatch secondTaskCompleted = new CountDownLatch(1);
+
+    try {
+      when(planExecutor.submit(any(Runnable.class)))
+          .thenAnswer(
+              invocation -> {
+                Runnable planningTask = invocation.getArgument(0);
+                int taskIndex = submittedTasks.getAndIncrement();
+                return backingExecutor.submit(
+                    () -> {
+                      if (taskIndex == 0) {
+                        assertThat(secondTaskCompleted.await(10, TimeUnit.SECONDS))
+                            .as("Second planning task should finish before the first starts")
+                            .isTrue();
+                      }
+
+                      try {
+                        planningTask.run();
+                      } finally {
+                        if (taskIndex == 1) {
+                          secondTaskCompleted.countDown();
+                        }
+                      }
+
+                      return null;
+                    });
+              });
+      DataTask task =
+          planTask(
+              metadataLogEntriesTable(current, table.io())
+                  .newScan()
+                  .select("file", "properties")
+                  .planWith(planExecutor));
+
+      List<Pair<String, Object>> fileProperties = Lists.newArrayList();
+      try (CloseableIterable<StructLike> rows = task.rows()) {
+        for (StructLike row : rows) {
+          fileProperties.add(Pair.of(row.get(0, String.class), row.get(1, Object.class)));
+        }
+      }
+
+      assertThat(fileProperties)
+          .as("Properties should remain associated with metadata files in original log order")
+          .containsExactly(
+              Pair.of(current.previousFiles().get(0).file(), initialProperties),
+              Pair.of(current.previousFiles().get(1).file(), updatedProperties),
+              Pair.of(current.metadataFileLocation(), newProperties));
+
+      assertThat(submittedTasks.get())
+          .as("Each historical metadata file should be submitted as a separate planning task")
+          .isEqualTo(current.previousFiles().size());
+    } finally {
+      backingExecutor.shutdownNow();
+    }
   }
 
   @Test
