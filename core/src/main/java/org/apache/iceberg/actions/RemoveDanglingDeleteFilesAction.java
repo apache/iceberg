@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import org.apache.iceberg.DeleteFile;
@@ -201,10 +202,63 @@ public class RemoveDanglingDeleteFilesAction
     return ManifestFiles.readDeleteManifest(manifest, io, specsById).select(DELETE_COLUMNS);
   }
 
-  public record DeleteFileKey(String location, Long contentOffset, Long contentSizeInBytes)
-      implements Serializable {
+  public static final class DeleteFileKey implements Serializable {
+    private final String location;
+    private final Long contentOffset;
+    private final Long contentSizeInBytes;
+
+    public DeleteFileKey(String location, Long contentOffset, Long contentSizeInBytes) {
+      this.location = location;
+      this.contentOffset = contentOffset;
+      this.contentSizeInBytes = contentSizeInBytes;
+    }
+
     public DeleteFileKey(DeleteFile file) {
       this(file.location(), file.contentOffset(), file.contentSizeInBytes());
+    }
+
+    public String location() {
+      return location;
+    }
+
+    public Long contentOffset() {
+      return contentOffset;
+    }
+
+    public Long contentSizeInBytes() {
+      return contentSizeInBytes;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      }
+
+      return other instanceof DeleteFileKey that
+          && Objects.equals(location, that.location)
+          && Objects.equals(contentOffset, that.contentOffset)
+          && Objects.equals(contentSizeInBytes, that.contentSizeInBytes);
+    }
+
+    @Override
+    public int hashCode() {
+      int result = Objects.hashCode(location);
+      result = 31 * result + Objects.hashCode(contentOffset);
+      result = 31 * result + Objects.hashCode(contentSizeInBytes);
+      return result;
+    }
+
+    @Override
+    public String toString() {
+      return "DeleteFileKey{"
+          + "location="
+          + location
+          + ", contentOffset="
+          + contentOffset
+          + ", contentSizeInBytes="
+          + contentSizeInBytes
+          + '}';
     }
   }
 }
