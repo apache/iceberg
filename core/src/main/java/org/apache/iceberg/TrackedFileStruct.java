@@ -84,8 +84,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
 
-  private transient Map<Integer, PartitionSpec> specsById = null;
   private transient Map<Integer, Function<PartitionData, StructLike>> partitionProjections = null;
+  private Types.StructType partitionType = null;
 
   /** Used by internal readers to instantiate this class with a projection schema. */
   TrackedFileStruct(Types.StructType projection) {
@@ -149,7 +149,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.specId = toCopy.specId;
-    this.partitionData = toCopy.materializedPartition();
+    this.partitionData = toCopy.partitionData != null ? toCopy.partitionData.copy() : null;
+    this.partitionType = toCopy.partitionType;
     this.tracking = toCopy.tracking != null ? toCopy.tracking.copy() : null;
     this.sortOrderId = toCopy.sortOrderId;
     this.deletionVector = toCopy.deletionVector != null ? toCopy.deletionVector.copy() : null;
@@ -217,8 +218,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     return fileSizeInBytes;
   }
 
-  void setSpecsById(Map<Integer, PartitionSpec> newSpecsById) {
-    this.specsById = newSpecsById;
+  void setPartitionType(Types.StructType newPartitionType) {
+    this.partitionType = newPartitionType;
   }
 
   @Override
@@ -228,7 +229,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
 
   @Override
   public StructLike partition() {
-    if (partitionData == null || specId == null || specsById == null) {
+    if (partitionData == null || specId == null || partitionType == null) {
       return partitionData;
     }
 
@@ -240,32 +241,17 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       this.partitionProjections = Maps.newHashMap();
     }
 
-    return partitionProjections.computeIfAbsent(partitionSpecId, this::newPartitionProjection);
+    return partitionProjections.computeIfAbsent(partitionSpecId, key -> newPartitionProjection());
   }
 
-  private Function<PartitionData, StructLike> newPartitionProjection(int partitionSpecId) {
-    PartitionSpec spec = specsById.get(partitionSpecId);
-    Types.StructType specType = spec != null ? spec.partitionType() : null;
-    if (specType == null || partitionData.getPartitionType().equals(specType)) {
+  private Function<PartitionData, StructLike> newPartitionProjection() {
+    if (partitionData.getPartitionType().equals(partitionType)) {
       return partition -> partition;
     }
 
     StructProjection projection =
-        StructProjection.create(partitionData.getPartitionType(), specType);
+        StructProjection.create(partitionData.getPartitionType(), partitionType);
     return projection::wrap;
-  }
-
-  private PartitionData materializedPartition() {
-    if (partitionData == null) {
-      return null;
-    }
-
-    StructLike projected = partition();
-    if (projected instanceof PartitionData) {
-      return ((PartitionData) projected).copy();
-    }
-
-    return new PartitionData(specsById.get(specId).partitionType()).copyFor(projected);
   }
 
   @Override

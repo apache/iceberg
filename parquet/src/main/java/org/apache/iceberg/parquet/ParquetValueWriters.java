@@ -581,6 +581,15 @@ public class ParquetValueWriters {
       writer.setColumnStore(columnStore);
     }
 
+    /**
+     * Returns an iterator over the elements of a value.
+     *
+     * <p>The iterator is fully consumed before {@code write} returns and is never retained, so
+     * implementations may return a reused iterator instance.
+     *
+     * @param value a value to write
+     * @return an iterator over the value's elements
+     */
     protected abstract Iterator<E> elements(L value);
 
     @Override
@@ -662,6 +671,17 @@ public class ParquetValueWriters {
       valueWriter.setColumnStore(columnStore);
     }
 
+    /**
+     * Returns an iterator over the key-value pairs of a value.
+     *
+     * <p>The iterator is fully consumed before {@code write} returns and is never retained, so
+     * implementations may return a reused iterator instance. The entries it produces are passed to
+     * the key and value writers before the next entry is requested, so implementations may also
+     * return a reused entry instance.
+     *
+     * @param value a value to write
+     * @return an iterator over the value's key-value pairs
+     */
     protected abstract Iterator<Map.Entry<K, V>> pairs(M value);
 
     @Override

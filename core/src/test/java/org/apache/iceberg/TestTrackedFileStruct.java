@@ -370,13 +370,12 @@ class TestTrackedFileStruct {
     unionPartition.set(categoryUnionPos, "books");
 
     TrackedFileStruct file = trackedFile(categorySpec.specId(), unionPartition);
-    file.setSpecsById(specsById);
+    file.setPartitionType(categorySpec.partitionType());
 
     // category is at position 1 in the union but position 0 in categorySpec; reading by the spec's
     // ordinal must return category, not id (null)
     assertThat(file.partition().get(0, CharSequence.class)).hasToString("books");
 
-    // a copy materializes the projection: independent of the reused union row
     StructLike copyPartition = file.copy().partition();
     unionPartition.set(categoryUnionPos, "changed");
     assertThat(copyPartition.get(0, CharSequence.class)).hasToString("books");
@@ -387,13 +386,12 @@ class TestTrackedFileStruct {
     Schema schema = new Schema(Types.NestedField.required(1, "category", Types.StringType.get()));
     PartitionSpec spec =
         PartitionSpec.builderFor(schema).add(1, 1000, "category", Transforms.identity()).build();
-    Map<Integer, PartitionSpec> specsById = ImmutableMap.of(spec.specId(), spec);
 
     PartitionData partition = new PartitionData(spec.partitionType());
     partition.set(0, "music");
 
     TrackedFileStruct file = trackedFile(spec.specId(), partition);
-    file.setSpecsById(specsById);
+    file.setPartitionType(spec.partitionType());
 
     // the stored tuple already matches the spec type, so partition() returns it without projecting
     assertThat(file.partition()).isSameAs(partition);
@@ -468,7 +466,7 @@ class TestTrackedFileStruct {
 
   @ParameterizedTest
   @MethodSource("org.apache.iceberg.TestHelpers#serializers")
-  void materializedPartitionSurvivesSerialization(RoundTripSerializer<TrackedFileStruct> serializer)
+  void partitionProjectionSurvivesSerialization(RoundTripSerializer<TrackedFileStruct> serializer)
       throws Exception {
     Schema schema =
         new Schema(
@@ -492,10 +490,8 @@ class TestTrackedFileStruct {
     unionPartition.set(unionType.fields().indexOf(unionType.field("category")), "books");
 
     TrackedFileStruct file = trackedFile(categorySpec.specId(), unionPartition);
-    file.setSpecsById(specsById);
+    file.setPartitionType(categorySpec.partitionType());
 
-    // copy() materializes the projected spec-ordered partition; it must survive serialization even
-    // though specsById is transient and not serialized
     TrackedFileStruct deserialized = serializer.apply((TrackedFileStruct) file.copy());
     assertThat(deserialized.partition().get(0, CharSequence.class)).hasToString("books");
   }
