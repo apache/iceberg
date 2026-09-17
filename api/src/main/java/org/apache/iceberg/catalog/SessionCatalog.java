@@ -370,6 +370,34 @@ public interface SessionCatalog {
   boolean dropNamespace(SessionContext context, Namespace namespace);
 
   /**
+   * Drop a namespace and, when requested, all tables in the namespace.
+   *
+   * <p>The default implementation drops tables individually before dropping the namespace. Catalog
+   * implementations may override this method to provide an atomic or server-side implementation.
+   *
+   * @param context session context
+   * @param namespace a namespace
+   * @param cascade if true, drop all tables in the namespace before dropping the namespace
+   * @return true if the namespace was dropped, false if it did not exist
+   * @throws NamespaceNotEmptyException If the namespace is not empty
+   */
+  default boolean dropNamespace(SessionContext context, Namespace namespace, boolean cascade) {
+    if (!cascade) {
+      return dropNamespace(context, namespace);
+    }
+
+    if (!namespaceExists(context, namespace)) {
+      return false;
+    }
+
+    for (TableIdentifier identifier : listTables(context, namespace)) {
+      purgeTable(context, identifier);
+    }
+
+    return dropNamespace(context, namespace);
+  }
+
+  /**
    * Set a collection of properties on a namespace in the catalog.
    *
    * <p>Properties that are not in the given map are not modified or removed by this method.
