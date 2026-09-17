@@ -31,9 +31,11 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
@@ -50,6 +52,8 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.ImmutableRepairTable;
 import org.apache.iceberg.actions.RepairTable;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.FileIO;
@@ -496,6 +500,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     private final int specId;
     private final boolean repairColumnMetrics;
 
+    private transient EncryptingFileIO lazyEncryptingIO = null;
     private transient Map<FileContent, MetricsConfig> lazyMetricsConfigs = null;
     private transient NameMapping lazyNameMapping = null;
     private transient boolean nameMappingResolved = false;
@@ -517,6 +522,36 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
 
     FileIO io() {
       return table().io();
+    }
+
+    EncryptingFileIO encryptingIO() {
+      if (lazyEncryptingIO == null) {
+        this.lazyEncryptingIO = EncryptingFileIO.combine(table().io(), table().encryption());
+      }
+
+      return lazyEncryptingIO;
+    }
+
+    InputFile newInputFile(ContentFile<?> file, long fileSizeInBytes) {
+      // The file overloads use the stored size to read the footer, so use the physical size.
+      // Input creation does not need the record count, which may also be incorrect.
+      if (file.content() == FileContent.DATA) {
+        DataFile dataFile =
+            DataFiles.builder(spec(file.specId()))
+                .copy((DataFile) file)
+                .withRecordCount(0L)
+                .withFileSizeInBytes(fileSizeInBytes)
+                .build();
+        return encryptingIO().newInputFile(dataFile);
+      }
+
+      DeleteFile deleteFile =
+          FileMetadata.deleteFileBuilder(spec(file.specId()))
+              .copy((DeleteFile) file)
+              .withRecordCount(0L)
+              .withFileSizeInBytes(fileSizeInBytes)
+              .build();
+      return encryptingIO().newInputFile(deleteFile);
     }
 
     ManifestContent content() {
@@ -598,8 +633,8 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
         String location = file.location().toString();
 
         try {
-          InputFile input = context.io().newInputFile(location);
-          long fileSizeInBytes = input.getLength();
+          long fileSizeInBytes = context.io().newInputFile(location).getLength();
+          InputFile input = context.newInputFile(file, fileSizeInBytes);
           Metrics metrics =
               RepairMetrics.readMetrics(
                   input, file, context.metricsConfig(file), context.nameMapping());
@@ -733,8 +768,8 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
 
     /** Rebuilds the file with the statistics read from the file itself. */
     private ContentFile<?> repairStats(ContentFile<?> file) {
-      InputFile input = context.io().newInputFile(file.location());
-      long fileSizeInBytes = input.getLength();
+      long fileSizeInBytes = context.io().newInputFile(file.location()).getLength();
+      InputFile input = context.newInputFile(file, fileSizeInBytes);
       Metrics metrics =
           RepairMetrics.readMetrics(
               input, file, context.metricsConfig(file), context.nameMapping());
@@ -803,8 +838,9 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
       return table().specs().get(specId);
     }
 
-    private OutputFile newOutputFile() {
-      return table().io().newOutputFile(newManifestLocation());
+    private EncryptedOutputFile newOutputFile() {
+      OutputFile rawOutputFile = table().io().newOutputFile(newManifestLocation());
+      return table().encryption().encrypt(rawOutputFile);
     }
 
     private String newManifestLocation() {
