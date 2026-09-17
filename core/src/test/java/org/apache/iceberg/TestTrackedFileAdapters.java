@@ -26,6 +26,7 @@ import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+import org.apache.iceberg.mumbling.MumblingTestUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Conversions;
@@ -105,8 +106,6 @@ class TestTrackedFileAdapters {
           null, // deletedPositions
           null); // replacedPositions
 
-  private static final byte[] MANIFEST_DV = new byte[] {1, 2, 3};
-
   private static final ByteBuffer MANIFEST_KEY_METADATA = ByteBuffer.wrap(new byte[] {7, 8, 9});
 
   private static final ManifestInfo MANIFEST_INFO =
@@ -120,8 +119,7 @@ class TestTrackedFileAdapters {
           .deletedRowsCount(200L)
           .replacedRowsCount(0L)
           .minSequenceNumber(7L)
-          .dv(ByteBuffer.wrap(MANIFEST_DV))
-          .dvCardinality(4L)
+          .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
           .build();
 
   @Test
@@ -522,7 +520,8 @@ class TestTrackedFileAdapters {
     assertThat(manifest.deletedRowsCount()).isEqualTo(MANIFEST_INFO.deletedRowsCount());
     assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
     assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
-    assertThat(manifest.manifestDeletionVector().buffer()).isEqualTo(ByteBuffer.wrap(MANIFEST_DV));
+    assertThat(manifest.manifestDeletionVector().buffer())
+        .isEqualTo(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()));
     assertThat(manifest.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(manifest.partitions()).isNull();
     assertThatThrownBy(manifest::partitionSpecId)

@@ -78,6 +78,8 @@ class V4TestComparators {
 
   private static final Comparator<ByteBuffer> BYTES =
       Comparator.nullsFirst(Comparators.unsignedBytes());
+  private static final Comparator<ManifestBitmap> BITMAPS =
+      Comparator.nullsFirst(Comparator.comparing(ManifestBitmap::buffer, BYTES));
   private static final Comparator<List<Long>> SPLIT_OFFSETS =
       Comparator.nullsFirst(Comparators.forType(TrackedFile.SPLIT_OFFSETS.type().asListType()));
   private static final Comparator<List<Integer>> EQ_IDS =
@@ -119,8 +121,7 @@ class V4TestComparators {
               .thenComparingLong(ManifestInfo::deletedRowsCount)
               .thenComparingLong(ManifestInfo::replacedRowsCount)
               .thenComparingLong(ManifestInfo::minSequenceNumber)
-              .thenComparing(ManifestInfo::dv, BYTES)
-              .thenComparing(ManifestInfo::dvCardinality, natural()));
+              .thenComparing(ManifestInfo::manifestDeletionVector, BITMAPS));
 
   private static final Comparator<ContentStats> CONTENT_STATS =
       Comparator.nullsFirst(new ContentStatsComparator());
