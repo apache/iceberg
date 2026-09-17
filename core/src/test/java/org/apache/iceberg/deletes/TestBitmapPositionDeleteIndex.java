@@ -117,6 +117,23 @@ public class TestBitmapPositionDeleteIndex {
   }
 
   @Test
+  public void testForEachInRangeInvalidRange() {
+    // each implementation validates the range on its own, so check all of them
+    assertThatThrownBy(() -> collect(indexOf(1L, 2L, 3L), 5L, 3L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Start position must not exceed end position");
+
+    assertThatThrownBy(() -> collect(PositionDeleteIndex.empty(), 5L, 3L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Start position must not exceed end position");
+
+    assertThatThrownBy(
+            () -> collect(new SetBackedPositionDeleteIndex(Sets.newHashSet(1L, 2L, 3L)), 5L, 3L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Start position must not exceed end position");
+  }
+
+  @Test
   public void testForEachInRangeAcrossBitmaps() {
     long lastPosInFirstBitmap = BITMAP_OFFSET - 1;
     PositionDeleteIndex index =

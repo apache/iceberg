@@ -84,22 +84,19 @@ public interface PositionDeleteIndex {
    * Traverses the deleted positions within the given range in ascending order, applying the
    * provided consumer.
    *
-   * <p>Callers that test a contiguous range of positions should prefer this method over calling
-   * {@link #isDeleted(long)} once per position.
-   *
-   * @param posStart inclusive beginning of position range
-   * @param posEnd exclusive ending of position range
+   * @param posStartInclusive inclusive beginning of position range
+   * @param posEndExclusive exclusive ending of position range
    * @param consumer a consumer for the deleted positions in the range
-   * @throws IllegalArgumentException if posStart &gt; posEnd
+   * @throws IllegalArgumentException if posStartInclusive &gt; posEndExclusive
    */
-  default void forEachInRange(long posStart, long posEnd, LongConsumer consumer) {
+  default void forEachInRange(long posStartInclusive, long posEndExclusive, LongConsumer consumer) {
     Preconditions.checkArgument(
-        posStart <= posEnd,
+        posStartInclusive <= posEndExclusive,
         "Start position must not exceed end position: [%s, %s)",
-        posStart,
-        posEnd);
+        posStartInclusive,
+        posEndExclusive);
 
-    for (long pos = posStart; pos < posEnd; pos++) {
+    for (long pos = posStartInclusive; pos < posEndExclusive; pos++) {
       if (isDeleted(pos)) {
         consumer.accept(pos);
       }

@@ -52,12 +52,12 @@ class EmptyPositionDeleteIndex implements PositionDeleteIndex {
   }
 
   @Override
-  public void forEachInRange(long posStart, long posEnd, LongConsumer consumer) {
+  public void forEachInRange(long posStartInclusive, long posEndExclusive, LongConsumer consumer) {
     Preconditions.checkArgument(
-        posStart <= posEnd,
+        posStartInclusive <= posEndExclusive,
         "Start position must not exceed end position: [%s, %s)",
-        posStart,
-        posEnd);
+        posStartInclusive,
+        posEndExclusive);
   }
 
   @Override
