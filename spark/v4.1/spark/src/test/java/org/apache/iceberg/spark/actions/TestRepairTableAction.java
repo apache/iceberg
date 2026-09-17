@@ -318,6 +318,45 @@ public class TestRepairTableAction extends TestBase {
   }
 
   @TestTemplate
+  void repairWithCustomColumnMetrics() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned());
+    table
+        .updateProperties()
+        .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "c2", "none")
+        .commit();
+    appendRecords(table, records(4));
+
+    List<Object[]> expectedRows = currentRows();
+    DataFile original = onlyDataFile(table);
+    int columnId = table.schema().findField("c2").fieldId();
+    assertThat(original.valueCounts()).doesNotContainKey(columnId);
+    assertThat(original.lowerBounds()).doesNotContainKey(columnId);
+    assertThat(original.upperBounds()).doesNotContainKey(columnId);
+
+    replaceManifestWithCorruptStats(table, original);
+
+    RepairTable.Result result =
+        SparkActions.get()
+            .repairTable(table)
+            .repairFileMetrics()
+            .option(RepairTableSparkAction.REPAIR_COLUMN_METRICS, "true")
+            .execute();
+
+    assertThat(result.repairedEntryCount()).isEqualTo(1);
+    assertThat(result.repairedManifests()).hasSize(1);
+
+    DataFile repaired = onlyDataFile(table);
+    assertThat(repaired.recordCount()).isEqualTo(original.recordCount());
+    assertThat(repaired.fileSizeInBytes()).isEqualTo(original.fileSizeInBytes());
+    assertThat(repaired.columnSizes()).isEqualTo(original.columnSizes());
+    assertThat(repaired.valueCounts()).isEqualTo(original.valueCounts());
+    assertThat(repaired.nullValueCounts()).isEqualTo(original.nullValueCounts());
+    assertThat(repaired.lowerBounds()).isEqualTo(original.lowerBounds());
+    assertThat(repaired.upperBounds()).isEqualTo(original.upperBounds());
+    assertThat(currentRows()).containsExactlyInAnyOrderElementsOf(expectedRows);
+  }
+
+  @TestTemplate
   public void testRepairPreservesColumnStatsWhenColumnMetricsDisabled() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
