@@ -18,6 +18,13 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
+import java.nio.charset.StandardCharsets
+import java.util
+import java.util.Base64
+
+import org.apache.iceberg.catalog.LoadContext
+import org.apache.iceberg.catalog.Namespace
+import org.apache.iceberg.catalog.TableIdentifier
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.iceberg.spark.source.HasIcebergCatalog
 import org.apache.iceberg.spark.source.SparkView
@@ -29,9 +36,14 @@ import org.apache.spark.sql.connector.catalog.V1View
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
+import org.apache.spark.sql.internal.SQLConf
 import scala.jdk.CollectionConverters._
 
 object ViewUtil {
+  private val REFERENCED_BY_CONTEXT = "spark.sql.iceberg.referenced-by-context"
+  private val ENTRY_SEPARATOR = "\u001e"
+  private val PART_SEPARATOR = "\u001f"
+
   val RESERVED_PROPERTIES: Seq[String] =
     Seq(
       TableCatalog.PROP_COMMENT,
@@ -73,6 +85,68 @@ object ViewUtil {
         None
     }
 
+  def loadContext(targetCatalogName: String): LoadContext = {
+    LoadContext
+      .builder()
+      .referencedBy(buildReferencedByChain(currentViewChain, targetCatalogName))
+      .build()
+  }
+
+  def withReferencedByContext(view: View, catalogName: String, ident: Identifier): View = {
+    if (view == null || view.queryText() == null || view.columns() == null) {
+      view
+    } else {
+      val viewChain = currentViewChain :+ qualifiedView(catalogName, ident)
+      val sqlConfigs =
+        Option(view.sqlConfigs()).map(_.asScala.toMap).getOrElse(Map.empty) +
+          (REFERENCED_BY_CONTEXT -> encodeViewChain(viewChain))
+
+      SparkView
+        .applyOptionalFields(
+          new View.Builder()
+            .withColumns(view.columns())
+            .withProperties(view.properties())
+            .withQueryText(view.queryText())
+            .withCurrentCatalog(view.currentCatalog())
+            .withCurrentNamespace(view.currentNamespace())
+            .withSqlConfigs(sqlConfigs.asJava)
+            .withQueryColumnNames(view.queryColumnNames()),
+          view.schemaMode(),
+          sqlConfigs.asJava,
+          view.viewDependencies())
+        .build()
+    }
+  }
+
+  /**
+   * Build the referenced-by view chain from fully qualified view identifier parts.
+   * Entries must belong to the same catalog as the loaded target.
+   */
+  def buildReferencedByChain(
+      viewChain: Seq[Seq[String]],
+      targetCatalogName: String): java.util.List[TableIdentifier] = {
+    viewChain.foreach { parts =>
+      require(
+        parts.size >= 3,
+        s"View chain entry must be fully qualified [catalog, namespace..., name], got: " +
+          parts.mkString("."))
+    }
+
+    val crossCatalogViews = viewChain.filter(parts => !parts.headOption.contains(targetCatalogName))
+    if (crossCatalogViews.nonEmpty) {
+      throw new IllegalStateException(
+        s"Cross-catalog view references are not supported with referenced-by enabled. " +
+          s"Views from catalogs [${crossCatalogViews.map(_.head).distinct.mkString(", ")}] " +
+          s"cannot reference entities in catalog [$targetCatalogName]")
+    }
+
+    val viewIdentifiers = viewChain.map { parts =>
+      TableIdentifier.of(Namespace.of(parts.drop(1).init: _*), parts.last)
+    }
+
+    new util.ArrayList[TableIdentifier](viewIdentifiers.asJava)
+  }
+
   def isIcebergViewCatalog(catalog: CatalogPlugin): Boolean = {
     catalog.isInstanceOf[ViewCatalog] && catalog.isInstanceOf[HasIcebergCatalog]
   }
@@ -89,5 +163,36 @@ object ViewUtil {
       case _ =>
         throw QueryCompilationErrors.missingCatalogViewsAbilityError(plugin)
     }
+  }
+
+  private def currentViewChain: Seq[Seq[String]] = {
+    val encoded = SQLConf.get.getConfString(REFERENCED_BY_CONTEXT, null)
+    if (encoded == null || encoded.isEmpty) {
+      Seq.empty
+    } else {
+      encoded
+        .split(ENTRY_SEPARATOR, -1)
+        .toIndexedSeq
+        .filter(_.nonEmpty)
+        .map(_.split(PART_SEPARATOR, -1).toIndexedSeq.map(decodePart))
+    }
+  }
+
+  private def qualifiedView(catalogName: String, ident: Identifier): Seq[String] = {
+    catalogName +: ident.namespace().toIndexedSeq :+ ident.name()
+  }
+
+  private def encodeViewChain(viewChain: Seq[Seq[String]]): String = {
+    viewChain.map(_.map(encodePart).mkString(PART_SEPARATOR)).mkString(ENTRY_SEPARATOR)
+  }
+
+  private def encodePart(part: String): String = {
+    Base64.getUrlEncoder
+      .withoutPadding()
+      .encodeToString(part.getBytes(StandardCharsets.UTF_8))
+  }
+
+  private def decodePart(part: String): String = {
+    new String(Base64.getUrlDecoder.decode(part), StandardCharsets.UTF_8)
   }
 }
