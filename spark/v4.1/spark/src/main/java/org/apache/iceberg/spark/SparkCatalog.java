@@ -38,7 +38,6 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -121,7 +120,8 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContext {
+public class SparkCatalog extends BaseCatalog {
+
   private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
@@ -168,46 +168,17 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
-    return loadTable(ident, LoadContext.empty());
-  }
-
-  @Override
-  public Table loadTable(Identifier ident, LoadContext context) throws NoSuchTableException {
-    try {
-      return load(ident, null /* no time travel */, context);
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      throw new NoSuchTableException(ident);
-    }
+    return load(ident, null /* no time travel */);
   }
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    return loadTable(ident, version, LoadContext.empty());
-  }
-
-  @Override
-  public Table loadTable(Identifier ident, String version, LoadContext context)
-      throws NoSuchTableException {
-    try {
-      return load(ident, TimeTravel.version(version), context);
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      throw new NoSuchTableException(ident);
-    }
+    return load(ident, TimeTravel.version(version));
   }
 
   @Override
   public Table loadTable(Identifier ident, long timestampMicros) throws NoSuchTableException {
-    return loadTable(ident, timestampMicros, LoadContext.empty());
-  }
-
-  @Override
-  public Table loadTable(Identifier ident, long timestampMicros, LoadContext context)
-      throws NoSuchTableException {
-    try {
-      return load(ident, TimeTravel.timestampMicros(timestampMicros), context);
-    } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      throw new NoSuchTableException(ident);
-    }
+    return load(ident, TimeTravel.timestampMicros(timestampMicros));
   }
 
   @Override
@@ -624,14 +595,9 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
-    return loadView(ident, LoadContext.empty());
-  }
-
-  @Override
-  public View loadView(Identifier ident, LoadContext context) throws NoSuchViewException {
     if (null != asViewCatalog) {
       try {
-        org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident), context);
+        org.apache.iceberg.view.View view = asViewCatalog.loadView(buildIdentifier(ident));
         return new SparkView(catalogName, view);
       } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
         throw new NoSuchViewException(ident);
@@ -926,14 +892,13 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
     }
   }
 
-  private Table load(Identifier ident, TimeTravel timeTravel, LoadContext context)
-      throws NoSuchTableException {
+  private Table load(Identifier ident, TimeTravel timeTravel) throws NoSuchTableException {
     if (isPathIdentifier(ident)) {
       return loadPath((PathIdentifier) ident, timeTravel);
     }
 
     try {
-      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident), context);
+      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident));
       return SparkTable.create(table, timeTravel);
 
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -946,7 +911,7 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
       TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
       org.apache.iceberg.Table table;
       try {
-        table = icebergCatalog.loadTable(namespaceAsIdent, context);
+        table = icebergCatalog.loadTable(namespaceAsIdent);
       } catch (Exception ignored) {
         // the namespace does not identify a table, so it cannot be a table with a snapshot selector
         // throw an exception for the original identifier
