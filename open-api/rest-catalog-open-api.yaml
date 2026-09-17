@@ -1416,6 +1416,20 @@ paths:
         - Catalog API
       summary: Remotely signs requests to object storage
       operationId: signRequest
+      parameters:
+        - $ref: '#/components/parameters/data-access'
+        - name: plan-id
+          in: query
+          description: >
+            An optional identifier of the scan planning request that produced the URIs being
+            signed, supplied by the client for audit and correlation purposes only. Servers MUST
+            NOT rely on this value for authorization; authorization for a signing request is
+            determined by the table scope of the endpoint. A server MUST NOT fail a request
+            because the referenced plan is unknown, expired, or has been cancelled. For backwards
+            compatibility, if this is not specified, the request is not associated with a plan.
+          required: false
+          schema:
+            type: string
       requestBody:
         description: The request to be signed
         content:
@@ -1432,67 +1446,6 @@ paths:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
           $ref: '#/components/responses/ForbiddenResponse'
-        419:
-          $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        503:
-          $ref: '#/components/responses/ServiceUnavailableResponse'
-        5XX:
-          $ref: '#/components/responses/ServerErrorResponse'
-
-  /v1/{prefix}/namespaces/{namespace}/tables/{table}/presign:
-    parameters:
-      - $ref: '#/components/parameters/prefix'
-      - $ref: '#/components/parameters/namespace'
-      - $ref: '#/components/parameters/table'
-
-    post:
-      tags:
-        - Catalog API
-      summary: Refreshes pre-signed URLs for files from a completed scan planning result
-      description: >
-        Refreshes pre-signed URLs for a set of files that were returned as part of a
-        previous server-side scan planning result, identified by its plan-id.
-
-
-        This endpoint is intended for lightweight, proactive renewal of expiring URLs
-        (for example by a background caching daemon) and does not re-evaluate the
-        table's manifests or any pushed-down filters. It is only available when the
-        pre-signed-urls access delegation mechanism has been negotiated with the
-        planTableScan endpoint via the X-Iceberg-Access-Delegation header.
-      operationId: presignFiles
-      requestBody:
-        description: The plan-id and file-paths for which fresh pre-signed URLs are requested
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PresignRequest'
-        required: true
-      responses:
-        200:
-          $ref: '#/components/responses/PresignResponse'
-        400:
-          $ref: '#/components/responses/BadRequestErrorResponse'
-        401:
-          $ref: '#/components/responses/UnauthorizedResponse'
-        403:
-          $ref: '#/components/responses/ForbiddenResponse'
-        404:
-          description:
-            Not Found
-            - NoSuchPlanIdException, the plan-id does not exist
-            - NoSuchTableException, the table does not exist
-            - NoSuchNamespaceException, the namespace does not exist
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/IcebergErrorResponse'
-              examples:
-                PlanIdDoesNotExist:
-                  $ref: '#/components/examples/NoSuchPlanIdError'
-                TableDoesNotExist:
-                  $ref: '#/components/examples/NoSuchTableError'
-                NamespaceDoesNotExist:
-                  $ref: '#/components/examples/NoSuchNamespaceError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -2218,10 +2171,20 @@ components:
         to supply access via any or none of the requested mechanisms.
 
 
+        The catalog owns the access delegation decision. This header expresses only what the
+        client supports or prefers; the server MAY respond with a different mechanism, or with
+        none of those requested.
+
+
         Specific properties and handling for `vended-credentials` and `remote-signing`
         are documented in the `LoadTableResult` schema section of this spec document.
-        Handling for `pre-signed-urls` is documented in the `CompletedPlanningResult`
+        Handling for `pre-signed-urls` is documented in the `RemoteSignResult`
         schema section of this spec document.
+
+
+        When this header is supplied to the signRequest endpoint it selects between signed
+        headers and pre-signed URLs. If it is absent, or does not include `pre-signed-urls`,
+        the server MUST default to `remote-signing` for backwards compatibility.
 
       required: false
       schema:
@@ -4405,29 +4368,6 @@ components:
                 to read the files returned in the FileScanTasks as part of the scan result.
               items:
                 $ref: '#/components/schemas/StorageCredential'
-            pre-signed-urls:
-              type: object
-              description: >
-                A map of file-path (matching the `path` of a `ContentFile` referenced by a
-                returned `FileScanTask` or `DeleteFile`) to a pre-signed HTTP URL that can be
-                used to read the file's contents directly, without requiring cloud
-                provider-specific credentials or request signing.
-
-                This is only returned when the client requests the `pre-signed-urls` access
-                delegation mechanism via the `X-Iceberg-Access-Delegation` header. The
-                underlying `path` values of the `DataFile` and `DeleteFile` objects returned
-                in the scan result are unaffected and remain the immutable logical file
-                locations.
-              additionalProperties:
-                type: string
-            url-expiration-timestamp-ms:
-              type: integer
-              format: int64
-              description: >
-                The timestamp, as milliseconds since the Unix epoch, when the URLs in
-                `pre-signed-urls` expire. Clients should request fresh URLs, for example via
-                the presignFiles endpoint, before this timestamp elapses. Required when
-                `pre-signed-urls` is present.
 
     CompletedPlanningWithIDResult:
       type: object
@@ -5940,6 +5880,25 @@ components:
           type: string
         headers:
           $ref: '#/components/schemas/MultiValuedMap'
+        url-expiration-timestamp-ms:
+          type: integer
+          format: int64
+          description: >
+            The time after which the signed `uri` is no longer valid, as milliseconds since the
+            Unix epoch. Servers MUST include this field when `signing-mechanism` is
+            `pre-signed-urls`. Clients SHOULD obtain a fresh signature before this time elapses.
+        signing-mechanism:
+          type: string
+          enum:
+            - remote-signing
+            - pre-signed-urls
+          description: >
+            The access delegation mechanism the server used to sign this request. With
+            `remote-signing` the signature is returned in `headers`. With `pre-signed-urls` the
+            returned `uri` is fully signed, `headers` is empty, and `url-expiration-timestamp-ms`
+            is set. Servers returning a pre-signed URL MUST set this field. For backwards
+            compatibility, if this is not specified, the mechanism is assumed to be
+            `remote-signing`.
 
     RemoteSigningConfig:
       description: Configuration for the remote signer client.
@@ -5958,48 +5917,6 @@ components:
           description: >
             Static headers the signer client MUST include unchanged in every request to the signing
             endpoint.
-
-    PresignRequest:
-      description: >
-        A request to refresh pre-signed URLs for a set of files that were returned as part
-        of a previous server-side scan planning result.
-      type: object
-      required:
-        - plan-id
-        - file-paths
-      properties:
-        plan-id:
-          type: string
-          description:
-            The plan-id of the scan planning result that produced the files being
-            refreshed. The server uses this to authorize the request and resolve the
-            query state needed to reissue signatures.
-        file-paths:
-          type: array
-          description: The logical file-paths for which fresh pre-signed URLs are requested.
-          items:
-            type: string
-
-    PresignResponse:
-      description: The response containing refreshed pre-signed URLs.
-      type: object
-      required:
-        - pre-signed-urls
-        - url-expiration-timestamp-ms
-      properties:
-        pre-signed-urls:
-          type: object
-          description:
-            A map of file-path to a fresh pre-signed HTTP URL that can be used to read the
-            file's contents directly.
-          additionalProperties:
-            type: string
-        url-expiration-timestamp-ms:
-          type: integer
-          format: int64
-          description:
-            The timestamp, as milliseconds since the Unix epoch, when the refreshed URLs
-            in `pre-signed-urls` expire.
 
   #############################
   # Reusable Response Objects #
@@ -6316,13 +6233,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/RemoteSignResult'
-
-    PresignResponse:
-      description: The response containing refreshed pre-signed URLs for the requested files.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/PresignResponse'
 
   #######################################
   # Common examples of different values #
