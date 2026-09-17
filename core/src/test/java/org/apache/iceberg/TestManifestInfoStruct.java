@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import org.apache.iceberg.mumbling.MumblingBitmapTestUtil;
+import org.apache.iceberg.mumbling.MumblingTestUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -33,7 +33,7 @@ class TestManifestInfoStruct {
   void fieldAccess() {
     ManifestInfoStruct info =
         new ManifestInfoStruct(
-            10, 20, 3, 2, 1000L, 2000L, 300L, 200L, 5L, MumblingBitmapTestUtil.bitmapBytes());
+            10, 20, 3, 2, 1000L, 2000L, 300L, 200L, 5L, MumblingTestUtil.onlyFirstBitSetBytes());
 
     assertThat(info.addedFilesCount()).isEqualTo(10);
     assertThat(info.existingFilesCount()).isEqualTo(20);
@@ -45,7 +45,7 @@ class TestManifestInfoStruct {
     assertThat(info.replacedRowsCount()).isEqualTo(200L);
     assertThat(info.minSequenceNumber()).isEqualTo(5L);
     assertThat(info.manifestDeletionVector().buffer())
-        .isEqualTo(ByteBuffer.wrap(MumblingBitmapTestUtil.bitmapBytes()));
+        .isEqualTo(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()));
     assertThat(info.manifestDeletionVector().cardinality()).isEqualTo(1);
   }
 
@@ -62,7 +62,7 @@ class TestManifestInfoStruct {
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(MumblingBitmapTestUtil.bitmapBytes()))
+            .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
             .build();
 
     ManifestInfoStruct copy = info.copy();
@@ -133,7 +133,7 @@ class TestManifestInfoStruct {
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(MumblingBitmapTestUtil.bitmapBytes()))
+            .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
             .build();
     ManifestBitmap mdv = info.manifestDeletionVector();
 
@@ -166,7 +166,7 @@ class TestManifestInfoStruct {
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(MumblingBitmapTestUtil.bitmapBytes()))
+            .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
             .build();
 
     ManifestInfoStruct deserialized = TestHelpers.roundTripSerialize(info);
@@ -181,7 +181,7 @@ class TestManifestInfoStruct {
     assertThat(deserialized.replacedRowsCount()).isEqualTo(200L);
     assertThat(deserialized.minSequenceNumber()).isEqualTo(5L);
     assertThat(deserialized.manifestDeletionVector().buffer())
-        .isEqualTo(ByteBuffer.wrap(MumblingBitmapTestUtil.bitmapBytes()));
+        .isEqualTo(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()));
   }
 
   @Test
@@ -514,7 +514,7 @@ class TestManifestInfoStruct {
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
             .minSequenceNumber(5L)
-            .dv(ByteBuffer.wrap(MumblingBitmapTestUtil.bitmapBytes()))
+            .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
             .build();
 
     ManifestInfoStruct deserialized = TestHelpers.KryoHelpers.roundTripSerialize(info);
@@ -529,6 +529,6 @@ class TestManifestInfoStruct {
     assertThat(deserialized.replacedRowsCount()).isEqualTo(200L);
     assertThat(deserialized.minSequenceNumber()).isEqualTo(5L);
     assertThat(deserialized.manifestDeletionVector().buffer())
-        .isEqualTo(ByteBuffer.wrap(MumblingBitmapTestUtil.bitmapBytes()));
+        .isEqualTo(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()));
   }
 }

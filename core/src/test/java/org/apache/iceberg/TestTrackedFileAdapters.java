@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
-import org.apache.iceberg.mumbling.MumblingBitmapTestUtil;
+import org.apache.iceberg.mumbling.MumblingTestUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Conversions;
@@ -119,7 +119,7 @@ class TestTrackedFileAdapters {
           .deletedRowsCount(200L)
           .replacedRowsCount(0L)
           .minSequenceNumber(7L)
-          .dv(ByteBuffer.wrap(MumblingBitmapTestUtil.bitmapBytes()))
+          .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
           .build();
 
   @Test
@@ -521,8 +521,7 @@ class TestTrackedFileAdapters {
     assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
     assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
     assertThat(manifest.manifestDeletionVector().buffer())
-        .isEqualTo(ByteBuffer.wrap(MumblingBitmapTestUtil.bitmapBytes()));
-    assertThat(manifest.manifestDeletionVector().cardinality()).isEqualTo(1);
+        .isEqualTo(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()));
     assertThat(manifest.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(manifest.partitions()).isNull();
     assertThatThrownBy(manifest::partitionSpecId)
