@@ -55,7 +55,7 @@ public class TestChannel extends ChannelTestBase {
     consume(channel, 1, 2);
 
     assertThat(channel.controlTopicOffsets()).isEqualTo(ImmutableMap.of(0, 5L));
-    assertThat(channel.received()).hasSize(7);
+    assertThat(channel.received()).hasSize(5);
   }
 
   @Test
