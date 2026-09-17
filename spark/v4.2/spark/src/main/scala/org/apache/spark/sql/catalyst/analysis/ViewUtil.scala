@@ -21,7 +21,6 @@ package org.apache.spark.sql.catalyst.analysis
 import java.nio.charset.StandardCharsets
 import java.util
 import java.util.Base64
-
 import org.apache.iceberg.catalog.LoadContext
 import org.apache.iceberg.catalog.Namespace
 import org.apache.iceberg.catalog.TableIdentifier
