@@ -1422,11 +1422,10 @@ paths:
           in: query
           description: >
             An optional identifier of the scan planning request that produced the URIs being
-            signed, supplied by the client for audit and correlation purposes only. Servers MUST
-            NOT rely on this value for authorization; authorization for a signing request is
-            determined by the table scope of the endpoint. A server MUST NOT fail a request
-            because the referenced plan is unknown, expired, or has been cancelled. For backwards
-            compatibility, if this is not specified, the request is not associated with a plan.
+            signed, supplied by the client for audit and correlation purposes. A server MUST NOT
+            fail a request because the referenced plan is unknown, expired, or has been cancelled.
+            For backwards compatibility, if this is not specified, the request is not associated
+            with a plan.
           required: false
           schema:
             type: string
