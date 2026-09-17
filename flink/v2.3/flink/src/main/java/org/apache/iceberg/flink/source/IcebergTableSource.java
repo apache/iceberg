@@ -42,6 +42,7 @@ import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushD
 import org.apache.flink.table.connector.source.abilities.SupportsSourceWatermark;
 import org.apache.flink.table.connector.source.lookup.LookupFunctionProvider;
 import org.apache.flink.table.connector.source.lookup.LookupOptions;
+import org.apache.flink.table.connector.source.lookup.cache.trigger.CacheReloadTrigger;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.factories.FactoryUtil;
@@ -56,6 +57,7 @@ import org.apache.iceberg.flink.FlinkFilters;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
+import org.apache.iceberg.flink.source.lookup.FullCacheReloadTriggerFactory;
 import org.apache.iceberg.flink.source.lookup.IcebergFullCachingLookupFunction;
 import org.apache.iceberg.flink.source.lookup.IcebergLookupOptions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -284,10 +286,17 @@ public class IcebergTableSource
     }
 
     boolean eagerLoad = lookupConf.get(IcebergLookupOptions.FULL_CACHE_EAGER_LOAD);
+    CacheReloadTrigger reloadTrigger = FullCacheReloadTriggerFactory.create(lookupConf);
 
     LookupFunction lookupFn =
         new IcebergFullCachingLookupFunction(
-            loader, projectedRowType, keyIndices, pushedFilters, caseSensitive, eagerLoad);
+            loader,
+            projectedRowType,
+            keyIndices,
+            pushedFilters,
+            caseSensitive,
+            eagerLoad,
+            reloadTrigger);
     return LookupFunctionProvider.of(lookupFn);
   }
 }

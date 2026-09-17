@@ -20,16 +20,22 @@ package org.apache.iceberg.flink.source.lookup;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import javax.annotation.Nullable;
+import org.apache.flink.table.connector.source.lookup.cache.trigger.CacheReloadTrigger;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.functions.FunctionContext;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -130,7 +136,7 @@ public class TestIcebergLookup {
   public void lookupFunctionReturnsRowsFromCache() throws Exception {
     Table table = createTableWithRecords();
 
-    lookupFunction = newLookupFunction();
+    lookupFunction = newLookupFunction(false, null);
     lookupFunction.open(new FunctionContext(null));
 
     Collection<RowData> rows = lookupFunction.lookup(keyRow(1L));
@@ -149,7 +155,7 @@ public class TestIcebergLookup {
   public void lookupFunctionLoadsCacheLazily() throws Exception {
     Table table = createTableWithRecords();
 
-    lookupFunction = newLookupFunction();
+    lookupFunction = newLookupFunction(false, null);
     lookupFunction.open(new FunctionContext(null));
 
     // Nothing is loaded yet, so the first lookup sees the row appended after opening.
@@ -164,7 +170,7 @@ public class TestIcebergLookup {
   public void lookupFunctionLoadsCacheEagerly() throws Exception {
     Table table = createTableWithRecords();
 
-    lookupFunction = newLookupFunction(true);
+    lookupFunction = newLookupFunction(true, null);
     lookupFunction.open(new FunctionContext(null));
 
     appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
@@ -176,6 +182,105 @@ public class TestIcebergLookup {
   }
 
   @Test
+  public void lookupFunctionReloadsCacheFromTrigger() throws Exception {
+    Table table = createTableWithRecords();
+    ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
+
+    lookupFunction = newLookupFunction(true, reloadTrigger);
+    lookupFunction.open(new FunctionContext(null));
+
+    assertThat(lookupFunction.lookup(keyRow(1L)))
+        .singleElement()
+        .satisfies(row -> assertRow(row, 1L, "alice", "A"));
+
+    assertThat(lookupFunction.lookup(keyRow(6L))).isEmpty();
+
+    appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
+
+    reloadTrigger.triggerReload().join();
+
+    assertThat(lookupFunction.lookup(keyRow(6L)))
+        .singleElement()
+        .satisfies(row -> assertRow(row, 6L, "frank", "D"));
+    assertThat(lookupFunction.lookup(keyRow(1L)))
+        .as("Rows that were already cached must still be served after a reload")
+        .singleElement()
+        .satisfies(row -> assertRow(row, 1L, "alice", "A"));
+  }
+
+  @Test
+  public void lookupFunctionWithTriggerLoadsCacheLazily() throws Exception {
+    Table table = createTableWithRecords();
+    ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
+
+    lookupFunction = newLookupFunction(false, reloadTrigger);
+    lookupFunction.open(new FunctionContext(null));
+
+    reloadTrigger.triggerReload().join();
+
+    appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
+
+    assertThat(lookupFunction.lookup(keyRow(6L)))
+        .singleElement()
+        .satisfies(row -> assertRow(row, 6L, "frank", "D"));
+    assertThat(lookupFunction.lookup(keyRow(1L)))
+        .singleElement()
+        .satisfies(row -> assertRow(row, 1L, "alice", "A"));
+
+    appendRecords(table, ImmutableList.of(record(7L, "grace", "E")));
+    reloadTrigger.triggerReload().join();
+    assertThat(lookupFunction.lookup(keyRow(7L)))
+        .singleElement()
+        .satisfies(row -> assertRow(row, 7L, "grace", "E"));
+  }
+
+  @Test
+  public void lookupFunctionSkipsReloadWhenSnapshotIsUnchanged() throws Exception {
+    Table table = CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
+    DataFile dataFile = appendRecords(table, ImmutableList.of(record(1L, "alice", "A")));
+    ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
+
+    lookupFunction = newLookupFunction(true, reloadTrigger);
+    lookupFunction.open(new FunctionContext(null));
+
+    table.io().deleteFile(dataFile.location());
+
+    assertThatCode(() -> reloadTrigger.triggerReload().join())
+        .as("A reload without a new snapshot must not read the table")
+        .doesNotThrowAnyException();
+
+    assertThat(lookupFunction.lookup(keyRow(1L)))
+        .as("A reload without a new snapshot must keep serving the loaded cache")
+        .singleElement()
+        .satisfies(row -> assertRow(row, 1L, "alice", "A"));
+  }
+
+  @Test
+  public void lookupFunctionFailsLookupsWhenReloadFails() throws Exception {
+    Table table = createTableWithRecords();
+    ManualCacheReloadTrigger reloadTrigger = new ManualCacheReloadTrigger();
+
+    lookupFunction = newLookupFunction(true, reloadTrigger);
+    lookupFunction.open(new FunctionContext(null));
+
+    assertThat(lookupFunction.lookup(keyRow(1L)))
+        .singleElement()
+        .satisfies(row -> assertRow(row, 1L, "alice", "A"));
+
+    DataFile dataFile = appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
+    table.io().deleteFile(dataFile.location());
+
+    assertThatThrownBy(() -> reloadTrigger.triggerReload().join())
+        .isInstanceOf(CompletionException.class)
+        .hasMessageContaining(dataFile.location());
+
+    assertThatThrownBy(() -> lookupFunction.lookup(keyRow(1L)))
+        .as("A failed reload must fail the lookup instead of serving the previous cache")
+        .isInstanceOf(IOException.class)
+        .hasMessageContaining("Lookup cache reload failed");
+  }
+
+  @Test
   public void lookupFunctionHandlesMultipleRowsPerKey() throws Exception {
     Table table = CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
     appendRecords(
@@ -183,7 +288,7 @@ public class TestIcebergLookup {
         ImmutableList.of(
             record(1L, "alice", "A"), record(1L, "alice-2", "A"), record(2L, "bob", "B")));
 
-    lookupFunction = newLookupFunction();
+    lookupFunction = newLookupFunction(false, null);
     lookupFunction.open(new FunctionContext(null));
 
     assertThat(lookupFunction.lookup(keyRow(1L)))
@@ -205,7 +310,8 @@ public class TestIcebergLookup {
             ID_KEY_INDICES,
             ImmutableList.of(Expressions.equal("category", "B")),
             true,
-            false);
+            false,
+            null);
     lookupFunction.open(new FunctionContext(null));
 
     assertThat(lookupFunction.lookup(keyRow(1L))).isEmpty();
@@ -214,18 +320,16 @@ public class TestIcebergLookup {
         .satisfies(row -> assertRow(row, 2L, "bob", "B"));
   }
 
-  private IcebergFullCachingLookupFunction newLookupFunction() {
-    return newLookupFunction(false);
-  }
-
-  private IcebergFullCachingLookupFunction newLookupFunction(boolean eagerLoad) {
+  private IcebergFullCachingLookupFunction newLookupFunction(
+      boolean eagerLoad, @Nullable CacheReloadTrigger reloadTrigger) {
     return new IcebergFullCachingLookupFunction(
         CATALOG_EXTENSION.tableLoader().clone(),
         ROW_TYPE,
         ID_KEY_INDICES,
         ImmutableList.of(),
         false,
-        eagerLoad);
+        eagerLoad,
+        reloadTrigger);
   }
 
   private static IcebergLookupReader lookupReader(
@@ -253,8 +357,12 @@ public class TestIcebergLookup {
     return table;
   }
 
-  private void appendRecords(Table table, List<Record> records) throws Exception {
-    new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder).appendToTable(records);
+  private DataFile appendRecords(Table table, List<Record> records) throws Exception {
+    GenericAppenderHelper helper =
+        new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder);
+    DataFile dataFile = helper.writeFile(records);
+    helper.appendToTable(dataFile);
+    return dataFile;
   }
 
   private static GenericRecord record(Long id, String data, String category) {
@@ -279,5 +387,21 @@ public class TestIcebergLookup {
 
     assertThat(row.getString(1)).hasToString(data);
     assertThat(row.getString(2)).hasToString(category);
+  }
+
+  private static class ManualCacheReloadTrigger implements CacheReloadTrigger {
+    private Context context;
+
+    @Override
+    public void open(Context reloadContext) {
+      this.context = reloadContext;
+    }
+
+    @Override
+    public void close() {}
+
+    CompletableFuture<Void> triggerReload() {
+      return context.triggerReload();
+    }
   }
 }

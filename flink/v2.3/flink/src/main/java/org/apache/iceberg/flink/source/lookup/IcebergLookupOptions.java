@@ -35,7 +35,8 @@ public class IcebergLookupOptions {
                   + "of on the first lookup. Eager loading narrows the window in which the subtasks "
                   + "of the join can end up on different snapshots of the dimension table, and "
                   + "fails the job at startup if the table cannot be read, at the cost of a longer "
-                  + "deployment.");
+                  + "deployment. When it is disabled, a configured reload only refreshes the cache "
+                  + "after the first lookup has loaded it.");
 
   private IcebergLookupOptions() {}
 }

@@ -23,9 +23,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import javax.annotation.Nullable;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
+import org.apache.flink.table.connector.source.lookup.cache.trigger.CacheReloadTrigger;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.functions.FunctionContext;
@@ -49,9 +52,15 @@ import org.slf4j.LoggerFactory;
 
 /**
  * A full caching lookup function: the whole projected Iceberg dimension table is loaded into an
- * in-memory cache on the first lookup, and every lookup is served from that cache.
+ * in-memory cache, and every lookup is served from that cache.
+ *
+ * <p>When a {@link CacheReloadTrigger} is configured, the cache is reloaded by that trigger, and a
+ * cache that was loaded successfully replaces the previous one atomically. A failed reload fails
+ * the job on the next lookup instead of serving the previously loaded cache, so stale data is never
+ * served silently.
  */
-public class IcebergFullCachingLookupFunction extends LookupFunction {
+public class IcebergFullCachingLookupFunction extends LookupFunction
+    implements CacheReloadTrigger.Context {
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergFullCachingLookupFunction.class);
 
@@ -64,6 +73,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   private final List<Expression> pushedFilters;
   private final boolean caseSensitive;
   private final boolean eagerLoad;
+  private final @Nullable CacheReloadTrigger reloadTrigger;
 
   private transient Table table;
   private transient IcebergLookupReader reader;
@@ -71,10 +81,13 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   private transient RowData.FieldGetter[] cacheKeyGetters;
   private transient RowData.FieldGetter[] rowFieldGetters;
   private transient TypeSerializer[] fieldSerializers;
-  private transient IcebergLookupCache cache;
+  private transient volatile IcebergLookupCache cache;
+  private transient volatile Throwable reloadFailure;
 
   private transient Counter cacheHitCounter;
   private transient Counter cacheMissCounter;
+  private transient Counter reloadSuccessCounter;
+  private transient Counter reloadFailureCounter;
   private transient volatile long currentSnapshotId;
   private transient volatile int cachedRows;
 
@@ -84,13 +97,15 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
       int[] keyIndices,
       List<Expression> pushedFilters,
       boolean caseSensitive,
-      boolean eagerLoad) {
+      boolean eagerLoad,
+      @Nullable CacheReloadTrigger reloadTrigger) {
     this.tableLoader = tableLoader;
     this.projectedRowType = projectedRowType;
     this.lookupKeyIndices = keyIndices;
     this.pushedFilters = pushedFilters == null ? ImmutableList.of() : pushedFilters;
     this.caseSensitive = caseSensitive;
     this.eagerLoad = eagerLoad;
+    this.reloadTrigger = reloadTrigger;
   }
 
   @Override
@@ -146,15 +161,23 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
     if (eagerLoad) {
       loadCache();
     }
+
+    if (reloadTrigger != null) {
+      reloadTrigger.open(this);
+    }
   }
 
   @Override
   public Collection<RowData> lookup(RowData keyRow) throws IOException {
-    if (cache == null) {
+    checkReloadFailure();
+
+    IcebergLookupCache currentCache = cache;
+    if (currentCache == null) {
       loadCache();
+      currentCache = cache;
     }
 
-    List<RowData> hit = cache.get(extractLookupKey(keyRow, lookupKeyGetters));
+    List<RowData> hit = currentCache.get(extractLookupKey(keyRow, lookupKeyGetters));
     if (hit == null) {
       cacheMissCounter.inc();
       return Collections.emptyList();
@@ -166,13 +189,50 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
 
   @Override
   public void close() throws Exception {
+    if (reloadTrigger != null) {
+      reloadTrigger.close();
+    }
+
     tableLoader.close();
 
-    if (cache != null) {
-      cache.close();
+    IcebergLookupCache currentCache = cache;
+    if (currentCache != null) {
+      currentCache.close();
     }
 
     super.close();
+  }
+
+  @Override
+  public CompletableFuture<Void> triggerReload() {
+    if (cache == null) {
+      return CompletableFuture.completedFuture(null);
+    }
+
+    try {
+      loadCache();
+      reloadSuccessCounter.inc();
+      return CompletableFuture.completedFuture(null);
+    } catch (Exception failure) {
+      reloadFailureCounter.inc();
+      this.reloadFailure = failure;
+      LOG.error(
+          "IcebergFullCachingLookupFunction reload failed, the job will fail on the next lookup "
+              + "instead of serving the previously loaded cache",
+          failure);
+      return CompletableFuture.failedFuture(failure);
+    }
+  }
+
+  @Override
+  public long currentProcessingTime() {
+    return System.currentTimeMillis();
+  }
+
+  @Override
+  public long currentWatermark() {
+    throw new UnsupportedOperationException(
+        "Watermarks are currently unsupported in cache reload triggers.");
   }
 
   private void loadCache() throws IOException {
@@ -180,6 +240,13 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
     Snapshot snapshot = table.currentSnapshot();
     long snapshotId =
         snapshot == null ? IcebergLookupReader.CURRENT_SNAPSHOT : snapshot.snapshotId();
+
+    if (cache != null && snapshotId == currentSnapshotId) {
+      LOG.info(
+          "IcebergFullCachingLookupFunction skipping reload, snapshot {} is already cached",
+          snapshotId == IcebergLookupReader.CURRENT_SNAPSHOT ? "none" : snapshotId);
+      return;
+    }
 
     LOG.info(
         "IcebergFullCachingLookupFunction loading started, snapshot={}, committedAt={}, projected fields={}, pushedFilters={}",
@@ -200,15 +267,24 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
         });
     loaded.completeLoad();
 
-    this.cache = loaded;
     this.currentSnapshotId = snapshotId;
     this.cachedRows = rowCnt[0];
+    this.cache = loaded;
 
     LOG.info(
         "IcebergFullCachingLookupFunction loading finished, snapshot={}, rows={}, cost={} ms",
         snapshotId == IcebergLookupReader.CURRENT_SNAPSHOT ? "none" : snapshotId,
         rowCnt[0],
         System.currentTimeMillis() - start);
+  }
+
+  private void checkReloadFailure() throws IOException {
+    Throwable failure = reloadFailure;
+    if (failure != null) {
+      throw new IOException(
+          "Lookup cache reload failed, failing the job instead of serving the previously loaded cache",
+          failure);
+    }
   }
 
   private RowData copyRow(RowData row) {
@@ -233,6 +309,8 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
     MetricGroup group = context.getMetricGroup().addGroup(METRIC_GROUP);
     this.cacheHitCounter = group.counter("cacheHit");
     this.cacheMissCounter = group.counter("cacheMiss");
+    this.reloadSuccessCounter = group.counter("reloadSuccess");
+    this.reloadFailureCounter = group.counter("reloadFailure");
     group.gauge("snapshotId", () -> currentSnapshotId);
     group.gauge("cachedRows", () -> cachedRows);
   }
@@ -240,5 +318,6 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   private void resetState() {
     this.currentSnapshotId = UNKNOWN;
     this.cachedRows = 0;
+    this.reloadFailure = null;
   }
 }

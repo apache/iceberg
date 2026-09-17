@@ -111,14 +111,39 @@ Iceberg implements lookup join with a full cache: the whole projected dimension 
 
 The cache is loaded by default when the lookup function is opened. Set lookup.full-cache.eager-load to false to load it on the first lookup instead, which blocks the data flow until the cache is fully loaded.
 
-There is no background refresh: the cache keeps the data it was loaded with for the lifetime of the job, so the dimension table should be populated before the join starts.
+By default there is no background refresh: the cache keeps the data it was loaded with for the lifetime of the job, so the dimension table should be populated before the join starts. To pick up changes to the dimension table, configure a full cache reload:
+
+```sql
+-- Reload every 5 minutes
+SELECT o.order_id, o.user_id, u.name, u.city
+FROM orders AS o
+LEFT JOIN iceberg_catalog.db.user_dim /*+ OPTIONS('lookup.full-cache.periodic-reload.interval'='5 min') */
+  FOR SYSTEM_TIME AS OF o.proc_time AS u
+  ON o.user_id = u.user_id;
+
+-- Reload every day at 02:30
+SELECT o.order_id, o.user_id, u.name, u.city
+FROM orders AS o
+LEFT JOIN iceberg_catalog.db.user_dim /*+ OPTIONS('lookup.full-cache.reload-strategy'='TIMED', 'lookup.full-cache.timed-reload.iso-time'='02:30') */
+  FOR SYSTEM_TIME AS OF o.proc_time AS u
+  ON o.user_id = u.user_id;
+```
+
+Each reload reads the dimension table at its current snapshot, and a reload that finds no new snapshot is a no-op. A cache that was loaded successfully replaces the previous one atomically, so lookups observe either the previous cache or the new one, never a partially loaded cache. A reload never falls back to the previous cache: if a reload fails, the next lookup fails the job, so a stale cache is never served silently. While a reload is running, lookups are served from the previous cache, and both caches are held in memory until the reload finishes, so peak memory is about twice the cache size.
+
+A reloading cache follows `lookup.full-cache.eager-load`: by default it is loaded when the lookup function is opened, and with eager loading disabled it is loaded on the first lookup and reloaded on the configured schedule from then on. Reloads run on the trigger's own thread while lookups keep being served from the previous cache, so they do not block the job.
 
 The lookup options are:
 
-| Option                       | Default | Description                                                                                                   |
-| ---------------------------- |---------| ------------------------------------------------------------------------------------------------------------- |
-| lookup.cache                 |         | Only `FULL` is accepted; `NONE` and `PARTIAL` are rejected, because an Iceberg table cannot be point-looked-up. |
-| lookup.full-cache.eager-load | true    | Whether to load the full cache when the lookup function is opened, instead of on the first lookup.             |
+| Option                                          | Default     | Description                                                                                                                          |
+| ----------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| lookup.cache                                    |             | Only `FULL` is accepted; `NONE` and `PARTIAL` are rejected, because an Iceberg table cannot be point-looked-up.                        |
+| lookup.full-cache.eager-load                    | true        | Whether to load the full cache when the lookup function is opened, instead of on the first lookup. When it is disabled, a configured reload only refreshes the cache after the first lookup has loaded it. |
+| lookup.full-cache.reload-strategy               | (unset)     | `PERIODIC` reloads with a fixed interval, `TIMED` reloads at a fixed time of day. No reload is configured unless a reload option is set; the strategy is inferred from the options below when it is not set. |
+| lookup.full-cache.periodic-reload.interval      | (unset)     | Interval of the `PERIODIC` reload.                                                                                                     |
+| lookup.full-cache.periodic-reload.schedule-mode | FIXED_DELAY | `FIXED_DELAY` measures the interval from the end of the previous reload, `FIXED_RATE` from the start of the previous one.             |
+| lookup.full-cache.timed-reload.iso-time         | (unset)     | Time of day of the `TIMED` reload, with an offset (`10:15Z`, `10:15+07:00`) or without one (`10:15`, in the JVM timezone).            |
+| lookup.full-cache.timed-reload.interval-in-days | 1           | Number of days between `TIMED` reloads.                                                                                               |
 
 ## Reading with DataStream
 

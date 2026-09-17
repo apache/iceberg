@@ -135,6 +135,11 @@ public class FlinkDynamicTableFactory
     options.add(FlinkCreateTableOptions.USE_DYNAMIC_ICEBERG_SINK);
     options.add(FlinkCreateTableOptions.DYNAMIC_RECORD_GENERATOR_IMPL);
     options.add(LookupOptions.CACHE_TYPE);
+    options.add(LookupOptions.FULL_CACHE_RELOAD_STRATEGY);
+    options.add(LookupOptions.FULL_CACHE_PERIODIC_RELOAD_INTERVAL);
+    options.add(LookupOptions.FULL_CACHE_PERIODIC_RELOAD_SCHEDULE_MODE);
+    options.add(LookupOptions.FULL_CACHE_TIMED_RELOAD_ISO_TIME);
+    options.add(LookupOptions.FULL_CACHE_TIMED_RELOAD_INTERVAL_IN_DAYS);
     options.add(IcebergLookupOptions.FULL_CACHE_EAGER_LOAD);
     return options;
   }
