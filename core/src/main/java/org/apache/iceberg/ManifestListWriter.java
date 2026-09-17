@@ -36,22 +36,21 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   private final FileAppender<ManifestFile> writer;
   private final StandardEncryptionManager standardEncryptionManager;
   private final NativeEncryptionKeyMetadata manifestListKeyMetadata;
-  private final OutputFile outputFile;
   private boolean closed = false;
-  private ManifestListFile manifestListFile;
   private FileEncryptionKeys encryptionKeys;
 
   private ManifestListWriter(
       OutputFile file, EncryptionManager encryptionManager, Map<String, String> meta) {
+    OutputFile outputFile;
     if (encryptionManager instanceof StandardEncryptionManager) {
       // ability to encrypt the manifest list key is introduced for standard encryption.
       this.standardEncryptionManager = (StandardEncryptionManager) encryptionManager;
       EncryptedOutputFile encryptedFile = this.standardEncryptionManager.encrypt(file);
-      this.outputFile = encryptedFile.encryptingOutputFile();
+      outputFile = encryptedFile.encryptingOutputFile();
       this.manifestListKeyMetadata = (NativeEncryptionKeyMetadata) encryptedFile.keyMetadata();
     } else {
       this.standardEncryptionManager = null;
-      this.outputFile = file;
+      outputFile = file;
       this.manifestListKeyMetadata = null;
     }
 
@@ -98,25 +97,16 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     return null;
   }
 
-  public ManifestListFile toManifestListFile() {
-    Preconditions.checkState(closed, "Cannot build ManifestListFile, writer is not closed");
-    if (manifestListFile == null) {
-      if (manifestListKeyMetadata != null && manifestListKeyMetadata.encryptionKey() != null) {
-        this.encryptionKeys =
-            standardEncryptionManager.registerKeyMetadata(
-                manifestListKeyMetadata.copyWithLength(writer.length()));
-        this.manifestListFile =
-            new BaseManifestListFile(outputFile.location(), encryptionKeys.fileKey().keyId());
-      } else {
-        this.manifestListFile = new BaseManifestListFile(outputFile.location(), null);
-      }
+  FileEncryptionKeys encryptionKeys() {
+    Preconditions.checkState(closed, "Cannot build encryption keys, writer is not closed");
+    if (encryptionKeys == null
+        && manifestListKeyMetadata != null
+        && manifestListKeyMetadata.encryptionKey() != null) {
+      this.encryptionKeys =
+          standardEncryptionManager.registerKeyMetadata(
+              manifestListKeyMetadata.copyWithLength(writer.length()));
     }
 
-    return manifestListFile;
-  }
-
-  FileEncryptionKeys encryptionKeys() {
-    toManifestListFile();
     return encryptionKeys;
   }
 
