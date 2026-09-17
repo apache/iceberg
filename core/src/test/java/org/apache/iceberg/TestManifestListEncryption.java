@@ -353,15 +353,12 @@ public class TestManifestListEncryption {
             SEQ_NUM,
             SNAPSHOT_FIRST_ROW_ID);
     try (writer) {
-      assertThatThrownBy(writer::toManifestListFile)
+      assertThatThrownBy(writer::encryptionKeys)
           .isInstanceOf(IllegalStateException.class)
-          .hasMessage("Cannot build ManifestListFile, writer is not closed");
+          .hasMessage("Cannot build encryption keys, writer is not closed");
       writer.add(TEST_MANIFEST);
     }
 
-    ManifestListFile manifestListFile = writer.toManifestListFile();
-    assertThat(writer.toManifestListFile().encryptionKeyID())
-        .isEqualTo(manifestListFile.encryptionKeyID());
     FileEncryptionKeys encryptionKeys = writer.encryptionKeys();
 
     // First try to read without decryption
@@ -375,7 +372,11 @@ public class TestManifestListEncryption {
             io,
             EncryptionTestHelpers.createEncryptionManager(
                 List.of(encryptionKeys.keyEncryptionKey(), encryptionKeys.fileKey())))) {
-      List<ManifestFile> manifests = ManifestLists.read(readingIO.newInputFile(manifestListFile));
+      List<ManifestFile> manifests =
+          ManifestLists.read(
+              readingIO.newInputFile(
+                  new BaseManifestListFile(
+                      outputFile.location(), encryptionKeys.fileKey().keyId())));
       assertThat(manifests).hasSize(1);
       return manifests.get(0);
     }

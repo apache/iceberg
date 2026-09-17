@@ -356,7 +356,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           replacedRecords);
     }
 
-    ManifestListFile manifestListFile = writer.toManifestListFile();
     this.manifestListEncryptionKeys = writer.encryptionKeys();
 
     return new BaseSnapshot(
@@ -370,7 +369,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         manifestList.location(),
         nextRowId,
         assignedRows,
-        manifestListFile.encryptionKeyID());
+        manifestListEncryptionKeys != null ? manifestListEncryptionKeys.fileKey().keyId() : null);
   }
 
   private void runValidations(Snapshot parentSnapshot) {
