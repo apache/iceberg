@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.extensions;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
@@ -48,19 +49,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/**
- * Tests that the referenced-by view chain is correctly constructed and passed to {@link
- * org.apache.iceberg.catalog.Catalog#loadTable(TableIdentifier, LoadContext)} during view
- * resolution.
- *
- * <p>This verifies:
- *
- * <ul>
- *   <li>Single view to table: context contains one view identifier
- *   <li>Nested view to view to table: context contains the full chain (outer first, inner last)
- *   <li>Direct table access: no context is passed
- * </ul>
- */
 public class TestReferencedByViewChain extends SparkTestHelperBase {
 
   private static final String CATALOG_NAME = "ref_test_catalog";
@@ -69,15 +57,8 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
 
   private static SparkSession spark;
 
-  /**
-   * An InMemoryCatalog that records all contextual loadTable/loadView calls for later assertion.
-   */
   public static class ContextTrackingCatalog extends InMemoryCatalog {
-
-    /** Records of (tableIdentifier, referencedBy) captured from loadTable calls. */
     public static final List<CapturedContext> CAPTURED = new CopyOnWriteArrayList<>();
-
-    /** Records of (viewIdentifier, referencedBy) captured from loadView calls. */
     public static final List<CapturedContext> CAPTURED_VIEWS = new CopyOnWriteArrayList<>();
 
     public static class CapturedContext {
@@ -97,14 +78,18 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
 
     @Override
     public Table loadTable(TableIdentifier identifier, LoadContext context) {
-      CAPTURED.add(new CapturedContext(identifier, context.referencedBy()));
+      CAPTURED.add(new CapturedContext(identifier, referencedBy(context)));
       return super.loadTable(identifier);
     }
 
     @Override
     public View loadView(TableIdentifier identifier, LoadContext context) {
-      CAPTURED_VIEWS.add(new CapturedContext(identifier, context.referencedBy()));
+      CAPTURED_VIEWS.add(new CapturedContext(identifier, referencedBy(context)));
       return super.loadView(identifier);
+    }
+
+    private static List<TableIdentifier> referencedBy(LoadContext context) {
+      return context != null ? context.referencedBy() : Collections.emptyList();
     }
   }
 
@@ -172,27 +157,25 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @Test
-  public void testDirectTableAccessHasNoContext() {
+  public void directTableAccessHasEmptyContext() {
     ContextTrackingCatalog.clearCaptured();
 
     List<Row> rows = spark.sql(String.format("SELECT * FROM %s", TABLE_NAME)).collectAsList();
     assertThat(rows).hasSize(5);
 
-    // direct table access is loaded with a context that carries no view chain
     assertThat(ContextTrackingCatalog.CAPTURED)
         .isNotEmpty()
         .allSatisfy(captured -> assertThat(captured.referencedBy).isEmpty());
   }
 
   @Test
-  public void testSingleViewPassesViewIdentifierInContext() {
+  public void singleViewPassesViewIdentifierInContext() {
     createView("simple_view", String.format("SELECT id FROM %s", TABLE_NAME));
     ContextTrackingCatalog.clearCaptured();
 
     List<Row> result = spark.sql("SELECT * FROM simple_view").collectAsList();
     assertThat(result).hasSize(5);
 
-    // exactly one load carries a view chain; the rest are plain loads with an empty context
     assertThat(ContextTrackingCatalog.CAPTURED)
         .filteredOn(captured -> !captured.referencedBy.isEmpty())
         .hasSize(1);
@@ -200,11 +183,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @Test
-  public void testNestedViewChainAccumulatesContext() {
-    // view_c -> view_b -> view_a -> table
-    // When querying view_c:
-    //   - loading view_a should receive context with [view_c, view_b]
-    //   - loading table should receive context with [view_c, view_b, view_a]
+  public void nestedViewChainAccumulatesContext() {
     createView("view_a", String.format("SELECT id, data FROM %s", TABLE_NAME));
     createView("view_b", "SELECT id FROM view_a WHERE id <= 3");
     createView("view_c", "SELECT id FROM view_b WHERE id > 1");
@@ -213,17 +192,13 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     List<Object[]> result = rowsToJava(spark.sql("SELECT * FROM view_c").collectAsList());
     assertThat(result).hasSize(2).containsExactlyInAnyOrder(new Object[] {2}, new Object[] {3});
 
-    // Verify the table load has the full chain [view_c, view_b, view_a]
     assertCapturedTableChain(
         ContextTrackingCatalog.CAPTURED, TABLE_NAME, "view_c", "view_b", "view_a");
-
-    // Verify view_a was loaded with context containing [view_c, view_b]
     assertCapturedTableChain(ContextTrackingCatalog.CAPTURED_VIEWS, "view_a", "view_c", "view_b");
   }
 
   private void createView(String viewName, String sql) {
-    ViewCatalog catalog = viewCatalog();
-    catalog
+    viewCatalog()
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
         .withQuery("spark", sql)
         .withDefaultNamespace(NAMESPACE)
@@ -232,26 +207,25 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
         .create();
   }
 
-  /**
-   * Asserts that a captured context list contains an entry for the given target with the expected
-   * view chain.
-   */
   private void assertCapturedTableChain(
       List<ContextTrackingCatalog.CapturedContext> captures,
       String targetName,
       String... expectedViewNames) {
     List<ContextTrackingCatalog.CapturedContext> matching =
         captures.stream()
-            .filter(c -> c.tableIdentifier.equals(TableIdentifier.of(NAMESPACE, targetName)))
-            .filter(c -> c.referencedBy != null && !c.referencedBy.isEmpty())
+            .filter(
+                captured ->
+                    captured.tableIdentifier.equals(TableIdentifier.of(NAMESPACE, targetName)))
+            .filter(captured -> captured.referencedBy != null && !captured.referencedBy.isEmpty())
             .collect(Collectors.toList());
 
     assertThat(matching).isNotEmpty();
 
     List<TableIdentifier> viewChain = matching.get(0).referencedBy;
     assertThat(viewChain).hasSize(expectedViewNames.length);
-    for (int i = 0; i < expectedViewNames.length; i++) {
-      assertThat(viewChain.get(i)).isEqualTo(TableIdentifier.of(NAMESPACE, expectedViewNames[i]));
+    for (int index = 0; index < expectedViewNames.length; index += 1) {
+      assertThat(viewChain.get(index))
+          .isEqualTo(TableIdentifier.of(NAMESPACE, expectedViewNames[index]));
     }
   }
 
