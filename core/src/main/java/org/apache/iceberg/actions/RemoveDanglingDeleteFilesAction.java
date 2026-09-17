@@ -123,13 +123,12 @@ public class RemoveDanglingDeleteFilesAction
       return EMPTY_RESULT;
     }
 
-    Collection<DeleteFile> danglingDeletes =
-        findDanglingDeletes.apply(snapshot.snapshotId(), deleteManifests);
+    long snapshotId = snapshot.snapshotId();
+    Collection<DeleteFile> danglingDeletes = findDanglingDeletes.apply(snapshotId, deleteManifests);
     if (danglingDeletes.isEmpty()) {
       return EMPTY_RESULT;
     }
 
-    long snapshotId = snapshot.snapshotId();
     RewriteFiles rewriteFiles =
         table
             .newRewrite()

@@ -270,15 +270,11 @@ public class TestRemoveDanglingDeleteFilesAction {
   }
 
   private void setupPartitionedTable() {
-    setupPartitionedTable(formatVersion);
-  }
-
-  private void setupPartitionedTable(int tableFormatVersion) {
     this.table =
         TABLES.create(
             SCHEMA,
             SPEC,
-            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(tableFormatVersion)),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
             tableLocation);
   }
 
@@ -532,7 +528,8 @@ public class TestRemoveDanglingDeleteFilesAction {
 
   @Test
   public void testPlanningUsesStartingSnapshot() {
-    setupPartitionedTable(2);
+    assumeThat(formatVersion).isEqualTo(2);
+    setupPartitionedTable();
     DeleteFile deletes = FILE_A_POS_DELETES;
     long originalSnapshotId = prepareDanglingDeletes(deletes);
     long rewrittenSnapshotId = table.currentSnapshot().snapshotId();
@@ -555,7 +552,8 @@ public class TestRemoveDanglingDeleteFilesAction {
 
   @Test
   public void testRollbackBeforeCommit() {
-    setupPartitionedTable(2);
+    assumeThat(formatVersion).isEqualTo(2);
+    setupPartitionedTable();
     DeleteFile deletes = FILE_A_POS_DELETES;
     long rollbackSnapshotId = prepareDanglingDeletes(deletes);
     long planningSnapshotId = table.currentSnapshot().snapshotId();
@@ -582,7 +580,8 @@ public class TestRemoveDanglingDeleteFilesAction {
 
   @Test
   public void testRollbackDuringCommitRetry() {
-    setupPartitionedTable(2);
+    assumeThat(formatVersion).isEqualTo(2);
+    setupPartitionedTable();
     DeleteFile deletes = FILE_A_POS_DELETES;
     long rollbackSnapshotId = prepareDanglingDeletes(deletes);
     long planningSnapshotId = table.currentSnapshot().snapshotId();
