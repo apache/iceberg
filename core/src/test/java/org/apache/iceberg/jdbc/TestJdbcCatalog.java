@@ -39,6 +39,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
@@ -1292,5 +1297,52 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     }
 
     return false;
+  }
+
+  @Test
+  public void testExecuteRestoresInterruptStatus() throws Exception {
+    try (JdbcCatalog interruptibleCatalog =
+        initCatalog(
+            "interrupt_jdbc_catalog", ImmutableMap.of(CatalogProperties.CLIENT_POOL_SIZE, "1"))) {
+      CountDownLatch connectionHeld = new CountDownLatch(1);
+      CountDownLatch releaseConnection = new CountDownLatch(1);
+      ExecutorService executor = Executors.newSingleThreadExecutor();
+      // Hold the only pooled connection, so that the next caller has to wait on the pool. That
+      // wait is where a thread that is already interrupted observes the interrupt.
+      Future<?> holder =
+          executor.submit(
+              () -> {
+                interruptibleCatalog
+                    .connectionPool()
+                    .run(
+                        conn -> {
+                          connectionHeld.countDown();
+                          try {
+                            releaseConnection.await();
+                          } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                          }
+                          return null;
+                        });
+                return null;
+              });
+
+      try {
+        assertThat(connectionHeld.await(30, TimeUnit.SECONDS)).isTrue();
+        Thread.currentThread().interrupt();
+        // purge = false keeps this on the execute() path. The default purge = true would first
+        // read table metadata through fetch(), which already restores the interrupt status.
+        assertThatThrownBy(
+                () -> interruptibleCatalog.dropTable(TableIdentifier.of("ns", "tbl"), false))
+            .isInstanceOf(UncheckedInterruptedException.class)
+            .hasMessage("Interrupted in SQL command");
+        assertThat(Thread.currentThread().isInterrupted()).isTrue();
+      } finally {
+        Thread.interrupted();
+        releaseConnection.countDown();
+        holder.get(30, TimeUnit.SECONDS);
+        executor.shutdownNow();
+      }
+    }
   }
 }
