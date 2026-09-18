@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -62,6 +63,7 @@ import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFact
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.kafka.clients.admin.MemberDescription;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
@@ -78,7 +80,7 @@ class Coordinator extends Channel {
 
   private final Catalog catalog;
   private final IcebergSinkConfig config;
-  private final int totalPartitionCount;
+  private final Set<TopicPartition> expectedPartitions;
   private final String snapshotOffsetsProp;
   private final ExecutorService exec;
   private final CommitState commitState;
@@ -98,8 +100,10 @@ class Coordinator extends Channel {
 
     this.catalog = catalog;
     this.config = config;
-    this.totalPartitionCount =
-        members.stream().mapToInt(desc -> desc.assignment().topicPartitions().size()).sum();
+    this.expectedPartitions =
+        members.stream()
+            .flatMap(member -> member.assignment().topicPartitions().stream())
+            .collect(Collectors.toUnmodifiableSet());
     this.snapshotOffsetsProp =
         String.format(
             "kafka.connect.offsets.%s.%s", config.controlTopic(), config.connectGroupId());
@@ -143,7 +147,7 @@ class Coordinator extends Channel {
         return true;
       case DATA_COMPLETE:
         commitState.addReady(envelope);
-        if (commitState.isCommitReady(totalPartitionCount)) {
+        if (commitState.isCommitReady(expectedPartitions)) {
           commit(false);
         }
         return true;
