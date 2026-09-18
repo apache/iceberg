@@ -81,7 +81,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
 
-  private Types.StructType partitionType = null;
+  private PartitionData projectedPartition = null;
 
   /** Used by internal readers to instantiate this class with a projection schema. */
   TrackedFileStruct(Types.StructType projection) {
@@ -145,8 +145,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.specId = toCopy.specId;
-    this.partitionData = toCopy.partitionData != null ? toCopy.partitionData.copy() : null;
-    this.partitionType = toCopy.partitionType;
+    this.partitionData = copyOf(toCopy.partitionData);
+    this.projectedPartition = copyOf(toCopy.projectedPartition);
     this.tracking = toCopy.tracking != null ? toCopy.tracking.copy() : null;
     this.sortOrderId = toCopy.sortOrderId;
     this.deletionVector = toCopy.deletionVector != null ? toCopy.deletionVector.copy() : null;
@@ -215,7 +215,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   }
 
   void setPartitionType(Types.StructType newPartitionType) {
-    this.partitionType = newPartitionType;
+    this.projectedPartition = project(partitionData, newPartitionType);
   }
 
   @Override
@@ -225,16 +225,23 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
 
   @Override
   public StructLike partition() {
-    if (partitionData == null
+    return projectedPartition != null ? projectedPartition : partitionData;
+  }
+
+  private static PartitionData copyOf(PartitionData partition) {
+    return partition != null ? partition.copy() : null;
+  }
+
+  private static PartitionData project(PartitionData partition, Types.StructType partitionType) {
+    if (partition == null
         || partitionType == null
-        || partitionData.getPartitionType().equals(partitionType)) {
-      return partitionData;
+        || partition.getPartitionType().equals(partitionType)) {
+      return null;
     }
 
     return new PartitionData(partitionType)
         .copyFor(
-            StructProjection.create(partitionData.getPartitionType(), partitionType)
-                .wrap(partitionData));
+            StructProjection.create(partition.getPartitionType(), partitionType).wrap(partition));
   }
 
   @Override
