@@ -19,7 +19,10 @@
 package org.apache.iceberg.spark.source;
 
 import org.apache.iceberg.SnapshotUpdate;
+import org.apache.spark.sql.connector.write.DeleteSummary;
+import org.apache.spark.sql.connector.write.InsertSummary;
 import org.apache.spark.sql.connector.write.MergeSummary;
+import org.apache.spark.sql.connector.write.UpdateSummary;
 
 /** Base class for Spark write implementations with shared utility methods. */
 abstract class BaseSparkWrite {
@@ -51,6 +54,23 @@ abstract class BaseSparkWrite {
         operation,
         "spark.merge-into.num-target-rows-not-matched-by-source-deleted",
         mergeSummary.numTargetRowsNotMatchedBySourceDeleted());
+  }
+
+  protected void setUpdateSummaryProperties(
+      SnapshotUpdate<?> operation, UpdateSummary updateSummary) {
+    setIfPositive(operation, "spark.update.num-updated-rows", updateSummary.numUpdatedRows());
+    setIfPositive(operation, "spark.update.num-copied-rows", updateSummary.numCopiedRows());
+  }
+
+  protected void setDeleteSummaryProperties(
+      SnapshotUpdate<?> operation, DeleteSummary deleteSummary) {
+    setIfPositive(operation, "spark.delete.num-deleted-rows", deleteSummary.numDeletedRows());
+    setIfPositive(operation, "spark.delete.num-copied-rows", deleteSummary.numCopiedRows());
+  }
+
+  protected void setInsertSummaryProperties(
+      SnapshotUpdate<?> operation, InsertSummary insertSummary) {
+    setIfPositive(operation, "spark.insert.num-inserted-rows", insertSummary.numInsertedRows());
   }
 
   private void setIfPositive(SnapshotUpdate<?> operation, String key, long value) {
