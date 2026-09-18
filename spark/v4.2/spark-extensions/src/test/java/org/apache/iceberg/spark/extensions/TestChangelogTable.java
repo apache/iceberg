@@ -95,6 +95,25 @@ public class TestChangelogTable extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testChangelogMetadataColumnFilter() {
+    createTableWithDefaultRows();
+
+    sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Snapshot snap3 = table.currentSnapshot();
+
+    assertEquals(
+        "Should have expected row",
+        ImmutableList.of(row(3, "c", "INSERT", 2, snap3.snapshotId())),
+        sql(
+            "SELECT * FROM %s.changes WHERE id = 3 AND _change_type = 'INSERT' "
+                + "AND _change_ordinal = 2 AND _commit_snapshot_id = %s",
+            tableName, snap3.snapshotId()));
+  }
+
+  @TestTemplate
   public void testOverwrites() {
     createTableWithDefaultRows();
 
