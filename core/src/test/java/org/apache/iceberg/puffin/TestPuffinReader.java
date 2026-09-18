@@ -27,10 +27,25 @@ import static org.apache.iceberg.puffin.PuffinFormatTestUtil.readTestResource;
 import static org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap.toImmutableMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.iceberg.inmemory.InMemoryInputFile;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.RangeReadable;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
@@ -153,5 +168,155 @@ public class TestPuffinReader {
       assertThat(reader.fileMetadata().properties())
           .isEqualTo(ImmutableMap.of("created-by", "Test 1234"));
     }
+  }
+
+  @Test
+  void coalescesNearbyBlobReads() throws Exception {
+    byte[] contents = "0123456789abcdef".getBytes(UTF_8);
+    BlobMetadata firstBlob = blob(2, 3);
+    BlobMetadata secondBlob = blob(8, 2);
+    List<Pair<Long, Integer>> reads = new ArrayList<>();
+
+    try (PuffinReader reader = trackingReader(contents, reads)) {
+      Iterable<Pair<BlobMetadata, ByteBuffer>> read =
+          reader.readAll(ImmutableList.of(secondBlob, firstBlob));
+      assertThat(reads).isEmpty();
+
+      Map<BlobMetadata, byte[]> data =
+          Streams.stream(read)
+              .collect(toImmutableMap(Pair::first, pair -> ByteBuffers.toByteArray(pair.second())));
+
+      assertThat(reads).containsExactly(Pair.of(2L, 8));
+      assertThat(data)
+          .containsEntry(firstBlob, "234".getBytes(UTF_8))
+          .containsEntry(secondBlob, "89".getBytes(UTF_8));
+    }
+  }
+
+  @Test
+  void readsDistantBlobsSeparately() throws Exception {
+    int secondOffset = PuffinReader.MAX_READ_REGION_GAP + 3;
+    byte[] contents = new byte[secondOffset + 2];
+    Arrays.fill(contents, (byte) 1);
+    BlobMetadata firstBlob = blob(0, 2);
+    BlobMetadata secondBlob = blob(secondOffset, 2);
+    List<Pair<Long, Integer>> reads = new ArrayList<>();
+
+    try (PuffinReader reader = trackingReader(contents, reads)) {
+      List<Pair<BlobMetadata, ByteBuffer>> data =
+          Streams.stream(reader.readAll(ImmutableList.of(firstBlob, secondBlob)))
+              .collect(Collectors.toList());
+
+      assertThat(data).hasSize(2);
+      assertThat(reads).containsExactly(Pair.of(0L, 2), Pair.of((long) secondOffset, 2));
+    }
+  }
+
+  @Test
+  void coalescesBlobsAtMaximumGap() throws Exception {
+    int secondOffset = PuffinReader.MAX_READ_REGION_GAP + 2;
+    byte[] contents = new byte[secondOffset + 2];
+    BlobMetadata firstBlob = blob(0, 2);
+    BlobMetadata secondBlob = blob(secondOffset, 2);
+    List<Pair<Long, Integer>> reads = new ArrayList<>();
+
+    try (PuffinReader reader = trackingReader(contents, reads)) {
+      List<Pair<BlobMetadata, ByteBuffer>> data =
+          Streams.stream(reader.readAll(ImmutableList.of(firstBlob, secondBlob)))
+              .collect(Collectors.toList());
+
+      assertThat(data).hasSize(2);
+      assertThat(reads).containsExactly(Pair.of(0L, contents.length));
+    }
+  }
+
+  @Test
+  void limitsCoalescedRegionSize() throws Exception {
+    int secondOffset = PuffinReader.MAX_READ_REGION_SIZE;
+    byte[] contents = new byte[secondOffset + 1];
+    BlobMetadata firstBlob = blob(0, secondOffset);
+    BlobMetadata secondBlob = blob(secondOffset, 1);
+    List<Pair<Long, Integer>> reads = new ArrayList<>();
+
+    try (PuffinReader reader = trackingReader(contents, reads)) {
+      List<Pair<BlobMetadata, ByteBuffer>> data =
+          Streams.stream(reader.readAll(ImmutableList.of(firstBlob, secondBlob)))
+              .collect(Collectors.toList());
+
+      assertThat(data).hasSize(2);
+      assertThat(reads)
+          .containsExactly(Pair.of(0L, secondOffset), Pair.of((long) secondOffset, 1));
+    }
+  }
+
+  @Test
+  void readsBlobLargerThanRegionLimit() throws Exception {
+    int blobSize = PuffinReader.MAX_READ_REGION_SIZE + 1;
+    byte[] contents = new byte[blobSize];
+    BlobMetadata blob = blob(0, blobSize);
+    List<Pair<Long, Integer>> reads = new ArrayList<>();
+
+    try (PuffinReader reader = trackingReader(contents, reads)) {
+      Pair<BlobMetadata, ByteBuffer> read = reader.readAll(ImmutableList.of(blob)).iterator().next();
+
+      assertThat(read.second().remaining()).isEqualTo(blobSize);
+      assertThat(reads).containsExactly(Pair.of(0L, blobSize));
+    }
+  }
+
+  @Test
+  void retainsBlobDataAfterAdvancingToAnotherRegion() throws Exception {
+    int secondOffset = PuffinReader.MAX_READ_REGION_GAP + 3;
+    byte[] contents = new byte[secondOffset + 2];
+    contents[0] = 1;
+    contents[1] = 2;
+    contents[secondOffset] = 3;
+    contents[secondOffset + 1] = 4;
+    BlobMetadata firstBlob = blob(0, 2);
+    BlobMetadata secondBlob = blob(secondOffset, 2);
+
+    try (PuffinReader reader = trackingReader(contents, new ArrayList<>())) {
+      Iterator<Pair<BlobMetadata, ByteBuffer>> iterator =
+          reader.readAll(ImmutableList.of(firstBlob, secondBlob)).iterator();
+      ByteBuffer firstData = iterator.next().second();
+      ByteBuffer secondData = iterator.next().second();
+
+      assertThat(ByteBuffers.toByteArray(firstData)).containsExactly(1, 2);
+      assertThat(ByteBuffers.toByteArray(secondData)).containsExactly(3, 4);
+    }
+  }
+
+  private static BlobMetadata blob(long offset, long length) {
+    return new BlobMetadata(
+        "test",
+        ImmutableList.of(),
+        1,
+        1,
+        offset,
+        length,
+        NONE.codecName(),
+        ImmutableMap.of());
+  }
+
+  private static PuffinReader trackingReader(
+      byte[] contents, List<Pair<Long, Integer>> reads) throws Exception {
+    SeekableInputStream stream =
+        mock(SeekableInputStream.class, withSettings().extraInterfaces(RangeReadable.class));
+    RangeReadable rangeReadable = (RangeReadable) stream;
+    doAnswer(
+            invocation -> {
+              long offset = invocation.getArgument(0);
+              byte[] buffer = invocation.getArgument(1);
+              System.arraycopy(contents, Math.toIntExact(offset), buffer, 0, buffer.length);
+              reads.add(Pair.of(offset, buffer.length));
+              return null;
+            })
+        .when(rangeReadable)
+        .readFully(anyLong(), any(byte[].class));
+
+    InputFile inputFile = mock(InputFile.class);
+    when(inputFile.getLength()).thenReturn((long) contents.length);
+    when(inputFile.newStream()).thenReturn(stream);
+    return Puffin.read(inputFile).build();
   }
 }
