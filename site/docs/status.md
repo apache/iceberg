@@ -47,19 +47,40 @@ This section lists the libraries that implement the Apache Iceberg specification
 | time           | Y    | Y         | Y    | Y  | Y   |
 | timestamp      | Y    | Y         | Y    | Y  | Y   |
 | timestamptz    | Y    | Y         | Y    | Y  | Y   |
-| timestamp_ns   | Y    | Y         | Y    | Y  | N   |
-| timestamptz_ns | Y    | Y         | Y    | Y  | N   |
-| unknown        | Y    | Y         | N    | Y  | N   |
+| timestamp_ns   | Y    | Y         | Y    | Y  | Y   |
+| timestamptz_ns | Y    | Y         | Y    | Y  | Y   |
+| unknown        | Y    | Y         | N    | Y  | Y   |
 | string         | Y    | Y         | Y    | Y  | Y   |
-| uuid           | Y    | Y         | Y    | Y  | N   |
+| uuid           | Y    | Y         | Y    | Y  | Y   |
 | fixed          | Y    | Y         | Y    | Y  | Y   |
 | binary         | Y    | Y         | Y    | Y  | Y   |
 | variant        | Y    | Y         | Y    | Y  | N   |
-| geometry       | Y    | N         | N    | N  | N   |
-| geography      | Y    | N         | N    | N  | N   |
+| geometry       | Y    | Y         | N    | Y  | Y   |
+| geography      | Y    | Y         | N    | Y  | Y   |
 | list           | Y    | Y         | Y    | Y  | Y   |
 | map            | Y    | Y         | Y    | Y  | Y   |
 | struct         | Y    | Y         | Y    | Y  | Y   |
+
+## Table Spec V3
+
+[Table Spec V3](spec.md#version-3-extended-types-and-capabilities) adds capabilities that are not present in V2. The
+table below tracks those V3-specific capabilities separately because most table and catalog operations are independent
+of the format version. `Y` indicates end-to-end support for the listed behavior, not only support for serializing its
+metadata fields.
+
+In all operation tables below, a range in the `Spec` column means that the status is the same for every listed version.
+
+| Capability                       | Spec | Java | PyIceberg | Rust | Go | C++ |
+|----------------------------------|------|------|-----------|------|----|-----|
+| Read table metadata              | V3   | Y    | Y         | Y    | Y  | Y   |
+| Write table metadata             | V3   | Y    | N         | Y    | Y  | Y   |
+| Read initial column defaults     | V3   | Y    | Y         | Y    | Y  | Y   |
+| Read multi-argument transforms   | V3   | N    | N         | N    | Y  | N   |
+| Write multi-argument transforms  | V3   | N    | N         | N    | Y  | N   |
+| Read row lineage columns         | V3   | Y    | N         | Y    | Y  | Y   |
+| Write row lineage                | V3   | Y    | N         | Y    | Y  | Y   |
+| Read encrypted tables            | V3   | Y    | N         | Y    | N  | N   |
+| Write encrypted tables           | V3   | Y    | N         | Y    | N  | N   |
 
 ## Data File Formats
 
@@ -82,122 +103,73 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 ## Table Maintenance Operations
 
-### Table Spec V1
-
-| Operation                   | Java | PyIceberg | Rust | Go | C++ |
-|-----------------------------|------|-----------|------|----|-----|
-| Update schema               | Y    | Y         | Y    | Y  | Y   |
-| Update partition spec       | Y    | Y         | Y    | Y  | Y   |
-| Update table properties     | Y    | Y         | Y    | Y  | Y   |
-| Replace sort order          | Y    | N         | Y    | Y  | Y   |
-| Update table location       | Y    | Y         | Y    | Y  | Y   |
-| Update statistics           | Y    | Y         | Y    | Y  | Y   |
-| Update partition statistics | Y    | N         | N    | N  | N   |
-| Expire snapshots            | Y    | N         | N    | Y  | N   |
-| Manage snapshots            | Y    | N         | N    | Y  | N   |
-
-### Table Spec V2
-
-| Operation                   | Java | PyIceberg | Rust | Go | C++ |
-|-----------------------------|------|-----------|------|----|-----|
-| Update schema               | Y    | Y         | N    | Y  | Y   |
-| Update partition spec       | Y    | Y         | N    | Y  | Y   |
-| Update table properties     | Y    | Y         | Y    | Y  | Y   |
-| Replace sort order          | Y    | N         | Y    | Y  | Y   |
-| Update table location       | Y    | Y         | Y    | Y  | Y   |
-| Update statistics           | Y    | Y         | Y    | Y  | Y   |
-| Update partition statistics | Y    | N         | N    | N  | N   |
-| Expire snapshots            | Y    | N         | N    | Y  | N   |
-| Manage snapshots            | Y    | N         | N    | Y  | N   |
+| Operation                   | Spec  | Java | PyIceberg | Rust | Go | C++ |
+|-----------------------------|-------|------|-----------|------|----|-----|
+| Update schema               | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| Update partition spec       | V1-V3 | Y    | Y         | N    | Y  | Y   |
+| Update table properties     | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| Replace sort order          | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| Update table location       | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| Update statistics           | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| Update partition statistics | V1-V3 | Y    | N         | N    | Y  | Y   |
+| Expire snapshots            | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| Manage snapshots            | V1-V3 | Y    | Y         | N    | Y  | Y   |
 
 ## Table Update Operations
 
-### Table Spec V1
-
-| Operation         | Java | PyIceberg | Rust | Go | C++ |
-|-------------------|------|-----------|------|----|-----|
-| Append data files | Y    | Y         | Y    | Y  | Y   |
-| Rewrite files     | Y    | Y         | N    | Y  | N   |
-| Rewrite manifests | Y    | Y         | N    | Y  | N   |
-| Overwrite files   | Y    | Y         | N    | Y  | N   |
-| Delete files      | Y    | Y         | N    | Y  | N   |
-
-### Table Spec V2
-
-| Operation         | Java | PyIceberg | Rust | Go | C++ |
-|-------------------|------|-----------|------|----|-----|
-| Append data files | Y    | Y         | Y    | Y  | Y   |
-| Rewrite files     | Y    | Y         | N    | Y  | N   |
-| Rewrite manifests | Y    | Y         | N    | Y  | N   |
-| Overwrite files   | Y    | Y         | N    | Y  | N   |
-| Row delta         | Y    | N         | N    | Y  | N   |
-| Delete files      | Y    | Y         | N    | Y  | N   |
+| Operation         | Spec  | Java | PyIceberg | Rust | Go | C++ |
+|-------------------|-------|------|-----------|------|----|-----|
+| Append data files | V1-V2 | Y    | Y         | Y    | Y  | Y   |
+| Append data files | V3    | Y    | N         | Y    | Y  | Y   |
+| Rewrite files     | V1-V2 | Y    | Y         | N    | Y  | Y   |
+| Rewrite files     | V3    | Y    | N         | N    | Y  | Y   |
+| Rewrite manifests | V1-V2 | Y    | Y         | N    | Y  | N   |
+| Rewrite manifests | V3    | Y    | N         | N    | Y  | N   |
+| Overwrite files   | V1-V2 | Y    | Y         | N    | Y  | Y   |
+| Overwrite files   | V3    | Y    | N         | N    | Y  | Y   |
+| Delete files      | V1-V2 | Y    | Y         | N    | Y  | Y   |
+| Delete files      | V3    | Y    | N         | N    | Y  | Y   |
+| Row delta         | V2-V3 | Y    | N         | N    | Y  | Y   |
 
 ## Table Read Operations
 
-### Table Spec V1
-
-| Operation                   | Java | PyIceberg | Rust | Go | C++ |
-|-----------------------------|------|-----------|------|----|-----|
-| Plan with data file         | Y    | Y         | Y    | Y  | Y   |
-| Plan with puffin statistics | Y    | Y         | Y    | Y  | N   |
-| Read data file              | Y    | N         | Y    | Y  | Y   |
-
-### Table Spec V2
-
-| Operation                   | Java | PyIceberg | Rust | Go | C++ |
-|-----------------------------|------|-----------|------|----|-----|
-| Plan with data file         | Y    | Y         | Y    | Y  | Y   |
-| Plan with position deletes  | Y    | Y         | Y    | Y  | Y   |
-| Plan with equality deletes  | Y    | Y         | Y    | Y  | Y   |
-| Plan with puffin statistics | Y    | N         | N    | N  | N   |
-| Read data file              | Y    | Y         | Y    | Y  | Y   |
-| Read with position deletes  | Y    | Y         | Y    | Y  | N   |
-| Read with equality deletes  | Y    | N         | Y    | Y  | N   |
+| Operation                   | Spec  | Java | PyIceberg | Rust | Go | C++ |
+|-----------------------------|-------|------|-----------|------|----|-----|
+| Plan with data file         | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| Plan with position deletes  | V2-V3 | Y    | Y         | Y    | Y  | Y   |
+| Plan with equality deletes  | V2-V3 | Y    | Y         | Y    | Y  | Y   |
+| Plan with deletion vectors  | V3    | Y    | Y         | Y    | Y  | Y   |
+| Plan with puffin statistics | V1-V3 | Y    | N         | N    | N  | N   |
+| Read data file              | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| Read with position deletes  | V2-V3 | Y    | Y         | Y    | Y  | Y   |
+| Read with equality deletes  | V2-V3 | Y    | N         | Y    | Y  | Y   |
+| Read with deletion vectors  | V3    | Y    | Y         | Y    | Y  | Y   |
 
 ## Table Write Operations
 
-### Table Spec V1
-
-| Operation   | Java | PyIceberg | Rust | Go | C++ |
-|-------------|------|-----------|------|----|-----|
-| Append data | Y    | Y         | Y    | Y  | N   |
-
-### Table Spec V2
-
-| Operation              | Java | PyIceberg | Rust | Go | C++ |
-|------------------------|------|-----------|------|----|-----|
-| Append data            | Y    | Y         | Y    | Y  | N   |
-| Write position deletes | Y    | N         | N    | Y  | N   |
-| Write equality deletes | Y    | N         | Y    | Y  | N   |
+| Operation              | Spec  | Java | PyIceberg | Rust | Go | C++ |
+|------------------------|-------|------|-----------|------|----|-----|
+| Append data            | V1-V2 | Y    | Y         | Y    | Y  | Y   |
+| Append data            | V3    | Y    | N         | Y    | Y  | Y   |
+| Write position deletes | V2    | Y    | N         | N    | Y  | Y   |
+| Write equality deletes | V2-V3 | Y    | N         | Y    | Y  | Y   |
+| Write deletion vectors | V3    | Y    | N         | N    | Y  | Y   |
 
 ## Catalogs
 
 ### Rest Catalog
 
-#### Table Spec V1
+#### Table Operations
 
-| Table Operation | Java | PyIceberg | Rust | Go | C++ |
-|-----------------|------|-----------|------|----|-----|
-| listTable       | Y    | Y         | Y    | Y  | Y   |
-| createTable     | Y    | Y         | Y    | Y  | Y   |
-| dropTable       | Y    | Y         | Y    | Y  | Y   |
-| loadTable       | Y    | Y         | Y    | Y  | Y   |
-| updateTable     | Y    | Y         | Y    | Y  | Y   |
-| renameTable     | Y    | Y         | Y    | Y  | Y   |
-| tableExists     | Y    | Y         | Y    | Y  | Y   |
-
-#### Table Spec V2
-
-| Table Operation | Java | PyIceberg | Rust | Go | C++ |
-|-----------------|------|-----------|------|----|-----|
-| listTable       | Y    | Y         | Y    | Y  | Y   |
-| createTable     | Y    | Y         | Y    | Y  | Y   |
-| dropTable       | Y    | Y         | Y    | Y  | Y   |
-| loadTable       | Y    | Y         | Y    | Y  | Y   |
-| updateTable     | Y    | Y         | Y    | Y  | Y   |
-| renameTable     | Y    | Y         | Y    | Y  | Y   |
-| tableExists     | Y    | Y         | Y    | Y  | Y   |
+| Table Operation | Spec  | Java | PyIceberg | Rust | Go | C++ |
+|-----------------|-------|------|-----------|------|----|-----|
+| listTable       | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| createTable     | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| dropTable       | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| loadTable       | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| updateTable     | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| renameTable     | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| tableExists     | V1-V3 | Y    | Y         | Y    | Y  | Y   |
 
 #### View Spec V1
 
@@ -231,29 +203,17 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 | MySQL    | Y    | Y         | Y    | Y  | N   |
 | SQLite   | Y    | Y         | Y    | Y  | N   |
 
-#### Table Spec V1
+#### Table Operations
 
-| Table Operation | Java | PyIceberg | Rust | Go | C++ |
-|-----------------|------|-----------|------|----|-----|
-| listTable       | Y    | Y         | Y    | Y  | N   |
-| createTable     | Y    | Y         | Y    | Y  | N   |
-| dropTable       | Y    | Y         | Y    | Y  | N   |
-| loadTable       | Y    | Y         | Y    | Y  | N   |
-| updateTable     | Y    | Y         | Y    | Y  | N   |
-| renameTable     | Y    | Y         | Y    | Y  | N   |
-| tableExists     | Y    | Y         | Y    | Y  | N   |
-
-#### Table Spec V2
-
-| Table Operation | Java | PyIceberg | Rust | Go | C++ |
-|-----------------|------|-----------|------|----|-----|
-| listTable       | Y    | Y         | Y    | Y  | N   |
-| createTable     | Y    | Y         | Y    | Y  | N   |
-| dropTable       | Y    | Y         | Y    | Y  | N   |
-| loadTable       | Y    | Y         | Y    | Y  | N   |
-| updateTable     | Y    | Y         | Y    | Y  | N   |
-| renameTable     | Y    | Y         | Y    | Y  | N   |
-| tableExists     | Y    | Y         | Y    | Y  | N   |
+| Table Operation | Spec  | Java | PyIceberg | Rust | Go | C++ |
+|-----------------|-------|------|-----------|------|----|-----|
+| listTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| createTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| dropTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| loadTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| updateTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| renameTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| tableExists     | V1-V3 | Y    | Y         | Y    | Y  | N   |
 
 #### View Spec V1
 
@@ -279,29 +239,17 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 ### Glue Catalog
 
-#### Table Spec V1
+#### Table Operations
 
-| Table Operation | Java | PyIceberg | Rust | Go | C++ |
-|-----------------|------|-----------|------|----|-----|
-| listTable       | Y    | Y         | Y    | Y  | N   |
-| createTable     | Y    | Y         | Y    | Y  | N   |
-| dropTable       | Y    | Y         | Y    | Y  | N   |
-| loadTable       | Y    | Y         | Y    | Y  | N   |
-| updateTable     | Y    | Y         | Y    | Y  | N   |
-| renameTable     | Y    | Y         | Y    | Y  | N   |
-| tableExists     | Y    | Y         | Y    | Y  | N   |
-
-#### Table Spec V2
-
-| Table Operation | Java | PyIceberg | Rust | Go | C++ |
-|-----------------|------|-----------|------|----|-----|
-| listTable       | Y    | Y         | Y    | Y  | N   |
-| createTable     | Y    | Y         | Y    | Y  | N   |
-| dropTable       | Y    | Y         | Y    | Y  | N   |
-| loadTable       | Y    | Y         | Y    | Y  | N   |
-| updateTable     | Y    | Y         | Y    | Y  | N   |
-| renameTable     | Y    | Y         | Y    | Y  | N   |
-| tableExists     | Y    | Y         | Y    | Y  | N   |
+| Table Operation | Spec  | Java | PyIceberg | Rust | Go | C++ |
+|-----------------|-------|------|-----------|------|----|-----|
+| listTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| createTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| dropTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| loadTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| updateTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| renameTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| tableExists     | V1-V3 | Y    | Y         | Y    | Y  | N   |
 
 #### View Spec V1
 
@@ -327,29 +275,17 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 ### Hive Metastore Catalog
 
-#### Table Spec V1
+#### Table Operations
 
-| Table Operation | Java | PyIceberg | Rust | Go | C++ |
-|-----------------|------|-----------|------|----|-----|
-| listTable       | Y    | Y         | Y    | Y  | N   |
-| createTable     | Y    | Y         | Y    | Y  | N   |
-| dropTable       | Y    | Y         | Y    | Y  | N   |
-| loadTable       | Y    | Y         | Y    | Y  | N   |
-| updateTable     | Y    | Y         | Y    | Y  | N   |
-| renameTable     | Y    | Y         | Y    | Y  | N   |
-| tableExists     | Y    | Y         | Y    | Y  | N   |
-
-#### Table Spec V2
-
-| Table Operation | Java | PyIceberg | Rust | Go | C++ |
-|-----------------|------|-----------|------|----|-----|
-| listTable       | Y    | Y         | Y    | Y  | N   |
-| createTable     | Y    | Y         | Y    | Y  | N   |
-| dropTable       | Y    | Y         | Y    | Y  | N   |
-| loadTable       | Y    | Y         | Y    | Y  | N   |
-| updateTable     | Y    | Y         | Y    | Y  | N   |
-| renameTable     | Y    | Y         | Y    | Y  | N   |
-| tableExists     | Y    | Y         | Y    | Y  | N   |
+| Table Operation | Spec  | Java | PyIceberg | Rust | Go | C++ |
+|-----------------|-------|------|-----------|------|----|-----|
+| listTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| createTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| dropTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| loadTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| updateTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| renameTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| tableExists     | V1-V3 | Y    | Y         | Y    | Y  | N   |
 
 #### View Spec V1
 
