@@ -16,38 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.view;
+package org.apache.iceberg.spark;
 
-import javax.annotation.Nullable;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.immutables.value.Value;
+import org.apache.spark.sql.connector.catalog.Identifier;
 
-/**
- * A version of the view at a point in time.
- *
- * <p>A version consists of a view metadata file.
- *
- * <p>Versions are created by view operations, like Create and Replace.
- */
-@Value.Immutable
-@SuppressWarnings("ImmutablesStyle")
-@Value.Style(
-    typeImmutable = "ImmutableViewVersion",
-    visibilityString = "PUBLIC",
-    builderVisibilityString = "PUBLIC")
-interface BaseViewVersion extends ViewVersion {
+public class MaterializedViewUtil {
 
-  @Override
-  @Value.Lazy
-  default String operation() {
-    return ViewVersion.super.operation();
+  private MaterializedViewUtil() {}
+
+  private static final String MATERIALIZED_VIEW_STORAGE_TABLE_IDENTIFIER_SUFFIX = "__storage";
+
+  public static Identifier getDefaultMaterializedViewStorageTableIdentifier(
+      Identifier viewIdentifier) {
+    return Identifier.of(
+        viewIdentifier.namespace(),
+        viewIdentifier.name() + MATERIALIZED_VIEW_STORAGE_TABLE_IDENTIFIER_SUFFIX);
   }
-
-  @Override
-  @Nullable
-  String defaultCatalog();
-
-  @Override
-  @Nullable
-  TableIdentifier storageTable();
 }
