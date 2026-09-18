@@ -47,7 +47,7 @@ import org.apache.iceberg.util.SerializableMap;
  * <p><em>Note:</em> loading the complete metadata from a large number of nodes can overwhelm the
  * storage.
  */
-public class SerializableTable implements Table, HasTableOperations, Serializable {
+public class SerializableTable implements Table, HasTableOperations, Serializable, SupportsLabels {
   private static final int UNKNOWN_FORMAT_VERSION = -1;
 
   private final String name;
@@ -166,6 +166,12 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   @Override
   public Map<String, String> properties() {
     return properties;
+  }
+
+  @Override
+  public Labels labels() {
+    // labels are ephemeral catalog enrichment and are not carried across serialization
+    return Labels.EMPTY;
   }
 
   public int formatVersion() {
