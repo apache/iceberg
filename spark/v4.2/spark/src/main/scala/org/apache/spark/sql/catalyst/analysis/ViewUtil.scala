@@ -102,7 +102,7 @@ object ViewUtil {
 
   /**
    * Build the referenced-by view chain from fully qualified view identifier parts.
-   * Cross-catalog entries are omitted because LoadContext uses catalog-relative identifiers.
+   * Entries must belong to the same catalog as the loaded target.
    */
   def buildReferencedByChain(
       viewChain: Seq[Seq[String]],
@@ -114,7 +114,15 @@ object ViewUtil {
           parts.mkString("."))
     }
 
-    val viewIdentifiers = viewChain.filter(_.headOption.contains(targetCatalogName)).map { parts =>
+    val crossCatalogViews = viewChain.filter(parts => !parts.headOption.contains(targetCatalogName))
+    if (crossCatalogViews.nonEmpty) {
+      throw new IllegalStateException(
+        s"Cross-catalog view references are not supported with referenced-by enabled. " +
+          s"Views from catalogs [${crossCatalogViews.map(_.head).distinct.mkString(", ")}] " +
+          s"cannot reference entities in catalog [$targetCatalogName]")
+    }
+
+    val viewIdentifiers = viewChain.map { parts =>
       TableIdentifier.of(Namespace.of(parts.drop(1).init: _*), parts.last)
     }
 

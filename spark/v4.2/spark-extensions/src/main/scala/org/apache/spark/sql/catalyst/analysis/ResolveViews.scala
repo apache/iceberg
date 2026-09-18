@@ -19,6 +19,7 @@
 package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.iceberg.catalog.LoadContext
+import org.apache.iceberg.spark.SparkSQLProperties
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
 import org.apache.spark.sql.catalyst.expressions.Alias
@@ -48,7 +49,15 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
 
-  override def apply(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
+  override def apply(plan: LogicalPlan): LogicalPlan = {
+    if (referencedByEnabled) {
+      resolveWithReferencedBy(plan)
+    } else {
+      resolveViewCommands(plan)
+    }
+  }
+
+  private def resolveWithReferencedBy(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
     case u @ UnresolvedRelation(nameParts, _, _)
         if catalogManager.v1SessionCatalog.isTempView(nameParts) =>
       u
@@ -57,12 +66,6 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       ViewUtil
         .loadView(catalog, ident)
         .map(createViewRelation(parts, catalog, ident, _))
-        .getOrElse(u)
-
-    case u @ UnresolvedTableOrView(CatalogAndIdentifier(catalog, ident), _, _, _) =>
-      ViewUtil
-        .loadView(catalog, ident)
-        .map(view => ResolvedV2View(catalog.asViewCatalog, ident, view))
         .getOrElse(u)
 
     case u @ UnResolvedRelationFromView(
@@ -85,6 +88,20 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
             .map(view => createViewRelation(tableParts, catalog, tableIdent, view, viewChain))
             .getOrElse(UnresolvedRelation(tableParts, options, isStreaming))
       }
+
+    case u @ UnresolvedTableOrView(CatalogAndIdentifier(catalog, ident), _, _, _) =>
+      ViewUtil
+        .loadView(catalog, ident)
+        .map(view => ResolvedV2View(catalog.asViewCatalog, ident, view))
+        .getOrElse(u)
+  }
+
+  private def resolveViewCommands(plan: LogicalPlan): LogicalPlan = plan resolveOperators {
+    case u @ UnresolvedTableOrView(CatalogAndIdentifier(catalog, ident), _, _, _) =>
+      ViewUtil
+        .loadView(catalog, ident)
+        .map(view => ResolvedV2View(catalog.asViewCatalog, ident, view))
+        .getOrElse(u)
   }
 
   private def createViewRelation(
@@ -200,5 +217,12 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
 
   private def isBuiltinFunction(name: String): Boolean = {
     catalogManager.v1SessionCatalog.isBuiltinFunction(name)
+  }
+
+  private def referencedByEnabled: Boolean = {
+    java.lang.Boolean.parseBoolean(
+      conf.getConfString(
+        SparkSQLProperties.REFERENCED_BY_ENABLED,
+        SparkSQLProperties.REFERENCED_BY_ENABLED_DEFAULT.toString))
   }
 }
