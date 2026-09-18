@@ -226,23 +226,23 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       throws IOException {
     long checkpointId = commitRequestMap.lastKey();
     List<ManifestFile> manifests = Lists.newArrayList();
-    NavigableMap<Long, List<WriteResult>> pendingResults = Maps.newTreeMap();
+    NavigableMap<Long, WriteResult> pendingResults = Maps.newTreeMap();
     for (Map.Entry<Long, CommitRequest<DynamicCommittable>> e : commitRequestMap.entrySet()) {
+      WriteResult.Builder resultBuilder = WriteResult.builder();
       for (byte[] manifest : e.getValue().getCommittable().manifests()) {
         DeltaManifests deltaManifests =
             SimpleVersionedSerialization.readVersionAndDeSerialize(
                 DeltaManifestsSerializer.INSTANCE, manifest);
-        pendingResults
-            .computeIfAbsent(e.getKey(), unused -> Lists.newArrayList())
-            .add(FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs()));
+        resultBuilder.add(
+            FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs()));
         manifests.addAll(deltaManifests.manifests());
       }
+      pendingResults.put(e.getKey(), resultBuilder.build());
     }
 
     if (TableUtil.formatVersion(table) > 2) {
       Optional<DeleteFile> positionalDelete =
           pendingResults.values().stream()
-              .flatMap(List::stream)
               .flatMap(writeResult -> Arrays.stream(writeResult.deleteFiles()))
               .filter(deleteFile -> deleteFile.content() == FileContent.POSITION_DELETES)
               .filter(Predicate.not(ContentFileUtil::isDV))
@@ -265,21 +265,18 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
   private void replacePartitions(
       Table table,
       String branch,
-      NavigableMap<Long, List<WriteResult>> pendingResults,
+      NavigableMap<Long, WriteResult> pendingResults,
       String newFlinkJobId,
       String operatorId) {
     // Iceberg tables are unsorted. So the order of the append data does not matter.
     // Hence, we commit everything in one snapshot.
     ReplacePartitions dynamicOverwrite = table.newReplacePartitions().scanManifestsWith(workerPool);
 
-    for (List<WriteResult> writeResults : pendingResults.values()) {
-      for (WriteResult result : writeResults) {
-        Arrays.stream(result.dataFiles()).forEach(dynamicOverwrite::addFile);
-      }
+    for (WriteResult result : pendingResults.values()) {
+      Arrays.stream(result.dataFiles()).forEach(dynamicOverwrite::addFile);
     }
 
-    CommitSummary summary = new CommitSummary();
-    summary.addAll(pendingResults);
+    CommitSummary summary = new CommitSummary(pendingResults);
 
     commitOperation(
         table,
@@ -295,28 +292,26 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
   private void commitDeltaTxn(
       Table table,
       String branch,
-      NavigableMap<Long, List<WriteResult>> pendingResults,
+      NavigableMap<Long, WriteResult> pendingResults,
       String newFlinkJobId,
       String operatorId) {
-    for (Map.Entry<Long, List<WriteResult>> e : pendingResults.entrySet()) {
+    for (Map.Entry<Long, WriteResult> e : pendingResults.entrySet()) {
       long checkpointId = e.getKey();
-      List<WriteResult> writeResults = e.getValue();
+      WriteResult result = e.getValue();
 
       RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
-      for (WriteResult result : writeResults) {
-        // Row delta validations are not needed for streaming changes that write equality deletes.
-        // Equality deletes are applied to data in all previous sequence numbers, so retries may
-        // push deletes further in the future, but do not affect correctness. Position deletes
-        // committed to the table in this path are used only to delete rows from data files that are
-        // being added in this commit. There is no way for data files added along with the delete
-        // files to be concurrently removed, so there is no need to validate the files referenced by
-        // the position delete files that are being committed.
-        Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
-        Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
-      }
+      // Row delta validations are not needed for streaming changes that write equality deletes.
+      // Equality deletes are applied to data in all previous sequence numbers, so retries may
+      // push deletes further in the future, but do not affect correctness. Position deletes
+      // committed to the table in this path are used only to delete rows from data files that are
+      // being added in this commit. There is no way for data files added along with the delete
+      // files to be concurrently removed, so there is no need to validate the files referenced by
+      // the position delete files that are being committed.
+      Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
+      Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
 
       CommitSummary summary = new CommitSummary();
-      summary.addAll(writeResults);
+      summary.addAll(List.of(result));
 
       // Every Flink checkpoint contains a set of independent changes which can be committed
       // together. While it is technically feasible to combine append-only data across checkpoints,
