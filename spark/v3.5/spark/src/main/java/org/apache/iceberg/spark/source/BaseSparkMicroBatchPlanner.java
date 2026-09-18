@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.util.Locale;
 import org.apache.iceberg.DataOperations;
+import org.apache.iceberg.MicroBatches;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -37,6 +38,7 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
   private static final Logger LOG = LoggerFactory.getLogger(BaseSparkMicroBatchPlanner.class);
   private final Table table;
   private final SparkReadConf readConf;
+  private MicroBatches.MicroBatchBuilder fullScanBuilder;
 
   BaseSparkMicroBatchPlanner(Table table, SparkReadConf readConf) {
     this.table = table;
@@ -92,7 +94,8 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     // if there were no valid snapshots, check for an initialOffset again
     if (curSnapshot == null) {
       StreamingOffset startingOffset =
-          MicroBatchUtils.determineStartingOffset(table, readConf.streamFromTimestamp());
+          MicroBatchUtils.determineStartingOffset(
+              table, readConf.streamFromTimestamp(), readConf.streamFromSnapshot());
       LOG.debug("determineStartingOffset picked startingOffset: {}", startingOffset);
       if (StreamingOffset.START_OFFSET.equals(startingOffset)) {
         return null;
@@ -115,6 +118,16 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
       nextSnapshot = SnapshotUtil.snapshotAfter(table, nextSnapshot.snapshotId());
     }
     return nextSnapshot;
+  }
+
+  protected MicroBatches.MicroBatchBuilder fullScanBuilder(Snapshot snapshot) {
+    if (fullScanBuilder == null || fullScanBuilder.snapshotId() != snapshot.snapshotId()) {
+      fullScanBuilder =
+          MicroBatches.from(snapshot, table.io())
+              .caseSensitive(readConf.caseSensitive())
+              .specsById(table.specs());
+    }
+    return fullScanBuilder;
   }
 
   static class UnpackedLimits {
