@@ -18,13 +18,18 @@
  */
 package org.apache.iceberg.gcp;
 
+import static org.apache.iceberg.gcp.GCPProperties.GCS_CHANNEL_READ_CHUNK_SIZE;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_CHANNEL_WRITE_CHUNK_SIZE;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_NO_AUTH;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
@@ -76,5 +81,18 @@ public class TestGCPProperties {
         .isPresent()
         .get()
         .isEqualTo("/v1/credentials");
+  }
+
+  @Test
+  public void testNullNumericPropertiesAreIgnored() {
+    Map<String, String> properties = new HashMap<>();
+    properties.put(GCS_CHANNEL_READ_CHUNK_SIZE, null);
+    properties.put(GCS_CHANNEL_WRITE_CHUNK_SIZE, null);
+    properties.put(GCS_OAUTH2_TOKEN_EXPIRES_AT, null);
+
+    GCPProperties gcpProperties = new GCPProperties(properties);
+    assertThat(gcpProperties.channelReadChunkSize()).isNotPresent();
+    assertThat(gcpProperties.channelWriteChunkSize()).isNotPresent();
+    assertThat(gcpProperties.oauth2TokenExpiresAt()).isNotPresent();
   }
 }

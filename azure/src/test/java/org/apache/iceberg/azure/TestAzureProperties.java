@@ -47,6 +47,7 @@ import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.CatalogProperties;
@@ -317,5 +318,16 @@ public class TestAzureProperties {
     public void initialize(Map<String, String> credentialProperties) {
       properties = credentialProperties;
     }
+  }
+
+  @Test
+  public void testNullBlockSizesAreIgnored() {
+    Map<String, String> properties = new HashMap<>();
+    properties.put(ADLS_READ_BLOCK_SIZE, null);
+    properties.put(ADLS_WRITE_BLOCK_SIZE, null);
+
+    AzureProperties props = new AzureProperties(properties);
+    assertThat(props.adlsReadBlockSize()).isNotPresent();
+    assertThat(props.adlsWriteBlockSize()).isNotPresent();
   }
 }
