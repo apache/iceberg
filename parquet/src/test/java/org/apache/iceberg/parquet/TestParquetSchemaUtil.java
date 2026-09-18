@@ -421,7 +421,7 @@ public class TestParquetSchemaUtil {
     assertThat(actualSchema.findType("geom_explicit_default").toString()).isEqualTo("geometry");
     assertThat(actualSchema.findType("geog_bare").toString()).isEqualTo("geography");
     assertThat(actualSchema.findType("geog_explicit_spherical").toString())
-        .isEqualTo("geography(EPSG:4326)");
+        .isEqualTo("geography(EPSG:4326, spherical)");
   }
 
   @Test

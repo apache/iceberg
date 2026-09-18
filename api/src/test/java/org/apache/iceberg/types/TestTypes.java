@@ -178,13 +178,22 @@ public class TestTypes {
     assertThat(
             Types.GeographyType.of(Types.GeographyType.DEFAULT_CRS, EdgeAlgorithm.SPHERICAL)
                 .toString())
-        .isEqualTo("geography");
+        .isEqualTo("geography(OGC:CRS84, spherical)");
     assertThat(Types.GeographyType.of("srid:4326", EdgeAlgorithm.SPHERICAL).toString())
+        .isEqualTo("geography(srid:4326, spherical)");
+    assertThat(Types.GeographyType.of(null, EdgeAlgorithm.SPHERICAL).toString())
+        .isEqualTo("geography(OGC:CRS84, spherical)");
+    assertThat(Types.GeographyType.of("srid:4326", null).toString())
         .isEqualTo("geography(srid:4326)");
+    assertThat(Types.GeographyType.of(null, null).toString()).isEqualTo("geography");
 
-    // The default CRS is omitted regardless of casing.
+    // The default CRS is omitted or rendered canonically regardless of input casing.
     assertThat(Types.GeometryType.of("ogc:crs84").toString()).isEqualTo("geometry");
     assertThat(Types.GeographyType.of("ogc:crs84").toString()).isEqualTo("geography");
+    assertThat(Types.GeographyType.of("ogc:crs84", EdgeAlgorithm.SPHERICAL).toString())
+        .isEqualTo("geography(OGC:CRS84, spherical)");
+    assertThat(Types.GeographyType.of("ogc:crs84", EdgeAlgorithm.KARNEY).toString())
+        .isEqualTo("geography(OGC:CRS84, karney)");
   }
 
   @Test
