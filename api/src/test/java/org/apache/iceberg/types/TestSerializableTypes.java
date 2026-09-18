@@ -22,11 +22,54 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestSerializableTypes {
+  private static Stream<Arguments> geospatialTypes() {
+    return Stream.of(
+        Arguments.of(Types.GeometryType.crs84(), "geometry(OGC:CRS84)"),
+        Arguments.of(Types.GeometryType.of("OGC:CRS84"), "geometry(OGC:CRS84)"),
+        Arguments.of(Types.GeometryType.of("srid:3857"), "geometry(srid:3857)"),
+        Arguments.of(Types.GeographyType.crs84(), "geography(OGC:CRS84, spherical)"),
+        Arguments.of(
+            Types.GeographyType.of("OGC:CRS84", EdgeAlgorithm.SPHERICAL),
+            "geography(OGC:CRS84, spherical)"),
+        Arguments.of(Types.GeographyType.of("srid:4269"), "geography(srid:4269, spherical)"),
+        Arguments.of(
+            Types.GeographyType.of(null, EdgeAlgorithm.KARNEY), "geography(OGC:CRS84, karney)"),
+        Arguments.of(
+            Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY),
+            "geography(srid:4269, karney)"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("geospatialTypes")
+  void geospatialSerializationIncludesResolvedDefaults(Type type, String expected)
+      throws Exception {
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    try (ObjectOutputStream out = new ObjectOutputStream(bytes)) {
+      out.writeObject(type);
+    }
+
+    // Round-trip equality alone cannot detect omitted defaults when the reader shares them.
+    assertThat(bytes.toByteArray()).containsSequence(expected.getBytes(StandardCharsets.UTF_8));
+    try (ObjectInputStream in =
+        new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+      assertThat(in.readObject()).isEqualTo(type).hasSameHashCodeAs(type);
+    }
+  }
+
   @Test
   public void testIdentityTypes() throws Exception {
     // these types make a strong guarantee than equality, instances are identical

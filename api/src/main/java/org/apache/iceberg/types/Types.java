@@ -630,6 +630,11 @@ public class Types {
     public String toString() {
       return crs != null ? String.format("%s(%s)", NAME, crs) : NAME;
     }
+
+    @Override
+    Object writeReplace() {
+      return new PrimitiveLikeHolder(String.format("%s(%s)", NAME, crs()));
+    }
   }
 
   /**
@@ -711,6 +716,11 @@ public class Types {
       }
 
       return NAME;
+    }
+
+    @Override
+    Object writeReplace() {
+      return new PrimitiveLikeHolder(String.format("%s(%s, %s)", NAME, crs(), algorithm()));
     }
   }
 
