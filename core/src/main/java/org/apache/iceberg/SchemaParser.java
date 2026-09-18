@@ -142,7 +142,18 @@ public class SchemaParser {
 
   static void toJson(Type type, JsonGenerator generator) throws IOException {
     if (type.isPrimitiveType() || type.isVariantType()) {
-      generator.writeString(type.toString());
+      switch (type.typeId()) {
+        case GEOMETRY -> {
+          Types.GeometryType geometry = (Types.GeometryType) type;
+          generator.writeString(String.format("geometry(%s)", geometry.crs()));
+        }
+        case GEOGRAPHY -> {
+          Types.GeographyType geography = (Types.GeographyType) type;
+          generator.writeString(
+              String.format("geography(%s, %s)", geography.crs(), geography.algorithm()));
+        }
+        default -> generator.writeString(type.toString());
+      }
     } else {
       Type.NestedType nested = type.asNestedType();
       switch (type.typeId()) {

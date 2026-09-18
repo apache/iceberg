@@ -629,7 +629,12 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("%s(%s)", NAME, crs());
+      return DEFAULT_CRS.equalsIgnoreCase(crs) ? NAME : String.format("%s(%s)", NAME, crs);
+    }
+
+    @Override
+    Object writeReplace() {
+      return new PrimitiveLikeHolder(String.format("%s(%s)", NAME, crs()));
     }
   }
 
@@ -656,6 +661,8 @@ public class Types {
 
     private final String crs;
     private final EdgeAlgorithm algorithm;
+    // Preserve the caller's choice of compact or explicit type string independently of defaults.
+    private final boolean algorithmExplicit;
 
     private GeographyType() {
       this(null, null);
@@ -667,6 +674,7 @@ public class Types {
       // preserved)
       this.crs = crs == null ? DEFAULT_CRS : crs;
       this.algorithm = algorithm == null ? DEFAULT_ALGORITHM : algorithm;
+      this.algorithmExplicit = algorithm != null;
     }
 
     @Override
@@ -706,7 +714,19 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("%s(%s, %s)", NAME, crs(), algorithm());
+      if (algorithmExplicit) {
+        return String.format(
+            "%s(%s, %s)", NAME, DEFAULT_CRS.equalsIgnoreCase(crs) ? DEFAULT_CRS : crs, algorithm);
+      } else if (!DEFAULT_CRS.equalsIgnoreCase(crs)) {
+        return String.format("%s(%s)", NAME, crs);
+      }
+
+      return NAME;
+    }
+
+    @Override
+    Object writeReplace() {
+      return new PrimitiveLikeHolder(String.format("%s(%s, %s)", NAME, crs(), algorithm()));
     }
   }
 
