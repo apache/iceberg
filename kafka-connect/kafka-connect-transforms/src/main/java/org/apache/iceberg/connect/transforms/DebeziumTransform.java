@@ -107,7 +107,7 @@ public class DebeziumTransform<R extends ConnectRecord<R>> implements Transforma
     Struct newValue = new Struct(newValueSchema);
 
     for (Field field : payloadSchema.fields()) {
-      newValue.put(field.name(), payload.get(field));
+      newValue.put(field.name(), payload.getWithoutDefault(field.name()));
     }
     newValue.put(CdcConstants.COL_CDC, cdcMetadata);
 
