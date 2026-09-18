@@ -26,13 +26,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-class TestBaseTableLabels {
+class TestLabelsOnBaseTable {
 
   private static final String TABLE_NAME = "tbl";
 
   @TempDir private File temp;
 
-  // Only the labels accessor is exercised here, not table operations, so no metadata is set up.
   @Test
   public void labelsDefaultToEmptyWhenNotProvided() {
     BaseTable table =
@@ -64,5 +63,8 @@ class TestBaseTableLabels {
     assertThat(table.labels()).isEqualTo(labels);
     assertThat(table.labels().objectLabels()).containsEntry("owner", "team-a");
     assertThat(table.labels().fields()).hasSize(1);
+    FieldLabel fieldLabel = table.labels().fields().get(0);
+    assertThat(fieldLabel.fieldId()).isEqualTo(1);
+    assertThat(fieldLabel.labels()).containsEntry("classification", "pii");
   }
 }
