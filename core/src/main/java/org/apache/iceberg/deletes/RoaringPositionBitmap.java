@@ -27,6 +27,7 @@ import java.util.function.LongConsumer;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.roaringbitmap.RelativeRangeConsumer;
 import org.roaringbitmap.RoaringBitmap;
 
 /**
@@ -192,6 +193,42 @@ class RoaringPositionBitmap {
     }
   }
 
+  /**
+   * Iterates over the positions set within the given range, in ascending order.
+   *
+   * <p>Each underlying 32-bit bitmap that the range covers is traversed once, instead of resolving
+   * the containing bitmap for every position as {@link #contains(long)} does.
+   *
+   * @param posStartInclusive inclusive beginning of position range
+   * @param posEndExclusive exclusive ending of position range
+   * @param consumer a consumer for the positions that are set within the range
+   * @throws IllegalArgumentException if posStartInclusive &gt; posEndExclusive
+   */
+  public void forEachInRange(long posStartInclusive, long posEndExclusive, LongConsumer consumer) {
+    Preconditions.checkArgument(
+        posStartInclusive <= posEndExclusive,
+        "Start position must not exceed end position: [%s, %s)",
+        posStartInclusive,
+        posEndExclusive);
+
+    if (posStartInclusive == posEndExclusive) {
+      return;
+    }
+
+    validatePosition(posStartInclusive);
+    validatePosition(posEndExclusive - 1);
+
+    int startKey = key(posStartInclusive);
+    int endKey = key(posEndExclusive - 1);
+
+    for (int key = startKey; key <= endKey && key < bitmaps.length; key++) {
+      long lowStart = key == startKey ? Integer.toUnsignedLong(pos32Bits(posStartInclusive)) : 0L;
+      long lowEnd =
+          key == endKey ? Integer.toUnsignedLong(pos32Bits(posEndExclusive - 1)) + 1 : 1L << 32;
+      forEachInRange(key, bitmaps[key], lowStart, lowEnd, consumer);
+    }
+  }
+
   @VisibleForTesting
   int allocatedBitmapCount() {
     return bitmaps.length;
@@ -337,6 +374,48 @@ class RoaringPositionBitmap {
   // iterates over 64-bit positions, reconstructing them from keys and 32-bit positions
   private static void forEach(int key, RoaringBitmap bitmap, LongConsumer consumer) {
     bitmap.forEach((int pos32Bits) -> consumer.accept(toPosition(key, pos32Bits)));
+  }
+
+  // iterates over a range of 32-bit positions within one bitmap, reconstructing 64-bit positions
+  // the underlying range API takes an int length, so wider ranges are traversed in chunks
+  private static void forEachInRange(
+      int key, RoaringBitmap bitmap, long lowStart, long lowEnd, LongConsumer consumer) {
+    for (long low = lowStart; low < lowEnd; ) {
+      int length = (int) Math.min(lowEnd - low, Integer.MAX_VALUE);
+      bitmap.forAllInRange((int) low, length, new RangeConsumer(key, low, consumer));
+      low += length;
+    }
+  }
+
+  // reports the set positions within a range, which are given relative to the start of the range
+  private static class RangeConsumer implements RelativeRangeConsumer {
+    private final int key;
+    private final long lowStart;
+    private final LongConsumer consumer;
+
+    RangeConsumer(int key, long lowStart, LongConsumer consumer) {
+      this.key = key;
+      this.lowStart = lowStart;
+      this.consumer = consumer;
+    }
+
+    @Override
+    public void acceptPresent(int relativePos) {
+      consumer.accept(toPosition(key, (int) (lowStart + relativePos)));
+    }
+
+    @Override
+    public void acceptAbsent(int relativePos) {}
+
+    @Override
+    public void acceptAllPresent(int relativeFrom, int relativeTo) {
+      for (int relativePos = relativeFrom; relativePos < relativeTo; relativePos++) {
+        consumer.accept(toPosition(key, (int) (lowStart + relativePos)));
+      }
+    }
+
+    @Override
+    public void acceptAllAbsent(int relativeFrom, int relativeTo) {}
   }
 
   private static void validatePosition(long pos) {

@@ -351,6 +351,132 @@ public class TestRoaringPositionBitmap {
   }
 
   @TestTemplate
+  public void testForEachInRange() {
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+    bitmap.setRange(10L, 20L);
+
+    // the beginning is inclusive and the end is exclusive
+    assertThat(collectInRange(bitmap, 12L, 15L)).containsExactly(12L, 13L, 14L);
+    assertThat(collectInRange(bitmap, 0L, 10L)).isEmpty();
+    assertThat(collectInRange(bitmap, 20L, 30L)).isEmpty();
+  }
+
+  @TestTemplate
+  public void testForEachInRangeEmptyRange() {
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+    bitmap.setRange(10L, 20L);
+
+    assertThat(collectInRange(bitmap, 15L, 15L)).isEmpty();
+  }
+
+  @TestTemplate
+  public void testForEachInRangeInvalidRange() {
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+
+    assertThatThrownBy(() -> bitmap.forEachInRange(20L, 10L, pos -> {}))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Start position must not exceed end position");
+  }
+
+  @TestTemplate
+  public void testForEachInRangeAcrossContainers() {
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+    bitmap.setRange(CONTAINER_OFFSET - 2, CONTAINER_OFFSET + 2);
+
+    assertThat(collectInRange(bitmap, CONTAINER_OFFSET - 3, CONTAINER_OFFSET + 3))
+        .containsExactly(
+            CONTAINER_OFFSET - 2, CONTAINER_OFFSET - 1, CONTAINER_OFFSET, CONTAINER_OFFSET + 1);
+  }
+
+  @TestTemplate
+  public void testForEachInRangeAcrossKeys() {
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+    bitmap.setRange(BITMAP_OFFSET - 2, BITMAP_OFFSET + 2);
+
+    assertThat(collectInRange(bitmap, BITMAP_OFFSET - 3, BITMAP_OFFSET + 3))
+        .containsExactly(BITMAP_OFFSET - 2, BITMAP_OFFSET - 1, BITMAP_OFFSET, BITMAP_OFFSET + 1);
+  }
+
+  @TestTemplate
+  public void testForEachInRangeSpanningThreeKeys() {
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+
+    long posStart = BITMAP_OFFSET - 1;
+    long posEnd = (2 * BITMAP_OFFSET) + 1;
+    bitmap.set(posStart);
+    bitmap.set(BITMAP_OFFSET); // first position of the second bitmap
+    bitmap.set(2 * BITMAP_OFFSET); // first position of the third bitmap
+
+    // the middle bitmap is covered in full, which the underlying range API cannot express in a
+    // single call because its length is an int
+    assertThat(collectInRange(bitmap, posStart, posEnd))
+        .containsExactly(posStart, BITMAP_OFFSET, 2 * BITMAP_OFFSET);
+  }
+
+  @TestTemplate
+  public void testForEachInRangeBeyondAllocatedBitmaps() {
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+    bitmap.setRange(1L, 4L);
+
+    // no bitmap is allocated for this key, so the range produces nothing
+    assertThat(collectInRange(bitmap, 3 * BITMAP_OFFSET, 3 * BITMAP_OFFSET + 1000)).isEmpty();
+  }
+
+  @TestTemplate
+  public void testForEachInRangeAfterRunLengthEncode() {
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+    bitmap.setRange(1000L, 40000L);
+    bitmap.runLengthEncode();
+
+    assertThat(collectInRange(bitmap, 999L, 1004L)).containsExactly(1000L, 1001L, 1002L, 1003L);
+    assertThat(collectInRange(bitmap, 39998L, 40003L)).containsExactly(39998L, 39999L);
+  }
+
+  @TestTemplate
+  public void testForEachInRangeMatchesContains() {
+    Random random = new Random(seed);
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+    Set<Long> positions = Sets.newHashSet();
+
+    for (int index = 0; index < 20000; index++) {
+      long pos = random.nextInt(300000);
+      bitmap.set(pos);
+      positions.add(pos);
+    }
+
+    for (int index = 0; index < 500; index++) {
+      long posStart = random.nextInt(300000);
+      long posEnd = posStart + 1 + random.nextInt(6000);
+
+      List<Long> expected = Lists.newArrayList();
+      for (long pos = posStart; pos < posEnd; pos++) {
+        if (positions.contains(pos)) {
+          expected.add(pos);
+        }
+      }
+
+      assertThat(collectInRange(bitmap, posStart, posEnd))
+          .as("range [%s, %s)", posStart, posEnd)
+          .isEqualTo(expected);
+    }
+  }
+
+  @TestTemplate
+  public void testForEachInRangeAcrossSignedIntBoundary() {
+    long boundary = Integer.MAX_VALUE + 1L;
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+    bitmap.setRange(boundary - 4, boundary + 4);
+    bitmap.runLengthEncode();
+
+    assertThat(collectInRange(bitmap, boundary - 1, boundary + 1))
+        .containsExactly(boundary - 1, boundary);
+    assertThat(collectInRange(bitmap, boundary - 4, boundary + 4))
+        .hasSize(8)
+        .startsWith(boundary - 4)
+        .endsWith(boundary + 3);
+  }
+
+  @TestTemplate
   public void testCardinality() {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
 
@@ -585,6 +711,13 @@ public class TestRoaringPositionBitmap {
       long position = nextLong(random, 0, RoaringPositionBitmap.MAX_POSITION);
       assertThat(bitmap.contains(position)).isEqualTo(positions.contains(position));
     }
+  }
+
+  private static List<Long> collectInRange(
+      RoaringPositionBitmap bitmap, long posStartInclusive, long posEndExclusive) {
+    List<Long> positions = Lists.newArrayList();
+    bitmap.forEachInRange(posStartInclusive, posEndExclusive, positions::add);
+    return positions;
   }
 
   private static long nextLong(Random random, long minInclusive, long maxExclusive) {
