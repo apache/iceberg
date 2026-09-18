@@ -178,11 +178,11 @@ public class TestTypes {
     assertThat(
             Types.GeographyType.of(Types.GeographyType.DEFAULT_CRS, EdgeAlgorithm.SPHERICAL)
                 .toString())
-        .isEqualTo("geography(OGC:CRS84, spherical)");
+        .isEqualTo("geography");
     assertThat(Types.GeographyType.of("srid:4326", EdgeAlgorithm.SPHERICAL).toString())
-        .isEqualTo("geography(srid:4326, spherical)");
+        .isEqualTo("geography(srid:4326)");
 
-    // default CRS casing is canonicalized even though comparison is case-insensitive
+    // The default CRS is omitted regardless of casing.
     assertThat(Types.GeometryType.of("ogc:crs84").toString()).isEqualTo("geometry");
     assertThat(Types.GeographyType.of("ogc:crs84").toString()).isEqualTo("geography");
   }
