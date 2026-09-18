@@ -32,10 +32,13 @@ import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.constraints.Constraint;
 import org.apache.spark.sql.connector.catalog.constraints.PrimaryKey;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -54,6 +57,50 @@ public class TestSparkTable extends CatalogTestBase {
   @AfterEach
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @TestTemplate
+  public void testSupportedSchemaEvolutionChanges() {
+    SparkTable table = loadSparkTable();
+
+    assertThat(table.capabilities()).contains(TableCapability.AUTOMATIC_SCHEMA_EVOLUTION);
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.addColumn(new String[] {"new_col"}, DataTypes.IntegerType, true)))
+        .isTrue();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.addColumn(new String[] {"new_col"}, DataTypes.IntegerType, false)))
+        .isFalse();
+
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(new String[] {"id"}, DataTypes.LongType)))
+        .isTrue();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(new String[] {"id"}, DataTypes.IntegerType)))
+        .isFalse();
+
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnNullability(new String[] {"data"}, true)))
+        .isTrue();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnNullability(new String[] {"data"}, false)))
+        .isFalse();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnDefaultValue(new String[] {"data"}, "'default'")))
+        .isFalse();
   }
 
   @TestTemplate
