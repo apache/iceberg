@@ -213,12 +213,11 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
 
   @Override
   public Relation loadRelation(Identifier ident) throws NoSuchTableException {
-    LoadContext context = ViewUtil.loadContext(catalogName);
     try {
-      return loadTable(ident, context);
+      return loadTable(ident);
     } catch (NoSuchTableException e) {
       try {
-        return ViewUtil.withReferencedByContext(loadView(ident, context), catalogName, ident);
+        return loadView(ident);
       } catch (NoSuchViewException viewException) {
         e.addSuppressed(viewException);
         throw e;

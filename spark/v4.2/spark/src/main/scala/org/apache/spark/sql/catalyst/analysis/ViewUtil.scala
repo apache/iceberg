@@ -18,30 +18,29 @@
  */
 package org.apache.spark.sql.catalyst.analysis
 
-import java.nio.charset.StandardCharsets
 import java.util
-import java.util.Base64
 import org.apache.iceberg.catalog.LoadContext
 import org.apache.iceberg.catalog.Namespace
 import org.apache.iceberg.catalog.TableIdentifier
 import org.apache.iceberg.spark.Spark3Util
+import org.apache.iceberg.spark.SparkSupportsLoadContext
 import org.apache.iceberg.spark.source.HasIcebergCatalog
 import org.apache.iceberg.spark.source.SparkView
 import org.apache.iceberg.view.{View => IcebergView}
+import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
 import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.connector.catalog.Table
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.connector.catalog.V1View
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.errors.QueryCompilationErrors
-import org.apache.spark.sql.internal.SQLConf
 import scala.jdk.CollectionConverters._
 
 object ViewUtil {
-  private val REFERENCED_BY_CONTEXT = "spark.sql.iceberg.referenced-by-context"
-  private val ENTRY_SEPARATOR = "\u001e"
-  private val PART_SEPARATOR = "\u001f"
+
+  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   val RESERVED_PROPERTIES: Seq[String] =
     Seq(
@@ -73,6 +72,23 @@ object ViewUtil {
     case _ => None
   }
 
+  def loadView(catalog: CatalogPlugin, ident: Identifier, context: LoadContext): Option[View] =
+    catalog match {
+      case supportsLoadContext: SparkSupportsLoadContext =>
+        try {
+          Option(supportsLoadContext.loadView(ident, context)).filter(isIcebergView)
+        } catch {
+          case _: NoSuchViewException => None
+        }
+      case viewCatalog: ViewCatalog if catalog.isInstanceOf[HasIcebergCatalog] =>
+        try {
+          Option(viewCatalog.loadView(ident)).filter(isIcebergView)
+        } catch {
+          case _: NoSuchViewException => None
+        }
+      case _ => None
+    }
+
   def loadIcebergView(catalog: CatalogPlugin, ident: Identifier): Option[IcebergView] =
     catalog match {
       case catalogWithIceberg: HasIcebergCatalog =>
@@ -83,39 +99,6 @@ object ViewUtil {
       case _ =>
         None
     }
-
-  def loadContext(targetCatalogName: String): LoadContext = {
-    LoadContext
-      .builder()
-      .referencedBy(buildReferencedByChain(currentViewChain, targetCatalogName))
-      .build()
-  }
-
-  def withReferencedByContext(view: View, catalogName: String, ident: Identifier): View = {
-    if (view == null || view.queryText() == null || view.columns() == null) {
-      view
-    } else {
-      val viewChain = currentViewChain :+ qualifiedView(catalogName, ident)
-      val sqlConfigs =
-        Option(view.sqlConfigs()).map(_.asScala.toMap).getOrElse(Map.empty) +
-          (REFERENCED_BY_CONTEXT -> encodeViewChain(viewChain))
-
-      SparkView
-        .applyOptionalFields(
-          new View.Builder()
-            .withColumns(view.columns())
-            .withProperties(view.properties())
-            .withQueryText(view.queryText())
-            .withCurrentCatalog(view.currentCatalog())
-            .withCurrentNamespace(view.currentNamespace())
-            .withSqlConfigs(sqlConfigs.asJava)
-            .withQueryColumnNames(view.queryColumnNames()),
-          view.schemaMode(),
-          sqlConfigs.asJava,
-          view.viewDependencies())
-        .build()
-    }
-  }
 
   /**
    * Build the referenced-by view chain from fully qualified view identifier parts.
@@ -146,8 +129,76 @@ object ViewUtil {
     new util.ArrayList[TableIdentifier](viewIdentifiers.asJava)
   }
 
+  def qualifyParts(
+      parts: Seq[String],
+      catalogAndNamespace: Seq[String],
+      isCatalog: String => Boolean): Seq[String] = {
+    parts match {
+      case Seq(name) => catalogAndNamespace :+ name
+      case _ if !isCatalog(parts.head) => catalogAndNamespace.head +: parts
+      case _ => parts
+    }
+  }
+
+  def buildViewChain(
+      nameParts: Seq[String],
+      viewCatalogAndNamespace: Seq[String],
+      existingChain: Seq[Seq[String]],
+      isCatalog: String => Boolean): Seq[Seq[String]] = {
+    existingChain :+ qualifyParts(nameParts, viewCatalogAndNamespace, isCatalog)
+  }
+
+  def loadTable(
+      catalog: CatalogPlugin,
+      ident: Identifier,
+      context: LoadContext,
+      timeTravelVersion: Option[String] = None,
+      timeTravelTimestamp: Option[Expression] = None): Table = {
+    catalog match {
+      case supportsLoadContext: SparkSupportsLoadContext =>
+        loadTableWithTimeTravel(
+          supportsLoadContext,
+          ident,
+          context,
+          timeTravelVersion,
+          timeTravelTimestamp)
+      case c if c.asTableCatalog.isInstanceOf[SparkSupportsLoadContext] =>
+        loadTableWithTimeTravel(
+          c.asTableCatalog.asInstanceOf[SparkSupportsLoadContext],
+          ident,
+          context,
+          timeTravelVersion,
+          timeTravelTimestamp)
+      case _ =>
+        (timeTravelVersion, timeTravelTimestamp) match {
+          case (Some(version), _) =>
+            catalog.asTableCatalog.loadTable(ident, version)
+          case (_, Some(timestamp)) =>
+            catalog.asTableCatalog.loadTable(ident, timestamp.eval().asInstanceOf[Long])
+          case _ =>
+            catalog.asTableCatalog.loadTable(ident)
+        }
+    }
+  }
+
   def isIcebergViewCatalog(catalog: CatalogPlugin): Boolean = {
     catalog.isInstanceOf[ViewCatalog] && catalog.isInstanceOf[HasIcebergCatalog]
+  }
+
+  private def loadTableWithTimeTravel(
+      supportsLoadContext: SparkSupportsLoadContext,
+      ident: Identifier,
+      context: LoadContext,
+      timeTravelVersion: Option[String],
+      timeTravelTimestamp: Option[Expression]): Table = {
+    (timeTravelVersion, timeTravelTimestamp) match {
+      case (Some(version), _) =>
+        supportsLoadContext.loadTable(ident, version, context)
+      case (_, Some(timestamp)) =>
+        supportsLoadContext.loadTable(ident, timestamp.eval().asInstanceOf[Long], context)
+      case _ =>
+        supportsLoadContext.loadTable(ident, context)
+    }
   }
 
   private def isIcebergView(view: View): Boolean = {
@@ -162,36 +213,5 @@ object ViewUtil {
       case _ =>
         throw QueryCompilationErrors.missingCatalogViewsAbilityError(plugin)
     }
-  }
-
-  private def currentViewChain: Seq[Seq[String]] = {
-    val encoded = SQLConf.get.getConfString(REFERENCED_BY_CONTEXT, null)
-    if (encoded == null || encoded.isEmpty) {
-      Seq.empty
-    } else {
-      encoded
-        .split(ENTRY_SEPARATOR, -1)
-        .toIndexedSeq
-        .filter(_.nonEmpty)
-        .map(_.split(PART_SEPARATOR, -1).toIndexedSeq.map(decodePart))
-    }
-  }
-
-  private def qualifiedView(catalogName: String, ident: Identifier): Seq[String] = {
-    catalogName +: ident.namespace().toIndexedSeq :+ ident.name()
-  }
-
-  private def encodeViewChain(viewChain: Seq[Seq[String]]): String = {
-    viewChain.map(_.map(encodePart).mkString(PART_SEPARATOR)).mkString(ENTRY_SEPARATOR)
-  }
-
-  private def encodePart(part: String): String = {
-    Base64.getUrlEncoder
-      .withoutPadding()
-      .encodeToString(part.getBytes(StandardCharsets.UTF_8))
-  }
-
-  private def decodePart(part: String): String = {
-    new String(Base64.getUrlDecoder.decode(part), StandardCharsets.UTF_8)
   }
 }

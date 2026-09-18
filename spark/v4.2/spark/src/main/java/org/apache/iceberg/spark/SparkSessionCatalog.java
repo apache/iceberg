@@ -42,7 +42,6 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.catalyst.analysis.NonEmptyNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
-import org.apache.spark.sql.catalyst.analysis.ViewUtil;
 import org.apache.spark.sql.connector.catalog.CatalogExtension;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
@@ -264,12 +263,11 @@ public class SparkSessionCatalog<
 
   @Override
   public Relation loadRelation(Identifier ident) throws NoSuchTableException {
-    LoadContext context = ViewUtil.loadContext(catalogName);
     try {
-      return loadTable(ident, context);
+      return loadTable(ident);
     } catch (NoSuchTableException e) {
       try {
-        return ViewUtil.withReferencedByContext(loadView(ident, context), catalogName, ident);
+        return loadView(ident);
       } catch (NoSuchViewException viewException) {
         e.addSuppressed(viewException);
         throw e;
