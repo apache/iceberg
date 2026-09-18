@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.net.InetAddress;
 import java.util.Collections;
@@ -35,6 +36,7 @@ import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTestHelperBase;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
@@ -150,6 +152,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   public void before() {
     ContextTrackingCatalog.clearCaptured();
 
+    spark.conf().set(SparkSQLProperties.REFERENCED_BY_ENABLED, "true");
     spark.sql(String.format("USE %s.%s", CATALOG_NAME, NAMESPACE));
     spark.sql(String.format("CREATE TABLE IF NOT EXISTS %s (id INT, data STRING)", TABLE_NAME));
     appendRecords(TABLE_NAME);
@@ -172,6 +175,21 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
         String.format(
             "DROP TABLE IF EXISTS %s.%s.%s", OTHER_CATALOG_NAME, NAMESPACE, OTHER_TABLE_NAME));
     ContextTrackingCatalog.clearCaptured();
+  }
+
+  @Test
+  public void referencedByIsDisabledByDefault() {
+    createView("simple_view", String.format("SELECT id FROM %s", TABLE_NAME));
+    spark.conf().unset(SparkSQLProperties.REFERENCED_BY_ENABLED);
+    ContextTrackingCatalog.clearCaptured();
+
+    List<Row> result = spark.sql("SELECT * FROM simple_view").collectAsList();
+    assertThat(result).hasSize(5);
+
+    assertThat(ContextTrackingCatalog.CAPTURED)
+        .allSatisfy(captured -> assertThat(captured.referencedBy).isEmpty());
+    assertThat(ContextTrackingCatalog.CAPTURED_VIEWS)
+        .allSatisfy(captured -> assertThat(captured.referencedBy).isEmpty());
   }
 
   @Test
@@ -230,13 +248,9 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @Test
-  public void crossCatalogViewAccessDoesNotFail() {
-    String otherTable = String.format("%s.%s.%s", OTHER_CATALOG_NAME, NAMESPACE, OTHER_TABLE_NAME);
-    spark.sql(String.format("CREATE TABLE %s (id INT, data STRING)", otherTable));
-    appendRecords(otherTable);
-    spark.sql(String.format("REFRESH TABLE %s", otherTable));
-    createView("cross_view", String.format("SELECT id FROM %s", otherTable));
-    spark.sql(String.format("REFRESH TABLE %s", otherTable));
+  public void crossCatalogViewAccessDoesNotFailWhenReferencedByIsDisabled() {
+    createCrossCatalogView();
+    spark.conf().unset(SparkSQLProperties.REFERENCED_BY_ENABLED);
     ContextTrackingCatalog.clearCaptured();
 
     List<Row> result = spark.sql("SELECT * FROM cross_view").collectAsList();
@@ -253,6 +267,16 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
         .allSatisfy(captured -> assertThat(captured.referencedBy).isEmpty());
   }
 
+  @Test
+  public void crossCatalogViewAccessFailsWhenReferencedByIsEnabled() {
+    createCrossCatalogView();
+    ContextTrackingCatalog.clearCaptured();
+
+    assertThatThrownBy(() -> spark.sql("SELECT * FROM cross_view").collectAsList())
+        .hasMessageContaining("Cross-catalog view references are not supported")
+        .hasMessageContaining(OTHER_CATALOG_NAME);
+  }
+
   private void createView(String viewName, String sql) {
     viewCatalog()
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
@@ -261,6 +285,15 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
         .withDefaultCatalog(CATALOG_NAME)
         .withSchema(SparkSchemaUtil.convert(spark.sql(sql).schema()))
         .create();
+  }
+
+  private void createCrossCatalogView() {
+    String otherTable = String.format("%s.%s.%s", OTHER_CATALOG_NAME, NAMESPACE, OTHER_TABLE_NAME);
+    spark.sql(String.format("CREATE TABLE %s (id INT, data STRING)", otherTable));
+    appendRecords(otherTable);
+    spark.sql(String.format("REFRESH TABLE %s", otherTable));
+    createView("cross_view", String.format("SELECT id FROM %s", otherTable));
+    spark.sql(String.format("REFRESH TABLE %s", otherTable));
   }
 
   private void appendRecords(String tableName) {
