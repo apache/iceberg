@@ -143,6 +143,7 @@ For example:
 ```sql
 USE prod.default
 ```
+
 ```sql
 CREATE OR REPLACE VIEW event_agg (
     event_count COMMENT 'Count of events',
@@ -220,17 +221,17 @@ Producers may selectively choose a subset of their dependencies to record — fo
 
 When writing the refresh state, producers:
 
-- **Must** record `view-version-id` and `refresh-start-timestamp-ms`.
-- **Should** include all distinct source states for the inputs they chose to track if they are reachable through multiple path in the dependency graph.
-- **May** leave `source-states` empty (e.g., when sources are non-Iceberg or freshness is determined by a mechanism outside this spec).
+* **Must** record `view-version-id` and `refresh-start-timestamp-ms`.
+* **Should** include all distinct source states for the inputs they chose to track if they are reachable through multiple path in the dependency graph.
+* **May** leave `source-states` empty (e.g., when sources are non-Iceberg or freshness is determined by a mechanism outside this spec).
 
 ##### Consumer: Evaluating Refresh State
 
 Consumers may use any combination of the following to assess the state of dependencies used to produce the storage table.
 
-- **Recency policy.** Accept the storage table when `refresh-start-timestamp-ms` falls within a staleness window. A recency policy bounds data age but does not establish freshness.
-- **Trust the recorded `source-states`.** Compare each entry against the current catalog state — `snapshot-id` for tables, `version-id` for views, optionally recursive verification for source materialized views recorded by their storage tables. Also confirm that the recorded `view-version-id` equals the materialized view's current `view-version-id`.
-- **Verify by parsing the view query.** Derive the dependency set from the SQL and confirm every dependency is covered by `source-states` and matches the current state. Treat any uncovered dependency as undetermined.
+* **Recency policy.** Accept the storage table when `refresh-start-timestamp-ms` falls within a staleness window. A recency policy bounds data age but does not establish freshness.
+* **Trust the recorded `source-states`.** Compare each entry against the current catalog state — `snapshot-id` for tables, `version-id` for views, optionally recursive verification for source materialized views recorded by their storage tables. Also confirm that the recorded `view-version-id` equals the materialized view's current `view-version-id`.
+* **Verify by parsing the view query.** Derive the dependency set from the SQL and confirm every dependency is covered by `source-states` and matches the current state. Treat any uncovered dependency as undetermined.
 
 If a consumer's assessment passes, it reads from the storage table. If not, the consumer may fail the query, evaluate the view query directly, or apply another strategy.
 
@@ -254,7 +255,7 @@ A source table record captures the state of a source table (including a source m
 | _required_  | `type`        | A string that must be set to `table` |
 | _required_  | `name`        | A string specifying the name of the source table |
 | _required_  | `namespace`   | A list of strings for namespace levels |
-| _optional_  | `catalog`     | An optional name of the catalog. If not set, the catalog is the same as the materialized view's |
+| _required_  | `catalog`     | A string specifying the name of the catalog. |
 | _required_  | `uuid`        | The uuid of the source table |
 | _required_  | `snapshot-id` | The snapshot-id of the source table that was read during the refresh operation |
 | _optional_  | `ref`         | Branch name of the source table being referenced in the view query |
@@ -270,7 +271,7 @@ A source view record captures the state of a source view at the time of the last
 | _required_  | `type`       | A string that must be set to `view` |
 | _required_  | `name`       | A string specifying the name of the source view |
 | _required_  | `namespace`  | A list of strings for namespace levels |
-| _optional_  | `catalog`    | An optional name of the catalog. If not set, the catalog is the same as the materialized view's |
+| _required_  | `catalog`     | A string specifying the name of the catalog. |
 | _required_  | `uuid`       | The uuid of the source view |
 | _required_  | `version-id` | The version-id of the source view that was read during the refresh operation |
 
@@ -296,6 +297,7 @@ Imagine the following sequence of operations:
 ```sql
 USE prod.default
 ```
+
 ```sql
 CREATE OR REPLACE VIEW event_agg (
     event_count COMMENT 'Count of events',
@@ -315,6 +317,7 @@ The path is intentionally similar to the path for Iceberg tables and uses a `met
 ```
 s3://bucket/warehouse/default.db/event_agg/metadata/00001-(uuid).metadata.json
 ```
+
 ```json
 {
   "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
@@ -384,6 +387,7 @@ Updating the view produces a new metadata file that completely replaces the old:
 ```
 s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
 ```
+
 ```json
 {
   "view-uuid": "fa6506c3-7681-40c8-86dc-e36561f83385",
@@ -457,6 +461,7 @@ Imagine the following operation, which creates a materialized view that precompu
 ```sql
 USE prod.default
 ```
+
 ```sql
 CREATE MATERIALIZED VIEW event_agg_mv (
     event_count COMMENT 'Count of events',
@@ -474,6 +479,7 @@ The materialized view metadata JSON file looks as follows:
 ```
 s3://bucket/warehouse/default.db/event_agg_mv/metadata/00001-(uuid).metadata.json
 ```
+
 ```json
 {
   "view-uuid": "b2a12651-3038-4a72-8a31-5027ab84da35",
@@ -549,11 +555,11 @@ Producers may select different sets of dependencies to record in the refresh sta
 
 ### Shared query
 
-- `A` (the materialized view being refreshed): `SELECT ... FROM B JOIN C ON ...`
-- `B` (regular view): `SELECT ... FROM E JOIN D ON ...`
-- `C` (regular view or materialized view, varies by strategy): `SELECT ... FROM F JOIN G ON ...`
-- `D` (regular view or materialized view, varies by strategy): `SELECT ... FROM H WHERE ...`
-- `E`, `F`, `G`, `H`: source Iceberg tables
+* `A` (the materialized view being refreshed): `SELECT ... FROM B JOIN C ON ...`
+* `B` (regular view): `SELECT ... FROM E JOIN D ON ...`
+* `C` (regular view or materialized view, varies by strategy): `SELECT ... FROM F JOIN G ON ...`
+* `D` (regular view or materialized view, varies by strategy): `SELECT ... FROM H WHERE ...`
+* `E`, `F`, `G`, `H`: source Iceberg tables
 
 ### Strategy 1: Empty refresh state (recency only)
 
