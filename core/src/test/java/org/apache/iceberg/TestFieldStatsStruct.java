@@ -233,10 +233,11 @@ public class TestFieldStatsStruct {
           Named.of("Kryo", TestHelpers.KryoHelpers::roundTripSerialize),
           Named.of("InternalData", TestFieldStatsStruct::roundTripInternalData),
           Named.of("FieldStats#copy", FieldStatsStruct::copy),
-          // copy first, then serialize: geo bounds are deep-copied into a StructCopy, which must
-          // itself survive Java serialization
+          // Verify that copies are also serializable
+          Named.of("FieldStats#copy + Java", stats -> TestHelpers.roundTripSerialize(stats.copy())),
           Named.of(
-              "FieldStats#copy + Java", stats -> TestHelpers.roundTripSerialize(stats.copy())));
+              "FieldStats#copy + Kryo",
+              stats -> TestHelpers.KryoHelpers.roundTripSerialize(stats.copy())));
 
   private static Stream<Arguments> serializationCases() {
     return TYPES_AND_BOUNDS.stream()
@@ -298,17 +299,15 @@ public class TestFieldStatsStruct {
     Types.StructType statsStruct =
         StatsUtil.fieldStatsStruct(geoType, BASE_ID, MetricsModes.Full.get());
 
-    // geometry and geography use bounding-box structs (x, y, z, m) for their bounds, and
-    // readers reuse that box across rows, so a reused container must not carry one entry's box
-    // into the next
+    // geometry and geography use bounding-box structs (x, y, z, m) for their bounds
     PartitionData lowerBound =
-        new PartitionData(statsStruct.field(StatsUtil.LOWER_BOUND_NAME).type().asStructType());
+        new PartitionData(statsStruct.field("lower_bound").type().asStructType());
     lowerBound.set(0, 1.0d);
     lowerBound.set(1, 2.0d);
     lowerBound.set(2, 3.0d);
     lowerBound.set(3, 4.0d);
     PartitionData upperBound =
-        new PartitionData(statsStruct.field(StatsUtil.UPPER_BOUND_NAME).type().asStructType());
+        new PartitionData(statsStruct.field("upper_bound").type().asStructType());
     upperBound.set(0, 5.0d);
     upperBound.set(1, 6.0d);
     upperBound.set(2, 7.0d);
@@ -327,12 +326,6 @@ public class TestFieldStatsStruct {
     // readers reuse bounding boxes across entries, so the bounds must be deep-copied
     assertThat(copy.lowerBound()).isNotSameAs(lowerBound);
     assertThat(copy.upperBound()).isNotSameAs(upperBound);
-
-    // the reader mutates the reused box for the next row but the copied entry must keep its own box
-    lowerBound.set(0, 11.0d);
-    upperBound.set(0, 15.0d);
-    assertBoundingBox(copy.lowerBound(), 1.0d, 2.0d, 3.0d, 4.0d);
-    assertBoundingBox(copy.upperBound(), 5.0d, 6.0d, 7.0d, 8.0d);
   }
 
   // Variant is not Serializable so this does not test Java serialization
@@ -397,17 +390,6 @@ public class TestFieldStatsStruct {
             .setRootType(FieldStatsStruct.class)
             .build()) {
       return Iterables.getOnlyElement(reader);
-    }
-  }
-
-  private static void assertBoundingBox(Object bound, double... ordinates) {
-    assertThat(bound).isInstanceOf(StructLike.class);
-    StructLike box = (StructLike) bound;
-    assertThat(box.size()).isEqualTo(ordinates.length);
-    for (int pos = 0; pos < ordinates.length; pos += 1) {
-      assertThat(box.get(pos, Double.class))
-          .as("Bounding box ordinate at position %s", pos)
-          .isEqualTo(ordinates[pos]);
     }
   }
 

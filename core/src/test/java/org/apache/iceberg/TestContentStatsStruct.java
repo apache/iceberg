@@ -194,8 +194,6 @@ public class TestContentStatsStruct {
 
     ContentStatsStruct stats = new ContentStatsStruct(CONTENT_STATS_STRUCT);
     stats.setStats(1, idStats);
-    // when a manifest has no stats for a projected column, the reader leaves that column's
-    // stats null via set(pos, null), so the copy path must tolerate a null entry
     stats.set(2, null);
 
     ContentStats copy = stats.copy();
