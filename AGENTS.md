@@ -89,13 +89,54 @@ The `api/` module has the strongest stability guarantees — breaking changes ar
 - 2 spaces indent, 4 spaces continuation. Empty newline after control flow blocks.
 - Use `this.` for instance field assignment. `Preconditions` calls first in methods.
 - No `final` on locals. No one-argument-per-line unless necessary.
-- Magic numbers should be named constants. No personal pronouns in comments. Comments should explain non-obvious intent or constraints; don't restate what the code already says.
-- Javadoc describes the function or purpose of a class or method, not the implementation. For public APIs, keep it brief and describe only what callers need to use the component, as though it were defined by an interface. Don't leak implementation details.
-- Comments and Javadocs should describe the current behavior or contract, not how it changed over time.
+- Magic numbers should be named constants.
 - `} else {` on same line. Minimize variable scope. `try-with-resources` for all `AutoCloseable`.
 - Prefer method references over lambdas. Wrap lines at the highest semantic level.
 - Prefer switch expressions (`case X -> ...`) over statement switches. Exhaustive enum switches need no `default`; others must have one.
 - Always use imports — never use fully-qualified class names inline.
+
+### Comments & Javadoc
+
+When writing new code, default to no comment and no Javadoc. Add one only when it states something the code does not. Leave existing comments and Javadoc as they are unless you are changing the code they describe or they have become wrong.
+
+**Check before adding:** if the comment or Javadoc you are about to write would need editing during a refactor that keeps behavior identical, it is describing internals — rewrite it or leave it out.
+
+**Comments**
+
+- Don't write a comment that restates the method name, the condition, or the next line.
+- Don't add commented-out code, section banners, or `// getter` / `// loop over files` narration.
+- No personal pronouns. Never describe how the code changed, what a PR did, or what the behavior used to be.
+
+**Javadoc**
+
+- Javadoc states the goal — what the method does for the caller — never how it does it. Strictest in `api/`.
+- Don't name internal fields, helper classes, data structures, caching, or algorithms. If you find yourself naming a type that isn't in the signature, you are documenting internals.
+- One sentence is usually enough. Longer is justified only by contract the caller must know: see `AppendFiles.appendManifest`, whose length is entirely about manifest lifecycle ownership on success and failure.
+- Document thrown exceptions, null behavior, and resource ownership (for example that a returned iterable must be closed).
+- Keep `@param` and `@return` tags in `api/` even when brief — `@return this for method chaining` is the established phrasing. Don't strip them.
+- Don't re-document an inherited contract; let overrides inherit unless they narrow or extend it.
+
+```java
+// Bad: documents the algorithm. The caller cannot rely on any of it.
+/**
+ * Plans files by opening each manifest in the current snapshot's manifest list, evaluating the
+ * filter expression against partition summaries to skip manifests, then reading the surviving
+ * manifests in parallel using the worker pool and wrapping each entry in a BaseFileScanTask.
+ *
+ * @return an iterable of scan tasks
+ */
+CloseableIterable<FileScanTask> planFiles();
+
+// Good: the goal, plus the one thing the caller must do.
+/**
+ * Plans the files that will be read by this scan.
+ *
+ * <p>The returned iterable holds open resources and must be closed by the caller.
+ *
+ * @return an iterable of scan tasks matching this scan's filters
+ */
+CloseableIterable<FileScanTask> planFiles();
+```
 
 ### Code Placement
 
