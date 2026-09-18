@@ -45,10 +45,6 @@ class RESTServerCatalogAdapter extends RESTCatalogAdapter {
   private static final String INCLUDE_CREDENTIALS = "include-credentials";
   private static final String INCLUDE_LABELS = "include-labels";
 
-  private static final String CATALOG_NAME_LABEL = "catalog-name";
-  private static final String CATALOG_HOST_LABEL = "catalog-host";
-  private static final String CLASSIFICATION_LABEL = "classification";
-
   private static final String HOSTNAME = hostname();
 
   private final CatalogContext catalogContext;
@@ -120,14 +116,14 @@ class RESTServerCatalogAdapter extends RESTCatalogAdapter {
     ImmutableLabels.Builder labels =
         ImmutableLabels.builder()
             .putObjectLabels(
-                CATALOG_NAME_LABEL,
+                "catalog-name",
                 PropertyUtil.propertyAsString(
                     catalogContext.configuration(),
                     RESTCatalogServer.CATALOG_NAME,
                     RESTCatalogServer.CATALOG_NAME_DEFAULT));
 
     if (null != HOSTNAME) {
-      labels.putObjectLabels(CATALOG_HOST_LABEL, HOSTNAME);
+      labels.putObjectLabels("catalog-host", HOSTNAME);
     }
 
     // label the first column so that field-level labels are covered without assuming a schema
@@ -135,7 +131,7 @@ class RESTServerCatalogAdapter extends RESTCatalogAdapter {
       labels.addFields(
           ImmutableFieldLabel.builder()
               .fieldId(schema.columns().get(0).fieldId())
-              .putLabels(CLASSIFICATION_LABEL, "public")
+              .putLabels("classification", "public")
               .build());
     }
 
