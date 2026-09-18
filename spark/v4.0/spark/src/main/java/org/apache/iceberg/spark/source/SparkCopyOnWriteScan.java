@@ -103,7 +103,8 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   }
 
   @Override
-  public void filter(Predicate[] predicates) {
+  // serialize concurrent filter() calls on a scan shared across UNION branches
+  public synchronized void filter(Predicate[] predicates) {
     Preconditions.checkState(
         Objects.equals(snapshotId(), currentSnapshotId()),
         "Runtime file filtering is not possible: the table has been concurrently modified. "
