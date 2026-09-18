@@ -27,11 +27,6 @@ import org.apache.iceberg.types.Types;
 /**
  * A {@link Table} implementation that exposes the catalog-provided labels of its base table as
  * rows.
- *
- * <p>Each label key-value pair is a row. Object-level labels have {@code scope = "object"} and a
- * null {@code field_id}; field-level labels have {@code scope = "field"} and the field id they are
- * attached to. Labels are catalog-provided enrichment obtained at load time; a re-scan re-reads the
- * base table's labels and may observe different values.
  */
 public class LabelsTable extends BaseMetadataTable {
   private static final String OBJECT_SCOPE = "object";
@@ -68,12 +63,8 @@ public class LabelsTable extends BaseMetadataTable {
     return LABELS_SCHEMA;
   }
 
-  private Labels labels() {
-    return table().labels();
-  }
-
   private DataTask task(TableScan scan) {
-    Labels labels = labels();
+    Labels labels = table().labels();
     Schema tableSchema = table().schema();
     List<StaticDataTask.Row> rows = Lists.newArrayList();
     for (Map.Entry<String, String> entry : labels.objectLabels().entrySet()) {
