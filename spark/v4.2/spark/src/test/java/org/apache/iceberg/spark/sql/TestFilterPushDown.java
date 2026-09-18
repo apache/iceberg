@@ -32,7 +32,9 @@ import java.util.Locale;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PlanningMode;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expressions;
@@ -257,6 +259,28 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
                     "Rows must match",
                     ImmutableList.of(row(2, "d2")),
                     sql("SELECT * FROM %s WHERE dep LIKE '%%2'", tableName)));
+
+    assertInputPartitions(plan, 1);
+  }
+
+  @TestTemplate
+  void partitionPredicatePushdownForUUIDField() {
+    Schema schema = new Schema(Types.NestedField.optional(1, "uuid", Types.UUIDType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("uuid").build();
+    validationCatalog.createTable(tableIdent, schema, spec);
+    configurePlanningMode(planningMode);
+
+    setSmallSplitSize();
+    String matchingUuid = "00000000-0000-0000-0000-000000000001";
+    String otherUuid = "00000000-0000-0000-0000-000000000002";
+    sql("INSERT INTO %s VALUES ('%s')", tableName, matchingUuid);
+    sql("INSERT INTO %s VALUES ('%s')", tableName, otherUuid);
+
+    SparkPlan plan =
+        executeAndKeepPlan(
+            () ->
+                assertThat(sql("SELECT uuid FROM %s WHERE uuid LIKE '%%1'", tableName))
+                    .containsExactly(row(matchingUuid)));
 
     assertInputPartitions(plan, 1);
   }
