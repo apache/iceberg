@@ -27,6 +27,7 @@ import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import javax.net.ssl.SSLException;
@@ -248,5 +249,186 @@ public class TestExponentialHttpRequestRetryStrategy {
     HttpClientContext context = HttpClientContext.create();
     context.setRequest(new BasicHttpRequest("POST", "/"));
     assertThat(retryStrategy.retryRequest(response, 3, context)).isFalse();
+  }
+
+  @Test
+  public void testKeyedRetryAbandonedWhenLifetimeExceeded() {
+    HttpRequestRetryStrategy strategy =
+        new ExponentialHttpRequestRetryStrategy(5, Duration.ofSeconds(1));
+    BasicHttpResponse response =
+        new BasicHttpResponse(HttpStatus.SC_INTERNAL_SERVER_ERROR, "error");
+    response.addHeader(new BasicHeader(HttpHeaders.RETRY_AFTER, "3600"));
+    HttpClientContext context = HttpClientContext.create();
+    BasicHttpRequest request = new BasicHttpRequest("POST", "/");
+    request.addHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER, "key-abandon");
+    context.setRequest(request);
+    context.setAttribute(
+        ExponentialHttpRequestRetryStrategy.FIRST_ATTEMPT_EPOCH, System.currentTimeMillis());
+    assertThat(strategy.retryRequest(response, 1, context)).isFalse();
+  }
+
+  @Test
+  public void testKeyedRetryContinuesWithinLifetime() {
+    HttpRequestRetryStrategy strategy =
+        new ExponentialHttpRequestRetryStrategy(5, Duration.ofHours(1));
+    BasicHttpResponse response =
+        new BasicHttpResponse(HttpStatus.SC_INTERNAL_SERVER_ERROR, "error");
+    response.addHeader(new BasicHeader(HttpHeaders.RETRY_AFTER, "1"));
+    HttpClientContext context = HttpClientContext.create();
+    BasicHttpRequest request = new BasicHttpRequest("POST", "/");
+    request.addHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER, "key-continue");
+    context.setRequest(request);
+    context.setAttribute(
+        ExponentialHttpRequestRetryStrategy.FIRST_ATTEMPT_EPOCH, System.currentTimeMillis());
+    assertThat(strategy.retryRequest(response, 1, context)).isTrue();
+  }
+
+  @Test
+  public void testKeyedNetworkExceptionRetryAbandonedWhenLifetimeExceeded() {
+    HttpRequestRetryStrategy strategy =
+        new ExponentialHttpRequestRetryStrategy(5, Duration.ofMillis(1));
+    HttpClientContext context = HttpClientContext.create();
+    BasicHttpRequest request = new BasicHttpRequest("POST", "/");
+    request.addHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER, "key-net-abandon");
+    context.setRequest(request);
+    context.setAttribute(
+        ExponentialHttpRequestRetryStrategy.FIRST_ATTEMPT_EPOCH, System.currentTimeMillis());
+    assertThat(strategy.retryRequest(request, new IOException("connection reset"), 1, context))
+        .isFalse();
+  }
+
+  @Test
+  public void testKeyedNetworkExceptionRetryHonoredWithoutLifetime() {
+    HttpRequestRetryStrategy strategy = new ExponentialHttpRequestRetryStrategy(5);
+    HttpClientContext context = HttpClientContext.create();
+    BasicHttpRequest request = new BasicHttpRequest("POST", "/");
+    request.addHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER, "key-net-ok");
+    context.setRequest(request);
+    assertThat(strategy.retryRequest(request, new IOException("connection reset"), 1, context))
+        .isTrue();
+  }
+
+  @Test
+  public void testIdempotentGetNotConstrainedByKeyLifetime() {
+    HttpRequestRetryStrategy strategy =
+        new ExponentialHttpRequestRetryStrategy(5, Duration.ofMillis(1));
+    BasicHttpResponse response =
+        new BasicHttpResponse(HttpStatus.SC_INTERNAL_SERVER_ERROR, "error");
+    response.addHeader(new BasicHeader(HttpHeaders.RETRY_AFTER, "3600"));
+    HttpClientContext context = HttpClientContext.create();
+    context.setRequest(new BasicHttpRequest("GET", "/"));
+    assertThat(strategy.retryRequest(response, 1, context)).isTrue();
+  }
+
+  @Test
+  public void testKeyedRetryHonorsRecordedFirstAttemptTime() {
+    HttpRequestRetryStrategy strategy =
+        new ExponentialHttpRequestRetryStrategy(5, Duration.ofMinutes(30));
+    BasicHttpResponse response =
+        new BasicHttpResponse(HttpStatus.SC_INTERNAL_SERVER_ERROR, "error");
+    response.addHeader(new BasicHeader(HttpHeaders.RETRY_AFTER, "1"));
+    HttpClientContext context = HttpClientContext.create();
+    BasicHttpRequest request = new BasicHttpRequest("POST", "/");
+    request.addHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER, "key-recorded");
+    context.setRequest(request);
+    context.setAttribute(
+        ExponentialHttpRequestRetryStrategy.FIRST_ATTEMPT_EPOCH,
+        System.currentTimeMillis() - Duration.ofMinutes(31).toMillis());
+    assertThat(strategy.retryRequest(response, 1, context)).isFalse();
+  }
+
+  @Test
+  public void testKeyedRetryAbandonedOnceCumulativeElapsedExceedsLifetime()
+      throws InterruptedException {
+    // 2s lifetime, 1s Retry-After: 1st retry allowed, 2nd abandoned once cumulative elapsed > 2s.
+    HttpRequestRetryStrategy strategy =
+        new ExponentialHttpRequestRetryStrategy(5, Duration.ofSeconds(2));
+    BasicHttpResponse response =
+        new BasicHttpResponse(HttpStatus.SC_INTERNAL_SERVER_ERROR, "error");
+    response.addHeader(new BasicHeader(HttpHeaders.RETRY_AFTER, "1"));
+    HttpClientContext context = HttpClientContext.create();
+    BasicHttpRequest request = new BasicHttpRequest("POST", "/");
+    request.addHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER, "key-cumulative");
+    context.setRequest(request);
+    context.setAttribute(
+        ExponentialHttpRequestRetryStrategy.FIRST_ATTEMPT_EPOCH, System.currentTimeMillis());
+
+    assertThat(strategy.retryRequest(response, 1, context)).isTrue();
+    Thread.sleep(1100);
+    assertThat(strategy.retryRequest(response, 2, context)).isFalse();
+  }
+
+  @Test
+  public void testKeyedRetryProceedsWhenFirstAttemptTimeNotRecorded() {
+    HttpRequestRetryStrategy strategy =
+        new ExponentialHttpRequestRetryStrategy(5, Duration.ofSeconds(1));
+    BasicHttpResponse response =
+        new BasicHttpResponse(HttpStatus.SC_INTERNAL_SERVER_ERROR, "error");
+    response.addHeader(new BasicHeader(HttpHeaders.RETRY_AFTER, "3600"));
+    HttpClientContext context = HttpClientContext.create();
+    BasicHttpRequest request = new BasicHttpRequest("POST", "/");
+    request.addHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER, "key-unrecorded");
+    context.setRequest(request);
+    assertThat(strategy.retryRequest(response, 1, context)).isTrue();
+  }
+
+  @Test
+  public void testKeyedRetryAbandonedWhenExponentialIntervalExceedsLifetime() {
+    // No Retry-After -> interval falls back to exponential (>=1s), exceeding the 1ms lifetime.
+    HttpRequestRetryStrategy strategy =
+        new ExponentialHttpRequestRetryStrategy(5, Duration.ofMillis(1));
+    BasicHttpResponse response =
+        new BasicHttpResponse(HttpStatus.SC_INTERNAL_SERVER_ERROR, "error");
+    HttpClientContext context = HttpClientContext.create();
+    BasicHttpRequest request = new BasicHttpRequest("POST", "/");
+    request.addHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER, "key-exp");
+    context.setRequest(request);
+    context.setAttribute(
+        ExponentialHttpRequestRetryStrategy.FIRST_ATTEMPT_EPOCH, System.currentTimeMillis());
+    assertThat(strategy.retryRequest(response, 1, context)).isFalse();
+  }
+
+  @Test
+  public void testKeyedRetryAlwaysAbandonedWithZeroLifetime() {
+    HttpRequestRetryStrategy strategy = new ExponentialHttpRequestRetryStrategy(5, Duration.ZERO);
+    BasicHttpResponse response =
+        new BasicHttpResponse(HttpStatus.SC_INTERNAL_SERVER_ERROR, "error");
+    response.addHeader(new BasicHeader(HttpHeaders.RETRY_AFTER, "1"));
+    HttpClientContext context = HttpClientContext.create();
+    BasicHttpRequest request = new BasicHttpRequest("POST", "/");
+    request.addHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER, "key-zero");
+    context.setRequest(request);
+    context.setAttribute(
+        ExponentialHttpRequestRetryStrategy.FIRST_ATTEMPT_EPOCH, System.currentTimeMillis());
+    assertThat(strategy.retryRequest(response, 1, context)).isFalse();
+  }
+
+  @Test
+  public void testIdempotentGetStillRetriesWithZeroLifetime() {
+    HttpRequestRetryStrategy strategy = new ExponentialHttpRequestRetryStrategy(5, Duration.ZERO);
+    BasicHttpResponse response =
+        new BasicHttpResponse(HttpStatus.SC_INTERNAL_SERVER_ERROR, "error");
+    response.addHeader(new BasicHeader(HttpHeaders.RETRY_AFTER, "1"));
+    HttpClientContext context = HttpClientContext.create();
+    context.setRequest(new BasicHttpRequest("GET", "/"));
+    assertThat(strategy.retryRequest(response, 1, context)).isTrue();
+  }
+
+  @Test
+  public void testKeyedRetryAbandonedWhenMaxJitterWouldExceedLifetime() {
+    // Lifetime sits between base backoff (1s) and base + max jitter (1.1s); the check uses the
+    // upper
+    // bound, so the retry is abandoned even though a low-jitter sleep might have fit.
+    HttpRequestRetryStrategy strategy =
+        new ExponentialHttpRequestRetryStrategy(5, Duration.ofMillis(1050));
+    BasicHttpResponse response =
+        new BasicHttpResponse(HttpStatus.SC_INTERNAL_SERVER_ERROR, "error");
+    HttpClientContext context = HttpClientContext.create();
+    BasicHttpRequest request = new BasicHttpRequest("POST", "/");
+    request.addHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER, "key-maxjitter");
+    context.setRequest(request);
+    context.setAttribute(
+        ExponentialHttpRequestRetryStrategy.FIRST_ATTEMPT_EPOCH, System.currentTimeMillis());
+    assertThat(strategy.retryRequest(response, 1, context)).isFalse();
   }
 }

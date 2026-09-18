@@ -38,6 +38,7 @@ import java.net.SocketTimeoutException;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.cert.CertificateException;
+import java.time.Duration;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -71,6 +72,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockserver.configuration.Configuration;
 import org.mockserver.integration.ClientAndServer;
@@ -612,6 +614,24 @@ public class TestHTTPClient {
 
     assertThat(responseHeaders.get().get(HttpHeaders.ETAG)).isEqualTo("W/\"1\"");
     assertThat(responseHeaders.get().get("etag")).isEqualTo("W/\"1\"");
+  }
+
+  @ParameterizedTest
+  @NullSource
+  @ValueSource(strings = {"PT9999999999999H", "PT99999999999999999999H", "garbage", "30m", ""})
+  public void invalidIdempotencyKeyLifetimeIsIgnored(String value) {
+    assertThat(HTTPClient.parseKeyLifetime(value)).isNull();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"PT0S", "PT-5M", "-PT5M"})
+  public void nonPositiveIdempotencyKeyLifetimeReturnsZero(String value) {
+    assertThat(HTTPClient.parseKeyLifetime(value)).isEqualTo(Duration.ZERO);
+  }
+
+  @Test
+  public void validIdempotencyKeyLifetimeIsParsed() {
+    assertThat(HTTPClient.parseKeyLifetime("PT30M")).isEqualTo(Duration.ofMinutes(30));
   }
 
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {
