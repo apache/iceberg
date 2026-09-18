@@ -27,6 +27,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -46,6 +47,7 @@ import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
+import org.apache.spark.sql.connector.catalog.Relation;
 import org.apache.spark.sql.connector.catalog.StagedTable;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
@@ -59,6 +61,8 @@ import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A Spark catalog that can also load non-Iceberg tables.
@@ -68,7 +72,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  */
 public class SparkSessionCatalog<
         T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
-    extends BaseCatalog implements CatalogExtension {
+    extends BaseCatalog implements CatalogExtension, SparkSupportsLoadContext {
+  private static final Logger LOG = LoggerFactory.getLogger(SparkSessionCatalog.class);
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
   private String catalogName = null;
@@ -199,7 +204,17 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
+    return loadTable(ident, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, LoadContext context) throws NoSuchTableException {
     try {
+      if (icebergCatalog instanceof SparkSupportsLoadContext) {
+        return ((SparkSupportsLoadContext) icebergCatalog).loadTable(ident, context);
+      }
+
+      logUnsupportedContext("table", ident, context);
       return icebergCatalog.loadTable(ident);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident);
@@ -208,7 +223,18 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
+    return loadTable(ident, version, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, String version, LoadContext context)
+      throws NoSuchTableException {
     try {
+      if (icebergCatalog instanceof SparkSupportsLoadContext) {
+        return ((SparkSupportsLoadContext) icebergCatalog).loadTable(ident, version, context);
+      }
+
+      logUnsupportedContext("table", ident, context);
       return icebergCatalog.loadTable(ident, version);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, version);
@@ -217,10 +243,35 @@ public class SparkSessionCatalog<
 
   @Override
   public Table loadTable(Identifier ident, long timestamp) throws NoSuchTableException {
+    return loadTable(ident, timestamp, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestamp, LoadContext context)
+      throws NoSuchTableException {
     try {
+      if (icebergCatalog instanceof SparkSupportsLoadContext) {
+        return ((SparkSupportsLoadContext) icebergCatalog).loadTable(ident, timestamp, context);
+      }
+
+      logUnsupportedContext("table", ident, context);
       return icebergCatalog.loadTable(ident, timestamp);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, timestamp);
+    }
+  }
+
+  @Override
+  public Relation loadRelation(Identifier ident) throws NoSuchTableException {
+    try {
+      return loadTable(ident);
+    } catch (NoSuchTableException e) {
+      try {
+        return loadView(ident);
+      } catch (NoSuchViewException viewException) {
+        e.addSuppressed(viewException);
+        throw e;
+      }
     }
   }
 
@@ -572,13 +623,33 @@ public class SparkSessionCatalog<
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
+    return loadView(ident, LoadContext.empty());
+  }
+
+  @Override
+  public View loadView(Identifier ident, LoadContext context) throws NoSuchViewException {
     if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+      if (asViewCatalog instanceof SparkSupportsLoadContext) {
+        return ((SparkSupportsLoadContext) asViewCatalog).loadView(ident, context);
+      }
+
+      logUnsupportedContext("view", ident, context);
       return asViewCatalog.loadView(ident);
     } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
       return getSessionCatalog().loadView(ident);
     }
 
     throw new NoSuchViewException(ident);
+  }
+
+  private void logUnsupportedContext(String relationType, Identifier ident, LoadContext context) {
+    if (!context.referencedBy().isEmpty()) {
+      LOG.warn(
+          "Catalog {} does not support contextual load, ignoring context for {} {}",
+          catalogName,
+          relationType,
+          ident);
+    }
   }
 
   @Override
