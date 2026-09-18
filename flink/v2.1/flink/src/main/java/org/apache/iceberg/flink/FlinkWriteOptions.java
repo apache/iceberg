@@ -85,6 +85,12 @@ public class FlinkWriteOptions {
   public static final ConfigOption<Integer> WRITE_PARALLELISM =
       ConfigOptions.key("write-parallelism").intType().noDefaultValue();
 
+  public static final ConfigOption<Integer> COMMITTER_PARALLELISM =
+      ConfigOptions.key("committer-parallelism").intType().noDefaultValue();
+
+  public static final ConfigOption<Integer> COMMITTER_MAX_PARALLELISM =
+      ConfigOptions.key("committer-max-parallelism").intType().noDefaultValue();
+
   public static final ConfigOption<Boolean> COMPACTION_ENABLE =
       ConfigOptions.key(RewriteDataFilesConfig.PREFIX + "enabled")
           .booleanType()
