@@ -53,6 +53,7 @@ import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -82,7 +83,7 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
   protected static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
-        new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET}) {
+        new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET, FileFormat.VORTEX}) {
       for (int version : TestHelpers.V2_AND_ABOVE) {
         parameters.add(new Object[] {version, format});
       }
@@ -673,6 +674,14 @@ public class TestTaskEqualityDeltaWriter extends TestBase {
             ORC.read(inputFile)
                 .project(schema)
                 .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+                .build();
+        break;
+
+      case VORTEX:
+        iterable =
+            FormatModelRegistry.<Record, Schema>readBuilder(
+                    FileFormat.VORTEX, Record.class, inputFile)
+                .project(schema)
                 .build();
         break;
 

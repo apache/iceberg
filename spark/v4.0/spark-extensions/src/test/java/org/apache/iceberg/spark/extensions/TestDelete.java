@@ -499,7 +499,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
 
-    if (fileFormat.equals(FileFormat.ORC) || fileFormat.equals(FileFormat.PARQUET)) {
+    // Formats that report column bounds let the planner prove no file matches, so the commit is
+    // recorded as a delete of zero files rather than a rewrite.
+    if (fileFormat.equals(FileFormat.ORC)
+        || fileFormat.equals(FileFormat.PARQUET)
+        || fileFormat.equals(FileFormat.VORTEX)) {
       validateDelete(currentSnapshot, "0", null);
     } else {
       if (mode(table) == COPY_ON_WRITE) {

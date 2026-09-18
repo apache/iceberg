@@ -73,7 +73,9 @@ public class TestSparkReadProjection extends TestReadProjection {
       {FileFormat.PARQUET, true, DISTRIBUTED},
       {FileFormat.AVRO, false, LOCAL},
       {FileFormat.ORC, false, DISTRIBUTED},
-      {FileFormat.ORC, true, LOCAL}
+      {FileFormat.ORC, true, LOCAL},
+      // Vortex reads are always vectorized, so the flag has no effect and is fixed at false.
+      {FileFormat.VORTEX, false, LOCAL}
     };
   }
 

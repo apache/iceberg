@@ -38,11 +38,14 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
 import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
+import org.apache.iceberg.spark.ImmutableVortexBatchReadConf;
 import org.apache.iceberg.spark.OrcBatchReadConf;
 import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.spark.VortexBatchReadConf;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -138,7 +141,8 @@ class SparkBatch implements Batch {
 
     } else if (useOrcBatchReads()) {
       return new SparkColumnarReaderFactory(orcBatchReadConf());
-
+    } else if (useVortexBatchReads()) {
+      return new SparkColumnarReaderFactory(vortexBatchReadConf());
     } else {
       return new SparkRowReaderFactory();
     }
@@ -150,6 +154,10 @@ class SparkBatch implements Batch {
 
   private OrcBatchReadConf orcBatchReadConf() {
     return ImmutableOrcBatchReadConf.builder().batchSize(readConf.orcBatchSize()).build();
+  }
+
+  private VortexBatchReadConf vortexBatchReadConf() {
+    return ImmutableVortexBatchReadConf.builder().batchSize(readConf.parquetBatchSize()).build();
   }
 
   // conditions for using Parquet batch reads:
@@ -227,6 +235,41 @@ class SparkBatch implements Batch {
   private boolean useOrcBatchReads() {
     return readConf.orcVectorizationEnabled()
         && taskGroups.stream().allMatch(this::supportsOrcBatchReads);
+  }
+
+  // conditions for using Vortex batch reads:
+  // - no variant is projected (ArrowColumnVector cannot surface a variant as Spark's VariantVal, so
+  //   variant projections fall back to the row-based reader, which does support variant)
+  // - no nested initial default is projected (nested defaults require the row reader to inject the
+  //   value inside an existing Arrow struct)
+  // - all tasks are of FileScanTask type and read only Vortex files
+  private boolean useVortexBatchReads() {
+    return TypeUtil.find(projection, Type::isVariantType) == null
+        && projection.columns().stream().noneMatch(SparkBatch::hasNestedInitialDefault)
+        && taskGroups.stream().allMatch(this::supportsVortexBatchReads);
+  }
+
+  private static boolean hasInitialDefault(Types.NestedField field) {
+    return field.initialDefault() != null || hasNestedInitialDefault(field);
+  }
+
+  private static boolean hasNestedInitialDefault(Types.NestedField field) {
+    return field.type().isNestedType()
+        && field.type().asNestedType().fields().stream().anyMatch(SparkBatch::hasInitialDefault);
+  }
+
+  private boolean supportsVortexBatchReads(ScanTask task) {
+    if (task instanceof ScanTaskGroup) {
+      ScanTaskGroup<?> taskGroup = (ScanTaskGroup<?>) task;
+      return taskGroup.tasks().stream().allMatch(this::supportsVortexBatchReads);
+
+    } else if (task.isFileScanTask() && !task.isDataTask()) {
+      FileScanTask fileScanTask = task.asFileScanTask();
+      return fileScanTask.file().format() == FileFormat.VORTEX;
+
+    } else {
+      return false;
+    }
   }
 
   private boolean supportsOrcBatchReads(ScanTask task) {
