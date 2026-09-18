@@ -38,6 +38,7 @@ import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.SparkSession;
@@ -132,54 +133,76 @@ abstract class BaseSparkTable
 
   @Override
   public Map<String, String> properties() {
-    ImmutableMap.Builder<String, String> propsBuilder = ImmutableMap.builder();
+    Map<String, String> properties = Maps.newLinkedHashMap();
 
-    propsBuilder.put(FORMAT, "iceberg/" + fileFormat());
-    propsBuilder.put(PROVIDER, "iceberg");
-    propsBuilder.put(LOCATION, table.location());
-    propsBuilder.put(CURRENT_SNAPSHOT_ID, currentSnapshotId());
+    properties.put(FORMAT, "iceberg/" + fileFormat());
+    properties.put(PROVIDER, "iceberg");
+    properties.put(LOCATION, table.location());
+    properties.put(CURRENT_SNAPSHOT_ID, currentSnapshotId());
 
     // Iceberg tables always have an explicit storage location and dropping a table through the
     // catalog removes only the catalog entry unless purge is requested, which matches Spark's
     // notion of an EXTERNAL table.
-    propsBuilder.put(TableCatalog.PROP_TABLE_TYPE, TableSummary.EXTERNAL_TABLE_TYPE);
+    properties.put(TableCatalog.PROP_TABLE_TYPE, TableSummary.EXTERNAL_TABLE_TYPE);
 
     if (table instanceof BaseTable) {
       TableOperations ops = ((BaseTable) table).operations();
-      propsBuilder.put(FORMAT_VERSION, String.valueOf(ops.current().formatVersion()));
+      properties.put(FORMAT_VERSION, String.valueOf(ops.current().formatVersion()));
     }
 
     if (table.sortOrder().isSorted()) {
-      propsBuilder.put(SORT_ORDER, Spark3Util.describe(table.sortOrder()));
+      properties.put(SORT_ORDER, Spark3Util.describe(table.sortOrder()));
     }
 
     Set<String> identifierFields = table.schema().identifierFieldNames();
     if (!identifierFields.isEmpty()) {
-      propsBuilder.put(IDENTIFIER_FIELDS, "[" + String.join(",", identifierFields) + "]");
+      properties.put(IDENTIFIER_FIELDS, "[" + String.join(",", identifierFields) + "]");
     }
 
     table.properties().entrySet().stream()
         .filter(entry -> !RESERVED_PROPERTIES.contains(entry.getKey()))
-        .forEach(propsBuilder::put);
+        .forEach(entry -> properties.put(entry.getKey(), entry.getValue()));
 
     // Surface catalog-provided labels (driver-side only; not part of table state) so they are
     // visible in DESCRIBE EXTENDED. The tbl.labels metadata table is the queryable counterpart.
+    // Labels and table properties are distinct concepts: if a label's prefixed key collides with
+    // an existing property, the label is surfaced under a de-conflicted key so both remain visible
+    // and DESCRIBE EXTENDED / SHOW TBLPROPERTIES never fails.
     if (table instanceof SupportsLabels) {
       Labels labels = ((SupportsLabels) table).labels();
-      labels
-          .objectLabels()
-          .forEach((key, value) -> propsBuilder.put(LABELS_OBJECT_PREFIX + key, value));
-      for (FieldLabel fieldLabels : labels.fields()) {
-        fieldLabels
-            .labels()
-            .forEach(
-                (key, value) ->
-                    propsBuilder.put(
-                        LABELS_FIELD_PREFIX + fieldLabels.fieldId() + "." + key, value));
+      for (Map.Entry<String, String> label : labels.objectLabels().entrySet()) {
+        String key = deconflictedKey(properties, LABELS_OBJECT_PREFIX + label.getKey());
+        properties.put(key, label.getValue());
+      }
+
+      for (FieldLabel fieldLabel : labels.fields()) {
+        String prefix = LABELS_FIELD_PREFIX + fieldLabel.fieldId() + ".";
+        for (Map.Entry<String, String> label : fieldLabel.labels().entrySet()) {
+          String key = deconflictedKey(properties, prefix + label.getKey());
+          properties.put(key, label.getValue());
+        }
       }
     }
 
-    return propsBuilder.build();
+    return ImmutableMap.copyOf(properties);
+  }
+
+  /**
+   * Returns {@code preferredKey} if it is free, otherwise a distinct key so that a catalog label
+   * does not overwrite an existing table property (and vice versa) and both stay visible in
+   * DESCRIBE EXTENDED / SHOW TBLPROPERTIES.
+   */
+  private static String deconflictedKey(Map<String, String> properties, String preferredKey) {
+    if (!properties.containsKey(preferredKey)) {
+      return preferredKey;
+    }
+
+    String key = preferredKey + ".catalog";
+    for (int suffix = 2; properties.containsKey(key); suffix++) {
+      key = preferredKey + ".catalog." + suffix;
+    }
+
+    return key;
   }
 
   @Override
