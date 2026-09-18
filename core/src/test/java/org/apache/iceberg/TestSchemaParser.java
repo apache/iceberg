@@ -90,6 +90,22 @@ public class TestSchemaParser extends DataTestBase {
   }
 
   @Test
+  public void geospatialDefaultsSerializedExplicitly() {
+    Schema schema =
+        new Schema(
+            required(1, "geom", Types.GeometryType.crs84()),
+            required(2, "geog", Types.GeographyType.crs84()),
+            required(3, "geog_custom_crs", Types.GeographyType.of("EPSG:4326")));
+
+    String json = SchemaParser.toJson(schema);
+    assertThat(json)
+        .contains("\"type\":\"geometry(OGC:CRS84)\"")
+        .contains("\"type\":\"geography(OGC:CRS84, spherical)\"")
+        .contains("\"type\":\"geography(EPSG:4326, spherical)\"");
+    assertThat(SchemaParser.fromJson(json).asStruct()).isEqualTo(schema.asStruct());
+  }
+
+  @Test
   public void testDocStrings() {
     Schema schema =
         new Schema(

@@ -591,9 +591,8 @@ public class Types {
 
     private GeometryType(String crs) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      // an omitted CRS canonicalizes to the default; a provided value is kept as-is (case
-      // preserved)
-      this.crs = crs == null ? DEFAULT_CRS : crs;
+      // Keep the default unset so toString preserves the compact type name.
+      this.crs = DEFAULT_CRS.equalsIgnoreCase(crs) ? null : crs;
     }
 
     @Override
@@ -602,7 +601,7 @@ public class Types {
     }
 
     public String crs() {
-      return crs;
+      return crs != null ? crs : DEFAULT_CRS;
     }
 
     /**
@@ -618,18 +617,18 @@ public class Types {
       }
 
       GeometryType that = (GeometryType) o;
-      return crs.equalsIgnoreCase(that.crs);
+      return crs().equalsIgnoreCase(that.crs());
     }
 
     @Override
     public int hashCode() {
       // hash the upper-cased CRS so it stays consistent with the case-insensitive equals
-      return Objects.hash(GeometryType.class, crs.toUpperCase(Locale.ROOT));
+      return Objects.hash(GeometryType.class, crs().toUpperCase(Locale.ROOT));
     }
 
     @Override
     public String toString() {
-      return String.format("%s(%s)", NAME, crs());
+      return crs != null ? String.format("%s(%s)", NAME, crs) : NAME;
     }
   }
 
@@ -663,10 +662,9 @@ public class Types {
 
     private GeographyType(String crs, EdgeAlgorithm algorithm) {
       Preconditions.checkArgument(crs == null || !crs.isEmpty(), "Invalid CRS: (empty string)");
-      // an omitted CRS/algorithm canonicalizes to the default; a provided CRS is kept as-is (case
-      // preserved)
-      this.crs = crs == null ? DEFAULT_CRS : crs;
-      this.algorithm = algorithm == null ? DEFAULT_ALGORITHM : algorithm;
+      // Keep omitted defaults unset so toString can distinguish compact and explicit forms.
+      this.crs = DEFAULT_CRS.equalsIgnoreCase(crs) ? null : crs;
+      this.algorithm = algorithm;
     }
 
     @Override
@@ -675,11 +673,11 @@ public class Types {
     }
 
     public String crs() {
-      return crs;
+      return crs != null ? crs : DEFAULT_CRS;
     }
 
     public EdgeAlgorithm algorithm() {
-      return algorithm;
+      return algorithm != null ? algorithm : DEFAULT_ALGORITHM;
     }
 
     /**
@@ -695,18 +693,24 @@ public class Types {
       }
 
       GeographyType that = (GeographyType) o;
-      return crs.equalsIgnoreCase(that.crs) && Objects.equals(algorithm, that.algorithm);
+      return crs().equalsIgnoreCase(that.crs()) && Objects.equals(algorithm(), that.algorithm());
     }
 
     @Override
     public int hashCode() {
       // hash the upper-cased CRS so it stays consistent with the case-insensitive equals
-      return Objects.hash(GeographyType.class, crs.toUpperCase(Locale.ROOT), algorithm);
+      return Objects.hash(GeographyType.class, crs().toUpperCase(Locale.ROOT), algorithm());
     }
 
     @Override
     public String toString() {
-      return String.format("%s(%s, %s)", NAME, crs(), algorithm());
+      if (algorithm != null) {
+        return String.format("%s(%s, %s)", NAME, crs(), algorithm);
+      } else if (crs != null) {
+        return String.format("%s(%s)", NAME, crs);
+      }
+
+      return NAME;
     }
   }
 
