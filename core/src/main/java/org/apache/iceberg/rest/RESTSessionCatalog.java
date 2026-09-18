@@ -214,12 +214,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     // build the final configuration and set up the catalog's auth
-    Map<String, String> mergedProps = config.merge(props);
+    ImmutableMap.Builder<String, String> mergedPropsBuilder =
+        ImmutableMap.<String, String>builder().putAll(config.merge(props));
 
     // Enable Idempotency-Key header for mutation endpoints if the server advertises support
     if (config.idempotencyKeyLifetime() != null) {
       this.mutationHeaders = RESTUtil::idempotencyHeaders;
+      mergedPropsBuilder.put(
+          HTTPClient.REST_IDEMPOTENCY_KEY_LIFETIME, config.idempotencyKeyLifetime());
     }
+
+    Map<String, String> mergedProps = mergedPropsBuilder.buildKeepingLast();
 
     if (config.endpoints().isEmpty()) {
       this.endpoints =
