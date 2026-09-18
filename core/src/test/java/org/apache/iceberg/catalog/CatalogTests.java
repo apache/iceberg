@@ -438,6 +438,31 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testDropNamespaceWithCascade() {
+    C catalog = catalog();
+
+    catalog.createNamespace(NS);
+    catalog.buildTable(TABLE, SCHEMA).create();
+    catalog.buildTable(RENAMED_TABLE, SCHEMA).create();
+
+    assertThat(catalog.dropNamespace(NS, true))
+        .as("Dropping an existing namespace should return true")
+        .isTrue();
+    assertThat(catalog.namespaceExists(NS)).as("Namespace should not exist").isFalse();
+    assertThat(catalog.tableExists(TABLE)).as("Table should not exist").isFalse();
+    assertThat(catalog.tableExists(RENAMED_TABLE)).as("Table should not exist").isFalse();
+  }
+
+  @Test
+  public void testDropNonexistentNamespaceWithCascade() {
+    C catalog = catalog();
+
+    assertThat(catalog.dropNamespace(NS, true))
+        .as("Dropping a nonexistent namespace should return false")
+        .isFalse();
+  }
+
+  @Test
   public void testDropNamespaceWithNestedNamespace() {
     assumeThat(supportsNestedNamespaces())
         .as("Only valid when the catalog supports nested namespaces")
