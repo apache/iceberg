@@ -22,12 +22,9 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -84,7 +81,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
 
-  private transient Map<Integer, Function<PartitionData, StructLike>> partitionProjections = null;
   private Types.StructType partitionType = null;
 
   /** Used by internal readers to instantiate this class with a projection schema. */
@@ -229,29 +225,16 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
 
   @Override
   public StructLike partition() {
-    if (partitionData == null || specId == null || partitionType == null) {
+    if (partitionData == null
+        || partitionType == null
+        || partitionData.getPartitionType().equals(partitionType)) {
       return partitionData;
     }
 
-    return partitionProjection(specId).apply(partitionData);
-  }
-
-  private Function<PartitionData, StructLike> partitionProjection(int partitionSpecId) {
-    if (partitionProjections == null) {
-      this.partitionProjections = Maps.newHashMap();
-    }
-
-    return partitionProjections.computeIfAbsent(partitionSpecId, key -> newPartitionProjection());
-  }
-
-  private Function<PartitionData, StructLike> newPartitionProjection() {
-    if (partitionData.getPartitionType().equals(partitionType)) {
-      return partition -> partition;
-    }
-
-    StructProjection projection =
-        StructProjection.create(partitionData.getPartitionType(), partitionType);
-    return projection::wrap;
+    return new PartitionData(partitionType)
+        .copyFor(
+            StructProjection.create(partitionData.getPartitionType(), partitionType)
+                .wrap(partitionData));
   }
 
   @Override
