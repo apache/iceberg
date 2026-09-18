@@ -42,12 +42,27 @@ An atomic swap of one view metadata file for another provides the basis for maki
 
 Writers create view metadata files optimistically, assuming that the current metadata location will not be changed before the writer's commit. Once a writer has created an update, it commits by swapping the view's metadata file pointer from the base location to the new location.
 
+### Materialized Views
+
+Materialized views are a type of view with precomputed results from the view query stored as a table.
+When queried, engines may return the precomputed data for the materialized views, shifting the cost of query execution to the precomputation step.
+
+Iceberg materialized views are implemented as a combination of an Iceberg view and an underlying Iceberg table, the "storage-table", which stores the precomputed data.
+Materialized View metadata is a superset of View metadata with an additional pointer to the storage table. The storage table is an Iceberg table with additional materialized view refresh state metadata.
+Refresh metadata contains information about the "source tables", "source views", and/or "source materialized views", which are the tables/views/materialized views used in the computation of the query results of the materialized view.
+
 ## Specification
 
 ### Terms
 
 * **Schema** -- Names and types of fields in a view.
 * **Version** -- The state of a view at some point in time.
+* **Storage table** -- Iceberg table that stores the precomputed data of a materialized view.
+* **Refresh state** -- A record stored in the storage table's snapshot summary that captures the state of source tables and views at the time of the last refresh operation.
+* **Dependency graph** -- The graph of all source tables, views, and materialized views that a materialized view depends on, including nested dependencies.
+* **Source table** -- A table reference that is used in the computation of the query results of a materialized view.
+* **Source view** -- A view reference that is used in the computation of the query results of a materialized view.
+* **Source materialized view** -- A materialized view reference that is used in the computation of the query results of a materialized view.
 
 ### View Metadata
 
@@ -82,8 +97,11 @@ Each version in `versions` is a struct with the following fields:
 | _required_  | `representations`   | A list of [representations](#representations) for the view definition         |
 | _optional_  | `default-catalog`   | Catalog name to use when a reference in the SELECT does not contain a catalog |
 | _required_  | `default-namespace` | Namespace to use when a reference in the SELECT is a single identifier        |
+| _optional_  | `storage-table`     | A [storage table identifier](#storage-table-identifier) of the storage table |
 
 When `default-catalog` is `null` or not set, the catalog in which the view is stored must be used as the default catalog.
+
+When `storage-table` is `null` or not set, the entity is a common view, otherwise it is a materialized view. The storage table must be in the same catalog as the materialized view.
 
 #### Summary
 
@@ -160,7 +178,116 @@ Each entry in `version-log` is a struct with the following fields:
 | _required_  | `timestamp-ms` | Timestamp when the view's `current-version-id` was updated (ms from epoch) |
 | _required_  | `version-id`   | ID that `current-version-id` was set to |
 
-## Appendix A: An Example
+#### Storage Table Identifier
+
+The table identifier for the storage table that stores the precomputed results.
+
+| Requirement | Field name     | Description |
+|-------------|----------------|-------------|
+| _required_  | `namespace`    | A list of strings for namespace levels |
+| _required_  | `name`         | A string specifying the name of the table |
+
+### Storage table metadata
+
+This section describes additional metadata for the storage table that supplements the regular table metadata and is required for materialized views.
+The `refresh-state` property is set on the [snapshot summary](https://iceberg.apache.org/spec/#snapshots) property of a storage table snapshot to provide information about the state of the precomputed data.
+
+| Requirement | Field name      | Description |
+|-------------|-----------------|-------------|
+| _optional_  | `refresh-state` | A [refresh state](#refresh-state) record stored as a JSON-encoded string |
+
+#### Freshness
+
+A materialized view is **fresh** when the storage table represents the result of the current view query. However, consumers may still decide to consume from a stale storage table based on their own policies.
+
+A change to the materialized view's definition produces a new `view-version-id`; any storage-table snapshot recorded at a prior `view-version-id` is invalid and should not be consumed until refreshed.
+
+#### Refresh state
+
+The refresh state record captures the state of dependencies that the producer chose to track from the materialized view's dependency graph. A dependency is recorded in `source-states` as either a `table` entry (a source table or an source materialized view's storage table) and/or a `view` entry. Source materialized views can be stored as a `view` and a `table` entry.
+
+The refresh state has the following fields:
+
+| Requirement | Field name                   | Description |
+|-------------|------------------------------|-------------|
+| _required_  | `view-version-id`            | The `version-id` of the materialized view when the refresh operation was performed |
+| _required_  | `source-states`              | A list of [source state](#source-state) records capturing the dependencies the producer chose to track; may be empty |
+| _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
+
+##### Producer: Recording Refresh State
+
+Producers may selectively choose a subset of their dependencies to record — for example, skipping non-Iceberg sources or recording an empty list. See [Appendix B](#appendix-b-what-counts-as-a-dependency) for strategies on how to store dependency state.
+
+When writing the refresh state, producers:
+
+- **Must** record `view-version-id` and `refresh-start-timestamp-ms`.
+- **Should** include all distinct source states for the inputs they chose to track if they are reachable through multiple path in the dependency graph.
+- **May** leave `source-states` empty (e.g., when sources are non-Iceberg or freshness is determined by a mechanism outside this spec).
+
+##### Consumer: Evaluating Refresh State
+
+Consumers may use any combination of the following to assess the state of dependencies used to produce the storage table.
+
+- **Recency policy.** Accept the storage table when `refresh-start-timestamp-ms` falls within a staleness window. A recency policy bounds data age but does not establish freshness.
+- **Trust the recorded `source-states`.** Compare each entry against the current catalog state — `snapshot-id` for tables, `version-id` for views, optionally recursive verification for source materialized views recorded by their storage tables. Also confirm that the recorded `view-version-id` equals the materialized view's current `view-version-id`.
+- **Verify by parsing the view query.** Derive the dependency set from the SQL and confirm every dependency is covered by `source-states` and matches the current state. Treat any uncovered dependency as undetermined.
+
+If a consumer's assessment passes, it reads from the storage table. If not, the consumer may fail the query, evaluate the view query directly, or apply another strategy.
+
+#### Source state
+
+Source state records capture the state of objects referenced by a materialized view. Each record has a `type` field that determines its form:
+
+| Type    | Description |
+|---------|-------------|
+| `table` | An Iceberg table — either a source table in the dependency graph, or the storage table of a source materialized view |
+| `view`  | An Iceberg view in the dependency graph |
+
+A source materialized view may be recorded as a `view` entry referencing its view metadata and one ore more `table` entries referencing its storage table or other source tables. These source table entries might be determined by recursively expanding its own dependencies.
+
+#### Source table state
+
+A source table record captures the state of a source table (including a source materialized view's storage table) at the time of the last refresh operation.
+
+| Requirement | Field name    | Description |
+|-------------|---------------|-------------|
+| _required_  | `type`        | A string that must be set to `table` |
+| _required_  | `name`        | A string specifying the name of the source table |
+| _required_  | `namespace`   | A list of strings for namespace levels |
+| _optional_  | `catalog`     | An optional name of the catalog. If not set, the catalog is the same as the materialized view's |
+| _required_  | `uuid`        | The uuid of the source table |
+| _required_  | `snapshot-id` | The snapshot-id of the source table that was read during the refresh operation |
+| _optional_  | `ref`         | Branch name of the source table being referenced in the view query |
+
+When `ref` is `null` or not set, it defaults to `main`.
+
+#### Source view state
+
+A source view record captures the state of a source view at the time of the last refresh operation.
+
+| Requirement | Field name   | Description |
+|-------------|--------------|-------------|
+| _required_  | `type`       | A string that must be set to `view` |
+| _required_  | `name`       | A string specifying the name of the source view |
+| _required_  | `namespace`  | A list of strings for namespace levels |
+| _optional_  | `catalog`    | An optional name of the catalog. If not set, the catalog is the same as the materialized view's |
+| _required_  | `uuid`       | The uuid of the source view |
+| _required_  | `version-id` | The version-id of the source view that was read during the refresh operation |
+
+#### Storage table creation and configuration
+
+When processing a `CREATE MATERIALIZED VIEW` statement, query engines must:
+
+1. Create the storage table as a regular Iceberg table with any specified configurations (partitioning, sort order, compression, etc.).
+2. Create the materialized view metadata with a `storage-table` reference pointing to the created storage table.
+
+The storage table must exist and be accessible before or at the time the materialized view metadata is committed.
+
+A storage table that has not yet been refreshed has no snapshots. After a refresh, even if the query result is empty, the storage table will contain a snapshot with the `refresh-state` property in its summary. Consumers can use the presence of a snapshot with `refresh-state` to distinguish a never-refreshed storage table from one that was refreshed with an empty result.
+
+## Appendix A: Examples
+
+### View Example
 
 The JSON metadata file format is described using an example below.
 
@@ -322,3 +449,198 @@ s3://bucket/warehouse/default.db/event_agg/metadata/00002-(uuid).metadata.json
   } ]
 }
 ```
+
+### Materialized View Example
+
+Imagine the following operation, which creates a materialized view that precomputes daily event counts:
+
+```sql
+USE prod.default
+```
+```sql
+CREATE MATERIALIZED VIEW event_agg_mv (
+    event_count COMMENT 'Count of events',
+    event_date)
+COMMENT 'Precomputed daily event counts'
+AS
+SELECT
+    COUNT(1), CAST(event_ts AS DATE)
+FROM events
+GROUP BY 2
+```
+
+The materialized view metadata JSON file looks as follows:
+
+```
+s3://bucket/warehouse/default.db/event_agg_mv/metadata/00001-(uuid).metadata.json
+```
+```json
+{
+  "view-uuid": "b2a12651-3038-4a72-8a31-5027ab84da35",
+  "format-version" : 1,
+  "location" : "s3://bucket/warehouse/default.db/event_agg_mv",
+  "current-version-id" : 1,
+  "properties" : {
+    "comment" : "Precomputed daily event counts"
+  },
+  "versions" : [ {
+    "version-id" : 1,
+    "timestamp-ms" : 1573518431292,
+    "schema-id" : 1,
+    "default-catalog" : "prod",
+    "default-namespace" : [ "default" ],
+    "summary" : {
+      "engine-name" : "Spark",
+      "engine-version" : "3.4.1"
+    },
+    "representations" : [ {
+      "type" : "sql",
+      "sql" : "SELECT\n    COUNT(1), CAST(event_ts AS DATE)\nFROM events\nGROUP BY 2",
+      "dialect" : "spark"
+    } ],
+    "storage-table" : {
+      "namespace" : [ "default" ],
+      "name" : "event_agg_mv__storage"
+    }
+  } ],
+  "schemas": [ {
+    "schema-id": 1,
+    "type" : "struct",
+    "fields" : [ {
+      "id" : 1,
+      "name" : "event_count",
+      "required" : false,
+      "type" : "int",
+      "doc" : "Count of events"
+    }, {
+      "id" : 2,
+      "name" : "event_date",
+      "required" : false,
+      "type" : "date"
+    } ]
+  } ],
+  "version-log" : [ {
+    "timestamp-ms" : 1573518431292,
+    "version-id" : 1
+  } ]
+}
+```
+
+After a refresh operation, the storage table's snapshot summary contains the `refresh-state` property.
+The following is an example of the `refresh-state` JSON value stored in the snapshot summary of the storage table:
+
+```json
+{
+  "view-version-id" : 1,
+  "refresh-start-timestamp-ms" : 1573518435000,
+  "source-states" : [ {
+    "type" : "table",
+    "namespace" : [ "default" ],
+    "name" : "events",
+    "uuid" : "d4a10b5c-1e8a-4b72-9d67-3f4a8c9e1b2d",
+    "snapshot-id" : 6148331192489823102
+  } ]
+}
+```
+
+## Appendix B: Example strategies for selecting dependencies
+
+Producers may select different sets of dependencies to record in the refresh state. The strategies below illustrate common choices against the same shared query.
+
+### Shared query
+
+- `A` (the materialized view being refreshed): `SELECT ... FROM B JOIN C ON ...`
+- `B` (regular view): `SELECT ... FROM E JOIN D ON ...`
+- `C` (regular view or materialized view, varies by strategy): `SELECT ... FROM F JOIN G ON ...`
+- `D` (regular view or materialized view, varies by strategy): `SELECT ... FROM H WHERE ...`
+- `E`, `F`, `G`, `H`: source Iceberg tables
+
+### Strategy 1: Empty refresh state (recency only)
+
+The producer leaves `source-states` empty and relies entirely on `refresh-start-timestamp-ms`. Consumers reuse the storage table based on a recency policy alone.
+
+`A`'s refresh state:
+
+```json
+{
+  "view-version-id": 1,
+  "refresh-start-timestamp-ms": 1573518435000,
+  "source-states": []
+}
+```
+
+### Strategy 2: Treat nested materialized views as tables
+
+Same as Strategy 1, but the query reads from materialized views. The producer stops at each MV boundary and records the MV's storage table snapshot ID and view version ID. No expansion beyond the MV.
+
+`C` and `D` are materialized views, treated as tables.
+
+```
+A [MV — being refreshed]
+├── B [VIEW]                            <-- recorded in A: version-id: 5
+│   ├── E [TABLE]                       <-- recorded in A: snapshot-id: 101
+│   └── D [MV]                          <-- recorded in A: storage-table snapshot-id: 14, version-id: 9
+│       ┄┄┄┄┄┄ recursive boundary ┄┄┄┄┄┄
+│       └── H [TABLE]                   (D's dependency; verified via D's refresh-state)
+└── C [MV]                              <-- recorded in A: storage-table snapshot-id: 12, version-id: 7
+    ┄┄┄┄┄┄ recursive boundary ┄┄┄┄┄┄
+    ├── F [TABLE]                       (C's dependency; verified via C's refresh-state)
+    └── G [TABLE]                       (C's dependency; verified via C's refresh-state)
+```
+
+`F`, `G`, and `H` do not appear in `A`'s `source-states`; they belong to `C` and `D`'s dependency graphs.
+
+### Strategy 3: Treat nested materialized views as views
+
+Same as Strategy 1, but the query reads from materialized views. The producer treats each materialized view as a regular view: expand through the MV's view definition and record the underlying tables and views. The MV's storage table snapshot ID is **not** recorded.
+
+`C` and `D` are materialized views, treated as views (expanded).
+
+```
+A [MV — being refreshed]
+├── B [VIEW]                            <-- recorded in A: version-id: 5
+│   ├── E [TABLE]                       <-- recorded in A: snapshot-id: 101
+│   └── D [MV — expanded as view]       <-- recorded in A: version-id: 9
+│       └── H [TABLE]                   <-- recorded in A: snapshot-id: 104
+└── C [MV — expanded as view]           <-- recorded in A: version-id: 7
+    ├── F [TABLE]                       <-- recorded in A: snapshot-id: 102
+    └── G [TABLE]                       <-- recorded in A: snapshot-id: 103
+```
+
+The recorded shape matches Strategy 1. The difference is semantic: `C` and `D` are materialized views whose view definitions were expanded; their storage tables are not part of the recorded state.
+
+### Strategy 4: Track only view versions
+
+The producer treats the storage table as reusable as long as the view definitions in the dependency chain are unchanged. Underlying table changes do not affect freshness. Only view version IDs are recorded.
+
+`C` and `D` are regular views.
+
+```
+A [MV — being refreshed]
+├── B [VIEW]                            <-- recorded in A: version-id: 5
+│   ├── E [TABLE]                       (not recorded)
+│   └── D [VIEW]                        <-- recorded in A: version-id: 9
+│       └── H [TABLE]                   (not recorded)
+└── C [VIEW]                            <-- recorded in A: version-id: 7
+    ├── F [TABLE]                       (not recorded)
+    └── G [TABLE]                       (not recorded)
+```
+
+Snapshots of `E`, `F`, `G`, `H` are not recorded. Reuse is sensitive to view-definition changes but insensitive to data changes in the underlying tables.
+
+### Strategy 5: Skip non-Iceberg dependencies
+
+The producer records only Iceberg sources and omits non-Iceberg dependencies entirely. Useful when the view query reads from a mix of Iceberg and non-Iceberg sources and the producer chooses to track only the Iceberg side.
+
+Assume the query reads from source Iceberg tables `E`, `F`, `G`, `H` and an additional non-Iceberg table `N`.
+
+```
+A [MV — being refreshed]
+├── E [TABLE]                           <-- recorded in A: snapshot-id: 101
+├── F [TABLE]                           <-- recorded in A: snapshot-id: 102
+├── G [TABLE]                           <-- recorded in A: snapshot-id: 103
+├── H [TABLE]                           <-- recorded in A: snapshot-id: 104
+└── N [NON-ICEBERG TABLE]               (omitted; not tracked)
+```
+
+`N` is omitted. Consumers cannot verify `N`'s state from the refresh state alone, but know that the data queried from `N` cannot be older than `refresh-start-timestamp-ms`.
