@@ -204,8 +204,9 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
     Integer specId = trackedFile.specId();
     PartitionSpec spec = specId != null ? specsById.get(specId) : null;
-    if (spec != null && trackedFile instanceof TrackedFileStruct) {
-      ((TrackedFileStruct) trackedFile).setPartitionType(spec.partitionType());
+    if (trackedFile instanceof TrackedFileStruct) {
+      ((TrackedFileStruct) trackedFile)
+          .setPartitionType(spec != null ? spec.partitionType() : null);
     }
 
     return trackedFile;
