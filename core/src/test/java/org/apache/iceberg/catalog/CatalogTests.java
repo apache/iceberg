@@ -208,6 +208,10 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     return false;
   }
 
+  protected boolean supportsUnregister() {
+    return false;
+  }
+
   protected String baseTableLocation(TableIdentifier identifier) {
     return BASE_TABLE_LOCATION + "/" + identifier.namespace() + "/" + identifier.name();
   }
@@ -3452,6 +3456,46 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageStartingWith("Table already exists: a.t1");
     assertThat(catalog.dropTable(identifier)).isTrue();
+  }
+
+  @Test
+  public void unregisterTable() {
+    assumeThat(supportsUnregister()).isTrue();
+
+    C catalog = catalog();
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    Table original = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
+    original.newFastAppend().appendFile(FILE_A).commit();
+    String metadataLocation = original.metadataFileLocation();
+
+    Table unregistered = catalog.unregisterTable(TABLE);
+
+    assertThat(unregistered.metadataFileLocation()).isEqualTo(metadataLocation);
+    assertThat(unregistered.currentSnapshot()).isEqualTo(original.currentSnapshot());
+    assertThat(catalog.tableExists(TABLE)).isFalse();
+    assertThat(unregistered.io().newInputFile(metadataLocation).exists()).isTrue();
+    assertThatThrownBy(() -> unregistered.updateProperties().set("unregistered", "true").commit())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Cannot modify a static table");
+
+    TableIdentifier registeredIdentifier =
+        TableIdentifier.of(TABLE.namespace(), "registered-after-unregister");
+    Table registered = catalog.registerTable(registeredIdentifier, metadataLocation);
+    assertThat(registered.currentSnapshot()).isEqualTo(original.currentSnapshot());
+    assertFiles(registered, FILE_A);
+    assertThat(catalog.dropTable(registeredIdentifier)).isTrue();
+  }
+
+  @Test
+  public void unregisterMissingTable() {
+    assumeThat(supportsUnregister()).isTrue();
+
+    assertThatThrownBy(() -> catalog().unregisterTable(TABLE))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("Table does not exist");
   }
 
   @Test

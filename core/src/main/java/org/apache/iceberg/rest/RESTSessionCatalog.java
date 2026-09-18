@@ -43,6 +43,7 @@ import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -810,14 +811,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    * Unregister a table from the catalog without removing its data or metadata files.
    *
    * <p>This is the opposite of {@link #registerTable(SessionContext, TableIdentifier, String)}. On
-   * success, the table no longer exists in the catalog and the returned metadata can be used to
-   * register the table in another catalog.
+   * success, the table no longer exists in the catalog and the returned table is fixed at the last
+   * metadata registered with the catalog.
    *
    * @param context session context
    * @param identifier a table identifier
-   * @return the last metadata for the unregistered table
+   * @return a read-only table fixed at the metadata current when it was unregistered
    */
-  public TableMetadata unregisterTable(SessionContext context, TableIdentifier identifier) {
+  @Override
+  public Table unregisterTable(SessionContext context, TableIdentifier identifier) {
     Endpoint.check(endpoints, Endpoint.V1_UNREGISTER_TABLE);
     checkIdentifierIsValid(identifier);
 
@@ -832,7 +834,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   UnregisterTableResponse.class,
                   mutationHeaders,
                   ErrorHandlers.tableErrorHandler());
-      return response.metadata();
+      StaticTableOperations ops = new StaticTableOperations(response.metadata(), io);
+      return new BaseTable(ops, fullTableName(identifier));
     } finally {
       invalidateTable(context, identifier);
     }

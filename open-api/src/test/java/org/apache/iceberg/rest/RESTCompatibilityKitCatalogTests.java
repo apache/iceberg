@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.util.PropertyUtil;
@@ -119,6 +118,11 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
         restCatalog.properties(), RESTCompatibilityKitSuite.RCK_SUPPORTS_VARIANT, false);
   }
 
+  @Override
+  protected boolean supportsUnregister() {
+    return true;
+  }
+
   @Test
   public void testUnregisterTable() {
     if (requiresNamespaceCreate()) {
@@ -134,15 +138,21 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
     original.newFastAppend().appendFile(FILE_A).commit();
     original.newFastAppend().appendFile(FILE_B).commit();
 
-    TableMetadata metadata = restCatalog.unregisterTable(TABLE);
+    Table unregistered = restCatalog.unregisterTable(TABLE);
 
-    assertThat(metadata).as("Returned metadata must not be null").isNotNull();
+    assertThat(unregistered.currentSnapshot())
+        .as("Current snapshot must match the unregistered table")
+        .isEqualTo(original.currentSnapshot());
+    assertFiles(unregistered, FILE_A, FILE_B);
     assertThat(restCatalog.tableExists(TABLE))
         .as("Table must not exist after being unregistered")
         .isFalse();
+    assertThatThrownBy(() -> unregistered.updateProperties().set("unregistered", "true").commit())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Cannot modify a static table");
 
     // the underlying files are left in place, so the table can be registered again
-    Table registered = restCatalog.registerTable(TABLE, metadata.metadataFileLocation());
+    Table registered = restCatalog.registerTable(TABLE, unregistered.metadataFileLocation());
     assertThat(registered.currentSnapshot())
         .as("Current snapshot must match the unregistered table")
         .isEqualTo(original.currentSnapshot());

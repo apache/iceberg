@@ -82,6 +82,11 @@ public class BaseTable
   }
 
   @Override
+  public String metadataFileLocation() {
+    return ops.current().metadataFileLocation();
+  }
+
+  @Override
   public String name() {
     return name;
   }

@@ -496,23 +496,15 @@ public class CatalogHandlers {
       throw new NoSuchTableException("Table does not exist: %s", ident);
     }
 
-    // capture the last metadata before dropping so it can be returned for re-registration
-    Table table = catalog.loadTable(ident);
+    Table table = catalog.unregisterTable(ident);
     if (!(table instanceof BaseTable)) {
       throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
     }
 
     TableMetadata metadata = ((BaseTable) table).operations().current();
 
-    // catalog implementations should preserve the table's metadata/data files
-    boolean dropped = catalog.dropTable(ident, false /* do not purge */);
-    if (!dropped) {
-      throw new IllegalStateException(
-          String.format("Unregister failed. Table not dropped: %s", ident));
-    }
-
     return ImmutableUnregisterTableResponse.builder()
-        .metadataLocation(metadata.metadataFileLocation())
+        .metadataLocation(table.metadataFileLocation())
         .metadata(metadata)
         .build();
   }
