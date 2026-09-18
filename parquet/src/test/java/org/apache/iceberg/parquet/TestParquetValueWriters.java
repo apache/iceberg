@@ -62,7 +62,7 @@ class TestParquetValueWriters {
   }
 
   @Test
-  void customMetricsIncludeNullParents() {
+  void writerMetricsIncludeNullsFromOptionalParent() {
     Types.StructType statsType =
         Types.StructType.of(
             required(2, "float_value", Types.FloatType.get()),
