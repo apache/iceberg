@@ -22,7 +22,9 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
@@ -43,6 +45,7 @@ import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -65,6 +68,7 @@ class SparkBatch implements Batch {
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
   private final boolean cacheDeleteFilesOnExecutors;
+  private final Set<Integer> projectedVariantIds;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -87,6 +91,11 @@ class SparkBatch implements Batch {
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
     this.scanHashCode = scanHashCode;
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
+    this.projectedVariantIds =
+        TypeUtil.indexById(projection.asStruct()).values().stream()
+            .filter(field -> field.type().isVariantType())
+            .map(Types.NestedField::fieldId)
+            .collect(Collectors.toSet());
   }
 
   @Override
@@ -174,18 +183,25 @@ class SparkBatch implements Batch {
         return false;
       }
       Map<Integer, ByteBuffer> lowerBounds = fileScanTask.file().lowerBounds();
-      if (lowerBounds != null) {
-        for (Types.NestedField field : projection.columns()) {
-          if (field.type().isVariantType() && lowerBounds.containsKey(field.fieldId())) {
-            return false;
-          }
-        }
+      if (lowerBounds != null && hasVariantWithLowerBound(lowerBounds)) {
+        return false;
       }
       return true;
 
     } else {
       return false;
     }
+  }
+
+  // a variant with stored bounds may be shredded (unsupported vectorized); check all nesting levels
+  private boolean hasVariantWithLowerBound(Map<Integer, ByteBuffer> lowerBounds) {
+    for (Integer variantId : projectedVariantIds) {
+      if (lowerBounds.containsKey(variantId)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private boolean supportsParquetBatchReads(Types.NestedField field) {
@@ -216,6 +232,16 @@ class SparkBatch implements Batch {
       if (mode == MetricsModes.None.get() || mode == MetricsModes.Counts.get()) {
         return false;
       }
+    }
+
+    if (type.isStructType()) {
+      for (Types.NestedField child : type.asStructType().fields()) {
+        if (!supportsParquetBatchReads(child)) {
+          return false;
+        }
+      }
+
+      return true;
     }
 
     return type.isPrimitiveType() || type.isVariantType();

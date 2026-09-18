@@ -172,7 +172,21 @@ class SparkBatch implements Batch {
   }
 
   private boolean supportsParquetBatchReads(Types.NestedField field) {
-    return field.type().isPrimitiveType() || MetadataColumns.isMetadataColumn(field.fieldId());
+    if (MetadataColumns.isMetadataColumn(field.fieldId())) {
+      return true;
+    }
+
+    if (field.type().isStructType()) {
+      for (Types.NestedField child : field.type().asStructType().fields()) {
+        if (!supportsParquetBatchReads(child)) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    return field.type().isPrimitiveType();
   }
 
   // conditions for using ORC batch reads:

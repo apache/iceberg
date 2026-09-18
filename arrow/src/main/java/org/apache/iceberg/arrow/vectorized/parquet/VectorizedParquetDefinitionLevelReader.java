@@ -20,6 +20,7 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.List;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BitVector;
@@ -29,6 +30,7 @@ import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.ParquetUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.parquet.column.Dictionary;
 
 public final class VectorizedParquetDefinitionLevelReader
@@ -42,6 +44,48 @@ public final class VectorizedParquetDefinitionLevelReader
   public VectorizedParquetDefinitionLevelReader(
       int bitWidth, int maxDefLevel, boolean readLength, boolean setArrowValidityVector) {
     super(bitWidth, maxDefLevel, readLength, setArrowValidityVector);
+  }
+
+  private List<StructPresence> structPresences = ImmutableList.of();
+
+  void setStructPresences(List<StructPresence> presences) {
+    this.structPresences = presences;
+  }
+
+  static class StructPresence {
+    private final NullabilityHolder structNulls;
+    private final int structDefinitionLevel;
+
+    StructPresence(NullabilityHolder structNulls, int structDefinitionLevel) {
+      this.structNulls = structNulls;
+      this.structDefinitionLevel = structDefinitionLevel;
+    }
+  }
+
+  private void recordStructPresence(Mode currentMode, int startIndex, int numValues) {
+    if (structPresences.isEmpty()) {
+      return;
+    }
+
+    for (StructPresence presence : structPresences) {
+      if (currentMode == Mode.RLE) {
+        if (currentValue >= presence.structDefinitionLevel) {
+          presence.structNulls.setNotNulls(startIndex, numValues);
+        } else {
+          presence.structNulls.setNulls(startIndex, numValues);
+        }
+      } else {
+        // PACKED: must read before the consumer advances packedValuesBufferIdx for this run
+        for (int offset = 0; offset < numValues; offset++) {
+          if (packedValuesBuffer[packedValuesBufferIdx + offset]
+              >= presence.structDefinitionLevel) {
+            presence.structNulls.setNotNull(startIndex + offset);
+          } else {
+            presence.structNulls.setNull(startIndex + offset);
+          }
+        }
+      }
+    }
   }
 
   @FunctionalInterface
@@ -70,6 +114,7 @@ public final class VectorizedParquetDefinitionLevelReader
         }
         ArrowBuf validityBuffer = vector.getValidityBuffer();
 
+        recordStructPresence(mode, idx, numValues);
         consumer.apply(mode, idx, numValues, byteArray, validityBuffer);
         idx += numValues;
         left -= numValues;

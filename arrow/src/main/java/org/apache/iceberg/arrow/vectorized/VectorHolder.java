@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.arrow.vectorized;
 
+import java.util.List;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -213,6 +214,37 @@ public class VectorHolder {
 
     public VectorHolder valueHolder() {
       return valueHolder;
+    }
+  }
+
+  public static class StructVectorHolder extends VectorHolder {
+    private final int numRows;
+    private final List<VectorHolder> childHolders;
+    private final NullabilityHolder structNulls;
+
+    public StructVectorHolder(
+        Types.NestedField icebergField,
+        int numRows,
+        List<VectorHolder> childHolders,
+        NullabilityHolder structNulls) {
+      super(icebergField);
+      this.numRows = numRows;
+      this.childHolders = childHolders;
+      this.structNulls = structNulls;
+    }
+
+    @Override
+    public int numValues() {
+      return numRows;
+    }
+
+    public List<VectorHolder> childHolders() {
+      return childHolders;
+    }
+
+    @Override
+    public NullabilityHolder nullabilityHolder() {
+      return structNulls;
     }
   }
 }
