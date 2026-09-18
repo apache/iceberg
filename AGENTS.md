@@ -137,6 +137,13 @@ The `api/` module has the strongest stability guarantees — breaking changes ar
 
 ### Testing
 
+**Write the test plan before the tests.** State in the PR description what behavior needs verifying and why each case matters — a few lines, not a document.
+
+- Test the behavior in the plan. Coverage is not a target.
+- Test the behavior this change adds or modifies. Don't assert the correctness of components this code merely calls.
+- One behavior per test method. No omnibus tests asserting several unrelated things.
+- Don't add a test whose failure would not indicate a user-visible regression.
+- Don't add tests for unreachable states, or tests that only restate the implementation.
 - Minimal test setup: `PartitionSpec.unpartitioned()` when partitioning isn't needed.
 - Test classes and methods should be package private unless required by inheritance.
 - Compute expected values, don't hardcode. Tests belong in the module that owns the code.
