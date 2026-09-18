@@ -25,7 +25,10 @@ import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
@@ -78,5 +81,58 @@ public class TestLabelsTable {
 
     // a HadoopTables table carries no catalog-provided labels
     assertThat(rows).isEmpty();
+  }
+
+  @Test
+  public void scanYieldsObjectAndFieldLabelRows() throws Exception {
+    Labels labels =
+        ImmutableLabels.builder()
+            .objectLabels(ImmutableMap.of("owner", "team-a"))
+            .addFields(
+                ImmutableFieldLabel.builder()
+                    .fieldId(1)
+                    .labels(ImmutableMap.of("classification", "pii"))
+                    .build())
+            .build();
+
+    // reuse the on-disk table's operations so the metadata file backing the scan exists, but
+    // attach catalog-provided labels, which a HadoopTables table does not carry on its own
+    BaseTable tableWithLabels =
+        new BaseTable(
+            ((BaseTable) table).operations(),
+            table.name(),
+            LoggingMetricsReporter.instance(),
+            labels);
+
+    // StaticDataTask.rows() reuses a single projection instance across iteration, so materialize
+    // each row into a value tuple during iteration rather than retaining row references.
+    List<String> rows = Lists.newArrayList();
+    try (CloseableIterable<FileScanTask> tasks =
+        new LabelsTable(tableWithLabels).newScan().planFiles()) {
+      for (FileScanTask task : tasks) {
+        try (CloseableIterable<StructLike> taskRows = task.asDataTask().rows()) {
+          for (StructLike row : taskRows) {
+            rows.add(describe(row));
+          }
+        }
+      }
+    }
+
+    assertThat(rows)
+        .containsExactlyInAnyOrder(
+            "object|null|null|owner|team-a", "field|1|id|classification|pii");
+  }
+
+  // scope|field_id|field_name|key|value
+  private static String describe(StructLike row) {
+    return row.get(0, String.class)
+        + "|"
+        + row.get(1, Integer.class)
+        + "|"
+        + row.get(2, String.class)
+        + "|"
+        + row.get(3, String.class)
+        + "|"
+        + row.get(4, String.class);
   }
 }
