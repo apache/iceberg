@@ -1123,6 +1123,79 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  public void narrowPartitionProjectionReadsFullUnionTuple(FileFormat format) throws IOException {
+    PartitionSpec idSpec =
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .withSpecId(1)
+            .add(1, 1000, "id", Transforms.identity())
+            .build();
+    PartitionSpec dataSpec =
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .withSpecId(2)
+            .add(2, 1001, "data", Transforms.identity())
+            .build();
+    Map<Integer, PartitionSpec> specsById =
+        ImmutableMap.of(idSpec.specId(), idSpec, dataSpec.specId(), dataSpec);
+    Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
+
+    PartitionData unionPartition = new PartitionData(unionType);
+    unionPartition.set(unionType.fields().indexOf(unionType.field("data")), "x");
+    TrackedFile file =
+        dataFileWithoutStats(
+            "s3://bucket/table/data=x/file.parquet", dataSpec.specId(), unionPartition);
+    ManifestFile manifest = writeManifest(format, unionType, ImmutableList.of(file));
+
+    TrackedFile actual =
+        readOne(
+            V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, specsById)
+                .metricsConfig(METRICS_CONFIG)
+                .select("partition.id"));
+    assertThat(actual.partition().get(0, CharSequence.class)).hasToString("x");
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void unknownSpecPartitionIsNotProjected(FileFormat format) throws IOException {
+    PartitionSpec idSpec =
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .withSpecId(1)
+            .add(1, 1000, "id", Transforms.identity())
+            .build();
+    PartitionSpec dataSpec =
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .withSpecId(2)
+            .add(2, 1001, "data", Transforms.identity())
+            .build();
+    Map<Integer, PartitionSpec> specsById =
+        ImmutableMap.of(idSpec.specId(), idSpec, dataSpec.specId(), dataSpec);
+    Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
+    int dataPos = unionType.fields().indexOf(unionType.field("data"));
+
+    PartitionData knownPartition = new PartitionData(unionType);
+    knownPartition.set(unionType.fields().indexOf(unionType.field("id")), 7);
+    TrackedFile known =
+        dataFileWithoutStats("s3://bucket/table/known.parquet", idSpec.specId(), knownPartition);
+
+    // spec id 5 is not in specsById; it follows a known-spec file in the same (reused) reader
+    PartitionData unknownPartition = new PartitionData(unionType);
+    unknownPartition.set(dataPos, "x");
+    TrackedFile unknown =
+        dataFileWithoutStats("s3://bucket/table/unknown.parquet", 5, unknownPartition);
+
+    ManifestFile manifest = writeManifest(format, unionType, ImmutableList.of(known, unknown));
+
+    List<TrackedFile> files =
+        read(
+            V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, specsById)
+                .metricsConfig(METRICS_CONFIG));
+
+    TrackedFile actual =
+        files.stream().filter(f -> Integer.valueOf(5).equals(f.specId())).findFirst().orElseThrow();
+    assertThat(actual.partition().get(dataPos, CharSequence.class)).hasToString("x");
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void partitionFilterKeepsFileWithUnknownSpec(FileFormat format) throws IOException {
     int missingSpecId = 5;
     TrackedFile file =

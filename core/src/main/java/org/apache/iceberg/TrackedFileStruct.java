@@ -29,6 +29,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.StructProjection;
 
 /** Mutable {@link StructLike} implementation of {@link TrackedFile}. */
 class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, Serializable {
@@ -79,6 +80,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private byte[] keyMetadata = null;
   private long[] splitOffsets = null;
   private int[] equalityIds = null;
+
+  private PartitionData projectedPartition = null;
 
   /** Used by internal readers to instantiate this class with a projection schema. */
   TrackedFileStruct(Types.StructType projection) {
@@ -142,7 +145,8 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.specId = toCopy.specId;
-    this.partitionData = toCopy.partitionData != null ? toCopy.partitionData.copy() : null;
+    this.partitionData = copyOf(toCopy.partitionData);
+    this.projectedPartition = copyOf(toCopy.projectedPartition);
     this.tracking = toCopy.tracking != null ? toCopy.tracking.copy() : null;
     this.sortOrderId = toCopy.sortOrderId;
     this.deletionVector = toCopy.deletionVector != null ? toCopy.deletionVector.copy() : null;
@@ -210,6 +214,10 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     return fileSizeInBytes;
   }
 
+  void setPartitionType(Types.StructType newPartitionType) {
+    this.projectedPartition = project(partitionData, newPartitionType);
+  }
+
   @Override
   public Integer specId() {
     return specId;
@@ -217,7 +225,23 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
 
   @Override
   public StructLike partition() {
-    return partitionData;
+    return projectedPartition != null ? projectedPartition : partitionData;
+  }
+
+  private static PartitionData copyOf(PartitionData partition) {
+    return partition != null ? partition.copy() : null;
+  }
+
+  private static PartitionData project(PartitionData partition, Types.StructType partitionType) {
+    if (partition == null
+        || partitionType == null
+        || partition.getPartitionType().equals(partitionType)) {
+      return null;
+    }
+
+    return new PartitionData(partitionType)
+        .copyFor(
+            StructProjection.create(partition.getPartitionType(), partitionType).wrap(partition));
   }
 
   @Override
