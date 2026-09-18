@@ -1028,7 +1028,7 @@ public class Types {
     private transient Map<String, NestedField> fieldsByLowerCaseName = null;
     private transient Map<Integer, NestedField> fieldsById = null;
 
-    private StructType(List<NestedField> fields) {
+    StructType(List<NestedField> fields) {
       Preconditions.checkNotNull(fields, "Field list cannot be null");
       this.fields = new NestedField[fields.size()];
       for (int i = 0; i < this.fields.length; i += 1) {
@@ -1106,6 +1106,10 @@ public class Types {
       }
 
       StructType that = (StructType) o;
+      if (isFileType() != that.isFileType()) {
+        return false;
+      }
+
       return Arrays.equals(fields, that.fields);
     }
 
@@ -1152,6 +1156,83 @@ public class Types {
         this.fieldsById = byIdBuilder.build();
       }
       return fieldsById;
+    }
+  }
+
+  public static final class FileType extends StructType {
+    public static final String NAME = "file";
+    public static final int NUM_NESTED_FIELDS = 6;
+
+    private static final String URI = "uri";
+    private static final String OFFSET = "offset";
+    private static final String SIZE = "size";
+    private static final String CONTENT_TYPE = "content_type";
+    private static final String CHECKSUM = "checksum";
+    private static final String INLINE = "inline";
+
+    public static FileType of(int enclosingId) {
+      Preconditions.checkArgument(
+          enclosingId >= 0, "Invalid enclosing field ID: %s < 0", enclosingId);
+      Preconditions.checkArgument(
+          enclosingId <= Integer.MAX_VALUE - NUM_NESTED_FIELDS,
+          "Invalid enclosing field ID: %s > %s (cannot reserve %s nested field IDs)",
+          enclosingId,
+          Integer.MAX_VALUE - NUM_NESTED_FIELDS,
+          NUM_NESTED_FIELDS);
+      return new FileType(enclosingId);
+    }
+
+    private final int enclosingId;
+
+    private FileType(int enclosingId) {
+      super(nestedFields(enclosingId));
+      this.enclosingId = enclosingId;
+    }
+
+    private static List<NestedField> nestedFields(int enclosingId) {
+      return ImmutableList.of(
+          NestedField.optional(enclosingId + 1, URI, StringType.get()),
+          NestedField.optional(enclosingId + 2, OFFSET, LongType.get()),
+          NestedField.optional(enclosingId + 3, SIZE, LongType.get()),
+          NestedField.optional(enclosingId + 4, CONTENT_TYPE, StringType.get()),
+          NestedField.optional(enclosingId + 5, CHECKSUM, StringType.get()),
+          NestedField.optional(enclosingId + 6, INLINE, BinaryType.get()));
+    }
+
+    /** Returns the ID of the field that holds this type. */
+    public int enclosingId() {
+      return enclosingId;
+    }
+
+    @Override
+    public boolean isFileType() {
+      return true;
+    }
+
+    @Override
+    public FileType asFileType() {
+      return this;
+    }
+
+    @Override
+    public String toString() {
+      return NAME;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      } else if (!(other instanceof FileType)) {
+        return false;
+      }
+
+      return enclosingId == ((FileType) other).enclosingId;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(FileType.class, enclosingId);
     }
   }
 
