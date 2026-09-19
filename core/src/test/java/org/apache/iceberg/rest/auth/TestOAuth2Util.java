@@ -253,6 +253,53 @@ public class TestOAuth2Util {
     }
   }
 
+  @Test
+  void exchangedSessionRefreshesByExchangeWhenExchangeIsDisabled() throws IOException {
+    AuthConfig parentConfig =
+        AuthConfig.builder()
+            .token(tokenWithExp(7200))
+            .tokenType(OAuth2Properties.ACCESS_TOKEN_TYPE)
+            .credential("testClientId:testClientSecret")
+            .keepRefreshed(true)
+            .exchangeEnabled(false)
+            .oauth2ServerUri("/v1/token")
+            .build();
+
+    try (RESTClient client = Mockito.mock(RESTClient.class);
+        AuthSession parent = new AuthSession(Map.of(), parentConfig)) {
+      Mockito.when(client.postForm(any(), anyMap(), any(), anyMap(), any()))
+          .thenReturn(
+              childTokenResponse("exchanged_token", 3600),
+              childTokenResponse("refreshed_token", 3600));
+
+      try (AuthSession child =
+          AuthSession.fromTokenExchange(
+              client, null, "user_subject_token", OAuth2Properties.JWT_TOKEN_TYPE, parent)) {
+        child.refresh(client);
+
+        Mockito.verify(client)
+            .postForm(
+                any(),
+                argThat(
+                    formData ->
+                        "urn:ietf:params:oauth:grant-type:token-exchange"
+                                .equals(formData.get(GRANT_TYPE))
+                            && "exchanged_token".equals(formData.get("subject_token"))),
+                Mockito.eq(OAuthTokenResponse.class),
+                anyMap(),
+                any());
+        Mockito.verify(client, Mockito.never())
+            .postForm(
+                any(),
+                argThat(formData -> CLIENT_CREDENTIALS.equals(formData.get(GRANT_TYPE))),
+                Mockito.eq(OAuthTokenResponse.class),
+                anyMap(),
+                any());
+        assertThat(child.token()).isEqualTo("refreshed_token");
+      }
+    }
+  }
+
   private static AuthSession parentSession(long expSeconds) {
     String parentToken = tokenWithExp(expSeconds);
     AuthConfig parentConfig =
