@@ -28,7 +28,6 @@ import org.apache.avro.Schema;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -47,7 +46,7 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
 
   private final Types.StructType expectedType;
   private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();
-  private final Map<Integer, Object> idToConstant = ImmutableMap.of();
+  private final Map<Integer, Object> idToConstant = Maps.newHashMap();
   private Schema fileSchema = null;
   private ValueReader<T> reader = null;
 
@@ -68,6 +67,14 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
                 fileSchema,
                 new ResolvingReadBuilder(),
                 AccessByID.instance());
+  }
+
+  public void setConstants(Map<Integer, Object> idToConstant) {
+    this.idToConstant.putAll(idToConstant);
+  }
+
+  public void setConstant(int fieldId, Object value) {
+    this.idToConstant.put(fieldId, value);
   }
 
   @Override
