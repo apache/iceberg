@@ -239,6 +239,57 @@ class TestIcebergCommitter extends TestBase {
   }
 
   @TestTemplate
+  public void testCommitTxnAfterStatelessRestart() throws Exception {
+    RowData rowFromPreviousRun = SimpleDataUtil.createRowData(0, "hello0");
+    DataFile dataFileFromPreviousRun =
+        writeDataFile("data-previous-run", ImmutableList.of(rowFromPreviousRun));
+
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        preRestartHarness = getTestHarness()) {
+      preRestartHarness.open();
+      processElement(jobId, 5, preRestartHarness, 1, OPERATOR_ID, dataFileFromPreviousRun);
+      preRestartHarness.notifyOfCompletedCheckpoint(5);
+    }
+
+    assertSnapshotSize(1);
+    assertMaxCommittedCheckpointId(jobId, 5);
+
+    List<RowData> rows = Lists.newArrayList(rowFromPreviousRun);
+    // A stateless restart opens a fresh operator instance without restoring prior state, so
+    // IcebergSink#createCommitter must see an empty context.getRestoredCheckpointId().
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        afterRestartHarness = getTestHarness()) {
+      afterRestartHarness.open();
+
+      for (int i = 1; i <= 3; i++) {
+        RowData row = SimpleDataUtil.createRowData(i, "hello" + i);
+        DataFile dataFile = writeDataFile("data-after-restart-" + i, ImmutableList.of(row));
+        processElement(jobId, i, afterRestartHarness, 1, OPERATOR_ID, dataFile);
+        afterRestartHarness.notifyOfCompletedCheckpoint(i);
+        rows.add(row);
+        assertSnapshotSize(i + 1);
+        assertMaxCommittedCheckpointId(jobId, i);
+        SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows), branch);
+      }
+    }
+  }
+
+  @TestTemplate
+  public void testCommitTxnSkipsAlreadyCommittedCheckpointAfterRestore() throws Exception {
+    RowData rowFromPreviousRun = SimpleDataUtil.createRowData(1, "hello1");
+    commitCheckpoint(getCommitter(), 5, "data-previous-run", rowFromPreviousRun);
+    assertMaxCommittedCheckpointId(jobId, 5);
+
+    commitCheckpoint(getCommitter(), 5, "data-replayed", SimpleDataUtil.createRowData(2, "hello2"));
+
+    assertSnapshotSize(1);
+    assertMaxCommittedCheckpointId(jobId, 5);
+    SimpleDataUtil.assertTableRows(table, ImmutableList.of(rowFromPreviousRun), branch);
+  }
+
+  @TestTemplate
   public void testOrderedEventsBetweenCheckpoints() throws Exception {
     // It's possible that two checkpoints happen in the following orders:
     //   1. snapshotState for checkpoint#1;
@@ -1347,6 +1398,10 @@ class TestIcebergCommitter extends TestBase {
   // ------------------------------- Utility Methods --------------------------------
 
   private IcebergCommitter getCommitter() {
+    return getCommitter(true);
+  }
+
+  private IcebergCommitter getCommitter(boolean restored) {
     IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
     return new IcebergCommitter(
         tableLoader,
@@ -1357,7 +1412,17 @@ class TestIcebergCommitter extends TestBase {
         "sinkId",
         metric,
         false,
+        restored,
         0);
+  }
+
+  private void commitCheckpoint(
+      IcebergCommitter committer, long checkpointId, String filename, RowData row)
+      throws IOException, InterruptedException {
+    WriteResult writeResult = of(writeDataFile(filename, ImmutableList.of(row)));
+    committer.commit(
+        Lists.newArrayList(
+            buildCommitRequestFor(jobId, checkpointId, Lists.newArrayList(writeResult))));
   }
 
   private Committer.CommitRequest<IcebergCommittable> buildCommitRequestFor(
