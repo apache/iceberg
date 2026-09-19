@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.io;
 
+import java.net.URI;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -50,7 +52,7 @@ import org.slf4j.LoggerFactory;
  * otherwise initialization will fail.
  */
 public class ResolvingFileIO
-    implements HadoopConfigurable, DelegateFileIO, SupportsStorageCredentials {
+    implements HadoopConfigurable, DelegateFileIO, SupportsStorageCredentials, SupportsPreSigning {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final int BATCH_SIZE = 100_000;
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
@@ -289,5 +291,26 @@ public class ResolvingFileIO
   @Override
   public List<StorageCredential> credentials() {
     return ImmutableList.copyOf(storageCredentials);
+  }
+
+  @Override
+  public Map<String, URI> preSign(Collection<String> locations) {
+    Map<DelegateFileIO, List<String>> locationsByIO =
+        locations.stream().collect(Collectors.groupingBy(this::io));
+
+    ImmutableMap.Builder<String, URI> urls = ImmutableMap.builder();
+    for (Map.Entry<DelegateFileIO, List<String>> entry : locationsByIO.entrySet()) {
+      DelegateFileIO delegate = entry.getKey();
+      if (!(delegate instanceof SupportsPreSigning)) {
+        throw new UnsupportedOperationException(
+            String.format(
+                "Cannot pre-sign %s: %s does not support pre-signing",
+                entry.getValue().get(0), delegate.getClass().getName()));
+      }
+
+      urls.putAll(((SupportsPreSigning) delegate).preSign(entry.getValue()));
+    }
+
+    return urls.build();
   }
 }
