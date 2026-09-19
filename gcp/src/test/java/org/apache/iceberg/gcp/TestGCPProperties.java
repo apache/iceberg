@@ -23,6 +23,7 @@ import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIAL
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -76,5 +77,74 @@ public class TestGCPProperties {
         .isPresent()
         .get()
         .isEqualTo("/v1/credentials");
+  }
+
+  @Test
+  public void testWriteObjectContextsEmpty() {
+    GCPProperties props = new GCPProperties(ImmutableMap.of("gcs.project-id", "my-project"));
+    assertThat(props.writeObjectContexts()).isEmpty();
+  }
+
+  @Test
+  public void testWriteObjectContextsSingleEntry() {
+    GCPProperties props =
+        new GCPProperties(ImmutableMap.of("gcs.write.object-context.env", "prod"));
+
+    assertThat(props.writeObjectContexts()).isEqualTo(ImmutableMap.of("env", "prod"));
+  }
+
+  @Test
+  public void testWriteObjectContextsMultipleEntries() {
+    GCPProperties props =
+        new GCPProperties(
+            ImmutableMap.of(
+                "gcs.write.object-context.env", "prod",
+                "gcs.write.object-context.iceberg-table", "orders"));
+
+    assertThat(props.writeObjectContexts())
+        .isEqualTo(
+            ImmutableMap.of(
+                "env", "prod",
+                "iceberg-table", "orders"));
+  }
+
+  @Test
+  public void testWriteObjectContextsDoNotIncludeOtherProperties() {
+    // unrelated gcs.* properties must not leak into the context map
+    GCPProperties props =
+        new GCPProperties(
+            ImmutableMap.of(
+                "gcs.project-id", "my-project",
+                "gcs.user-project", "billing-project",
+                "gcs.write.object-context.team", "data-platform"));
+
+    assertThat(props.writeObjectContexts()).containsOnlyKeys("team");
+  }
+
+  @Test
+  public void testWriteObjectContextsDoNotAffectExistingProperties() {
+    // adding context properties must not disturb parsing of pre-existing fields
+    GCPProperties props =
+        new GCPProperties(
+            ImmutableMap.of(
+                "gcs.project-id", "my-project",
+                "gcs.channel.write.chunk-size-bytes", "16777216",
+                "gcs.write.object-context.env", "staging"));
+
+    assertThat(props.projectId()).contains("my-project");
+    assertThat(props.channelWriteChunkSize()).contains(16_777_216);
+
+    // FIX: Replaced ImmutableMap.entry with AssertJ's fluid entry syntax
+    assertThat(props.writeObjectContexts())
+        .containsExactlyEntriesOf(ImmutableMap.of("env", "staging"));
+  }
+
+  @Test
+  public void testWriteObjectContextsEmptyKeyThrows() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () -> new GCPProperties(ImmutableMap.of("gcs.write.object-context.", "some-value")))
+        .withMessageContaining("gcs.write.object-context.")
+        .withMessageContaining("context key must not be empty");
   }
 }
