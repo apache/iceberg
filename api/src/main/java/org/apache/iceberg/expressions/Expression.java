@@ -62,64 +62,40 @@ public interface Expression extends Serializable {
 
     /** Returns the operation used when this is negated. */
     public Operation negate() {
-      switch (this) {
-        case IS_NULL:
-          return Operation.NOT_NULL;
-        case NOT_NULL:
-          return Operation.IS_NULL;
-        case IS_NAN:
-          return Operation.NOT_NAN;
-        case NOT_NAN:
-          return Operation.IS_NAN;
-        case LT:
-          return Operation.GT_EQ;
-        case LT_EQ:
-          return Operation.GT;
-        case GT:
-          return Operation.LT_EQ;
-        case GT_EQ:
-          return Operation.LT;
-        case EQ:
-          return Operation.NOT_EQ;
-        case NOT_EQ:
-          return Operation.EQ;
-        case IN:
-          return Operation.NOT_IN;
-        case NOT_IN:
-          return Operation.IN;
-        case STARTS_WITH:
-          return Operation.NOT_STARTS_WITH;
-        case NOT_STARTS_WITH:
-          return Operation.STARTS_WITH;
-        default:
-          throw new IllegalArgumentException("No negation for operation: " + this);
-      }
+      return switch (this) {
+        case IS_NULL -> Operation.NOT_NULL;
+        case NOT_NULL -> Operation.IS_NULL;
+        case IS_NAN -> Operation.NOT_NAN;
+        case NOT_NAN -> Operation.IS_NAN;
+        case LT -> Operation.GT_EQ;
+        case LT_EQ -> Operation.GT;
+        case GT -> Operation.LT_EQ;
+        case GT_EQ -> Operation.LT;
+        case EQ -> Operation.NOT_EQ;
+        case NOT_EQ -> Operation.EQ;
+        case IN -> Operation.NOT_IN;
+        case NOT_IN -> Operation.IN;
+        case STARTS_WITH -> Operation.NOT_STARTS_WITH;
+        case NOT_STARTS_WITH -> Operation.STARTS_WITH;
+        default -> throw new IllegalArgumentException("No negation for operation: " + this);
+      };
     }
 
     /** Returns the equivalent operation when the left and right operands are exchanged. */
     // Allow flipLR as a name because it's a public API
     @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
     public Operation flipLR() {
-      switch (this) {
-        case LT:
-          return Operation.GT;
-        case LT_EQ:
-          return Operation.GT_EQ;
-        case GT:
-          return Operation.LT;
-        case GT_EQ:
-          return Operation.LT_EQ;
-        case EQ:
-          return Operation.EQ;
-        case NOT_EQ:
-          return Operation.NOT_EQ;
-        case AND:
-          return Operation.AND;
-        case OR:
-          return Operation.OR;
-        default:
-          throw new IllegalArgumentException("No left-right flip for operation: " + this);
-      }
+      return switch (this) {
+        case LT -> Operation.GT;
+        case LT_EQ -> Operation.GT_EQ;
+        case GT -> Operation.LT;
+        case GT_EQ -> Operation.LT_EQ;
+        case EQ -> Operation.EQ;
+        case NOT_EQ -> Operation.NOT_EQ;
+        case AND -> Operation.AND;
+        case OR -> Operation.OR;
+        default -> throw new IllegalArgumentException("No left-right flip for operation: " + this);
+      };
     }
   }
 
