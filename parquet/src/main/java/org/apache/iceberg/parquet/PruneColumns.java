@@ -205,11 +205,13 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
   }
 
   private static void validateFallbackStruct(StructType expected, GroupType struct, String path) {
-    List<NestedField> expectedFields = expected.fields();
-    int fieldCount = Math.min(expectedFields.size(), struct.getFieldCount());
-    for (int i = 0; i < fieldCount; i += 1) {
-      Type field = struct.getType(i);
-      validateFallbackType(expectedFields.get(i).type(), field, path + "." + field.getName());
+    for (NestedField expectedField : expected.fields()) {
+      // Projected structs omit unselected fields, so projected positions may not match the file.
+      // Validate only when an expected name identifies the corresponding file field.
+      Type field = ParquetSchemaUtil.fieldType(struct, expectedField.name());
+      if (field != null) {
+        validateFallbackType(expectedField.type(), field, path + "." + field.getName());
+      }
     }
   }
 

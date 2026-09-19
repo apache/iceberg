@@ -381,11 +381,14 @@ public class TestPruneColumns {
   }
 
   @Test
-  public void rejectsNestedStructGeometryCrsMismatchWithoutIds() {
+  public void rejectsProjectedNestedStructGeometryCrsMismatchWithoutIds() {
     MessageType fileSchema =
         Types.buildMessage()
             .addField(
                 Types.buildGroup(Type.Repetition.OPTIONAL)
+                    .optional(PrimitiveTypeName.BINARY)
+                    .as(LogicalTypeAnnotation.geometryType(null))
+                    .named("other_geom")
                     .optional(PrimitiveTypeName.BINARY)
                     .as(LogicalTypeAnnotation.geometryType("EPSG:3857"))
                     .named("geom")
@@ -396,13 +399,37 @@ public class TestPruneColumns {
             NestedField.optional(
                 1,
                 "location",
-                StructType.of(NestedField.optional(2, "geom", GeometryType.crs84()))));
+                StructType.of(NestedField.optional(3, "geom", GeometryType.crs84()))));
 
     assertThatThrownBy(() -> ParquetSchemaUtil.pruneColumnsFallback(fileSchema, projection))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot read Parquet type")
         .hasMessageContaining("field location.geom")
         .hasMessageContaining("geometry(OGC:CRS84)");
+  }
+
+  @Test
+  public void acceptsProjectedNestedStructGeometryParametersWithoutIds() {
+    MessageType fileSchema =
+        Types.buildMessage()
+            .addField(
+                Types.buildGroup(Type.Repetition.OPTIONAL)
+                    .optional(PrimitiveTypeName.BINARY)
+                    .as(LogicalTypeAnnotation.geometryType("EPSG:3857"))
+                    .named("other_geom")
+                    .optional(PrimitiveTypeName.BINARY)
+                    .as(LogicalTypeAnnotation.geometryType(null))
+                    .named("geom")
+                    .named("location"))
+            .named("table");
+    Schema projection =
+        new Schema(
+            NestedField.optional(
+                1,
+                "location",
+                StructType.of(NestedField.optional(3, "geom", GeometryType.crs84()))));
+
+    assertThat(ParquetSchemaUtil.pruneColumnsFallback(fileSchema, projection)).isNotNull();
   }
 
   @Test
