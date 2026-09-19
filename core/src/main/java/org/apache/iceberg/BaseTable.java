@@ -88,7 +88,8 @@ public class BaseTable
 
   @Override
   public Labels labels() {
-    // labels is null only when this instance was deserialized bypassing writeReplace (e.g. Kryo).
+    // labels is null when this instance was deserialized without going through writeReplace(),
+    // e.g. with Kryo or normal Java deserialization from another package that bypasses it.
     return labels != null ? labels : Labels.EMPTY;
   }
 

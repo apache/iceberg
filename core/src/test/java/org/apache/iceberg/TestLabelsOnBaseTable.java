@@ -33,7 +33,7 @@ class TestLabelsOnBaseTable {
   @TempDir private File temp;
 
   @Test
-  public void labelsDefaultToEmptyWhenNotProvided() {
+  void labelsDefaultToEmptyWhenNotProvided() {
     BaseTable table =
         new BaseTable(new TestTables.TestTableOperations(TABLE_NAME, temp), TABLE_NAME);
 
@@ -42,7 +42,7 @@ class TestLabelsOnBaseTable {
   }
 
   @Test
-  public void labelsAreExposedWhenProvided() {
+  void labelsAreExposedWhenProvided() {
     Labels labels =
         ImmutableLabels.builder()
             .objectLabels(ImmutableMap.of("owner", "team-a"))
