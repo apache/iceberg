@@ -19,13 +19,78 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestDateTimeUtil {
+  @ParameterizedTest
+  @ValueSource(
+      longs = {-1_000_000_001L, -999_999_999L, -1001, -1000, -999, -1, 0, 1, 999, 1000, 1001})
+  void microsecondConversionsFloorNanoseconds(long nanos) {
+    Instant instant = Instant.EPOCH.plusNanos(nanos);
+    long expected = Math.floorDiv(nanos, 1000);
+    assertThat(DateTimeUtil.microsFromInstant(instant)).isEqualTo(expected);
+    assertThat(DateTimeUtil.microsFromTimestamp(LocalDateTime.ofInstant(instant, ZoneOffset.UTC)))
+        .isEqualTo(expected);
+    assertThat(
+            DateTimeUtil.microsFromTimestamptz(instant.atOffset(ZoneOffset.ofHoursMinutes(5, 30))))
+        .isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "1969-12-31T23:59:59.999999999",
+        "1969-12-31T23:59:58.999999999",
+        "1970-01-01T00:00:00.000000001"
+      })
+  void timestampLiteralConversionMatchesNanosecondConversion(String timestamp) {
+    long throughNanos =
+        Literal.of(timestamp)
+            .to(Types.TimestampNanoType.withoutZone())
+            .<Long>to(Types.TimestampType.withoutZone())
+            .value();
+    assertThat(Literal.of(timestamp).<Long>to(Types.TimestampType.withoutZone()).value())
+        .isEqualTo(throughNanos);
+  }
+
+  @ParameterizedTest
+  @ValueSource(longs = {Long.MIN_VALUE, -1, 0, 1, Long.MAX_VALUE})
+  void microsecondConversionsPreserveFullRange(long micros) {
+    OffsetDateTime timestamp = DateTimeUtil.timestamptzFromMicros(micros).plusNanos(999);
+    assertThat(DateTimeUtil.microsFromInstant(timestamp.toInstant())).isEqualTo(micros);
+    assertThat(DateTimeUtil.microsFromTimestamp(timestamp.toLocalDateTime())).isEqualTo(micros);
+    assertThat(DateTimeUtil.microsFromTimestamptz(timestamp)).isEqualTo(micros);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void microsecondConversionsRejectOverflow(boolean aboveMax) {
+    OffsetDateTime timestamp =
+        aboveMax
+            ? DateTimeUtil.timestamptzFromMicros(Long.MAX_VALUE).plusNanos(1000)
+            : DateTimeUtil.timestamptzFromMicros(Long.MIN_VALUE).minusNanos(1);
+    assertThatThrownBy(() -> DateTimeUtil.microsFromInstant(timestamp.toInstant()))
+        .isInstanceOf(ArithmeticException.class)
+        .hasMessage("long overflow");
+    assertThatThrownBy(() -> DateTimeUtil.microsFromTimestamp(timestamp.toLocalDateTime()))
+        .isInstanceOf(ArithmeticException.class)
+        .hasMessage("long overflow");
+    assertThatThrownBy(() -> DateTimeUtil.microsFromTimestamptz(timestamp))
+        .isInstanceOf(ArithmeticException.class)
+        .hasMessage("long overflow");
+  }
+
   @Test
   public void microsToMillis() {
     assertThat(DateTimeUtil.microsToMillis(1510871468000001L)).isEqualTo(1510871468000L);
