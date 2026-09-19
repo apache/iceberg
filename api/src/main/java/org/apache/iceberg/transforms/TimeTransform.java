@@ -27,19 +27,18 @@ import org.apache.iceberg.util.SerializableFunction;
 
 abstract class TimeTransform<S> implements Transform<S, Integer> {
   protected static <R> R fromSourceType(Type type, R dateResult, R microsResult, R nanosResult) {
-    switch (type.typeId()) {
-      case DATE:
+    return switch (type.typeId()) {
+      case DATE -> {
         if (dateResult != null) {
-          return dateResult;
+          yield dateResult;
         }
-        break;
-      case TIMESTAMP:
-        return microsResult;
-      case TIMESTAMP_NANO:
-        return nanosResult;
-    }
 
-    throw new IllegalArgumentException("Unsupported type: " + type);
+        throw new IllegalArgumentException("Unsupported type: " + type);
+      }
+      case TIMESTAMP -> microsResult;
+      case TIMESTAMP_NANO -> nanosResult;
+      default -> throw new IllegalArgumentException("Unsupported type: " + type);
+    };
   }
 
   protected abstract ChronoUnit granularity();
