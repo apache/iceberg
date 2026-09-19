@@ -214,14 +214,13 @@
               </li>
             </ul>
           </div>
-          <div class="col-lg-5 col-lg col-sm-12">
+          <div id="lottie-hidden-partitioning" class="col-lg-5 col-lg col-sm-12">
             <script src="assets/javascript/lottie-player.js"></script>
-            <lottie-player src="assets/lottie/hidden-partitioning-animation.json"
+            <lottie-player id="hidden-partitioning-player"
+              src="assets/lottie/hidden-partitioning-animation.json"
               background="transparent"
               speed="0.5"
-              style="width: 430px; height: 400px"
-              loop=""
-              autoplay="">
+              style="width: 430px; height: 400px; cursor: pointer">
             </lottie-player>
           </div>
         </div>
@@ -309,6 +308,41 @@
   <script
     src="assets/javascript/termynal.js"
     data-termynal-container="#termynal|#termynal-data-compaction|#termynal-expressive-sql|#termynal-time-travel">
+  </script>
+
+  <script>
+    (function () {
+      var container = document.getElementById('lottie-hidden-partitioning');
+      if (!container) {
+        return;
+      }
+
+      var player = document.getElementById('hidden-partitioning-player');
+      if (!player) {
+        return;
+      }
+
+      // Play only while the animation is visible on screen.
+      var observer = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              player.play();
+            } else {
+              player.pause();
+            }
+          });
+        },
+        { threshold: 0.1 }
+      );
+      observer.observe(container);
+
+      // Replay on click.
+      player.addEventListener('click', function () {
+        player.stop();
+        player.play();
+      });
+    })();
   </script>
 {% endblock %}
 
