@@ -742,6 +742,67 @@ public class TestArrowReader {
     assertThat(actualValues).containsExactlyInAnyOrderElementsOf(allExpectedValues);
   }
 
+  /**
+   * A column added by ALTER TABLE is not present in the data files written before it, so it is read
+   * as a constant rather than from the file. The reader used to fail on such a column with a
+   * NullPointerException because it passed the missing vector straight to the accessor factory. It
+   * now builds a vector holding the value for every row, so the column reads as null.
+   */
+  @Test
+  public void testReadColumnAddedAfterDataFileWasWritten() throws Exception {
+    tables = new HadoopTables();
+    Schema schema = new Schema(Types.NestedField.required(1, "col", Types.IntegerType.get()));
+    Table table = tables.create(schema, tableLocation);
+
+    GenericRecord record = GenericRecord.create(schema);
+    record.setField("col", 1);
+
+    File parquetFile = File.createTempFile("added-column", ".parquet", tempDir);
+    assertThat(parquetFile.delete()).isTrue();
+    FileAppender<GenericRecord> appender =
+        Parquet.write(Files.localOutput(parquetFile))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build();
+    try {
+      appender.add(record);
+    } finally {
+      appender.close();
+    }
+
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withInputFile(localInput(parquetFile))
+            .withMetrics(appender.metrics())
+            .withFormat(FileFormat.PARQUET)
+            .build();
+    table.newAppend().appendFile(dataFile).commit();
+
+    table.updateSchema().addColumn("added", Types.IntegerType.get()).commit();
+    Table reloaded = tables.load(tableLocation);
+
+    int rowsRead = 0;
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(reloaded.newScan(), 1024, false)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        assertThat(batch.numCols()).isEqualTo(2);
+        assertThat(batch.column(1).isNullAt(0)).isTrue();
+
+        try (VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors()) {
+          IntVector existing = (IntVector) root.getVector("col");
+          IntVector added = (IntVector) root.getVector("added");
+          assertThat(existing.getObject(0)).isEqualTo(1);
+          assertThat(added.getValueCount()).isEqualTo(batch.numRows());
+          assertThat(added.isNull(0)).isTrue();
+        }
+
+        rowsRead += batch.numRows();
+      }
+    }
+
+    assertThat(rowsRead).isEqualTo(1);
+  }
+
   private static Stream<Arguments> rejectedUnsignedIntegerCases() {
     return Stream.of(
         Arguments.of(
