@@ -137,7 +137,13 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
               .put(committable.checkpointId(), request);
       Preconditions.checkState(
           previous == null,
-          "Received multiple commit requests for table %s branch %s at checkpoint %s",
+          "Received multiple commit requests for table %s branch %s at checkpoint %s. The job"
+              + " appears to have been restored from state written by Iceberg 1.10 or earlier,"
+              + " which produced multiple commit requests per checkpoint. To migrate the state,"
+              + " upgrade the job to Iceberg 1.11 first and take a savepoint (the 1.11 committer"
+              + " merges the state into a single commit request per checkpoint), then upgrade to"
+              + " this version. Alternatively, stop the job with 'stop-with-savepoint --drain'"
+              + " and restart without state.",
           committable.key().tableName(),
           committable.key().branch(),
           committable.checkpointId());
