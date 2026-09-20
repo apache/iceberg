@@ -25,7 +25,7 @@ capabilities.
 
 ## Libraries
 
-This section lists the released library versions reflected in the status tables below, as of September 20, 2026.
+This section lists the libraries that implement the Apache Iceberg specification.
 
 | Library | Released Version |
 |---------|------------------|
@@ -37,31 +37,31 @@ This section lists the released library versions reflected in the status tables 
 
 ## Data Types
 
-| Data Type      | Java | PyIceberg | Rust | Go | C++ |
-|----------------|------|-----------|------|----|-----|
-| boolean        | Y    | Y         | Y    | Y  | Y   |
-| int            | Y    | Y         | Y    | Y  | Y   |
-| long           | Y    | Y         | Y    | Y  | Y   |
-| float          | Y    | Y         | Y    | Y  | Y   |
-| double         | Y    | Y         | Y    | Y  | Y   |
-| decimal        | Y    | Y         | Y    | Y  | Y   |
-| date           | Y    | Y         | Y    | Y  | Y   |
-| time           | Y    | Y         | Y    | Y  | Y   |
-| timestamp      | Y    | Y         | Y    | Y  | Y   |
-| timestamptz    | Y    | Y         | Y    | Y  | Y   |
-| timestamp_ns   | Y    | Y         | Y    | Y  | Y   |
-| timestamptz_ns | Y    | Y         | Y    | Y  | Y   |
-| unknown        | Y    | Y         | N    | Y  | Y   |
-| string         | Y    | Y         | Y    | Y  | Y   |
-| uuid           | Y    | Y         | Y    | Y  | N   |
-| fixed          | Y    | Y         | Y    | Y  | Y   |
-| binary         | Y    | Y         | Y    | Y  | Y   |
-| variant        | Y    | Y         | N    | Y  | N   |
-| geometry       | Y    | Y         | N    | Y  | N   |
-| geography      | Y    | Y         | N    | Y  | N   |
-| list           | Y    | Y         | Y    | Y  | Y   |
-| map            | Y    | Y         | Y    | Y  | Y   |
-| struct         | Y    | Y         | Y    | Y  | Y   |
+| Data Type      | Spec | Java | PyIceberg | Rust | Go | C++ |
+|----------------|------|------|-----------|------|----|-----|
+| boolean        | V1+  | Y    | Y         | Y    | Y  | Y   |
+| int            | V1+  | Y    | Y         | Y    | Y  | Y   |
+| long           | V1+  | Y    | Y         | Y    | Y  | Y   |
+| float          | V1+  | Y    | Y         | Y    | Y  | Y   |
+| double         | V1+  | Y    | Y         | Y    | Y  | Y   |
+| decimal        | V1+  | Y    | Y         | Y    | Y  | Y   |
+| date           | V1+  | Y    | Y         | Y    | Y  | Y   |
+| time           | V1+  | Y    | Y         | Y    | Y  | Y   |
+| timestamp      | V1+  | Y    | Y         | Y    | Y  | Y   |
+| timestamptz    | V1+  | Y    | Y         | Y    | Y  | Y   |
+| timestamp_ns   | V3+  | Y    | Y         | Y    | Y  | Y   |
+| timestamptz_ns | V3+  | Y    | Y         | Y    | Y  | Y   |
+| unknown        | V3+  | Y    | Y         | N    | Y  | Y   |
+| string         | V1+  | Y    | Y         | Y    | Y  | Y   |
+| uuid           | V1+  | Y    | Y         | Y    | Y  | N   |
+| fixed          | V1+  | Y    | Y         | Y    | Y  | Y   |
+| binary         | V1+  | Y    | Y         | Y    | Y  | Y   |
+| variant        | V3+  | Y    | Y         | N    | Y  | N   |
+| geometry       | V3+  | Y    | Y         | N    | Y  | N   |
+| geography      | V3+  | Y    | Y         | N    | Y  | N   |
+| list           | V1+  | Y    | Y         | Y    | Y  | Y   |
+| map            | V1+  | Y    | Y         | Y    | Y  | Y   |
+| struct         | V1+  | Y    | Y         | Y    | Y  | Y   |
 
 ## Table Metadata and Features
 
