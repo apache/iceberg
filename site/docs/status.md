@@ -25,13 +25,15 @@ capabilities.
 
 ## Libraries
 
-This section lists the libraries that implement the Apache Iceberg specification.
+This section lists the released library versions reflected in the status tables below, as of September 20, 2026.
 
-- [Java](https://mvnrepository.com/artifact/org.apache.iceberg)
-- [PyIceberg](https://pypi.org/project/pyiceberg/)
-- [Rust](https://crates.io/crates/iceberg)
-- [Go](https://pkg.go.dev/github.com/apache/iceberg-go)
-- [C++](https://github.com/apache/iceberg-cpp/releases)
+| Library | Released Version |
+|---------|------------------|
+| [Java](https://mvnrepository.com/artifact/org.apache.iceberg) | [1.11.0](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.11.0) |
+| [PyIceberg](https://pypi.org/project/pyiceberg/) | [0.12.0](https://github.com/apache/iceberg-python/releases/tag/pyiceberg-0.12.0) |
+| [Rust](https://crates.io/crates/iceberg) | [0.10.1](https://github.com/apache/iceberg-rust/releases/tag/v0.10.1) |
+| [Go](https://pkg.go.dev/github.com/apache/iceberg-go) | [0.6.0](https://github.com/apache/iceberg-go/releases/tag/v0.6.0) |
+| [C++](https://github.com/apache/iceberg-cpp/releases) | [0.3.0](https://github.com/apache/iceberg-cpp/releases/tag/v0.3.0) |
 
 ## Data Types
 
@@ -51,12 +53,12 @@ This section lists the libraries that implement the Apache Iceberg specification
 | timestamptz_ns | Y    | Y         | Y    | Y  | Y   |
 | unknown        | Y    | Y         | N    | Y  | Y   |
 | string         | Y    | Y         | Y    | Y  | Y   |
-| uuid           | Y    | Y         | Y    | Y  | Y   |
+| uuid           | Y    | Y         | Y    | Y  | N   |
 | fixed          | Y    | Y         | Y    | Y  | Y   |
 | binary         | Y    | Y         | Y    | Y  | Y   |
-| variant        | Y    | Y         | Y    | Y  | N   |
-| geometry       | Y    | Y         | N    | Y  | Y   |
-| geography      | Y    | Y         | N    | Y  | Y   |
+| variant        | Y    | Y         | N    | Y  | N   |
+| geometry       | Y    | Y         | N    | Y  | N   |
+| geography      | Y    | Y         | N    | Y  | N   |
 | list           | Y    | Y         | Y    | Y  | Y   |
 | map            | Y    | Y         | Y    | Y  | Y   |
 | struct         | Y    | Y         | Y    | Y  | Y   |
@@ -69,16 +71,17 @@ indicates end-to-end support for the listed behavior, not only support for seria
 
 | Capability                       | Spec  | Java | PyIceberg | Rust | Go | C++ |
 |----------------------------------|-------|------|-----------|------|----|-----|
-| Read table metadata              | V1+   | Y    | Y         | Y    | Y  | Y   |
+| Read table metadata              | V1-V2 | Y    | Y         | Y    | Y  | Y   |
+| Read table metadata              | V3    | Y    | Y         | Y    | Y  | N   |
 | Write table metadata             | V1-V2 | Y    | Y         | Y    | Y  | Y   |
-| Write table metadata             | V3    | Y    | N         | Y    | Y  | Y   |
-| Read initial column defaults     | V3    | Y    | Y         | Y    | Y  | Y   |
+| Write table metadata             | V3    | Y    | N         | Y    | Y  | N   |
+| Read initial column defaults     | V3    | Y    | Y         | Y    | Y  | N   |
 | Read multi-argument transforms   | V3    | N    | N         | N    | Y  | N   |
 | Write multi-argument transforms  | V3    | N    | N         | N    | Y  | N   |
-| Read row lineage columns         | V3    | Y    | N         | Y    | Y  | Y   |
-| Write row lineage                | V3    | Y    | N         | Y    | Y  | Y   |
-| Read encrypted tables            | V3    | Y    | N         | Y    | N  | N   |
-| Write encrypted tables           | V3    | Y    | N         | Y    | N  | N   |
+| Read row lineage columns         | V3    | Y    | N         | N    | Y  | N   |
+| Write row lineage                | V3    | Y    | N         | N    | Y  | N   |
+| Read encrypted tables            | V3    | Y    | N         | N    | N  | N   |
+| Write encrypted tables           | V3    | Y    | N         | N    | N  | N   |
 
 ## Data File Formats
 
@@ -119,15 +122,15 @@ indicates end-to-end support for the listed behavior, not only support for seria
 |-------------------|-------|------|-----------|------|----|-----|
 | Append data files | V1-V2 | Y    | Y         | Y    | Y  | Y   |
 | Append data files | V3    | Y    | N         | Y    | Y  | Y   |
-| Rewrite files     | V1-V2 | Y    | Y         | N    | Y  | Y   |
-| Rewrite files     | V3    | Y    | N         | N    | Y  | Y   |
+| Rewrite files     | V1-V2 | Y    | Y         | N    | Y  | N   |
+| Rewrite files     | V3    | Y    | N         | N    | Y  | N   |
 | Rewrite manifests | V1-V2 | Y    | Y         | N    | Y  | N   |
 | Rewrite manifests | V3    | Y    | N         | N    | Y  | N   |
-| Overwrite files   | V1-V2 | Y    | Y         | N    | Y  | Y   |
-| Overwrite files   | V3    | Y    | N         | N    | Y  | Y   |
-| Delete files      | V1-V2 | Y    | Y         | N    | Y  | Y   |
-| Delete files      | V3    | Y    | N         | N    | Y  | Y   |
-| Row delta         | V2+   | Y    | N         | N    | Y  | Y   |
+| Overwrite files   | V1-V2 | Y    | Y         | N    | Y  | N   |
+| Overwrite files   | V3    | Y    | N         | N    | Y  | N   |
+| Delete files      | V1-V2 | Y    | Y         | N    | Y  | N   |
+| Delete files      | V3    | Y    | N         | N    | Y  | N   |
+| Row delta         | V2+   | Y    | N         | N    | Y  | N   |
 
 ## Table Read Operations
 
@@ -136,12 +139,12 @@ indicates end-to-end support for the listed behavior, not only support for seria
 | Plan with data file         | V1+   | Y    | Y         | Y    | Y  | Y   |
 | Plan with position deletes  | V2+   | Y    | Y         | Y    | Y  | Y   |
 | Plan with equality deletes  | V2+   | Y    | Y         | Y    | Y  | Y   |
-| Plan with deletion vectors  | V3    | Y    | Y         | Y    | Y  | Y   |
+| Plan with deletion vectors  | V3    | Y    | N         | N    | Y  | Y   |
 | Plan with puffin statistics | V1+   | Y    | N         | N    | N  | N   |
 | Read data file              | V1+   | Y    | Y         | Y    | Y  | Y   |
 | Read with position deletes  | V2+   | Y    | Y         | Y    | Y  | Y   |
 | Read with equality deletes  | V2+   | Y    | N         | Y    | Y  | Y   |
-| Read with deletion vectors  | V3    | Y    | Y         | Y    | Y  | Y   |
+| Read with deletion vectors  | V3    | Y    | N         | N    | Y  | N   |
 
 ## Table Write Operations
 
@@ -151,7 +154,7 @@ indicates end-to-end support for the listed behavior, not only support for seria
 | Append data            | V3    | Y    | N         | Y    | Y  | Y   |
 | Write position deletes | V2    | Y    | N         | N    | Y  | Y   |
 | Write equality deletes | V2-V3 | Y    | N         | Y    | Y  | Y   |
-| Write deletion vectors | V3    | Y    | N         | N    | Y  | Y   |
+| Write deletion vectors | V3    | Y    | N         | N    | Y  | N   |
 
 ## Catalogs
 
