@@ -1918,7 +1918,7 @@ Reading v4 metadata:
 
 Row-level delete changes:
 
-* Equality delete files must not be added to v4 tables and equality deletes cannot be added as an entry to a v4 manifest
+* Writers must not add equality delete files to v4 tables; equality deletes cannot be added as an entry to a v4 manifest
 * Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
 * Upgrading a v2 or v3 table to v4 is metadata-only and does not rewrite data or delete files
 
