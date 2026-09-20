@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.rest.RequestMatcher.containsHeaders;
 import static org.apache.iceberg.rest.RequestMatcher.matches;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -243,7 +244,7 @@ public class TestReferencedByQueryParam {
     // refresh() also runs on stale reads and commit retries, and sends no snapshots parameter
     Mockito.verify(adapter)
         .execute(
-            matches(
+            containsHeaders(
                 HTTPMethod.GET,
                 "v1/namespaces/ns/tables/test_table",
                 Map.of(),
