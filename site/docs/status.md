@@ -35,6 +35,10 @@ This section lists the libraries that implement the Apache Iceberg specification
 | [Go](https://pkg.go.dev/github.com/apache/iceberg-go) | [0.6.0](https://github.com/apache/iceberg-go/releases/tag/v0.6.0) |
 | [C++](https://github.com/apache/iceberg-cpp/releases) | [0.3.0](https://github.com/apache/iceberg-cpp/releases/tag/v0.3.0) |
 
+The `Spec` column identifies the applicable table format versions. A trailing `+` means that the feature is supported
+in that version and later versions, while a range means that the status is the same for every listed version. `Y`
+indicates end-to-end support for the listed behavior, not only support for serializing its metadata fields.
+
 ## Data Types
 
 | Data Type      | Spec | Java | PyIceberg | Rust | Go | C++ |
@@ -64,10 +68,6 @@ This section lists the libraries that implement the Apache Iceberg specification
 | struct         | V1+  | Y    | Y         | Y    | Y  | Y   |
 
 ## Table Metadata and Features
-
-The `Spec` column identifies the applicable table format versions. A trailing `+` means that the feature is supported
-in that version and later versions, while a range means that the status is the same for every listed version. `Y`
-indicates end-to-end support for the listed behavior, not only support for serializing its metadata fields.
 
 | Capability                       | Spec  | Java | PyIceberg | Rust | Go | C++ |
 |----------------------------------|-------|------|-----------|------|----|-----|
