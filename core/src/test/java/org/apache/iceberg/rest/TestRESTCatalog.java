@@ -58,6 +58,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.CatalogProperties;
@@ -71,6 +72,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
@@ -98,6 +100,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthManager;
@@ -1439,6 +1442,17 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     loaded.refresh(); // refresh to force reload
 
+    // refresh sends the ETag of the loaded metadata along with the table headers
+    String eTag =
+        ETagProvider.of(
+            ((BaseTable) loaded).operations().current().metadataFileLocation(),
+            Map.of("snapshots", "all"));
+    Map<String, String> expectedRefreshHeaders =
+        ImmutableMap.<String, String>builder()
+            .putAll(expectedTableHeaders)
+            .put(HttpHeaders.IF_NONE_MATCH, eTag)
+            .build();
+
     Mockito.verify(adapter)
         .execute(
             matches(HTTPMethod.GET, ResourcePaths.config(), catalogHeaders),
@@ -1472,31 +1486,21 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
               any());
     }
 
-    if (expectedContextHeaders.equals(expectedTableHeaders)) {
-      // load table from catalog + refresh loaded table
-      Mockito.verify(adapter, times(2))
-          .execute(
-              matches(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedTableHeaders),
-              eq(LoadTableResponse.class),
-              any(),
-              any());
-    } else {
-      // load table from catalog
-      Mockito.verify(adapter)
-          .execute(
-              matches(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedContextHeaders),
-              eq(LoadTableResponse.class),
-              any(),
-              any());
+    // load table from catalog
+    Mockito.verify(adapter)
+        .execute(
+            matches(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedContextHeaders),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
 
-      // refresh loaded table
-      Mockito.verify(adapter)
-          .execute(
-              matches(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedTableHeaders),
-              eq(LoadTableResponse.class),
-              any(),
-              any());
-    }
+    // refresh loaded table
+    Mockito.verify(adapter)
+        .execute(
+            matches(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedRefreshHeaders),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
   }
 
   @ParameterizedTest
@@ -3276,6 +3280,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
           TableMetadata current,
+          String eTag,
           Set<Endpoint> supportedEndpoints,
           Map<String, String> readQueryParams) {
         RESTTableOperations ops =
@@ -4096,6 +4101,209 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     String metadataFileLocation =
         ((HasTableOperations) table).operations().current().metadataFileLocation();
     assertThat(metadataFileLocation).contains("ns 1 ?=-+/ns 2 ?=-+/table 1 ?=-+");
+  }
+
+  @Test
+  public void testRefreshSendsIfNoneMatchAndKeepsMetadataOnNotModified() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.createTable(TABLE, SCHEMA);
+    AtomicReference<Object> lastLoadResponse = new AtomicReference<>();
+    Mockito.doAnswer(
+            invocation -> {
+              Object response = invocation.callRealMethod();
+              lastLoadResponse.set(response);
+              return response;
+            })
+        .when(adapter)
+        .execute(
+            matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    TableOperations ops = ((BaseTable) catalog.loadTable(TABLE)).operations();
+    TableMetadata loaded = ops.current();
+    String metadataLocation = loaded.metadataFileLocation();
+    // the adapter folds query params into the ETag, so the loadTable and refresh ETags differ
+    String loadTableETag = ETagProvider.of(metadataLocation, Map.of("snapshots", "all"));
+    String refreshETag = ETagProvider.of(metadataLocation, Map.of());
+
+    assertThat(ops.refresh()).isSameAs(loaded);
+    assertThat(lastLoadResponse.get()).isNotNull();
+    verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(HttpHeaders.IF_NONE_MATCH, loadTableETag),
+                Map.of()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    assertThat(ops.refresh()).isSameAs(loaded);
+    assertThat(lastLoadResponse.get()).isNull();
+    verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(HttpHeaders.IF_NONE_MATCH, refreshETag),
+                Map.of()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testRefreshReloadsChangedTableAndAdoptsNewETag() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.createTable(TABLE, SCHEMA);
+    TableOperations ops = ((BaseTable) catalog.loadTable(TABLE)).operations();
+    TableMetadata loaded = ops.current();
+    String loadTableETag =
+        ETagProvider.of(loaded.metadataFileLocation(), Map.of("snapshots", "all"));
+
+    // another client changes the table
+    backendCatalog
+        .loadTable(TABLE)
+        .updateSchema()
+        .addColumn("extra", Types.LongType.get())
+        .commit();
+
+    TableMetadata refreshed = ops.refresh();
+    assertThat(refreshed).isNotSameAs(loaded);
+    assertThat(refreshed.metadataFileLocation()).isNotEqualTo(loaded.metadataFileLocation());
+    assertThat(refreshed.schema().findField("extra")).isNotNull();
+    verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(HttpHeaders.IF_NONE_MATCH, loadTableETag),
+                Map.of()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    String refreshETag = ETagProvider.of(refreshed.metadataFileLocation(), Map.of());
+    assertThat(ops.refresh()).isSameAs(refreshed);
+    verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(HttpHeaders.IF_NONE_MATCH, refreshETag),
+                Map.of()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testRefreshUsesETagFromCommit() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.createTable(TABLE, SCHEMA);
+    Table table = catalog.loadTable(TABLE);
+    TableOperations ops = ((BaseTable) table).operations();
+
+    table.updateProperties().set("key", "value").commit();
+    TableMetadata committed = ops.current();
+    String commitETag =
+        ETagProvider.of(committed.metadataFileLocation(), Map.of("snapshots", "all"));
+
+    assertThat(ops.refresh()).isSameAs(committed);
+    verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(HttpHeaders.IF_NONE_MATCH, commitETag),
+                Map.of()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void testRefreshWithoutETagFromServer() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    // the server answers loadTable without an ETag
+    Mockito.doAnswer(
+            invocation -> {
+              Consumer<Map<String, String>> responseHeaders = invocation.getArgument(3);
+              Consumer<Map<String, String>> withoutETag =
+                  headers -> {
+                    Map<String, String> filtered = Maps.newHashMap(headers);
+                    filtered.remove(HttpHeaders.ETAG);
+                    responseHeaders.accept(filtered);
+                  };
+              return adapter.execute(
+                  invocation.getArgument(0),
+                  LoadTableResponse.class,
+                  invocation.getArgument(2),
+                  withoutETag,
+                  ParserContext.builder().build());
+            })
+        .when(adapter)
+        .execute(
+            matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    RESTCatalog catalog = catalog(adapter);
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.createTable(TABLE, SCHEMA);
+    Table table = catalog.loadTable(TABLE);
+    TableOperations ops = ((BaseTable) table).operations();
+    TableMetadata loaded = ops.current();
+
+    assertThat(ops.refresh()).isSameAs(loaded);
+
+    // the commit response carries an ETag, but the refresh response after it does not
+    table.updateProperties().set("key", "value").commit();
+    TableMetadata committed = ops.current();
+    String commitETag =
+        ETagProvider.of(committed.metadataFileLocation(), Map.of("snapshots", "all"));
+    assertThat(ops.refresh()).isSameAs(committed);
+    assertThat(ops.refresh()).isSameAs(committed);
+
+    // unconditional: the first refresh, the refresh inside the property commit, the last refresh
+    verify(adapter, times(3))
+        .execute(
+            matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE), Map.of(), Map.of()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+    verify(adapter)
+        .execute(
+            matches(
+                HTTPMethod.GET,
+                RESOURCE_PATHS.table(TABLE),
+                Map.of(HttpHeaders.IF_NONE_MATCH, commitETag),
+                Map.of()),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {

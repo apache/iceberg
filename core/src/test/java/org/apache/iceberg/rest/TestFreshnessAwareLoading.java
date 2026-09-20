@@ -286,6 +286,54 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
   }
 
   @Test
+  public void notModifiedResponseOnRefresh() {
+    restCatalog.createNamespace(TABLE.namespace());
+    restCatalog.createTable(TABLE, SCHEMA);
+    BaseTable table = (BaseTable) restCatalog.loadTable(TABLE);
+    TableMetadata loaded = table.operations().current();
+
+    // the adapter hashes query params into the ETag, so the first refresh gets a full response
+    // and its ETag is what the second refresh sends
+    assertThat(table.operations().refresh()).isSameAs(loaded);
+    String refreshETag = ETagProvider.of(loaded.metadataFileLocation(), Map.of());
+
+    Mockito.doAnswer(
+            invocation -> {
+              HTTPRequest originalRequest = invocation.getArgument(0);
+
+              assertThat(
+                      originalRequest.headers().firstEntry(HttpHeaders.IF_NONE_MATCH).get().value())
+                  .isEqualTo(refreshETag);
+
+              assertThat(
+                      adapterForRESTServer.execute(
+                          originalRequest,
+                          LoadTableResponse.class,
+                          invocation.getArgument(2),
+                          invocation.getArgument(3),
+                          ParserContext.builder().build()))
+                  .isNull();
+
+              return null;
+            })
+        .when(adapterForRESTServer)
+        .execute(
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+
+    assertThat(table.operations().refresh()).isSameAs(loaded);
+
+    Mockito.verify(adapterForRESTServer, times(3))
+        .execute(
+            matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)),
+            eq(LoadTableResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
   public void freshnessAwareLoading() {
     restCatalog.createNamespace(TABLE.namespace());
     restCatalog.createTable(TABLE, SCHEMA);
@@ -770,9 +818,19 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
           Supplier<Map<String, String>> mutationHeaders,
           FileIO io,
           TableMetadata current,
+          String eTag,
           Set<Endpoint> endpoints,
           Map<String, String> readQueryParams) {
-        super(client, path, readHeaders, mutationHeaders, io, current, endpoints, readQueryParams);
+        super(
+            client,
+            path,
+            readHeaders,
+            mutationHeaders,
+            io,
+            current,
+            eTag,
+            endpoints,
+            readQueryParams);
       }
     }
 
@@ -791,6 +849,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
           Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
           TableMetadata current,
+          String eTag,
           Set<Endpoint> supportedEndpoints,
           Map<String, String> readQueryParams) {
         return new CustomTableOps(
@@ -800,6 +859,7 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
             mutationHeaders,
             fileIO,
             current,
+            eTag,
             supportedEndpoints,
             readQueryParams);
       }
