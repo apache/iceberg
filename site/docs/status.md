@@ -61,26 +61,24 @@ This section lists the libraries that implement the Apache Iceberg specification
 | map            | Y    | Y         | Y    | Y  | Y   |
 | struct         | Y    | Y         | Y    | Y  | Y   |
 
-## Table Spec V3
+## Table Metadata and Features
 
-[Table Spec V3](spec.md#version-3-extended-types-and-capabilities) adds capabilities that are not present in V2. The
-table below tracks those V3-specific capabilities separately because most table and catalog operations are independent
-of the format version. `Y` indicates end-to-end support for the listed behavior, not only support for serializing its
-metadata fields.
+The `Spec` column identifies the applicable table format versions. A trailing `+` means that the feature is supported
+in that version and later versions, while a range means that the status is the same for every listed version. `Y`
+indicates end-to-end support for the listed behavior, not only support for serializing its metadata fields.
 
-In all operation tables below, a range in the `Spec` column means that the status is the same for every listed version.
-
-| Capability                       | Spec | Java | PyIceberg | Rust | Go | C++ |
-|----------------------------------|------|------|-----------|------|----|-----|
-| Read table metadata              | V3   | Y    | Y         | Y    | Y  | Y   |
-| Write table metadata             | V3   | Y    | N         | Y    | Y  | Y   |
-| Read initial column defaults     | V3   | Y    | Y         | Y    | Y  | Y   |
-| Read multi-argument transforms   | V3   | N    | N         | N    | Y  | N   |
-| Write multi-argument transforms  | V3   | N    | N         | N    | Y  | N   |
-| Read row lineage columns         | V3   | Y    | N         | Y    | Y  | Y   |
-| Write row lineage                | V3   | Y    | N         | Y    | Y  | Y   |
-| Read encrypted tables            | V3   | Y    | N         | Y    | N  | N   |
-| Write encrypted tables           | V3   | Y    | N         | Y    | N  | N   |
+| Capability                       | Spec  | Java | PyIceberg | Rust | Go | C++ |
+|----------------------------------|-------|------|-----------|------|----|-----|
+| Read table metadata              | V1+   | Y    | Y         | Y    | Y  | Y   |
+| Write table metadata             | V1-V2 | Y    | Y         | Y    | Y  | Y   |
+| Write table metadata             | V3    | Y    | N         | Y    | Y  | Y   |
+| Read initial column defaults     | V3    | Y    | Y         | Y    | Y  | Y   |
+| Read multi-argument transforms   | V3    | N    | N         | N    | Y  | N   |
+| Write multi-argument transforms  | V3    | N    | N         | N    | Y  | N   |
+| Read row lineage columns         | V3    | Y    | N         | Y    | Y  | Y   |
+| Write row lineage                | V3    | Y    | N         | Y    | Y  | Y   |
+| Read encrypted tables            | V3    | Y    | N         | Y    | N  | N   |
+| Write encrypted tables           | V3    | Y    | N         | Y    | N  | N   |
 
 ## Data File Formats
 
@@ -105,15 +103,15 @@ In all operation tables below, a range in the `Spec` column means that the statu
 
 | Operation                   | Spec  | Java | PyIceberg | Rust | Go | C++ |
 |-----------------------------|-------|------|-----------|------|----|-----|
-| Update schema               | V1-V3 | Y    | Y         | Y    | Y  | Y   |
-| Update partition spec       | V1-V3 | Y    | Y         | N    | Y  | Y   |
-| Update table properties     | V1-V3 | Y    | Y         | Y    | Y  | Y   |
-| Replace sort order          | V1-V3 | Y    | Y         | Y    | Y  | Y   |
-| Update table location       | V1-V3 | Y    | Y         | Y    | Y  | Y   |
-| Update statistics           | V1-V3 | Y    | Y         | Y    | Y  | Y   |
-| Update partition statistics | V1-V3 | Y    | N         | N    | Y  | Y   |
-| Expire snapshots            | V1-V3 | Y    | Y         | Y    | Y  | Y   |
-| Manage snapshots            | V1-V3 | Y    | Y         | N    | Y  | Y   |
+| Update schema               | V1+   | Y    | Y         | Y    | Y  | Y   |
+| Update partition spec       | V1+   | Y    | Y         | N    | Y  | Y   |
+| Update table properties     | V1+   | Y    | Y         | Y    | Y  | Y   |
+| Replace sort order          | V1+   | Y    | Y         | Y    | Y  | Y   |
+| Update table location       | V1+   | Y    | Y         | Y    | Y  | Y   |
+| Update statistics           | V1+   | Y    | Y         | Y    | Y  | Y   |
+| Update partition statistics | V1+   | Y    | N         | N    | Y  | Y   |
+| Expire snapshots            | V1+   | Y    | Y         | Y    | Y  | Y   |
+| Manage snapshots            | V1+   | Y    | Y         | N    | Y  | Y   |
 
 ## Table Update Operations
 
@@ -129,20 +127,20 @@ In all operation tables below, a range in the `Spec` column means that the statu
 | Overwrite files   | V3    | Y    | N         | N    | Y  | Y   |
 | Delete files      | V1-V2 | Y    | Y         | N    | Y  | Y   |
 | Delete files      | V3    | Y    | N         | N    | Y  | Y   |
-| Row delta         | V2-V3 | Y    | N         | N    | Y  | Y   |
+| Row delta         | V2+   | Y    | N         | N    | Y  | Y   |
 
 ## Table Read Operations
 
 | Operation                   | Spec  | Java | PyIceberg | Rust | Go | C++ |
 |-----------------------------|-------|------|-----------|------|----|-----|
-| Plan with data file         | V1-V3 | Y    | Y         | Y    | Y  | Y   |
-| Plan with position deletes  | V2-V3 | Y    | Y         | Y    | Y  | Y   |
-| Plan with equality deletes  | V2-V3 | Y    | Y         | Y    | Y  | Y   |
+| Plan with data file         | V1+   | Y    | Y         | Y    | Y  | Y   |
+| Plan with position deletes  | V2+   | Y    | Y         | Y    | Y  | Y   |
+| Plan with equality deletes  | V2+   | Y    | Y         | Y    | Y  | Y   |
 | Plan with deletion vectors  | V3    | Y    | Y         | Y    | Y  | Y   |
-| Plan with puffin statistics | V1-V3 | Y    | N         | N    | N  | N   |
-| Read data file              | V1-V3 | Y    | Y         | Y    | Y  | Y   |
-| Read with position deletes  | V2-V3 | Y    | Y         | Y    | Y  | Y   |
-| Read with equality deletes  | V2-V3 | Y    | N         | Y    | Y  | Y   |
+| Plan with puffin statistics | V1+   | Y    | N         | N    | N  | N   |
+| Read data file              | V1+   | Y    | Y         | Y    | Y  | Y   |
+| Read with position deletes  | V2+   | Y    | Y         | Y    | Y  | Y   |
+| Read with equality deletes  | V2+   | Y    | N         | Y    | Y  | Y   |
 | Read with deletion vectors  | V3    | Y    | Y         | Y    | Y  | Y   |
 
 ## Table Write Operations
@@ -163,13 +161,13 @@ In all operation tables below, a range in the `Spec` column means that the statu
 
 | Table Operation | Spec  | Java | PyIceberg | Rust | Go | C++ |
 |-----------------|-------|------|-----------|------|----|-----|
-| listTable       | V1-V3 | Y    | Y         | Y    | Y  | Y   |
-| createTable     | V1-V3 | Y    | Y         | Y    | Y  | Y   |
-| dropTable       | V1-V3 | Y    | Y         | Y    | Y  | Y   |
-| loadTable       | V1-V3 | Y    | Y         | Y    | Y  | Y   |
-| updateTable     | V1-V3 | Y    | Y         | Y    | Y  | Y   |
-| renameTable     | V1-V3 | Y    | Y         | Y    | Y  | Y   |
-| tableExists     | V1-V3 | Y    | Y         | Y    | Y  | Y   |
+| listTable       | V1+   | Y    | Y         | Y    | Y  | Y   |
+| createTable     | V1+   | Y    | Y         | Y    | Y  | Y   |
+| dropTable       | V1+   | Y    | Y         | Y    | Y  | Y   |
+| loadTable       | V1+   | Y    | Y         | Y    | Y  | Y   |
+| updateTable     | V1+   | Y    | Y         | Y    | Y  | Y   |
+| renameTable     | V1+   | Y    | Y         | Y    | Y  | Y   |
+| tableExists     | V1+   | Y    | Y         | Y    | Y  | Y   |
 
 #### View Spec V1
 
@@ -207,13 +205,13 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 | Table Operation | Spec  | Java | PyIceberg | Rust | Go | C++ |
 |-----------------|-------|------|-----------|------|----|-----|
-| listTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| createTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| dropTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| loadTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| updateTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| renameTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| tableExists     | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| listTable       | V1+   | Y    | Y         | Y    | Y  | N   |
+| createTable     | V1+   | Y    | Y         | Y    | Y  | N   |
+| dropTable       | V1+   | Y    | Y         | Y    | Y  | N   |
+| loadTable       | V1+   | Y    | Y         | Y    | Y  | N   |
+| updateTable     | V1+   | Y    | Y         | Y    | Y  | N   |
+| renameTable     | V1+   | Y    | Y         | Y    | Y  | N   |
+| tableExists     | V1+   | Y    | Y         | Y    | Y  | N   |
 
 #### View Spec V1
 
@@ -243,13 +241,13 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 | Table Operation | Spec  | Java | PyIceberg | Rust | Go | C++ |
 |-----------------|-------|------|-----------|------|----|-----|
-| listTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| createTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| dropTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| loadTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| updateTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| renameTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| tableExists     | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| listTable       | V1+   | Y    | Y         | Y    | Y  | N   |
+| createTable     | V1+   | Y    | Y         | Y    | Y  | N   |
+| dropTable       | V1+   | Y    | Y         | Y    | Y  | N   |
+| loadTable       | V1+   | Y    | Y         | Y    | Y  | N   |
+| updateTable     | V1+   | Y    | Y         | Y    | Y  | N   |
+| renameTable     | V1+   | Y    | Y         | Y    | Y  | N   |
+| tableExists     | V1+   | Y    | Y         | Y    | Y  | N   |
 
 #### View Spec V1
 
@@ -279,13 +277,13 @@ The sql catalog is a catalog backed by a sql database, which is called jdbc cata
 
 | Table Operation | Spec  | Java | PyIceberg | Rust | Go | C++ |
 |-----------------|-------|------|-----------|------|----|-----|
-| listTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| createTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| dropTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| loadTable       | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| updateTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| renameTable     | V1-V3 | Y    | Y         | Y    | Y  | N   |
-| tableExists     | V1-V3 | Y    | Y         | Y    | Y  | N   |
+| listTable       | V1+   | Y    | Y         | Y    | Y  | N   |
+| createTable     | V1+   | Y    | Y         | Y    | Y  | N   |
+| dropTable       | V1+   | Y    | Y         | Y    | Y  | N   |
+| loadTable       | V1+   | Y    | Y         | Y    | Y  | N   |
+| updateTable     | V1+   | Y    | Y         | Y    | Y  | N   |
+| renameTable     | V1+   | Y    | Y         | Y    | Y  | N   |
+| tableExists     | V1+   | Y    | Y         | Y    | Y  | N   |
 
 #### View Spec V1
 
