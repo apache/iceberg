@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.ThreadPools;
 import org.junit.jupiter.api.TestTemplate;
@@ -75,6 +76,28 @@ public class TestManifestFilterManager extends TestBase {
         .as("A manifest that cannot hold an obsolete delete file should not be read")
         .isEmpty();
     assertThat(filtered).containsExactly(manifestB);
+  }
+
+  @TestTemplate
+  public void danglingDVsAreFoundWhenDeleteFilesAreAlsoRemoved() throws IOException {
+    assumeThat(formatVersion).as("DVs are only written in v3 and later").isGreaterThanOrEqualTo(3);
+
+    ManifestFile manifestA = writeDeleteManifest(formatVersion, 1L, newDV(FILE_A));
+
+    // FILE_B_DELETES has no manifest location, so canTrustManifestReferences is false
+    // This tests only tests the non-trusted manifest path
+    assertThat(FILE_B_DELETES.manifestLocation()).isNull();
+
+    CountingFilterManager filterManager = new CountingFilterManager();
+    filterManager.delete(FILE_B_DELETES);
+    filterManager.removeDanglingDeletesFor(ImmutableSet.of(FILE_A));
+    filterManager.filterManifests(SCHEMA, ImmutableList.of(manifestA));
+
+    assertThat(filterManager.opened)
+        .as(
+            "A dangling DV must be found even when an unrelated delete file in a different "
+                + "partition is also explicitly removed in the same commit")
+        .containsExactly(manifestA.path());
   }
 
   /** A delete-manifest filter manager that records every manifest it opens. */

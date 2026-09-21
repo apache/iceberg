@@ -85,8 +85,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private boolean failMissingDeletePaths = false;
   private boolean caseSensitive = true;
   private boolean allDeletesReferenceManifests = true;
-  // this is only being used for the DeleteManifestFilterManager to detect orphaned DVs for removed
-  // data file paths
+  // only used for the DeleteManifestFilterManager to detect orphaned DVs for removed data files
   private Set<String> removedDataFilePaths = Sets.newHashSet();
 
   // cache filtered manifests to avoid extra work when commits fail.
@@ -444,9 +443,14 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
     if (!deletePaths.isEmpty()) {
       return true;
-    } else if (!deleteFiles.isEmpty()) {
-      return ManifestFileUtil.canContainAny(manifest, deleteFilePartitions, specsById);
-    } else if (!removedDataFilePaths.isEmpty()) {
+    }
+
+    if (!deleteFiles.isEmpty()
+        && ManifestFileUtil.canContainAny(manifest, deleteFilePartitions, specsById)) {
+      return true;
+    }
+
+    if (!removedDataFilePaths.isEmpty()) {
       return true;
     }
 
