@@ -49,6 +49,7 @@ class FilePlanner {
 
   private final FileIO io;
   private final ManifestFile root;
+  private final Schema tableSchema;
   private final Map<Integer, PartitionSpec> specsById;
   private final String tableLocation;
   private final Expression dataFilter;
@@ -61,6 +62,7 @@ class FilePlanner {
   private FilePlanner(
       FileIO io,
       ManifestFile root,
+      Schema tableSchema,
       Map<Integer, PartitionSpec> specsById,
       String tableLocation,
       Expression dataFilter,
@@ -70,6 +72,7 @@ class FilePlanner {
       ExecutorService executorService) {
     this.io = io;
     this.root = root;
+    this.tableSchema = tableSchema;
     this.specsById = specsById;
     this.tableLocation = tableLocation;
     this.dataFilter = dataFilter;
@@ -79,8 +82,9 @@ class FilePlanner {
     this.executorService = executorService;
   }
 
-  static Builder builder(FileIO io, ManifestFile root, Map<Integer, PartitionSpec> specsById) {
-    return new Builder(io, root, specsById);
+  static Builder builder(
+      FileIO io, ManifestFile root, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
+    return new Builder(io, root, tableSchema, specsById);
   }
 
   CloseableIterable<FileScanTask> planFiles() {
@@ -128,12 +132,17 @@ class FilePlanner {
   }
 
   private CloseableIterable<TrackedFile> reader(ManifestFile manifest) {
-    return V4ManifestReader.builder(manifest, io, specsById, tableLocation)
-        .forScanPlanning()
-        .filter(dataFilter)
-        .caseSensitive(caseSensitive)
-        .scanMetrics(scanMetrics)
-        .build();
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, io, tableSchema, specsById)
+            .forScanPlanning()
+            .filter(dataFilter)
+            .caseSensitive(caseSensitive)
+            .scanMetrics(scanMetrics);
+    if (tableLocation != null) {
+      builder.tableLocation(tableLocation);
+    }
+
+    return builder.build();
   }
 
   private FileScanTask createTask(DataFile dataFile) {
@@ -178,6 +187,7 @@ class FilePlanner {
   static class Builder {
     private final FileIO io;
     private final ManifestFile root;
+    private final Schema tableSchema;
     private final Map<Integer, PartitionSpec> specsById;
     private String tableLocation = null;
     private Expression dataFilter = Expressions.alwaysTrue();
@@ -186,12 +196,15 @@ class FilePlanner {
     private ScanMetrics scanMetrics = ScanMetrics.noop();
     private ExecutorService executorService = null;
 
-    private Builder(FileIO io, ManifestFile root, Map<Integer, PartitionSpec> specsById) {
+    private Builder(
+        FileIO io, ManifestFile root, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
       Preconditions.checkArgument(io != null, "Invalid file IO: null");
       Preconditions.checkArgument(root != null, "Invalid root manifest: null");
+      Preconditions.checkArgument(tableSchema != null, "Invalid table schema: null");
       Preconditions.checkArgument(specsById != null, "Invalid specs by ID: null");
       this.io = io;
       this.root = root;
+      this.tableSchema = tableSchema;
       this.specsById = ImmutableMap.copyOf(specsById);
     }
 
@@ -233,6 +246,7 @@ class FilePlanner {
       return new FilePlanner(
           io,
           root,
+          tableSchema,
           specsById,
           tableLocation,
           dataFilter,
