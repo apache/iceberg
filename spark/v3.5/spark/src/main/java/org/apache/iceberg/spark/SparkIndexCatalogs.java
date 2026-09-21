@@ -20,8 +20,8 @@ package org.apache.iceberg.spark;
 
 import java.util.Map;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.index.DurableIndexCatalog;
 import org.apache.iceberg.index.IndexCatalog;
-import org.apache.iceberg.index.InMemoryIndexCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
@@ -29,11 +29,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
  * CALL system.build_scalar_index(...)} and query-time index lookups within the same Spark
  * session. Follows the same singleton-registry pattern as {@link ScanTaskSetManager}.
  *
- * <p>Backed by {@link InMemoryIndexCatalog}: which index snapshot is current does not persist
- * across JVM restarts. Only the leaf files, tracking file, and index metadata JSON written to the
- * index's own location on durable storage survive a restart -- this registry just loses track of
- * the pointer to the current one. A persistent index catalog is documented follow-up work in the
- * design proposal's Missing Building Blocks table, not something this class attempts to solve.
+ * <p>Backed by {@link DurableIndexCatalog}, so index registrations survive a JVM restart -- a
+ * fresh {@link #catalogFor} call in a new process re-derives the same catalog (it persists its
+ * pointer files under the table's own location, not in this class's map). What this class caches
+ * is purely the {@link IndexCatalog} object itself, for reuse within one process's lifetime, not
+ * the index metadata -- losing that cache costs nothing beyond re-constructing a cheap wrapper
+ * object.
  */
 public class SparkIndexCatalogs {
 
@@ -50,6 +51,7 @@ public class SparkIndexCatalogs {
   /** The {@link IndexCatalog} for {@code table}, created on first use. */
   public IndexCatalog catalogFor(Table table) {
     return catalogsByTableUuid.computeIfAbsent(
-        Spark3Util.baseTableUUID(table), uuid -> new InMemoryIndexCatalog());
+        Spark3Util.baseTableUUID(table),
+        uuid -> new DurableIndexCatalog(table.io(), table.location()));
   }
 }
