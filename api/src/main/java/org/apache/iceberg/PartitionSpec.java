@@ -49,6 +49,15 @@ import org.apache.iceberg.types.Types.StructType;
  *
  * <p>Partition data is produced by transforming columns in a table. Each column transform is
  * represented by a named {@link PartitionField}.
+ *
+ * <p>Partition specs are created using a builder obtained from {@link #builderFor(Schema)}:
+ *
+ * <pre>{@code
+ * PartitionSpec spec = PartitionSpec.builderFor(schema)
+ *     .hour("ts")
+ *     .bucket("id", 10)
+ *     .build();
+ * }</pre>
  */
 public class PartitionSpec implements Serializable {
   // IDs for partition fields start at 1000

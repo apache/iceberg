@@ -51,7 +51,7 @@ A new `ExpireSnapshotsAction` ([#2591](https://github.com/apache/iceberg-rust/pu
 
 A [custom tokio `Runtime`](https://github.com/apache/iceberg-rust/pull/2308) can now be provided when initializing catalogs.
 This allows for injecting a customized Tokio runtime into the session.
-For example, it is now possible to configure the thread stack size or maximum number of threads programatically.
+For example, it is now possible to configure the thread stack size or maximum number of threads programmatically.
 
 ### Writer Improvements
 

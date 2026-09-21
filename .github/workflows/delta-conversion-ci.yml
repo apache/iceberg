@@ -35,7 +35,7 @@ on:
       - '.github/workflows/flink-ci.yml'
       - '.github/workflows/hive-ci.yml'
       - '.github/workflows/java-ci.yml'
-      - '.github/workflows/jmh-benchmarks-ci.yml'
+      - '.github/workflows/jmh-benchmarks.yml'
       - '.github/workflows/kafka-connect-ci.yml'
       - '.github/workflows/cve-scan.yml'
       - '.github/workflows/labeler.yml'
@@ -90,7 +90,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: zulu
           java-version: ${{ matrix.jvm }}
@@ -124,7 +124,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: zulu
           java-version: ${{ matrix.jvm }}

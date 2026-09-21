@@ -147,11 +147,15 @@ public class Deletes {
     CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
 
     try (CloseableIterable<T> deletes = posDeletes) {
+      String lastFilePath = null;
+      PositionDeleteIndex index = null;
       for (T delete : deletes) {
         CharSequence filePath = (CharSequence) FILENAME_ACCESSOR.get(delete);
         long position = (long) POSITION_ACCESSOR.get(delete);
-        PositionDeleteIndex index =
-            indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
+        if (lastFilePath == null || !lastFilePath.contentEquals(filePath)) {
+          lastFilePath = filePath.toString();
+          index = indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
+        }
         index.delete(position);
       }
     } catch (IOException e) {
