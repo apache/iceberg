@@ -135,4 +135,14 @@ public final class RESTCatalogProperties {
    * removed or changed in future releases without notice.
    */
   public static final String REMOTE_SIGNING_CONFIG = "rest.remote-signing.config";
+
+  /** Whether the server advertises the batch signing endpoint. */
+  public static final String REMOTE_SIGNING_BATCH_SUPPORTED = "rest.remote-signing.batch-supported";
+
+  public static final boolean REMOTE_SIGNING_BATCH_SUPPORTED_DEFAULT = false;
+
+  /** The maximum number of elements the server accepts in one batch signing request. */
+  public static final String REMOTE_SIGNING_BATCH_MAX_SIZE = "rest.remote-signing.batch-max-size";
+
+  public static final int REMOTE_SIGNING_BATCH_MAX_SIZE_DEFAULT = 100;
 }

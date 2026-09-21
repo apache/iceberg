@@ -57,7 +57,8 @@ public class PreSignedUrlTestServer implements AutoCloseable {
           public boolean handle(Request request, Response response, Callback callback)
               throws Exception {
             ranges.add(request.getHeaders().get(HttpHeader.RANGE));
-            return super.handle(ignoreRange ? withoutRange(request) : request, response, callback);
+            return super.handle(
+                without(request, ignoreRange ? HttpHeader.RANGE : null), response, callback);
           }
         });
     server.start();
@@ -87,11 +88,12 @@ public class PreSignedUrlTestServer implements AutoCloseable {
     server.stop();
   }
 
-  private static Request withoutRange(Request request) {
+  private static Request without(Request request, HttpHeader header) {
     return new Request.Wrapper(request) {
       @Override
       public HttpFields getHeaders() {
-        return HttpFields.build(super.getHeaders()).remove(HttpHeader.RANGE).asImmutable();
+        HttpFields.Mutable headers = HttpFields.build(super.getHeaders());
+        return (header == null ? headers : headers.remove(header)).asImmutable();
       }
     };
   }

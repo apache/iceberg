@@ -37,6 +37,7 @@ public class ResourcePaths {
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials";
   public static final String V1_TABLE_REMOTE_SIGN =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/sign";
+  public static final String V1_TABLE_REMOTE_SIGN_BATCH = V1_TABLE_REMOTE_SIGN + "/batch";
   public static final String V1_TABLE_REGISTER = "/v1/{prefix}/namespaces/{namespace}/register";
   public static final String V1_TABLE_METRICS =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics";

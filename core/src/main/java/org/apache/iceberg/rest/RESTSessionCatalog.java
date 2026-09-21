@@ -1265,7 +1265,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         ImmutableMap.<String, String>builder()
             .putAll(properties())
             .putAll(tableConf)
-            .put(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT, paths.remoteSign(tableIdentifier));
+            .put(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT, paths.remoteSign(tableIdentifier))
+            .put(
+                RESTCatalogProperties.REMOTE_SIGNING_BATCH_SUPPORTED,
+                String.valueOf(endpoints.contains(Endpoint.V1_TABLE_REMOTE_SIGN_BATCH)));
 
     if (!remoteSigningConfig.isEmpty()) {
       fullConf.put(

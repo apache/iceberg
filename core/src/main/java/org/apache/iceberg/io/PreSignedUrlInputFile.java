@@ -139,7 +139,10 @@ public class PreSignedUrlInputFile implements InputFile {
       Header contentRange = response.getFirstHeader("Content-Range");
       PreSignedUrlInputStream.discard(response);
       if (contentRange == null || !contentRange.getValue().contains("/")) {
-        throw new IOException("Length probe of " + url + " returned no Content-Range");
+        throw new IOException(
+            "Length probe of "
+                + PreSignedUrlInputStream.redacted(url)
+                + " returned no Content-Range");
       }
 
       String value = contentRange.getValue();

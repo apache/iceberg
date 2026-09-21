@@ -18,7 +18,11 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.net.URI;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
@@ -26,12 +30,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.HttpMethod;
 import org.apache.iceberg.rest.RemoteSignerServlet;
+import org.apache.iceberg.rest.RemoteSigningClient;
 import org.apache.iceberg.rest.requests.RemoteSignRequest;
 import org.apache.iceberg.rest.responses.ImmutableRemoteSignResponse;
 import org.apache.iceberg.rest.responses.RemoteSignResponse;
@@ -40,6 +46,11 @@ import software.amazon.awssdk.auth.signer.params.AwsS3V4SignerParams;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
 /**
  * The {@link S3V4RestSignerClient} performs OAuth and S3 sign requests against a REST server. The
@@ -56,8 +67,30 @@ public class S3SignerServlet extends RemoteSignerServlet {
   /** A fake remote signing endpoint for testing purposes. */
   static final String S3_SIGNER_ENDPOINT = "v1/namespaces/ns1/tables/t1/sign";
 
+  private final ThreadLocal<Boolean> preSignedUrlRequested = ThreadLocal.withInitial(() -> false);
+  private final Supplier<URI> s3Endpoint;
+  private final Region s3Region;
+  private volatile RemoteSignRequest lastRequest;
+
   public S3SignerServlet() {
+    this(null, null);
+  }
+
+  public S3SignerServlet(Supplier<URI> s3Endpoint, Region s3Region) {
     super(S3_SIGNER_ENDPOINT);
+    this.s3Endpoint = s3Endpoint;
+    this.s3Region = s3Region;
+  }
+
+  @Override
+  protected void execute(HttpServletRequest request, HttpServletResponse response) {
+    String delegation = request.getHeader(RemoteSigningClient.ACCESS_DELEGATION_HEADER);
+    preSignedUrlRequested.set(RemoteSigningClient.PRESIGNED_URLS.equals(delegation));
+    try {
+      super.execute(request, response);
+    } finally {
+      preSignedUrlRequested.remove();
+    }
   }
 
   @Override
@@ -75,8 +108,17 @@ public class S3SignerServlet extends RemoteSignerServlet {
     }
   }
 
+  RemoteSignRequest lastRequest() {
+    return lastRequest;
+  }
+
   @Override
   protected RemoteSignResponse signRequest(RemoteSignRequest request) {
+    this.lastRequest = request;
+    if (preSignedUrlRequested.get()) {
+      return preSign(request);
+    }
+
     AwsS3V4SignerParams signingParams =
         AwsS3V4SignerParams.builder()
             .awsCredentials(TestS3RestSigner.CREDENTIALS_PROVIDER.resolveCredentials())
@@ -113,5 +155,35 @@ public class S3SignerServlet extends RemoteSignerServlet {
     headers.putAll(unsignedHeaders);
 
     return ImmutableRemoteSignResponse.builder().uri(request.uri()).headers(headers).build();
+  }
+
+  private RemoteSignResponse preSign(RemoteSignRequest request) {
+    Preconditions.checkState(s3Endpoint != null, "This signer does not pre-sign");
+    URI location = request.uri();
+    Preconditions.checkArgument(
+        "s3".equalsIgnoreCase(location.getScheme()), "Not an S3 location: %s", location);
+
+    try (S3Presigner presigner =
+        S3Presigner.builder()
+            .endpointOverride(s3Endpoint.get())
+            .region(request.region().isEmpty() ? s3Region : Region.of(request.region()))
+            .credentialsProvider(TestS3RestSigner.CREDENTIALS_PROVIDER)
+            .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
+            .build()) {
+      PresignedGetObjectRequest presigned =
+          presigner.presignGetObject(
+              GetObjectPresignRequest.builder()
+                  .signatureDuration(Duration.ofMinutes(10))
+                  .getObjectRequest(
+                      GetObjectRequest.builder()
+                          .bucket(location.getAuthority())
+                          .key(location.getPath().substring(1))
+                          .build())
+                  .build());
+
+      return ImmutableRemoteSignResponse.builder()
+          .uri(URI.create(presigned.url().toString()))
+          .build();
+    }
   }
 }

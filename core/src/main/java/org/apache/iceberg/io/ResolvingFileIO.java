@@ -19,6 +19,7 @@
 package org.apache.iceberg.io;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.responses.RemoteSignResponse;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
@@ -50,7 +52,7 @@ import org.slf4j.LoggerFactory;
  * otherwise initialization will fail.
  */
 public class ResolvingFileIO
-    implements HadoopConfigurable, DelegateFileIO, SupportsStorageCredentials {
+    implements HadoopConfigurable, DelegateFileIO, SupportsStorageCredentials, SupportsPreSigning {
   private static final Logger LOG = LoggerFactory.getLogger(ResolvingFileIO.class);
   private static final int BATCH_SIZE = 100_000;
   private static final String FALLBACK_IMPL = "org.apache.iceberg.hadoop.HadoopFileIO";
@@ -297,5 +299,27 @@ public class ResolvingFileIO
   @Override
   public List<StorageCredential> credentials() {
     return ImmutableList.copyOf(storageCredentials);
+  }
+
+  /** Signs each location through the delegate for its scheme. */
+  @Override
+  public Map<String, RemoteSignResponse> preSign(Collection<String> locations) {
+    Map<DelegateFileIO, List<String>> locationsByIO =
+        locations.stream().collect(Collectors.groupingBy(this::io));
+
+    ImmutableMap.Builder<String, RemoteSignResponse> urls = ImmutableMap.builder();
+    for (Map.Entry<DelegateFileIO, List<String>> entry : locationsByIO.entrySet()) {
+      DelegateFileIO delegate = entry.getKey();
+      if (!(delegate instanceof SupportsPreSigning)) {
+        throw new UnsupportedOperationException(
+            String.format(
+                "Cannot pre-sign %s: %s does not support pre-signing",
+                entry.getValue().get(0), delegate.getClass().getName()));
+      }
+
+      urls.putAll(((SupportsPreSigning) delegate).preSign(entry.getValue()));
+    }
+
+    return urls.build();
   }
 }

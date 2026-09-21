@@ -30,13 +30,21 @@ import java.io.Reader;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.CharStreams;
+import org.apache.iceberg.rest.requests.ImmutableRemoteSignRequest;
+import org.apache.iceberg.rest.requests.RemoteSignBatchRequest;
 import org.apache.iceberg.rest.requests.RemoteSignRequest;
+import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.ImmutableRemoteSignBatchResponse;
+import org.apache.iceberg.rest.responses.ImmutableRemoteSignBatchResult;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.rest.responses.RemoteSignBatchResponse;
 import org.apache.iceberg.rest.responses.RemoteSignResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,9 +71,26 @@ public abstract class RemoteSignerServlet extends HttpServlet {
       ImmutableMap.of(HttpHeaders.CONTENT_TYPE, ContentType.APPLICATION_JSON.getMimeType());
 
   private final String signEndpoint;
+  private final String batchSignEndpoint;
+  private final AtomicInteger signRoundTrips = new AtomicInteger();
+  private final AtomicInteger signedLocations = new AtomicInteger();
 
   protected RemoteSignerServlet(String signEndpoint) {
     this.signEndpoint = signEndpoint;
+    this.batchSignEndpoint = signEndpoint + "/batch";
+  }
+
+  public int signRoundTrips() {
+    return signRoundTrips.get();
+  }
+
+  public int signedLocations() {
+    return signedLocations.get();
+  }
+
+  public void resetSignCounters() {
+    signRoundTrips.set(0);
+    signedLocations.set(0);
   }
 
   @Override
@@ -155,6 +180,39 @@ public abstract class RemoteSignerServlet extends HttpServlet {
     }
   }
 
+  protected RemoteSignBatchResponse signBatch(RemoteSignBatchRequest batch) {
+    ImmutableRemoteSignBatchResponse.Builder results = ImmutableRemoteSignBatchResponse.builder();
+    for (RemoteSignRequest request : batch.requests()) {
+      try {
+        Map<String, String> properties = Maps.newHashMap(batch.properties());
+        properties.putAll(request.properties());
+        RemoteSignRequest element =
+            ImmutableRemoteSignRequest.builder().from(request).properties(properties).build();
+        validateSignRequest(element);
+        RemoteSignResponse signed = signRequest(element);
+        results.addResults(
+            ImmutableRemoteSignBatchResult.builder()
+                .status(SignStatus.COMPLETED)
+                .uri(signed.uri())
+                .headers(signed.headers())
+                .build());
+      } catch (Exception e) {
+        results.addResults(
+            ImmutableRemoteSignBatchResult.builder()
+                .status(SignStatus.FAILED)
+                .error(
+                    ErrorResponse.builder()
+                        .responseCode(HttpServletResponse.SC_FORBIDDEN)
+                        .withType(e.getClass().getSimpleName())
+                        .withMessage(e.getMessage())
+                        .build())
+                .build());
+      }
+    }
+
+    return results.build();
+  }
+
   protected void execute(HttpServletRequest request, HttpServletResponse response) {
     response.setStatus(HttpServletResponse.SC_OK);
     RESPONSE_HEADERS.forEach(response::setHeader);
@@ -169,8 +227,21 @@ public abstract class RemoteSignerServlet extends HttpServlet {
                 RESTObjectMapper.mapper().readValue(request.getReader(), RemoteSignRequest.class));
         validateSignRequest(signRequest);
         RemoteSignResponse signResponse = signRequest(signRequest);
+        signRoundTrips.incrementAndGet();
+        signedLocations.incrementAndGet();
         addSignResponseHeaders(signRequest, response);
         RESTObjectMapper.mapper().writeValue(response.getWriter(), signResponse);
+      } else if (POST.equals(request.getMethod()) && batchSignEndpoint.equals(path)) {
+        RemoteSignBatchRequest batchRequest =
+            castRequest(
+                RemoteSignBatchRequest.class,
+                RESTObjectMapper.mapper()
+                    .readValue(request.getReader(), RemoteSignBatchRequest.class));
+        RemoteSignBatchResponse batchResponse = signBatch(batchRequest);
+        signRoundTrips.incrementAndGet();
+        signedLocations.addAndGet(batchRequest.requests().size());
+        addSignResponseHeaders(batchRequest.requests().get(0), response);
+        RESTObjectMapper.mapper().writeValue(response.getWriter(), batchResponse);
       } else if (POST.equals(request.getMethod()) && ResourcePaths.tokens().equals(path)) {
         try (Reader reader = new InputStreamReader(request.getInputStream())) {
           requestBody = RESTUtil.decodeFormData(CharStreams.toString(reader));
@@ -185,7 +256,7 @@ public abstract class RemoteSignerServlet extends HttpServlet {
         RESTObjectMapper.mapper()
             .writeValue(
                 response.getWriter(),
-                org.apache.iceberg.rest.responses.ErrorResponse.builder()
+                ErrorResponse.builder()
                     .responseCode(400)
                     .withType("BadRequestException")
                     .withMessage(format("No route for request: %s %s", request.getMethod(), path))
