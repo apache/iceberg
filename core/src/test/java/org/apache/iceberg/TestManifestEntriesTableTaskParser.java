@@ -80,14 +80,17 @@ public class TestManifestEntriesTableTaskParser {
 
   private BaseEntriesTable.ManifestReadTask createTask() {
     Schema schema = TestBase.SCHEMA;
+    Schema projection = schema.select("data");
     HadoopFileIO fileIO = new HadoopFileIO();
     fileIO.initialize(ImmutableMap.of("k1", "v1", "k2", "v2"));
     Map<Integer, PartitionSpec> specsById =
         PartitionUtil.indexSpecs(
-            Arrays.asList(PartitionSpec.builderFor(schema).bucket("data", 16).build()));
+            Arrays.asList(
+                PartitionSpec.builderFor(schema).bucket("data", 16).build(),
+                PartitionSpec.builderFor(schema).withSpecId(1).bucket("id", 4).build()));
     ManifestFile manifestFile = TestManifestFileParser.createManifestFile();
     return new BaseEntriesTable.ManifestReadTask(
-        schema, fileIO, specsById, manifestFile, schema, Expressions.equal("id", 1));
+        schema, fileIO, specsById, manifestFile, projection, Expressions.equal("id", 1));
   }
 
   private String taskJson() {
@@ -98,7 +101,9 @@ public class TestManifestEntriesTableTaskParser {
         + "\"file-io\":{\"io-impl\":\"org.apache.iceberg.hadoop.HadoopFileIO\","
         + "\"properties\":{\"k1\":\"v1\",\"k2\":\"v2\"}},"
         + "\"partition-specs\":[{\"spec-id\":0,\"fields\":[{"
-        + "\"name\":\"data_bucket\",\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]}],"
+        + "\"name\":\"data_bucket\",\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]},"
+        + "{\"spec-id\":1,\"fields\":[{"
+        + "\"name\":\"id_bucket\",\"transform\":\"bucket[4]\",\"source-id\":3,\"field-id\":1000}]}],"
         + "\"manifest-file\":{\"path\":\"/path/input.m0.avro\","
         + "\"length\":5878,\"partition-spec-id\":0,\"content\":0,\"sequence-number\":1,\"min-sequence-number\":2,"
         + "\"added-snapshot-id\":12345678901234567,"
@@ -108,8 +113,7 @@ public class TestManifestEntriesTableTaskParser {
         + "\"lower-bound\":\"0A000000\",\"upper-bound\":\"64000000\"}],\"key-metadata\":\"DB030000\","
         + "\"first-row-id\":10},"
         + "\"projection\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":[{"
-        + "\"id\":3,\"name\":\"id\",\"required\":true,\"type\":\"int\"},"
-        + "{\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
+        + "\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
         + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}";
   }
 
