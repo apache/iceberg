@@ -57,12 +57,12 @@ indicates end-to-end support for the listed behavior, not only support for seria
 | timestamptz_ns | V3+  | Y    | Y         | Y    | Y  | Y   |
 | unknown        | V3+  | Y    | Y         | N    | Y  | Y   |
 | string         | V1+  | Y    | Y         | Y    | Y  | Y   |
-| uuid           | V1+  | Y    | Y         | Y    | Y  | N   |
+| uuid           | V1+  | Y    | Y         | Y    | Y  | Y   |
 | fixed          | V1+  | Y    | Y         | Y    | Y  | Y   |
 | binary         | V1+  | Y    | Y         | Y    | Y  | Y   |
-| variant        | V3+  | Y    | Y         | N    | Y  | N   |
-| geometry       | V3+  | Y    | Y         | N    | Y  | N   |
-| geography      | V3+  | Y    | Y         | N    | Y  | N   |
+| variant        | V3+  | Y    | N         | N    | Y  | N   |
+| geometry       | V3+  | Y    | Y         | N    | N  | N   |
+| geography      | V3+  | Y    | Y         | N    | N  | N   |
 | list           | V1+  | Y    | Y         | Y    | Y  | Y   |
 | map            | V1+  | Y    | Y         | Y    | Y  | Y   |
 | struct         | V1+  | Y    | Y         | Y    | Y  | Y   |
@@ -72,14 +72,14 @@ indicates end-to-end support for the listed behavior, not only support for seria
 | Capability                       | Spec  | Java | PyIceberg | Rust | Go | C++ |
 |----------------------------------|-------|------|-----------|------|----|-----|
 | Read table metadata              | V1-V2 | Y    | Y         | Y    | Y  | Y   |
-| Read table metadata              | V3    | Y    | Y         | Y    | Y  | N   |
+| Read table metadata              | V3    | Y    | Y         | Y    | Y  | Y   |
 | Write table metadata             | V1-V2 | Y    | Y         | Y    | Y  | Y   |
-| Write table metadata             | V3    | Y    | N         | Y    | Y  | N   |
+| Write table metadata             | V3    | Y    | N         | Y    | Y  | Y   |
 | Read initial column defaults     | V3    | Y    | Y         | Y    | Y  | N   |
 | Read multi-argument transforms   | V3    | N    | N         | N    | Y  | N   |
 | Write multi-argument transforms  | V3    | N    | N         | N    | Y  | N   |
 | Read row lineage columns         | V3    | Y    | N         | N    | Y  | N   |
-| Write row lineage                | V3    | Y    | N         | N    | Y  | N   |
+| Write row lineage                | V3    | Y    | N         | N    | Y  | Y   |
 | Read encrypted tables            | V3    | Y    | N         | N    | N  | N   |
 | Write encrypted tables           | V3    | Y    | N         | N    | N  | N   |
 
