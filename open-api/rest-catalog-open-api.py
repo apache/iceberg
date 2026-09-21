@@ -1625,6 +1625,10 @@ class StructField(BaseModel):
     doc: str | None = None
     initial_default: PrimitiveTypeValue | None = Field(None, alias='initial-default')
     write_default: PrimitiveTypeValue | None = Field(None, alias='write-default')
+    collation: str | None = Field(
+        None,
+        description='Provider-qualified collation for a string field, e.g. icu.en_US-ci; absent means UTF-8 byte order',
+    )
 
 
 class StructType(BaseModel):
@@ -1637,15 +1641,30 @@ class ListType(BaseModel):
     element_id: int = Field(..., alias='element-id')
     element: Type
     element_required: bool = Field(..., alias='element-required')
+    element_collation: str | None = Field(
+        None,
+        alias='element-collation',
+        description='Provider-qualified collation for a string element, e.g. icu.en_US-ci; absent means UTF-8 byte order',
+    )
 
 
 class MapType(BaseModel):
     type: Literal['map']
     key_id: int = Field(..., alias='key-id')
     key: Type
+    key_collation: str | None = Field(
+        None,
+        alias='key-collation',
+        description='Provider-qualified collation for a string key, e.g. icu.en_US-ci; absent means UTF-8 byte order',
+    )
     value_id: int = Field(..., alias='value-id')
     value: Type
     value_required: bool = Field(..., alias='value-required')
+    value_collation: str | None = Field(
+        None,
+        alias='value-collation',
+        description='Provider-qualified collation for a string value, e.g. icu.en_US-ci; absent means UTF-8 byte order',
+    )
 
 
 class AndOrPredicate(BaseModel):
