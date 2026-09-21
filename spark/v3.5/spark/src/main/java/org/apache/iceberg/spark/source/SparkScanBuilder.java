@@ -27,8 +27,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.IncrementalChangelogScan;
@@ -65,6 +63,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.IndexSnapshotUtil;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkAggregates;
 import org.apache.iceberg.spark.SparkIndexCatalogs;
@@ -362,40 +361,13 @@ public class SparkScanBuilder
   /**
    * Data file paths added to {@link #table} strictly after {@code sourceSnapshotId} up to and
    * including {@code currentSnapshotId} -- the "uncovered" files in the covered/uncovered-files
-   * staleness model (see {@link #tryPruneUsingScalarIndex}).
-   *
-   * <p>Deliberately does not use {@link org.apache.iceberg.IncrementalAppendScan}: it silently
-   * filters snapshots down to appends-only rather than throwing when a non-append snapshot (e.g.
-   * a compaction/rewrite) sits in the range, which would make this method return an incomplete
-   * uncovered-files set instead of failing -- and an incomplete uncovered set here is a real
-   * correctness risk, not just a missed optimization: if compaction moved some rows into a new
-   * file that isn't in the (stale) index's covered set either, silently omitting that file from
-   * both the covered matches and the uncovered set would cause those rows to never be scanned.
-   * Walks the snapshot ancestry directly instead and requires every snapshot in range to be a
-   * pure append, throwing otherwise so the caller falls back to no pruning at all.
+   * staleness model (see {@link #tryPruneUsingScalarIndex}). Delegates to {@link
+   * IndexSnapshotUtil#addedFilePathsSince}, shared with the write side ({@code
+   * BuildScalarIndexProcedure}'s incremental build path) so a fix to this correctness-sensitive
+   * logic can't diverge between the two.
    */
   private Set<String> uncoveredFilePathsSince(long sourceSnapshotId, long currentSnapshotId) {
-    Preconditions.checkArgument(
-        SnapshotUtil.isAncestorOf(table, currentSnapshotId, sourceSnapshotId),
-        "Index snapshot's source table snapshot %s is not an ancestor of the current table "
-            + "snapshot %s",
-        sourceSnapshotId,
-        currentSnapshotId);
-
-    Set<String> paths = Sets.newHashSet();
-    for (Snapshot snapshot :
-        SnapshotUtil.ancestorsBetween(currentSnapshotId, sourceSnapshotId, table::snapshot)) {
-      Preconditions.checkState(
-          DataOperations.APPEND.equals(snapshot.operation()),
-          "Cannot safely determine uncovered files: snapshot %s between the index's snapshot "
-              + "and the current one is a '%s', not an append",
-          snapshot.snapshotId(),
-          snapshot.operation());
-      for (DataFile file : snapshot.addedDataFiles(table.io())) {
-        paths.add(file.location());
-      }
-    }
-    return paths;
+    return IndexSnapshotUtil.addedFilePathsSince(table, sourceSnapshotId, currentSnapshotId);
   }
 
   private boolean unpartitioned() {

@@ -26,23 +26,31 @@ import static org.apache.spark.sql.functions.row_number;
 import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.index.HashTransform;
 import org.apache.iceberg.index.IndexCatalog;
 import org.apache.iceberg.index.IndexIdentifier;
+import org.apache.iceberg.index.IndexMetadata;
+import org.apache.iceberg.index.IndexSnapshot;
 import org.apache.iceberg.index.LeafFileEntry;
 import org.apache.iceberg.index.LeafFileMetadata;
 import org.apache.iceberg.index.LeafFileWriter;
 import org.apache.iceberg.index.ScalarIndexCommitter;
+import org.apache.iceberg.index.TrackingFileEntry;
+import org.apache.iceberg.index.TrackingFileReader;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.IndexSnapshotUtil;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkIndexCatalogs;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
@@ -65,6 +73,8 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A procedure that builds a SCALAR index on a single key column.
@@ -80,8 +90,19 @@ import org.apache.spark.sql.types.StructType;
  * (multi-column composite indexes are an explicit Non-Goal). {@code IDENTITY} additionally
  * requires a numeric (long or int) key column, since the transform value is a {@code long} and a
  * string cannot be cast to one meaningfully.
+ *
+ * <p>Defaults to a full rebuild -- reading the entire source table and rewriting every leaf file
+ * -- every time it is called. Passing {@code options => map('mode', 'incremental')} builds only
+ * the leaf files for data files added since the existing index's last snapshot, appending them to
+ * the existing leaf files rather than rewriting everything (the append-only option from Huaxin
+ * Gao's Primary Key Index for Apache Iceberg proposal, Section 7.2). Falls back to a full rebuild
+ * if there is no existing index to build on incrementally, or if anything about determining the
+ * added files fails (for example, a compaction/rewrite happened since the index was last built --
+ * see {@link org.apache.iceberg.spark.IndexSnapshotUtil#addedFilePathsSince}).
  */
 class BuildScalarIndexProcedure extends BaseProcedure {
+
+  private static final Logger LOG = LoggerFactory.getLogger(BuildScalarIndexProcedure.class);
 
   private static final ProcedureParameter TABLE_PARAM =
       requiredInParameter("table", DataTypes.StringType);
@@ -160,12 +181,194 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     Preconditions.checkArgument(
         keyField != null, "Column '%s' does not exist in table schema", keyColumnName);
 
-    String upperTransform = transformName.toUpperCase(java.util.Locale.ROOT);
+    String upperTransform = transformName.toUpperCase(Locale.ROOT);
     Column transformValueCol = transformValueColumn(upperTransform, keyField, options);
 
+    // Derived from the core Table's own name, not the Spark catalog Identifier -- must match
+    // exactly how SparkScanBuilder derives it on the read side, or indexExists() there silently
+    // and permanently returns false.
+    TableIdentifier icebergTableIdent = TableIdentifier.parse(table.name());
+    IndexIdentifier indexIdent = IndexIdentifier.of(icebergTableIdent, keyColumnName + "_idx");
+    IndexCatalog catalog = SparkIndexCatalogs.get().catalogFor(table);
+
+    String mode = options.getOrDefault("mode", "full").toLowerCase(Locale.ROOT);
+    if ("incremental".equals(mode) && catalog.indexExists(indexIdent)) {
+      try {
+        return buildIncremental(
+            catalog, indexIdent, tableIdent, table, keyField, upperTransform, transformValueCol,
+            keyColumnName, options);
+      } catch (Exception e) {
+        LOG.warn(
+            "Incremental build failed for index {}, falling back to full rebuild: {}",
+            indexIdent,
+            e.getMessage());
+      }
+    }
+
+    return buildFull(
+        catalog, indexIdent, tableIdent, table, keyField, upperTransform, transformValueCol,
+        keyColumnName, options);
+  }
+
+  private BuildResult buildFull(
+      IndexCatalog catalog,
+      IndexIdentifier indexIdent,
+      Identifier tableIdent,
+      Table table,
+      Types.NestedField keyField,
+      String upperTransform,
+      Column transformValueCol,
+      String keyColumnName,
+      Map<String, String> options) {
     String tableName = Spark3Util.quotedFullIdentifier(tableCatalog().name(), tableIdent);
     Dataset<Row> sourceDf = spark().read().table(tableName);
 
+    int targetLeafFiles = Integer.parseInt(options.getOrDefault("target-leaf-files", "4"));
+    String indexLocation =
+        options.getOrDefault(
+            "location", stripTrailingSlash(table.location()) + "/index/" + keyColumnName + "_idx");
+    String leafDataLocation = indexLocation + "/data";
+    FileIO io = table.io();
+
+    List<LeafFileWriteResult> writeResults =
+        buildLeafFiles(sourceDf, keyColumnName, transformValueCol, keyField, io, leafDataLocation, targetLeafFiles);
+    List<LeafFileMetadata> leafFiles = toLeafFileMetadata(writeResults);
+
+    Preconditions.checkArgument(
+        !leafFiles.isEmpty(), "build_scalar_index produced no leaf files -- source table is empty?");
+
+    ScalarIndexCommitter committer = new ScalarIndexCommitter(catalog, io);
+    committer.commit(
+        indexIdent,
+        table.uuid().toString(),
+        table.currentSnapshot().snapshotId(),
+        "SCALAR",
+        upperTransform,
+        ImmutableList.of(keyField.fieldId()),
+        indexLocation,
+        leafFiles);
+
+    return new BuildResult(indexLocation, leafFiles.size(), sumRecordCount(leafFiles));
+  }
+
+  /**
+   * Builds only the leaf files for data files added to the table since the existing index's last
+   * snapshot, and appends them to the existing leaf files rather than rewriting everything -- the
+   * append-only option from Huaxin Gao's Primary Key Index for Apache Iceberg proposal (Section
+   * 7.2). Stale entries (e.g. from rows since updated or deleted) are not removed here; a full
+   * rebuild is what cleans those up, matching that same proposal's recommendation.
+   *
+   * <p>Throws (letting {@link #buildAndCommit} fall back to a full rebuild) if the existing
+   * index's key column doesn't match, has no committed snapshot, or if {@link
+   * IndexSnapshotUtil#addedFilePathsSince} can't safely determine the added files (for example, a
+   * compaction/rewrite happened since the index was last built).
+   */
+  private BuildResult buildIncremental(
+      IndexCatalog catalog,
+      IndexIdentifier indexIdent,
+      Identifier tableIdent,
+      Table table,
+      Types.NestedField keyField,
+      String upperTransform,
+      Column transformValueCol,
+      String keyColumnName,
+      Map<String, String> options) {
+    Preconditions.checkArgument(
+        table.currentSnapshot() != null, "Cannot incrementally build an index on an empty table");
+
+    IndexMetadata existing = catalog.loadIndex(indexIdent);
+    Preconditions.checkArgument(
+        existing.keyColumnIds().equals(ImmutableList.of(keyField.fieldId())),
+        "Existing index %s is on a different key column; incremental build requires the same"
+            + " key column",
+        indexIdent);
+    IndexSnapshot existingSnapshot = existing.currentSnapshot();
+    Preconditions.checkArgument(
+        existingSnapshot != null,
+        "Existing index %s has no committed snapshot to build on incrementally",
+        indexIdent);
+
+    long currentTableSnapshotId = table.currentSnapshot().snapshotId();
+    long sourceTableSnapshotId = existingSnapshot.sourceTableSnapshotId();
+    FileIO io = table.io();
+
+    List<LeafFileMetadata> existingLeafFiles =
+        TrackingFileReader.readAll(io.newInputFile(existingSnapshot.trackingFile())).stream()
+            .map(BuildScalarIndexProcedure::toLeafFileMetadata)
+            .collect(Collectors.toList());
+
+    ScalarIndexCommitter committer = new ScalarIndexCommitter(catalog, io);
+
+    if (sourceTableSnapshotId == currentTableSnapshotId) {
+      // Already fresh -- nothing new to index. Commit is a no-op in effect (same leaf files,
+      // same source snapshot), so just report the existing state back rather than churn a new
+      // index snapshot for no reason.
+      return new BuildResult(
+          existing.location(), existingLeafFiles.size(), sumRecordCount(existingLeafFiles));
+    }
+
+    Set<String> addedFilePaths =
+        IndexSnapshotUtil.addedFilePathsSince(table, sourceTableSnapshotId, currentTableSnapshotId);
+
+    if (addedFilePaths.isEmpty()) {
+      // No new data files since the index was last built -- just refresh the snapshot pointer,
+      // no new leaf files needed.
+      committer.commit(
+          indexIdent,
+          table.uuid().toString(),
+          currentTableSnapshotId,
+          "SCALAR",
+          upperTransform,
+          ImmutableList.of(keyField.fieldId()),
+          existing.location(),
+          existingLeafFiles);
+      return new BuildResult(
+          existing.location(), existingLeafFiles.size(), sumRecordCount(existingLeafFiles));
+    }
+
+    String tableName = Spark3Util.quotedFullIdentifier(tableCatalog().name(), tableIdent);
+    Dataset<Row> newRowsDf =
+        spark().read().table(tableName).filter(input_file_name().isInCollection(addedFilePaths));
+
+    int targetLeafFiles = Integer.parseInt(options.getOrDefault("target-leaf-files", "4"));
+    String leafDataLocation = existing.location() + "/data";
+
+    List<LeafFileWriteResult> newWriteResults =
+        buildLeafFiles(newRowsDf, keyColumnName, transformValueCol, keyField, io, leafDataLocation, targetLeafFiles);
+    List<LeafFileMetadata> newLeafFiles = toLeafFileMetadata(newWriteResults);
+    Preconditions.checkArgument(
+        !newLeafFiles.isEmpty(),
+        "Incremental build found added files but produced no leaf files -- this should not happen");
+
+    List<LeafFileMetadata> allLeafFiles = Lists.newArrayList(existingLeafFiles);
+    allLeafFiles.addAll(newLeafFiles);
+
+    committer.commit(
+        indexIdent,
+        table.uuid().toString(),
+        currentTableSnapshotId,
+        "SCALAR",
+        upperTransform,
+        ImmutableList.of(keyField.fieldId()),
+        existing.location(),
+        allLeafFiles);
+
+    return new BuildResult(existing.location(), allLeafFiles.size(), sumRecordCount(allLeafFiles));
+  }
+
+  /**
+   * Computes position/transform-value/leaf-file assignment and writes leaf files for {@code
+   * sourceDf}'s rows, shared between {@link #buildFull} (the whole source table) and {@link
+   * #buildIncremental} (only newly added rows).
+   */
+  private List<LeafFileWriteResult> buildLeafFiles(
+      Dataset<Row> sourceDf,
+      String keyColumnName,
+      Column transformValueCol,
+      Types.NestedField keyField,
+      FileIO io,
+      String leafDataLocation,
+      int targetLeafFiles) {
     // Compute position before any shuffle, so it reflects physical file-scan order.
     // row_number() returns IntegerType, not LongType -- cast explicitly so __position is
     // genuinely a long column, matching LeafFileEntry.position()'s type. Reading an
@@ -186,60 +389,46 @@ class BuildScalarIndexProcedure extends BaseProcedure {
 
     Dataset<Row> withTransform = withPosition.withColumn("__transform_value", transformValueCol);
 
-    int targetLeafFiles =
-        Integer.parseInt(options.getOrDefault("target-leaf-files", "4"));
     Dataset<Row> sorted =
         withTransform
             .repartitionByRange(targetLeafFiles, col("__transform_value"))
             .sortWithinPartitions(col("__transform_value"), col("__key"));
 
-    String indexLocation =
-        options.getOrDefault(
-            "location", stripTrailingSlash(table.location()) + "/index/" + keyColumnName + "_idx");
-    String leafDataLocation = indexLocation + "/data";
-    FileIO io = table.io();
+    return sorted
+        .mapPartitions(
+            (MapPartitionsFunction<Row, LeafFileWriteResult>)
+                rows -> writeLeafFilePartition(rows, io, keyField, leafDataLocation),
+            Encoders.javaSerialization(LeafFileWriteResult.class))
+        .collectAsList();
+  }
 
-    List<LeafFileWriteResult> writeResults =
-        sorted
-            .mapPartitions(
-                (MapPartitionsFunction<Row, LeafFileWriteResult>)
-                    rows -> writeLeafFilePartition(rows, io, keyField, leafDataLocation),
-                Encoders.javaSerialization(LeafFileWriteResult.class))
-            .collectAsList();
-
+  private static List<LeafFileMetadata> toLeafFileMetadata(List<LeafFileWriteResult> writeResults) {
     List<LeafFileMetadata> leafFiles = Lists.newArrayList();
-    long totalRecords = 0;
     for (LeafFileWriteResult r : writeResults) {
       leafFiles.add(
           new LeafFileMetadata(
               r.path, "parquet", r.recordCount, r.sizeBytes, r.transformValueMin,
               r.transformValueMax));
-      totalRecords += r.recordCount;
     }
+    return leafFiles;
+  }
 
-    Preconditions.checkArgument(
-        !leafFiles.isEmpty(), "build_scalar_index produced no leaf files -- source table is empty?");
+  private static LeafFileMetadata toLeafFileMetadata(TrackingFileEntry entry) {
+    return new LeafFileMetadata(
+        entry.location(),
+        entry.fileFormat(),
+        entry.recordCount(),
+        entry.fileSizeInBytes(),
+        entry.transformValueLowerBound(),
+        entry.transformValueUpperBound());
+  }
 
-    IndexCatalog catalog = SparkIndexCatalogs.get().catalogFor(table);
-    ScalarIndexCommitter committer = new ScalarIndexCommitter(catalog, io);
-    // Derived from the core Table's own name, not the Spark catalog Identifier -- must match
-    // exactly how SparkScanBuilder derives it on the read side, or indexExists() there silently
-    // and permanently returns false.
-    TableIdentifier icebergTableIdent = TableIdentifier.parse(table.name());
-    IndexIdentifier indexIdent =
-        IndexIdentifier.of(icebergTableIdent, keyColumnName + "_idx");
-
-    committer.commit(
-        indexIdent,
-        table.uuid().toString(),
-        table.currentSnapshot().snapshotId(),
-        "SCALAR",
-        upperTransform,
-        ImmutableList.of(keyField.fieldId()),
-        indexLocation,
-        leafFiles);
-
-    return new BuildResult(indexLocation, leafFiles.size(), totalRecords);
+  private static long sumRecordCount(List<LeafFileMetadata> leafFiles) {
+    long total = 0;
+    for (LeafFileMetadata leafFile : leafFiles) {
+      total += leafFile.recordCount();
+    }
+    return total;
   }
 
   private Column transformValueColumn(
