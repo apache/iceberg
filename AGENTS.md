@@ -173,7 +173,6 @@ The `api/` module has the strongest stability guarantees — breaking changes ar
 - Before opening a PR, run `./gradlew spotlessApply` and build and test the modules you changed (see Commands). Never submit code you have not compiled and run.
 - PR description is one paragraph, under 120 words: the problem, the approach, and anything a reviewer would not guess from the diff. Plus the issue link, the test plan, and the AI Disclosure block. Nothing else.
 - Never restate the diff: no file-by-file walkthrough, no per-method summaries, no "Changes made" checklist, no "Summary", "Background", "Motivation", or "Testing" headings, no emoji.
-- If the change needs more than a paragraph to explain, the PR is too big.
 - Commit messages describe the *what* and *why*, not implementation details.
 - Apache License header required on all new files (enforced by spotless pre-commit hook).
 
