@@ -72,12 +72,12 @@ class TestFlinkUuidType extends CatalogTestBase {
   @Parameter(index = 2)
   private FileFormat fileFormat;
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}, fileFormat={2}")
+  @Parameters(name = "catalogType={0}, baseNamespace={1}, fileFormat={2}")
   protected static List<Object[]> parameters() {
     return Arrays.asList(
-        new Object[] {"testhadoop", Namespace.empty(), FileFormat.PARQUET},
-        new Object[] {"testhadoop", Namespace.empty(), FileFormat.AVRO},
-        new Object[] {"testhadoop", Namespace.empty(), FileFormat.ORC});
+        new Object[] {CatalogType.HADOOP, Namespace.empty(), FileFormat.PARQUET},
+        new Object[] {CatalogType.HADOOP, Namespace.empty(), FileFormat.AVRO},
+        new Object[] {CatalogType.HADOOP, Namespace.empty(), FileFormat.ORC});
   }
 
   @Override

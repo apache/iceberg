@@ -2437,7 +2437,7 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
     StructLike dataFilePartition = dataFile.partition();
 
     PositionDelete<InternalRow> delete = PositionDelete.create();
-    delete.set(dataFile.location(), pos, null);
+    delete.set(dataFile.location(), pos);
 
     return writePositionDeletes(table, dataFileSpec, dataFilePartition, ImmutableList.of(delete));
   }

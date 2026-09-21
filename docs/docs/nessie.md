@@ -47,7 +47,7 @@ bin/spark-sql
   --conf spark.sql.extensions="org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions,org.projectnessie.spark.extensions.NessieSparkSessionExtensions"
   --conf <other settings>
 ```
-Please refer [Nessie SQL extension document](https://projectnessie.org/tools/sql/) to learn more about it.
+Please refer to the [Nessie SQL extension document](https://projectnessie.org/tools/sql/) to learn more about it.
 
 ## Nessie Catalog
 
@@ -93,7 +93,7 @@ table_env = StreamTableEnvironment.create(env)
 
 table_env.execute_sql("CREATE CATALOG nessie_catalog WITH ("
                       "'type'='iceberg', "
-                      "'type'='nessie', "
+                      "'catalog-impl'='org.apache.iceberg.nessie.NessieCatalog', "
                       "'uri'='http://localhost:19120/api/v2', "
                       "'ref'='main', "
                       "'warehouse'='/path/to/warehouse')")

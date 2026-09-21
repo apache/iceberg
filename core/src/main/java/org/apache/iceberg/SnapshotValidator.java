@@ -20,12 +20,13 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -172,63 +173,88 @@ class SnapshotValidator {
       return;
     }
 
-    DeleteFileIndex deletes = addedDeleteFiles(base, startingSnapshotId, dataFilter, null, parent);
+    List<DeleteFileIndex> deleteIndexes =
+        addedDeleteFilesIndexedPerSnapshot(base, startingSnapshotId, dataFilter, null, parent);
 
     long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
     for (DataFile dataFile : dataFiles) {
-      // if any delete is found that applies to files written in or before the starting snapshot,
-      // fail
-      DeleteFile[] deleteFiles = deletes.forDataFile(startingSequenceNumber, dataFile);
-      // rewrites can omit equality-delete checks: when added files keep the replaced files' data
-      // sequence number, higher-sequence equality deletes still apply to them, so there is no
-      // RewriteFiles/RowDelta conflict; only a new position delete signals a real conflict
-      if (ignoreEqualityDeletes) {
-        ValidationException.check(
-            Arrays.stream(deleteFiles)
-                .noneMatch(deleteFile -> deleteFile.content() == FileContent.POSITION_DELETES),
-            "Cannot commit, found new position delete for replaced data file: %s",
-            dataFile);
-      } else {
-        ValidationException.check(
-            deleteFiles.length == 0,
-            "Cannot commit, found new delete for replaced data file: %s",
-            dataFile);
+      for (DeleteFileIndex deletes : deleteIndexes) {
+        // if any delete is found that applies to files written in or before the starting snapshot,
+        // fail
+        DeleteFile[] deleteFiles = deletes.forDataFile(startingSequenceNumber, dataFile);
+        // rewrites can omit equality-delete checks: when added files keep the replaced files' data
+        // sequence number, higher-sequence equality deletes still apply to them, so there is no
+        // RewriteFiles/RowDelta conflict; only a new position delete signals a real conflict
+        if (ignoreEqualityDeletes) {
+          ValidationException.check(
+              !containsPositionDeletes(deleteFiles),
+              "Cannot commit, found new position delete for replaced data file: %s",
+              dataFile);
+        } else {
+          ValidationException.check(
+              deleteFiles.length == 0,
+              "Cannot commit, found new delete for replaced data file: %s",
+              dataFile);
+        }
       }
     }
   }
 
+  private static boolean containsPositionDeletes(DeleteFile[] deleteFiles) {
+    for (DeleteFile deleteFile : deleteFiles) {
+      if (deleteFile.content() == FileContent.POSITION_DELETES) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   void validateNoNewDeleteFiles(
       TableMetadata base, Long startingSnapshotId, Expression dataFilter, Snapshot parent) {
-    DeleteFileIndex deletes = addedDeleteFiles(base, startingSnapshotId, dataFilter, null, parent);
+    Set<String> locations =
+        referencedDeleteFileLocations(
+            addedDeleteFilesIndexedPerSnapshot(base, startingSnapshotId, dataFilter, null, parent));
     ValidationException.check(
-        deletes.isEmpty(),
+        locations.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
         dataFilter,
-        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::location));
+        locations);
   }
 
   void validateNoNewDeleteFiles(
       TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet, Snapshot parent) {
-    DeleteFileIndex deletes =
-        addedDeleteFiles(base, startingSnapshotId, null, partitionSet, parent);
+    Set<String> locations =
+        referencedDeleteFileLocations(
+            addedDeleteFilesIndexedPerSnapshot(
+                base, startingSnapshotId, null, partitionSet, parent));
     ValidationException.check(
-        deletes.isEmpty(),
+        locations.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
         partitionSet,
-        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::location));
+        locations);
   }
 
-  DeleteFileIndex addedDeleteFiles(
+  private static Set<String> referencedDeleteFileLocations(List<DeleteFileIndex> deleteIndexes) {
+    Set<String> locations = Sets.newLinkedHashSet();
+    for (DeleteFileIndex deletes : deleteIndexes) {
+      for (DeleteFile deleteFile : deletes.referencedDeleteFiles()) {
+        locations.add(deleteFile.location());
+      }
+    }
+
+    return locations;
+  }
+
+  private List<DeleteFileIndex> addedDeleteFilesIndexedPerSnapshot(
       TableMetadata base,
       Long startingSnapshotId,
       Expression dataFilter,
       PartitionSet partitionSet,
       Snapshot parent) {
-    // if there is no current table state, return empty delete file index
+    // if there is no current table state, no delete files have been added
     if (parent == null || base.formatVersion() < 2) {
-      return DeleteFileIndex.builderFor(ops.io(), ImmutableList.of())
-          .specsById(base.specsById())
-          .build();
+      return ImmutableList.of();
     }
 
     Pair<List<ManifestFile>, Set<Long>> history =
@@ -238,10 +264,24 @@ class SnapshotValidator {
             VALIDATE_ADDED_DELETE_FILES_OPERATIONS,
             ManifestContent.DELETES,
             parent);
-    List<ManifestFile> deleteManifests = history.first();
+
+    // the history collects a manifest only from the snapshot that added it, so grouping by
+    // snapshot ID assigns each manifest to exactly one index and still reads it once.
+    // LinkedHashMap keeps the history order, which keeps the failure message deterministic.
+    Map<Long, List<ManifestFile>> deleteManifestsBySnapshot =
+        history.first().stream()
+            .collect(
+                Collectors.groupingBy(
+                    ManifestFile::snapshotId, LinkedHashMap::new, Collectors.toList()));
 
     long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
-    return buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter, partitionSet);
+    List<DeleteFileIndex> deleteIndexes = Lists.newArrayList();
+    for (List<ManifestFile> deleteManifests : deleteManifestsBySnapshot.values()) {
+      deleteIndexes.add(
+          buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter, partitionSet));
+    }
+
+    return deleteIndexes;
   }
 
   void validateDeletedDataFiles(

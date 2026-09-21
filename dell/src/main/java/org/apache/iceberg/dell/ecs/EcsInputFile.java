@@ -20,11 +20,14 @@ package org.apache.iceberg.dell.ecs;
 
 import com.emc.object.s3.S3Client;
 import org.apache.iceberg.dell.DellProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
 
 class EcsInputFile extends BaseEcsFile implements InputFile {
+
+  private Long length;
 
   public static EcsInputFile fromLocation(String location, S3Client client) {
     return new EcsInputFile(
@@ -42,8 +45,28 @@ class EcsInputFile extends BaseEcsFile implements InputFile {
     return new EcsInputFile(client, new EcsURI(location), dellProperties, metrics);
   }
 
+  static EcsInputFile fromLocation(
+      String location,
+      long length,
+      S3Client client,
+      DellProperties dellProperties,
+      MetricsContext metrics) {
+    return new EcsInputFile(client, new EcsURI(location), dellProperties, length, metrics);
+  }
+
   EcsInputFile(S3Client client, EcsURI uri, DellProperties dellProperties, MetricsContext metrics) {
     super(client, uri, dellProperties, metrics);
+  }
+
+  EcsInputFile(
+      S3Client client,
+      EcsURI uri,
+      DellProperties dellProperties,
+      long length,
+      MetricsContext metrics) {
+    super(client, uri, dellProperties, metrics);
+    ValidationException.check(length >= 0, "Invalid file length: %s", length);
+    this.length = length;
   }
 
   /**
@@ -53,7 +76,11 @@ class EcsInputFile extends BaseEcsFile implements InputFile {
    */
   @Override
   public long getLength() {
-    return getObjectMetadata().getContentLength();
+    if (length == null) {
+      this.length = getObjectMetadata().getContentLength();
+    }
+
+    return length;
   }
 
   @Override

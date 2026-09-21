@@ -427,24 +427,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   /**
-   * Returns matching delete files have been added to the table since a starting snapshot.
-   *
-   * @param base table metadata to validate
-   * @param startingSnapshotId id of the snapshot current at the start of the operation
-   * @param dataFilter an expression used to find delete files
-   * @param partitionSet a partition set used to find delete files
-   * @param parent parent snapshot of the branch
-   */
-  protected DeleteFileIndex addedDeleteFiles(
-      TableMetadata base,
-      Long startingSnapshotId,
-      Expression dataFilter,
-      PartitionSet partitionSet,
-      Snapshot parent) {
-    return validator().addedDeleteFiles(base, startingSnapshotId, dataFilter, partitionSet, parent);
-  }
-
-  /**
    * Validates that no files matching a filter have been deleted from the table since a starting
    * snapshot.
    *

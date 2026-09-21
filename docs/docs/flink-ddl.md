@@ -228,10 +228,52 @@ For more details, refer to the [Flink `CREATE TABLE` documentation](https://nigh
 
 ### `ALTER TABLE`
 
-Iceberg only support altering table properties:
+Iceberg supports altering table properties and columns in Flink. Altering partition fields, watermarks, and computed columns is not supported.
+
+#### `ALTER TABLE .. SET / RESET`
 
 ```sql
 ALTER TABLE `hive_catalog`.`default`.`sample` SET ('write.format.default'='avro');
+ALTER TABLE `hive_catalog`.`default`.`sample` RESET ('write.format.default');
+```
+
+#### `ALTER TABLE .. ADD`
+
+Add new columns, optionally with a comment and a position (`FIRST` or `AFTER column`):
+
+```sql
+ALTER TABLE `hive_catalog`.`default`.`sample` ADD (col1 STRING COMMENT 'new column', col2 BIGINT AFTER id);
+```
+
+Set the identifier fields by adding a primary key (all primary key columns must be declared `NOT NULL`):
+
+```sql
+ALTER TABLE `hive_catalog`.`default`.`sample` ADD (PRIMARY KEY (id) NOT ENFORCED);
+```
+
+#### `ALTER TABLE .. DROP`
+
+```sql
+ALTER TABLE `hive_catalog`.`default`.`sample` DROP (col1, col2);
+```
+
+#### `ALTER TABLE .. RENAME`
+
+Rename a column:
+
+```sql
+ALTER TABLE `hive_catalog`.`default`.`sample` RENAME col1 TO col3;
+```
+
+#### `ALTER TABLE .. MODIFY`
+
+Change a column's type (only [safe type promotions](../../spec.md#schema-evolution) such as `INT` to `BIGINT`), position, or comment, make a required column optional (the reverse is not allowed), or replace the primary key (primary key columns must be `NOT NULL`):
+
+```sql
+ALTER TABLE `hive_catalog`.`default`.`sample` MODIFY (id BIGINT);
+ALTER TABLE `hive_catalog`.`default`.`sample` MODIFY (col3 STRING FIRST);
+ALTER TABLE `hive_catalog`.`default`.`sample` MODIFY (col3 STRING COMMENT 'updated comment');
+ALTER TABLE `hive_catalog`.`default`.`sample` MODIFY (PRIMARY KEY (id, data) NOT ENFORCED);
 ```
 
 ### `ALTER TABLE .. RENAME TO`

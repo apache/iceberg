@@ -232,7 +232,12 @@ public class TestFieldStatsStruct {
           Named.of("Java", TestHelpers::roundTripSerialize),
           Named.of("Kryo", TestHelpers.KryoHelpers::roundTripSerialize),
           Named.of("InternalData", TestFieldStatsStruct::roundTripInternalData),
-          Named.of("FieldStats#copy", FieldStatsStruct::copy));
+          Named.of("FieldStats#copy", FieldStatsStruct::copy),
+          // Verify that copies are also serializable
+          Named.of("FieldStats#copy + Java", stats -> TestHelpers.roundTripSerialize(stats.copy())),
+          Named.of(
+              "FieldStats#copy + Kryo",
+              stats -> TestHelpers.KryoHelpers.roundTripSerialize(stats.copy())));
 
   private static Stream<Arguments> serializationCases() {
     return TYPES_AND_BOUNDS.stream()
@@ -317,6 +322,10 @@ public class TestFieldStatsStruct {
     assertThat(copy.fieldId()).isEqualTo(stats.fieldId());
     assertThat(copy.type()).isEqualTo(stats.type());
     assertThat(comparator.compare(copy, stats)).isEqualTo(0);
+
+    // readers reuse bounding boxes across entries, so the bounds must be deep-copied
+    assertThat(copy.lowerBound()).isNotSameAs(lowerBound);
+    assertThat(copy.upperBound()).isNotSameAs(upperBound);
   }
 
   // Variant is not Serializable so this does not test Java serialization
