@@ -231,7 +231,7 @@ class TestFilePlanner {
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     FilePlanner planner =
-        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS)
+        FilePlanner.builder(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
             .tableLocation(TABLE_LOCATION)
             .scanMetrics(metrics)
             .build();
@@ -298,7 +298,7 @@ class TestFilePlanner {
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(deleteManifest("deletes.avro")));
 
     FilePlanner planner =
-        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS)
+        FilePlanner.builder(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
             .tableLocation(TABLE_LOCATION)
             .build();
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
@@ -316,7 +316,7 @@ class TestFilePlanner {
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
 
     FilePlanner planner =
-        FilePlanner.builder(fileIO, asManifest(root), UNPARTITIONED_SPECS)
+        FilePlanner.builder(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
             .tableLocation(TABLE_LOCATION)
             .build();
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
@@ -425,7 +425,7 @@ class TestFilePlanner {
     FilePlanner planner =
         configure
             .apply(
-                FilePlanner.builder(fileIO, asManifest(root), specsById)
+                FilePlanner.builder(fileIO, asManifest(root), TABLE_SCHEMA, specsById)
                     .tableLocation(TABLE_LOCATION))
             .build();
     try (CloseableIterable<FileScanTask> tasks = planner.planFiles()) {
