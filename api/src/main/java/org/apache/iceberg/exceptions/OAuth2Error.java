@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.exceptions;
 
-/**
- * Marker interface for exceptions arising from an OAuth2 token-endpoint error response (RFC 6749
- * §5.2). The {@link #errorType()} value is one of the RFC 6749 §5.2 error codes (e.g. {@code
- * "invalid_grant"}, {@code "invalid_client"}).
- */
+/** Provides access to the error type in an OAuth 2.0 error response. */
 public interface OAuth2Error {
-  /** The OAuth2 error code from RFC 6749 §5.2 (e.g. {@code "invalid_grant"}). */
+  /**
+   * Returns the error type from the OAuth 2.0 response's {@code error} field.
+   *
+   * @return the OAuth 2.0 error type
+   */
   String errorType();
 }

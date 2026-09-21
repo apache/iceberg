@@ -22,8 +22,8 @@ import com.google.errorprone.annotations.FormatMethod;
 import com.google.errorprone.annotations.FormatString;
 
 /**
- * Not-authorized exception raised when an OAuth2 token-endpoint response carries the {@code
- * invalid_client} error code from RFC 6749 §5.2.
+ * Exception raised for an OAuth 2.0 error response with the {@code invalid_client} error type
+ * defined by RFC 6749, Section 5.2.
  */
 public class OAuth2NotAuthorizedException extends NotAuthorizedException implements OAuth2Error {
   private final String errorType;

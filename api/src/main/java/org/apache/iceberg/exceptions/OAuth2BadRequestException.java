@@ -22,9 +22,9 @@ import com.google.errorprone.annotations.FormatMethod;
 import com.google.errorprone.annotations.FormatString;
 
 /**
- * Bad-request exception raised when an OAuth2 token-endpoint response carries one of the {@code
- * 400}-class error codes from RFC 6749 §5.2 (e.g. {@code invalid_request}, {@code invalid_grant},
- * {@code unauthorized_client}, {@code unsupported_grant_type}, {@code invalid_scope}).
+ * Exception raised for an OAuth 2.0 error response with one of the following error types defined by
+ * RFC 6749, Section 5.2: {@code invalid_request}, {@code invalid_grant}, {@code
+ * unauthorized_client}, {@code unsupported_grant_type}, or {@code invalid_scope}.
  */
 public class OAuth2BadRequestException extends BadRequestException implements OAuth2Error {
   private final String errorType;
