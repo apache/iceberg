@@ -436,6 +436,12 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   private boolean canContainDroppedFiles(ManifestFile manifest) {
+    if (manifest.content() == ManifestContent.DELETES
+        && minSequenceNumber > 0
+        && manifest.minSequenceNumber() < minSequenceNumber) {
+      return true;
+    }
+
     if (!deletePaths.isEmpty()) {
       return true;
     } else if (!deleteFiles.isEmpty()) {
