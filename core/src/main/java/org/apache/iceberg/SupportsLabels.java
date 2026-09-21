@@ -21,8 +21,8 @@ package org.apache.iceberg;
 /**
  * Implemented by tables that can expose catalog-provided labels.
  *
- * <p>Labels are optional, catalog-provided metadata enrichment. They are not part of table state
- * and are not preserved when the table is serialized.
+ * <p>Labels are optional enrichment supplied by the catalog, not table state. They are advisory:
+ * callers may ignore them, and implementations may drop them across serialization.
  */
 public interface SupportsLabels {
   /**
