@@ -83,52 +83,54 @@ public class TestBitmapPositionDeleteIndex {
     PositionDeleteIndex index = indexOf(10L, 11L, 12L, 13L);
 
     // the beginning is inclusive and the end is exclusive
-    assertThat(collect(index, 11L, 13L)).containsExactly(11L, 12L);
-    assertThat(collect(index, 11L, 12L)).containsExactly(11L);
+    assertThat(positionsInRange(index, 11L, 13L)).containsExactly(11L, 12L);
+    assertThat(positionsInRange(index, 11L, 12L)).containsExactly(11L);
 
     // a range that ends where the deletes start
-    assertThat(collect(index, 0L, 10L)).isEmpty();
+    assertThat(positionsInRange(index, 0L, 10L)).isEmpty();
 
     // a range that starts after the deletes end
-    assertThat(collect(index, 14L, 24L)).isEmpty();
+    assertThat(positionsInRange(index, 14L, 24L)).isEmpty();
   }
 
   @Test
   public void testForEachInRangeAscendingOrder() {
     PositionDeleteIndex index = indexOf(9L, 3L, 7L, 1L, 5L);
-    assertThat(collect(index, 0L, 20L)).containsExactly(1L, 3L, 5L, 7L, 9L);
+    assertThat(positionsInRange(index, 0L, 20L)).containsExactly(1L, 3L, 5L, 7L, 9L);
   }
 
   @Test
   public void testForEachInRangeEmptyRange() {
     PositionDeleteIndex index = indexOf(0L, 1L, 2L);
-    assertThat(collect(index, 0L, 0L)).isEmpty();
+    assertThat(positionsInRange(index, 0L, 0L)).isEmpty();
   }
 
   @Test
   public void testForEachInRangeEmptyBitmapIndex() {
-    assertThat(collect(new BitmapPositionDeleteIndex(), 0L, 1000L)).isEmpty();
+    assertThat(positionsInRange(new BitmapPositionDeleteIndex(), 0L, 1000L)).isEmpty();
   }
 
   @Test
   public void testForEachInRangeEmptyIndex() {
-    assertThat(collect(PositionDeleteIndex.empty(), 0L, 1000L)).isEmpty();
-    assertThat(collect(PositionDeleteIndex.empty(), 12345L, 13345L)).isEmpty();
+    assertThat(positionsInRange(PositionDeleteIndex.empty(), 0L, 1000L)).isEmpty();
+    assertThat(positionsInRange(PositionDeleteIndex.empty(), 12345L, 13345L)).isEmpty();
   }
 
   @Test
   public void testForEachInRangeInvalidRange() {
     // each implementation validates the range on its own, so check all of them
-    assertThatThrownBy(() -> collect(indexOf(1L, 2L, 3L), 5L, 3L))
+    assertThatThrownBy(() -> positionsInRange(indexOf(1L, 2L, 3L), 5L, 3L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Start position must not exceed end position");
 
-    assertThatThrownBy(() -> collect(PositionDeleteIndex.empty(), 5L, 3L))
+    assertThatThrownBy(() -> positionsInRange(PositionDeleteIndex.empty(), 5L, 3L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Start position must not exceed end position");
 
     assertThatThrownBy(
-            () -> collect(new SetBackedPositionDeleteIndex(Sets.newHashSet(1L, 2L, 3L)), 5L, 3L))
+            () ->
+                positionsInRange(
+                    new SetBackedPositionDeleteIndex(Sets.newHashSet(1L, 2L, 3L)), 5L, 3L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Start position must not exceed end position");
   }
@@ -139,7 +141,7 @@ public class TestBitmapPositionDeleteIndex {
     PositionDeleteIndex index =
         indexOf(lastPosInFirstBitmap - 1, lastPosInFirstBitmap, BITMAP_OFFSET, BITMAP_OFFSET + 1);
 
-    assertThat(collect(index, lastPosInFirstBitmap - 2, BITMAP_OFFSET + 3))
+    assertThat(positionsInRange(index, lastPosInFirstBitmap - 2, BITMAP_OFFSET + 3))
         .containsExactly(
             lastPosInFirstBitmap - 1, lastPosInFirstBitmap, BITMAP_OFFSET, BITMAP_OFFSET + 1);
   }
@@ -149,7 +151,7 @@ public class TestBitmapPositionDeleteIndex {
     PositionDeleteIndex index =
         indexOf(CONTAINER_OFFSET - 2, CONTAINER_OFFSET - 1, CONTAINER_OFFSET, CONTAINER_OFFSET + 1);
 
-    assertThat(collect(index, CONTAINER_OFFSET - 3, CONTAINER_OFFSET + 3))
+    assertThat(positionsInRange(index, CONTAINER_OFFSET - 3, CONTAINER_OFFSET + 3))
         .containsExactly(
             CONTAINER_OFFSET - 2, CONTAINER_OFFSET - 1, CONTAINER_OFFSET, CONTAINER_OFFSET + 1);
   }
@@ -172,10 +174,10 @@ public class TestBitmapPositionDeleteIndex {
       long posStart = random.nextInt(300000);
       long posEnd = posStart + 1 + random.nextInt(6000);
       List<Long> expected = deletedPositionsInRange(positions, posStart, posEnd);
-      assertThat(collect(bitmapIndex, posStart, posEnd))
+      assertThat(positionsInRange(bitmapIndex, posStart, posEnd))
           .as("bitmap at %s", posStart)
           .isEqualTo(expected);
-      assertThat(collect(defaultIndex, posStart, posEnd))
+      assertThat(positionsInRange(defaultIndex, posStart, posEnd))
           .as("default at %s", posStart)
           .isEqualTo(expected);
     }
@@ -198,7 +200,7 @@ public class TestBitmapPositionDeleteIndex {
 
     for (long posStart = boundary - 12; posStart <= boundary + 6; posStart++) {
       for (long posEnd = posStart; posEnd <= posStart + 20; posEnd++) {
-        assertThat(collect(index, posStart, posEnd))
+        assertThat(positionsInRange(index, posStart, posEnd))
             .as("range [%s, %s)", posStart, posEnd)
             .isEqualTo(deletedPositionsInRange(positions, posStart, posEnd));
       }
@@ -367,9 +369,10 @@ public class TestBitmapPositionDeleteIndex {
     return positions;
   }
 
-  private static List<Long> collect(PositionDeleteIndex index, long posStart, long posEnd) {
+  private static List<Long> positionsInRange(
+      PositionDeleteIndex index, long posStartInclusive, long posEndExclusive) {
     List<Long> positions = Lists.newArrayList();
-    index.forEachInRange(posStart, posEnd, positions::add);
+    index.forEachInRange(posStartInclusive, posEndExclusive, positions::add);
     return positions;
   }
 

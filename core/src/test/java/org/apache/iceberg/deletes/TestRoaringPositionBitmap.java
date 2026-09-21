@@ -355,10 +355,9 @@ public class TestRoaringPositionBitmap {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
     bitmap.setRange(10L, 20L);
 
-    // the beginning is inclusive and the end is exclusive
-    assertThat(collectInRange(bitmap, 12L, 15L)).containsExactly(12L, 13L, 14L);
-    assertThat(collectInRange(bitmap, 0L, 10L)).isEmpty();
-    assertThat(collectInRange(bitmap, 20L, 30L)).isEmpty();
+    assertThat(positionsInRange(bitmap, 12L, 15L)).containsExactly(12L, 13L, 14L);
+    assertThat(positionsInRange(bitmap, 0L, 10L)).isEmpty();
+    assertThat(positionsInRange(bitmap, 20L, 30L)).isEmpty();
   }
 
   @TestTemplate
@@ -366,7 +365,7 @@ public class TestRoaringPositionBitmap {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
     bitmap.setRange(10L, 20L);
 
-    assertThat(collectInRange(bitmap, 15L, 15L)).isEmpty();
+    assertThat(positionsInRange(bitmap, 15L, 15L)).isEmpty();
   }
 
   @TestTemplate
@@ -383,7 +382,7 @@ public class TestRoaringPositionBitmap {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
     bitmap.setRange(CONTAINER_OFFSET - 2, CONTAINER_OFFSET + 2);
 
-    assertThat(collectInRange(bitmap, CONTAINER_OFFSET - 3, CONTAINER_OFFSET + 3))
+    assertThat(positionsInRange(bitmap, CONTAINER_OFFSET - 3, CONTAINER_OFFSET + 3))
         .containsExactly(
             CONTAINER_OFFSET - 2, CONTAINER_OFFSET - 1, CONTAINER_OFFSET, CONTAINER_OFFSET + 1);
   }
@@ -393,7 +392,7 @@ public class TestRoaringPositionBitmap {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
     bitmap.setRange(BITMAP_OFFSET - 2, BITMAP_OFFSET + 2);
 
-    assertThat(collectInRange(bitmap, BITMAP_OFFSET - 3, BITMAP_OFFSET + 3))
+    assertThat(positionsInRange(bitmap, BITMAP_OFFSET - 3, BITMAP_OFFSET + 3))
         .containsExactly(BITMAP_OFFSET - 2, BITMAP_OFFSET - 1, BITMAP_OFFSET, BITMAP_OFFSET + 1);
   }
 
@@ -409,7 +408,7 @@ public class TestRoaringPositionBitmap {
 
     // the middle bitmap is covered in full, which the underlying range API cannot express in a
     // single call because its length is an int
-    assertThat(collectInRange(bitmap, posStart, posEnd))
+    assertThat(positionsInRange(bitmap, posStart, posEnd))
         .containsExactly(posStart, BITMAP_OFFSET, 2 * BITMAP_OFFSET);
   }
 
@@ -419,7 +418,7 @@ public class TestRoaringPositionBitmap {
     bitmap.setRange(1L, 4L);
 
     // no bitmap is allocated for this key, so the range produces nothing
-    assertThat(collectInRange(bitmap, 3 * BITMAP_OFFSET, 3 * BITMAP_OFFSET + 1000)).isEmpty();
+    assertThat(positionsInRange(bitmap, 3 * BITMAP_OFFSET, 3 * BITMAP_OFFSET + 1000)).isEmpty();
   }
 
   @TestTemplate
@@ -428,8 +427,8 @@ public class TestRoaringPositionBitmap {
     bitmap.setRange(1000L, 40000L);
     bitmap.runLengthEncode();
 
-    assertThat(collectInRange(bitmap, 999L, 1004L)).containsExactly(1000L, 1001L, 1002L, 1003L);
-    assertThat(collectInRange(bitmap, 39998L, 40003L)).containsExactly(39998L, 39999L);
+    assertThat(positionsInRange(bitmap, 999L, 1004L)).containsExactly(1000L, 1001L, 1002L, 1003L);
+    assertThat(positionsInRange(bitmap, 39998L, 40003L)).containsExactly(39998L, 39999L);
   }
 
   @TestTemplate
@@ -455,7 +454,7 @@ public class TestRoaringPositionBitmap {
         }
       }
 
-      assertThat(collectInRange(bitmap, posStart, posEnd))
+      assertThat(positionsInRange(bitmap, posStart, posEnd))
           .as("range [%s, %s)", posStart, posEnd)
           .isEqualTo(expected);
     }
@@ -468,9 +467,9 @@ public class TestRoaringPositionBitmap {
     bitmap.setRange(boundary - 4, boundary + 4);
     bitmap.runLengthEncode();
 
-    assertThat(collectInRange(bitmap, boundary - 1, boundary + 1))
+    assertThat(positionsInRange(bitmap, boundary - 1, boundary + 1))
         .containsExactly(boundary - 1, boundary);
-    assertThat(collectInRange(bitmap, boundary - 4, boundary + 4))
+    assertThat(positionsInRange(bitmap, boundary - 4, boundary + 4))
         .hasSize(8)
         .startsWith(boundary - 4)
         .endsWith(boundary + 3);
@@ -713,7 +712,7 @@ public class TestRoaringPositionBitmap {
     }
   }
 
-  private static List<Long> collectInRange(
+  private static List<Long> positionsInRange(
       RoaringPositionBitmap bitmap, long posStartInclusive, long posEndExclusive) {
     List<Long> positions = Lists.newArrayList();
     bitmap.forEachInRange(posStartInclusive, posEndExclusive, positions::add);
