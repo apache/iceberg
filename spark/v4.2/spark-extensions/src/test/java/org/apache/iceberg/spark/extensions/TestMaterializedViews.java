@@ -120,7 +120,17 @@ public class TestMaterializedViews extends ExtensionsTestBase {
     sql("USE %s", catalogName);
     sql("DROP VIEW IF EXISTS %s", materializedViewName);
     sql("DROP VIEW IF EXISTS %s", "source_view");
+    // Nested materialized views used by the multi-level tests, dropped from the top of the chain
+    // down so a dropped view is never a source of one that still exists.
+    sql("DROP VIEW IF EXISTS %s", "middle_mv");
+    sql("DROP VIEW IF EXISTS %s", "c_mv");
+    sql("DROP VIEW IF EXISTS %s", "inner_mv");
+    sql("DROP VIEW IF EXISTS %s", "g_mv");
+    sql("DROP VIEW IF EXISTS %s", "stale_mv");
+    sql("DROP VIEW IF EXISTS %s", "fresh_mv");
+    sql("DROP VIEW IF EXISTS %s", "shared_child_mv");
     sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS %s", "fresh_base");
   }
 
   @TestTemplate
@@ -684,6 +694,269 @@ public class TestMaterializedViews extends ExtensionsTestBase {
     assertThat(tableState.name()).isEqualTo(tableName);
 
     sql("DROP VIEW IF EXISTS %s", sourceViewName);
+  }
+
+  /**
+   * When a materialized view reads other materialized views that are themselves not fresh, both the
+   * refresh (producer) and the freshness check (consumer) treat the nested materialized views as
+   * ordinary views: the query is expanded through their definitions all the way down to the base
+   * table.
+   *
+   * <p>Refresh therefore records each nested materialized view as a source <em>view</em> (by
+   * version id) together with the base table the chain resolves to, and never records a nested
+   * materialized view's storage table. Because the nested materialized views are tracked by their
+   * view versions rather than by their storage tables, materializing one of them does not affect
+   * the parent's freshness, while a change to the base table does.
+   */
+  @TestTemplate
+  public void testNestedMaterializedViewsAreExpandedAndTrackedAsViews() {
+    String innerMv = "inner_mv";
+    String middleMv = "middle_mv";
+
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+
+    // A two-level chain of materialized views nested under the main materialized view. None of the
+    // nested materialized views is refreshed, so each is served from its view definition and the
+    // chain expands down to the base table.
+    sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", innerMv, tableName);
+    sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", middleMv, innerMv);
+    sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, middleMv);
+
+    sql("REFRESH MATERIALIZED VIEW %s", materializedViewName);
+
+    // Producer: the refresh expanded the whole chain, recording the two nested materialized views
+    // as source views and the single base table as a source table.
+    RefreshState refreshState = loadRefreshState();
+    assertThat(refreshState.sourceStates()).hasSize(3);
+
+    Map<String, SourceViewState> viewStates =
+        refreshState.sourceStates().stream()
+            .filter(SourceViewState.class::isInstance)
+            .map(SourceViewState.class::cast)
+            .collect(java.util.stream.Collectors.toMap(SourceViewState::name, state -> state));
+    assertThat(viewStates.keySet()).containsExactlyInAnyOrder(innerMv, middleMv);
+    assertThat(viewStates.get(innerMv).uuid())
+        .isEqualTo(loadIcebergView(innerMv).uuid().toString());
+    assertThat(viewStates.get(innerMv).versionId())
+        .isEqualTo(loadIcebergView(innerMv).currentVersion().versionId());
+    assertThat(viewStates.get(middleMv).uuid())
+        .isEqualTo(loadIcebergView(middleMv).uuid().toString());
+    assertThat(viewStates.get(middleMv).versionId())
+        .isEqualTo(loadIcebergView(middleMv).currentVersion().versionId());
+
+    // Only the base table is recorded as a source table. No nested materialized view's storage
+    // table appears, which is what distinguishes view expansion from treating a nested
+    // materialized view as a table.
+    assertThat(refreshState.sourceStates())
+        .filteredOn(SourceTableState.class::isInstance)
+        .singleElement()
+        .satisfies(state -> assertThat(((SourceTableState) state).name()).isEqualTo(tableName));
+
+    assertThat(materializedViewIsFresh(materializedViewName))
+        .as("the main materialized view should be fresh after refresh")
+        .isTrue();
+
+    // Consumer treats nested materialized views as views: materializing a nested materialized view
+    // changes its storage table but not its view version, so the parent stays fresh.
+    sql("REFRESH MATERIALIZED VIEW %s", innerMv);
+    assertThat(materializedViewIsFresh(materializedViewName))
+        .as("materializing a nested materialized view must not affect the parent's freshness")
+        .isTrue();
+
+    // Consumer expands deeply: changing the base table the chain resolves to makes the parent
+    // stale, proving that the base table's snapshot was recorded and is being checked.
+    sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+    assertThat(materializedViewIsFresh(materializedViewName))
+        .as("a base-table change must make the parent stale")
+        .isFalse();
+
+    sql("DROP VIEW IF EXISTS %s", materializedViewName);
+    sql("DROP VIEW IF EXISTS %s", middleMv);
+    sql("DROP VIEW IF EXISTS %s", innerMv);
+  }
+
+  private boolean materializedViewIsFresh(String name) {
+    try {
+      return sparkTableCatalog().loadTable(Identifier.of(new String[] {NAMESPACE.toString()}, name))
+          instanceof SparkMaterializedView;
+    } catch (NoSuchTableException e) {
+      return false;
+    }
+  }
+
+  /**
+   * When a nested materialized view is <em>fresh</em> at the parent's refresh time it is served
+   * from its storage table, so the parent cannot expand it. Instead the refresh merges the nested
+   * materialized view's own recorded refresh state, which is a complete flattened closure of its
+   * dependencies. This makes the fresh case record the same shape as the not-fresh case — the
+   * nested materialized view's version plus the base table — and it composes across levels, so a
+   * materialized view nested two levels down still appears, all without recording any storage
+   * table.
+   */
+  @TestTemplate
+  public void testFreshNestedMaterializedViewsMergeDeepStateAcrossLevels() {
+    String gMv = "g_mv";
+    String cMv = "c_mv";
+
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+
+    // parent (materializedViewName) -> c_mv -> g_mv -> base table, with each nested materialized
+    // view refreshed so it is fresh (served from its storage table) when the level above it is
+    // refreshed.
+    sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", gMv, tableName);
+    sql("REFRESH MATERIALIZED VIEW %s", gMv);
+    sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", cMv, gMv);
+    sql("REFRESH MATERIALIZED VIEW %s", cMv);
+    sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", materializedViewName, cMv);
+    sql("REFRESH MATERIALIZED VIEW %s", materializedViewName);
+
+    // The parent recorded the full depth even though every nested materialized view was fresh and
+    // read from its storage table: both nested materialized views as source views (by version) and
+    // the single base table.
+    RefreshState refreshState = loadRefreshState();
+    assertThat(refreshState.sourceStates()).hasSize(3);
+
+    Map<String, SourceViewState> viewStates =
+        refreshState.sourceStates().stream()
+            .filter(SourceViewState.class::isInstance)
+            .map(SourceViewState.class::cast)
+            .collect(java.util.stream.Collectors.toMap(SourceViewState::name, state -> state));
+    assertThat(viewStates.keySet()).containsExactlyInAnyOrder(cMv, gMv);
+    assertThat(viewStates.get(cMv).versionId())
+        .isEqualTo(loadIcebergView(cMv).currentVersion().versionId());
+    assertThat(viewStates.get(gMv).versionId())
+        .isEqualTo(loadIcebergView(gMv).currentVersion().versionId());
+
+    // Only the base table is recorded as a source table; no nested materialized view's storage
+    // table appears, which is what makes this the "treat as view" shape rather than an opaque one.
+    assertThat(refreshState.sourceStates())
+        .filteredOn(SourceTableState.class::isInstance)
+        .singleElement()
+        .satisfies(state -> assertThat(((SourceTableState) state).name()).isEqualTo(tableName));
+
+    assertThat(materializedViewIsFresh(materializedViewName))
+        .as("the parent should be fresh after refresh")
+        .isTrue();
+
+    // Re-materializing a nested materialized view changes its storage table but not its version,
+    // so the parent -- which tracks it as a view -- stays fresh.
+    sql("REFRESH MATERIALIZED VIEW %s", gMv);
+    assertThat(materializedViewIsFresh(materializedViewName))
+        .as("re-materializing a nested materialized view must not affect the parent's freshness")
+        .isTrue();
+
+    // Changing the base table the chain resolves to makes the parent stale, proving the deep base
+    // table snapshot was recorded and is being checked.
+    sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+    assertThat(materializedViewIsFresh(materializedViewName))
+        .as("a base-table change must make the parent stale")
+        .isFalse();
+
+    sql("DROP VIEW IF EXISTS %s", materializedViewName);
+    sql("DROP VIEW IF EXISTS %s", cMv);
+    sql("DROP VIEW IF EXISTS %s", gMv);
+  }
+
+  /**
+   * A single refresh mixes both nested-materialized-view treatments: an upstream materialized view
+   * that is stale is expanded to its base table, while one that is fresh is read from its storage
+   * table and contributes its own recorded deep state through a merge. Both paths run in the same
+   * refresh, and the recorded state and the materialized data are correct.
+   */
+  @TestTemplate
+  public void testRefreshMixesStaleExpansionAndFreshMerge() {
+    String staleMv = "stale_mv";
+    String freshMv = "fresh_mv";
+    String freshBase = "fresh_base";
+
+    // Stale branch reads `tableName`; fresh branch reads `fresh_base`.
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+    sql("CREATE TABLE %s (id INT, data STRING)", freshBase);
+    sql("INSERT INTO %s VALUES (1, 'x'), (2, 'y')", freshBase);
+
+    sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", staleMv, tableName);
+    sql("REFRESH MATERIALIZED VIEW %s", staleMv);
+    sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", freshMv, freshBase);
+    sql("REFRESH MATERIALIZED VIEW %s", freshMv);
+
+    // Make only the stale branch stale: its base changes, the fresh branch's base does not.
+    sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+    assertThat(materializedViewIsFresh(staleMv)).as("stale_mv should be stale").isFalse();
+    assertThat(materializedViewIsFresh(freshMv)).as("fresh_mv should stay fresh").isTrue();
+
+    sql(
+        "CREATE MATERIALIZED VIEW %s AS "
+            + "SELECT s.id AS id, s.data AS data FROM %s s JOIN %s f ON s.id = f.id",
+        materializedViewName, staleMv, freshMv);
+    sql("REFRESH MATERIALIZED VIEW %s", materializedViewName);
+
+    RefreshState refreshState = loadRefreshState();
+
+    // Both upstreams are recorded as views.
+    java.util.Set<String> viewNames =
+        refreshState.sourceStates().stream()
+            .filter(SourceViewState.class::isInstance)
+            .map(state -> ((SourceViewState) state).name())
+            .collect(java.util.stream.Collectors.toSet());
+    assertThat(viewNames).containsExactlyInAnyOrder(staleMv, freshMv);
+
+    // The stale upstream contributes its base table by expansion; the fresh upstream contributes
+    // its base table by merging its own recorded refresh state.
+    java.util.Set<String> tableNames =
+        refreshState.sourceStates().stream()
+            .filter(SourceTableState.class::isInstance)
+            .map(state -> ((SourceTableState) state).name())
+            .collect(java.util.stream.Collectors.toSet());
+    assertThat(tableNames).containsExactlyInAnyOrder(tableName, freshBase);
+
+    // Data is correct: stale_mv expanded to the current tableName {1,2,3}, fresh_mv served {1,2}
+    // from its storage table, so the join on id yields {1,2}.
+    assertThat(sql("SELECT id, data FROM %s ORDER BY id", materializedViewName))
+        .containsExactly(row(1, "a"), row(2, "b"));
+
+    sql("DROP VIEW IF EXISTS %s", materializedViewName);
+    sql("DROP VIEW IF EXISTS %s", staleMv);
+    sql("DROP VIEW IF EXISTS %s", freshMv);
+    sql("DROP TABLE IF EXISTS %s", freshBase);
+  }
+
+  /**
+   * A base table referenced both directly and through a fresh nested materialized view is recorded
+   * once. The direct reference is recorded by the leaf pass, and the merge of the nested
+   * materialized view's refresh state deduplicates against it by uuid.
+   */
+  @TestTemplate
+  public void testSharedBaseTableAcrossDirectAndNestedIsRecordedOnce() {
+    String childMv = "shared_child_mv";
+
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+    sql("CREATE MATERIALIZED VIEW %s AS SELECT id, data FROM %s", childMv, tableName);
+    sql("REFRESH MATERIALIZED VIEW %s", childMv);
+
+    // The parent reads the base table directly and also reads the fresh nested materialized view,
+    // whose own refresh state records that same base table.
+    sql(
+        "CREATE MATERIALIZED VIEW %s AS "
+            + "SELECT t.id AS id, t.data AS data FROM %s t JOIN %s c ON t.id = c.id",
+        materializedViewName, tableName, childMv);
+    sql("REFRESH MATERIALIZED VIEW %s", materializedViewName);
+
+    RefreshState refreshState = loadRefreshState();
+
+    // Exactly two source states: the shared base table once and the nested materialized view as a
+    // view. The base table is not recorded twice despite the two reference paths.
+    assertThat(refreshState.sourceStates()).hasSize(2);
+    assertThat(refreshState.sourceStates())
+        .filteredOn(SourceTableState.class::isInstance)
+        .singleElement()
+        .satisfies(state -> assertThat(((SourceTableState) state).name()).isEqualTo(tableName));
+    assertThat(refreshState.sourceStates())
+        .filteredOn(SourceViewState.class::isInstance)
+        .singleElement()
+        .satisfies(state -> assertThat(((SourceViewState) state).name()).isEqualTo(childMv));
+
+    sql("DROP VIEW IF EXISTS %s", materializedViewName);
+    sql("DROP VIEW IF EXISTS %s", childMv);
   }
 
   @TestTemplate

@@ -23,6 +23,7 @@ import org.apache.iceberg.catalog.TableIdentifier
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions
 import org.apache.iceberg.spark.SparkCatalog
 import org.apache.iceberg.spark.source.HasIcebergCatalog
+import org.apache.iceberg.spark.source.SparkMaterializedView
 import org.apache.iceberg.spark.source.SparkTable
 import org.apache.iceberg.spark.source.SparkView
 import org.apache.iceberg.view.RefreshState
@@ -243,7 +244,94 @@ case class RefreshMaterializedViewExec(catalog: ViewCatalog, ident: Identifier)
         }
       }
 
+    // A fresh nested materialized view is served from its storage table, so it reaches this plan
+    // as a SparkMaterializedView relation rather than as an expanded View node, and the two passes
+    // above skip it. Record it the same way the not-fresh (expanded) case is recorded: the nested
+    // materialized view itself as a source view, plus the deep sources it already captured in its
+    // own refresh state. A fresh materialized view's refresh state is a complete, flattened closure
+    // of its dependencies, so merging it once reproduces the full depth -- including materialized
+    // views nested further down -- without recomputing the query or recursing here. Entries are
+    // deduplicated by uuid against everything already recorded so a source reached through several
+    // paths is recorded once.
+    val recordedUuids = scala.collection.mutable.Set.empty[String]
+    recordedUuids ++= states.map(_.uuid())
+    plan.collectLeaves().foreach {
+      case r: org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
+          if r.catalog.exists(_.isInstanceOf[HasIcebergCatalog]) && r.identifier.isDefined =>
+        r.table match {
+          case mv: SparkMaterializedView =>
+            val sourceCatalog = r.catalog.get.asInstanceOf[HasIcebergCatalog]
+            val icebergId = sourceCatalog.icebergIdentifier(r.identifier.get)
+            if (recordedUuids.add(mv.view().uuid().toString)) {
+              states += new SourceViewState(
+                icebergId.name(),
+                icebergId.namespace().levels().toList.asJava,
+                sourceCatalogName(sourceCatalog),
+                mv.view().uuid().toString,
+                mv.view().currentVersion().versionId())
+            }
+            mergeNestedRefreshState(mv, sourceCatalog.name(), recordedUuids, states)
+
+          case _ => // only fresh materialized views are handled in this pass
+        }
+      case _ => // skip non-iceberg leaves
+    }
+
     states.toList
+  }
+
+  /**
+   * Merges the deep source states a fresh nested materialized view already recorded in its own
+   * refresh state into this refresh. A fresh materialized view's storage table always carries a
+   * refresh state, and that state is a complete, flattened closure of the materialized view's
+   * dependencies, so a single merge reproduces the full depth -- including any materialized views
+   * nested further down -- without recomputing the query or recursing. A never-refreshed storage
+   * table has no snapshot and therefore no state to merge.
+   */
+  private def mergeNestedRefreshState(
+      mv: SparkMaterializedView,
+      childCatalogName: String,
+      recordedUuids: scala.collection.mutable.Set[String],
+      states: scala.collection.mutable.ListBuffer[org.apache.iceberg.view.SourceState]): Unit = {
+    val storageTable = mv.storageTable().asInstanceOf[SparkTable].table()
+    val snapshot = storageTable.currentSnapshot()
+    if (snapshot != null) {
+      val json = snapshot.summary().get(RefreshState.REFRESH_STATE_SUMMARY_KEY)
+      if (json != null) {
+        RefreshStateParser.fromJson(json).sourceStates().asScala.foreach { sourceState =>
+          if (recordedUuids.add(sourceState.uuid())) {
+            states += rebaseCatalog(sourceState, childCatalogName)
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Rewrites a source state recorded by a nested materialized view so its catalog is expressed
+   * relative to the materialized view being refreshed. A nested state's null catalog means "the
+   * nested materialized view's own catalog", which is not this refresh's default, so it is resolved
+   * to an absolute name and then collapsed back to null only when it matches this materialized
+   * view's catalog.
+   */
+  private def rebaseCatalog(
+      sourceState: org.apache.iceberg.view.SourceState,
+      childCatalogName: String): org.apache.iceberg.view.SourceState = {
+    val absolute = if (sourceState.catalog() == null) childCatalogName else sourceState.catalog()
+    val rebased = if (absolute == catalog.name()) null else absolute
+    sourceState match {
+      case table: SourceTableState =>
+        new SourceTableState(
+          table.name(),
+          table.namespace(),
+          rebased,
+          table.uuid(),
+          table.snapshotId(),
+          table.ref())
+      case view: SourceViewState =>
+        new SourceViewState(view.name(), view.namespace(), rebased, view.uuid(), view.versionId())
+      case other => other
+    }
   }
 
   override def simpleString(maxFields: Int): String = {
