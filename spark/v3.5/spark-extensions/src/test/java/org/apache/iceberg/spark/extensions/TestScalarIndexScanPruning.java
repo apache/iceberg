@@ -89,4 +89,60 @@ public class TestScalarIndexScanPruning extends ExtensionsTestBase {
     assertThat(result).hasSize(1);
     assertThat(result.get(0)[0]).isEqualTo(2L);
   }
+
+  @TestTemplate
+  public void testQueryCorrectAfterTableChangesSinceIndexBuild() {
+    // Exercises the covered/uncovered-files staleness path: a commit lands after the index is
+    // built, so the index's snapshot no longer matches table.currentSnapshot() exactly.
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'aaa')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'bbb')", tableName);
+
+    sql(
+        "CALL %s.system.build_scalar_index(table => '%s', columns => array('data'),"
+            + " transform => 'HASH')",
+        catalogName, tableIdent);
+
+    // New commit after the index was built -- this row lives only in an "uncovered" file.
+    sql("INSERT INTO TABLE %s VALUES (3, 'ccc')", tableName);
+
+    // Covered file, resolvable via the (now-stale) index.
+    List<Object[]> covered = sql("SELECT id, data FROM %s WHERE data = 'aaa'", tableName);
+    assertThat(covered).hasSize(1);
+    assertThat(covered.get(0)[0]).isEqualTo(1L);
+
+    // Uncovered file, added after the index's snapshot -- must still be found even though the
+    // index knows nothing about it.
+    List<Object[]> uncovered = sql("SELECT id, data FROM %s WHERE data = 'ccc'", tableName);
+    assertThat(uncovered).hasSize(1);
+    assertThat(uncovered.get(0)[0]).isEqualTo(3L);
+
+    // Absent from both covered and uncovered files -- must still return empty.
+    List<Object[]> absent = sql("SELECT id FROM %s WHERE data = 'does-not-exist'", tableName);
+    assertThat(absent).isEmpty();
+  }
+
+  @TestTemplate
+  public void testQueryCorrectAfterCompactionSinceIndexBuild() {
+    // Compaction is a non-append snapshot between the index's snapshot and the current one --
+    // uncoveredFilePathsSince must detect this and force a full fallback (not prune at all),
+    // rather than resolve matches against file paths compaction may have rewritten away. Without
+    // that safeguard, a row physically moved during compaction into a file outside both the
+    // index's covered matches and the (incomplete) uncovered set would silently never be scanned.
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'aaa')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'bbb')", tableName);
+
+    sql(
+        "CALL %s.system.build_scalar_index(table => '%s', columns => array('data'),"
+            + " transform => 'HASH')",
+        catalogName, tableIdent);
+
+    sql("CALL %s.system.rewrite_data_files(table => '%s')", catalogName, tableIdent);
+
+    List<Object[]> result = sql("SELECT id, data FROM %s WHERE data = 'aaa'", tableName);
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)[0]).isEqualTo(1L);
+    assertThat(result.get(0)[1]).isEqualTo("aaa");
+  }
 }

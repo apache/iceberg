@@ -27,6 +27,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.IncrementalChangelogScan;
@@ -220,18 +222,27 @@ public class SparkScanBuilder
    * row satisfying the full pushed-down conjunction must also satisfy this predicate, so it must
    * live in one of these files. The predicate itself is still pushed down and applied as a
    * residual regardless, so a wrong or stale resolution here can only miss an optimization, never
-   * produce a wrong result -- except for the zero-match case (key confirmed absent), which is
-   * deliberately NOT pruned to zero files here: that would be a correctness-sensitive
-   * optimization (a bug would silently return wrong empty results, not just miss a speedup), left
-   * as a documented follow-up rather than attempted in this pass.
+   * produce a wrong result -- except for the zero-match case (key confirmed absent from a fully
+   * fresh index, with no uncovered files), which is deliberately NOT pruned to zero files here:
+   * that would be a correctness-sensitive optimization (a bug would silently return wrong empty
+   * results, not just miss a speedup), left as a documented follow-up rather than attempted in
+   * this pass.
+   *
+   * <p>Staleness is handled via the covered/uncovered-files model from Huaxin Gao's Primary Key
+   * Index for Apache Iceberg proposal (Section 8, "Staleness Semantics"): files that existed at
+   * the index's own snapshot ("covered") can be pruned using the index as usual; files added to
+   * the table since ("uncovered") are never known to the index and are always included in the
+   * resolved set, unconditionally. This lets a stale index still help, rather than falling back
+   * to no pruning at all on any snapshot mismatch. See {@link #uncoveredFilePathsSince}.
    *
    * <p>Only the first predicate that resolves against an existing index is used; combining
    * resolutions from multiple SCALAR indexes on an AND'd query would need set intersection across
    * indexes, which is not yet attempted.
    *
-   * <p>Any failure -- no index registered, a stale index snapshot, an unsupported predicate shape,
-   * an I/O error reading the tracking or leaf file -- falls back silently to normal planning,
-   * matching the design proposal's rule that the index must never be required for correctness.
+   * <p>Any failure -- no index registered, an unsupported predicate shape, a non-append snapshot
+   * (e.g. compaction) between the index's snapshot and the current one, an I/O error reading the
+   * tracking or leaf file -- falls back silently to normal planning, matching the design
+   * proposal's rule that the index must never be required for correctness.
    */
   private void tryPruneUsingScalarIndex() {
     if (filterExpressions == null || filterExpressions.isEmpty()) {
@@ -274,12 +285,21 @@ public class SparkScanBuilder
           continue;
         }
 
-        IndexSnapshot indexSnapshot =
-            metadata.snapshotForTableSnapshot(table.currentSnapshot().snapshotId());
+        IndexSnapshot indexSnapshot = metadata.currentSnapshot();
         if (indexSnapshot == null) {
-          // Index exists but is stale relative to the current table snapshot -- fall back rather
-          // than risk missing rows written since the index's last build. See Open Question 6.
           continue;
+        }
+
+        long currentTableSnapshotId = table.currentSnapshot().snapshotId();
+        Set<String> uncoveredFilePaths = ImmutableSet.of();
+        if (indexSnapshot.sourceTableSnapshotId() != currentTableSnapshotId) {
+          // Stale relative to the current table snapshot -- rather than fall back entirely,
+          // find the files added since the index's snapshot (uncovered) so covered files can
+          // still be pruned via the index. Throws if the index's snapshot isn't a clean append
+          // ancestor of the current one (e.g. a compaction ran in between); the outer catch
+          // below falls back to no pruning at all in that case, same as before this change.
+          uncoveredFilePaths =
+              uncoveredFilePathsSince(indexSnapshot.sourceTableSnapshotId(), currentTableSnapshotId);
         }
 
         Object literalValue = predicate.literal().value();
@@ -307,21 +327,29 @@ public class SparkScanBuilder
                   Expressions.equal(columnName, literalValue)));
         }
 
-        if (!matches.isEmpty()) {
-          Set<String> resolvedPaths =
-              matches.stream().map(LeafFileEntry::filePath).collect(Collectors.toSet());
+        if (!matches.isEmpty() || !uncoveredFilePaths.isEmpty()) {
+          // Uncovered files are unconditionally included regardless of what the index says --
+          // they're not covered by it, so they must always be scanned. Safe even when matches is
+          // empty: this isn't "the index says zero files match," it's "zero *covered* files
+          // match, plus every uncovered file, which is never an empty set here."
+          Set<String> resolvedPaths = Sets.newHashSet(uncoveredFilePaths);
+          matches.forEach(m -> resolvedPaths.add(m.filePath()));
           this.scalarIndexResolvedFilePaths = resolvedPaths;
           LOG.info(
-              "SCALAR index on {} resolved {} = {} to {} file(s): {}",
+              "SCALAR index on {} resolved {} = {} to {} file(s) ({} covered match(es), {} "
+                  + "uncovered file(s)): {}",
               columnName,
               columnName,
               literalValue,
               resolvedPaths.size(),
+              matches.size(),
+              uncoveredFilePaths.size(),
               resolvedPaths);
           return;
         }
-        // 0 matches (key not present) -- fall back to normal planning rather than prune to zero
-        // files; the equality predicate itself still gets applied downstream and yields no rows.
+        // 0 matches (key not present in covered files) and no uncovered files either -- fall
+        // back to normal planning rather than prune to zero; the equality predicate itself
+        // still gets applied downstream and yields no rows.
       } catch (Exception e) {
         LOG.warn(
             "Failed to use SCALAR index on column {}, falling back to normal planning: {}",
@@ -329,6 +357,45 @@ public class SparkScanBuilder
             e.getMessage());
       }
     }
+  }
+
+  /**
+   * Data file paths added to {@link #table} strictly after {@code sourceSnapshotId} up to and
+   * including {@code currentSnapshotId} -- the "uncovered" files in the covered/uncovered-files
+   * staleness model (see {@link #tryPruneUsingScalarIndex}).
+   *
+   * <p>Deliberately does not use {@link org.apache.iceberg.IncrementalAppendScan}: it silently
+   * filters snapshots down to appends-only rather than throwing when a non-append snapshot (e.g.
+   * a compaction/rewrite) sits in the range, which would make this method return an incomplete
+   * uncovered-files set instead of failing -- and an incomplete uncovered set here is a real
+   * correctness risk, not just a missed optimization: if compaction moved some rows into a new
+   * file that isn't in the (stale) index's covered set either, silently omitting that file from
+   * both the covered matches and the uncovered set would cause those rows to never be scanned.
+   * Walks the snapshot ancestry directly instead and requires every snapshot in range to be a
+   * pure append, throwing otherwise so the caller falls back to no pruning at all.
+   */
+  private Set<String> uncoveredFilePathsSince(long sourceSnapshotId, long currentSnapshotId) {
+    Preconditions.checkArgument(
+        SnapshotUtil.isAncestorOf(table, currentSnapshotId, sourceSnapshotId),
+        "Index snapshot's source table snapshot %s is not an ancestor of the current table "
+            + "snapshot %s",
+        sourceSnapshotId,
+        currentSnapshotId);
+
+    Set<String> paths = Sets.newHashSet();
+    for (Snapshot snapshot :
+        SnapshotUtil.ancestorsBetween(currentSnapshotId, sourceSnapshotId, table::snapshot)) {
+      Preconditions.checkState(
+          DataOperations.APPEND.equals(snapshot.operation()),
+          "Cannot safely determine uncovered files: snapshot %s between the index's snapshot "
+              + "and the current one is a '%s', not an append",
+          snapshot.snapshotId(),
+          snapshot.operation());
+      for (DataFile file : snapshot.addedDataFiles(table.io())) {
+        paths.add(file.location());
+      }
+    }
+    return paths;
   }
 
   private boolean unpartitioned() {
