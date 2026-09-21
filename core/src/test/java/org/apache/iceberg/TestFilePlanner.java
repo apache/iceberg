@@ -39,6 +39,7 @@ import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
@@ -74,6 +75,11 @@ class TestFilePlanner {
 
   private static final List<FileFormat> MANIFEST_FORMATS =
       ImmutableList.of(FileFormat.AVRO, FileFormat.PARQUET);
+
+  private static final MetricsConfig METRICS_CONFIG =
+      MetricsConfig.from(ImmutableMap.of(), TABLE_SCHEMA, null);
+  private static final Types.StructType STATS_TYPE =
+      StatsUtil.statsWriteSchema(TABLE_SCHEMA, METRICS_CONFIG);
 
   private final InMemoryFileIO fileIO = new InMemoryFileIO();
 
@@ -412,6 +418,56 @@ class TestFilePlanner {
         .isEqualTo(DV_SIZE_IN_BYTES);
   }
 
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void filterAppliesToLeafManifestFiles(FileFormat format) throws IOException {
+    InputFile leaf =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFileWithStats("leaf-keep.parquet", idStats(0, 99)),
+                dataFileWithStats("leaf-prune.parquet", idStats(100, 199))));
+    InputFile root =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
+
+    List<FileScanTask> tasks =
+        plan(root, UNPARTITIONED_SPECS, planner -> planner.filterData(Expressions.equal("id", 50)));
+
+    assertThat(Iterables.getOnlyElement(tasks).file().location())
+        .as("only the leaf file whose stats match the filter survives")
+        .isEqualTo(resolved("leaf-keep.parquet"));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void prunedLeafManifestIsNotExpanded(FileFormat format) throws IOException {
+    InputFile root =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataManifestWithStats(
+                    "unopened-leaf." + format.name().toLowerCase(Locale.ROOT), idStats(100, 199)),
+                dataFileWithStats("root-keep.parquet", idStats(0, 99))));
+
+    ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
+    List<FileScanTask> tasks =
+        plan(
+            root,
+            UNPARTITIONED_SPECS,
+            planner -> planner.filterData(Expressions.equal("id", 50)).scanMetrics(metrics));
+
+    assertThat(Iterables.getOnlyElement(tasks).file().location())
+        .isEqualTo(resolved("root-keep.parquet"));
+    assertThat(metrics.skippedDataManifests().value())
+        .as("the leaf manifest ref is pruned by its stats")
+        .isEqualTo(1L);
+    assertThat(metrics.scannedDataManifests().value())
+        .as("only the root is scanned; the pruned leaf is never opened")
+        .isEqualTo(1L);
+  }
+
   private List<FileScanTask> plan(InputFile root, Map<Integer, PartitionSpec> specsById)
       throws IOException {
     return plan(root, specsById, UnaryOperator.identity());
@@ -450,9 +506,49 @@ class TestFilePlanner {
     return trackedFile(addedTracking(), FileContent.DATA, location, specId, partition, dv, null);
   }
 
+  private static TrackedFile dataFileWithStats(String location, ContentStats stats) {
+    return trackedFile(
+        addedTracking(),
+        FileContent.DATA,
+        location,
+        specId(EMPTY_PARTITION_DATA),
+        EMPTY_PARTITION_DATA,
+        stats,
+        null, // dv
+        null); // manifestInfo
+  }
+
   private static TrackedFile dataManifest(String location) {
     return trackedFile(
         addedTracking(), FileContent.DATA_MANIFEST, location, null, null, null, dataManifestInfo());
+  }
+
+  private static TrackedFile dataManifestWithStats(String location, ContentStats stats) {
+    return trackedFile(
+        addedTracking(),
+        FileContent.DATA_MANIFEST,
+        location,
+        null, // specId
+        null, // partition
+        stats,
+        null, // dv
+        dataManifestInfo());
+  }
+
+  private static ContentStats idStats(int lower, int upper) {
+    ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
+    stats.setStats(
+        TABLE_SCHEMA.findField("id").fieldId(),
+        new FieldStatsStruct<>(
+            STATS_TYPE.fieldType("id").asStructType(),
+            lower,
+            upper,
+            true, // tightBounds
+            RECORD_COUNT,
+            0, // nullValueCount
+            0, // nanValueCount
+            null)); // avgValueSize
+    return stats;
   }
 
   private static ManifestInfo dataManifestInfo() {
@@ -482,6 +578,18 @@ class TestFilePlanner {
       PartitionData partition,
       DeletionVector dv,
       ManifestInfo manifestInfo) {
+    return trackedFile(tracking, contentType, location, specId, partition, null, dv, manifestInfo);
+  }
+
+  private static TrackedFile trackedFile(
+      TrackingStruct tracking,
+      FileContent contentType,
+      String location,
+      Integer specId,
+      PartitionData partition,
+      ContentStats contentStats,
+      DeletionVector dv,
+      ManifestInfo manifestInfo) {
     return new TrackedFileStruct(
         tracking,
         contentType,
@@ -492,7 +600,7 @@ class TestFilePlanner {
         FILE_SIZE_IN_BYTES,
         specId,
         partition,
-        null, // contentStats
+        contentStats,
         null, // sortOrderId
         dv, // deletionVector
         manifestInfo,
@@ -549,7 +657,7 @@ class TestFilePlanner {
   private InputFile writeManifest(
       FileFormat format, Types.StructType partitionType, Iterable<TrackedFile> files)
       throws IOException {
-    Schema writeSchema = TrackedFile.schema(partitionType, Types.StructType.of());
+    Schema writeSchema = TrackedFile.schema(partitionType, STATS_TYPE);
     OutputFile out =
         fileIO.newOutputFile(
             TABLE_LOCATION
