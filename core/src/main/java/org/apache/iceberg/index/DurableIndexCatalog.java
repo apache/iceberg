@@ -47,8 +47,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  * writes them directly via {@link FileIO}). What is not durable without this class is purely the
  * pointer telling a fresh process where to find the current metadata file for a given index name
  * -- exactly the gap this fills. One pointer file per index name, at {@code
- * <tableLocation>/metadata/scalar-indexes/<indexName>.pointer}, containing just the current
- * metadata file's location as plain text.
+ * <tableLocation>/metadata/scalar-indexes/<tableUuid>/<indexName>.pointer}, containing just the
+ * current metadata file's location as plain text.
+ *
+ * <p>Scoped by the table's UUID, not just its location: a table's location string can be reused
+ * across a drop and recreate (most catalogs do not guarantee purging files this class does not
+ * know about on drop, since they are outside Iceberg's own metadata/manifest tracking entirely),
+ * and without the UUID a fresh table at a reused location would silently pick up a previous,
+ * logically unrelated table's index registrations. {@link
+ * org.apache.iceberg.spark.SparkIndexCatalogs} already keys its own in-memory cache of {@link
+ * IndexCatalog} instances by table UUID for the same reason -- this mirrors that.
  *
  * <p>Optimistic concurrency is read-then-conditional-write against that pointer file, not a
  * cross-process lock -- adequate for the same single-writer-at-a-time assumption {@link
@@ -65,12 +73,13 @@ public class DurableIndexCatalog implements IndexCatalog {
   private final FileIO io;
   private final String registryLocation;
 
-  public DurableIndexCatalog(FileIO io, String tableLocation) {
+  public DurableIndexCatalog(FileIO io, String tableLocation, String tableUuid) {
     Preconditions.checkNotNull(io, "FileIO is required");
+    Preconditions.checkNotNull(tableUuid, "tableUuid is required");
     Preconditions.checkNotNull(tableLocation, "tableLocation is required");
     this.io = io;
     this.registryLocation =
-        stripTrailingSlash(tableLocation) + "/metadata/scalar-indexes";
+        stripTrailingSlash(tableLocation) + "/metadata/scalar-indexes/" + tableUuid;
   }
 
   private String pointerLocation(IndexIdentifier identifier) {

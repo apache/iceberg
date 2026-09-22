@@ -47,6 +47,7 @@ public class TestDurableIndexCatalog {
 
   private static final TableIdentifier TABLE = TableIdentifier.of(Namespace.of("db"), "orders");
   private static final IndexIdentifier IDX = IndexIdentifier.of(TABLE, "order_id_idx");
+  private static final String TABLE_UUID = "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94";
 
   @TempDir private File tableDir;
 
@@ -60,13 +61,17 @@ public class TestDurableIndexCatalog {
   }
 
   private DurableIndexCatalog newCatalog() {
-    return new DurableIndexCatalog(io, tableLocation);
+    return newCatalog(TABLE_UUID);
+  }
+
+  private DurableIndexCatalog newCatalog(String tableUuid) {
+    return new DurableIndexCatalog(io, tableLocation, tableUuid);
   }
 
   private IndexMetadata sampleMetadata(String metadataLocation) {
     return GenericIndexMetadata.builder()
         .uuid("9c12d441-03fe-4693-9a96-a0705ddf69c1")
-        .tableUuid("fb072c92-a02b-11e9-ae9c-1bb7bc9eca94")
+        .tableUuid(TABLE_UUID)
         .location(tableLocation + "index/order_id_idx")
         .type("SCALAR")
         .transformFunction("HASH")
@@ -103,6 +108,21 @@ public class TestDurableIndexCatalog {
     DurableIndexCatalog freshCatalog = newCatalog();
     assertThat(freshCatalog.indexExists(IDX)).isTrue();
     assertThat(freshCatalog.loadIndex(IDX).metadataFileLocation()).isEqualTo(location);
+  }
+
+  @Test
+  void doesNotLeakRegistrationsAcrossTableUuidsAtTheSameLocation() {
+    // Regression test: a table's location string can be reused after a drop and recreate (most
+    // catalogs do not purge files this class doesn't know about), so scoping only by location
+    // -- not also by table UUID -- would let a brand-new, logically unrelated table silently
+    // inherit a previous table's index registrations at the same path.
+    String location = writeRealMetadataFile("00001");
+    newCatalog("11111111-1111-1111-1111-111111111111").createIndex(IDX, sampleMetadata(location));
+
+    DurableIndexCatalog differentTable = newCatalog("22222222-2222-2222-2222-222222222222");
+    assertThat(differentTable.indexExists(IDX)).isFalse();
+    assertThatThrownBy(() -> differentTable.loadIndex(IDX))
+        .isInstanceOf(NoSuchTableException.class);
   }
 
   @Test

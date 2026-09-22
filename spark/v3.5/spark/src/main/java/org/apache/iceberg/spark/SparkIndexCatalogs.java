@@ -52,6 +52,6 @@ public class SparkIndexCatalogs {
   public IndexCatalog catalogFor(Table table) {
     return catalogsByTableUuid.computeIfAbsent(
         Spark3Util.baseTableUUID(table),
-        uuid -> new DurableIndexCatalog(table.io(), table.location()));
+        uuid -> new DurableIndexCatalog(table.io(), table.location(), uuid));
   }
 }
