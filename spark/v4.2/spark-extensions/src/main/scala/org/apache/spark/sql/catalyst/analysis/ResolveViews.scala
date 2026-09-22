@@ -111,10 +111,14 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       view: View,
       existingChain: Seq[Seq[String]] = Seq.empty): LogicalPlan = {
     val parsed = parseViewText(nameParts.quoted, view.queryText())
-    val viewCatalogAndNamespace = catalogAndNamespace(catalog, ident, view)
+    val viewQueryCatalogAndNamespace = queryCatalogAndNamespace(catalog, ident, view)
     val viewChain =
-      ViewUtil.buildViewChain(nameParts, viewCatalogAndNamespace, existingChain, isCatalog)
-    val rewritten = rewriteIdentifiers(parsed, viewCatalogAndNamespace, viewChain)
+      ViewUtil.buildViewChain(
+        Seq(ident.name()),
+        resolvedCatalogAndNamespace(catalog, ident),
+        existingChain,
+        isCatalog)
+    val rewritten = rewriteIdentifiers(parsed, viewQueryCatalogAndNamespace, viewChain)
     val aliases = view
       .schema()
       .fields
@@ -133,7 +137,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
     SubqueryAlias(nameParts, Project(aliases, rewritten))
   }
 
-  private def catalogAndNamespace(
+  private def queryCatalogAndNamespace(
       catalog: CatalogPlugin,
       ident: Identifier,
       view: View): Seq[String] = {
@@ -142,6 +146,12 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       ident.namespace().toIndexedSeq
     }
     currentCatalog +: currentNamespace
+  }
+
+  private def resolvedCatalogAndNamespace(
+      catalog: CatalogPlugin,
+      ident: Identifier): Seq[String] = {
+    catalog.name() +: ident.namespace().toIndexedSeq
   }
 
   private def parseViewText(name: String, viewText: String): LogicalPlan = {

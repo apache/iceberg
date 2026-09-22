@@ -57,8 +57,11 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   private static final String CATALOG_NAME = "ref_test_catalog";
   private static final String OTHER_CATALOG_NAME = "other_ref_test_catalog";
   private static final Namespace NAMESPACE = Namespace.of("default");
+  private static final Namespace VIEW_DEFAULT_NAMESPACE = Namespace.of("view_defaults");
   private static final String TABLE_NAME = "test_table";
   private static final String OTHER_TABLE_NAME = "other_table";
+  private static final String VIEW_DEFAULT_TABLE_NAME = "view_default_table";
+  private static final String VIEW_DEFAULT_VIEW_NAME = "view_default_view";
 
   private static SparkSession spark;
 
@@ -137,6 +140,9 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
             .getOrCreate();
 
     spark.sql(String.format("CREATE NAMESPACE IF NOT EXISTS %s.%s", CATALOG_NAME, NAMESPACE));
+    spark.sql(
+        String.format(
+            "CREATE NAMESPACE IF NOT EXISTS %s.%s", CATALOG_NAME, VIEW_DEFAULT_NAMESPACE));
     spark.sql(String.format("CREATE NAMESPACE IF NOT EXISTS %s.%s", OTHER_CATALOG_NAME, NAMESPACE));
   }
 
@@ -170,7 +176,11 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     spark.sql("DROP VIEW IF EXISTS view_c");
     spark.sql("DROP VIEW IF EXISTS time_travel_view");
     spark.sql("DROP VIEW IF EXISTS cross_view");
+    spark.sql(String.format("DROP VIEW IF EXISTS %s", VIEW_DEFAULT_VIEW_NAME));
     spark.sql(String.format("DROP TABLE IF EXISTS %s", TABLE_NAME));
+    spark.sql(
+        String.format(
+            "DROP TABLE IF EXISTS %s.%s", VIEW_DEFAULT_NAMESPACE, VIEW_DEFAULT_TABLE_NAME));
     spark.sql(
         String.format(
             "DROP TABLE IF EXISTS %s.%s.%s", OTHER_CATALOG_NAME, NAMESPACE, OTHER_TABLE_NAME));
@@ -216,6 +226,39 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
         .filteredOn(captured -> !captured.referencedBy.isEmpty())
         .hasSize(1);
     assertCapturedTableChain(ContextTrackingCatalog.CAPTURED, TABLE_NAME, "simple_view");
+  }
+
+  @Test
+  public void referencedByUsesResolvedViewIdentifier() {
+    spark.sql(
+        String.format(
+            "CREATE TABLE %s.%s (id INT, data STRING)",
+            VIEW_DEFAULT_NAMESPACE, VIEW_DEFAULT_TABLE_NAME));
+    appendRecords(String.format("%s.%s", VIEW_DEFAULT_NAMESPACE, VIEW_DEFAULT_TABLE_NAME));
+    spark.sql(
+        String.format("REFRESH TABLE %s.%s", VIEW_DEFAULT_NAMESPACE, VIEW_DEFAULT_TABLE_NAME));
+
+    String viewSql = String.format("SELECT id FROM %s", VIEW_DEFAULT_TABLE_NAME);
+    String schemaSql =
+        String.format("SELECT id FROM %s.%s", VIEW_DEFAULT_NAMESPACE, VIEW_DEFAULT_TABLE_NAME);
+    viewCatalog()
+        .buildView(TableIdentifier.of(NAMESPACE, VIEW_DEFAULT_VIEW_NAME))
+        .withQuery("spark", viewSql)
+        .withDefaultNamespace(VIEW_DEFAULT_NAMESPACE)
+        .withDefaultCatalog(CATALOG_NAME)
+        .withSchema(SparkSchemaUtil.convert(spark.sql(schemaSql).schema()))
+        .create();
+    ContextTrackingCatalog.clearCaptured();
+
+    List<Row> result =
+        spark.sql(String.format("SELECT * FROM %s", VIEW_DEFAULT_VIEW_NAME)).collectAsList();
+    assertThat(result).hasSize(5);
+
+    assertCapturedTableChain(
+        ContextTrackingCatalog.CAPTURED,
+        VIEW_DEFAULT_NAMESPACE,
+        VIEW_DEFAULT_TABLE_NAME,
+        VIEW_DEFAULT_VIEW_NAME);
   }
 
   @Test
@@ -313,11 +356,20 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
       List<ContextTrackingCatalog.CapturedContext> captures,
       String targetName,
       String... expectedViewNames) {
+    assertCapturedTableChain(captures, NAMESPACE, targetName, expectedViewNames);
+  }
+
+  private void assertCapturedTableChain(
+      List<ContextTrackingCatalog.CapturedContext> captures,
+      Namespace targetNamespace,
+      String targetName,
+      String... expectedViewNames) {
     List<ContextTrackingCatalog.CapturedContext> matching =
         captures.stream()
             .filter(
                 captured ->
-                    captured.tableIdentifier.equals(TableIdentifier.of(NAMESPACE, targetName)))
+                    captured.tableIdentifier.equals(
+                        TableIdentifier.of(targetNamespace, targetName)))
             .filter(captured -> captured.referencedBy != null && !captured.referencedBy.isEmpty())
             .collect(Collectors.toList());
 
