@@ -25,6 +25,7 @@ import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import scala.Tuple2;
 import scala.collection.Iterator;
@@ -51,9 +52,11 @@ final class SparkValueEquality {
 
   static ValueEquality[] forFields(StructType type) {
     int size = type.size();
+    StructField[] fields = type.fields();
+
     ValueEquality[] equalities = new ValueEquality[size];
     for (int index = 0; index < size; index++) {
-      equalities[index] = forType(type.fields()[index].dataType());
+      equalities[index] = forType(fields[index].dataType());
     }
 
     return equalities;
@@ -85,7 +88,6 @@ final class SparkValueEquality {
         return DEFAULT_EQUALITY;
       }
 
-      // keys can only be looked up by hash if their own equals agrees with the key equality
       boolean hashLookup = keyEquality == DEFAULT_EQUALITY;
       return nullSafe(
           (left, right) ->
