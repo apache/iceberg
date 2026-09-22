@@ -21,10 +21,8 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Objects;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -41,6 +39,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
           Tracking.FIRST_ROW_ID,
           Tracking.DELETED_POSITIONS,
           Tracking.REPLACED_POSITIONS,
+          MetadataColumns.FILE_PATH,
           MetadataColumns.ROW_POSITION);
 
   // tracking fields read on the scan path; row_position backs manifestPos.
@@ -52,6 +51,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
           Tracking.SEQUENCE_NUMBER,
           Tracking.FILE_SEQUENCE_NUMBER,
           Tracking.FIRST_ROW_ID,
+          MetadataColumns.FILE_PATH,
           MetadataColumns.ROW_POSITION);
 
   private EntryStatus status = null;
@@ -116,34 +116,20 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     this.replacedPositions = replacedPositions;
   }
 
-  void inheritFrom(Tracking manifestTracking) {
-    if (manifestTracking != null) {
-      if (snapshotId == null) {
-        this.snapshotId = manifestTracking.snapshotId();
-      }
-
-      // manifests do not distinguish between data and file sequence numbers
-      Preconditions.checkArgument(
-          Objects.equals(
-              manifestTracking.dataSequenceNumber(), manifestTracking.fileSequenceNumber()),
-          "Manifest data and file sequence numbers must be equal, got %s and %s",
-          manifestTracking.dataSequenceNumber(),
-          manifestTracking.fileSequenceNumber());
-
-      if (status == EntryStatus.ADDED) {
-        if (dataSequenceNumber == null) {
-          this.dataSequenceNumber = manifestTracking.fileSequenceNumber();
-        }
-
-        if (fileSequenceNumber == null) {
-          this.fileSequenceNumber = manifestTracking.fileSequenceNumber();
-        }
-      }
+  void inherit(long manifestSnapshotId, long manifestSeqNumber) {
+    if (null == snapshotId) {
+      this.snapshotId = manifestSnapshotId;
     }
-  }
 
-  void setManifestLocation(String location) {
-    this.manifestLocation = location;
+    boolean isAdded = status == EntryStatus.ADDED;
+
+    if (null == dataSequenceNumber && (isAdded || manifestSeqNumber == 0)) {
+      this.dataSequenceNumber = manifestSeqNumber;
+    }
+
+    if (null == fileSequenceNumber && (isAdded || manifestSeqNumber == 0)) {
+      this.fileSequenceNumber = manifestSeqNumber;
+    }
   }
 
   @Override
@@ -225,6 +211,8 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
       case 7:
         return replacedPositions();
       case 8:
+        return manifestLocation;
+      case 9:
         return manifestPos;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
@@ -259,6 +247,9 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         this.replacedPositions = ByteBuffers.toByteArray((ByteBuffer) value);
         break;
       case 8:
+        this.manifestLocation = (String) value;
+        break;
+      case 9:
         this.manifestPos = (long) value;
         break;
       default:
