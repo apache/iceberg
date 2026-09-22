@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import software.amazon.awssdk.http.SdkHttpClient;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.apache5.Apache5HttpClient;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -76,11 +76,11 @@ public class TestHttpClientProperties {
         .as("Should use managed SDK http client")
         .isInstanceOf(ManagedHttpClient.class);
 
-    // Verify the underlying delegate is ApacheHttpClient
+    // Verify the underlying delegate is Apache5HttpClient
     ManagedHttpClient managedClient = (ManagedHttpClient) capturedHttpClient;
     assertThat(managedClient.httpClient())
-        .as("Underlying client should be ApacheHttpClient")
-        .isInstanceOf(ApacheHttpClient.class);
+        .as("Underlying client should be Apache5HttpClient")
+        .isInstanceOf(Apache5HttpClient.class);
   }
 
   @Test
