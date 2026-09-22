@@ -315,8 +315,7 @@ public class RewriteManifestsSparkAction
           partitionFieldClustering);
 
       // Map the top level partition column names to the column name referenced within the manifest
-      // entry dataframe. Use getField() instead of a dotted column path so the partition field
-      // name is never parsed and does not need escaping.
+      // entry dataframe
       Column[] partitionColumns =
           partitionFieldClustering.stream()
               .map(p -> col(DATA_FILE_PARTITION_COLUMN_NAME).getField(p))
