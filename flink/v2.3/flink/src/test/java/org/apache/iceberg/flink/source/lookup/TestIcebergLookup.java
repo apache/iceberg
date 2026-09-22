@@ -24,10 +24,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collection;
 import java.util.List;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.functions.FunctionContext;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
@@ -50,7 +50,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestIcebergLookup {
+class TestIcebergLookup {
   private static final Schema SCHEMA =
       new Schema(
           optional(1, "id", Types.LongType.get()),
@@ -60,6 +60,7 @@ public class TestIcebergLookup {
   private static final String[] PROJECTED_COLUMNS = {"id", "data", "category"};
   private static final RowType ROW_TYPE = FlinkSchemaUtil.convert(SCHEMA);
   private static final int[] ID_KEY_INDICES = {0};
+  private static final int[] ID_AND_CATEGORY_KEY_INDICES = {0, 2};
 
   @TempDir private Path temporaryFolder;
 
@@ -70,14 +71,14 @@ public class TestIcebergLookup {
   private IcebergFullCachingLookupFunction lookupFunction;
 
   @AfterEach
-  public void after() throws Exception {
+  void after() throws Exception {
     if (lookupFunction != null) {
       lookupFunction.close();
     }
   }
 
   @Test
-  public void lookupReaderReadsWithBaseFilters() throws Exception {
+  void lookupReaderReadsWithBaseFilters() throws Exception {
     Table table = createTableWithRecords();
     IcebergLookupReader reader =
         lookupReader(table, ImmutableList.of(Expressions.equal("category", "B")), false);
@@ -94,7 +95,7 @@ public class TestIcebergLookup {
   }
 
   @Test
-  public void lookupReaderRespectsCaseSensitivity() throws Exception {
+  void lookupReaderRespectsCaseSensitivity() throws Exception {
     Table table = createTableWithRecords();
     List<Expression> filters = ImmutableList.of(Expressions.equal("CATEGORY", "B"));
 
@@ -110,7 +111,7 @@ public class TestIcebergLookup {
   }
 
   @Test
-  public void lookupReaderReadsPinnedSnapshot() throws Exception {
+  void lookupReaderReadsPinnedSnapshot() throws Exception {
     Table table = createTableWithRecords();
     long pinnedSnapshot = table.currentSnapshot().snapshotId();
 
@@ -127,29 +128,54 @@ public class TestIcebergLookup {
   }
 
   @Test
-  public void lookupFunctionReturnsRowsFromCache() throws Exception {
+  void lookupFunctionReturnsRowsFromCache() throws Exception {
     Table table = createTableWithRecords();
 
-    lookupFunction = newLookupFunction();
+    lookupFunction = newLookupFunction(ID_KEY_INDICES, false);
     lookupFunction.open(new FunctionContext(null));
 
-    Collection<RowData> rows = lookupFunction.lookup(keyRow(1L));
-    assertThat(rows).singleElement().satisfies(row -> assertRow(row, 1L, "alice", "A"));
-
-    // Served from the cache, not re-read from the table.
-    assertThat(lookupFunction.lookup(keyRow(1L))).isSameAs(rows);
+    assertThat(lookupFunction.lookup(keyRow(1L)))
+        .singleElement()
+        .satisfies(row -> assertRow(row, 1L, "alice", "A"));
 
     appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
 
     assertThat(lookupFunction.lookup(keyRow(6L))).isEmpty();
     assertThat(lookupFunction.lookup(keyRow(404L))).isEmpty();
+    assertThat(lookupFunction.lookup(keyRow(1L)))
+        .singleElement()
+        .satisfies(row -> assertRow(row, 1L, "alice", "A"));
   }
 
   @Test
-  public void lookupFunctionLoadsCacheLazily() throws Exception {
+  void lookupFunctionWithMultiColumnKey() throws Exception {
     Table table = createTableWithRecords();
 
-    lookupFunction = newLookupFunction();
+    lookupFunction = newLookupFunction(ID_AND_CATEGORY_KEY_INDICES, false);
+    lookupFunction.open(new FunctionContext(null));
+
+    assertThat(lookupFunction.lookup(keyRow(1L, "A")))
+        .singleElement()
+        .satisfies(row -> assertRow(row, 1L, "alice", "A"));
+
+    assertThat(lookupFunction.lookup(keyRow(1L, "B"))).isEmpty();
+
+    assertThat(lookupFunction.lookup(keyRow(null, "A")))
+        .singleElement()
+        .satisfies(row -> assertRow(row, null, "nobody", "A"));
+
+    appendRecords(table, ImmutableList.of(record(3L, "carol-2", "A")));
+
+    assertThat(lookupFunction.lookup(keyRow(3L, "A")))
+        .singleElement()
+        .satisfies(row -> assertRow(row, 3L, "carol", "A"));
+  }
+
+  @Test
+  void lookupFunctionLoadsCacheLazily() throws Exception {
+    Table table = createTableWithRecords();
+
+    lookupFunction = newLookupFunction(ID_KEY_INDICES, false);
     lookupFunction.open(new FunctionContext(null));
 
     // Nothing is loaded yet, so the first lookup sees the row appended after opening.
@@ -161,10 +187,10 @@ public class TestIcebergLookup {
   }
 
   @Test
-  public void lookupFunctionLoadsCacheEagerly() throws Exception {
+  void lookupFunctionLoadsCacheEagerly() throws Exception {
     Table table = createTableWithRecords();
 
-    lookupFunction = newLookupFunction(true);
+    lookupFunction = newLookupFunction(ID_KEY_INDICES, true);
     lookupFunction.open(new FunctionContext(null));
 
     appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
@@ -176,14 +202,14 @@ public class TestIcebergLookup {
   }
 
   @Test
-  public void lookupFunctionHandlesMultipleRowsPerKey() throws Exception {
+  void lookupFunctionHandlesMultipleRowsPerKey() throws Exception {
     Table table = CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
     appendRecords(
         table,
         ImmutableList.of(
             record(1L, "alice", "A"), record(1L, "alice-2", "A"), record(2L, "bob", "B")));
 
-    lookupFunction = newLookupFunction();
+    lookupFunction = newLookupFunction(ID_KEY_INDICES, false);
     lookupFunction.open(new FunctionContext(null));
 
     assertThat(lookupFunction.lookup(keyRow(1L)))
@@ -195,7 +221,7 @@ public class TestIcebergLookup {
   }
 
   @Test
-  public void lookupFunctionAppliesPushedFilters() throws Exception {
+  void lookupFunctionAppliesPushedFilters() throws Exception {
     createTableWithRecords();
 
     lookupFunction =
@@ -214,15 +240,11 @@ public class TestIcebergLookup {
         .satisfies(row -> assertRow(row, 2L, "bob", "B"));
   }
 
-  private IcebergFullCachingLookupFunction newLookupFunction() {
-    return newLookupFunction(false);
-  }
-
-  private IcebergFullCachingLookupFunction newLookupFunction(boolean eagerLoad) {
+  private IcebergFullCachingLookupFunction newLookupFunction(int[] keyIndices, boolean eagerLoad) {
     return new IcebergFullCachingLookupFunction(
         CATALOG_EXTENSION.tableLoader().clone(),
         ROW_TYPE,
-        ID_KEY_INDICES,
+        keyIndices,
         ImmutableList.of(),
         false,
         eagerLoad);
@@ -268,6 +290,13 @@ public class TestIcebergLookup {
   private static RowData keyRow(Long id) {
     GenericRowData row = new GenericRowData(1);
     row.setField(0, id);
+    return row;
+  }
+
+  private static RowData keyRow(Long id, String category) {
+    GenericRowData row = new GenericRowData(2);
+    row.setField(0, id);
+    row.setField(1, StringData.fromString(category));
     return row;
   }
 

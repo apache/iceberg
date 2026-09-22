@@ -117,7 +117,6 @@ The lookup options are:
 
 | Option                       | Default | Description                                                                                                                 |
 | ---------------------------- |---------|-----------------------------------------------------------------------------------------------------------------------------|
-| lookup.cache                 |         | Only `FULL` is accepted; `NONE` and `PARTIAL` are rejected, because an Iceberg table cannot be point-looked-up effectively. |
 | lookup.full-cache.eager-load | true    | Whether to load the full cache when the lookup function is opened, instead of on the first lookup.                          |
 
 ## Reading with DataStream

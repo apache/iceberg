@@ -38,12 +38,11 @@ import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /** Tests SQL lookup join with Iceberg table source. */
-public class TestIcebergLookupJoinSql extends TestSqlBase {
+class TestIcebergLookupJoinSql extends TestSqlBase {
   private static final Schema DIM_SCHEMA =
       new Schema(
           required(1, "user_id", Types.LongType.get()),
@@ -57,13 +56,8 @@ public class TestIcebergLookupJoinSql extends TestSqlBase {
     setUpTableEnv(getStreamingTableEnv());
   }
 
-  @AfterEach
-  public void after() throws IOException {
-    CATALOG_EXTENSION.catalog().dropTable(TestFixtures.TABLE_IDENTIFIER);
-  }
-
   @Test
-  public void lookupJoinReturnsMatchedAndUnmatchedRows() throws Exception {
+  void lookupJoinReturnsMatchedAndUnmatchedRows() throws Exception {
     createDefaultDimTable();
 
     TableEnvironment streamEnv = getStreamingTableEnv();
@@ -81,7 +75,7 @@ public class TestIcebergLookupJoinSql extends TestSqlBase {
   }
 
   @Test
-  public void lookupJoinWithFilterConditionInJoin() throws Exception {
+  void lookupJoinWithFilterConditionInJoin() throws Exception {
     createDimTable(
         dimRecord(1L, "alice", "beijing"),
         dimRecord(2L, "bob", "shanghai"),
@@ -106,7 +100,7 @@ public class TestIcebergLookupJoinSql extends TestSqlBase {
   }
 
   @Test
-  public void lookupJoinWithDuplicateKeysInDimTable() throws Exception {
+  void lookupJoinWithDuplicateKeysInDimTable() throws Exception {
     // The dimension table has two rows sharing the same join key, so every probe row
     // matching that key must be joined with both of them.
     createDimTable(
@@ -129,7 +123,7 @@ public class TestIcebergLookupJoinSql extends TestSqlBase {
   }
 
   @Test
-  public void lookupJoinWithOptionsInTableDdl() throws Exception {
+  void lookupJoinWithOptionsInTableDdl() throws Exception {
     createDefaultDimTable();
 
     TableEnvironment streamEnv = getStreamingTableEnv();
@@ -169,7 +163,7 @@ public class TestIcebergLookupJoinSql extends TestSqlBase {
   }
 
   @Test
-  public void lookupJoinAcceptsFullCacheType() throws Exception {
+  void lookupJoinAcceptsFullCacheType() throws Exception {
     createDimTable(dimRecord(1L, "alice", "beijing"));
 
     TableEnvironment streamEnv = getStreamingTableEnv();
@@ -186,7 +180,7 @@ public class TestIcebergLookupJoinSql extends TestSqlBase {
   }
 
   @Test
-  public void lookupJoinRejectsUnsupportedCacheType() throws Exception {
+  void lookupJoinRejectsUnsupportedCacheType() throws Exception {
     createDimTable(dimRecord(1L, "alice", "beijing"));
 
     TableEnvironment streamEnv = getStreamingTableEnv();
@@ -205,7 +199,7 @@ public class TestIcebergLookupJoinSql extends TestSqlBase {
   }
 
   @Test
-  public void lookupJoinWithReorderedDimColumns() throws Exception {
+  void lookupJoinWithReorderedDimColumns() throws Exception {
     createDimTable(dimRecord(1L, "alice", "beijing"), dimRecord(2L, "bob", "shanghai"));
 
     TableEnvironment streamEnv = getStreamingTableEnv();

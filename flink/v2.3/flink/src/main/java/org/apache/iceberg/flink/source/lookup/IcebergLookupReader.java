@@ -34,10 +34,11 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.util.SnapshotUtil;
 
 /** Reads all rows of an Iceberg table to build a lookup cache. */
 @Internal
-public class IcebergLookupReader {
+class IcebergLookupReader {
 
   public static final long CURRENT_SNAPSHOT = -1L;
 
@@ -48,7 +49,7 @@ public class IcebergLookupReader {
   private final boolean caseSensitive;
   private final String nameMapping;
 
-  public IcebergLookupReader(
+  IcebergLookupReader(
       Table table,
       Schema projectedSchema,
       List<Expression> baseFilters,
@@ -69,9 +70,12 @@ public class IcebergLookupReader {
   }
 
   public void read(long snapshotId, Consumer<RowData> consumer) throws IOException {
+    Schema tableSchema =
+        snapshotId == CURRENT_SNAPSHOT ? table.schema() : SnapshotUtil.schemaFor(table, snapshotId);
+
     RowDataFileScanTaskReader fileReader =
         new RowDataFileScanTaskReader(
-            table.schema(), projectedSchema, nameMapping, caseSensitive, baseFilters);
+            tableSchema, projectedSchema, nameMapping, caseSensitive, baseFilters);
 
     TableScan scan =
         table.newScan().caseSensitive(caseSensitive).project(projectedSchema).filter(filter);
