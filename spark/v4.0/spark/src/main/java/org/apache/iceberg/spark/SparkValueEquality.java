@@ -25,6 +25,7 @@ import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import scala.Tuple2;
 import scala.collection.Iterator;
@@ -39,9 +40,6 @@ import scala.collection.Seq;
  * arrays, structs, and maps.
  */
 final class SparkValueEquality {
-  /** Equality for types whose own {@link Object#equals} already compares by value. */
-  private static final ValueEquality DEFAULT_EQUALITY = Objects::equals;
-
   private SparkValueEquality() {}
 
   @FunctionalInterface
@@ -49,10 +47,16 @@ final class SparkValueEquality {
     boolean test(Object left, Object right);
   }
 
+  /** Equality for types whose own {@link Object#equals} already compares by value. */
+  private static final ValueEquality DEFAULT_EQUALITY = Objects::equals;
+
   static ValueEquality[] forFields(StructType type) {
-    ValueEquality[] equalities = new ValueEquality[type.size()];
-    for (int index = 0; index < type.size(); index++) {
-      equalities[index] = forType(type.fields()[index].dataType());
+    int size = type.size();
+    StructField[] fields = type.fields();
+
+    ValueEquality[] equalities = new ValueEquality[size];
+    for (int index = 0; index < size; index++) {
+      equalities[index] = forType(fields[index].dataType());
     }
 
     return equalities;
@@ -84,7 +88,6 @@ final class SparkValueEquality {
         return DEFAULT_EQUALITY;
       }
 
-      // keys can only be looked up by hash if their own equals agrees with the key equality
       boolean hashLookup = keyEquality == DEFAULT_EQUALITY;
       return nullSafe(
           (left, right) ->
