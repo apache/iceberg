@@ -19,13 +19,27 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.io.UncheckedIOException;
+import java.nio.channels.ClosedByInterruptException;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTasks {
+
+  @AfterEach
+  void clearInterruptStatus() {
+    Thread.interrupted();
+  }
 
   @Test
   public void attemptCounterIsIncreasedOnRetries() {
@@ -56,5 +70,62 @@ public class TestTasks {
     Tasks.foreach(IntStream.range(0, 10)).countAttempts(counter).run(x -> {});
 
     assertThat(counter.value()).isOne();
+  }
+
+  @ParameterizedTest
+  @MethodSource("interruptions")
+  void tasksAreNotRetriedWhenFailureIsCausedByInterruption(Exception interruption) {
+    Counter counter = new DefaultMetricsContext().counter("counter");
+
+    assertThatThrownBy(
+            () ->
+                Tasks.foreach(1)
+                    .countAttempts(counter)
+                    .retry(3)
+                    .run(
+                        x -> {
+                          throw interruption;
+                        },
+                        Exception.class))
+        .isSameAs(interruption);
+
+    assertThat(counter.value()).as("Interrupted task should not be retried").isOne();
+    assertThat(Thread.currentThread().isInterrupted())
+        .as("Interrupt status should be restored")
+        .isTrue();
+  }
+
+  private static Stream<Exception> interruptions() {
+    return Stream.of(
+        new InterruptedException("interrupted"),
+        new InterruptedIOException("interrupted"),
+        new ClosedByInterruptException(),
+        new RuntimeException("failed to read manifest", new InterruptedException("interrupted")),
+        new UncheckedIOException(new InterruptedIOException("interrupted")),
+        new RuntimeException(
+            "failed to read manifest",
+            new IOException("failed to open stream", new ClosedByInterruptException())));
+  }
+
+  @Test
+  void tasksAreRetriedWhenFailureIsNotCausedByInterruption() {
+    Counter counter = new DefaultMetricsContext().counter("counter");
+    RuntimeException failure =
+        new RuntimeException("failed to read manifest", new IOException("connection reset"));
+
+    assertThatThrownBy(
+            () ->
+                Tasks.foreach(1)
+                    .countAttempts(counter)
+                    .exponentialBackoff(0, 0, 5000, 0)
+                    .retry(3)
+                    .run(
+                        x -> {
+                          throw failure;
+                        }))
+        .isSameAs(failure);
+
+    assertThat(counter.value()).isEqualTo(4);
+    assertThat(Thread.currentThread().isInterrupted()).isFalse();
   }
 }
