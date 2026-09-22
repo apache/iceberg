@@ -760,11 +760,6 @@ public class TestRewriteManifestsAction extends TestBase {
   public void
       testRewriteManifestsPartitionedTableWithCustomSortingOnFieldNameContainingDotAndBacktick()
           throws IOException {
-    // Regression test: partitioning on a nested source column (struct "a" with child field
-    // "b`c") used to make sortBy() fail at execution time, since the resulting partition field is
-    // named "a.b`c" but the partition struct is flat - col() misparsed the dot as a further
-    // nesting level instead of treating "a.b`c" as a single field name, and even once quoted, the
-    // embedded backtick must itself be escaped or the quoting is malformed.
     Schema schema =
         new Schema(
             optional(1, "a", Types.StructType.of(optional(2, "b`c", Types.StringType.get()))),
