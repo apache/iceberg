@@ -22,6 +22,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 
+import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -33,6 +38,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -132,5 +138,42 @@ class TestInputFilesDecryptor {
     Mockito.verify(encryptingIO).bulkDecrypt(captor.capture());
     assertThat(captor.getValue())
         .containsExactlyInAnyOrder(DATA_FILE, OTHER_DATA_FILE, DELETE_FILE);
+  }
+
+  @Test
+  void resolvesInputFilesOnceWhenAccessedConcurrently() throws Exception {
+    Mockito.when(encryptingIO.bulkDecrypt(any()))
+        .thenAnswer(
+            invocation -> {
+              Thread.sleep(50);
+              return ImmutableMap.of(DATA_FILE.location(), dataInputFile);
+            });
+
+    InputFilesDecryptor decryptor =
+        InputFilesDecryptor.fromTasks(
+            ImmutableList.of(new MockFileScanTask(DATA_FILE)), encryptingIO);
+
+    int numReaders = 8;
+    CyclicBarrier barrier = new CyclicBarrier(numReaders);
+    ExecutorService pool = Executors.newFixedThreadPool(numReaders);
+    try {
+      List<Future<InputFile>> futures = Lists.newArrayList();
+      for (int i = 0; i < numReaders; i++) {
+        futures.add(
+            pool.submit(
+                () -> {
+                  barrier.await();
+                  return decryptor.getInputFile(DATA_FILE.location());
+                }));
+      }
+
+      for (Future<InputFile> future : futures) {
+        assertThat(future.get()).isSameAs(dataInputFile);
+      }
+    } finally {
+      pool.shutdownNow();
+    }
+
+    Mockito.verify(encryptingIO, Mockito.times(1)).bulkDecrypt(any());
   }
 }
