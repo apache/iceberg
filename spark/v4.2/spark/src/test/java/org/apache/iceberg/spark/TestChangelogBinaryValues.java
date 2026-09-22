@@ -36,6 +36,7 @@ import org.apache.spark.sql.catalyst.CatalystTypeConverters;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -117,8 +118,10 @@ class TestChangelogBinaryValues {
   @ParameterizedTest
   @MethodSource("values")
   void distinguishesNullFromNonNull(DataType type, IntFunction<Object> values) {
-    assertRetained(type, List.of(row(type, null, DELETE, 0), row(type, values.apply(1), INSERT, 0)));
-    assertRetained(type, List.of(row(type, values.apply(1), DELETE, 0), row(type, null, INSERT, 0)));
+    assertRetained(
+        type, List.of(row(type, null, DELETE, 0), row(type, values.apply(1), INSERT, 0)));
+    assertRetained(
+        type, List.of(row(type, values.apply(1), DELETE, 0), row(type, null, INSERT, 0)));
     assertRemoved(type, List.of(row(type, null, DELETE, 0), row(type, null, INSERT, 0)));
   }
 
@@ -143,6 +146,51 @@ class TestChangelogBinaryValues {
     right.put(keys.apply(2), null);
     right.put(keys.apply(1), new byte[] {1});
     assertRemoved(type, List.of(row(type, left, DELETE, 0), row(type, right, INSERT, 0)));
+  }
+
+  @Test
+  void retainsChangesWithDifferentArrayLengths() {
+    DataType type = DataTypes.createArrayType(DataTypes.BinaryType);
+    assertRetained(
+        type,
+        List.of(
+            row(type, List.of(new byte[] {1}), DELETE, 0),
+            row(type, List.of(new byte[] {1}, new byte[] {1}), INSERT, 0)));
+  }
+
+  @Test
+  void retainsChangesWithDifferentArrayOrder() {
+    DataType type = DataTypes.createArrayType(DataTypes.BinaryType);
+    assertRetained(
+        type,
+        List.of(
+            row(type, List.of(new byte[] {1}, new byte[] {2}), DELETE, 0),
+            row(type, List.of(new byte[] {2}, new byte[] {1}), INSERT, 0)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("mapKeys")
+  void retainsChangesWithDifferentMapKeysAndNullValues(DataType keyType, IntFunction<Object> keys) {
+    DataType type = DataTypes.createMapType(keyType, DataTypes.BinaryType);
+    assertRetained(
+        type,
+        List.of(
+            row(type, Collections.singletonMap(keys.apply(1), null), DELETE, 0),
+            row(type, Collections.singletonMap(keys.apply(2), null), INSERT, 0)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("mapKeys")
+  void retainsChangesWithDifferentMapSizes(DataType keyType, IntFunction<Object> keys) {
+    DataType type = DataTypes.createMapType(keyType, DataTypes.BinaryType);
+    Map<Object, Object> larger = new LinkedHashMap<>();
+    larger.put(keys.apply(1), new byte[] {1});
+    larger.put(keys.apply(2), new byte[] {2});
+    assertRetained(
+        type,
+        List.of(
+            row(type, Collections.singletonMap(keys.apply(1), new byte[] {1}), DELETE, 0),
+            row(type, larger, INSERT, 0)));
   }
 
   private static void assertRemoved(DataType type, List<Row> rows) {
