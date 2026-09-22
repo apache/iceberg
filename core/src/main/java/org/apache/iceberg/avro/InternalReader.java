@@ -69,8 +69,8 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition, S
                 AccessByID.instance());
   }
 
-  public void setConstants(Map<Integer, Object> idToConstant) {
-    this.idToConstant.putAll(idToConstant);
+  public void setConstants(Map<Integer, Object> constantMap) {
+    this.idToConstant.putAll(constantMap);
   }
 
   public void setConstant(int fieldId, Object value) {

@@ -102,7 +102,8 @@ class TestTrackingStruct {
         .isEqualTo(ByteBuffer.wrap(DELETED_POSITIONS));
     assertThat(tracking.get(pos("replaced_positions"), ByteBuffer.class))
         .isEqualTo(ByteBuffer.wrap(REPLACED_POSITIONS));
-    assertThat(tracking.get(MANIFEST_LOCATION_ORDINAL, String.class)).isEqualTo("manifest-location");
+    assertThat(tracking.get(MANIFEST_LOCATION_ORDINAL, String.class))
+        .isEqualTo("manifest-location");
     assertThat(tracking.get(MANIFEST_POSITION_ORDINAL, Long.class)).isEqualTo(7L);
   }
 
@@ -188,8 +189,8 @@ class TestTrackingStruct {
 
     tracking.inherit(100L, 60L);
 
-    assertThat(tracking.dataSequenceNumber()).isEqualTo(null);
-    assertThat(tracking.fileSequenceNumber()).isEqualTo(null);
+    assertThat(tracking.dataSequenceNumber()).isNull();
+    assertThat(tracking.fileSequenceNumber()).isNull();
   }
 
   @ParameterizedTest

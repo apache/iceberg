@@ -345,11 +345,6 @@ class TestV4ManifestReader {
         .containsExactlyElementsOf(files);
   }
 
-  // inheritance test plan:
-  // - snapshot ID inheritance, not dv snapshot ID inheritance
-  // - file seq and data seq inheritance from null WITH ADDED
-  // - file seq and data seq not inherited with EXISTING, MODIFIED, DELETE (SHOULD FAIL?)
-
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   public void inheritanceSnapshotId(FileFormat format) throws IOException {
@@ -415,8 +410,7 @@ class TestV4ManifestReader {
         unpartitionedDataFile(trackingWithDataSeq, "s3://bucket/table/file-b.parquet");
 
     ManifestFile manifest =
-        writeManifest(
-            format, UNPARTITIONED_TYPE, ImmutableList.of(withoutSeq, withDataSeq));
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(withoutSeq, withDataSeq));
 
     V4ManifestReader.Builder builder =
         V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
@@ -441,8 +435,7 @@ class TestV4ManifestReader {
         unpartitionedDataFile(trackingWithFileSeq, "s3://bucket/table/file-c.parquet");
 
     ManifestFile manifest =
-        writeManifest(
-            format, UNPARTITIONED_TYPE, ImmutableList.of(withoutSeq, withFileSeq));
+        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(withoutSeq, withFileSeq));
 
     V4ManifestReader.Builder builder =
         V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
@@ -469,8 +462,9 @@ class TestV4ManifestReader {
     List<TrackedFile> read = read(builder);
 
     assertThat(read)
+        .hasSize(4)
         .extracting(file -> file.tracking().manifestLocation())
-        .containsExactly(location, location, location, location);
+        .containsOnly(location);
     assertThat(read)
         .extracting(file -> file.tracking().manifestPos())
         .containsExactly(0L, 1L, 2L, 3L);
