@@ -145,4 +145,53 @@ public class TestScalarIndexScanPruning extends ExtensionsTestBase {
     assertThat(result.get(0)[0]).isEqualTo(1L);
     assertThat(result.get(0)[1]).isEqualTo("aaa");
   }
+
+  @TestTemplate
+  public void testRangeQueryResolvesViaIdentityIndex() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (5, 'b')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (10, 'c')", tableName);
+
+    sql(
+        "CALL %s.system.build_scalar_index(table => '%s', columns => array('id'),"
+            + " transform => 'IDENTITY')",
+        catalogName, tableIdent);
+
+    // A two-sided range -- Spark decomposes this into two range predicates on the same column,
+    // which tryPruneUsingScalarIndex must combine into a single [lower, upper] bound.
+    List<Object[]> between = sql("SELECT id, data FROM %s WHERE id > 3 AND id < 8", tableName);
+    assertThat(between).hasSize(1);
+    assertThat(between.get(0)[0]).isEqualTo(5L);
+    assertThat(between.get(0)[1]).isEqualTo("b");
+
+    // A one-sided range.
+    List<Object[]> atLeast = sql("SELECT id FROM %s WHERE id >= 5", tableName);
+    assertThat(atLeast).extracting(r -> r[0]).containsExactlyInAnyOrder(5L, 10L);
+
+    // A range matching nothing.
+    List<Object[]> none = sql("SELECT id FROM %s WHERE id > 100", tableName);
+    assertThat(none).isEmpty();
+  }
+
+  @TestTemplate
+  public void testRangeQueryFallsBackSafelyForHashIndex() {
+    // HASH scatters values across buckets, so a range predicate cannot be resolved via a
+    // HASH-transform index -- must still return correct results via the normal (residual-filter)
+    // path rather than attempt to use the index for something it cannot answer.
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (5, 'b')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (10, 'c')", tableName);
+
+    sql(
+        "CALL %s.system.build_scalar_index(table => '%s', columns => array('id'),"
+            + " transform => 'HASH')",
+        catalogName, tableIdent);
+
+    List<Object[]> result = sql("SELECT id, data FROM %s WHERE id > 3 AND id < 8", tableName);
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)[0]).isEqualTo(5L);
+    assertThat(result.get(0)[1]).isEqualTo("b");
+  }
 }
