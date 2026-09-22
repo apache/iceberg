@@ -194,4 +194,46 @@ public class TestScalarIndexScanPruning extends ExtensionsTestBase {
     assertThat(result.get(0)[0]).isEqualTo(5L);
     assertThat(result.get(0)[1]).isEqualTo("b");
   }
+
+  @TestTemplate
+  public void testInPredicateResolvesViaHashIndex() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'aaa')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'bbb')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (3, 'ccc')", tableName);
+
+    sql(
+        "CALL %s.system.build_scalar_index(table => '%s', columns => array('data'),"
+            + " transform => 'HASH')",
+        catalogName, tableIdent);
+
+    List<Object[]> result = sql("SELECT id, data FROM %s WHERE data IN ('aaa', 'ccc')", tableName);
+    assertThat(result).extracting(r -> r[0]).containsExactlyInAnyOrder(1L, 3L);
+
+    // A mix of present and absent values -- must return only the present one.
+    List<Object[]> mixed =
+        sql("SELECT id FROM %s WHERE data IN ('bbb', 'does-not-exist')", tableName);
+    assertThat(mixed).extracting(r -> r[0]).containsExactly(2L);
+
+    // No values present at all.
+    List<Object[]> none =
+        sql("SELECT id FROM %s WHERE data IN ('does-not-exist-1', 'does-not-exist-2')", tableName);
+    assertThat(none).isEmpty();
+  }
+
+  @TestTemplate
+  public void testInPredicateResolvesViaIdentityIndex() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (5, 'b')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (10, 'c')", tableName);
+
+    sql(
+        "CALL %s.system.build_scalar_index(table => '%s', columns => array('id'),"
+            + " transform => 'IDENTITY')",
+        catalogName, tableIdent);
+
+    List<Object[]> result = sql("SELECT id, data FROM %s WHERE id IN (1, 10)", tableName);
+    assertThat(result).extracting(r -> r[0]).containsExactlyInAnyOrder(1L, 10L);
+  }
 }

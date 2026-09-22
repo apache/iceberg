@@ -47,6 +47,7 @@ import org.apache.iceberg.expressions.BoundAggregate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.index.HashTransform;
@@ -215,36 +216,39 @@ public class SparkScanBuilder
   private static final Set<Expression.Operation> SCALAR_INDEX_PRUNABLE_OPS =
       ImmutableSet.of(
           Expression.Operation.EQ,
+          Expression.Operation.IN,
           Expression.Operation.LT,
           Expression.Operation.LT_EQ,
           Expression.Operation.GT,
           Expression.Operation.GT_EQ);
 
   /**
-   * If a SCALAR index exists on a column referenced by an equality or range predicate in {@link
-   * #filterExpressions}, resolves the predicate(s) against the index's leaf files and records the
-   * matching source file paths in {@link #scalarIndexResolvedFilePaths}, so {@link
-   * #buildBatchScan} can constrain the scan to just those files via {@link
+   * If a SCALAR index exists on a column referenced by an equality, {@code IN}, or range
+   * predicate in {@link #filterExpressions}, resolves the predicate(s) against the index's leaf
+   * files and records the matching source file paths in {@link #scalarIndexResolvedFilePaths}, so
+   * {@link #buildBatchScan} can constrain the scan to just those files via {@link
    * FileScanTaskFilteringScan}.
    *
    * <p>An equality predicate (HASH or IDENTITY transform) resolves to a single transform value.
-   * A range predicate ({@code <}, {@code <=}, {@code >}, {@code >=} -- including a {@code
-   * BETWEEN}, which Spark decomposes into two range predicates on the same column) only makes
-   * sense against an IDENTITY-transform index: HASH scatters values across buckets, so a
-   * contiguous range on the original column does not map to a contiguous range of transform
-   * values the way it does for IDENTITY, where the transform value is the key value itself. `IN`
-   * predicates are not yet resolved against the index -- tracked as a follow-up, not attempted
-   * here.
+   * An {@code IN} predicate resolves to one transform value per literal (HASH or IDENTITY),
+   * queried as separate points rather than a combined range -- HASH in particular can scatter an
+   * IN-list's values across unrelated, non-contiguous buckets, so there is no single [min, max]
+   * that would be both correct and useful. A range predicate ({@code <}, {@code <=}, {@code >},
+   * {@code >=} -- including a {@code BETWEEN}, which Spark decomposes into two range predicates on
+   * the same column) only makes sense against an IDENTITY-transform index: HASH scatters values
+   * across buckets, so a contiguous range on the original column does not map to a contiguous
+   * range of transform values the way it does for IDENTITY, where the transform value is the key
+   * value itself.
    *
-   * <p>Restricting the scan to files that could satisfy one AND'd predicate (or set of range
-   * predicates on the same column) is always sound: any row satisfying the full pushed-down
-   * conjunction must also satisfy it, so it must live in one of these files. The predicate itself
-   * is still pushed down and applied as a residual regardless, so a wrong or stale resolution here
-   * can only miss an optimization, never produce a wrong result -- except for the zero-match case
-   * (key confirmed absent from a fully fresh index, with no uncovered files), which is
-   * deliberately NOT pruned to zero files here: that would be a correctness-sensitive optimization
-   * (a bug would silently return wrong empty results, not just miss a speedup), left as a
-   * documented follow-up rather than attempted in this pass.
+   * <p>Restricting the scan to files that could satisfy one AND'd predicate (or set of predicates
+   * on the same column) is always sound: any row satisfying the full pushed-down conjunction must
+   * also satisfy it, so it must live in one of these files. The predicate itself is still pushed
+   * down and applied as a residual regardless, so a wrong or stale resolution here can only miss
+   * an optimization, never produce a wrong result -- except for the zero-match case (key confirmed
+   * absent from a fully fresh index, with no uncovered files), which is deliberately NOT pruned to
+   * zero files here: that would be a correctness-sensitive optimization (a bug would silently
+   * return wrong empty results, not just miss a speedup), left as a documented follow-up rather
+   * than attempted in this pass.
    *
    * <p>Staleness is handled via the covered/uncovered-files model from Huaxin Gao's Primary Key
    * Index for Apache Iceberg proposal (Section 8, "Staleness Semantics"): files that existed at
@@ -295,10 +299,10 @@ public class SparkScanBuilder
   }
 
   /**
-   * Attempts to resolve {@code predicates} (all on {@code columnName}, each either {@code EQ} or
-   * a range comparison) against a SCALAR index on that column, if one exists. Returns {@code
-   * true} if it resolved and set {@link #scalarIndexResolvedFilePaths}, {@code false} to let
-   * {@link #tryPruneUsingScalarIndex()} try the next column's predicates instead.
+   * Attempts to resolve {@code predicates} (all on {@code columnName}, each {@code EQ}, {@code
+   * IN}, or a range comparison) against a SCALAR index on that column, if one exists. Returns
+   * {@code true} if it resolved and set {@link #scalarIndexResolvedFilePaths}, {@code false} to
+   * let {@link #tryPruneUsingScalarIndex()} try the next column's predicates instead.
    */
   private boolean tryPruneUsingScalarIndex(
       IndexCatalog indexCatalog, String columnName, List<UnboundPredicate<?>> predicates) {
@@ -344,29 +348,39 @@ public class SparkScanBuilder
 
       Optional<UnboundPredicate<?>> eqPredicate =
           predicates.stream().filter(p -> p.op() == Expression.Operation.EQ).findFirst();
+      Optional<UnboundPredicate<?>> inPredicate =
+          predicates.stream().filter(p -> p.op() == Expression.Operation.IN).findFirst();
 
-      long targetMin;
-      long targetMax;
+      List<TransformValueRange> targetRanges;
       Expression leafFilter;
       Object literalValueForLog;
 
       if (eqPredicate.isPresent()) {
         Object literalValue = eqPredicate.get().literal().value();
-        long targetTransformValue;
-        if ("HASH".equals(metadata.transformFunction())) {
-          int numBuckets =
-              Integer.parseInt(metadata.properties().getOrDefault("hash.num-buckets", "256"));
-          targetTransformValue = new HashTransform(numBuckets).apply(literalValue);
-        } else {
-          targetTransformValue = ((Number) literalValue).longValue();
-        }
-        targetMin = targetTransformValue;
-        targetMax = targetTransformValue;
+        long targetTransformValue = transformValue(metadata, literalValue);
+        targetRanges = ImmutableList.of(new TransformValueRange(targetTransformValue, targetTransformValue));
         leafFilter = Expressions.equal(columnName, literalValue);
         literalValueForLog = literalValue;
+      } else if (inPredicate.isPresent()) {
+        List<Object> literalValues = Lists.newArrayList();
+        for (Literal<?> literal : inPredicate.get().literals()) {
+          literalValues.add(literal.value());
+        }
+        if (literalValues.isEmpty()) {
+          return false;
+        }
+
+        List<TransformValueRange> ranges = Lists.newArrayListWithExpectedSize(literalValues.size());
+        for (Object literalValue : literalValues) {
+          long tv = transformValue(metadata, literalValue);
+          ranges.add(new TransformValueRange(tv, tv));
+        }
+        targetRanges = ranges;
+        leafFilter = Expressions.in(columnName, literalValues);
+        literalValueForLog = literalValues;
       } else {
-        // No equality predicate in this group -- only IDENTITY preserves enough order for a
-        // range comparison to map to a contiguous transform-value range; HASH scatters values
+        // No equality or IN predicate in this group -- only IDENTITY preserves enough order for
+        // a range comparison to map to a contiguous transform-value range; HASH scatters values
         // across buckets, so a range on the original column tells us nothing about which
         // buckets to look in.
         if (!"IDENTITY".equals(metadata.transformFunction())) {
@@ -392,7 +406,7 @@ public class SparkScanBuilder
               upperBound = Math.min(upperBound, value);
               break;
             default:
-              // EQ is handled above; SCALAR_INDEX_PRUNABLE_OPS admits nothing else here.
+              // EQ/IN are handled above; SCALAR_INDEX_PRUNABLE_OPS admits nothing else here.
               break;
           }
           combinedFilter =
@@ -403,18 +417,25 @@ public class SparkScanBuilder
           return false;
         }
 
-        targetMin = lowerBound;
-        targetMax = upperBound;
+        targetRanges = ImmutableList.of(new TransformValueRange(lowerBound, upperBound));
         leafFilter = combinedFilter;
         literalValueForLog = "[" + lowerBound + ", " + upperBound + "]";
       }
 
-      List<TrackingFileEntry> candidateLeafFiles =
-          TrackingFileReader.readMatching(
-              table.io().newInputFile(indexSnapshot.trackingFile()), targetMin, targetMax);
+      // Dedupe by location: an IN predicate's separate target ranges can resolve to the same
+      // leaf file (e.g. two IN values landing in the same HASH bucket), and reading it twice
+      // would just waste work, not affect correctness.
+      Map<String, TrackingFileEntry> candidateLeafFilesByLocation = Maps.newLinkedHashMap();
+      for (TransformValueRange range : targetRanges) {
+        for (TrackingFileEntry entry :
+            TrackingFileReader.readMatching(
+                table.io().newInputFile(indexSnapshot.trackingFile()), range.min, range.max)) {
+          candidateLeafFilesByLocation.putIfAbsent(entry.location(), entry);
+        }
+      }
 
       List<LeafFileEntry> matches = Lists.newArrayList();
-      for (TrackingFileEntry leaf : candidateLeafFiles) {
+      for (TrackingFileEntry leaf : candidateLeafFilesByLocation.values()) {
         matches.addAll(
             LeafFileReader.readMatching(
                 table.io().newInputFile(leaf.location()), keyField, leafFilter));
@@ -451,6 +472,26 @@ public class SparkScanBuilder
           e.getMessage());
       return false;
     }
+  }
+
+  /** One [min, max] transform-value sub-range to query the tracking file for. */
+  private static final class TransformValueRange {
+    private final long min;
+    private final long max;
+
+    TransformValueRange(long min, long max) {
+      this.min = min;
+      this.max = max;
+    }
+  }
+
+  private static long transformValue(IndexMetadata metadata, Object literalValue) {
+    if ("HASH".equals(metadata.transformFunction())) {
+      int numBuckets =
+          Integer.parseInt(metadata.properties().getOrDefault("hash.num-buckets", "256"));
+      return new HashTransform(numBuckets).apply(literalValue);
+    }
+    return ((Number) literalValue).longValue();
   }
 
   /**
