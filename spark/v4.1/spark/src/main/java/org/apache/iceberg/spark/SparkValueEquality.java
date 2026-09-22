@@ -81,7 +81,6 @@ final class SparkValueEquality {
     }
   }
 
-  /** Wraps equality that would otherwise fail on null values. */
   private static ValueEquality nullSafe(ValueEquality equality) {
     return (left, right) ->
         left == right || (left != null && right != null && equality.test(left, right));
@@ -146,10 +145,6 @@ final class SparkValueEquality {
         && valueEquality.test(entry._2(), keyedMap.apply(entry._1()));
   }
 
-  /**
-   * Scans for a matching key. Maps are expected to be small, so this is cheaper than indexing the
-   * keys, and it is the only option for key types that cannot be looked up by hash.
-   */
   private static boolean hasEntryByScan(
       Map<?, ?> map, Tuple2<?, ?> entry, ValueEquality keyEquality, ValueEquality valueEquality) {
     Iterator<? extends Tuple2<?, ?>> candidates = map.iterator();
