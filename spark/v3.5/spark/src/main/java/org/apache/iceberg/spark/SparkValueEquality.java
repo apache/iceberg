@@ -39,9 +39,6 @@ import scala.collection.Seq;
  * arrays, structs, and maps.
  */
 final class SparkValueEquality {
-  /** Equality for types whose own {@link Object#equals} already compares by value. */
-  private static final ValueEquality DEFAULT_EQUALITY = Objects::equals;
-
   private SparkValueEquality() {}
 
   @FunctionalInterface
@@ -49,9 +46,14 @@ final class SparkValueEquality {
     boolean test(Object left, Object right);
   }
 
+  /** Equality for types whose own {@link Object#equals} already compares by value. */
+  private static final ValueEquality DEFAULT_EQUALITY = Objects::equals;
+
+
   static ValueEquality[] forFields(StructType type) {
-    ValueEquality[] equalities = new ValueEquality[type.size()];
-    for (int index = 0; index < type.size(); index++) {
+    int size = type.size();
+    ValueEquality[] equalities = new ValueEquality[size];
+    for (int index = 0; index < size; index++) {
       equalities[index] = forType(type.fields()[index].dataType());
     }
 
