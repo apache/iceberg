@@ -37,6 +37,7 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.Literal;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.expressions.filter.PartitionPredicate;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsRuntimeV2Filtering;
@@ -63,8 +64,18 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
       SparkReadConf readConf,
       Schema projection,
       List<Expression> filters,
+      List<PartitionPredicate> partitionPredicates,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, schema, scan, readConf, projection, filters, scanReportSupplier);
+    super(
+        spark,
+        table,
+        schema,
+        scan,
+        readConf,
+        projection,
+        filters,
+        partitionPredicates,
+        scanReportSupplier);
     this.snapshot = snapshot;
     this.branch = branch;
     if (scan == null) {
@@ -140,6 +151,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
         && Objects.equals(branch, that.branch)
         && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
         && filtersDesc().equals(that.filtersDesc())
+        && partitionPredicates().equals(that.partitionPredicates())
         && Objects.equals(filteredLocations, that.filteredLocations);
   }
 
@@ -152,6 +164,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
         branch,
         readSchema(),
         filtersDesc(),
+        partitionPredicates(),
         filteredLocations);
   }
 
