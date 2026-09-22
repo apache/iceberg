@@ -193,6 +193,24 @@ class TestChangelogBinaryValues {
             row(type, larger, INSERT, 0)));
   }
 
+  @Test
+  void preservesNonBinaryArrayEquality() {
+    DataType type = DataTypes.createArrayType(DataTypes.DoubleType);
+    assertRemoved(
+        type, List.of(row(type, List.of(-0.0), DELETE, 0), row(type, List.of(0.0), INSERT, 0)));
+  }
+
+  @Test
+  void preservesStructEquality() {
+    StructType type =
+        new StructType().add("binary", DataTypes.BinaryType).add("number", DataTypes.DoubleType);
+    assertRemoved(
+        type,
+        List.of(
+            row(type, RowFactory.create(new byte[] {1}, -0.0), DELETE, 0),
+            row(type, RowFactory.create(new byte[] {1}, 0.0), INSERT, 0)));
+  }
+
   private static void assertRemoved(DataType type, List<Row> rows) {
     assertThat(ChangelogIterator.removeCarryovers(rows.iterator(), schema(type))).isExhausted();
     assertThat(ChangelogIterator.removeNetCarryovers(rows.iterator(), schema(type))).isExhausted();

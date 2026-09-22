@@ -63,13 +63,27 @@ final class SparkValueEquality {
       return nullSafe((left, right) -> Arrays.equals((byte[]) left, (byte[]) right));
     } else if (type instanceof ArrayType array) {
       ValueEquality elementEquality = forType(array.elementType());
+      if (elementEquality == DEFAULT_EQUALITY) {
+        return DEFAULT_EQUALITY;
+      }
+
       return nullSafe((left, right) -> arraysEqual((Seq<?>) left, (Seq<?>) right, elementEquality));
     } else if (type instanceof StructType struct) {
       ValueEquality[] fieldEqualities = forFields(struct);
-      return nullSafe((left, right) -> structsEqual((Row) left, (Row) right, fieldEqualities));
+      if (Arrays.stream(fieldEqualities).allMatch(equality -> equality == DEFAULT_EQUALITY)) {
+        return DEFAULT_EQUALITY;
+      }
+
+      return nullSafe(
+          (left, right) ->
+              left.equals(right) || structsEqual((Row) left, (Row) right, fieldEqualities));
     } else if (type instanceof MapType map) {
       ValueEquality keyEquality = forType(map.keyType());
       ValueEquality valueEquality = forType(map.valueType());
+      if (keyEquality == DEFAULT_EQUALITY && valueEquality == DEFAULT_EQUALITY) {
+        return DEFAULT_EQUALITY;
+      }
+
       // keys can only be looked up by hash if their own equals agrees with the key equality
       boolean hashLookup = keyEquality == DEFAULT_EQUALITY;
       return nullSafe(
