@@ -56,7 +56,6 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergFullCachingLookupFunction.class);
 
   private static final String METRIC_GROUP = "icebergLookupCache";
-  private static final long UNKNOWN = -1L;
 
   private final TableLoader tableLoader;
   private final RowType projectedRowType;
@@ -71,7 +70,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   private transient RowData.FieldGetter[] cacheKeyGetters;
   private transient RowData.FieldGetter[] rowFieldGetters;
   private transient TypeSerializer[] fieldSerializers;
-  private transient IcebergLookupCache cache;
+  private transient InMemoryLookupCache cache;
 
   private transient Counter cacheHitCounter;
   private transient Counter cacheMissCounter;
@@ -188,7 +187,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
         projectedRowType.getFieldNames(),
         pushedFilters);
 
-    IcebergLookupCache loaded = new InMemoryLookupCache();
+    InMemoryLookupCache loaded = new InMemoryLookupCache();
     int[] rowCnt = {0};
     long start = System.currentTimeMillis();
     reader.read(
@@ -198,7 +197,6 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
           loaded.add(extractLookupKey(copied, cacheKeyGetters), copied);
           rowCnt[0]++;
         });
-    loaded.completeLoad();
 
     this.cache = loaded;
     this.currentSnapshotId = snapshotId;
@@ -238,7 +236,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   }
 
   private void resetState() {
-    this.currentSnapshotId = UNKNOWN;
+    this.currentSnapshotId = IcebergLookupReader.CURRENT_SNAPSHOT;
     this.cachedRows = 0;
   }
 }

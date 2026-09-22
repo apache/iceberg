@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -83,6 +82,7 @@ public class IcebergTableSource
   private final boolean isLimitPushDown;
   private final ReadableConfig readableConfig;
   private final boolean caseSensitive;
+  private final FlinkConfParser flinkConfParser;
 
   private IcebergTableSource(IcebergTableSource toCopy) {
     this.loader = toCopy.loader;
@@ -94,6 +94,7 @@ public class IcebergTableSource
     this.filters = toCopy.filters;
     this.readableConfig = toCopy.readableConfig;
     this.caseSensitive = toCopy.caseSensitive;
+    this.flinkConfParser = toCopy.flinkConfParser;
   }
 
   public IcebergTableSource(
@@ -121,8 +122,9 @@ public class IcebergTableSource
     this.limit = limit;
     this.filters = filters;
     this.readableConfig = readableConfig;
+    this.flinkConfParser = new FlinkConfParser(properties, readableConfig);
     this.caseSensitive =
-        new FlinkConfParser(properties, readableConfig)
+        flinkConfParser
             .booleanConf()
             .option(FlinkReadOptions.CASE_SENSITIVE)
             .flinkConfig(FlinkReadOptions.CASE_SENSITIVE_OPTION)
@@ -271,19 +273,24 @@ public class IcebergTableSource
     RowType projectedRowType = (RowType) projected.toPhysicalRowDataType().getLogicalType();
     List<Expression> pushedFilters = filters == null ? ImmutableList.of() : filters;
 
-    Configuration lookupConf = Configuration.fromMap(properties);
+    LookupOptions.LookupCacheType requestedCacheType =
+        flinkConfParser
+            .enumConfParser(LookupOptions.LookupCacheType.class)
+            .option(LookupOptions.CACHE_TYPE.key())
+            .parseOptional();
+    Preconditions.checkArgument(
+        requestedCacheType == null || requestedCacheType == LookupOptions.LookupCacheType.FULL,
+        "Iceberg lookup join only supports %s=FULL, but it is set to '%s'. NONE and PARTIAL are "
+            + "not supported, because an Iceberg table cannot be point-looked-up.",
+        LookupOptions.CACHE_TYPE.key(),
+        requestedCacheType);
 
-    String requestedCacheType = properties.get(LookupOptions.CACHE_TYPE.key());
-    if (requestedCacheType != null) {
-      Preconditions.checkArgument(
-          lookupConf.get(LookupOptions.CACHE_TYPE) == LookupOptions.LookupCacheType.FULL,
-          "Iceberg lookup join only supports %s=FULL, but it is set to '%s'. NONE and PARTIAL are "
-              + "not supported, because an Iceberg table cannot be point-looked-up.",
-          LookupOptions.CACHE_TYPE.key(),
-          requestedCacheType);
-    }
-
-    boolean eagerLoad = lookupConf.get(IcebergLookupOptions.FULL_CACHE_EAGER_LOAD);
+    boolean eagerLoad =
+        flinkConfParser
+            .booleanConf()
+            .option(IcebergLookupOptions.FULL_CACHE_EAGER_LOAD.key())
+            .defaultValue(IcebergLookupOptions.FULL_CACHE_EAGER_LOAD.defaultValue())
+            .parse();
 
     LookupFunction lookupFn =
         new IcebergFullCachingLookupFunction(

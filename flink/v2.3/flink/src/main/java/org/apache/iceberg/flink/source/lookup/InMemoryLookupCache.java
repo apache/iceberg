@@ -25,27 +25,20 @@ import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-class InMemoryLookupCache implements IcebergLookupCache {
+class InMemoryLookupCache {
 
   private final Map<RowData, List<RowData>> cache = Maps.newHashMap();
 
-  @Override
-  public @Nullable List<RowData> get(RowData key) {
+  @Nullable
+  List<RowData> get(RowData key) {
     return cache.get(key);
   }
 
-  @Override
-  public void add(RowData key, RowData row) {
-    cache.computeIfAbsent(key, k -> Lists.newLinkedList()).add(row);
+  void add(RowData key, RowData row) {
+    cache.computeIfAbsent(key, k -> Lists.newArrayList()).add(row);
   }
 
-  @Override
-  public void completeLoad() {
-    // no-op: rows are visible as soon as they are added
-  }
-
-  @Override
-  public void close() {
+  void close() {
     cache.clear();
   }
 }
