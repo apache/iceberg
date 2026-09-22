@@ -49,7 +49,6 @@ final class SparkValueEquality {
   /** Equality for types whose own {@link Object#equals} already compares by value. */
   private static final ValueEquality DEFAULT_EQUALITY = Objects::equals;
 
-
   static ValueEquality[] forFields(StructType type) {
     int size = type.size();
     ValueEquality[] equalities = new ValueEquality[size];
