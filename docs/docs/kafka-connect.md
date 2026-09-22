@@ -392,6 +392,31 @@ The `CopyValue` SMT copies a value from one field to a new field.
 "transforms.copyId.target.field": "id_copy",
 ```
 
+### FieldToJsonString
+_(Experimental)_
+
+The `FieldToJsonString` SMT serializes one or more fields into their JSON string representation. This is
+useful when a source message contains a nested object or array but the destination column is a plain string,
+for example to keep a free-form payload in a single Iceberg `string` column instead of modelling it as a
+nested structure. Nested fields are addressed with dot notation, and a field value that is already a string
+is left unchanged. It works with both schema-less records and records that carry a Connect schema; for
+schema-based records the target field's type is rewritten to `string`.
+
+#### Configuration
+
+| Property        | Description                                                                                  |
+|-----------------|----------------------------------------------------------------------------------------------|
+| fields          | Comma-separated list of dot-notation field paths to serialize                                |
+| ignore.missing  | When true (default), a missing or null path is left untouched; when false a missing path errors |
+
+#### Example
+
+```
+"transforms": "toJson",
+"transforms.toJson.type": "org.apache.iceberg.connect.transforms.FieldToJsonString",
+"transforms.toJson.fields": "clientContext,account.registrationData.marketingData.metadata",
+```
+
 ### DmsTransform
 _(Experimental)_
 
