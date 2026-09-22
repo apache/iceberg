@@ -34,7 +34,7 @@ public class InputFilesDecryptor {
 
   private final Iterable<? extends ContentFile<?>> referencedFiles;
   private final EncryptingFileIO encryptingIO;
-  private Map<String, InputFile> lazyInputFiles = null;
+  private volatile Map<String, InputFile> lazyInputFiles = null;
 
   /**
    * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link #fromTasks(Iterable,
@@ -61,7 +61,11 @@ public class InputFilesDecryptor {
 
   private Map<String, InputFile> inputFiles() {
     if (lazyInputFiles == null) {
-      this.lazyInputFiles = encryptingIO.bulkDecrypt(referencedFiles);
+      synchronized (this) {
+        if (lazyInputFiles == null) {
+          this.lazyInputFiles = encryptingIO.bulkDecrypt(referencedFiles);
+        }
+      }
     }
 
     return lazyInputFiles;
