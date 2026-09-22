@@ -76,11 +76,24 @@ public class AliyunProperties implements Serializable {
    */
   public static final String OSS_STAGING_DIRECTORY = "oss.staging-dir";
 
+  /**
+   * The region id used to derive a service endpoint, for example {@code cn-hangzhou}. Used by the
+   * Aliyun KMS client to resolve {@code kms.<region>.aliyuncs.com}.
+   */
+  public static final String CLIENT_REGION = "client.region";
+
+  /** The data key spec used when generating data keys with Aliyun KMS: AES_256 or AES_128. */
+  public static final String KMS_DATA_KEY_SPEC = "kms.data-key-spec";
+
+  public static final String KMS_DATA_KEY_SPEC_DEFAULT = "AES_256";
+
   private final String ossEndpoint;
   private final String accessKeyId;
   private final String accessKeySecret;
   private final String securityToken;
   private final String ossStagingDirectory;
+  private final String region;
+  private final String kmsDataKeySpec;
 
   public AliyunProperties() {
     this(ImmutableMap.of());
@@ -96,6 +109,10 @@ public class AliyunProperties implements Serializable {
     this.ossStagingDirectory =
         PropertyUtil.propertyAsString(
             properties, OSS_STAGING_DIRECTORY, System.getProperty("java.io.tmpdir"));
+
+    this.region = properties.get(CLIENT_REGION);
+    this.kmsDataKeySpec =
+        PropertyUtil.propertyAsString(properties, KMS_DATA_KEY_SPEC, KMS_DATA_KEY_SPEC_DEFAULT);
   }
 
   public String ossEndpoint() {
@@ -116,5 +133,13 @@ public class AliyunProperties implements Serializable {
 
   public String ossStagingDirectory() {
     return ossStagingDirectory;
+  }
+
+  public String region() {
+    return region;
+  }
+
+  public String kmsDataKeySpec() {
+    return kmsDataKeySpec;
   }
 }

@@ -20,11 +20,13 @@ package org.apache.iceberg.aliyun;
 
 import com.aliyun.credentials.models.CredentialModel;
 import com.aliyun.credentials.provider.OIDCRoleArnCredentialProvider;
+import com.aliyun.kms20160120.Client;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.common.auth.BasicCredentials;
 import com.aliyun.oss.common.auth.Credentials;
 import com.aliyun.oss.common.auth.CredentialsProvider;
+import com.aliyun.teaopenapi.models.Config;
 import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -183,6 +185,39 @@ public class AliyunClientFactories {
     @Override
     public void initialize(Map<String, String> properties) {
       this.aliyunProperties = new AliyunProperties(properties);
+    }
+
+    @Override
+    public Client newKmsClient() {
+      Preconditions.checkNotNull(
+          aliyunProperties,
+          "Cannot create aliyun kms client before initializing the AliyunClientFactory.");
+      Preconditions.checkArgument(
+          !Strings.isNullOrEmpty(aliyunProperties.region()),
+          "Cannot create aliyun kms client, %s is not set.",
+          AliyunProperties.CLIENT_REGION);
+
+      // the KMS client resolves kms.<region>.aliyuncs.com from the region id
+      Config config = new Config().setRegionId(aliyunProperties.region());
+
+      try {
+        if (!Strings.isNullOrEmpty(aliyunProperties.accessKeyId())) {
+          config
+              .setAccessKeyId(aliyunProperties.accessKeyId())
+              .setAccessKeySecret(aliyunProperties.accessKeySecret());
+          if (!Strings.isNullOrEmpty(aliyunProperties.securityToken())) {
+            config.setSecurityToken(aliyunProperties.securityToken());
+          }
+        } else {
+          // fall back to the credentials-java default chain (env vars, RRSA/OIDC, ECS RAM role,
+          // ...)
+          config.setCredential(new com.aliyun.credentials.Client());
+        }
+
+        return new Client(config);
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to create aliyun kms client", e);
+      }
     }
 
     @Override
