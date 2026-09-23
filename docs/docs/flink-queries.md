@@ -109,15 +109,15 @@ LEFT JOIN iceberg_catalog.db.user_dim
 
 Iceberg implements lookup join with a full cache: the whole projected dimension table is loaded into the cache, and every lookup is served from it without falling back to the table. The full cache is held in memory on the TaskManager heap, so lookup join targets dimension tables that fit comfortably there.
 
-The cache is loaded by default when the lookup function is opened. Set lookup.full-cache.eager-load to false to load it on the first lookup instead, which blocks the data flow until the cache is fully loaded.
+`lookup.full-cache.eager-load` decides whether the job blocks at startup or on the first lookup. With the default `true`, the lookup function loads the cache when it is opened, so the job blocks during deployment, before it processes any data, and fails at startup if the dimension table cannot be read; with `false`, the load is deferred to the first lookup, so the data flow blocks only when the first probe row arrives, and the subtasks of the join can end up on different snapshots of the dimension table.
 
-There is no background refresh: the cache keeps the data it was loaded with for the lifetime of the job, so the dimension table should be populated before the join starts.
+There is no background refresh: each subtask keeps the snapshot it loaded, so subtasks can serve different snapshots of the dimension table. Populate the dimension table before the join starts.
 
 The lookup options are:
 
-| Option                       | Default | Description                                                                                                                 |
-| ---------------------------- |---------|-----------------------------------------------------------------------------------------------------------------------------|
-| lookup.full-cache.eager-load | true    | Whether to load the full cache when the lookup function is opened, instead of on the first lookup.                          |
+| Option                         | Default | Description                                                                                        |
+| ------------------------------ | ------- | -------------------------------------------------------------------------------------------------- |
+| `lookup.full-cache.eager-load` | `true`  | Whether to load the full cache when the lookup function is opened, instead of on the first lookup. |
 
 ## Reading with DataStream
 

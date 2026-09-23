@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
@@ -51,6 +52,7 @@ import org.slf4j.LoggerFactory;
  * A full caching lookup function: the whole projected Iceberg dimension table is loaded into an
  * in-memory cache on the first lookup, and every lookup is served from that cache.
  */
+@Internal
 public class IcebergFullCachingLookupFunction extends LookupFunction {
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergFullCachingLookupFunction.class);
@@ -72,8 +74,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   private transient TypeSerializer[] fieldSerializers;
   private transient InMemoryLookupCache cache;
 
-  private transient Counter cacheHitCounter;
-  private transient Counter cacheMissCounter;
+  private transient Counter lookupMissCounter;
   private transient volatile long currentSnapshotId;
   private transient volatile int cachedRows;
 
@@ -100,8 +101,12 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
         projectedRowType.getFieldNames(),
         Arrays.toString(lookupKeyIndices));
 
-    registerMetrics(context);
-    resetState();
+    MetricGroup metricGroup = context.getMetricGroup().addGroup(METRIC_GROUP);
+    this.lookupMissCounter = metricGroup.counter("lookupMiss");
+    this.currentSnapshotId = IcebergLookupReader.CURRENT_SNAPSHOT;
+    this.cachedRows = 0;
+    metricGroup.gauge("snapshotId", () -> currentSnapshotId);
+    metricGroup.gauge("cachedRows", () -> cachedRows);
 
     tableLoader.open();
     this.table = tableLoader.loadTable();
@@ -118,24 +123,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
 
     Schema icebergProjection = new Schema(projectedFields);
 
-    this.lookupKeyGetters = new RowData.FieldGetter[lookupKeyIndices.length];
-    this.cacheKeyGetters = new RowData.FieldGetter[lookupKeyIndices.length];
-    for (int i = 0; i < lookupKeyIndices.length; i++) {
-      int projectedIndex = lookupKeyIndices[i];
-      LogicalType type = projectedRowType.getTypeAt(projectedIndex);
-      this.lookupKeyGetters[i] = FlinkRowData.createFieldGetter(type, i);
-      this.cacheKeyGetters[i] = FlinkRowData.createFieldGetter(type, projectedIndex);
-    }
-
-    this.rowFieldGetters = new RowData.FieldGetter[projectedRowType.getFieldCount()];
-    for (int i = 0; i < projectedRowType.getFieldCount(); i++) {
-      this.rowFieldGetters[i] = FlinkRowData.createFieldGetter(projectedRowType.getTypeAt(i), i);
-    }
-
-    this.fieldSerializers =
-        projectedRowType.getChildren().stream()
-            .map(InternalSerializers::create)
-            .toArray(TypeSerializer[]::new);
+    createAccessors();
 
     String nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
     this.reader =
@@ -155,11 +143,10 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
 
     List<RowData> hit = cache.get(extractLookupKey(keyRow, lookupKeyGetters));
     if (hit == null) {
-      cacheMissCounter.inc();
+      lookupMissCounter.inc();
       return Collections.emptyList();
     }
 
-    cacheHitCounter.inc();
     return hit;
   }
 
@@ -227,16 +214,24 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
     return key;
   }
 
-  private void registerMetrics(FunctionContext context) {
-    MetricGroup group = context.getMetricGroup().addGroup(METRIC_GROUP);
-    this.cacheHitCounter = group.counter("cacheHit");
-    this.cacheMissCounter = group.counter("cacheMiss");
-    group.gauge("snapshotId", () -> currentSnapshotId);
-    group.gauge("cachedRows", () -> cachedRows);
-  }
+  private void createAccessors() {
+    this.lookupKeyGetters = new RowData.FieldGetter[lookupKeyIndices.length];
+    this.cacheKeyGetters = new RowData.FieldGetter[lookupKeyIndices.length];
+    for (int i = 0; i < lookupKeyIndices.length; i++) {
+      int projectedIndex = lookupKeyIndices[i];
+      LogicalType type = projectedRowType.getTypeAt(projectedIndex);
+      this.lookupKeyGetters[i] = FlinkRowData.createFieldGetter(type, i);
+      this.cacheKeyGetters[i] = FlinkRowData.createFieldGetter(type, projectedIndex);
+    }
 
-  private void resetState() {
-    this.currentSnapshotId = IcebergLookupReader.CURRENT_SNAPSHOT;
-    this.cachedRows = 0;
+    this.rowFieldGetters = new RowData.FieldGetter[projectedRowType.getFieldCount()];
+    for (int i = 0; i < projectedRowType.getFieldCount(); i++) {
+      this.rowFieldGetters[i] = FlinkRowData.createFieldGetter(projectedRowType.getTypeAt(i), i);
+    }
+
+    this.fieldSerializers =
+        projectedRowType.getChildren().stream()
+            .map(InternalSerializers::create)
+            .toArray(TypeSerializer[]::new);
   }
 }
