@@ -83,7 +83,7 @@ public class AliyunProperties implements Serializable {
   public static final String CLIENT_REGION = "client.region";
 
   /** The data key spec used when generating data keys with Aliyun KMS: AES_256 or AES_128. */
-  public static final String KMS_DATA_KEY_SPEC = "kms.data-key-spec";
+  public static final String KMS_DATA_KEY_SPEC = "kms.client.aliyun.generation.data_key_spec";
 
   public static final String KMS_DATA_KEY_SPEC_DEFAULT = "AES_256";
 

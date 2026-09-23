@@ -26,11 +26,14 @@ import com.aliyun.kms20160120.models.EncryptResponse;
 import com.aliyun.kms20160120.models.GenerateDataKeyRequest;
 import com.aliyun.kms20160120.models.GenerateDataKeyResponse;
 import com.aliyun.kms20160120.models.GenerateDataKeyResponseBody;
+import com.aliyun.teautil.models.RuntimeOptions;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Map;
 import org.apache.iceberg.encryption.KeyManagementClient;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 
 /**
@@ -39,20 +42,58 @@ import org.apache.iceberg.util.SerializableMap;
  */
 public class AliyunKeyManagementClient implements KeyManagementClient {
 
+  /**
+   * Enables server-side data key generation. When enabled (the default), Iceberg calls {@link
+   * #generateKey(String)}; set to {@code false} to have Iceberg generate keys locally and {@link
+   * #wrapKey(ByteBuffer, String)} them via KMS.
+   */
+  public static final String ENABLE_KEY_GENERATION = "kms.client.aliyun.key.generation.enabled";
+
+  /** Maximum number of attempts (including the first) for each KMS call. */
+  public static final String CLIENT_MAX_ATTEMPTS = "kms.client.aliyun.max.attempts";
+
+  /** Connect timeout in milliseconds for KMS calls. */
+  public static final String CLIENT_CONNECT_TIMEOUT_MS = "kms.client.aliyun.connect.timeout.ms";
+
+  /** Read timeout in milliseconds for KMS calls. */
+  public static final String CLIENT_READ_TIMEOUT_MS = "kms.client.aliyun.read.timeout.ms";
+
+  private static final boolean DEFAULT_ENABLE_KEY_GENERATION = true;
+  private static final int DEFAULT_MAX_ATTEMPTS = 3;
+  private static final int DEFAULT_CONNECT_TIMEOUT_MS = 2_000;
+  private static final int DEFAULT_READ_TIMEOUT_MS = 30_000;
+  private static final int BACKOFF_PERIOD_MS = 100;
+  private static final String ALIAS_PREFIX = "alias/";
+  private static final String ARN_KEY_SEPARATOR = "key/";
+
   private Map<String, String> allProperties;
   private String dataKeySpec;
+  private boolean enableKeyGeneration = DEFAULT_ENABLE_KEY_GENERATION;
+  private int maxAttempts = DEFAULT_MAX_ATTEMPTS;
+  private int connectTimeoutMs = DEFAULT_CONNECT_TIMEOUT_MS;
+  private int readTimeoutMs = DEFAULT_READ_TIMEOUT_MS;
 
-  private transient volatile Client kmsClient;
+  private transient volatile ClientState state;
 
   @Override
   public void initialize(Map<String, String> properties) {
     this.allProperties = SerializableMap.copyOf(properties);
     this.dataKeySpec = new AliyunProperties(properties).kmsDataKeySpec();
+    this.enableKeyGeneration =
+        PropertyUtil.propertyAsBoolean(
+            properties, ENABLE_KEY_GENERATION, DEFAULT_ENABLE_KEY_GENERATION);
+    this.maxAttempts =
+        PropertyUtil.propertyAsInt(properties, CLIENT_MAX_ATTEMPTS, DEFAULT_MAX_ATTEMPTS);
+    this.connectTimeoutMs =
+        PropertyUtil.propertyAsInt(
+            properties, CLIENT_CONNECT_TIMEOUT_MS, DEFAULT_CONNECT_TIMEOUT_MS);
+    this.readTimeoutMs =
+        PropertyUtil.propertyAsInt(properties, CLIENT_READ_TIMEOUT_MS, DEFAULT_READ_TIMEOUT_MS);
   }
 
   @Override
   public boolean supportsKeyGeneration() {
-    return true;
+    return enableKeyGeneration;
   }
 
   @Override
@@ -60,11 +101,11 @@ public class AliyunKeyManagementClient implements KeyManagementClient {
     GenerateDataKeyRequest request =
         new GenerateDataKeyRequest().setKeyId(wrappingKeyId).setKeySpec(dataKeySpec);
     try {
-      GenerateDataKeyResponse response = kmsClient().generateDataKey(request);
+      GenerateDataKeyResponse response =
+          client().generateDataKeyWithOptions(request, runtimeOptions());
       GenerateDataKeyResponseBody body = response.getBody();
       return new KeyGenerationResult(
-          ByteBuffer.wrap(Base64.getDecoder().decode(body.getPlaintext())),
-          wrappedKey(body.getCiphertextBlob()));
+          base64ToBuffer(body.getPlaintext()), base64ToBuffer(body.getCiphertextBlob()));
     } catch (Exception e) {
       throw new RuntimeException("Failed to generate data key with Aliyun KMS", e);
     }
@@ -72,13 +113,18 @@ public class AliyunKeyManagementClient implements KeyManagementClient {
 
   @Override
   public ByteBuffer wrapKey(ByteBuffer key, String wrappingKeyId) {
+    if (enableKeyGeneration) {
+      throw new UnsupportedOperationException(
+          "wrapKey shouldn't be called as key generation is enabled.");
+    }
+
     EncryptRequest request =
         new EncryptRequest()
             .setKeyId(wrappingKeyId)
             .setPlaintext(Base64.getEncoder().encodeToString(ByteBuffers.toByteArray(key)));
     try {
-      EncryptResponse response = kmsClient().encrypt(request);
-      return wrappedKey(response.getBody().getCiphertextBlob());
+      EncryptResponse response = client().encryptWithOptions(request, runtimeOptions());
+      return base64ToBuffer(response.getBody().getCiphertextBlob());
     } catch (Exception e) {
       throw new RuntimeException("Failed to wrap key with Aliyun KMS", e);
     }
@@ -86,32 +132,81 @@ public class AliyunKeyManagementClient implements KeyManagementClient {
 
   @Override
   public ByteBuffer unwrapKey(ByteBuffer wrappedKey, String wrappingKeyId) {
-    DecryptRequest request =
-        new DecryptRequest()
-            .setCiphertextBlob(
-                Base64.getEncoder().encodeToString(ByteBuffers.toByteArray(wrappedKey)));
+    DecryptResponse response;
     try {
-      DecryptResponse response = kmsClient().decrypt(request);
-      return ByteBuffer.wrap(Base64.getDecoder().decode(response.getBody().getPlaintext()));
+      DecryptRequest request =
+          new DecryptRequest()
+              .setCiphertextBlob(
+                  Base64.getEncoder().encodeToString(ByteBuffers.toByteArray(wrappedKey)));
+      response = client().decryptWithOptions(request, runtimeOptions());
     } catch (Exception e) {
       throw new RuntimeException("Failed to unwrap key with Aliyun KMS", e);
     }
+
+    // Verify the key that wrapped the data key. Skip aliases: an alias is a mutable pointer whose
+    // target may differ from the key that wrapped older data. Only bare ids and ARNs are checked.
+    String actualKeyId = response.getBody().getKeyId();
+    if (!isAlias(wrappingKeyId)) {
+      String expectedKeyId = keyIdFromRef(wrappingKeyId);
+      Preconditions.checkState(
+          expectedKeyId.equals(actualKeyId),
+          "Data key was wrapped by KMS key %s, but unwrap expected key %s",
+          actualKeyId,
+          expectedKeyId);
+    }
+    return base64ToBuffer(response.getBody().getPlaintext());
   }
 
-  // Aliyun KMS returns the ciphertext blob as a Base64 string; decode it so the wrapped key is
-  // carried as raw ciphertext bytes, and re-encode to Base64 when calling Decrypt.
-  private static ByteBuffer wrappedKey(String ciphertextBlob) {
-    return ByteBuffer.wrap(Base64.getDecoder().decode(ciphertextBlob));
+  private static ByteBuffer base64ToBuffer(String base64) {
+    return ByteBuffer.wrap(Base64.getDecoder().decode(base64));
   }
 
-  private Client kmsClient() {
-    if (kmsClient == null) {
+  // bare alias "alias/name" or alias ARN "acs:kms:...:alias/name"
+  private static boolean isAlias(String keyRef) {
+    return keyRef.contains(ALIAS_PREFIX);
+  }
+
+  // key ARN -> id after "key/"; bare id -> unchanged
+  private static String keyIdFromRef(String keyRef) {
+    int idx = keyRef.lastIndexOf(ARN_KEY_SEPARATOR);
+    return idx >= 0 ? keyRef.substring(idx + ARN_KEY_SEPARATOR.length()) : keyRef;
+  }
+
+  private Client client() {
+    return state().client;
+  }
+
+  private RuntimeOptions runtimeOptions() {
+    return state().runtimeOptions;
+  }
+
+  private ClientState state() {
+    if (state == null) {
       synchronized (this) {
-        if (kmsClient == null) {
-          this.kmsClient = AliyunClientFactories.from(allProperties).newKmsClient();
+        if (state == null) {
+          Client kmsClient = AliyunClientFactories.from(allProperties).newKmsClient();
+          RuntimeOptions options =
+              new RuntimeOptions()
+                  .setAutoretry(true)
+                  .setMaxAttempts(maxAttempts)
+                  .setBackoffPolicy("fixed")
+                  .setBackoffPeriod(BACKOFF_PERIOD_MS)
+                  .setConnectTimeout(connectTimeoutMs)
+                  .setReadTimeout(readTimeoutMs);
+          state = new ClientState(kmsClient, options);
         }
       }
     }
-    return kmsClient;
+    return state;
+  }
+
+  private static class ClientState {
+    private final Client client;
+    private final RuntimeOptions runtimeOptions;
+
+    ClientState(Client client, RuntimeOptions runtimeOptions) {
+      this.client = client;
+      this.runtimeOptions = runtimeOptions;
+    }
   }
 }
