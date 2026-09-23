@@ -817,12 +817,12 @@ public class SparkCatalog extends BaseCatalog {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;
       if (options.containsKey("defaultDatabase")) {
         this.defaultNamespace =
-                Splitter.on('.').splitToList(options.get("defaultDatabase")).toArray(new String[0]);
+            Splitter.on('.').splitToList(options.get("defaultDatabase")).toArray(new String[0]);
       }
       if (options.containsKey("default-namespace")) {
         LOG.warn(
-                "The `default-namespace` property is deprecated and will be removed in the next major version"
-                        + " Please use Spark's `defaultDatabase` instead.");
+            "The `default-namespace` property is deprecated and will be removed in the next major version"
+                + " Please use Spark's `defaultDatabase` instead.");
         this.defaultNamespace =
             Splitter.on('.').splitToList(options.get("default-namespace")).toArray(new String[0]);
       }
