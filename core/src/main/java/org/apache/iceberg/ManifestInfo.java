@@ -33,10 +33,10 @@ interface ManifestInfo {
           506, "deleted_files_count", Types.IntegerType.get(), "Number of deleted files");
   Types.NestedField REPLACED_FILES_COUNT =
       Types.NestedField.required(
-          520, "replaced_files_count", Types.IntegerType.get(), "Number of replaced files");
+          523, "replaced_files_count", Types.IntegerType.get(), "Number of replaced files");
   Types.NestedField MODIFIED_FILES_COUNT =
       Types.NestedField.required(
-          524, "modified_files_count", Types.IntegerType.get(), "Number of modified files");
+          525, "modified_files_count", Types.IntegerType.get(), "Number of modified files");
   Types.NestedField ADDED_ROWS_COUNT =
       Types.NestedField.required(
           512, "added_rows_count", Types.LongType.get(), "Number of rows in added files");
@@ -48,10 +48,10 @@ interface ManifestInfo {
           514, "deleted_rows_count", Types.LongType.get(), "Number of rows in deleted files");
   Types.NestedField REPLACED_ROWS_COUNT =
       Types.NestedField.required(
-          521, "replaced_rows_count", Types.LongType.get(), "Number of rows in replaced files");
+          524, "replaced_rows_count", Types.LongType.get(), "Number of rows in replaced files");
   Types.NestedField MODIFIED_ROWS_COUNT =
       Types.NestedField.required(
-          525, "modified_rows_count", Types.LongType.get(), "Number of rows in modified files");
+          526, "modified_rows_count", Types.LongType.get(), "Number of rows in modified files");
   Types.NestedField MIN_SEQUENCE_NUMBER =
       Types.NestedField.required(
           516,
