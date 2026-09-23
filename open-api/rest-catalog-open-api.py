@@ -1164,6 +1164,11 @@ class RemoteSignRequest(BaseModel):
         None,
         description='The storage provider for which the request is to be signed. The provider should correspond to the scheme used for a storage native URI. For example `s3` for AWS S3 paths. For backwards compatibility, if this is not specified, the provider is assumed to be `s3`.',
     )
+    plan_id: str | None = Field(
+        None,
+        alias='plan-id',
+        description='Optional identifier of the scan plan, supplied for audit and correlation. A server MUST NOT fail a request because the referenced plan is unknown, expired, or cancelled.\n',
+    )
 
 
 class RemoteSignResult(BaseModel):
@@ -1173,6 +1178,16 @@ class RemoteSignResult(BaseModel):
 
     uri: str
     headers: MultiValuedMap
+    signing_mechanism: Literal['remote-signing', 'remote-presigning'] | None = Field(
+        None,
+        alias='signing-mechanism',
+        description='The form of the returned signature. With `remote-signing`, `headers` carries the signature. With `remote-presigning`, `uri` carries the signature. When absent, the form is `remote-signing`.\n',
+    )
+    expiration_timestamp_ms: int | None = Field(
+        None,
+        alias='expiration-timestamp-ms',
+        description='The time after which the returned signature is no longer valid, as milliseconds since the Unix epoch.\n',
+    )
 
 
 class RemoteSigningConfig(BaseModel):

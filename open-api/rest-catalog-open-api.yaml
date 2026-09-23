@@ -1411,8 +1411,8 @@ paths:
         Signs one request to object storage on the client's behalf.
 
 
-        `RemoteSignResult` takes one of two forms. With `remote-signing`, `uri` is the
-        requested URI and `headers` carries the signature. With `remote-presigning`, `uri`
+        `RemoteSignResult` takes one of two forms, reported in `signing-mechanism`. With
+        `remote-signing`, `headers` carries the signature. With `remote-presigning`, `uri`
         carries the signature.
 
 
@@ -5480,6 +5480,11 @@ components:
           description: The storage provider for which the request is to be signed. The provider should correspond to
             the scheme used for a storage native URI. For example `s3` for AWS S3 paths. For backwards compatibility,
             if this is not specified, the provider is assumed to be `s3`.
+        plan-id:
+          type: string
+          description: >
+            Optional identifier of the scan plan, supplied for audit and correlation. A server
+            MUST NOT fail a request because the referenced plan is unknown, expired, or cancelled.
 
     RemoteSignResult:
       description: The result of a remote request signing operation.
@@ -5492,6 +5497,21 @@ components:
           type: string
         headers:
           $ref: '#/components/schemas/MultiValuedMap'
+        signing-mechanism:
+          type: string
+          enum:
+            - remote-signing
+            - remote-presigning
+          description: >
+            The form of the returned signature. With `remote-signing`, `headers` carries the
+            signature. With `remote-presigning`, `uri` carries the signature. When absent, the form
+            is `remote-signing`.
+        expiration-timestamp-ms:
+          type: integer
+          format: int64
+          description: >
+            The time after which the returned signature is no longer valid, as milliseconds since
+            the Unix epoch.
 
     RemoteSigningConfig:
       description: Configuration for the remote signer client.
