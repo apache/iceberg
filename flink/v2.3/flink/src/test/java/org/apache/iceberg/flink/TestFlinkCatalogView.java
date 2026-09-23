@@ -708,9 +708,9 @@ public class TestFlinkCatalogView extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testAlterViewAsPreservesOtherDialects() {
-    // ALTER VIEW AS upserts the flink representation and carries other engines' dialects
-    // over unchanged; whether they still describe the same result is asserted by the user
+  public void testAlterViewAsDroppingOtherDialectFails() {
+    // like Spark, only the flink representation is written on ALTER VIEW AS, and core refuses
+    // a replace that loses another engine's dialect unless replace.drop-dialect.allowed=true
     viewCatalog()
         .buildView(TableIdentifier.of(icebergNamespace, VIEW_NAME))
         .withSchema(VIEW_SCHEMA)
@@ -719,12 +719,38 @@ public class TestFlinkCatalogView extends CatalogTestBase {
         .withQuery("flink", "SELECT id, data FROM test_table")
         .create();
 
+    assertThatThrownBy(() -> sql("ALTER VIEW %s AS SELECT id FROM %s", VIEW_NAME, TABLE_NAME))
+        .hasMessageContaining("Could not execute AlterTable")
+        .rootCause()
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Cannot replace view due to loss of view dialects")
+        .hasMessageContaining(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED);
+
+    // the view was not touched by the failed attempt
+    View view = viewCatalog().loadView(TableIdentifier.of(icebergNamespace, VIEW_NAME));
+    assertThat(view.versions()).hasSize(1);
+    assertThat(view.currentVersion().representations()).hasSize(2);
+    assertSameElements(expectedRows(), sql("SELECT * FROM %s", VIEW_NAME));
+  }
+
+  @TestTemplate
+  public void testAlterViewAsDropsOtherDialectWhenAllowed() {
+    // with replace.drop-dialect.allowed=true the same alter goes through and, like Spark,
+    // resets the view to the altering engine's dialect only
+    viewCatalog()
+        .buildView(TableIdentifier.of(icebergNamespace, VIEW_NAME))
+        .withSchema(VIEW_SCHEMA)
+        .withDefaultNamespace(icebergNamespace)
+        .withQuery("spark", "SELECT id, data FROM test_table")
+        .withQuery("flink", "SELECT id, data FROM test_table")
+        .withProperty(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true")
+        .create();
+
     sql("ALTER VIEW %s AS SELECT id FROM %s", VIEW_NAME, TABLE_NAME);
 
     View view = viewCatalog().loadView(TableIdentifier.of(icebergNamespace, VIEW_NAME));
     assertThat(view.versions()).hasSize(2);
-    assertThat(view.currentVersion().representations()).hasSize(2);
-    assertThat(view.sqlFor("spark").sql()).isEqualTo("SELECT id, data FROM test_table");
+    assertThat(view.currentVersion().representations()).hasSize(1);
     assertThat(view.sqlFor("flink").sql())
         .containsIgnoringCase(
             String.format("FROM `%s`.`%s`.`%s`", catalogName, DATABASE, TABLE_NAME));
@@ -735,8 +761,8 @@ public class TestFlinkCatalogView extends CatalogTestBase {
   @TestTemplate
   public void testAlterViewAsOnViewWithoutFlinkDialect() {
     // a view without a flink representation is never treated as "query unchanged", even when
-    // the new text matches the other dialect's SQL: altering adds a flink representation
-    // next to the existing one
+    // the new text matches the other dialect's SQL: the replace fires and core's dialect
+    // guard makes the loss of the foreign representation explicit
     viewCatalog()
         .buildView(TableIdentifier.of(icebergNamespace, VIEW_NAME))
         .withSchema(new Schema(Types.NestedField.optional(1, "EXPR$0", Types.IntegerType.get())))
@@ -744,14 +770,11 @@ public class TestFlinkCatalogView extends CatalogTestBase {
         .withQuery("spark", "SELECT 1")
         .create();
 
-    sql("ALTER VIEW %s AS SELECT 1", VIEW_NAME);
-
-    View view = viewCatalog().loadView(TableIdentifier.of(icebergNamespace, VIEW_NAME));
-    assertThat(view.versions()).hasSize(2);
-    assertThat(view.currentVersion().representations()).hasSize(2);
-    assertThat(view.sqlFor("spark").sql()).isEqualTo("SELECT 1");
-    assertThat(view.sqlFor("flink").dialect()).isEqualToIgnoringCase("flink");
-    assertSameElements(Lists.newArrayList(Row.of(1)), sql("SELECT * FROM %s", VIEW_NAME));
+    assertThatThrownBy(() -> sql("ALTER VIEW %s AS SELECT 1", VIEW_NAME))
+        .hasMessageContaining("Could not execute AlterTable")
+        .rootCause()
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Cannot replace view due to loss of view dialects");
   }
 
   @TestTemplate

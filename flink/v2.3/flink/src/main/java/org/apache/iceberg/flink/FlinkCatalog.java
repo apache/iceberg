@@ -88,9 +88,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.UpdateViewProperties;
 import org.apache.iceberg.view.View;
-import org.apache.iceberg.view.ViewBuilder;
 import org.apache.iceberg.view.ViewProperties;
-import org.apache.iceberg.view.ViewRepresentation;
 import org.apache.iceberg.view.ViewVersion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -690,42 +688,29 @@ public class FlinkCatalog extends AbstractCatalog {
     if (queryUnchanged) {
       alterViewProperties(view, newProperties);
     } else {
-      // a new query becomes a new view version, stored the same way createIcebergView stores
-      // one; replace() commits the version and the property updates atomically (it can only
-      // set properties, so keys absent from the new definition survive a query change)
-      ViewBuilder builder =
-          asViewCatalog
-              .buildView(identifier)
-              .withSchema(FlinkSchemaUtil.convert(newView.getResolvedSchema()))
-              .withDefaultCatalog(getName())
-              .withDefaultNamespace(appendLevel(baseNamespace, tablePath.getDatabaseName()))
-              .withProperties(newProperties);
-
-      // upsert: the flink representation is replaced and other engines' dialects carry over
-      // unchanged; whether they still describe the same result is asserted by the user
-      for (ViewRepresentation representation : view.currentVersion().representations()) {
-        if (representation instanceof SQLViewRepresentation) {
-          SQLViewRepresentation sqlRepresentation = (SQLViewRepresentation) representation;
-          if (!FLINK_DIALECT.equalsIgnoreCase(sqlRepresentation.dialect())) {
-            builder.withQuery(sqlRepresentation.dialect(), sqlRepresentation.sql());
-          }
-        }
-      }
-
-      builder.withQuery(FLINK_DIALECT, newView.getExpandedQuery()).replace();
+      // a new query becomes a new view version holding only the flink representation, like
+      // Spark writes only its own dialect; replace.drop-dialect.allowed guards dropping other
+      // engines' dialects (multi-dialect views are managed through the API). replace() commits
+      // the version and the property updates atomically (it can only set properties, so keys
+      // absent from the new definition survive a query change)
+      asViewCatalog
+          .buildView(identifier)
+          .withSchema(FlinkSchemaUtil.convert(newView.getResolvedSchema()))
+          .withDefaultCatalog(getName())
+          .withDefaultNamespace(appendLevel(baseNamespace, tablePath.getDatabaseName()))
+          .withProperties(changedProperties(view.properties(), newProperties))
+          .withQuery(FLINK_DIALECT, newView.getExpandedQuery())
+          .replace();
     }
   }
 
   private static void alterViewProperties(View view, Map<String, String> newProperties) {
     Map<String, String> currentProperties = view.properties();
+    Map<String, String> updates = changedProperties(currentProperties, newProperties);
+
+    boolean changed = !updates.isEmpty();
     UpdateViewProperties update = view.updateProperties();
-    boolean changed = false;
-    for (Map.Entry<String, String> entry : newProperties.entrySet()) {
-      if (!entry.getValue().equals(currentProperties.get(entry.getKey()))) {
-        update.set(entry.getKey(), entry.getValue());
-        changed = true;
-      }
-    }
+    updates.forEach(update::set);
 
     // like alterTable, keys absent from the new definition are removed
     for (String key : currentProperties.keySet()) {
@@ -738,6 +723,18 @@ public class FlinkCatalog extends AbstractCatalog {
     if (changed) {
       update.commit();
     }
+  }
+
+  private static Map<String, String> changedProperties(
+      Map<String, String> currentProperties, Map<String, String> newProperties) {
+    Map<String, String> changed = Maps.newHashMap();
+    for (Map.Entry<String, String> entry : newProperties.entrySet()) {
+      if (!entry.getValue().equals(currentProperties.get(entry.getKey()))) {
+        changed.put(entry.getKey(), entry.getValue());
+      }
+    }
+
+    return changed;
   }
 
   private static void validateTableSchemaAndPartition(CatalogTable ct1, CatalogTable ct2) {
@@ -757,19 +754,23 @@ public class FlinkCatalog extends AbstractCatalog {
   }
 
   /**
-   * This alterTable API only supports altering table properties.
+   * For tables, this alterTable API only supports altering table properties.
    *
    * <p>Support for adding/removing/renaming columns cannot be done by comparing CatalogTable
    * instances, unless the Flink schema contains Iceberg column IDs.
    *
    * <p>To alter columns, use the other alterTable API and provide a list of TableChange's.
    *
+   * <p>For views, a changed query replaces the current version of the backing Iceberg view (only
+   * the flink dialect is stored) and property changes are applied following {@code
+   * Catalog#alterTable} semantics: absent keys are removed.
+   *
    * @param tablePath path of the table or view to be modified
-   * @param newTable the new table definition
+   * @param newTable the new table or view definition
    * @param ignoreIfNotExists flag to specify behavior when the table or view does not exist: if set
    *     to false, throw an exception, if set to true, do nothing.
    * @throws CatalogException in case of any runtime exception
-   * @throws TableNotExistException if the table does not exist
+   * @throws TableNotExistException if the table or view does not exist
    */
   @Override
   public void alterTable(ObjectPath tablePath, CatalogBaseTable newTable, boolean ignoreIfNotExists)
@@ -842,18 +843,9 @@ public class FlinkCatalog extends AbstractCatalog {
       boolean ignoreIfNotExists)
       throws TableNotExistException, CatalogException {
     if (newTable instanceof CatalogView) {
-      if (asViewCatalog == null) {
-        throw new UnsupportedOperationException(
-            "Altering a view is not supported by catalog: " + getName());
-      }
-
-      Preconditions.checkArgument(
-          newTable instanceof ResolvedCatalogView,
-          "Expected a ResolvedCatalogView but got: %s",
-          newTable.getClass().getName());
       // newTable already reflects the fully altered definition, so the changes need not be
       // replayed individually
-      alterIcebergView(tablePath, (ResolvedCatalogView) newTable, ignoreIfNotExists);
+      alterCatalogView(tablePath, newTable, ignoreIfNotExists);
       return;
     }
 
