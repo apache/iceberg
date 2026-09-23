@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.encryption;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -162,7 +163,7 @@ class TestInputFilesDecryptor {
         futures.add(
             pool.submit(
                 () -> {
-                  barrier.await();
+                  barrier.await(30, SECONDS);
                   return decryptor.getInputFile(DATA_FILE.location());
                 }));
       }
