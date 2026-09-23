@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.io.UncheckedIOException;
+import java.net.SocketTimeoutException;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -107,11 +108,10 @@ public class TestTasks {
             new IOException("failed to open stream", new ClosedByInterruptException())));
   }
 
-  @Test
-  void tasksAreRetriedWhenFailureIsNotCausedByInterruption() {
+  @ParameterizedTest
+  @MethodSource("transientFailures")
+  void tasksAreRetriedWhenFailureIsNotCausedByInterruption(Exception failure) {
     Counter counter = new DefaultMetricsContext().counter("counter");
-    RuntimeException failure =
-        new RuntimeException("failed to read manifest", new IOException("connection reset"));
 
     assertThatThrownBy(
             () ->
@@ -122,10 +122,19 @@ public class TestTasks {
                     .run(
                         x -> {
                           throw failure;
-                        }))
+                        },
+                        Exception.class))
         .isSameAs(failure);
 
     assertThat(counter.value()).isEqualTo(4);
     assertThat(Thread.currentThread().isInterrupted()).isFalse();
+  }
+
+  private static Stream<Exception> transientFailures() {
+    return Stream.of(
+        new RuntimeException("failed to read manifest", new IOException("connection reset")),
+        // SocketTimeoutException extends InterruptedIOException but is not an interrupt
+        new SocketTimeoutException("read timed out"),
+        new RuntimeException("failed to read manifest", new SocketTimeoutException("timed out")));
   }
 }
