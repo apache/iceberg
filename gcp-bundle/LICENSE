@@ -564,7 +564,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles the Mozilla Public Suffix List (via Google Guava).
+This product bundles the Mozilla Public Suffix List (via Google Guava and Apache HttpComponents).
 
 Project URL: https://publicsuffix.org/
 License: Mozilla Public License, Version 2.0 - https://mozilla.org/MPL/2.0/
@@ -1043,6 +1043,13 @@ License: Go License
 | THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 | (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 | OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This product bundles CEL-Java.
+
+Project URL: https://github.com/google/cel-java
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
 
 --------------------------------------------------------------------------------
 
@@ -1675,7 +1682,7 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles the Common Expression Language (CEL) specification (shaded by gRPC-xds).
+This product bundles the Common Expression Language (CEL) specification (shaded by gRPC-xds and bundled by CEL-Java).
 
 Project URL: https://github.com/google/cel-spec
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
