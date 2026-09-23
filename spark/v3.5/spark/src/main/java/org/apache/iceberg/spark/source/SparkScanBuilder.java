@@ -60,6 +60,7 @@ import org.apache.iceberg.index.LeafFileReader;
 import org.apache.iceberg.index.TrackingFileEntry;
 import org.apache.iceberg.index.TrackingFileReader;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -426,17 +427,11 @@ public class SparkScanBuilder
       // Dedupe by location: an IN predicate's separate target ranges can resolve to the same
       // leaf file (e.g. two IN values landing in the same HASH bucket), and reading it twice
       // would just waste work, not affect correctness.
-      Map<String, TrackingFileEntry> candidateLeafFilesByLocation = Maps.newLinkedHashMap();
-      for (TransformValueRange range : targetRanges) {
-        for (TrackingFileEntry entry :
-            TrackingFileReader.readMatching(
-                table.io().newInputFile(indexSnapshot.trackingFile()), range.min, range.max)) {
-          candidateLeafFilesByLocation.putIfAbsent(entry.location(), entry);
-        }
-      }
+      List<TrackingFileEntry> candidateLeafFiles =
+          collectCandidateLeafFiles(table.io(), indexSnapshot.trackingFile(), targetRanges);
 
       List<LeafFileEntry> matches = Lists.newArrayList();
-      for (TrackingFileEntry leaf : candidateLeafFilesByLocation.values()) {
+      for (TrackingFileEntry leaf : candidateLeafFiles) {
         matches.addAll(
             LeafFileReader.readMatching(
                 table.io().newInputFile(leaf.location()), keyField, leafFilter));
@@ -475,15 +470,39 @@ public class SparkScanBuilder
     }
   }
 
-  /** One [min, max] transform-value sub-range to query the tracking file for. */
-  private static final class TransformValueRange {
-    private final long min;
-    private final long max;
+  /**
+   * One [min, max] transform-value sub-range to query the tracking file for.
+   *
+   * <p>Package-private (not private), along with {@link #collectCandidateLeafFiles}, so both can
+   * be tested directly against a real tracking file without needing a full Spark session -- see
+   * TestSparkScanBuilderCandidateLeafFiles in this package.
+   */
+  static final class TransformValueRange {
+    final long min;
+    final long max;
 
     TransformValueRange(long min, long max) {
       this.min = min;
       this.max = max;
     }
+  }
+
+  /**
+   * Collects the tracking-file entries whose transform-value range overlaps any of {@code
+   * targetRanges}, deduped by location. An {@code IN} predicate's separate target ranges can
+   * resolve to the same leaf file (e.g. two IN values landing in the same HASH bucket); reading
+   * it twice would just waste work, not affect correctness, but is worth avoiding.
+   */
+  static List<TrackingFileEntry> collectCandidateLeafFiles(
+      FileIO io, String trackingFileLocation, List<TransformValueRange> targetRanges) {
+    Map<String, TrackingFileEntry> byLocation = Maps.newLinkedHashMap();
+    for (TransformValueRange range : targetRanges) {
+      for (TrackingFileEntry entry :
+          TrackingFileReader.readMatching(io.newInputFile(trackingFileLocation), range.min, range.max)) {
+        byLocation.putIfAbsent(entry.location(), entry);
+      }
+    }
+    return Lists.newArrayList(byLocation.values());
   }
 
   private static long transformValue(IndexMetadata metadata, Object literalValue) {
