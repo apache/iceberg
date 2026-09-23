@@ -111,7 +111,6 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     }
   }
 
-  @Override
   public String metadataFileLocation() {
     if (metadataFileLocation == null) {
       throw new UnsupportedOperationException(

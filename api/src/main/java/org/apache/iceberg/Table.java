@@ -336,16 +336,6 @@ public interface Table {
   FileIO io();
 
   /**
-   * Returns the location of the current table metadata file.
-   *
-   * @return the current table metadata file location
-   */
-  default String metadataFileLocation() {
-    throw new UnsupportedOperationException(
-        getClass().getName() + " doesn't expose its metadata file location");
-  }
-
-  /**
    * Returns an {@link org.apache.iceberg.encryption.EncryptionManager} to encrypt and decrypt data
    * files.
    */

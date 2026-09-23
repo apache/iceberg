@@ -3469,11 +3469,12 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     Table original = catalog.buildTable(TABLE, SCHEMA).withPartitionSpec(SPEC).create();
     original.newFastAppend().appendFile(FILE_A).commit();
-    String metadataLocation = original.metadataFileLocation();
+    String metadataLocation = TableUtil.metadataFileLocation(original);
 
     Table unregistered = catalog.unregisterTable(TABLE);
 
-    assertThat(unregistered.metadataFileLocation()).isEqualTo(metadataLocation);
+    assertThat(unregistered.name()).isEqualTo(TABLE.name());
+    assertThat(TableUtil.metadataFileLocation(unregistered)).isEqualTo(metadataLocation);
     assertThat(unregistered.currentSnapshot()).isEqualTo(original.currentSnapshot());
     assertThat(catalog.tableExists(TABLE)).isFalse();
     assertThat(unregistered.io().newInputFile(metadataLocation).exists()).isTrue();

@@ -146,7 +146,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
     StaticTableOperations staticOps =
         new StaticTableOperations(metadata, ops.io(), ops.locationProvider());
-    return new BaseTable(staticOps, fullTableName(name(), tableIdentifier), metricsReporter());
+    return new BaseTable(staticOps, tableIdentifier.name(), metricsReporter());
   }
 
   @Override

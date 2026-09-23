@@ -352,7 +352,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
     StaticTableOperations staticOps =
         new StaticTableOperations(metadata, ops.io(), ops.locationProvider());
-    return new BaseTable(staticOps, fullTableName(name(), identifier), metricsReporter());
+    return new BaseTable(staticOps, identifier.name(), metricsReporter());
   }
 
   int dropTableIfMetadataMatches(TableIdentifier identifier, String metadataLocation) {

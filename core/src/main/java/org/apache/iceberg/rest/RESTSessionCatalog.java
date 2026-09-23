@@ -835,7 +835,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                   mutationHeaders,
                   ErrorHandlers.tableErrorHandler());
       StaticTableOperations ops = new StaticTableOperations(response.metadata(), io);
-      return new BaseTable(ops, fullTableName(identifier));
+      return new BaseTable(ops, identifier.name());
     } finally {
       invalidateTable(context, identifier);
     }

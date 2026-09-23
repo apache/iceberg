@@ -56,6 +56,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
@@ -613,7 +614,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
               if (attempts[0]++ == 0) {
                 Table concurrentTable = catalog.loadTable(tableIdentifier);
                 concurrentTable.updateProperties().set("concurrent", "commit").commit();
-                committedMetadataLocation[0] = concurrentTable.metadataFileLocation();
+                committedMetadataLocation[0] = TableUtil.metadataFileLocation(concurrentTable);
               }
 
               return invocation.callRealMethod();
@@ -624,7 +625,8 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Table unregistered = unregisteringCatalog.unregisterTable(tableIdentifier);
 
     assertThat(attempts[0]).isEqualTo(2);
-    assertThat(unregistered.metadataFileLocation()).isEqualTo(committedMetadataLocation[0]);
+    assertThat(TableUtil.metadataFileLocation(unregistered))
+        .isEqualTo(committedMetadataLocation[0]);
     assertThat(unregistered.properties()).containsEntry("concurrent", "commit");
     assertThat(catalog.tableExists(tableIdentifier)).isFalse();
   }

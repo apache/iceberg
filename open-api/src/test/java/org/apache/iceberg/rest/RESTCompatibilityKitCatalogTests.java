@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.util.PropertyUtil;
@@ -152,7 +153,8 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
         .hasMessageContaining("Cannot modify a static table");
 
     // the underlying files are left in place, so the table can be registered again
-    Table registered = restCatalog.registerTable(TABLE, unregistered.metadataFileLocation());
+    Table registered =
+        restCatalog.registerTable(TABLE, TableUtil.metadataFileLocation(unregistered));
     assertThat(registered.currentSnapshot())
         .as("Current snapshot must match the unregistered table")
         .isEqualTo(original.currentSnapshot());

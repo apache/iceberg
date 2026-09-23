@@ -117,7 +117,7 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(ident.namespace()),
         "tables",
-        RESTUtil.encodeString(ident.name()),
+        RESTUtil.encodePathSegment(ident.name()),
         "unregister");
   }
 

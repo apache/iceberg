@@ -504,7 +504,7 @@ public class CatalogHandlers {
     TableMetadata metadata = ((BaseTable) table).operations().current();
 
     return ImmutableUnregisterTableResponse.builder()
-        .metadataLocation(table.metadataFileLocation())
+        .metadataLocation(metadata.metadataFileLocation())
         .metadata(metadata)
         .build();
   }
