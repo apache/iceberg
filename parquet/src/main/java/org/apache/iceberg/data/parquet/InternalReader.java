@@ -29,6 +29,7 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.MessageType;
@@ -125,5 +126,13 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
   @Override
   protected ParquetValueReader<?> timestampReader(ColumnDescriptor desc, boolean isAdjustedToUTC) {
     return ParquetValueReaders.timestamps(desc);
+  }
+
+  @Override
+  ParquetValueReader<?> int96Reader(
+      ColumnDescriptor desc, TypeID expectedType, boolean isAdjustedToUTC) {
+    return expectedType == TypeID.TIMESTAMP_NANO
+        ? ParquetValueReaders.int96NanosTimestamps(desc)
+        : ParquetValueReaders.int96Timestamps(desc);
   }
 }
