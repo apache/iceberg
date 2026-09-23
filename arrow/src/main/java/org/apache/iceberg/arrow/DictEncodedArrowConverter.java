@@ -233,15 +233,20 @@ public class DictEncodedArrowConverter {
 
   private static void init(
       FieldVector vector, VectorHolder vectorHolder, IntConsumer consumer, int valueCount) {
-    for (int i = 0; i < valueCount; i++) {
-      if (isNullAt(vectorHolder, i)) {
-        vector.setNull(i);
-      } else {
-        consumer.accept(i);
+    try {
+      for (int i = 0; i < valueCount; i++) {
+        if (isNullAt(vectorHolder, i)) {
+          vector.setNull(i);
+        } else {
+          consumer.accept(i);
+        }
       }
-    }
 
-    vector.setValueCount(valueCount);
+      vector.setValueCount(valueCount);
+    } catch (RuntimeException | Error failure) {
+      vector.close();
+      throw failure;
+    }
   }
 
   private static boolean isNullAt(VectorHolder vectorHolder, int idx) {
