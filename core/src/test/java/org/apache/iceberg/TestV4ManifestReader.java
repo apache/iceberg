@@ -514,6 +514,41 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  public void inheritanceFirstRowIdIncrementsByRecordCount(FileFormat format) throws IOException {
+    Tracking trackingWithoutFirstRowId =
+        new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
+    Tracking trackingWithFirstRowId =
+        new TrackingStruct(EntryStatus.EXISTING, SNAPSHOT_ID, null, null, null, 5_000L, null, null);
+
+    TrackedFile fileA =
+        unpartitionedDataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-a.parquet");
+    TrackedFile fileB =
+        unpartitionedDataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-b.parquet");
+    TrackedFile fileC =
+        unpartitionedDataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-c.parquet");
+    TrackedFile fileD =
+        unpartitionedDataFile(trackingWithFirstRowId, "s3://bucket/table/file-d.parquet");
+    TrackedFile fileE =
+        unpartitionedDataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-e.parquet");
+
+    ManifestFile manifest =
+        writeManifest(
+            format, UNPARTITIONED_TYPE, ImmutableList.of(fileA, fileB, fileC, fileD, fileE));
+    when(manifest.firstRowId()).thenReturn(10_000L);
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
+            .metricsConfig(METRICS_CONFIG);
+    List<TrackedFile> actual = read(builder);
+
+    assertThat(actual)
+        .as("Each assignment should increment by rocord_count=100")
+        .extracting(file -> file.tracking().firstRowId())
+        .containsExactly(10_000L, 10_100L, 10_200L, 5_000L, 10_300L);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void inheritanceUncommittedSkipsFirstRowId(FileFormat format) throws IOException {
     Tracking trackingWithoutFirstRowId =
         new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
