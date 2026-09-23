@@ -285,7 +285,7 @@ public class TestTableEncryption extends CatalogTestBase {
     assertThatThrownBy(() -> catalog.loadTable(tableIdent))
         .hasMessageContaining(
             String.format(
-                "The current metadata file %s might have been modified. Hash of metadata loaded from storage differs from HMS-stored metadata hash.",
+                "The current metadata file %s might have been modified. Hash of metadata loaded from storage differs from the metadata hash stored in the catalog.",
                 metadataFile));
   }
 
