@@ -252,12 +252,12 @@ class ColumnFileStruct extends SupportsIndexProjection implements ColumnFile, Se
     }
 
     ColumnFile build() {
-      Preconditions.checkArgument(formatVersion != null, "Missing required value: formatVersion");
-      Preconditions.checkArgument(fieldIds != null, "Missing required value: fieldIds");
+      Preconditions.checkArgument(formatVersion != null, "Missing required value: format version");
+      Preconditions.checkArgument(fieldIds != null, "Missing required value: field IDs");
       Preconditions.checkArgument(location != null, "Missing required value: location");
-      Preconditions.checkArgument(fileFormat != null, "Missing required value: fileFormat");
+      Preconditions.checkArgument(fileFormat != null, "Missing required value: file format");
       Preconditions.checkArgument(
-          fileSizeInBytes != null, "Missing required value: fileSizeInBytes");
+          fileSizeInBytes != null, "Missing required value: file size in bytes");
       return new ColumnFileStruct(
           formatVersion,
           fieldIds,

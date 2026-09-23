@@ -55,7 +55,7 @@ interface ColumnFile {
           168,
           "split_offsets",
           Types.ListType.ofRequired(169, Types.LongType.get()),
-          "Split offsets for the data file");
+          "Split offsets for the column file");
 
   static Types.StructType schema() {
     return Types.StructType.of(
