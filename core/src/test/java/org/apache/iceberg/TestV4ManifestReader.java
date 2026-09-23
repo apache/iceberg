@@ -498,7 +498,8 @@ class TestV4ManifestReader {
         unpartitionedDataFile(trackingWithFirstRowId, "s3://bucket/table/file-c.parquet");
 
     ManifestFile manifest =
-        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(withoutFirstRowId, withFirstRowId));
+        writeManifest(
+            format, UNPARTITIONED_TYPE, ImmutableList.of(withoutFirstRowId, withFirstRowId));
     when(manifest.firstRowId()).thenReturn(10_000L);
 
     V4ManifestReader.Builder builder =
@@ -524,7 +525,8 @@ class TestV4ManifestReader {
         unpartitionedDataFile(trackingWithFirstRowId, "s3://bucket/table/file-c.parquet");
 
     ManifestFile manifest =
-        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(withoutFirstRowId, withFirstRowId));
+        writeManifest(
+            format, UNPARTITIONED_TYPE, ImmutableList.of(withoutFirstRowId, withFirstRowId));
     when(manifest.firstRowId()).thenReturn(10_000L);
 
     V4ManifestReader.Builder builder =
@@ -550,7 +552,8 @@ class TestV4ManifestReader {
         unpartitionedDataFile(trackingWithFirstRowId, "s3://bucket/table/file-c.parquet");
 
     ManifestFile manifest =
-        writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(withoutFirstRowId, withFirstRowId));
+        writeManifest(
+            format, UNPARTITIONED_TYPE, ImmutableList.of(withoutFirstRowId, withFirstRowId));
     // first row ID is null in upgraded tables, which is propagated to all files
     when(manifest.firstRowId()).thenReturn(null);
 
@@ -559,9 +562,7 @@ class TestV4ManifestReader {
             .metricsConfig(METRICS_CONFIG);
     List<TrackedFile> actual = read(builder);
 
-    assertThat(actual)
-        .extracting(file -> file.tracking().firstRowId())
-        .containsOnlyNulls();
+    assertThat(actual).extracting(file -> file.tracking().firstRowId()).containsOnlyNulls();
   }
 
   @ParameterizedTest
