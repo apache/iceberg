@@ -541,6 +541,7 @@ The following is an example of the `refresh-state` JSON value stored in the snap
   "refresh-start-timestamp-ms" : 1573518435000,
   "source-states" : [ {
     "type" : "table",
+    "catalog" : "prod",
     "namespace" : [ "default" ],
     "name" : "events",
     "uuid" : "d4a10b5c-1e8a-4b72-9d67-3f4a8c9e1b2d",
