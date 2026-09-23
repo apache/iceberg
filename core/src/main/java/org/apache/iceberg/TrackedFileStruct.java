@@ -178,9 +178,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     if (toCopy.columnFiles != null) {
       this.columnFiles = Lists.newArrayListWithCapacity(toCopy.columnFiles.size());
       for (ColumnFile columnFile : toCopy.columnFiles) {
-        if (columnFile != null) {
-          this.columnFiles.add(columnFile.copy());
-        }
+        this.columnFiles.add(columnFile != null ? columnFile.copy() : null);
       }
     } else {
       this.columnFiles = null;

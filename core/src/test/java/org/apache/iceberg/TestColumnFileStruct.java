@@ -228,7 +228,7 @@ class TestColumnFileStruct {
                     .fileSizeInBytes(FILE_SIZE_IN_BYTES)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing required value: formatVersion");
+        .hasMessage("Missing required value: format version");
 
     assertThatThrownBy(
             () ->
@@ -239,7 +239,7 @@ class TestColumnFileStruct {
                     .fileSizeInBytes(FILE_SIZE_IN_BYTES)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing required value: fieldIds");
+        .hasMessage("Missing required value: field IDs");
 
     assertThatThrownBy(
             () ->
@@ -261,7 +261,7 @@ class TestColumnFileStruct {
                     .fileSizeInBytes(FILE_SIZE_IN_BYTES)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing required value: fileFormat");
+        .hasMessage("Missing required value: file format");
 
     assertThatThrownBy(
             () ->
@@ -272,6 +272,6 @@ class TestColumnFileStruct {
                     .fileFormat(FILE_FORMAT)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing required value: fileSizeInBytes");
+        .hasMessage("Missing required value: file size in bytes");
   }
 }
