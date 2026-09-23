@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Metrics;
@@ -54,6 +53,8 @@ public class ParquetUtil {
   private ParquetUtil() {}
 
   private static final long UNIX_EPOCH_JULIAN = 2_440_588L;
+  private static final long MICROS_PER_DAY = 86_400_000_000L;
+  private static final long NANOS_PER_DAY = 86_400_000_000_000L;
 
   public static Metrics fileMetrics(InputFile file, MetricsConfig metricsConfig) {
     return fileMetrics(file, metricsConfig, null);
@@ -173,15 +174,34 @@ public class ParquetUtil {
   }
 
   /**
-   * Method to read timestamp (parquet Int96) from bytebuffer. Read 12 bytes in byteBuffer: 8 bytes
-   * (time of day nanos) + 4 bytes(julianDay)
+   * Reads 12 INT96 bytes in the buffer's byte order as microseconds since the Unix epoch.
+   *
+   * <p>Submicrosecond precision is truncated.
+   *
+   * @throws ArithmeticException if the timestamp overflows a long
    */
   public static long extractTimestampInt96(ByteBuffer buffer) {
-    // 8 bytes (time of day nanos)
     long timeOfDayNanos = buffer.getLong();
-    // 4 bytes(julianDay)
     int julianDay = buffer.getInt();
-    return TimeUnit.DAYS.toMicros(julianDay - UNIX_EPOCH_JULIAN)
-        + TimeUnit.NANOSECONDS.toMicros(timeOfDayNanos);
+    return timestampInt96(julianDay, timeOfDayNanos / 1000, MICROS_PER_DAY);
+  }
+
+  /**
+   * Reads 12 INT96 bytes in the buffer's byte order as nanoseconds since the Unix epoch.
+   *
+   * @throws ArithmeticException if the timestamp overflows a long
+   */
+  public static long extractTimestampInt96Nanos(ByteBuffer buffer) {
+    long timeOfDayNanos = buffer.getLong();
+    int julianDay = buffer.getInt();
+    return timestampInt96(julianDay, timeOfDayNanos, NANOS_PER_DAY);
+  }
+
+  private static long timestampInt96(int julianDay, long timeOfDay, long ticksPerDay) {
+    long days = julianDay - UNIX_EPOCH_JULIAN;
+    // Shift negative days towards the epoch to keep the lower long boundary representable.
+    return days < 0
+        ? Math.addExact(Math.multiplyExact(days + 1, ticksPerDay), timeOfDay - ticksPerDay)
+        : Math.addExact(Math.multiplyExact(days, ticksPerDay), timeOfDay);
   }
 }

@@ -20,6 +20,7 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.function.ToLongFunction;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.FieldVector;
@@ -103,12 +104,18 @@ public class VectorizedDictionaryEncodedParquetValuesReader
   }
 
   class TimestampInt96DictEncodedReader extends BaseDictEncodedReader {
+    private final ToLongFunction<ByteBuffer> converter;
+
+    TimestampInt96DictEncodedReader(ToLongFunction<ByteBuffer> converter) {
+      this.converter = converter;
+    }
+
     @Override
     protected void nextVal(
         FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       ByteBuffer buffer =
           dict.decodeToBinary(currentVal).toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-      long timestampInt96 = ParquetUtil.extractTimestampInt96(buffer);
+      long timestampInt96 = converter.applyAsLong(buffer);
       vector.getDataBuffer().setLong((long) idx * typeWidth, timestampInt96);
     }
   }
@@ -171,7 +178,12 @@ public class VectorizedDictionaryEncodedParquetValuesReader
   }
 
   public TimestampInt96DictEncodedReader timestampInt96DictEncodedReader() {
-    return new TimestampInt96DictEncodedReader();
+    return timestampInt96DictEncodedReader(ParquetUtil::extractTimestampInt96);
+  }
+
+  TimestampInt96DictEncodedReader timestampInt96DictEncodedReader(
+      ToLongFunction<ByteBuffer> converter) {
+    return new TimestampInt96DictEncodedReader(converter);
   }
 
   public IntegerDictEncodedReader integerDictEncodedReader() {
