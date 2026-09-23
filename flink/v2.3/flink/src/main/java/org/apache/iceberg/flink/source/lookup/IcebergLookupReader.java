@@ -40,7 +40,7 @@ import org.apache.iceberg.util.SnapshotUtil;
 @Internal
 class IcebergLookupReader {
 
-  public static final long CURRENT_SNAPSHOT = -1L;
+  static final long CURRENT_SNAPSHOT = -1L;
 
   private final Table table;
   private final Schema projectedSchema;
