@@ -236,4 +236,28 @@ public class TestScalarIndexScanPruning extends ExtensionsTestBase {
     List<Object[]> result = sql("SELECT id, data FROM %s WHERE id IN (1, 10)", tableName);
     assertThat(result).extracting(r -> r[0]).containsExactlyInAnyOrder(1L, 10L);
   }
+
+  @TestTemplate
+  public void testPlanningCostBoundFallsBackSafely() {
+    // Forces a query to resolve to more candidate leaf files than an aggressively low
+    // scalar-index.max-candidate-leaf-files bound allows, and confirms correctness is preserved
+    // via the normal fallback path regardless -- this doesn't prove the bound is what caused the
+    // fallback (a correct result looks the same either way from SQL), only that setting one
+    // doesn't break anything.
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (300, 'z')", tableName);
+
+    sql(
+        "CALL %s.system.build_scalar_index(table => '%s', columns => array('id'),"
+            + " transform => 'IDENTITY', options => map('target-leaf-files', '2'))",
+        catalogName, tableIdent);
+
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('scalar-index.max-candidate-leaf-files' = '1')",
+        tableName);
+
+    List<Object[]> result = sql("SELECT id, data FROM %s WHERE id IN (1, 300)", tableName);
+    assertThat(result).extracting(r -> r[0]).containsExactlyInAnyOrder(1L, 300L);
+  }
 }

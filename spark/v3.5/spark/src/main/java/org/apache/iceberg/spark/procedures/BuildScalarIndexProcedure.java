@@ -181,6 +181,19 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     Preconditions.checkArgument(
         keyField != null, "Column '%s' does not exist in table schema", keyColumnName);
 
+    if (table.spec().fields().stream().anyMatch(f -> f.sourceId() == keyField.fieldId())) {
+      // Open Question 5 in the design doc: should this be rejected outright rather than just
+      // warned about? Warning for now, not rejecting -- partitioning already provides some
+      // pruning for this column, making a SCALAR index here redundant overhead rather than
+      // wrong, and the index's own "always advisory" guarantee holds regardless.
+      LOG.warn(
+          "Building a SCALAR index on column '{}', which is already a partition column on table "
+              + "{} -- partitioning already provides pruning for it, so this index is likely "
+              + "redundant overhead",
+          keyColumnName,
+          table.name());
+    }
+
     String upperTransform = transformName.toUpperCase(Locale.ROOT);
     Column transformValueCol = transformValueColumn(upperTransform, keyField, options);
 

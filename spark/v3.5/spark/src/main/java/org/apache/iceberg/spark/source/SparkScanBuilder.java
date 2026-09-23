@@ -79,6 +79,7 @@ import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -223,6 +224,14 @@ public class SparkScanBuilder
           Expression.Operation.LT_EQ,
           Expression.Operation.GT,
           Expression.Operation.GT_EQ);
+
+  // Open Question 2 in the design doc: without a bound, a misconfigured index (e.g. a very large
+  // hash.num-buckets, or a wide IN list) could resolve to more candidate leaf files than it would
+  // ever be worth opening -- planning could end up slower than no index at all. Overridable per
+  // table via the scalar-index.max-candidate-leaf-files property, read below.
+  private static final String MAX_CANDIDATE_LEAF_FILES_PROPERTY =
+      "scalar-index.max-candidate-leaf-files";
+  private static final int DEFAULT_MAX_CANDIDATE_LEAF_FILES = 100;
 
   /**
    * If a SCALAR index exists on a column referenced by an equality, {@code IN}, or range
@@ -429,6 +438,26 @@ public class SparkScanBuilder
       // would just waste work, not affect correctness.
       List<TrackingFileEntry> candidateLeafFiles =
           collectCandidateLeafFiles(table.io(), indexSnapshot.trackingFile(), targetRanges);
+
+      int maxCandidateLeafFiles =
+          PropertyUtil.propertyAsInt(
+              table.properties(),
+              MAX_CANDIDATE_LEAF_FILES_PROPERTY,
+              DEFAULT_MAX_CANDIDATE_LEAF_FILES);
+      if (candidateLeafFiles.size() > maxCandidateLeafFiles) {
+        // Resolved to more candidate leaf files than it's worth opening -- bail out to normal
+        // planning rather than let a misconfigured index make planning slower than no index at
+        // all. The original predicate is still applied downstream regardless, so this is purely
+        // a missed optimization, not a correctness concern.
+        LOG.info(
+            "SCALAR index on {} resolved to {} candidate leaf file(s), exceeding the planning-cost"
+                + " bound of {} ({}) -- falling back to normal planning",
+            columnName,
+            candidateLeafFiles.size(),
+            maxCandidateLeafFiles,
+            MAX_CANDIDATE_LEAF_FILES_PROPERTY);
+        return false;
+      }
 
       List<LeafFileEntry> matches = Lists.newArrayList();
       for (TrackingFileEntry leaf : candidateLeafFiles) {

@@ -140,6 +140,24 @@ public class TestBuildScalarIndexProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testBuildOnPartitionColumnWarnsButDoesNotReject() {
+    // Redundant (partitioning already prunes this column) but not wrong -- the index build must
+    // still succeed, matching the "always advisory, never required, never rejected" design.
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b')", tableName);
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.build_scalar_index(table => '%s', columns => array('data'),"
+                + " transform => 'HASH')",
+            catalogName, tableIdent);
+
+    assertThat((long) output.get(0)[2]).isEqualTo(2L);
+  }
+
+  @TestTemplate
   public void testIncrementalBuildIndexesOnlyNewRows() throws Exception {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'aaa'), (2, 'bbb')", tableName);
