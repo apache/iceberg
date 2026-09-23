@@ -62,7 +62,8 @@ public class TestDebeziumTransform {
   @Test
   public void testDebeziumTransformNull() {
     try (DebeziumTransform<SinkRecord> smt = new DebeziumTransform<>()) {
-      SinkRecord record = new SinkRecord("topic", 0, null, null, null, null, 0);
+      Struct key = new Struct(KEY_SCHEMA).put("account_id", 1L);
+      SinkRecord record = new SinkRecord("topic", 0, KEY_SCHEMA, key, null, null, 0);
       SinkRecord result = smt.apply(record);
       assertThat(result).isSameAs(record);
     }
