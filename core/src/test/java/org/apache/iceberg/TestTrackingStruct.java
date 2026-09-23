@@ -205,9 +205,9 @@ class TestTrackingStruct {
   }
 
   private static final List<EntryStatus> ASSIGNING_STATUSES =
-      List.of(EntryStatus.ADDED, EntryStatus.EXISTING);
+      List.of(EntryStatus.ADDED, EntryStatus.EXISTING, EntryStatus.MODIFIED);
   private static final List<EntryStatus> NON_ASSIGNING_STATUSES =
-      List.of(EntryStatus.MODIFIED, EntryStatus.DELETED, EntryStatus.REPLACED);
+      List.of(EntryStatus.DELETED, EntryStatus.REPLACED);
 
   @ParameterizedTest
   @FieldSource("ASSIGNING_STATUSES")

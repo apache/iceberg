@@ -171,9 +171,11 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     boolean isAdded = status == EntryStatus.ADDED;
     // EXISTING will assign to handle existing files upgraded from pre-v3
     boolean isExisting = status == EntryStatus.EXISTING;
-    // MODIFIED will not assign first row ID because first row ID must already be assigned
+    // MODIFIED will assign to handle existing files upgraded from pre-v3 AND modified in the first
+    // v4 commit when IDs are assigned
+    boolean isModified = status == EntryStatus.MODIFIED;
 
-    if ((isAdded || isExisting) && null == firstRowId) {
+    if ((isAdded || isExisting || isModified) && null == firstRowId) {
       this.firstRowId = nextRowId;
       return true;
     }
