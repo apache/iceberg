@@ -116,6 +116,25 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     this.replacedPositions = replacedPositions;
   }
 
+  /**
+   * Inherit a commit's snapshot ID if it is unset.
+   *
+   * <p>Used when rewriting uncommitted manifests before the sequence number is determined.
+   *
+   * @param manifestSnapshotId the manifest's snapshot ID
+   */
+  void inherit(long manifestSnapshotId) {
+    if (null == snapshotId) {
+      this.snapshotId = manifestSnapshotId;
+    }
+  }
+
+  /**
+   * Inherit a commit's snapshot ID and sequence number if either is unset.
+   *
+   * @param manifestSnapshotId the manifest's snapshot ID
+   * @param manifestSeqNumber the manifest's sequence number, determined by a successful commit
+   */
   void inherit(long manifestSnapshotId, long manifestSeqNumber) {
     if (null == snapshotId) {
       this.snapshotId = manifestSnapshotId;
@@ -130,6 +149,36 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     if (null == fileSequenceNumber && (isAdded || manifestSeqNumber == 0)) {
       this.fileSequenceNumber = manifestSeqNumber;
     }
+  }
+
+  /**
+   * Assign the first row ID to the given next row ID if it is unassigned.
+   *
+   * <p>If the {@code nextRowId} is null, the first row ID will also be set to null. This is used
+   * when reading snapshots from older format versions that do not have assigned row IDs.
+   *
+   * @param nextRowId the next row ID to assign, or null when reading v2 or earlier snapshots
+   * @return true if the first row ID is assigned a non-null value
+   */
+  boolean assignFirstRowId(Long nextRowId) {
+    if (null == nextRowId) {
+      // null manifest first row ID from pre-v3 upgrade path
+      // defensively set the first row ID for every entry to be null
+      this.firstRowId = null;
+      return false;
+    }
+
+    boolean isAdded = status == EntryStatus.ADDED;
+    // EXISTING will assign to handle existing files upgraded from pre-v3
+    boolean isExisting = status == EntryStatus.EXISTING;
+    // MODIFIED will not assign first row ID because first row ID must already be assigned
+
+    if ((isAdded || isExisting) && null == firstRowId) {
+      this.firstRowId = nextRowId;
+      return true;
+    }
+
+    return false;
   }
 
   @Override
