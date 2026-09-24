@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Map;
+import java.util.UUID;
 import org.apache.iceberg.aliyun.oss.AliyunOSSExtension;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -54,7 +55,7 @@ public class AliyunOSSMockExtension implements AliyunOSSExtension {
     try {
       ossMock = AliyunOSSMock.start(properties);
     } catch (Exception e) {
-      throw new RuntimeException("Can't start OSS Mock");
+      throw new RuntimeException("Can't start OSS Mock", e);
     }
   }
 
@@ -65,11 +66,8 @@ public class AliyunOSSMockExtension implements AliyunOSSExtension {
 
   @Override
   public OSS createOSSClient() {
-    String endpoint =
-        String.format(
-            "http://localhost:%s",
-            properties.getOrDefault(
-                AliyunOSSMock.PROP_HTTP_PORT, AliyunOSSMock.PORT_HTTP_PORT_DEFAULT));
+    Preconditions.checkNotNull(ossMock, "OSS Mock must be started before creating a client");
+    String endpoint = String.format("http://localhost:%d", ossMock.port());
     return new OSSClientBuilder().build(endpoint, "foo", "bar");
   }
 
@@ -110,10 +108,11 @@ public class AliyunOSSMockExtension implements AliyunOSSExtension {
     public AliyunOSSExtension build() {
       String rootDir = (String) props.get(AliyunOSSMock.PROP_ROOT_DIR);
       if (Strings.isNullOrEmpty(rootDir)) {
+        // Use a random directory name so that parallel test forks don't share a store and
+        // delete each other's objects when tearing down buckets.
         File dir =
             new File(
-                System.getProperty("java.io.tmpdir"),
-                "oss-mock-file-store-" + System.currentTimeMillis());
+                System.getProperty("java.io.tmpdir"), "oss-mock-file-store-" + UUID.randomUUID());
         rootDir = dir.getAbsolutePath();
         props.put(AliyunOSSMock.PROP_ROOT_DIR, rootDir);
       }

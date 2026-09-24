@@ -42,25 +42,25 @@ public class AliyunOSSMock {
   static final String PROP_ROOT_DIR = "root-dir";
   static final String ROOT_DIR_DEFAULT = "/tmp";
 
-  static final String PROP_HTTP_PORT = "server.port";
-  static final int PORT_HTTP_PORT_DEFAULT = 9393;
-
   private final AliyunOSSMockLocalStore localStore;
   private final HttpServer httpServer;
 
   public static AliyunOSSMock start(Map<String, Object> properties) throws IOException {
     AliyunOSSMock mock =
-        new AliyunOSSMock(
-            properties.getOrDefault(PROP_ROOT_DIR, ROOT_DIR_DEFAULT).toString(),
-            Integer.parseInt(
-                properties.getOrDefault(PROP_HTTP_PORT, PORT_HTTP_PORT_DEFAULT).toString()));
+        new AliyunOSSMock(properties.getOrDefault(PROP_ROOT_DIR, ROOT_DIR_DEFAULT).toString());
     mock.start();
     return mock;
   }
 
-  private AliyunOSSMock(String rootDir, int serverPort) throws IOException {
+  private AliyunOSSMock(String rootDir) throws IOException {
     localStore = new AliyunOSSMockLocalStore(rootDir);
-    httpServer = HttpServer.create(new InetSocketAddress("localhost", serverPort), 0);
+    // Bind an ephemeral port so that parallel test forks don't conflict with each other.
+    httpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+  }
+
+  /** Returns the ephemeral port that this mock server is bound to. */
+  int port() {
+    return httpServer.getAddress().getPort();
   }
 
   private void start() {
