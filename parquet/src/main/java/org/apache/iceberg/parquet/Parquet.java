@@ -1281,8 +1281,6 @@ public class Parquet {
     private ByteBuffer fileAADPrefix = null;
     private Class<? extends StructLike> rootType = null;
     private Map<Integer, Class<? extends StructLike>> customTypes = Maps.newHashMap();
-    private Integer maxAllocationSizeInBytes = null;
-    private Boolean useHadoopVectoredIo = null;
 
     public interface ReaderFunction {
       Function<MessageType, ParquetValueReader<?>> apply();
@@ -1465,16 +1463,7 @@ public class Parquet {
     }
 
     public ReadBuilder set(String key, String value) {
-      switch (key) {
-        case ALLOCATION_SIZE_PROPERTY:
-          withMaxAllocationInBytes(Integer.parseInt(value));
-          break;
-        case ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED:
-          useHadoopVectoredIo(Boolean.parseBoolean(value));
-          break;
-        default:
-          properties.put(key, value);
-      }
+      properties.put(key, value);
       return this;
     }
 
@@ -1526,13 +1515,12 @@ public class Parquet {
     }
 
     public ReadBuilder withMaxAllocationInBytes(int newMaxAllocationSizeInBytes) {
-      this.maxAllocationSizeInBytes = newMaxAllocationSizeInBytes;
-      return this;
+      return set(ALLOCATION_SIZE_PROPERTY, String.valueOf(newMaxAllocationSizeInBytes));
     }
 
     public ReadBuilder useHadoopVectoredIo(boolean newUseHadoopVectoredIo) {
-      this.useHadoopVectoredIo = newUseHadoopVectoredIo;
-      return this;
+      return set(
+          ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, String.valueOf(newUseHadoopVectoredIo));
     }
 
     @Override
@@ -1561,9 +1549,13 @@ public class Parquet {
           for (String property : READ_PROPERTIES_TO_REMOVE) {
             conf.unset(property);
           }
+          // populate before constructing the builder: HadoopReadOptions.Builder parses several
+          // fields (e.g. allocation size, vectored IO) from the Configuration once, at
+          // construction time, not from later set(key, value) calls.
+          properties.forEach(conf::set);
           optionsBuilder = HadoopReadOptions.builder(conf);
         } else {
-          optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration());
+          optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration(properties));
         }
 
         for (Map.Entry<String, String> entry : properties.entrySet()) {
@@ -1578,12 +1570,6 @@ public class Parquet {
           optionsBuilder.withDecryption(fileDecryptionProperties);
         }
 
-        if (maxAllocationSizeInBytes != null) {
-          optionsBuilder.withMaxAllocationInBytes(maxAllocationSizeInBytes);
-        }
-
-        optionsBuilder.withUseHadoopVectoredIo(
-            useHadoopVectoredIo != null ? useHadoopVectoredIo : true);
         ParquetReadOptions options = optionsBuilder.build();
 
         NameMapping mapping;
