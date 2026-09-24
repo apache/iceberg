@@ -113,11 +113,7 @@ Iceberg implements lookup join with a full cache: the whole projected dimension 
 
 There is no background refresh: each subtask keeps the snapshot it loaded, so subtasks can serve different snapshots of the dimension table. Populate the dimension table before the join starts.
 
-The lookup options are:
-
-| Option                         | Default | Description                                                                                        |
-| ------------------------------ | ------- | -------------------------------------------------------------------------------------------------- |
-| `lookup.full-cache.eager-load` | `true`  | Whether to load the full cache when the lookup function is opened, instead of on the first lookup. |
+Check out all the options here: [lookup-options](flink-configuration.md#lookup-options)
 
 ## Reading with DataStream
 
