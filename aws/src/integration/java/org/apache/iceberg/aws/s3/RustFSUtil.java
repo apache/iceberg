@@ -49,6 +49,7 @@ public class RustFSUtil {
     container.withEnv(ACCESS_KEY_ENV, credentials.accessKeyId());
     container.withEnv(SECRET_KEY_ENV, credentials.secretAccessKey());
     container.withEnv("RUSTFS_CONSOLE_ENABLE", "false");
+    container.withEnv("RUSTFS_OBS_LOG_STDOUT_ENABLED", "true");
     container.withCommand("/data");
     container.waitingFor(Wait.forHttp("/health/ready").forPort(S3_PORT));
     return container;

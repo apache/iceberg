@@ -26,6 +26,7 @@ services:
       - RUSTFS_ACCESS_KEY=minioadmin
       - RUSTFS_SECRET_KEY=minioadmin
       - RUSTFS_CONSOLE_ENABLE=true
+      - RUSTFS_OBS_LOG_STDOUT_ENABLED=true
     ports:
       - 9000:9000
       - 9001:9001
