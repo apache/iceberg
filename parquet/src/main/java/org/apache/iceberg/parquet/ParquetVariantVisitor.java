@@ -163,6 +163,17 @@ public abstract class ParquetVariantVisitor<R> {
   /** Handler called after visiting any primitive or group type. */
   public void afterField(Type type) {}
 
+  /**
+   * Visits a shredded variant value group (a {@code variant_value_pair} or root value group)
+   * without requiring a {@code metadata} field.
+   *
+   * <p>Use this to build readers for a single shredded path under a variant column.
+   */
+  public static <R> R visitShreddedValueGroup(
+      GroupType valueGroup, ParquetVariantVisitor<R> visitor) {
+    return visitValue(valueGroup, visitor);
+  }
+
   public static <R> R visit(GroupType type, ParquetVariantVisitor<R> visitor) {
     Preconditions.checkArgument(
         ParquetSchemaUtil.hasField(type, METADATA), "Invalid variant, missing metadata: %s", type);
