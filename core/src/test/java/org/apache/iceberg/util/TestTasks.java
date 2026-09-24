@@ -26,6 +26,11 @@ import java.io.InterruptedIOException;
 import java.io.UncheckedIOException;
 import java.net.SocketTimeoutException;
 import java.nio.channels.ClosedByInterruptException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.metrics.Counter;
@@ -136,5 +141,62 @@ public class TestTasks {
         // SocketTimeoutException extends InterruptedIOException but is not an interrupt
         new SocketTimeoutException("read timed out"),
         new RuntimeException("failed to read manifest", new SocketTimeoutException("timed out")));
+  }
+
+  @Test
+  void parallelTasksAreNotRetriedWhenTheCallerIsInterrupted() throws InterruptedException {
+    int taskCount = 3;
+    Counter counter = new DefaultMetricsContext().counter("counter");
+    CountDownLatch allTasksBlocked = new CountDownLatch(taskCount);
+    CountDownLatch allTasksInterrupted = new CountDownLatch(taskCount);
+
+    ExecutorService taskPool = Executors.newFixedThreadPool(taskCount);
+    ExecutorService callerPool = Executors.newSingleThreadExecutor();
+    try {
+      Future<?> caller =
+          callerPool.submit(
+              () ->
+                  Tasks.range(taskCount)
+                      .countAttempts(counter)
+                      .retry(3)
+                      .suppressFailureWhenFinished()
+                      .executeWith(taskPool)
+                      .run(
+                          index -> {
+                            allTasksBlocked.countDown();
+                            try {
+                              Thread.sleep(TimeUnit.MINUTES.toMillis(10));
+                            } catch (InterruptedException e) {
+                              // blocking reads surface an interrupt as a wrapped failure without
+                              // preserving the interrupt status
+                              allTasksInterrupted.countDown();
+                              throw new RuntimeException("failed to read", e);
+                            }
+                          }));
+
+      assertThat(allTasksBlocked.await(5, TimeUnit.SECONDS)).isTrue();
+
+      // interrupts the caller while it waits in Tasks.waitFor, which cancels every running task
+      caller.cancel(true);
+
+      assertThat(allTasksInterrupted.await(5, TimeUnit.SECONDS))
+          .as("Each task should be interrupted individually")
+          .isTrue();
+
+      // a retried task never releases its thread: it sleeps for the retry backoff and then blocks
+      // again, so an idle pool means the interrupted tasks stopped
+      CountDownLatch poolIsIdle = new CountDownLatch(1);
+      taskPool.submit(poolIsIdle::countDown);
+
+      assertThat(poolIsIdle.await(5, TimeUnit.SECONDS))
+          .as("Interrupted tasks should release their threads instead of retrying")
+          .isTrue();
+      assertThat(counter.value())
+          .as("None of the interrupted tasks should be retried")
+          .isEqualTo(taskCount);
+    } finally {
+      taskPool.shutdownNow();
+      callerPool.shutdownNow();
+    }
   }
 }
