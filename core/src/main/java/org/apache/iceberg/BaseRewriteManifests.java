@@ -84,6 +84,12 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
   }
 
   @Override
+  public RewriteManifests toBranch(String branch) {
+    targetBranch(branch);
+    return this;
+  }
+
+  @Override
   protected String operation() {
     return DataOperations.REPLACE;
   }
@@ -168,10 +174,11 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    List<ManifestFile> currentManifests = base.currentSnapshot().allManifests(ops().io());
+    List<ManifestFile> currentManifests =
+        snapshot != null ? snapshot.allManifests(ops().io()) : Collections.emptyList();
     Set<ManifestFile> currentManifestSet = ImmutableSet.copyOf(currentManifests);
 
-    validateDeletedManifests(currentManifestSet, base.currentSnapshot().snapshotId());
+    validateDeletedManifests(currentManifestSet, snapshot);
 
     if (requiresRewrite(currentManifestSet)) {
       performRewrite(currentManifests);
@@ -283,17 +290,22 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     return predicate == null || predicate.test(manifest);
   }
 
-  private void validateDeletedManifests(
-      Set<ManifestFile> currentManifests, long currentSnapshotID) {
+  private void validateDeletedManifests(Set<ManifestFile> currentManifests, Snapshot snapshot) {
     // directly deleted manifests must be still present in the current snapshot
     deletedManifests.stream()
         .filter(manifest -> !currentManifests.contains(manifest))
         .findAny()
         .ifPresent(
             manifest -> {
+              if (snapshot == null) {
+                throw new ValidationException(
+                    "Deleted manifest %s could not be found: branch %s has no snapshot",
+                    manifest.path(), targetBranch());
+              }
+
               throw new ValidationException(
                   "Deleted manifest %s could not be found in the latest snapshot %d",
-                  manifest.path(), currentSnapshotID);
+                  manifest.path(), snapshot.snapshotId());
             });
   }
 
