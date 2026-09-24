@@ -42,6 +42,20 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
     throw new IllegalArgumentException("Unsupported type: " + type);
   }
 
+  // New overload, not a signature change — adds UUID support without an ABI break.
+  protected static <R> R fromSourceType(
+      Type type, R dateResult, R microsResult, R nanosResult, R uuidResult) {
+    if (type.typeId() == Type.TypeID.UUID) {
+      if (uuidResult != null) {
+        return uuidResult;
+      }
+    } else {
+      return fromSourceType(type, dateResult, microsResult, nanosResult);
+    }
+
+    throw new IllegalArgumentException("Unsupported type: " + type);
+  }
+
   protected abstract ChronoUnit granularity();
 
   protected abstract Transform<S, Integer> toEnum(Type type);
@@ -66,6 +80,9 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
       return TransformUtil.satisfiesOrderOf(granularity(), ((Dates) other).granularity());
     } else if (other instanceof Timestamps) {
       return TransformUtil.satisfiesOrderOf(granularity(), ((Timestamps) other).granularity());
+    } else if (other instanceof UUIDv7Timestamps) {
+      return TransformUtil.satisfiesOrderOf(
+          granularity(), ((UUIDv7Timestamps) other).granularity());
     } else if (other instanceof TimeTransform) {
       return TransformUtil.satisfiesOrderOf(
           granularity(), ((TimeTransform<?>) other).granularity());
@@ -78,7 +95,8 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
   public boolean canTransform(Type type) {
     return type.typeId() == Type.TypeID.DATE
         || type.typeId() == Type.TypeID.TIMESTAMP
-        || type.typeId() == Type.TypeID.TIMESTAMP_NANO;
+        || type.typeId() == Type.TypeID.TIMESTAMP_NANO
+        || type.typeId() == Type.TypeID.UUID;
   }
 
   @Override
