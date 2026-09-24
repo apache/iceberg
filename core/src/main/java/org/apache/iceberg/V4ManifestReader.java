@@ -59,7 +59,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   static Builder builder(
       ManifestFile manifest, FileIO io, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
-    return new Builder(manifest, io, tableSchema, specsById);
+    return new Builder(manifest, io, tableSchema, specsById, false /* committed */);
+  }
+
+  static Builder uncommitted(
+      ManifestFile manifest, FileIO io, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
+    return new Builder(manifest, io, tableSchema, specsById, true /* uncommitted */);
   }
 
   private final ManifestFile manifest;
@@ -70,7 +75,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters; // by spec ID
   private final boolean includeAll;
   private final Set<Integer> requestedStatsFieldIds;
+  private final boolean isUncommitted;
   private final ScanMetrics scanMetrics;
+
+  private Long nextRowId = null;
 
   private V4ManifestReader(
       ManifestFile manifest,
@@ -81,6 +89,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters,
       boolean includeAll,
       Set<Integer> requestedStatsFieldIds,
+      boolean isUncommitted,
       ScanMetrics scanMetrics) {
     this.manifest = manifest;
     this.io = io;
@@ -90,7 +99,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     this.partitionFilters = partitionFilters;
     this.includeAll = includeAll;
     this.requestedStatsFieldIds = requestedStatsFieldIds;
+    this.isUncommitted = isUncommitted;
     this.scanMetrics = scanMetrics;
+
+    // initialize the next row ID to the manifest's first row ID
+    this.nextRowId = manifest.firstRowId();
   }
 
   @VisibleForTesting
@@ -130,7 +143,16 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private TrackedFile applyInheritance(TrackedFile file) {
     // the reader uses TrackingStruct to read tracking so this cast is safe
     TrackingStruct tracking = (TrackingStruct) file.tracking();
-    tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
+    if (isUncommitted) {
+      // uncommitted files cannot have a sequence number or assign first row ID
+      tracking.inherit(manifest.snapshotId());
+    } else {
+      tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
+      if (tracking.assignFirstRowId(nextRowId)) {
+        this.nextRowId += file.recordCount();
+      }
+    }
+
     return file;
   }
 
@@ -235,6 +257,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private final Schema tableSchema;
     private final Types.StructType unionPartitionType;
     private final Map<Integer, PartitionSpec> specsById;
+    private final boolean isUncommitted;
     private String tableLocation = null;
     private Expression rowFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
@@ -250,7 +273,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         ManifestFile manifest,
         FileIO io,
         Schema tableSchema,
-        Map<Integer, PartitionSpec> specsById) {
+        Map<Integer, PartitionSpec> specsById,
+        boolean isUncommitted) {
       Preconditions.checkArgument(tableSchema != null, "Invalid table schema: null");
       int formatVersion = manifest.formatVersion();
       Preconditions.checkArgument(
@@ -275,8 +299,9 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       this.manifest = manifest;
       this.io = io;
       this.tableSchema = tableSchema;
-      this.specsById = specsById;
       this.unionPartitionType = Partitioning.unionPartitionTypes(specsById.values());
+      this.specsById = specsById;
+      this.isUncommitted = isUncommitted;
     }
 
     /**
@@ -311,6 +336,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
     /** Configures the reader to select the minimal fields needed for scan planning. */
     Builder forScanPlanning() {
+      Preconditions.checkState(
+          !isUncommitted, "Cannot plan scan using uncommitted manifest: %s", manifest.path());
       Preconditions.checkState(
           requestedColumns == null && requestedProjection == null,
           "Cannot use forScanPlanning() with select(Iterable<String>) or project(Schema)");
@@ -395,6 +422,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           partitionFilters,
           includeAll,
           requestedStatsFieldIds,
+          isUncommitted,
           scanMetrics);
     }
 
