@@ -53,6 +53,7 @@ import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.expressions.filter.PartitionPredicate;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.SupportsRuntimeV2Filtering;
 import org.slf4j.Logger;
@@ -73,8 +74,18 @@ abstract class SparkRuntimeFilterableScan extends SparkPartitioningAwareScan<Par
       SparkReadConf readConf,
       Schema projection,
       List<Expression> filters,
+      List<PartitionPredicate> partitionPredicates,
       Supplier<ScanReport> scanReportSupplier) {
-    super(spark, table, schema, scan, readConf, projection, filters, scanReportSupplier);
+    super(
+        spark,
+        table,
+        schema,
+        scan,
+        readConf,
+        projection,
+        filters,
+        partitionPredicates,
+        scanReportSupplier);
     this.runtimeFilters = Lists.newArrayList();
   }
 
