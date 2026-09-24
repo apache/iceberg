@@ -212,6 +212,15 @@ public class TestHiveSchemaUtil {
     assertThat(hiveSchema).containsExactly(new FieldSchema("variant_field", "unknown", null));
   }
 
+  @Test
+  public void testNestedVariantTypeConvertToHiveSchema() {
+    Schema schema =
+        new Schema(
+            optional(0, "nested", Types.StructType.of(optional(1, "v", Types.VariantType.get()))));
+    List<FieldSchema> hiveSchema = HiveSchemaUtil.convert(schema);
+    assertThat(hiveSchema).containsExactly(new FieldSchema("nested", "struct<v:unknown>", null));
+  }
+
   protected List<FieldSchema> getSupportedFieldSchemas() {
     List<FieldSchema> fields = Lists.newArrayListWithCapacity(10);
     fields.add(new FieldSchema("c_float", serdeConstants.FLOAT_TYPE_NAME, "float comment"));
