@@ -627,6 +627,7 @@ class TestManifestInfoStruct {
     assertThat(info.existingRowsCount()).isEqualTo(0L);
     assertThat(info.deletedRowsCount()).isEqualTo(0L);
     assertThat(info.replacedRowsCount()).isEqualTo(0L);
+    assertThat(info.modifiedRowsCount()).isEqualTo(0L);
   }
 
   @Test
