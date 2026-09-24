@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableMetadata.newTableMetadata;
 
 import java.io.File;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -204,8 +205,10 @@ public class TestTables {
     TableMetadata current = ops.current();
     TableMetadata metadata;
     if (current != null) {
-      metadata = current.buildReplacement(schema, spec, sortOrder, current.location(), properties);
-      return Transactions.replaceTableTransaction(name, ops, metadata);
+      UnaryOperator<TableMetadata> replacement =
+          base -> base.buildReplacement(schema, spec, sortOrder, base.location(), properties);
+      metadata = replacement.apply(current);
+      return Transactions.replaceTableTransaction(name, ops, metadata, replacement);
     } else {
       metadata = newTableMetadata(schema, spec, sortOrder, temp.toURI().toString(), properties);
       return Transactions.createTableTransaction(name, ops, metadata);
