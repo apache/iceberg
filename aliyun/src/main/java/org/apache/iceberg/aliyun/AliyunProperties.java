@@ -82,6 +82,12 @@ public class AliyunProperties implements Serializable {
    */
   public static final String CLIENT_REGION = "client.region";
 
+  /**
+   * Overrides the KMS endpoint. Defaults to the region-derived {@code kms.<region>.aliyuncs.com}.
+   * Set to a KMS Instance (DKMS) endpoint for keys that live in a KMS Instance.
+   */
+  public static final String CLIENT_KMS_ENDPOINT = "client.kms-endpoint";
+
   /** The data key spec used when generating data keys with Aliyun KMS: AES_256 or AES_128. */
   public static final String KMS_DATA_KEY_SPEC = "kms.client.aliyun.generation.data_key_spec";
 
@@ -93,6 +99,7 @@ public class AliyunProperties implements Serializable {
   private final String securityToken;
   private final String ossStagingDirectory;
   private final String region;
+  private final String kmsEndpoint;
   private final String kmsDataKeySpec;
 
   public AliyunProperties() {
@@ -111,6 +118,7 @@ public class AliyunProperties implements Serializable {
             properties, OSS_STAGING_DIRECTORY, System.getProperty("java.io.tmpdir"));
 
     this.region = properties.get(CLIENT_REGION);
+    this.kmsEndpoint = properties.get(CLIENT_KMS_ENDPOINT);
     this.kmsDataKeySpec =
         PropertyUtil.propertyAsString(properties, KMS_DATA_KEY_SPEC, KMS_DATA_KEY_SPEC_DEFAULT);
   }
@@ -137,6 +145,10 @@ public class AliyunProperties implements Serializable {
 
   public String region() {
     return region;
+  }
+
+  public String kmsEndpoint() {
+    return kmsEndpoint;
   }
 
   public String kmsDataKeySpec() {

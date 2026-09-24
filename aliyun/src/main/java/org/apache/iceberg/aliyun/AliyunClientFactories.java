@@ -214,6 +214,11 @@ public class AliyunClientFactories {
       // the KMS client resolves kms.<region>.aliyuncs.com from the region id
       Config config = new Config().setRegionId(aliyunProperties.region());
 
+      // Optional endpoint override, e.g. a KMS Instance (DKMS) endpoint.
+      if (!Strings.isNullOrEmpty(aliyunProperties.kmsEndpoint())) {
+        config.setEndpoint(aliyunProperties.kmsEndpoint());
+      }
+
       // Check if RRSA environment is available (same credential resolution order as newOSSClient)
       if (isRrsaEnvironmentAvailable()) {
         try {
