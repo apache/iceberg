@@ -122,6 +122,7 @@ import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.ParquetInputFormat;
 import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -144,6 +145,10 @@ public class Parquet {
           "parquet.private.read.filter.predicate",
           "parquet.read.support.class",
           "parquet.crypto.factory.class");
+
+  // Not exposed as a public constant by parquet-java; matches
+  // org.apache.parquet.ParquetReadOptions#ALLOCATION_SIZE.
+  private static final String ALLOCATION_SIZE_PROPERTY = "parquet.read.allocation.size";
 
   // Size threshold (bytes) at or below which a Parquet file is fetched eagerly on the first read.
   private static final long EAGER_FETCH_THRESHOLD_BYTES = 1024 * 1024;
@@ -1276,6 +1281,8 @@ public class Parquet {
     private ByteBuffer fileAADPrefix = null;
     private Class<? extends StructLike> rootType = null;
     private Map<Integer, Class<? extends StructLike>> customTypes = Maps.newHashMap();
+    private Integer maxAllocationSizeInBytes = null;
+    private Boolean useHadoopVectoredIo = null;
 
     public interface ReaderFunction {
       Function<MessageType, ParquetValueReader<?>> apply();
@@ -1457,8 +1464,30 @@ public class Parquet {
       return this;
     }
 
+    /**
+     * Sets a reader configuration property.
+     *
+     * <p>This is the only entry point reachable through Iceberg's generic {@link
+     * org.apache.iceberg.formats.ReadBuilder}, which callers not depending on this module (such as
+     * {@code ParquetFormatModel}'s wrapper) use instead of this builder directly. {@link
+     * #ALLOCATION_SIZE_PROPERTY} and {@link ParquetInputFormat#HADOOP_VECTORED_IO_ENABLED} are
+     * recognized here and routed to {@link #withMaxAllocationInBytes(int)} and {@link
+     * #useHadoopVectoredIo(boolean)} respectively, since setting them as plain string properties
+     * (e.g. via the generic properties map) has no effect: Parquet only reads those keys while
+     * constructing its options, before a plain {@code .set(key, value)} call could reach them. Any
+     * other key is stored as-is and passed through unchanged.
+     */
     public ReadBuilder set(String key, String value) {
-      properties.put(key, value);
+      switch (key) {
+        case ALLOCATION_SIZE_PROPERTY:
+          withMaxAllocationInBytes(Integer.parseInt(value));
+          break;
+        case ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED:
+          useHadoopVectoredIo(Boolean.parseBoolean(value));
+          break;
+        default:
+          properties.put(key, value);
+      }
       return this;
     }
 
@@ -1509,6 +1538,28 @@ public class Parquet {
       return this;
     }
 
+    /**
+     * Caps the size of a single buffer Parquet allocates while reading a column chunk, in bytes.
+     * Only takes effect on the non-vectored (normal) Hadoop read path; see {@link
+     * #useHadoopVectoredIo(boolean)}. Equivalent to {@code set("parquet.read.allocation.size",
+     * ...)}.
+     */
+    public ReadBuilder withMaxAllocationInBytes(int newMaxAllocationSizeInBytes) {
+      this.maxAllocationSizeInBytes = newMaxAllocationSizeInBytes;
+      return this;
+    }
+
+    /**
+     * Controls whether Hadoop vectored IO is used for this read. Iceberg enables it by default for
+     * performance, but vectored reads allocate one buffer per column chunk range instead of
+     * chunking through {@link #withMaxAllocationInBytes(int)}, so callers with a hard memory
+     * ceiling should pass {@code false} to keep allocations bounded.
+     */
+    public ReadBuilder useHadoopVectoredIo(boolean newUseHadoopVectoredIo) {
+      this.useHadoopVectoredIo = newUseHadoopVectoredIo;
+      return this;
+    }
+
     @Override
     @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
     public <D> CloseableIterable<D> build() {
@@ -1552,7 +1603,12 @@ public class Parquet {
           optionsBuilder.withDecryption(fileDecryptionProperties);
         }
 
-        optionsBuilder.withUseHadoopVectoredIo(true);
+        if (maxAllocationSizeInBytes != null) {
+          optionsBuilder.withMaxAllocationInBytes(maxAllocationSizeInBytes);
+        }
+
+        optionsBuilder.withUseHadoopVectoredIo(
+            useHadoopVectoredIo != null ? useHadoopVectoredIo : true);
         ParquetReadOptions options = optionsBuilder.build();
 
         NameMapping mapping;
