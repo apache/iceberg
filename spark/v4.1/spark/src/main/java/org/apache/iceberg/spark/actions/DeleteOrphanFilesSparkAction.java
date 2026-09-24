@@ -51,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.JobGroupInfo;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.util.FileSystemWalker;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
@@ -119,7 +120,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private static final int MAX_EXECUTOR_LISTING_DIRECT_SUB_DIRS = Integer.MAX_VALUE;
   private static final int DELETE_GROUP_SIZE = 100000;
 
-  private final SerializableConfiguration hadoopConf;
+  private SerializableConfiguration hadoopConf;
   private final int listingParallelism;
   private final Table table;
   private Map<String, String> equalSchemes = flattenMap(EQUAL_SCHEMES_DEFAULT);
@@ -144,6 +145,17 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     ValidationException.check(
         PropertyUtil.propertyAsBoolean(table.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
         "Cannot delete orphan files: GC is disabled (deleting files may corrupt other tables)");
+  }
+
+  /**
+   * Passes the name of the Spark catalog that owns the table, so that files are listed using the
+   * session Hadoop configuration plus that catalog's {@code spark.sql.catalog.<name>.hadoop.*}
+   * overrides. When not set, only the session Hadoop configuration is used.
+   */
+  public DeleteOrphanFilesSparkAction catalogName(String catalogName) {
+    this.hadoopConf =
+        new SerializableConfiguration(SparkUtil.hadoopConfCatalogOverrides(spark(), catalogName));
+    return this;
   }
 
   @Override
