@@ -57,10 +57,12 @@ import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.TableMigrationUtil;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hadoop.Util;
@@ -78,6 +80,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.TaskContext;
 import org.apache.spark.api.java.JavaRDD;
@@ -207,6 +210,7 @@ public class SparkTableUtil {
   }
 
   private static Iterator<ManifestFile> buildManifest(
+      Schema schema,
       int formatVersion,
       Long snapshotId,
       SerializableConfiguration conf,
@@ -229,8 +233,14 @@ public class SparkTableUtil {
       ManifestWriter<DataFile> writer =
           ManifestFiles.write(formatVersion, spec, outputFile, snapshotId);
 
+      Set<Integer> requiredFieldIds = requiredFieldIds(schema);
       try (ManifestWriter<DataFile> writerRef = writer) {
-        fileTuples.forEachRemaining(fileTuple -> writerRef.add(fileTuple._2));
+        fileTuples.forEachRemaining(
+            fileTuple -> {
+              DataFile dataFile = fileTuple._2;
+              verifyRequiredFields(schema, requiredFieldIds, dataFile);
+              writerRef.add(dataFile);
+            });
       } catch (IOException e) {
         throw SparkExceptionUtil.toUncheckedException(
             e, "Unable to close the manifest writer: %s", outputPath);
@@ -473,8 +483,13 @@ public class SparkTableUtil {
                 DUPLICATE_FILE_MESSAGE, Joiner.on(",").join((String[]) duplicates.take(10))));
       }
 
+      Set<Integer> requiredFieldIds = requiredFieldIds(targetTable.schema());
       AppendFiles append = targetTable.newAppend();
-      files.forEach(append::appendFile);
+      files.forEach(
+          dataFile -> {
+            verifyRequiredFields(targetTable.schema(), requiredFieldIds, dataFile);
+            append.appendFile(dataFile);
+          });
       append.commit();
     } catch (NoSuchDatabaseException e) {
       throw SparkExceptionUtil.toUncheckedException(
@@ -639,6 +654,7 @@ public class SparkTableUtil {
                 (MapPartitionsFunction<Tuple2<String, DataFile>, ManifestFile>)
                     fileTuple ->
                         buildManifest(
+                            targetTable.schema(),
                             formatVersion,
                             snapshotId,
                             serializableConf,
@@ -662,6 +678,35 @@ public class SparkTableUtil {
       deleteManifests(targetTable.io(), manifests);
       throw e;
     }
+  }
+
+  private static void verifyRequiredFields(
+      Schema schema, Set<Integer> requiredFieldIds, DataFile dataFile) {
+    if (requiredFieldIds.isEmpty()) {
+      return;
+    }
+
+    Map<Integer, Long> nullValueCounts = dataFile.nullValueCounts();
+    if (nullValueCounts == null) {
+      return;
+    }
+
+    for (int fieldId : requiredFieldIds) {
+      Long nullCount = nullValueCounts.getOrDefault(fieldId, 0L);
+      if (nullCount > 0) {
+        String fieldName = schema.findField(fieldId).name();
+        throw new ValidationException(
+            "Column '%s' is required but contains %d null value(s): %s",
+            fieldName, nullCount, dataFile.location());
+      }
+    }
+  }
+
+  private static Set<Integer> requiredFieldIds(Schema schema) {
+    return TypeUtil.indexById(schema.asStruct()).entrySet().stream()
+        .filter(entry -> entry.getValue().isRequired())
+        .map(Map.Entry::getKey)
+        .collect(Collectors.toSet());
   }
 
   private static void deleteManifests(FileIO io, List<ManifestFile> manifests) {
