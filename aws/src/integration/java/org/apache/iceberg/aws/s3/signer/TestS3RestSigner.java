@@ -166,7 +166,7 @@ public class TestS3RestSigner {
             .applyMutation(
                 s3ClientBuilder ->
                     s3ClientBuilder.httpClientBuilder(
-                        software.amazon.awssdk.http.apache.ApacheHttpClient.builder()))
+                        software.amazon.awssdk.http.apache5.Apache5HttpClient.builder()))
             .endpointOverride(URI.create(MINIO_CONTAINER.getS3URL()))
             .forcePathStyle(true) // OSX won't resolve subdomains
             .overrideConfiguration(

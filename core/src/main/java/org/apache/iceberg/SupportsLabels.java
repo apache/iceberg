@@ -18,26 +18,15 @@
  */
 package org.apache.iceberg;
 
-import org.apache.iceberg.data.parquet.InternalReader;
-import org.apache.iceberg.data.parquet.InternalWriter;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.parquet.Parquet;
-
-public class InternalParquet {
-  private InternalParquet() {}
-
-  public static void register() {
-    InternalData.register(
-        FileFormat.PARQUET, InternalParquet::writeInternal, InternalParquet::readInternal);
-  }
-
-  private static Parquet.WriteBuilder writeInternal(OutputFile outputFile) {
-    return Parquet.write(outputFile).createWriterFunc(InternalWriter::createWriter);
-  }
-
-  private static Parquet.ReadBuilder readInternal(InputFile inputFile) {
-    return Parquet.read(inputFile)
-        .createReaderFunc(InternalReader.readerFunction(inputFile.location()));
-  }
+/**
+ * Implemented by tables that can expose catalog-provided labels.
+ *
+ * <p>Labels are optional enrichment supplied by the catalog, not table state. They are advisory:
+ * callers may ignore them, and implementations may drop them across serialization.
+ */
+public interface SupportsLabels {
+  /**
+   * Returns the catalog-provided labels for this table, or an empty instance when there are none.
+   */
+  Labels labels();
 }

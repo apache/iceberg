@@ -52,7 +52,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private static final int SUPPORTED_FORMAT_VERSION = 4;
   private static final Set<Integer> REQUIRED_COLUMN_IDS =
       ImmutableSet.of(
-          Tracking.STATUS.fieldId(), // needed to filter live files
+          Tracking.STATUS.fieldId(), // needed to filter live files and for inheritance
           MetadataColumns.ROW_POSITION.fieldId(), // needed to apply metadata DVs
           TrackedFile.CONTENT_TYPE.fieldId(), // needed for content filtering
           TrackedFile.RECORD_COUNT.fieldId()); // needed for first_row_id assignment and filtering
@@ -98,10 +98,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return readSchema;
   }
 
-  /** Returns copies of the tracked files that match this reader's configured filters. */
   @Override
   public CloseableIterator<TrackedFile> iterator() {
-    CloseableIterable<TrackedFile> files = CloseableIterable.transform(open(), this::prepare);
+    CloseableIterable<TrackedFile> files =
+        CloseableIterable.transform(open(), this::applyInheritance);
 
     if (!includeAll) {
       files = CloseableIterable.filter(files, file -> file.tracking().isLive());
@@ -125,6 +125,13 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     return CloseableIterable.transform(files, this::copyResolved).iterator();
+  }
+
+  private TrackedFile applyInheritance(TrackedFile file) {
+    // the reader uses TrackingStruct to read tracking so this cast is safe
+    TrackingStruct tracking = (TrackingStruct) file.tracking();
+    tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
+    return file;
   }
 
   private boolean matchesPartition(TrackedFile trackedFile) {
@@ -194,16 +201,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     CloseableIterable<TrackedFile> reader = readBuilder.build();
     addCloseable(reader);
     return reader;
-  }
-
-  private TrackedFile prepare(TrackedFile trackedFile) {
-    Tracking tracking = trackedFile.tracking();
-    // manifestLocation is not stored in the manifest; the reader fills it in
-    if (tracking instanceof TrackingStruct) {
-      ((TrackingStruct) tracking).setManifestLocation(manifest.path());
-    }
-
-    return trackedFile;
   }
 
   // resolves stored locations against the table location

@@ -1,7 +1,5 @@
 com.github.ben-manes.caffeine:caffeine:2.9
 com.google.errorprone:error_prone_annotations:2.10
-commons-codec:commons-codec:1.17
-commons-logging:commons-logging:1.2
 io.netty:netty-buffer:4.2
 io.netty:netty-codec-base:4.2
 io.netty:netty-codec-compression:4.2
@@ -19,13 +17,10 @@ io.netty:netty-transport:4.2
 org.apache.httpcomponents.client5:httpclient5:5.6
 org.apache.httpcomponents.core5:httpcore5-h2:5.4
 org.apache.httpcomponents.core5:httpcore5:5.4
-org.apache.httpcomponents:httpclient:4.5
-org.apache.httpcomponents:httpcore:4.4
 org.checkerframework:checker-qual:3.19
 org.reactivestreams:reactive-streams:1.0
 software.amazon.awssdk.crt:aws-crt:0.48
 software.amazon.awssdk:annotations:2.54
-software.amazon.awssdk:apache-client:2.54
 software.amazon.awssdk:apache5-client:2.54
 software.amazon.awssdk:arns:2.54
 software.amazon.awssdk:auth:2.54

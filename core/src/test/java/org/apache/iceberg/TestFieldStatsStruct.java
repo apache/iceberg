@@ -232,7 +232,12 @@ public class TestFieldStatsStruct {
           Named.of("Java", TestHelpers::roundTripSerialize),
           Named.of("Kryo", TestHelpers.KryoHelpers::roundTripSerialize),
           Named.of("InternalData", TestFieldStatsStruct::roundTripInternalData),
-          Named.of("FieldStats#copy", FieldStatsStruct::copy));
+          Named.of("FieldStats#copy", FieldStatsStruct::copy),
+          // Verify that copies are also serializable
+          Named.of("FieldStats#copy + Java", stats -> TestHelpers.roundTripSerialize(stats.copy())),
+          Named.of(
+              "FieldStats#copy + Kryo",
+              stats -> TestHelpers.KryoHelpers.roundTripSerialize(stats.copy())));
 
   private static Stream<Arguments> serializationCases() {
     return TYPES_AND_BOUNDS.stream()

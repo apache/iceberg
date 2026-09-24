@@ -497,36 +497,32 @@ public class ParquetValueWriters {
     @Override
     public Stream<FieldMetrics<?>> metrics() {
       if (writer instanceof PrimitiveWriter) {
-        List<FieldMetrics<?>> fieldMetricsFromWriter =
-            writer.metrics().collect(Collectors.toList());
-
-        if (fieldMetricsFromWriter.isEmpty()) {
-          // we are not tracking field metrics for this type ourselves
-          return Stream.empty();
-        } else if (fieldMetricsFromWriter.size() == 1) {
-          FieldMetrics<?> metrics = fieldMetricsFromWriter.get(0);
-          return Stream.of(
-              new FieldMetrics<>(
-                  metrics.id(),
-                  metrics.valueCount() + nullValueCount,
-                  nullValueCount,
-                  metrics.nanValueCount(),
-                  metrics.lowerBound(),
-                  metrics.upperBound(),
-                  metrics.originalType(),
-                  metrics.avgValueSizeInBytes()));
-        } else {
-          throw new IllegalStateException(
-              String.format(
-                  "OptionWriter should only expect at most one field metric from a primitive writer."
-                      + "Current number of fields: %s, primitive writer type: %s",
-                  fieldMetricsFromWriter.size(), writer.getClass().getSimpleName()));
-        }
+        List<FieldMetrics<?>> primitiveMetrics = writer.metrics().collect(Collectors.toList());
+        Preconditions.checkState(
+            primitiveMetrics.size() <= 1,
+            "Invalid number of field metrics from primitive writer %s: %s",
+            writer.getClass().getSimpleName(),
+            primitiveMetrics.size());
+        return primitiveMetrics.stream().map(this::addNulls);
       }
 
-      // skipping updating null stats for non-primitive types since we don't use them today, to
-      // avoid unnecessary work
-      return writer.metrics();
+      return writer.metrics().map(this::addNulls);
+    }
+
+    private FieldMetrics<?> addNulls(FieldMetrics<?> metrics) {
+      long updatedNullValueCount =
+          metrics.nullValueCount() < 0
+              ? metrics.nullValueCount()
+              : metrics.nullValueCount() + nullValueCount;
+      return new FieldMetrics<>(
+          metrics.id(),
+          metrics.valueCount() + nullValueCount,
+          updatedNullValueCount,
+          metrics.nanValueCount(),
+          metrics.lowerBound(),
+          metrics.upperBound(),
+          metrics.originalType(),
+          metrics.avgValueSizeInBytes());
     }
   }
 
