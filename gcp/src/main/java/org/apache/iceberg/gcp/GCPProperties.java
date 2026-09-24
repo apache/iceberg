@@ -74,6 +74,19 @@ public class GCPProperties implements Serializable {
   public static final String GCS_ANALYTICS_CORE_ENABLED = "gcs.analytics-core.enabled";
 
   /**
+   * Prefix for GCS object context entries attached to objects at write time.
+   *
+   * <p>Each catalog property of the form {@code gcs.write.object-context.<key>=<value>} results in
+   * an object context entry {@code key → value} being set on the new GCS object created by this
+   * FileIO.
+   *
+   * <p>Example catalog property:
+   *
+   * <pre>gcs.write.object-context.env=prod</pre>
+   */
+  public static final String GCS_WRITE_OBJECT_CONTEXT_PREFIX = "gcs.write.object-context.";
+
+  /**
    * Max possible batch size for deletion. Currently, a max of 100 keys is advised, so we default to
    * a number below that. https://cloud.google.com/storage/docs/batch
    */
@@ -105,6 +118,8 @@ public class GCPProperties implements Serializable {
   private List<String> gcsImpersonateScopes;
 
   private int gcsDeleteBatchSize = GCS_DELETE_BATCH_SIZE_DEFAULT;
+
+  private Map<String, String> writeObjectContexts = ImmutableMap.of();
 
   @VisibleForTesting
   List<String> parseCommaSeparatedList(String input, List<String> defaultValue) {
@@ -197,6 +212,24 @@ public class GCPProperties implements Serializable {
 
     gcsAnalyticsCoreEnabled =
         PropertyUtil.propertyAsBoolean(properties, GCS_ANALYTICS_CORE_ENABLED, false);
+
+    ImmutableMap.Builder<String, String> contexts = ImmutableMap.builder();
+
+    for (Map.Entry<String, String> entry : properties.entrySet()) {
+      if (entry.getKey().startsWith(GCS_WRITE_OBJECT_CONTEXT_PREFIX)) {
+        String contextKey = entry.getKey().substring(GCS_WRITE_OBJECT_CONTEXT_PREFIX.length());
+        if (contextKey.isEmpty()) {
+          throw new IllegalArgumentException(
+              String.format(
+                  "Invalid GCS write object-context property '%s': context key must not be empty. "
+                      + "Use the format '%s<key>=<value>'",
+                  entry.getKey(), GCS_WRITE_OBJECT_CONTEXT_PREFIX));
+        }
+        contexts.put(contextKey, entry.getValue());
+      }
+    }
+
+    this.writeObjectContexts = contexts.buildOrThrow();
   }
 
   public Optional<Integer> channelReadChunkSize() {
@@ -277,5 +310,9 @@ public class GCPProperties implements Serializable {
 
   public boolean isGcsAnalyticsCoreEnabled() {
     return gcsAnalyticsCoreEnabled;
+  }
+
+  public Map<String, String> writeObjectContexts() {
+    return writeObjectContexts;
   }
 }
