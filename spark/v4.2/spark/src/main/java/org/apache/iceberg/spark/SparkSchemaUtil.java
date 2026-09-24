@@ -41,6 +41,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalog.Column;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
@@ -106,6 +107,11 @@ public class SparkSchemaUtil {
    */
   public static DataType convert(Type type) {
     return TypeUtil.visit(type, new TypeToSparkType());
+  }
+
+  public static Schema convert(TableInfo tableInfo) {
+    Type converted = SparkTypeVisitor.visit(tableInfo.schema(), new SparkTypeToType(tableInfo));
+    return new Schema(converted.asNestedType().asStructType().fields());
   }
 
   /**

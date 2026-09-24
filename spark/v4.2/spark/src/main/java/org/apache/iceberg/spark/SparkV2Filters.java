@@ -372,11 +372,11 @@ public class SparkV2Filters {
     return false;
   }
 
-  private static boolean isLiteral(org.apache.spark.sql.connector.expressions.Expression expr) {
+  static boolean isLiteral(org.apache.spark.sql.connector.expressions.Expression expr) {
     return expr instanceof Literal;
   }
 
-  private static Object convertLiteral(Literal<?> literal) {
+  static Object convertLiteral(Literal<?> literal) {
     if (literal.value() instanceof UTF8String) {
       return ((UTF8String) literal.value()).toString();
     } else if (literal.value() instanceof Decimal) {

@@ -52,6 +52,7 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.catalog.TableSummary;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
@@ -238,31 +239,29 @@ public class SparkSessionCatalog<
   }
 
   @Override
-  public Table createTable(
-      Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
+  public Table createTable(Identifier ident, TableInfo info)
       throws TableAlreadyExistsException, NoSuchNamespaceException {
     checkViewNotExists(ident);
 
-    String provider = properties.get("provider");
+    String provider = info.properties().get("provider");
     if (useIceberg(provider)) {
-      return icebergCatalog.createTable(ident, schema, partitions, properties);
+      return icebergCatalog.createTable(ident, info);
     } else {
       // delegate to the session catalog
-      return getSessionCatalog().createTable(ident, schema, partitions, properties);
+      return getSessionCatalog().createTable(ident, info);
     }
   }
 
   @Override
-  public StagedTable stageCreate(
-      Identifier ident, StructType schema, Transform[] partitions, Map<String, String> properties)
+  public StagedTable stageCreate(Identifier ident, TableInfo info)
       throws TableAlreadyExistsException, NoSuchNamespaceException {
     checkViewNotExists(ident);
 
-    String provider = properties.get("provider");
+    String provider = info.properties().get("provider");
     TableCatalog catalog;
     if (useIceberg(provider)) {
       if (asStagingCatalog != null) {
-        return asStagingCatalog.stageCreate(ident, schema, partitions, properties);
+        return asStagingCatalog.stageCreate(ident, info);
       }
       catalog = icebergCatalog;
     } else {
@@ -271,7 +270,7 @@ public class SparkSessionCatalog<
 
     // create the table with the session catalog, then wrap it in a staged table that will delete to
     // roll back
-    Table table = catalog.createTable(ident, schema, partitions, properties);
+    Table table = catalog.createTable(ident, info);
     return new RollbackStagedTable(catalog, ident, table);
   }
 

@@ -20,10 +20,20 @@ package org.apache.iceberg.spark;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.EdgeAlgorithm;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.connector.catalog.Column;
+import org.apache.spark.sql.connector.catalog.ColumnDefaultValue;
+import org.apache.spark.sql.connector.catalog.TableInfo;
+import org.apache.spark.sql.connector.expressions.Literal;
+import org.apache.spark.sql.connector.expressions.LiteralValue;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.BooleanType;
@@ -52,6 +62,7 @@ import org.apache.spark.sql.types.VariantType;
 
 class SparkTypeToType extends SparkTypeVisitor<Type> {
   private final StructType root;
+  private Map<String, Column> nameToColumnMap = Map.of();
   private int nextId = 0;
 
   SparkTypeToType() {
@@ -62,6 +73,13 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
     this.root = root;
     // the root struct's fields use the first ids
     this.nextId = root.fields().length;
+  }
+
+  SparkTypeToType(TableInfo tableInfo) {
+    this(tableInfo.schema());
+
+    this.nameToColumnMap =
+        Stream.of(tableInfo.columns()).collect(Collectors.toMap(Column::name, Function.identity()));
   }
 
   private int getNextId() {
@@ -75,7 +93,7 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
   public Type struct(StructType struct, List<Type> types) {
     StructField[] fields = struct.fields();
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(fields.length);
-    boolean isRoot = root == struct;
+    boolean isRoot = root.equals(struct);
     for (int i = 0; i < fields.length; i += 1) {
       StructField field = fields[i];
       Type type = types.get(i);
@@ -88,13 +106,23 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
         id = getNextId();
       }
 
-      String doc = field.getComment().isDefined() ? field.getComment().get() : null;
+      Types.NestedField.Builder fieldBuilder =
+          Types.NestedField.builder()
+              .isOptional(field.nullable())
+              .withId(id)
+              .withName(field.name())
+              .ofType(type);
 
-      if (field.nullable()) {
-        newFields.add(Types.NestedField.optional(id, field.name(), type, doc));
-      } else {
-        newFields.add(Types.NestedField.required(id, field.name(), type, doc));
+      if (field.getComment().isDefined()) {
+        fieldBuilder.withDoc(field.getComment().get());
       }
+
+      // spark only supports defaults at the top-level
+      if (isRoot) {
+        convertDefaultValue(fieldBuilder, field);
+      }
+
+      newFields.add(fieldBuilder.build());
     }
 
     return Types.StructType.of(newFields);
@@ -199,6 +227,45 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
       default:
         throw new UnsupportedOperationException(
             "Iceberg does not support Spark geography edge algorithm: " + algorithm);
+    }
+  }
+
+  private void convertDefaultValue(Types.NestedField.Builder icebergField, StructField sparkField) {
+    Column column = nameToColumnMap.get(sparkField.name());
+
+    if (column == null) {
+      return;
+    }
+
+    ColumnDefaultValue columnDefaultValue = column.defaultValue();
+
+    if (columnDefaultValue == null) {
+      return;
+    }
+
+    if (columnDefaultValue.getExpression() == null && columnDefaultValue.getSql() != null) {
+      throw new UnsupportedOperationException(
+          "Unsupported default value expression: " + columnDefaultValue.getSql());
+    }
+
+    if (columnDefaultValue.getExpression() != null
+        && !SparkV2Filters.isLiteral(columnDefaultValue.getExpression())) {
+      throw new UnsupportedOperationException(
+          "Default value expressions are not supported in Iceberg");
+    }
+
+    // the value is equivalent to the initial value in Iceberg
+    Literal<?> initialValue = columnDefaultValue.getValue();
+    if (initialValue != null && initialValue.value() != null) {
+      icebergField.withInitialDefault(
+          Expressions.lit(SparkV2Filters.convertLiteral(columnDefaultValue.getValue())));
+    }
+
+    // the expression is evaluated for future writes
+    LiteralValue<?> writeDefault = (LiteralValue<?>) columnDefaultValue.getExpression();
+    if (writeDefault != null && writeDefault.value() != null) {
+      icebergField.withWriteDefault(
+          Expressions.lit(SparkV2Filters.convertLiteral(columnDefaultValue.getValue())));
     }
   }
 }
