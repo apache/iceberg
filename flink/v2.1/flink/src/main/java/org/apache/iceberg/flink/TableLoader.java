@@ -126,12 +126,7 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
       return TableIdentifier.parse(identifier);
     }
 
-    /**
-     * The catalog {@link #open()} loaded, or null when this loader is not open. Exposed so that
-     * state only a live catalog knows — a REST catalog's server-assigned {@code prefix} — can be
-     * read from a catalog the caller opened anyway, rather than by opening another. See {@link
-     * IcebergLineageUtil#restPrefixOf}.
-     */
+    /** Returns the open catalog, or null when the loader is closed. */
     Catalog catalog() {
       return catalog;
     }

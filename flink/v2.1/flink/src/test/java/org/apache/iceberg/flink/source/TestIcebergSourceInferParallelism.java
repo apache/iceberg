@@ -26,6 +26,7 @@ import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.List;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.PipelineOptions;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.runtime.executiongraph.AccessExecutionGraph;
 import org.apache.flink.runtime.executiongraph.AccessExecutionJobVertex;
@@ -52,6 +53,7 @@ import org.apache.iceberg.flink.data.RowDataToRowMapper;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -95,14 +97,10 @@ public class TestIcebergSourceInferParallelism {
     CATALOG_EXTENSION.catalog().dropTable(TestFixtures.TABLE_IDENTIFIER);
   }
 
-  /**
-   * The two ways a job reaches {@link IcebergSource}. Both must infer the same parallelism: the SQL
-   * path bypasses {@code buildStream} — it hands the source to Flink declaratively, for lineage —
-   * and so applies the inference itself.
-   */
   private enum Api {
     DATASTREAM,
-    SQL
+    SQL,
+    SQL_WITH_LINEAGE
   }
 
   @ParameterizedTest
@@ -158,6 +156,28 @@ public class TestIcebergSourceInferParallelism {
     test(api, env, JOB_MAX_PARALLELISM, MAX_INFERRED_PARALLELISM + 1);
   }
 
+  @Test
+  void dataStreamParallelismUsesEnvironmentMaximum() throws Exception {
+    for (int i = 0; i < MAX_INFERRED_PARALLELISM; ++i) {
+      dataAppender.appendToTable(RandomGenericData.generate(table.schema(), 1, 0));
+    }
+
+    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+    env.setMaxParallelism(JOB_MAX_PARALLELISM);
+    Configuration config = new Configuration();
+    config.set(PipelineOptions.MAX_PARALLELISM, 1);
+
+    DataStream<?> stream =
+        IcebergSource.forRowData()
+            .tableLoader(CATALOG_EXTENSION.tableLoader())
+            .table(table)
+            .flinkConfig(config)
+            .splitSize(1L)
+            .buildStream(env);
+
+    assertThat(stream.getParallelism()).isEqualTo(JOB_MAX_PARALLELISM);
+  }
+
   private void test(Api api, int expectedParallelism, int expectedRecords) throws Exception {
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(PARALLELISM);
@@ -179,6 +199,10 @@ public class TestIcebergSourceInferParallelism {
         testDataStream(env, config, expectedParallelism, expectedRecords);
         break;
       case SQL:
+        testSql(env, config, expectedParallelism, expectedRecords);
+        break;
+      case SQL_WITH_LINEAGE:
+        config.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_EMIT_LINEAGE, true);
         testSql(env, config, expectedParallelism, expectedRecords);
         break;
       default:
