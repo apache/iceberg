@@ -142,7 +142,8 @@ public class AllManifestsTable extends BaseMetadataTable {
                       io,
                       schema(),
                       specs,
-                      new BaseManifestListFile(snap.manifestListLocation(), snap.keyId()),
+                      snap.manifestListLocation(),
+                      snap.keyId(),
                       residual,
                       snap.snapshotId());
                 } else {
@@ -165,7 +166,8 @@ public class AllManifestsTable extends BaseMetadataTable {
     private final FileIO io;
     private final Schema schema;
     private final Map<Integer, PartitionSpec> specs;
-    private final ManifestListFile manifestList;
+    private final String location;
+    private final String encryptionKeyId;
     private final Expression residual;
     private final long referenceSnapshotId;
     private DataFile lazyDataFile = null;
@@ -175,14 +177,16 @@ public class AllManifestsTable extends BaseMetadataTable {
         FileIO io,
         Schema schema,
         Map<Integer, PartitionSpec> specs,
-        ManifestListFile manifestList,
+        String location,
+        String encryptionKeyId,
         Expression residual,
         long referenceSnapshotId) {
       this.dataTableSchema = dataTableSchema;
       this.io = io;
       this.schema = schema;
       this.specs = specs;
-      this.manifestList = manifestList;
+      this.location = location;
+      this.encryptionKeyId = encryptionKeyId;
       this.residual = residual;
       this.referenceSnapshotId = referenceSnapshotId;
     }
@@ -195,7 +199,7 @@ public class AllManifestsTable extends BaseMetadataTable {
     @Override
     public CloseableIterable<StructLike> rows() {
       try (CloseableIterable<ManifestFile> manifests =
-          InternalData.read(FileFormat.AVRO, io.newInputFile(manifestList))
+          InternalData.read(FileFormat.AVRO, io.newInputFile(location, encryptionKeyId))
               .setRootType(GenericManifestFile.class)
               .setCustomType(
                   ManifestFile.PARTITION_SUMMARIES_ELEMENT_ID, GenericPartitionFieldSummary.class)
@@ -213,8 +217,7 @@ public class AllManifestsTable extends BaseMetadataTable {
         return CloseableIterable.transform(rowIterable, projection::wrap);
 
       } catch (IOException e) {
-        throw new RuntimeIOException(
-            e, "Cannot read manifest list file: %s", manifestList.location());
+        throw new RuntimeIOException(e, "Cannot read manifest list file: %s", location);
       }
     }
 
@@ -223,7 +226,7 @@ public class AllManifestsTable extends BaseMetadataTable {
       if (lazyDataFile == null) {
         this.lazyDataFile =
             DataFiles.builder(PartitionSpec.unpartitioned())
-                .withInputFile(io.newInputFile(manifestList))
+                .withInputFile(io.newInputFile(location, encryptionKeyId))
                 .withRecordCount(1)
                 .withFormat(FileFormat.AVRO)
                 .build();
@@ -276,8 +279,12 @@ public class AllManifestsTable extends BaseMetadataTable {
       return specs;
     }
 
-    ManifestListFile manifestList() {
-      return manifestList;
+    String location() {
+      return location;
+    }
+
+    String encryptionKeyId() {
+      return encryptionKeyId;
     }
 
     long referenceSnapshotId() {

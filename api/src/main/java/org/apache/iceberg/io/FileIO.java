@@ -71,6 +71,11 @@ public interface FileIO extends Serializable, Closeable {
     return newInputFile(manifest.path(), manifest.length());
   }
 
+  /**
+   * @deprecated since 1.12.0. Will be removed in 2.0.0; use {@link #newInputFile(String, String)}
+   *     instead.
+   */
+  @Deprecated
   default InputFile newInputFile(ManifestListFile manifestList) {
     Preconditions.checkArgument(
         manifestList.encryptionKeyID() == null,
@@ -78,6 +83,13 @@ public interface FileIO extends Serializable, Closeable {
         manifestList.location());
     // cannot pass length because it is not tracked outside of key metadata
     return newInputFile(manifestList.location());
+  }
+
+  default InputFile newInputFile(String location, String keyId) {
+    Preconditions.checkArgument(
+        keyId == null, "Cannot decrypt file: %s (use EncryptingFileIO)", location);
+    // cannot pass length because it is not tracked outside of key metadata
+    return newInputFile(location);
   }
 
   /** Get a {@link OutputFile} instance to write bytes to the file at the given path. */
