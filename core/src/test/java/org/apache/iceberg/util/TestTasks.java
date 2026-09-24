@@ -35,17 +35,11 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTasks {
-
-  @AfterEach
-  void clearInterruptStatus() {
-    Thread.interrupted();
-  }
 
   @Test
   public void attemptCounterIsIncreasedOnRetries() {
@@ -83,22 +77,26 @@ public class TestTasks {
   void tasksAreNotRetriedWhenFailureIsCausedByInterruption(Exception interruption) {
     Counter counter = new DefaultMetricsContext().counter("counter");
 
-    assertThatThrownBy(
-            () ->
-                Tasks.foreach(1)
-                    .countAttempts(counter)
-                    .retry(3)
-                    .run(
-                        x -> {
-                          throw interruption;
-                        },
-                        Exception.class))
-        .isSameAs(interruption);
+    try {
+      assertThatThrownBy(
+              () ->
+                  Tasks.foreach(1)
+                      .countAttempts(counter)
+                      .retry(3)
+                      .run(
+                          x -> {
+                            throw interruption;
+                          },
+                          Exception.class))
+          .isSameAs(interruption);
 
-    assertThat(counter.value()).as("Interrupted task should not be retried").isOne();
-    assertThat(Thread.currentThread().isInterrupted())
-        .as("Interrupt status should be restored")
-        .isTrue();
+      assertThat(counter.value()).as("Interrupted task should not be retried").isOne();
+      assertThat(Thread.currentThread().isInterrupted())
+          .as("Interrupt status should be restored")
+          .isTrue();
+    } finally {
+      Thread.interrupted();
+    }
   }
 
   private static Stream<Exception> interruptions() {
