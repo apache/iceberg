@@ -49,6 +49,7 @@ When queried, engines may return the precomputed data for the materialized views
 
 Iceberg materialized views are implemented as a combination of an Iceberg view and an underlying Iceberg table, the "storage-table", which stores the precomputed data.
 Materialized View metadata is a superset of View metadata with an additional pointer to the storage table. The storage table is an Iceberg table with additional materialized view refresh state metadata.
+This addition is backward compatible: a reader that is unaware of materialized views sees the unknown `storage-table` field, ignores it, and evaluates the view query directly.
 Refresh metadata contains information about the "source tables", "source views", and/or "source materialized views", which are the tables/views/materialized views used in the computation of the query results of the materialized view.
 
 ## Specification
@@ -222,7 +223,7 @@ Producers may selectively choose a subset of their dependencies to record — fo
 When writing the refresh state, producers:
 
 * **Must** record `view-version-id` and `refresh-start-timestamp-ms`.
-* **Should** include all distinct source states for the inputs they chose to track if they are reachable through multiple path in the dependency graph.
+* **Should** include all distinct source states for the inputs they chose to track if they are reachable through multiple paths in the dependency graph.
 * **May** leave `source-states` empty (e.g., when sources are non-Iceberg or freshness is determined by a mechanism outside this spec).
 
 ##### Consumer: Evaluating Refresh State
@@ -244,7 +245,7 @@ Source state records capture the state of objects referenced by a materialized v
 | `table` | An Iceberg table — either a source table in the dependency graph, or the storage table of a source materialized view |
 | `view`  | An Iceberg view in the dependency graph |
 
-A source materialized view may be recorded as a `view` entry referencing its view metadata and one ore more `table` entries referencing its storage table or other source tables. These source table entries might be determined by recursively expanding its own dependencies.
+A source materialized view may be recorded as a `view` entry referencing its view metadata and one or more `table` entries referencing its storage table or other source tables. These source table entries might be determined by recursively expanding its own dependencies.
 
 #### Source table state
 
@@ -257,10 +258,10 @@ A source table record captures the state of a source table (including a source m
 | _required_  | `namespace`   | A list of strings for namespace levels |
 | _required_  | `catalog`     | A string specifying the name of the catalog. |
 | _required_  | `uuid`        | The uuid of the source table |
-| _required_  | `snapshot-id` | The snapshot-id of the source table that was read during the refresh operation |
+| _optional_  | `snapshot-id` | The snapshot-id of the source table that was read during the refresh operation. Omitted when the source table had no snapshots at refresh time (e.g. a newly created, empty table) |
 | _optional_  | `ref`         | Branch name of the source table being referenced in the view query |
 
-When `ref` is `null` or not set, it defaults to `main`.
+When `ref` is set, the source table is tracked against that branch or tag, and the materialized view is stale once the ref advances past the recorded `snapshot-id`. When `ref` is not set, the source table is pinned to the recorded `snapshot-id` (e.g. `FOR VERSION AS OF <snapshot-id>`); the materialized view remains fresh with respect to this source as long as that snapshot exists. Producers that read a branch should record the branch name in `ref`.
 
 #### Source view state
 
@@ -558,8 +559,8 @@ Producers may select different sets of dependencies to record in the refresh sta
 
 * `A` (the materialized view being refreshed): `SELECT ... FROM B JOIN C ON ...`
 * `B` (regular view): `SELECT ... FROM E JOIN D ON ...`
-* `C` (regular view or materialized view, varies by strategy): `SELECT ... FROM F JOIN G ON ...`
-* `D` (regular view or materialized view, varies by strategy): `SELECT ... FROM H WHERE ...`
+* `C` (materialized view): `SELECT ... FROM F JOIN G ON ...`
+* `D` (materialized view): `SELECT ... FROM H WHERE ...`
 * `E`, `F`, `G`, `H`: source Iceberg tables
 
 ### Strategy 1: Empty refresh state (recency only)
