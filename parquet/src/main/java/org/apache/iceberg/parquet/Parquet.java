@@ -122,7 +122,6 @@ import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
-import org.apache.parquet.hadoop.ParquetInputFormat;
 import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -145,10 +144,6 @@ public class Parquet {
           "parquet.private.read.filter.predicate",
           "parquet.read.support.class",
           "parquet.crypto.factory.class");
-
-  // Not exposed as a public constant by parquet-java; matches
-  // org.apache.parquet.ParquetReadOptions#ALLOCATION_SIZE.
-  private static final String ALLOCATION_SIZE_PROPERTY = "parquet.read.allocation.size";
 
   // Size threshold (bytes) at or below which a Parquet file is fetched eagerly on the first read.
   private static final long EAGER_FETCH_THRESHOLD_BYTES = 1024 * 1024;
@@ -1512,15 +1507,6 @@ public class Parquet {
     public ReadBuilder withAADPrefix(ByteBuffer aadPrefix) {
       this.fileAADPrefix = aadPrefix;
       return this;
-    }
-
-    public ReadBuilder withMaxAllocationInBytes(int newMaxAllocationSizeInBytes) {
-      return set(ALLOCATION_SIZE_PROPERTY, String.valueOf(newMaxAllocationSizeInBytes));
-    }
-
-    public ReadBuilder useHadoopVectoredIo(boolean newUseHadoopVectoredIo) {
-      return set(
-          ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, String.valueOf(newUseHadoopVectoredIo));
     }
 
     @Override

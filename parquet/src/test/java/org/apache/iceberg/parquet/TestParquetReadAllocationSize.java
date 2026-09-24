@@ -247,36 +247,12 @@ public class TestParquetReadAllocationSize {
     return spy;
   }
 
-  @Test
-  public void testWithMaxAllocationInBytesBoundsReadBufferSize() throws IOException {
-    List<Record> expected = highEntropyRecords(4000, 1024);
-    InputFile file = writeFile(expected);
-
-    int maxAllocationSizeInBytes = 4096;
-    List<Integer> requestedLengths = Lists.newArrayList();
-    InputFile spy = spyOnReadLengths(file, requestedLengths);
-
-    try (CloseableIterable<Record> reader =
-        Parquet.read(spy)
-            .project(SCHEMA)
-            .withMaxAllocationInBytes(maxAllocationSizeInBytes)
-            .createReaderFunc(fileSchema -> InternalReader.create(SCHEMA, fileSchema))
-            .build()) {
-      assertThat(reader).as("all records should be read back").hasSameSizeAs(expected);
-    }
-
-    assertThat(requestedLengths).as("test should exercise at least one buffered read").isNotEmpty();
-    assertThat(requestedLengths)
-        .as("no single read should request more than the configured allocation size")
-        .allSatisfy(len -> assertThat(len).isLessThanOrEqualTo(maxAllocationSizeInBytes));
-  }
-
   /**
-   * Callers that only hold the generic {@link org.apache.iceberg.formats.ReadBuilder} (e.g. via
-   * {@code FormatModelRegistry.readBuilder(...)}, as engines like Beam do) can't call {@link
-   * ReadBuilder#withMaxAllocationInBytes(int)} directly: {@code ParquetFormatModel}'s wrapper only
-   * re-exposes the generic interface, which forwards {@code set(key, value)} verbatim into this
-   * builder. This test exercises that exact path instead of the typed method above.
+   * {@code Parquet.ReadBuilder} has no typed setter for this - callers that only hold the generic
+   * {@link org.apache.iceberg.formats.ReadBuilder} (e.g. via {@code
+   * FormatModelRegistry.readBuilder(...)}, as engines like Beam do) only ever have {@code set(key,
+   * value)} available, and {@code ParquetFormatModel}'s wrapper forwards it verbatim into this
+   * builder.
    */
   @Test
   public void testAllocationSizePropertyRoutesThroughGenericSet() throws IOException {
@@ -308,11 +284,10 @@ public class TestParquetReadAllocationSize {
    * exercises the other branch (real {@link HadoopInputFile}), and does so purely through the
    * file's own ambient {@link Configuration} - simulating a cluster/session-level Hadoop setting
    * (e.g. Spark's {@code spark.hadoop.parquet.read.allocation.size}) set before the file ever
-   * reaches {@code Parquet.read(...)}, with no {@code .set(...)} or {@code
-   * .withMaxAllocationInBytes(...)} call on the builder itself. Reads are observed at the Hadoop
-   * {@link FileSystem} level via {@link RecordingLocalFileSystem}, not by spying on the Iceberg
-   * {@code InputFile}, since {@code ParquetIO.file(InputFile)} bypasses the latter entirely for
-   * {@link HadoopInputFile}.
+   * reaches {@code Parquet.read(...)}, with no {@code .set(...)} call on the builder itself. Reads
+   * are observed at the Hadoop {@link FileSystem} level via {@link RecordingLocalFileSystem}, not
+   * by spying on the Iceberg {@code InputFile}, since {@code ParquetIO.file(InputFile)} bypasses
+   * the latter entirely for {@link HadoopInputFile}.
    */
   @Test
   public void testAmbientHadoopConfigurationAllocationSizeIsRespected(@TempDir Path tempDir)
@@ -354,7 +329,7 @@ public class TestParquetReadAllocationSize {
     List<Integer> requestedLengths = Lists.newArrayList();
     InputFile spy = spyOnReadLengths(file, requestedLengths);
 
-    // no withMaxAllocationInBytes(...) call: exercises Parquet's default (8 MB) allocation size,
+    // no set(...) call: exercises Parquet's default (8 MB) allocation size,
     // proving the small cap above is not met unless explicitly configured.
     try (CloseableIterable<Record> reader =
         Parquet.read(spy)
