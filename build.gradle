@@ -272,7 +272,7 @@ subprojects {
       } else {
         events "failed"
       }
-      exceptionFormat "full"
+      exceptionFormat = "full"
     }
 
     systemProperty 'project.version', project.version
@@ -327,7 +327,7 @@ project(':iceberg-bundled-guava') {
   shadowJar {
     archiveClassifier.set(null)
     configurations = [project.configurations.compileClasspath]
-    zip64 true
+    zip64 = true
 
     dependencies {
       exclude(dependency('org.slf4j:slf4j-api'))
@@ -486,7 +486,7 @@ project(':iceberg-data') {
   test {
     useJUnitPlatform()
     // Only for TestSplitScan as of Gradle 5.0+
-    maxHeapSize '1500m'
+    maxHeapSize = '1500m'
   }
 }
 
@@ -1188,7 +1188,7 @@ project(':iceberg-open-api') {
     archiveClassifier.set(null)
     configurations = [project.configurations.testFixturesRuntimeClasspath]
     from sourceSets.testFixtures.output
-    zip64 true
+    zip64 = true
 
     manifest {
       attributes 'Main-Class': 'org.apache.iceberg.rest.RESTCatalogServer'
