@@ -1218,7 +1218,8 @@ Statistics files metadata within `statistics` table metadata field is a struct w
     | _required_ | _required_ | **`statistics-path`**           | `string`              | Path of the statistics file. See [Puffin file format](puffin-spec.md). |
     | _required_ | _required_ | **`file-size-in-bytes`**        | `long`                | Size of the statistics file. |
     | _required_ | _required_ | **`file-footer-size-in-bytes`** | `long`                | Total size of the statistics file's footer (not the footer payload size). See [Puffin file format](puffin-spec.md) for footer definition. |
-    | _optional_ | _optional_ | **`key-metadata`**              |                       | Base64-encoded implementation-specific key metadata for encryption. |
+    | _optional_ | _optional_ | **`key-metadata`**              | `string`              | Base64-encoded implementation-specific key metadata for encryption. (**Deprecated**: use `encryption-key` instead) |
+    | _optional_ | _optional_ | **`encryption-key`**            | `struct`              | The [encryption key](#encryption-keys) that encrypts the statistics file |
     | _required_ | _required_ | **`blob-metadata`**             | `list<blob metadata>` (see below) | A list of the blob metadata for statistics contained in the file with structure described below. |
 
 Blob metadata is a struct with the following fields:
@@ -1248,6 +1249,7 @@ Partition statistics file must be registered in the table metadata file to be co
     | _required_ | _required_ | _required_ | **`snapshot-id`**        | `long`   | ID of the Iceberg table's snapshot the partition statistics file is associated with. |
     | _required_ | _required_ | _required_ | **`statistics-path`**    | `string` | Path of the partition statistics file. See [Partition statistics file](#partition-statistics-file). |
     | _required_ | _required_ | _required_ | **`file-size-in-bytes`** | `long`   | Size of the partition statistics file. |
+    | _optional_ | _optional_ | _optional_ | **`encryption-key`**     | `struct` | The [encryption key](#encryption-keys) that encrypts the partition statistics file |
 
 ##### Partition Statistics File
 
@@ -1295,11 +1297,11 @@ If a table has no deletes or only deletion vectors, implementations are encourag
 
 #### Encryption Keys
 
-Keys used for table encryption can be tracked in table metadata as a list named `encryption-keys`. The schema of each key is a struct with the following fields:
+Keys used for table encryption can be tracked in table metadata as a list named `encryption-keys`, or stored directly in the metadata of the file they encrypt. The schema of each key is a struct with the following fields:
 === "v1 - v3"
     | v1 | v2 |     v3     | Field name                    | Type                  | Description |
     |----|----|------------|-------------------------------|-----------------------|-------------|
-    |    |    | _required_ | **`key-id`**                  | `string`              | ID of the encryption key |
+    |    |    | _optional_ | **`key-id`**                  | `string`              | ID of the encryption key [2] |
     |    |    | _required_ | **`encrypted-key-metadata`**  | `string`              | Encrypted key and metadata, base64 encoded [1] |
     |    |    | _optional_ | **`encrypted-by-id`**         | `string`              | Optional ID of the key used to encrypt or wrap `key-metadata` |
     |    |    | _optional_ | **`properties`**              | `map<string, string>` | A string to string map of additional metadata used by the table's encryption scheme |
@@ -1307,6 +1309,7 @@ Keys used for table encryption can be tracked in table metadata as a list named 
 Notes:
 
 1. The format of encrypted key metadata is determined by the table's encryption scheme and can be a wrapped format specific to the table's KMS provider.
+2. `key-id` is required when a key is stored indirectly from the file it encrypts, such as in the table metadata `encryption-keys` list, because the encrypted file refers to the key by its ID. It is optional when the key is stored directly on the encrypted file's metadata, where no reference is needed.
 
 ### Commit Conflict Resolution and Retry
 
