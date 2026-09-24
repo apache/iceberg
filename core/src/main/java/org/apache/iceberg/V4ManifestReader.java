@@ -262,10 +262,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       copy.setLocation(LocationUtil.resolveLocation(tableLocation, copy.location()));
     }
 
-    DeletionVector dv = copy.deletionVector();
-    if (dv != null && dv.location() != null) {
-      ((DeletionVectorStruct) dv)
-          .setLocation(LocationUtil.resolveLocation(tableLocation, dv.location()));
+    DeletionVector deletionVector = copy.deletionVector();
+    if (deletionVector != null && deletionVector.location() != null) {
+      ((DeletionVectorStruct) deletionVector)
+          .setLocation(LocationUtil.resolveLocation(tableLocation, deletionVector.location()));
     }
 
     return copy;

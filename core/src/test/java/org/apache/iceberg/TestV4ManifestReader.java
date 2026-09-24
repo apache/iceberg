@@ -343,7 +343,8 @@ class TestV4ManifestReader {
 
     List<TrackedFile> expectedFiles =
         List.of(
-            unpartitionedDataFile( // inherits seq number and assigned first row ID
+            // inherits seq number and assigned first row ID
+            unpartitionedDataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, 42L, MANIFEST_SEQ, MANIFEST_SEQ, null, 10_000L, null, null),
                 "s3://bucket/added.parquet"),
@@ -405,14 +406,17 @@ class TestV4ManifestReader {
 
     List<TrackedFile> expectedFiles =
         List.of(
-            unpartitionedDataFile( // inherits seq number and assigned first row ID
+            // inherits seq number and assigned first row ID
+            unpartitionedDataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, 42L, MANIFEST_SEQ, MANIFEST_SEQ, null, 10_000L, null, null),
                 "s3://bucket/added.parquet"),
-            unpartitionedDataFile( // status changed to DELETED, delete snapshot ID is unknown
+            // status changed to DELETED, delete snapshot ID is unknown
+            unpartitionedDataFile(
                 new TrackingStruct(EntryStatus.DELETED, null, 5L, 5L, 42L, 5_000L, null, null),
                 "s3://bucket/modified.parquet"),
-            unpartitionedDataFile( // status already DELETED, no modification
+            // status already DELETED, no modification
+            unpartitionedDataFile(
                 new TrackingStruct(EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null),
                 "s3://bucket/deleted.parquet"),
             unpartitionedDataFile(
@@ -472,7 +476,8 @@ class TestV4ManifestReader {
             unpartitionedDataFile(
                 new TrackingStruct(EntryStatus.ADDED, 1234567L, null, null, null, null, null, null),
                 "s3://bucket/table/file-b.parquet"),
-            unpartitionedDataFile( // inherits only snapshot ID
+            // inherits only snapshot ID
+            unpartitionedDataFile(
                 new TrackingStruct(EntryStatus.ADDED, 34L, null, null, null, null, null, null),
                 "s3://bucket/table/file-a.parquet"));
 
@@ -510,7 +515,8 @@ class TestV4ManifestReader {
             unpartitionedDataFile(
                 new TrackingStruct(EntryStatus.ADDED, 1234567L, 5L, 5L, null, 5_000L, null, null),
                 "s3://bucket/table/file-b.parquet"),
-            unpartitionedDataFile( // inherits only snapshot ID
+            // inherits only snapshot ID
+            unpartitionedDataFile(
                 new TrackingStruct(EntryStatus.ADDED, 34L, 5L, 5L, null, 5_100L, null, null),
                 "s3://bucket/table/file-a.parquet"));
 
@@ -550,7 +556,8 @@ class TestV4ManifestReader {
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, 1234567L, 5_000L, null, null),
                 "s3://bucket/table/file-b.parquet"),
-            unpartitionedDataFile( // inherits only snapshot ID
+            // inherits only snapshot ID
+            unpartitionedDataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 5_100L, null, null),
                 "s3://bucket/table/file-a.parquet"));
@@ -588,11 +595,13 @@ class TestV4ManifestReader {
 
     List<TrackedFile> expected =
         List.of(
-            unpartitionedDataFile( // inherits sequence numbers
+            // inherits sequence numbers
+            unpartitionedDataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 5_000L, null, null),
                 "s3://bucket/table/file-a.parquet"),
-            unpartitionedDataFile( // does not inherit sequence numbers
+            // does not inherit sequence numbers
+            unpartitionedDataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 500L, 500L, null, 5_100L, null, null),
                 "s3://bucket/table/file-b.parquet"));
@@ -627,11 +636,13 @@ class TestV4ManifestReader {
 
     List<TrackedFile> expected =
         List.of(
-            unpartitionedDataFile( // assigns a new first row ID
+            // assigns a new first row ID
+            unpartitionedDataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_000L, null, null),
                 "s3://bucket/table/file-a.parquet"),
-            unpartitionedDataFile( // does not modify first row ID
+            // does not modify first row ID
+            unpartitionedDataFile(
                 new TrackingStruct(
                     EntryStatus.EXISTING, SNAPSHOT_ID, 5L, 5L, null, 5_000L, null, null),
                 "s3://bucket/table/file-c.parquet"));
