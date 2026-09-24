@@ -23,7 +23,6 @@ import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -39,7 +38,6 @@ import org.apache.iceberg.flink.sink.PartitionKeySelector;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -155,17 +153,19 @@ class HashKeyGenerator {
             return equalityFieldKeySelector(
                 tableName, schema, equalityFields, writeParallelism, maxWriteParallelism);
           } else {
+            // Compare by field ID: a partition source that is a nested field has a simple name
+            // (e.g. "name") that differs from the dotted equality-field name (e.g. "user.name"),
+            // so a name-based check would wrongly reject a valid nested partition/equality field.
+            Set<Integer> equalityFieldIds =
+                DynamicSinkUtil.getEqualityFieldIds(equalityFields, schema);
             for (PartitionField partitionField : spec.fields()) {
-              Types.NestedField sourceField = schema.findField(partitionField.sourceId());
               Preconditions.checkState(
-                  sourceField != null && equalityFields.contains(sourceField.name()),
+                  equalityFieldIds.contains(partitionField.sourceId()),
                   "%s: In 'hash' distribution mode with equality fields set, partition field '%s' "
                       + "should be included in equality fields: '%s'",
                   tableName,
                   partitionField,
-                  schema.columns().stream()
-                      .filter(c -> equalityFields.contains(c.name()))
-                      .collect(Collectors.toList()));
+                  equalityFields);
             }
             return partitionKeySelector(
                 tableName, schema, spec, writeParallelism, maxWriteParallelism);
