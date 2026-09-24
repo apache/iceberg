@@ -20,6 +20,7 @@ package org.apache.iceberg.aws;
 
 import java.io.Serializable;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Predicate;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.aws.s3.VendedCredentialsProvider;
@@ -37,6 +38,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryMode;
+import software.amazon.awssdk.metrics.MetricPublisher;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.LegacyMd5Plugin;
 import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
@@ -91,12 +93,32 @@ public class AwsClientProperties implements Serializable {
    */
   public static final String LEGACY_MD5_PLUGIN_ENABLED = "client.legacy-md5-plugin-enabled";
 
+  /**
+   * Configure the AWS metrics publisher wired in AWS clients. A fully qualified concrete class with
+   * package that implements the {@link software.amazon.awssdk.metrics.MetricPublisher} interface is
+   * required.
+   *
+   * <p>Example: client.metrics-publisher=org.superbiz.MyMetricsPublisher
+   *
+   * <p>Additionally, the implementation class must also have a create() or create(Map) method
+   * implemented, which returns an instance of the class that provides aws credentials provider.
+   */
+  public static final String CLIENT_METRICS_PUBLISHER = "client.metrics-publisher";
+
+  /**
+   * Used by the client.metrics-publisher configured value to pass impl specific properties. Each
+   * property consists of a key name and an associated value.
+   */
+  public static final String CLIENT_METRICS_PUBLISHER_PREFIX = "client.metrics-publisher.";
+
   private String clientRegion;
   private final String clientCredentialsProvider;
   private final Map<String, String> clientCredentialsProviderProperties;
   private final String refreshCredentialsEndpoint;
   private final boolean refreshCredentialsEnabled;
   private final boolean legacyMd5pluginEnabled;
+  private final String clientMetricsPublisher;
+  private final Map<String, String> clientMetricsPublisherProperties;
 
   public AwsClientProperties() {
     this.clientRegion = null;
@@ -105,6 +127,8 @@ public class AwsClientProperties implements Serializable {
     this.refreshCredentialsEndpoint = null;
     this.refreshCredentialsEnabled = true;
     this.legacyMd5pluginEnabled = false;
+    this.clientMetricsPublisher = null;
+    this.clientMetricsPublisherProperties = null;
   }
 
   public AwsClientProperties(Map<String, String> properties) {
@@ -124,6 +148,13 @@ public class AwsClientProperties implements Serializable {
         PropertyUtil.propertyAsBoolean(properties, REFRESH_CREDENTIALS_ENABLED, true);
     this.legacyMd5pluginEnabled =
         PropertyUtil.propertyAsBoolean(properties, LEGACY_MD5_PLUGIN_ENABLED, false);
+    this.clientMetricsPublisher = properties.get(CLIENT_METRICS_PUBLISHER);
+    this.clientMetricsPublisherProperties =
+        PropertyUtil.mergeProperties(
+            PropertyUtil.filterProperties(
+                properties,
+                Predicate.not(property -> property.startsWith(CLIENT_METRICS_PUBLISHER_PREFIX))),
+            PropertyUtil.propertiesWithPrefix(properties, CLIENT_METRICS_PUBLISHER_PREFIX));
   }
 
   public String clientRegion() {
@@ -317,5 +348,47 @@ public class AwsClientProperties implements Serializable {
           DynMethods.builder("create").hiddenImpl(providerClass).buildStaticChecked().invoke();
     }
     return provider;
+  }
+
+  public Optional<MetricPublisher> metricsPublisher() {
+    if (clientMetricsPublisher == null || clientMetricsPublisher.isBlank()) {
+      return Optional.empty();
+    }
+
+    Class<?> impl;
+    try {
+      impl = DynClasses.builder().impl(clientMetricsPublisher).buildChecked();
+    } catch (ClassNotFoundException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot load class %s, it does not exist in the classpath", clientMetricsPublisher),
+          e);
+    }
+
+    Preconditions.checkArgument(
+        MetricPublisher.class.isAssignableFrom(impl),
+        String.format(
+            "Cannot initialize %s, it does not implement %s.",
+            clientMetricsPublisher, MetricPublisher.class.getName()));
+    try {
+      return Optional.of(
+          DynMethods.builder("create")
+              .hiddenImpl(impl, Map.class)
+              .buildStaticChecked()
+              .invoke(clientMetricsPublisherProperties));
+
+    } catch (NoSuchMethodException e) {
+      try {
+        return Optional.of(
+            DynMethods.builder("create").hiddenImpl(impl).buildStaticChecked().invoke());
+      } catch (NoSuchMethodException ex) {
+        e.addSuppressed(ex);
+        throw new IllegalArgumentException(
+            String.format(
+                "Cannot create an instance of %s, it does not contain a static 'create' or 'create(Map<String, String>)' method",
+                clientMetricsPublisher),
+            e);
+      }
+    }
   }
 }
