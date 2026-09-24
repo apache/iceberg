@@ -21,8 +21,10 @@ package org.apache.iceberg.actions;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import org.apache.iceberg.DeleteFile;
@@ -37,6 +39,7 @@ import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -126,7 +129,23 @@ public class RemoveDanglingDeleteFilesAction
       return EMPTY_RESULT;
     }
 
-    RewriteFiles rewriteFiles = table.newRewrite().validateFromSnapshot(snapshot.snapshotId());
+    long snapshotId = snapshot.snapshotId();
+    RewriteFiles rewriteFiles =
+        table
+            .newRewrite()
+            .validateFromSnapshot(snapshotId)
+            // validate on every commit attempt, including retries after concurrent updates
+            .validateWith(
+                snapshots -> {
+                  Iterator<Snapshot> iterator = snapshots.iterator();
+                  Snapshot currentSnapshot = iterator.hasNext() ? iterator.next() : null;
+                  ValidationException.check(
+                      currentSnapshot != null && currentSnapshot.snapshotId() == snapshotId,
+                      "Cannot remove dangling deletes: current snapshot changed from %s to %s",
+                      snapshotId,
+                      currentSnapshot != null ? currentSnapshot.snapshotId() : null);
+                  return true;
+                });
     for (DeleteFile deleteFile : danglingDeletes) {
       LOG.debug("Removing dangling delete file {}", deleteFile.location());
       rewriteFiles.deleteFile(deleteFile);
@@ -183,10 +202,63 @@ public class RemoveDanglingDeleteFilesAction
     return ManifestFiles.readDeleteManifest(manifest, io, specsById).select(DELETE_COLUMNS);
   }
 
-  public record DeleteFileKey(String location, Long contentOffset, Long contentSizeInBytes)
-      implements Serializable {
+  public static final class DeleteFileKey implements Serializable {
+    private final String location;
+    private final Long contentOffset;
+    private final Long contentSizeInBytes;
+
+    public DeleteFileKey(String location, Long contentOffset, Long contentSizeInBytes) {
+      this.location = location;
+      this.contentOffset = contentOffset;
+      this.contentSizeInBytes = contentSizeInBytes;
+    }
+
     public DeleteFileKey(DeleteFile file) {
       this(file.location(), file.contentOffset(), file.contentSizeInBytes());
+    }
+
+    public String location() {
+      return location;
+    }
+
+    public Long contentOffset() {
+      return contentOffset;
+    }
+
+    public Long contentSizeInBytes() {
+      return contentSizeInBytes;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      }
+
+      return other instanceof DeleteFileKey that
+          && Objects.equals(location, that.location)
+          && Objects.equals(contentOffset, that.contentOffset)
+          && Objects.equals(contentSizeInBytes, that.contentSizeInBytes);
+    }
+
+    @Override
+    public int hashCode() {
+      int result = Objects.hashCode(location);
+      result = 31 * result + Objects.hashCode(contentOffset);
+      result = 31 * result + Objects.hashCode(contentSizeInBytes);
+      return result;
+    }
+
+    @Override
+    public String toString() {
+      return "DeleteFileKey{"
+          + "location="
+          + location
+          + ", contentOffset="
+          + contentOffset
+          + ", contentSizeInBytes="
+          + contentSizeInBytes
+          + '}';
     }
   }
 }

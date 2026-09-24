@@ -38,8 +38,18 @@ This product bundles Jackson JSON Processor with the following in its NOTICE fil
 | 
 | Copyright © 2023 Werner Randelshofer, Switzerland. MIT License.
 | 
-| See FastDoubleParser-NOTICE for details of other source code included in FastDoubleParser
-| and the licenses and copyrights that apply to that code.
+| See FastDoubleParser-LICENSE and also FastDoubleParser-ThirdParty-LICENSE for details of other source code
+| included in FastDoubleParser and the licenses and copyrights that apply to that code.
+| 
+| ## Schubfach
+| 
+| jackson-core bundles a copy of the Schubfach number writing code <https://github.com/c4f7fcce9cb06515/Schubfach>.
+| That code is available under an MIT license <https://github.com/c4f7fcce9cb06515/Schubfach/blob/master/todec/LICENSE>
+| under the following copyright.
+| 
+| Copyright 2018-2020 Raffaello Giulietti
+| 
+| See Schubfach-LICENSE.
 
 --------------------------------------------------------------------------------
 

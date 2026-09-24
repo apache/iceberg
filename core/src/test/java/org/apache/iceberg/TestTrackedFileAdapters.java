@@ -26,6 +26,7 @@ import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+import org.apache.iceberg.mumbling.MumblingTestUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Conversions;
@@ -66,8 +67,9 @@ class TestTrackedFileAdapters {
           .build();
   private static final PartitionData PARTITION = partition("books");
 
-  // manifestPos is populated by readers using the setter with the position of the field.
-  private static final int MANIFEST_POS_ORDINAL = Tracking.schema().fields().size();
+  // these are populated by readers using the setter with the position of the field.
+  private static final int MANIFEST_LOCATION_ORDINAL = Tracking.schema().fields().size();
+  private static final int MANIFEST_POSITION_ORDINAL = Tracking.schema().fields().size() + 1;
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
@@ -105,8 +107,6 @@ class TestTrackedFileAdapters {
           null, // deletedPositions
           null); // replacedPositions
 
-  private static final byte[] MANIFEST_DV = new byte[] {1, 2, 3};
-
   private static final ByteBuffer MANIFEST_KEY_METADATA = ByteBuffer.wrap(new byte[] {7, 8, 9});
 
   private static final ManifestInfo MANIFEST_INFO =
@@ -120,8 +120,7 @@ class TestTrackedFileAdapters {
           .deletedRowsCount(200L)
           .replacedRowsCount(0L)
           .minSequenceNumber(7L)
-          .dv(ByteBuffer.wrap(MANIFEST_DV))
-          .dvCardinality(4L)
+          .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
           .build();
 
   @Test
@@ -136,8 +135,8 @@ class TestTrackedFileAdapters {
             FIRST_ROW_ID,
             null,
             null);
-    tracking.setManifestLocation(MANIFEST_LOCATION);
-    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
+    tracking.set(MANIFEST_LOCATION_ORDINAL, MANIFEST_LOCATION);
+    tracking.set(MANIFEST_POSITION_ORDINAL, MANIFEST_POS);
 
     DeletionVector dv = mock(DeletionVector.class);
     TrackedFile file =
@@ -217,8 +216,8 @@ class TestTrackedFileAdapters {
             FIRST_ROW_ID,
             null,
             null);
-    tracking.setManifestLocation(MANIFEST_LOCATION);
-    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
+    tracking.set(MANIFEST_LOCATION_ORDINAL, MANIFEST_LOCATION);
+    tracking.set(MANIFEST_POSITION_ORDINAL, MANIFEST_POS);
 
     TrackedFile file =
         new TrackedFileStruct(
@@ -306,8 +305,8 @@ class TestTrackedFileAdapters {
             FIRST_ROW_ID,
             null,
             null);
-    tracking.setManifestLocation(MANIFEST_LOCATION);
-    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
+    tracking.set(MANIFEST_LOCATION_ORDINAL, MANIFEST_LOCATION);
+    tracking.set(MANIFEST_POSITION_ORDINAL, MANIFEST_POS);
 
     TrackedFile file =
         new TrackedFileStruct(
@@ -430,8 +429,8 @@ class TestTrackedFileAdapters {
             FIRST_ROW_ID,
             null,
             null);
-    tracking.setManifestLocation(MANIFEST_LOCATION);
-    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
+    tracking.set(MANIFEST_LOCATION_ORDINAL, MANIFEST_LOCATION);
+    tracking.set(MANIFEST_POSITION_ORDINAL, MANIFEST_POS);
 
     DeletionVector dv =
         DeletionVectorStruct.builder()
@@ -522,7 +521,8 @@ class TestTrackedFileAdapters {
     assertThat(manifest.deletedRowsCount()).isEqualTo(MANIFEST_INFO.deletedRowsCount());
     assertThat(manifest.firstRowId()).isEqualTo(FIRST_ROW_ID);
     assertThat(manifest.keyMetadata()).isEqualTo(MANIFEST_KEY_METADATA);
-    assertThat(manifest.manifestDeletionVector().buffer()).isEqualTo(ByteBuffer.wrap(MANIFEST_DV));
+    assertThat(manifest.manifestDeletionVector().buffer())
+        .isEqualTo(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()));
     assertThat(manifest.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(manifest.partitions()).isNull();
     assertThatThrownBy(manifest::partitionSpecId)

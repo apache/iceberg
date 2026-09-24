@@ -25,6 +25,7 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BatchScan;
 import org.apache.iceberg.BatchScanAdapter;
 import org.apache.iceberg.ImmutableTableScanContext;
+import org.apache.iceberg.Labels;
 import org.apache.iceberg.SupportsDistributedScanPlanning;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableScan;
@@ -51,8 +52,9 @@ class RESTTable extends BaseTable implements SupportsDistributedScanPlanning {
       ResourcePaths resourcePaths,
       Set<Endpoint> supportedEndpoints,
       Map<String, String> catalogProperties,
-      Object hadoopConf) {
-    super(ops, name, reporter);
+      Object hadoopConf,
+      Labels labels) {
+    super(ops, name, reporter, labels);
     this.reporter = reporter;
     this.client = client;
     this.headers = headers;
