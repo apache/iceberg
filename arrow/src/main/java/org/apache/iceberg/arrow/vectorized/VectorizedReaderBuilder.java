@@ -27,6 +27,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.ConstantVectorReader;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetVariantVisitor;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
@@ -168,7 +169,39 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   }
 
   @Override
-  public VectorizedReader<?> primitive(
+  public VectorizedReader<?> list(
+      Types.ListType iList, GroupType array, VectorizedReader<?> element) {
+    Type elementType = ParquetSchemaUtil.determineListElementType(array); // parquet Type
+    boolean isElementRequired = elementType.isRepetition(Type.Repetition.REQUIRED);
+    boolean isListRequired = array.isRepetition(Type.Repetition.REQUIRED);
+    Types.NestedField icebergField = icebergSchema.findField(array.getId().intValue());
+    if (elementType.isPrimitive()) {
+      ColumnDescriptor desc = parquetSchema.getColumnDescription(path(elementType.getName()));
+      return new VectorizedListReader(
+          desc,
+          icebergField,
+          isListRequired,
+          isElementRequired,
+          rootAllocator,
+          setArrowValidityVector,
+          (VectorizedReader<VectorHolder>) element);
+    } else {
+      int maxDefinitionLevel = parquetSchema.getMaxDefinitionLevel(path(elementType.getName()));
+      int maxRepetitionLevel = parquetSchema.getMaxRepetitionLevel(path(elementType.getName()));
+      return new VectorizedListReader(
+          maxRepetitionLevel,
+          maxDefinitionLevel,
+          isListRequired,
+          isElementRequired,
+          icebergField,
+          rootAllocator,
+          setArrowValidityVector,
+          (VectorizedReader<VectorHolder>) element);
+    }
+  }
+
+  @Override
+  public VectorizedReader<VectorHolder> primitive(
       org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
 
     // Create arrow vector for this field
@@ -177,15 +210,12 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     }
     int parquetFieldId = primitive.getId().intValue();
     ColumnDescriptor desc = parquetSchema.getColumnDescription(currentPath());
-    // Nested types not yet supported for vectorized reads
-    if (desc.getMaxRepetitionLevel() > 0) {
-      return null;
-    }
     Types.NestedField icebergField = icebergSchema.findField(parquetFieldId);
     if (icebergField == null) {
       return null;
     }
+    boolean useArrowValidityVector = setArrowValidityVector || desc.getMaxRepetitionLevel() > 0;
     // Set the validity buffer if null checking is enabled in arrow
-    return new VectorizedArrowReader(desc, icebergField, rootAllocator, setArrowValidityVector);
+    return new VectorizedArrowReader(desc, icebergField, rootAllocator, useArrowValidityVector);
   }
 }

@@ -69,10 +69,12 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   private final ColumnDescriptor columnDescriptor;
   private final VectorizedColumnIterator vectorizedColumnIterator;
   private final Types.NestedField icebergField;
-  private final BufferAllocator rootAlloc;
 
-  private int batchSize;
+  private BufferAllocator rootAlloc;
+
+  private int batchSize = DEFAULT_BATCH_SIZE;
   private FieldVector vec;
+  private int[] repetitionLevels;
   private Integer typeWidth;
   private ReadType readType;
   private NullabilityHolder nullabilityHolder;
@@ -91,6 +93,7 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       boolean setArrowValidityVector) {
     this.icebergField = icebergField;
     this.columnDescriptor = desc;
+    this.batchSize = DEFAULT_BATCH_SIZE;
     this.rootAlloc = ra;
     this.vectorizedColumnIterator = new VectorizedColumnIterator(desc, "", setArrowValidityVector);
   }
@@ -99,9 +102,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     this(null);
   }
 
-  private VectorizedArrowReader(Types.NestedField icebergField) {
+  protected VectorizedArrowReader(Types.NestedField icebergField) {
     this.icebergField = icebergField;
-    this.batchSize = DEFAULT_BATCH_SIZE;
     this.columnDescriptor = null;
     this.rootAlloc = null;
     this.vectorizedColumnIterator = null;
@@ -130,10 +132,16 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     return icebergField;
   }
 
+  protected ColumnDescriptor columnDescriptor() {
+    return columnDescriptor;
+  }
+
   @Override
   public void setBatchSize(int batchSize) {
     this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
-    this.vectorizedColumnIterator.setBatchSize(batchSize);
+    if (vectorizedColumnIterator != null) {
+      vectorizedColumnIterator.setBatchSize(batchSize);
+    }
   }
 
   @Override
@@ -149,72 +157,97 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
       }
 
       allocateFieldVector(dictEncoded);
-      nullabilityHolder = new NullabilityHolder(batchSize);
+      this.nullabilityHolder = newNullabilityHolder(batchSize);
+      allocateRepetitionLevels();
     } else {
       vec.setValueCount(0);
       nullabilityHolder.reset();
     }
     if (vectorizedColumnIterator.hasNext()) {
       if (dictEncoded) {
-        vectorizedColumnIterator.dictionaryBatchReader().nextBatch(vec, -1, nullabilityHolder);
+        vectorizedColumnIterator
+            .dictionaryBatchReader()
+            .nextBatch(vec, -1, nullabilityHolder, repetitionLevels);
       } else {
         switch (readType) {
           case VARBINARY:
           case VARCHAR:
             vectorizedColumnIterator
                 .varWidthTypeBatchReader()
-                .nextBatch(vec, -1, nullabilityHolder);
+                .nextBatch(vec, -1, nullabilityHolder, repetitionLevels);
             break;
           case BOOLEAN:
-            vectorizedColumnIterator.booleanBatchReader().nextBatch(vec, -1, nullabilityHolder);
+            vectorizedColumnIterator
+                .booleanBatchReader()
+                .nextBatch(vec, -1, nullabilityHolder, repetitionLevels);
             break;
           case INT:
           case INT_BACKED_DECIMAL:
             vectorizedColumnIterator
                 .integerBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(vec, typeWidth, nullabilityHolder, repetitionLevels);
             break;
           case LONG:
           case LONG_BACKED_DECIMAL:
-            vectorizedColumnIterator.longBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
+            vectorizedColumnIterator
+                .longBatchReader()
+                .nextBatch(vec, typeWidth, nullabilityHolder, repetitionLevels);
             break;
           case FLOAT:
             vectorizedColumnIterator
                 .floatBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(vec, typeWidth, nullabilityHolder, repetitionLevels);
             break;
           case DOUBLE:
             vectorizedColumnIterator
                 .doubleBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(vec, typeWidth, nullabilityHolder, repetitionLevels);
             break;
           case TIMESTAMP_MILLIS:
             vectorizedColumnIterator
                 .timestampMillisBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(vec, typeWidth, nullabilityHolder, repetitionLevels);
             break;
           case TIMESTAMP_INT96:
             vectorizedColumnIterator
                 .timestampInt96BatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(vec, typeWidth, nullabilityHolder, repetitionLevels);
             break;
           case UUID:
           case FIXED_WIDTH_BINARY:
           case FIXED_LENGTH_DECIMAL:
             vectorizedColumnIterator
                 .fixedSizeBinaryBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(vec, typeWidth, nullabilityHolder, repetitionLevels);
             break;
         }
       }
     }
-    Preconditions.checkState(
-        vec.getValueCount() == numValsToRead,
-        "Number of values read, %s, does not equal expected, %s",
-        vec.getValueCount(),
-        numValsToRead);
+    if (columnDescriptor.getMaxRepetitionLevel() == 0) {
+      Preconditions.checkState(
+          vec.getValueCount() == numValsToRead,
+          "Number of values read, %s, does not equal expected, %s",
+          vec.getValueCount(),
+          numValsToRead);
+    }
     return new VectorHolder(
-        columnDescriptor, vec, dictEncoded, dictionary, nullabilityHolder, icebergField);
+        columnDescriptor,
+        vec,
+        dictEncoded,
+        dictionary,
+        nullabilityHolder,
+        icebergField,
+        repetitionLevels);
+  }
+
+  private void allocateRepetitionLevels() {
+    if (columnDescriptor.getMaxRepetitionLevel() > 0) {
+      if (repetitionLevels == null || repetitionLevels.length < batchSize) {
+        this.repetitionLevels = new int[batchSize];
+      }
+    } else {
+      this.repetitionLevels = null;
+    }
   }
 
   private void allocateFieldVector(boolean dictionaryEncodedVector) {
@@ -675,8 +708,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         ArrowSchemaUtil.convert(MetadataColumns.ROW_POSITION);
     private final boolean setArrowValidityVector;
     private long rowStart;
-    private int batchSize;
     private NullabilityHolder nulls;
+    private int batchSize = DEFAULT_BATCH_SIZE;
 
     PositionVectorReader(boolean setArrowValidityVector) {
       super(MetadataColumns.ROW_POSITION);
@@ -737,12 +770,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setBatchSize(int batchSize) {
+      super.setBatchSize(batchSize);
       // resolve the batch size first: the vector and the nullability holder must be sized
       // consistently, otherwise a zero batch size pairs a full sized vector with an empty holder
       // and every null check on the returned holder fails
       this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
       if (nulls == null || nulls.size() < this.batchSize) {
-        this.nulls = newNullabilityHolder(this.batchSize);
+        this.nulls = new SimpleNullabilityHolder(this.batchSize);
       }
     }
 
@@ -815,9 +849,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setBatchSize(int batchSize) {
+      super.setBatchSize(batchSize);
       this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
       if (nulls == null || nulls.size() < this.batchSize) {
-        this.nulls = newNullabilityHolder(this.batchSize);
+        this.nulls = new SimpleNullabilityHolder(this.batchSize);
       }
 
       // release the result vector when the batch grows, so the next read allocates one that fits
@@ -919,9 +954,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public void setBatchSize(int batchSize) {
+      super.setBatchSize(batchSize);
       this.batchSize = (batchSize == 0) ? DEFAULT_BATCH_SIZE : batchSize;
       if (nulls == null || nulls.size() < this.batchSize) {
-        this.nulls = newNullabilityHolder(this.batchSize);
+        this.nulls = new SimpleNullabilityHolder(this.batchSize);
       }
 
       // release the result vector when the batch grows, so the next read allocates one that fits
@@ -976,10 +1012,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     return vector;
   }
 
-  private static NullabilityHolder newNullabilityHolder(int size) {
-    NullabilityHolder nullabilityHolder = new NullabilityHolder(size);
-    nullabilityHolder.setNotNulls(0, size);
-    return nullabilityHolder;
+  protected NullabilityHolder newNullabilityHolder(int size) {
+    int maxDefLevel = columnDescriptor.getMaxDefinitionLevel();
+    if (maxDefLevel <= 1) {
+      return new SimpleNullabilityHolder(size);
+    } else {
+      return new DefinitionLevelHolder(size, maxDefLevel);
+    }
   }
 
   /**
