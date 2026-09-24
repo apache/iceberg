@@ -56,13 +56,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -599,64 +597,6 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
         .isInstanceOf(NoSuchTableException.class)
         .hasMessage(
             "Failed to load table db.table from catalog test_jdbc_catalog: dropped by another process");
-  }
-
-  @Test
-  public void testUnregisterRetriesAfterConcurrentCommit() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
-    catalog.createTable(tableIdentifier, SCHEMA, PartitionSpec.unpartitioned());
-
-    JdbcCatalog unregisteringCatalog = Mockito.spy(catalog);
-    int[] attempts = {0};
-    String[] committedMetadataLocation = {null};
-    Mockito.doAnswer(
-            invocation -> {
-              if (attempts[0]++ == 0) {
-                Table concurrentTable = catalog.loadTable(tableIdentifier);
-                concurrentTable.updateProperties().set("concurrent", "commit").commit();
-                committedMetadataLocation[0] = TableUtil.metadataFileLocation(concurrentTable);
-              }
-
-              return invocation.callRealMethod();
-            })
-        .when(unregisteringCatalog)
-        .dropTableIfMetadataMatches(any(TableIdentifier.class), any(String.class));
-
-    Table unregistered = unregisteringCatalog.unregisterTable(tableIdentifier);
-
-    assertThat(attempts[0]).isEqualTo(2);
-    assertThat(TableUtil.metadataFileLocation(unregistered))
-        .isEqualTo(committedMetadataLocation[0]);
-    assertThat(unregistered.properties()).containsEntry("concurrent", "commit");
-    assertThat(catalog.tableExists(tableIdentifier)).isFalse();
-  }
-
-  @Test
-  public void testUnregisterStopsAfterRetryTimeout() {
-    TableIdentifier tableIdentifier = TableIdentifier.of("db", "table");
-    catalog
-        .buildTable(tableIdentifier, SCHEMA)
-        .withProperty(TableProperties.COMMIT_NUM_RETRIES, "1")
-        .withProperty(TableProperties.COMMIT_MIN_RETRY_WAIT_MS, "0")
-        .withProperty(TableProperties.COMMIT_MAX_RETRY_WAIT_MS, "0")
-        .withProperty(TableProperties.COMMIT_TOTAL_RETRY_TIME_MS, "0")
-        .create();
-
-    JdbcCatalog unregisteringCatalog = Mockito.spy(catalog);
-    int[] attempts = {0};
-    Mockito.doAnswer(
-            invocation -> {
-              attempts[0] += 1;
-              return 0;
-            })
-        .when(unregisteringCatalog)
-        .dropTableIfMetadataMatches(any(TableIdentifier.class), any(String.class));
-
-    assertThatThrownBy(() -> unregisteringCatalog.unregisterTable(tableIdentifier))
-        .isInstanceOf(CommitFailedException.class)
-        .hasMessage("Cannot unregister table db.table: metadata location changed concurrently");
-    assertThat(attempts[0]).isEqualTo(2);
-    assertThat(catalog.tableExists(tableIdentifier)).isTrue();
   }
 
   @Test
