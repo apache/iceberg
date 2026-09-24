@@ -154,7 +154,10 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
             };
 
         coordinatorExecutor.submit(guardedCallable).get();
-      } catch (InterruptedException | ExecutionException e) {
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new FlinkRuntimeException(errorMessage, e);
+      } catch (ExecutionException e) {
         throw new FlinkRuntimeException(errorMessage, e);
       }
     } else {

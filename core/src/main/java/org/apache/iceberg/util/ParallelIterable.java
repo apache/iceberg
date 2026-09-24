@@ -164,6 +164,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
                 throw new RuntimeException("Failed while running parallel task", e.getCause());
               }
             } catch (InterruptedException e) {
+              Thread.currentThread().interrupt();
               throw new RuntimeException("Interrupted while running parallel task", e);
             }
           }
