@@ -76,16 +76,18 @@ class TestS3FileIOLegacyMd5 {
   }
 
   @Test
-  void batchDeleteWithLegacyMd5() {
+  void deleteFilesWithLegacyMd5() {
     try (S3FileIO fileIO = fileIO(true)) {
       fileIO.deleteFiles(List.of("s3://bucket/file"));
     }
 
-    assertThat(server.retrieveRecordedRequests(DELETE_REQUEST)).hasSize(1);
+    assertThat(server.retrieveRecordedRequests(DELETE_REQUEST))
+        .singleElement()
+        .satisfies(request -> assertThat(request.getFirstHeader("Content-MD5")).isNotEmpty());
   }
 
   @Test
-  void batchDeleteWithoutLegacyMd5IsRejected() {
+  void deleteFilesWithoutLegacyMd5IsRejected() {
     try (S3FileIO fileIO = fileIO(false)) {
       assertThatThrownBy(() -> fileIO.deleteFiles(List.of("s3://bucket/file")))
           .isInstanceOf(BulkDeletionFailureException.class)

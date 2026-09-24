@@ -63,7 +63,6 @@ import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.interceptor.ExecutionAttributes;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
-import software.amazon.awssdk.http.apache5.Apache5HttpClient;
 import software.amazon.awssdk.http.auth.aws.signer.SignerConstant;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -164,7 +163,9 @@ public class TestS3RestSigner {
             .region(REGION)
             .credentialsProvider(CREDENTIALS_PROVIDER)
             .applyMutation(
-                s3ClientBuilder -> s3ClientBuilder.httpClientBuilder(Apache5HttpClient.builder()))
+                s3ClientBuilder ->
+                    s3ClientBuilder.httpClientBuilder(
+                        software.amazon.awssdk.http.apache5.Apache5HttpClient.builder()))
             .endpointOverride(RustFSUtil.endpoint(RUSTFS_CONTAINER))
             .forcePathStyle(true) // OSX won't resolve subdomains
             .overrideConfiguration(

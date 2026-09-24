@@ -51,7 +51,7 @@ services:
     entrypoint: /bin/sh
     command:
       - -c
-      - aws s3api head-bucket --bucket bucket || aws s3api create-bucket --bucket bucket
+      - aws s3api head-bucket --bucket bucket 2>/dev/null || aws s3api create-bucket --bucket bucket
 
   iceberg:
     image: apache/iceberg-rest-fixture

@@ -115,7 +115,7 @@ import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
 @Testcontainers
 public class TestS3FileIO {
-  @Container private final GenericContainer<?> rustfs = createContainer();
+  @Container private final GenericContainer<?> rustfs = startRustFS();
 
   private final SerializableSupplier<S3Client> s3 = () -> RustFSUtil.createS3Client(rustfs);
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3.get()));
@@ -135,7 +135,7 @@ public class TestS3FileIO {
           "s3.delete.batch-size",
           Integer.toString(batchDeletionSize));
 
-  protected GenericContainer<?> createContainer() {
+  private static GenericContainer<?> startRustFS() {
     GenericContainer<?> container = RustFSUtil.createContainer();
     container.start();
     return container;
@@ -200,27 +200,6 @@ public class TestS3FileIO {
   @Test
   public void testDeleteFilesSingleBatchWithRemainder() {
     testBatchDelete(batchDeletionSize + 1);
-  }
-
-  @Test
-  void bulkDeleteWithLegacyMd5() throws IOException {
-    try (S3FileIO fileIO = new S3FileIO(() -> RustFSUtil.createS3Client(rustfs, true))) {
-      fileIO.initialize(properties);
-      List<String> paths = Lists.newArrayList();
-      for (int i = 0; i < batchDeletionSize + 1; i++) {
-        String path = String.format("s3://%s/legacy-md5/file-%s", S3_GENERAL_PURPOSE_BUCKET, i);
-        try (OutputStream stream = fileIO.newOutputFile(path).createOrOverwrite()) {
-          stream.write(0);
-        }
-
-        paths.add(path);
-      }
-
-      fileIO.deleteFiles(paths);
-      for (String path : paths) {
-        assertThat(fileIO.newInputFile(path).exists()).isFalse();
-      }
-    }
   }
 
   @Test
