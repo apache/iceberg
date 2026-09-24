@@ -1464,19 +1464,6 @@ public class Parquet {
       return this;
     }
 
-    /**
-     * Sets a reader configuration property.
-     *
-     * <p>This is the only entry point reachable through Iceberg's generic {@link
-     * org.apache.iceberg.formats.ReadBuilder}, which callers not depending on this module (such as
-     * {@code ParquetFormatModel}'s wrapper) use instead of this builder directly. {@link
-     * #ALLOCATION_SIZE_PROPERTY} and {@link ParquetInputFormat#HADOOP_VECTORED_IO_ENABLED} are
-     * recognized here and routed to {@link #withMaxAllocationInBytes(int)} and {@link
-     * #useHadoopVectoredIo(boolean)} respectively, since setting them as plain string properties
-     * (e.g. via the generic properties map) has no effect: Parquet only reads those keys while
-     * constructing its options, before a plain {@code .set(key, value)} call could reach them. Any
-     * other key is stored as-is and passed through unchanged.
-     */
     public ReadBuilder set(String key, String value) {
       switch (key) {
         case ALLOCATION_SIZE_PROPERTY:
@@ -1538,23 +1525,11 @@ public class Parquet {
       return this;
     }
 
-    /**
-     * Caps the size of a single buffer Parquet allocates while reading a column chunk, in bytes.
-     * Only takes effect on the non-vectored (normal) Hadoop read path; see {@link
-     * #useHadoopVectoredIo(boolean)}. Equivalent to {@code set("parquet.read.allocation.size",
-     * ...)}.
-     */
     public ReadBuilder withMaxAllocationInBytes(int newMaxAllocationSizeInBytes) {
       this.maxAllocationSizeInBytes = newMaxAllocationSizeInBytes;
       return this;
     }
 
-    /**
-     * Controls whether Hadoop vectored IO is used for this read. Iceberg enables it by default for
-     * performance, but vectored reads allocate one buffer per column chunk range instead of
-     * chunking through {@link #withMaxAllocationInBytes(int)}, so callers with a hard memory
-     * ceiling should pass {@code false} to keep allocations bounded.
-     */
     public ReadBuilder useHadoopVectoredIo(boolean newUseHadoopVectoredIo) {
       this.useHadoopVectoredIo = newUseHadoopVectoredIo;
       return this;
