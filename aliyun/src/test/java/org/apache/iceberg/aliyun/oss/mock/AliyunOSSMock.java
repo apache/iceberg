@@ -54,11 +54,9 @@ public class AliyunOSSMock {
 
   private AliyunOSSMock(String rootDir) throws IOException {
     localStore = new AliyunOSSMockLocalStore(rootDir);
-    // Bind an ephemeral port so that parallel test forks don't conflict with each other.
     httpServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
   }
 
-  /** Returns the ephemeral port that this mock server is bound to. */
   int port() {
     return httpServer.getAddress().getPort();
   }

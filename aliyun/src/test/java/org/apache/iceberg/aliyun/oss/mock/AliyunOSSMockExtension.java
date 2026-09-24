@@ -108,8 +108,6 @@ public class AliyunOSSMockExtension implements AliyunOSSExtension {
     public AliyunOSSExtension build() {
       String rootDir = (String) props.get(AliyunOSSMock.PROP_ROOT_DIR);
       if (Strings.isNullOrEmpty(rootDir)) {
-        // Use a random directory name so that parallel test forks don't share a store and
-        // delete each other's objects when tearing down buckets.
         File dir =
             new File(
                 System.getProperty("java.io.tmpdir"), "oss-mock-file-store-" + UUID.randomUUID());
