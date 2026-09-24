@@ -387,3 +387,30 @@ This product bundles AWS Common Runtime (CRT) for Java with the following in its
 This product bundles AWS EventStream for Java with the following in its NOTICE file:
 | AWS EventStream for Java
 | Copyright 2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+--------------------------------------------------------------------------------
+
+This product bundles Apache HttpClient with the following in its NOTICE file:
+| Apache HttpClient
+| Copyright 1999-2021 The Apache Software Foundation
+|
+| This product includes software developed at
+| The Apache Software Foundation (http://www.apache.org/).
+
+--------------------------------------------------------------------------------
+
+This product bundles Apache HttpComponents Core HTTP/1.1 with the following in its NOTICE file:
+| Apache HttpComponents Core HTTP/1.1
+| Copyright 2005-2021 The Apache Software Foundation
+|
+| This product includes software developed at
+| The Apache Software Foundation (http://www.apache.org/).
+
+--------------------------------------------------------------------------------
+
+This product bundles Apache HttpComponents Core HTTP/2 with the following in its NOTICE file:
+| Apache HttpComponents Core HTTP/2
+| Copyright 2005-2021 The Apache Software Foundation
+|
+| This product includes software developed at
+| The Apache Software Foundation (http://www.apache.org/).
