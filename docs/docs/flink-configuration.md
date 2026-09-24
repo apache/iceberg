@@ -229,18 +229,7 @@ builder.
 
 ### Lookup options
 
-Flink lookup joins cache the whole projected dimension table in memory, and the cache is kept in
-memory for the lifetime of the job, so the dimension table should be populated before the join
-starts. See [Lookup Join](flink-queries.md#lookup-join) for details. These options are set as table
-options in the DDL, or per query with the `OPTIONS` hint:
-
-```sql
-SELECT o.order_id, u.name
-FROM orders AS o
-LEFT JOIN dim_users /*+ OPTIONS('lookup.full-cache.eager-load'='false') */
-  FOR SYSTEM_TIME AS OF o.proc_time AS u
-  ON o.user_id = u.user_id;
-```
+Flink lookup joins cache the whole projected dimension table in memory, and the cache is kept in memory for the lifetime of the job, so the dimension table should be populated before the join starts. See [Lookup Join](flink-queries.md#lookup-join) for details. These options are set as table options in the DDL, or per query with the `OPTIONS` hint.
 
 | Lookup option                  | Default | Description                                                                                        |
 | ------------------------------ | ------- | -------------------------------------------------------------------------------------------------- |

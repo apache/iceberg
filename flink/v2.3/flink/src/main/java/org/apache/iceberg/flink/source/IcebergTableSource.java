@@ -81,7 +81,6 @@ public class IcebergTableSource
   private final Map<String, String> properties;
   private final boolean isLimitPushDown;
   private final ReadableConfig readableConfig;
-  private final boolean caseSensitive;
   private final FlinkConfParser flinkConfParser;
 
   private IcebergTableSource(IcebergTableSource toCopy) {
@@ -93,7 +92,6 @@ public class IcebergTableSource
     this.limit = toCopy.limit;
     this.filters = toCopy.filters;
     this.readableConfig = toCopy.readableConfig;
-    this.caseSensitive = toCopy.caseSensitive;
     this.flinkConfParser = toCopy.flinkConfParser;
   }
 
@@ -123,13 +121,6 @@ public class IcebergTableSource
     this.filters = filters;
     this.readableConfig = readableConfig;
     this.flinkConfParser = new FlinkConfParser(properties, readableConfig);
-    this.caseSensitive =
-        flinkConfParser
-            .booleanConf()
-            .option(FlinkReadOptions.CASE_SENSITIVE)
-            .flinkConfig(FlinkReadOptions.CASE_SENSITIVE_OPTION)
-            .defaultValue(FlinkReadOptions.CASE_SENSITIVE_OPTION.defaultValue())
-            .parse();
   }
 
   @Override
@@ -290,6 +281,14 @@ public class IcebergTableSource
             .booleanConf()
             .option(IcebergLookupOptions.FULL_CACHE_EAGER_LOAD.key())
             .defaultValue(IcebergLookupOptions.FULL_CACHE_EAGER_LOAD.defaultValue())
+            .parse();
+
+    boolean caseSensitive =
+        flinkConfParser
+            .booleanConf()
+            .option(FlinkReadOptions.CASE_SENSITIVE)
+            .flinkConfig(FlinkReadOptions.CASE_SENSITIVE_OPTION)
+            .defaultValue(FlinkReadOptions.CASE_SENSITIVE_OPTION.defaultValue())
             .parse();
 
     LookupFunction lookupFn =

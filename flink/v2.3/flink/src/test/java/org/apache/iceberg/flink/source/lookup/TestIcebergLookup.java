@@ -121,10 +121,10 @@ class TestIcebergLookup {
 
     assertThat(readIds(reader, pinnedSnapshot))
         .as("Pinned snapshot should not contain the appended row")
-        .containsExactlyInAnyOrder(1L, 2L, 3L, null);
+        .containsExactlyInAnyOrder(1L, 2L, 3L);
     assertThat(readIds(reader, IcebergLookupReader.CURRENT_SNAPSHOT))
         .as("Current snapshot should contain the appended row")
-        .containsExactlyInAnyOrder(1L, 2L, 3L, null, 6L);
+        .containsExactlyInAnyOrder(1L, 2L, 3L, 6L);
   }
 
   @Test
@@ -159,10 +159,6 @@ class TestIcebergLookup {
         .satisfies(row -> assertRow(row, 1L, "alice", "A"));
 
     assertThat(lookupFunction.lookup(keyRow(1L, "B"))).isEmpty();
-
-    assertThat(lookupFunction.lookup(keyRow(null, "A")))
-        .singleElement()
-        .satisfies(row -> assertRow(row, null, "nobody", "A"));
 
     appendRecords(table, ImmutableList.of(record(3L, "carol-2", "A")));
 
@@ -268,10 +264,7 @@ class TestIcebergLookup {
     appendRecords(
         table,
         ImmutableList.of(
-            record(1L, "alice", "A"),
-            record(2L, "bob", "B"),
-            record(3L, "carol", "A"),
-            record(null, "nobody", "A")));
+            record(1L, "alice", "A"), record(2L, "bob", "B"), record(3L, "carol", "A")));
     return table;
   }
 

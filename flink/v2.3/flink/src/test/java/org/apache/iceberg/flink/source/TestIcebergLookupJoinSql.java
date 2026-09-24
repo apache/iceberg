@@ -31,6 +31,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -199,6 +200,37 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
   }
 
   @Test
+  void lookupJoinLoadsCacheEagerlyByDefault() throws Exception {
+    String dataFileLocation = createEmptyProbeAndUnreadableDimTable();
+
+    TableEnvironment streamEnv = getStreamingTableEnv();
+
+    assertThatThrownBy(
+            () -> SqlHelpers.sql(streamEnv, lookupJoinSql("o.user_id, u.name", "probe_empty")))
+        .as("The cache is loaded when the lookup function is opened, so the job fails at startup")
+        .rootCause()
+        .hasMessageContaining(dataFileLocation);
+  }
+
+  @Test
+  void lookupJoinLoadsCacheLazilyWhenEagerLoadDisabled() throws Exception {
+    createEmptyProbeAndUnreadableDimTable();
+
+    TableEnvironment streamEnv = getStreamingTableEnv();
+
+    assertThat(
+            SqlHelpers.sql(
+                streamEnv,
+                lookupJoinSql(
+                    "o.user_id, u.name",
+                    "probe_empty",
+                    "OPTIONS('lookup.full-cache.eager-load'='false')",
+                    null)))
+        .as("The cache is loaded on the first lookup, and no probe row is ever looked up")
+        .isEmpty();
+  }
+
+  @Test
   void lookupJoinWithReorderedDimColumns() throws Exception {
     createDimTable(dimRecord(1L, "alice", "beijing"), dimRecord(2L, "bob", "shanghai"));
 
@@ -293,5 +325,39 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
     SqlHelpers.sql(tableEnvironment, "use catalog iceberg_catalog");
 
     tableConf.set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
+  }
+
+  private String createEmptyProbeAndUnreadableDimTable() throws IOException {
+    Table dimTable =
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, DIM_SCHEMA);
+    GenericAppenderHelper helper =
+        new GenericAppenderHelper(dimTable, FileFormat.PARQUET, temporaryFolder);
+    DataFile dataFile = helper.writeFile(Lists.newArrayList(dimRecord(1L, "alice", "beijing")));
+    helper.appendToTable(dataFile);
+
+    CATALOG_EXTENSION
+        .catalog()
+        .createTable(TableIdentifier.of(TestFixtures.DATABASE, "probe_empty"), DIM_SCHEMA);
+
+    SqlHelpers.sql(
+        getStreamingTableEnv(),
+        "CREATE TEMPORARY TABLE probe_empty (\n"
+            + "  user_id BIGINT,\n"
+            + "  name    STRING,\n"
+            + "  city    STRING,\n"
+            + "  proc_time AS PROCTIME()\n"
+            + ") WITH (\n"
+            + "  'connector' = 'iceberg',\n"
+            + "  'catalog-name' = 'iceberg_catalog',\n"
+            + "  'catalog-type' = 'hadoop',\n"
+            + "  'warehouse' = '%s',\n"
+            + "  'catalog-database' = '%s',\n"
+            + "  'catalog-table' = 'probe_empty'\n"
+            + ")",
+        CATALOG_EXTENSION.warehouse(),
+        TestFixtures.DATABASE);
+
+    dimTable.io().deleteFile(dataFile.location());
+    return dataFile.location();
   }
 }

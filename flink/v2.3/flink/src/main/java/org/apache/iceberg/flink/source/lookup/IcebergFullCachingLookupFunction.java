@@ -40,11 +40,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkRowData;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.data.RowDataUtil;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -111,17 +110,8 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
     tableLoader.open();
     this.table = tableLoader.loadTable();
 
-    Schema tableSchema = table.schema();
-    List<String> projectedColumns = projectedRowType.getFieldNames();
-    Types.NestedField[] projectedFields = new Types.NestedField[projectedColumns.size()];
-    for (int i = 0; i < projectedColumns.size(); i++) {
-      String column = projectedColumns.get(i);
-      Types.NestedField field = tableSchema.findField(column);
-      Preconditions.checkArgument(field != null, "Cannot find column '%s' in table schema", column);
-      projectedFields[i] = field;
-    }
-
-    Schema icebergProjection = new Schema(projectedFields);
+    Schema icebergProjection =
+        FlinkSchemaUtil.convert(table.schema(), FlinkSchemaUtil.toResolvedSchema(projectedRowType));
 
     createAccessors();
 
@@ -169,7 +159,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
 
     LOG.info(
         "IcebergFullCachingLookupFunction loading started, snapshot={}, committedAt={}, projected fields={}, pushedFilters={}",
-        snapshotId == IcebergLookupReader.CURRENT_SNAPSHOT ? "none" : snapshotId,
+        snapshot == null ? "none" : snapshotId,
         snapshot == null ? "n/a" : snapshot.timestampMillis(),
         projectedRowType.getFieldNames(),
         pushedFilters);
@@ -191,7 +181,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
 
     LOG.info(
         "IcebergFullCachingLookupFunction loading finished, snapshot={}, rows={}, cost={} ms",
-        snapshotId == IcebergLookupReader.CURRENT_SNAPSHOT ? "none" : snapshotId,
+        snapshot == null ? "none" : snapshot.snapshotId(),
         rowCnt[0],
         System.currentTimeMillis() - start);
   }
