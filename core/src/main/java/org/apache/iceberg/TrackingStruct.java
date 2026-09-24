@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import org.apache.curator.shaded.com.google.common.base.Preconditions;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
@@ -177,6 +178,32 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     }
 
     return false;
+  }
+
+  /**
+   * Update this tracking to have DELETED status.
+   *
+   * @param snapshotId snapshot ID when the record was deleted, or null if it is unknown
+   * @return this converted to a DELETED Tracking
+   */
+  TrackingStruct convertToDeleted(Long snapshotId) {
+    Preconditions.checkState(status.isLive(), "Cannot convert %s to DELETED", status);
+    this.status = EntryStatus.DELETED;
+    this.snapshotId = snapshotId;
+    return this;
+  }
+
+  /**
+   * Update this tracking to have REPLACED status.
+   *
+   * @param snapshotId snapshot ID when the record was replaced, or null if it is unknown
+   * @return this converted to a REPLACED Tracking
+   */
+  TrackingStruct convertToReplaced(Long snapshotId) {
+    Preconditions.checkState(status.isLive(), "Cannot convert %s to REPLACED", status);
+    this.status = EntryStatus.REPLACED;
+    this.snapshotId = snapshotId;
+    return this;
   }
 
   @Override

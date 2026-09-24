@@ -30,11 +30,11 @@ public class MumblingTestUtil {
     return ByteBuffers.toByteArray(build(sparse(0)));
   }
 
-  static MumblingBitmap bitmap(Container... containers) {
+  public static MumblingBitmap bitmap(Container... containers) {
     return new MumblingBitmap(build(containers));
   }
 
-  static ByteBuffer build(Container... containers) {
+  public static ByteBuffer build(Container... containers) {
     Preconditions.checkArgument(
         containers.length <= 8192, "Invalid container count (max 8192): %s", containers.length);
 
@@ -77,7 +77,7 @@ public class MumblingTestUtil {
     return buf;
   }
 
-  static Container sparse(int... positions) {
+  public static Container sparse(int... positions) {
     byte[] bytes = new byte[positions.length];
     for (int i = 0; i < positions.length; i += 1) {
       if (i > 0) {
@@ -99,12 +99,12 @@ public class MumblingTestUtil {
   }
 
   /** Descriptor + bytes for a dense container. */
-  static Container dense(byte[] container) {
+  public static Container dense(byte[] container) {
     Preconditions.checkArgument(container.length == 32, "Dense container must be 32 bytes");
     return new Container(container);
   }
 
-  static class Container {
+  public static class Container {
     private final byte[] bytes;
     private final int descriptor;
     private final int cardinality;

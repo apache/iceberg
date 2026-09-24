@@ -68,6 +68,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   private final ManifestFile manifest;
+  private final ManifestBitmap dv;
   private final FileIO io;
   private final Schema readSchema;
   private final String tableLocation;
@@ -92,6 +93,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       boolean isUncommitted,
       ScanMetrics scanMetrics) {
     this.manifest = manifest;
+    this.dv = manifest.manifestDeletionVector();
     this.io = io;
     this.readSchema = readSchema;
     this.tableLocation = tableLocation;
@@ -113,11 +115,20 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   @Override
   public CloseableIterator<TrackedFile> iterator() {
+    // first row ID assignment must happen first to maintain consistent assignment when files are
+    // removed or filtered
     CloseableIterable<TrackedFile> files =
         CloseableIterable.transform(open(), this::applyInheritance);
 
     if (!includeAll) {
-      files = CloseableIterable.filter(files, file -> file.tracking().isLive());
+      if (dv != null) {
+        files =
+            CloseableIterable.filter(files, file -> file.tracking().isLive() && !isDeleted(file));
+      } else {
+        files = CloseableIterable.filter(files, file -> file.tracking().isLive());
+      }
+    } else if (dv != null) {
+      files = CloseableIterable.transform(files, this::applyMDVDeletes);
     }
 
     if (statsFilter != null) {
@@ -151,6 +162,20 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       if (tracking.assignFirstRowId(nextRowId)) {
         this.nextRowId += file.recordCount();
       }
+    }
+
+    return file;
+  }
+
+  private boolean isDeleted(TrackedFile file) {
+    return dv.isSet(Math.toIntExact(file.tracking().manifestPos()));
+  }
+
+  private TrackedFile applyMDVDeletes(TrackedFile file) {
+    if (file.tracking().isLive() && isDeleted(file)) {
+      // the reader uses TrackingStruct to read tracking so this cast is safe
+      // set snapshot ID to null because the snapshot ID when the MDV was updated is unknown
+      ((TrackingStruct) file.tracking()).convertToDeleted(null);
     }
 
     return file;
@@ -290,11 +315,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       FileFormat format = FileFormat.fromFileName(manifest.path());
       Preconditions.checkArgument(
           format != null, "Cannot determine format of manifest: %s", manifest.path());
-
-      if (manifest.manifestDeletionVector() != null) {
-        throw new UnsupportedOperationException(
-            "Cannot read manifest with a deletion vector: " + manifest.path());
-      }
 
       this.manifest = manifest;
       this.io = io;
