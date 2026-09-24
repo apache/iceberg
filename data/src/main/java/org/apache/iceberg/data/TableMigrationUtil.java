@@ -165,7 +165,7 @@ public class TableMigrationUtil {
       FileSystem fs = partitionDir.getFileSystem(conf);
       List<FileStatus> fileStatus =
           Arrays.stream(fs.listStatus(partitionDir, HIDDEN_PATH_FILTER))
-              .filter(FileStatus::isFile)
+              .filter(status -> status.isFile() && status.getLen() > 0)
               .collect(Collectors.toList());
       DataFile[] datafiles = new DataFile[fileStatus.size()];
       Tasks.Builder<Integer> task =
