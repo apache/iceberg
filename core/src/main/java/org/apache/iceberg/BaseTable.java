@@ -257,7 +257,7 @@ public class BaseTable
 
   @Override
   public ExpireSnapshots expireSnapshots() {
-    return new RemoveSnapshots(ops);
+    return new RemoveSnapshots(ops).reportWith(reporter);
   }
 
   @Override
