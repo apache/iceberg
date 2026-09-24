@@ -41,19 +41,21 @@ import org.apache.flink.streaming.runtime.execution.JobCreatedEvent;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.api.config.ExecutionConfigOptions;
 import org.apache.flink.test.junit5.MiniClusterExtension;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 /**
  * End-to-end test that a FlinkSQL job reports the source→sink edge for Iceberg tables to a {@link
  * JobStatusChangedListener}, and that the coordinates survive the Table planner.
  *
- * <p>The source half needs no configuration. The sink half needs {@code
- * table.exec.iceberg.use-v2-sink=true} — the only sink that reports lineage — and {@code
- * table.exec.uid.generation=ALWAYS}, for the reason given in {@code
- * IcebergTableSink#canProvideSinkV2}. A deployment that wants sink lineage has to set both.
+ * <p>SQL lineage requires {@code table.exec.iceberg.emit-lineage=true}. Sink lineage additionally
+ * requires {@code table.exec.iceberg.use-v2-sink=true} and {@code
+ * table.exec.uid.generation=ALWAYS}.
  */
 public class TestIcebergSqlLineage {
 
@@ -111,6 +113,7 @@ public class TestIcebergSqlLineage {
             new Configuration(DISABLE_CLASSLOADER_CHECK_CONFIG));
     env.setParallelism(1);
     this.tableEnv = StreamTableEnvironment.create(env);
+    tableEnv.getConfig().set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_EMIT_LINEAGE, true);
     tableEnv.getConfig().set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK, true);
     tableEnv
         .getConfig()
@@ -159,20 +162,103 @@ public class TestIcebergSqlLineage {
   }
 
   @Test
-  public void icebergCoordinatesSurviveThePlannerOverwritingTheDatasetName() throws Exception {
+  void writesWithoutIcebergLineageByDefault() throws Exception {
+    tableEnv
+        .getConfig()
+        .getConfiguration()
+        .removeConfig(FlinkConfigOptions.TABLE_EXEC_ICEBERG_EMIT_LINEAGE);
+
+    tableEnv
+        .executeSql(String.format("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", SOURCE_TABLE))
+        .await();
+    CAPTURED_GRAPHS.clear();
     tableEnv
         .executeSql(String.format("INSERT INTO %s SELECT * FROM %s", SINK_TABLE, SOURCE_TABLE))
         .await();
 
-    // The planner wraps the connector's dataset in TableLineageDatasetImpl, which overwrites
-    // name() but leaves namespace() and facets() alone — hence coordinates go in the facet.
-    LineageVertex sinkVertex = CAPTURED_GRAPHS.get(0).sinks().get(0);
-    LineageDataset dataset = sinkVertex.datasets().get(0);
+    SimpleDataUtil.assertTableRecords(
+        CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, SINK_TABLE)),
+        List.of(SimpleDataUtil.createRecord(1, "a"), SimpleDataUtil.createRecord(2, "b")));
+    assertThat(CAPTURED_GRAPHS).hasSize(1);
+    LineageGraph graph = CAPTURED_GRAPHS.get(0);
+    assertThat(graph.relations()).hasSize(1);
+    LineageEdge edge = graph.relations().get(0);
+    assertThat(edge.source().datasets())
+        .allSatisfy(
+            dataset ->
+                assertThat(dataset.facets()).doesNotContainKey(IcebergLineageUtil.FACET_NAME));
+    assertThat(edge.sink().datasets())
+        .allSatisfy(
+            dataset ->
+                assertThat(dataset.facets()).doesNotContainKey(IcebergLineageUtil.FACET_NAME));
+  }
 
-    assertThat(dataset.namespace()).isEqualTo(CATALOG_EXTENSION.warehouse());
-    assertThat(icebergCoordinates(sinkVertex))
+  @ParameterizedTest
+  @EnumSource(
+      value = ExecutionConfigOptions.UidGeneration.class,
+      names = {"PLAN_ONLY", "DISABLED"})
+  void writesWithoutSinkLineageForUnsupportedUidGeneration(
+      ExecutionConfigOptions.UidGeneration uidGeneration) throws Exception {
+    tableEnv.getConfig().set(ExecutionConfigOptions.TABLE_EXEC_UID_GENERATION, uidGeneration);
+
+    tableEnv
+        .executeSql(String.format("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", SINK_TABLE))
+        .await();
+
+    SimpleDataUtil.assertTableRecords(
+        CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, SINK_TABLE)),
+        List.of(SimpleDataUtil.createRecord(1, "a"), SimpleDataUtil.createRecord(2, "b")));
+    assertThat(CAPTURED_GRAPHS).hasSize(1);
+    LineageGraph graph = CAPTURED_GRAPHS.get(0);
+    assertThat(graph.sinks()).hasSize(1);
+    assertThat(graph.sinks().get(0).datasets())
+        .allSatisfy(
+            dataset ->
+                assertThat(dataset.facets()).doesNotContainKey(IcebergLineageUtil.FACET_NAME));
+  }
+
+  @Test
+  void nativeCoordinatesSurviveSqlAliases() throws Exception {
+    tableEnv
+        .executeSql(String.format("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", SOURCE_TABLE))
+        .await();
+    tableEnv.executeSql("USE CATALOG default_catalog");
+    createAlias("source_alias", SOURCE_TABLE);
+    createAlias("sink_alias", SINK_TABLE);
+    CAPTURED_GRAPHS.clear();
+
+    tableEnv.executeSql("INSERT INTO sink_alias SELECT * FROM source_alias").await();
+
+    SimpleDataUtil.assertTableRecords(
+        CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, SINK_TABLE)),
+        List.of(SimpleDataUtil.createRecord(1, "a"), SimpleDataUtil.createRecord(2, "b")));
+    assertThat(CAPTURED_GRAPHS).hasSize(1);
+    assertThat(CAPTURED_GRAPHS.get(0).relations()).hasSize(1);
+    LineageEdge edge = CAPTURED_GRAPHS.get(0).relations().get(0);
+    assertNativeCoordinates(edge.source(), "source_alias", SOURCE_TABLE);
+    assertNativeCoordinates(edge.sink(), "sink_alias", SINK_TABLE);
+  }
+
+  private void createAlias(String alias, String nativeTable) {
+    tableEnv.executeSql(
+        String.format(
+            "CREATE TEMPORARY TABLE %s (id INT, data STRING) WITH ("
+                + "'connector'='iceberg', 'catalog-type'='hadoop', 'catalog-name'='%s', "
+                + "'warehouse'='%s', 'catalog-database'='%s', 'catalog-table'='%s')",
+            alias, CATALOG, CATALOG_EXTENSION.warehouse(), DATABASE, nativeTable));
+  }
+
+  private static void assertNativeCoordinates(
+      LineageVertex vertex, String alias, String nativeTable) {
+    assertThat(vertex.datasets()).hasSize(1);
+    LineageDataset dataset = vertex.datasets().get(0);
+    assertThat(dataset.name()).isEqualTo("default_catalog.default_database." + alias);
+    assertThat(dataset.namespace()).isEqualTo(IcebergLineageUtil.DEFAULT_NAMESPACE);
+    assertThat(icebergCoordinates(vertex))
+        .containsEntry(IcebergLineageUtil.CONFIG_CATALOG, CATALOG)
         .containsEntry(IcebergLineageUtil.CONFIG_NAMESPACE, DATABASE)
-        .containsEntry(IcebergLineageUtil.CONFIG_TABLE, SINK_TABLE);
+        .containsEntry(IcebergLineageUtil.CONFIG_TABLE, nativeTable)
+        .doesNotContainKeys("catalog.uri", "catalog.warehouse");
   }
 
   /** The config of the {@code iceberg} facet on the vertex's single dataset. */

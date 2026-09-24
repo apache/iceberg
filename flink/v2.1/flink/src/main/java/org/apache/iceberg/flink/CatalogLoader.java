@@ -46,12 +46,7 @@ public interface CatalogLoader extends Serializable, Cloneable {
    */
   Catalog loadCatalog();
 
-  /**
-   * An immutable view of the properties this catalog was configured with, such as its {@code uri}
-   * or {@code warehouse} — catalog-level coordinates that the loaded {@link
-   * org.apache.iceberg.Table} does not carry. May contain credentials, so callers that forward
-   * these anywhere should copy out only the keys they need.
-   */
+  /** Returns immutable catalog configuration, which may contain credentials. */
   default Map<String, String> properties() {
     return ImmutableMap.of();
   }

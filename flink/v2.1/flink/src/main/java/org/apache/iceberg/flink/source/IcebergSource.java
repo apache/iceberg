@@ -285,22 +285,15 @@ public class IcebergSource<T>
   }
 
   private int inferParallelism(ReadableConfig flinkConf, StreamExecutionEnvironment env) {
-    int parallelism = inferParallelism(flinkConf);
-
-    if (env.getMaxParallelism() > 0) {
-      parallelism = Math.min(parallelism, env.getMaxParallelism());
-    }
-
-    return parallelism;
+    return inferParallelism(flinkConf, env.getMaxParallelism());
   }
 
-  /**
-   * Split-count-based parallelism inference, clamped by {@link PipelineOptions#MAX_PARALLELISM}.
-   * This overload serves {@link IcebergTableSource}, which hands the source to Flink declaratively
-   * and so has no {@link StreamExecutionEnvironment} to read a max parallelism from. The planned
-   * splits are cached in {@link #batchSplits} for the enumerator to reuse.
-   */
+  /** Infers source parallelism, capped by the configured maximum parallelism. */
   int inferParallelism(ReadableConfig flinkConf) {
+    return inferParallelism(flinkConf, flinkConf.get(PipelineOptions.MAX_PARALLELISM));
+  }
+
+  private int inferParallelism(ReadableConfig flinkConf, int maxParallelism) {
     int parallelism =
         SourceUtil.inferParallelism(
             flinkConf,
@@ -310,7 +303,6 @@ public class IcebergSource<T>
               return splits.size();
             });
 
-    int maxParallelism = flinkConf.get(PipelineOptions.MAX_PARALLELISM);
     if (maxParallelism > 0) {
       parallelism = Math.min(parallelism, maxParallelism);
     }
@@ -632,18 +624,17 @@ public class IcebergSource<T>
     }
 
     public IcebergSource<T> build() {
-      String lineageRestPrefix = null;
+      String lineageRestPrefix;
       if (table == null) {
         try (TableLoader loader = tableLoader) {
           loader.open();
           this.table = tableLoader.loadTable();
-          // Read while this catalog is live: it is the only thing that knows the REST prefix, and
-          // it is closed on the way out of this block. Resolving it later would mean opening
-          // another catalog, on the submission path, purely to report lineage.
           lineageRestPrefix = IcebergLineageUtil.restPrefixOf(loader);
         } catch (IOException e) {
           throw new UncheckedIOException(e);
         }
+      } else {
+        lineageRestPrefix = IcebergLineageUtil.restPrefixOf(tableLoader);
       }
 
       contextBuilder.resolveConfig(table, readOptions, flinkConfig);

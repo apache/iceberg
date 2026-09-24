@@ -135,7 +135,7 @@ public class IcebergTableSource
         .build();
   }
 
-  private IcebergSource<RowData> buildFLIP27Source() {
+  private IcebergSource.Builder<RowData> flip27SourceBuilder() {
     SplitAssignerType assignerType =
         readableConfig.get(FlinkConfigOptions.TABLE_EXEC_SPLIT_ASSIGNER_TYPE);
     return IcebergSource.forRowData()
@@ -145,8 +145,7 @@ public class IcebergTableSource
         .project(getProjectedSchema())
         .limit(limit)
         .filters(filters)
-        .flinkConfig(readableConfig)
-        .build();
+        .flinkConfig(readableConfig);
   }
 
   private ResolvedSchema getProjectedSchema() {
@@ -205,11 +204,9 @@ public class IcebergTableSource
 
   @Override
   public ScanRuntimeProvider getScanRuntimeProvider(ScanContext runtimeProviderContext) {
-    // The planner reads a FLIP-314 lineage vertex from a SourceProvider but not from a
-    // DataStreamScanProvider (see CommonExecTableSourceScan), so expose IcebergSource
-    // declaratively. The legacy FlinkSource has no lineage to report and stays on the old path.
-    if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE)) {
-      IcebergSource<RowData> source = buildFLIP27Source();
+    if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_EMIT_LINEAGE)
+        && readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE)) {
+      IcebergSource<RowData> source = flip27SourceBuilder().build();
       return SourceProvider.of(source, scanParallelism(source));
     }
 
@@ -217,6 +214,10 @@ public class IcebergTableSource
       @Override
       public DataStream<RowData> produceDataStream(
           ProviderContext providerContext, StreamExecutionEnvironment execEnv) {
+        if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE)) {
+          return flip27SourceBuilder().buildStream(execEnv);
+        }
+
         return createDataStream(execEnv);
       }
 
@@ -232,11 +233,7 @@ public class IcebergTableSource
     };
   }
 
-  /**
-   * A configured {@code source.parallelism}, else the split-count inference, else null for the job
-   * default. Inference happens here because {@code IcebergSource#buildStream}, which used to do it,
-   * is only reached on the {@code DataStreamScanProvider} path this source no longer takes.
-   */
+  /** The configured or inferred source parallelism, or null to use the job default. */
   private Integer scanParallelism(IcebergSource<RowData> source) {
     Integer configured = configuredParallelism();
     if (configured != null) {

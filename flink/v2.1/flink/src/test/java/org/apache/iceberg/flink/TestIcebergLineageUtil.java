@@ -33,6 +33,8 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class TestIcebergLineageUtil {
 
@@ -51,14 +53,14 @@ class TestIcebergLineageUtil {
             FULL_TABLE_NAME,
             ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, WAREHOUSE));
 
-    assertThat(dataset.namespace()).isEqualTo(WAREHOUSE);
+    assertThat(dataset.namespace()).isEqualTo(IcebergLineageUtil.DEFAULT_NAMESPACE);
     assertThat(dataset.name()).isEqualTo(FULL_TABLE_NAME);
 
     assertThat(facetConfig(dataset))
         .containsEntry(IcebergLineageUtil.CONFIG_CATALOG, CATALOG_ALIAS)
-        .containsEntry(IcebergLineageUtil.CONFIG_CATALOG_WAREHOUSE, WAREHOUSE)
         .containsEntry(IcebergLineageUtil.CONFIG_NAMESPACE, DB)
-        .containsEntry(IcebergLineageUtil.CONFIG_TABLE, TABLE);
+        .containsEntry(IcebergLineageUtil.CONFIG_TABLE, TABLE)
+        .doesNotContainKeys("catalog.uri", "catalog.warehouse");
   }
 
   @Test
@@ -72,9 +74,8 @@ class TestIcebergLineageUtil {
     // A catalog can span many buckets, so a bucket-derived catalog name would be wrong.
     Map<String, String> config = facetConfig(dataset);
     assertThat(config)
-        .containsEntry(IcebergLineageUtil.CONFIG_CATALOG_WAREHOUSE, "gs://some-bucket/some/prefix")
         .containsEntry(IcebergLineageUtil.CONFIG_CATALOG, CATALOG_ALIAS)
-        .doesNotContainKey(IcebergLineageUtil.CONFIG_CATALOG_PREFIX);
+        .doesNotContainKeys(IcebergLineageUtil.CONFIG_CATALOG_PREFIX, "catalog.warehouse");
   }
 
   @Test
@@ -93,52 +94,46 @@ class TestIcebergLineageUtil {
         .containsEntry(IcebergLineageUtil.CONFIG_CATALOG, CATALOG_ALIAS);
   }
 
-  @Test
-  void catalogUriIsPreferredOverWarehouseAsTheDatasetNamespace() {
-    String uri = "https://biglake.googleapis.com/iceberg/v1/restcatalog";
+  @ParameterizedTest
+  @MethodSource("connectionProperties")
+  void omitsConnectionSettingsWithoutLosingNativeIdentity(Map<String, String> properties) {
+    String prefix = "projects/1234/catalogs/native_catalog";
+    List<LineageDataset> datasets =
+        IcebergLineageUtil.datasetsOf(tableLoader(IDENTIFIER, properties), FULL_TABLE_NAME, prefix);
 
-    LineageDataset dataset =
-        datasetOf(
-            IDENTIFIER,
-            FULL_TABLE_NAME,
-            ImmutableMap.of(
-                CatalogProperties.URI, uri,
-                CatalogProperties.WAREHOUSE_LOCATION, WAREHOUSE));
-
-    assertThat(dataset.namespace()).isEqualTo(uri);
-    assertThat(facetConfig(dataset)).containsEntry(IcebergLineageUtil.CONFIG_CATALOG_URI, uri);
+    assertThat(datasets).hasSize(1);
+    LineageDataset dataset = datasets.get(0);
+    assertThat(dataset.namespace()).isEqualTo("iceberg");
+    assertThat(dataset.name()).isEqualTo(FULL_TABLE_NAME);
+    LineageDatasetFacet facet = dataset.facets().get("iceberg");
+    assertThat(facet).isInstanceOf(DatasetConfigFacet.class);
+    assertThat(((DatasetConfigFacet) facet).config())
+        .containsExactlyInAnyOrderEntriesOf(
+            Map.of(
+                "catalog", CATALOG_ALIAS,
+                "catalog.prefix", prefix,
+                "namespace", DB,
+                "table", TABLE));
   }
 
-  @Test
-  void fallsBackToAStableNamespaceWhenTheCatalogDeclaresNeither() {
-    LineageDataset dataset = datasetOf(IDENTIFIER, FULL_TABLE_NAME, ImmutableMap.of());
-
-    assertThat(dataset.namespace()).isEqualTo(IcebergLineageUtil.DEFAULT_NAMESPACE);
-  }
-
-  @Test
-  void secretsInCatalogPropertiesAreNotPublished() {
-    // Catalog properties routinely carry credentials, and the facet is forwarded off-cluster.
-    LineageDataset dataset =
-        datasetOf(
-            IDENTIFIER,
-            FULL_TABLE_NAME,
-            ImmutableMap.of(
-                CatalogProperties.WAREHOUSE_LOCATION,
-                WAREHOUSE,
-                "token",
-                "super-secret-token",
-                "credential",
-                "client:secret",
-                "header.x-goog-user-project",
-                "some-gcp-project"));
-
-    assertThat(facetConfig(dataset).keySet())
-        .containsExactlyInAnyOrder(
-            IcebergLineageUtil.CONFIG_CATALOG,
-            IcebergLineageUtil.CONFIG_CATALOG_WAREHOUSE,
-            IcebergLineageUtil.CONFIG_NAMESPACE,
-            IcebergLineageUtil.CONFIG_TABLE);
+  private static List<Map<String, String>> connectionProperties() {
+    return List.of(
+        Map.of(),
+        Map.of(
+            CatalogProperties.URI,
+            "https://user:secret-canary@catalog.example/api?token=secret-canary",
+            CatalogProperties.WAREHOUSE_LOCATION,
+            "https://storage.example/warehouse?signature=secret-canary",
+            "token",
+            "secret-canary",
+            "credential",
+            "client:secret-canary",
+            "header.authorization",
+            "Bearer secret-canary"),
+        Map.of(
+            CatalogProperties.WAREHOUSE_LOCATION,
+            "https://storage.example/warehouse?signature=secret-canary"),
+        Map.of(CatalogProperties.URI, "https://[secret-canary"));
   }
 
   @Test
@@ -173,6 +168,7 @@ class TestIcebergLineageUtil {
         .containsEntry(IcebergLineageUtil.CONFIG_NAMESPACE, DB)
         .containsEntry(IcebergLineageUtil.CONFIG_TABLE, TABLE);
     assertThat(catalogLoader.loads).isEqualTo(1);
+    assertThat(catalogLoader.propertyReads).isEqualTo(1);
   }
 
   @Test
@@ -189,6 +185,7 @@ class TestIcebergLineageUtil {
         .containsEntry(
             IcebergLineageUtil.CONFIG_CATALOG_PREFIX, "projects/1234/catalogs/analytics");
     assertThat(catalogLoader.loads).isZero();
+    assertThat(catalogLoader.propertyReads).isZero();
   }
 
   @Test
@@ -205,6 +202,7 @@ class TestIcebergLineageUtil {
         .doesNotContainKey(IcebergLineageUtil.CONFIG_CATALOG_PREFIX)
         .containsEntry(IcebergLineageUtil.CONFIG_TABLE, TABLE);
     assertThat(catalogLoader.loads).isZero();
+    assertThat(catalogLoader.propertyReads).isZero();
   }
 
   @Test
@@ -223,6 +221,7 @@ class TestIcebergLineageUtil {
    */
   private static class CountingRestCatalogLoader implements CatalogLoader {
     private int loads;
+    private int propertyReads;
 
     @Override
     public Catalog loadCatalog() {
@@ -232,6 +231,7 @@ class TestIcebergLineageUtil {
 
     @Override
     public Map<String, String> properties() {
+      propertyReads++;
       return ImmutableMap.of(
           CatalogUtil.ICEBERG_CATALOG_TYPE, CatalogUtil.ICEBERG_CATALOG_TYPE_REST);
     }

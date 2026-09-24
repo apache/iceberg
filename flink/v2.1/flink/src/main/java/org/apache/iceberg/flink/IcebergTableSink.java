@@ -136,9 +136,10 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
         !overwrite || context.isBounded(),
         "Unbounded data stream doesn't support overwrite operation.");
 
-    if (canProvideSinkV2()) {
+    if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_EMIT_LINEAGE)
+        && canProvideSinkV2()) {
       IcebergSink sink = buildIcebergSink();
-      Integer parallelism = sink.writeParallelism();
+      Integer parallelism = new FlinkWriteConf(writeProps, readableConfig).writeParallelism();
       return parallelism != null ? SinkV2Provider.of(sink, parallelism) : SinkV2Provider.of(sink);
     }
 
@@ -178,10 +179,11 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
     ExecutionConfigOptions.UidGeneration uidGeneration =
         readableConfig.get(ExecutionConfigOptions.TABLE_EXEC_UID_GENERATION);
     if (uidGeneration != ExecutionConfigOptions.UidGeneration.ALWAYS) {
-      LOG.info(
-          "Writing without sink lineage: {} is {}, and IcebergSink can only be exposed as a "
-              + "SinkV2Provider when it is ALWAYS.",
+      LOG.warn(
+          "Iceberg SQL sink lineage requires {}=ALWAYS when {}=true (was {}). "
+              + "Continuing with the DataStream sink provider without Iceberg sink lineage.",
           ExecutionConfigOptions.TABLE_EXEC_UID_GENERATION.key(),
+          FlinkConfigOptions.TABLE_EXEC_ICEBERG_EMIT_LINEAGE.key(),
           uidGeneration);
       return false;
     }
