@@ -31,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.CatalogProperties;
@@ -40,6 +41,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestableCachingCatalog;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -276,6 +278,25 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   }
 
   @Test
+  public void contextualLoadBypassesTableCache() throws IOException {
+    ContextTrackingHadoopCatalog underlyingCatalog = contextTrackingHadoopCatalog();
+    TestableCachingCatalog catalog =
+        TestableCachingCatalog.wrap(underlyingCatalog, EXPIRATION_TTL, ticker);
+    Namespace namespace = Namespace.of("db", "ns1", "ns2");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    TableIdentifier viewIdent = TableIdentifier.of(namespace, "view");
+    Table cachedTable = catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of());
+
+    LoadContext context = LoadContext.builder().referencedBy(Lists.newArrayList(viewIdent)).build();
+    Table contextualTable = catalog.loadTable(tableIdent, context);
+
+    assertThat(contextualTable).isNotSameAs(cachedTable);
+    assertThat(catalog.cache().asMap()).containsEntry(tableIdent, cachedTable);
+    assertThat(underlyingCatalog.loadContexts()).hasSize(1);
+    assertThat(underlyingCatalog.loadContexts().get(0).referencedBy()).containsExactly(viewIdent);
+  }
+
+  @Test
   public void testCacheExpirationEagerlyRemovesMetadataTables() throws IOException {
     TestableCachingCatalog catalog =
         TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
@@ -440,5 +461,27 @@ public class TestCachingCatalog extends HadoopTableTestBase {
     return Arrays.stream(MetadataTableType.values())
         .map(type -> TableIdentifier.parse(tableIdent + "." + type.name().toLowerCase(Locale.ROOT)))
         .toArray(TableIdentifier[]::new);
+  }
+
+  private ContextTrackingHadoopCatalog contextTrackingHadoopCatalog() {
+    ContextTrackingHadoopCatalog catalog = new ContextTrackingHadoopCatalog();
+    catalog.setConf(new Configuration());
+    catalog.initialize(
+        "hadoop", ImmutableMap.of(CatalogProperties.WAREHOUSE_LOCATION, tempDir.getAbsolutePath()));
+    return catalog;
+  }
+
+  private static class ContextTrackingHadoopCatalog extends HadoopCatalog {
+    private final List<LoadContext> loadContexts = Lists.newArrayList();
+
+    @Override
+    public Table loadTable(TableIdentifier identifier, LoadContext context) {
+      loadContexts.add(context);
+      return super.loadTable(identifier);
+    }
+
+    private List<LoadContext> loadContexts() {
+      return loadContexts;
+    }
   }
 }
