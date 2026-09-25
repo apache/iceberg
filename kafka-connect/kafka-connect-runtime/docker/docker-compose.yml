@@ -16,43 +16,40 @@
 # under the License.
 
 volumes:
-  object-store-data: {}
+  data: {}
 
 services:
   object-store:
     image: rustfs/rustfs:1.0.0
     hostname: object-store
     environment:
-      - RUSTFS_ACCESS_KEY=minioadmin
-      - RUSTFS_SECRET_KEY=minioadmin
-      - RUSTFS_CONSOLE_ENABLE=true
+      - RUSTFS_ACCESS_KEY=admin
+      - RUSTFS_SECRET_KEY=password
       - RUSTFS_OBS_LOG_STDOUT_ENABLED=true
     ports:
       - 9000:9000
       - 9001:9001
     volumes:
-      - object-store-data:/data
-    command: /data
+      - data:/data
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:9000/health/ready"]
       interval: 5s
       timeout: 5s
-      retries: 12
+      retries: 5
 
   create-bucket:
-    image: amazon/aws-cli:2.36.44
+    image: rustfs/rustfs:1.0.0
     depends_on:
       object-store:
         condition: service_healthy
-    environment:
-      - AWS_ACCESS_KEY_ID=minioadmin
-      - AWS_SECRET_ACCESS_KEY=minioadmin
-      - AWS_DEFAULT_REGION=us-east-1
-      - AWS_ENDPOINT_URL=http://object-store:9000
     entrypoint: /bin/sh
     command:
       - -c
-      - aws s3api head-bucket --bucket bucket 2>/dev/null || aws s3api create-bucket --bucket bucket
+      - >-
+        curl -sf -o /dev/null --aws-sigv4 aws:amz:us-east-1:s3 --user admin:password
+        --head http://object-store:9000/bucket ||
+        curl -sSf --aws-sigv4 aws:amz:us-east-1:s3 --user admin:password
+        -X PUT http://object-store:9000/bucket
 
   iceberg:
     image: apache/iceberg-rest-fixture
@@ -69,8 +66,8 @@ services:
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
       - CATALOG_S3_ENDPOINT=http://object-store:9000
       - CATALOG_S3_PATH__STYLE__ACCESS=true
-      - CATALOG_S3_ACCESS__KEY__ID=minioadmin
-      - CATALOG_S3_SECRET__ACCESS__KEY=minioadmin
+      - CATALOG_S3_ACCESS__KEY__ID=admin
+      - CATALOG_S3_SECRET__ACCESS__KEY=password
 
   kafka:
     image: confluentinc/cp-kafka:7.8.1

@@ -46,8 +46,8 @@ public class TestContext {
   private static final int S3_PORT = 9000;
   private static final int CATALOG_PORT = 8181;
   private static final String BOOTSTRAP_SERVERS = "localhost:29092";
-  private static final String AWS_ACCESS_KEY = "minioadmin";
-  private static final String AWS_SECRET_KEY = "minioadmin";
+  private static final String AWS_ACCESS_KEY = "admin";
+  private static final String AWS_SECRET_KEY = "password";
   private static final String AWS_REGION = "us-east-1";
 
   public static synchronized TestContext instance() {
