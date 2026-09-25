@@ -125,12 +125,8 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
           ResolvedV2View(oldCatalog: ViewCatalog, oldIdent, _),
           newName,
           isView @ true) =>
-      val newIdent = Spark3Util.catalogAndIdentifier(spark, newName.toList.asJava)
-      if (oldCatalog.name != newIdent.catalog().name()) {
-        throw new IcebergAnalysisException(
-          s"Cannot move view between catalogs: from=${oldCatalog.name} and to=${newIdent.catalog().name()}")
-      }
-      IcebergRenameV2ViewExec(oldCatalog, oldIdent, newIdent.identifier()) :: Nil
+      val targetIdent = resolveViewRenameTarget(oldCatalog, newName)
+      IcebergRenameV2ViewExec(oldCatalog, oldIdent, targetIdent) :: Nil
 
     case DropIcebergView(ResolvedIdentifier(viewCatalog: ViewCatalog, ident), ifExists) =>
       DropV2ViewExec(viewCatalog, ident, ifExists) :: Nil
@@ -187,6 +183,24 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       IcebergAlterV2ViewUnsetPropertiesExec(catalog, ident, propertyKeys, ifExists) :: Nil
 
     case _ => Nil
+  }
+
+  private def resolveViewRenameTarget(
+      sourceCatalog: ViewCatalog,
+      targetName: Seq[String]): Identifier = {
+    if (targetName.length == 1) {
+      // An unqualified target renames in place, matching Spark's v2 RenameTableExec. Resolving it
+      // with Spark3Util would fill in the current namespace instead of the source namespace.
+      Identifier.of(Array.empty[String], targetName.head)
+    } else {
+      val target = Spark3Util.catalogAndIdentifier(spark, targetName.toList.asJava, sourceCatalog)
+      if (sourceCatalog.name != target.catalog().name()) {
+        throw new IcebergAnalysisException(
+          s"Cannot move view between catalogs: from=${sourceCatalog.name} and to=${target.catalog().name()}")
+      }
+
+      target.identifier()
+    }
   }
 
   private object IcebergCatalogAndIdentifier {
