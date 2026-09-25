@@ -31,9 +31,12 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.spark.CatalogTestBase;
@@ -67,6 +70,102 @@ public class TestCreateTable extends CatalogTestBase {
             + "USING iceberg partitioned by (hours(ts))",
         tableName);
     assertThat(validationCatalog.tableExists(tableIdent)).as("Table should already exist").isTrue();
+  }
+
+  @TestTemplate
+  public void testCreateTableLike() {
+    String sourceName = tableName("source");
+    TableIdentifier sourceIdent = TableIdentifier.of(Namespace.of("default"), "source");
+    Schema schema =
+        new Schema(
+            NestedField.required(1, "id", Types.LongType.get()),
+            NestedField.optional(2, "category", Types.StringType.get()),
+            NestedField.optional(3, "data", Types.StringType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("category").build();
+    SortOrder order = SortOrder.builderFor(schema).desc("id").asc("data").build();
+
+    try {
+      validationCatalog
+          .buildTable(sourceIdent, schema)
+          .withPartitionSpec(spec)
+          .withSortOrder(order)
+          .withProperty("custom-property", "custom-value")
+          .create();
+
+      Table source = validationCatalog.loadTable(sourceIdent);
+      sql("CREATE TABLE %s LIKE %s", tableName, sourceName);
+
+      Table target = validationCatalog.loadTable(tableIdent);
+      assertThat(target.schema().asStruct()).isEqualTo(source.schema().asStruct());
+      assertThat(target.spec()).isEqualTo(source.spec());
+      assertThat(target.sortOrder().sameOrder(source.sortOrder())).isTrue();
+      assertThat(target.properties()).containsEntry("custom-property", "custom-value");
+      assertThat(target.location()).isNotEqualTo(source.location());
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", sourceName);
+    }
+  }
+
+  @TestTemplate
+  public void testCreateTableLikeClonesAndOverridesProperties() {
+    String sourceName = tableName("source");
+    TableIdentifier sourceIdent = TableIdentifier.of(Namespace.of("default"), "source");
+    Schema schema = new Schema(NestedField.required(1, "id", Types.LongType.get()));
+
+    try {
+      validationCatalog
+          .buildTable(sourceIdent, schema)
+          .withProperty("clone-me", "from-source")
+          .withProperty("override-me", "from-source")
+          .create();
+
+      sql(
+          "CREATE TABLE %s LIKE %s TBLPROPERTIES ('override-me'='from-target')",
+          tableName, sourceName);
+
+      Table target = validationCatalog.loadTable(tableIdent);
+      assertThat(target.properties())
+          .containsEntry("clone-me", "from-source")
+          .containsEntry("override-me", "from-target");
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", sourceName);
+    }
+  }
+
+  @TestTemplate
+  public void testCreateTableLikeIfNotExists() {
+    String sourceName = tableName("source");
+
+    try {
+      sql(
+          "CREATE TABLE %s (id BIGINT, data STRING) "
+              + "USING iceberg TBLPROPERTIES ('source-property'='source')",
+          sourceName);
+      sql(
+          "CREATE TABLE %s (id BIGINT) "
+              + "USING iceberg TBLPROPERTIES ('target-property'='target')",
+          tableName);
+
+      sql("CREATE TABLE IF NOT EXISTS %s LIKE %s", tableName, sourceName);
+
+      Table target = validationCatalog.loadTable(tableIdent);
+      assertThat(target.schema().columns()).hasSize(1);
+      assertThat(target.properties())
+          .containsEntry("target-property", "target")
+          .doesNotContainKey("source-property");
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", sourceName);
+    }
+  }
+
+  @TestTemplate
+  public void testCreateTableLikeMissingSource() {
+    String missingSource = tableName("missing_source");
+
+    assertThatThrownBy(() -> sql("CREATE TABLE %s LIKE %s", tableName, missingSource))
+        .isInstanceOf(org.apache.spark.sql.AnalysisException.class)
+        .hasMessageContaining("missing_source");
+    assertThat(validationCatalog.tableExists(tableIdent)).isFalse();
   }
 
   @TestTemplate
