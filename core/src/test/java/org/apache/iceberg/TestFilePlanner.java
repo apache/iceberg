@@ -51,6 +51,8 @@ import org.junit.jupiter.params.provider.FieldSource;
 
 class TestFilePlanner {
   private static final long SNAPSHOT_ID = 42L;
+  private static final long SEQUENCE_NUMBER = 7L;
+  private static final long FIRST_ROW_ID = 1000L;
   private static final int WRITER_FORMAT_VERSION = 4;
   private static final long RECORD_COUNT = 100L;
   private static final long FILE_SIZE_IN_BYTES = 1024L;
@@ -237,10 +239,9 @@ class TestFilePlanner {
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     FilePlanner planner =
-        FilePlanner.builder(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
+        new FilePlanner(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
             .tableLocation(TABLE_LOCATION)
-            .scanMetrics(metrics)
-            .build();
+            .scanMetrics(metrics);
     planner.planFiles().close();
 
     assertThat(metrics.scannedDataManifests().value())
@@ -252,7 +253,7 @@ class TestFilePlanner {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  void parallelPlanningMatchesSequential(FileFormat format) throws IOException {
+  void parallelLeafExpansionYieldsAllFiles(FileFormat format) throws IOException {
     TrackedFile withDv =
         dataFile(
             "leaf1-data.parquet",
@@ -268,30 +269,22 @@ class TestFilePlanner {
             PARTITION_TYPE,
             ImmutableList.of(dataManifest(leaf1.location()), dataManifest(leaf2.location())));
 
-    List<FileScanTask> sequential =
-        plan(
-            root, PARTITIONED_SPECS, planner -> planner.filterData(Expressions.equal("data", "x")));
-
     ExecutorService pool = ThreadPools.newFixedThreadPool("test-scan-task-planner", 2);
     try {
-      List<FileScanTask> parallel =
+      List<FileScanTask> tasks =
           plan(
               root,
               PARTITIONED_SPECS,
               planner -> planner.filterData(Expressions.equal("data", "x")).planWith(pool));
-      assertThat(parallel)
+      String residual = Expressions.equal("data", "x").toString();
+      assertThat(tasks)
           .extracting(
               task -> task.file().location(),
               task -> task.residual().toString(),
               task -> task.deletes().size())
-          .containsExactlyInAnyOrderElementsOf(
-              Lists.transform(
-                  sequential,
-                  task ->
-                      tuple(
-                          task.file().location(),
-                          task.residual().toString(),
-                          task.deletes().size())));
+          .containsExactlyInAnyOrder(
+              tuple(resolved("leaf1-data.parquet"), residual, 1),
+              tuple(resolved("leaf2-data.parquet"), residual, 0));
     } finally {
       pool.shutdownNow();
     }
@@ -304,9 +297,8 @@ class TestFilePlanner {
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(deleteManifest("deletes.avro")));
 
     FilePlanner planner =
-        FilePlanner.builder(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
-            .tableLocation(TABLE_LOCATION)
-            .build();
+        new FilePlanner(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .tableLocation(TABLE_LOCATION);
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("v3 and earlier deletes are not yet supported");
@@ -322,9 +314,8 @@ class TestFilePlanner {
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
 
     FilePlanner planner =
-        FilePlanner.builder(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
-            .tableLocation(TABLE_LOCATION)
-            .build();
+        new FilePlanner(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .tableLocation(TABLE_LOCATION);
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid content type for DataFile: DATA_MANIFEST");
@@ -416,6 +407,10 @@ class TestFilePlanner {
     assertThat(metrics.totalDeleteFileSizeInBytes().value())
         .as("the DV delete contributes its size")
         .isEqualTo(DV_SIZE_IN_BYTES);
+    assertThat(metrics.dvs().value()).isEqualTo(1L);
+    assertThat(metrics.indexedDeleteFiles().value())
+        .as("co-located DVs are not indexed delete files")
+        .isEqualTo(0L);
   }
 
   @ParameterizedTest
@@ -474,23 +469,20 @@ class TestFilePlanner {
   }
 
   private List<FileScanTask> plan(
-      InputFile root,
-      Map<Integer, PartitionSpec> specsById,
-      UnaryOperator<FilePlanner.Builder> configure)
+      InputFile root, Map<Integer, PartitionSpec> specsById, UnaryOperator<FilePlanner> configure)
       throws IOException {
     FilePlanner planner =
-        configure
-            .apply(
-                FilePlanner.builder(fileIO, asManifest(root), TABLE_SCHEMA, specsById)
-                    .tableLocation(TABLE_LOCATION))
-            .build();
+        configure.apply(
+            new FilePlanner(fileIO, asManifest(root), TABLE_SCHEMA, specsById)
+                .tableLocation(TABLE_LOCATION));
     try (CloseableIterable<FileScanTask> tasks = planner.planFiles()) {
       return Lists.newArrayList(tasks);
     }
   }
 
   private static ManifestFile asManifest(InputFile file) {
-    return new RootManifestFile(file, SNAPSHOT_ID, /* keyMetadata= */ null);
+    return new RootManifestFile(
+        file, SNAPSHOT_ID, SEQUENCE_NUMBER, FIRST_ROW_ID, /* keyMetadata= */ null);
   }
 
   private static TrackedFile dataFile(String location, PartitionData partition) {

@@ -30,13 +30,22 @@ class RootManifestFile implements ManifestFile {
 
   private final InputFile file;
   private final long snapshotId;
+  private final long sequenceNumber;
+  private final Long firstRowId;
   private final byte[] keyMetadata;
   private Long length;
 
-  RootManifestFile(InputFile file, long snapshotId, ByteBuffer keyMetadata) {
+  RootManifestFile(
+      InputFile file,
+      long snapshotId,
+      long sequenceNumber,
+      Long firstRowId,
+      ByteBuffer keyMetadata) {
     Preconditions.checkArgument(file != null, "Invalid file: null");
     this.file = file;
     this.snapshotId = snapshotId;
+    this.sequenceNumber = sequenceNumber;
+    this.firstRowId = firstRowId;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
     this.length = null;
   }
@@ -67,7 +76,7 @@ class RootManifestFile implements ManifestFile {
 
   @Override
   public long sequenceNumber() {
-    throw new UnsupportedOperationException("Root manifest has no sequence number");
+    return sequenceNumber;
   }
 
   @Override
@@ -121,6 +130,11 @@ class RootManifestFile implements ManifestFile {
   }
 
   @Override
+  public Long firstRowId() {
+    return firstRowId;
+  }
+
+  @Override
   public int formatVersion() {
     return FORMAT_VERSION;
   }
@@ -128,6 +142,6 @@ class RootManifestFile implements ManifestFile {
   @Override
   public ManifestFile copy() {
     ByteBuffer keyMetadataCopy = keyMetadata == null ? null : ByteBuffer.wrap(keyMetadata.clone());
-    return new RootManifestFile(file, snapshotId, keyMetadataCopy);
+    return new RootManifestFile(file, snapshotId, sequenceNumber, firstRowId, keyMetadataCopy);
   }
 }

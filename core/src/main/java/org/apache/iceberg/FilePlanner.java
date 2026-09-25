@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ParallelIterable;
+import org.apache.iceberg.util.ThreadPools;
 
 /**
  * Plans {@link FileScanTask}s from a V4 root manifest.
@@ -51,51 +52,70 @@ class FilePlanner {
   private final ManifestFile root;
   private final Schema tableSchema;
   private final Map<Integer, PartitionSpec> specsById;
-  private final String tableLocation;
-  private final Expression dataFilter;
-  private final boolean ignoreResiduals;
-  private final boolean caseSensitive;
-  private final ScanMetrics scanMetrics;
-  private final ExecutorService executorService;
   private final Map<Integer, TaskContext> taskContextsBySpec = Maps.newConcurrentMap();
 
-  private FilePlanner(
-      FileIO io,
-      ManifestFile root,
-      Schema tableSchema,
-      Map<Integer, PartitionSpec> specsById,
-      String tableLocation,
-      Expression dataFilter,
-      boolean ignoreResiduals,
-      boolean caseSensitive,
-      ScanMetrics scanMetrics,
-      ExecutorService executorService) {
+  private String tableLocation = null;
+  private Expression dataFilter = Expressions.alwaysTrue();
+  private boolean ignoreResiduals = false;
+  private boolean caseSensitive = true;
+  private ScanMetrics scanMetrics = ScanMetrics.noop();
+  private ExecutorService executorService = ThreadPools.getWorkerPool();
+
+  FilePlanner(
+      FileIO io, ManifestFile root, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
+    Preconditions.checkArgument(io != null, "Invalid file IO: null");
+    Preconditions.checkArgument(root != null, "Invalid root manifest: null");
+    Preconditions.checkArgument(tableSchema != null, "Invalid table schema: null");
+    Preconditions.checkArgument(specsById != null, "Invalid specs by ID: null");
     this.io = io;
     this.root = root;
     this.tableSchema = tableSchema;
-    this.specsById = specsById;
-    this.tableLocation = tableLocation;
-    this.dataFilter = dataFilter;
-    this.ignoreResiduals = ignoreResiduals;
-    this.caseSensitive = caseSensitive;
-    this.scanMetrics = scanMetrics;
-    this.executorService = executorService;
+    this.specsById = ImmutableMap.copyOf(specsById);
   }
 
-  static Builder builder(
-      FileIO io, ManifestFile root, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
-    return new Builder(io, root, tableSchema, specsById);
+  FilePlanner tableLocation(String newTableLocation) {
+    Preconditions.checkArgument(newTableLocation != null, "Invalid table location: null");
+    this.tableLocation = newTableLocation;
+    return this;
+  }
+
+  FilePlanner filterData(Expression expr) {
+    Preconditions.checkArgument(expr != null, "Invalid filter: null");
+    this.dataFilter = expr;
+    return this;
+  }
+
+  FilePlanner ignoreResiduals() {
+    this.ignoreResiduals = true;
+    return this;
+  }
+
+  FilePlanner caseSensitive(boolean newCaseSensitive) {
+    this.caseSensitive = newCaseSensitive;
+    return this;
+  }
+
+  FilePlanner scanMetrics(ScanMetrics newScanMetrics) {
+    Preconditions.checkArgument(newScanMetrics != null, "Invalid scan metrics: null");
+    this.scanMetrics = newScanMetrics;
+    return this;
+  }
+
+  FilePlanner planWith(ExecutorService newExecutorService) {
+    Preconditions.checkArgument(newExecutorService != null, "Invalid executor service: null");
+    this.executorService = newExecutorService;
+    return this;
   }
 
   CloseableIterable<FileScanTask> planFiles() {
-    List<TrackedFile> rootDataFiles = Lists.newArrayList();
+    List<DataFile> rootDataFiles = Lists.newArrayList();
     List<ManifestFile> leafManifests = Lists.newArrayList();
 
     try (CloseableIterable<TrackedFile> rootEntries = reader(root)) {
       for (TrackedFile entry : rootEntries) {
         switch (entry.contentType()) {
           case DATA:
-            rootDataFiles.add(entry);
+            rootDataFiles.add(TrackedFileAdapters.asDataFile(entry, specsById));
             break;
           case DATA_MANIFEST:
             leafManifests.add(TrackedFileAdapters.asManifestFile(entry));
@@ -117,16 +137,17 @@ class FilePlanner {
     }
 
     CloseableIterable<TrackedFile> leafFiles =
-        executorService != null && leafManifests.size() > 1
+        leafManifests.size() > 1
             ? new ParallelIterable<>(leafPlanTasks, executorService)
             : CloseableIterable.concat(leafPlanTasks);
 
-    CloseableIterable<TrackedFile> files =
-        CloseableIterable.concat(
-            ImmutableList.of(CloseableIterable.withNoopClose(rootDataFiles), leafFiles));
+    CloseableIterable<DataFile> leafDataFiles =
+        CloseableIterable.transform(
+            leafFiles, file -> TrackedFileAdapters.asDataFile(file, specsById));
 
     CloseableIterable<DataFile> dataFiles =
-        CloseableIterable.transform(files, file -> TrackedFileAdapters.asDataFile(file, specsById));
+        CloseableIterable.concat(
+            ImmutableList.of(CloseableIterable.withNoopClose(rootDataFiles), leafDataFiles));
 
     return CloseableIterable.transform(dataFiles, this::createTask);
   }
@@ -151,8 +172,9 @@ class FilePlanner {
 
     DeleteFile[] deletes = NO_DELETES;
     if (dataFile.deletionVector() != null) {
-      DeleteFile dv = TrackedFileAdapters.asDVDeleteFile(dataFile);
-      ScanMetricsUtil.indexedDeleteFile(scanMetrics, dv);
+      TrackedFile tracked = ((TrackedFileAdapters.TrackedDataFile) dataFile).file();
+      DeleteFile dv = TrackedFileAdapters.asDVDeleteFile(tracked, specsById);
+      scanMetrics.dvs().increment();
       deletes = new DeleteFile[] {dv};
     }
 
@@ -181,79 +203,6 @@ class FilePlanner {
       this.schemaAsString = schemaAsString;
       this.specAsString = specAsString;
       this.residuals = residuals;
-    }
-  }
-
-  static class Builder {
-    private final FileIO io;
-    private final ManifestFile root;
-    private final Schema tableSchema;
-    private final Map<Integer, PartitionSpec> specsById;
-    private String tableLocation = null;
-    private Expression dataFilter = Expressions.alwaysTrue();
-    private boolean ignoreResiduals = false;
-    private boolean caseSensitive = true;
-    private ScanMetrics scanMetrics = ScanMetrics.noop();
-    private ExecutorService executorService = null;
-
-    private Builder(
-        FileIO io, ManifestFile root, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
-      Preconditions.checkArgument(io != null, "Invalid file IO: null");
-      Preconditions.checkArgument(root != null, "Invalid root manifest: null");
-      Preconditions.checkArgument(tableSchema != null, "Invalid table schema: null");
-      Preconditions.checkArgument(specsById != null, "Invalid specs by ID: null");
-      this.io = io;
-      this.root = root;
-      this.tableSchema = tableSchema;
-      this.specsById = ImmutableMap.copyOf(specsById);
-    }
-
-    Builder tableLocation(String newTableLocation) {
-      Preconditions.checkArgument(newTableLocation != null, "Invalid table location: null");
-      this.tableLocation = newTableLocation;
-      return this;
-    }
-
-    Builder filterData(Expression expr) {
-      Preconditions.checkArgument(expr != null, "Invalid filter: null");
-      this.dataFilter = expr;
-      return this;
-    }
-
-    Builder ignoreResiduals() {
-      this.ignoreResiduals = true;
-      return this;
-    }
-
-    Builder caseSensitive(boolean newCaseSensitive) {
-      this.caseSensitive = newCaseSensitive;
-      return this;
-    }
-
-    Builder scanMetrics(ScanMetrics newScanMetrics) {
-      Preconditions.checkArgument(newScanMetrics != null, "Invalid scan metrics: null");
-      this.scanMetrics = newScanMetrics;
-      return this;
-    }
-
-    Builder planWith(ExecutorService newExecutorService) {
-      Preconditions.checkArgument(newExecutorService != null, "Invalid executor service: null");
-      this.executorService = newExecutorService;
-      return this;
-    }
-
-    FilePlanner build() {
-      return new FilePlanner(
-          io,
-          root,
-          tableSchema,
-          specsById,
-          tableLocation,
-          dataFilter,
-          ignoreResiduals,
-          caseSensitive,
-          scanMetrics,
-          executorService);
     }
   }
 }
