@@ -55,28 +55,16 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
     Preconditions.checkArgument(
         numBuckets > 0, "Invalid number of buckets: %s (must be > 0)", numBuckets);
 
-    switch (type.typeId()) {
-      case DATE:
-      case INTEGER:
-        return (B) new BucketInteger(numBuckets);
-      case TIME:
-      case TIMESTAMP:
-      case LONG:
-        return (B) new BucketLong(numBuckets);
-      case DECIMAL:
-        return (B) new BucketDecimal(numBuckets);
-      case STRING:
-        return (B) new BucketString(numBuckets);
-      case FIXED:
-      case BINARY:
-        return (B) new BucketByteBuffer(numBuckets);
-      case TIMESTAMP_NANO:
-        return (B) new BucketTimestampNano(numBuckets);
-      case UUID:
-        return (B) new BucketUUID(numBuckets);
-      default:
-        throw new IllegalArgumentException("Cannot bucket by type: " + type);
-    }
+    return switch (type.typeId()) {
+      case DATE, INTEGER -> (B) new BucketInteger(numBuckets);
+      case TIME, TIMESTAMP, LONG -> (B) new BucketLong(numBuckets);
+      case DECIMAL -> (B) new BucketDecimal(numBuckets);
+      case STRING -> (B) new BucketString(numBuckets);
+      case FIXED, BINARY -> (B) new BucketByteBuffer(numBuckets);
+      case TIMESTAMP_NANO -> (B) new BucketTimestampNano(numBuckets);
+      case UUID -> (B) new BucketUUID(numBuckets);
+      default -> throw new IllegalArgumentException("Cannot bucket by type: " + type);
+    };
   }
 
   private final int numBuckets;
@@ -118,21 +106,21 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
 
   @Override
   public boolean canTransform(Type type) {
-    switch (type.typeId()) {
-      case INTEGER:
-      case LONG:
-      case DATE:
-      case TIME:
-      case TIMESTAMP:
-      case TIMESTAMP_NANO:
-      case STRING:
-      case BINARY:
-      case FIXED:
-      case DECIMAL:
-      case UUID:
-        return true;
-    }
-    return false;
+    return switch (type.typeId()) {
+      case INTEGER,
+              LONG,
+              DATE,
+              TIME,
+              TIMESTAMP,
+              TIMESTAMP_NANO,
+              STRING,
+              BINARY,
+              FIXED,
+              DECIMAL,
+              UUID ->
+          true;
+      default -> false;
+    };
   }
 
   @Override
