@@ -203,10 +203,9 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
       //        currentNamespace
       //    );
       LOG.warn(
-          "Catalog creation for inputName={} and options {} failed, because parameter "
+          "Catalog creation for inputName={} failed, because parameter "
               + "'warehouse' is not set, Nessie can't store data.",
-          name,
-          catalogOptions);
+          name);
       throw new IllegalStateException("Parameter 'warehouse' not set, Nessie can't store data.");
     }
 
