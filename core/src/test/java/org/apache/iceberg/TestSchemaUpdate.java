@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -2589,5 +2590,116 @@ public class TestSchemaUpdate {
             .apply();
 
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testDateToTimestampPromotionNotAllowedInV2() {
+    Schema schema = new Schema(required(1, "col", Types.DateType.get()));
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 1, 2)
+                    .updateColumn("col", Types.TimestampType.withoutZone()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: col: date -> timestamp");
+  }
+
+  @Test
+  public void testDateToTimestampTzPromotionNotAllowedInV3() {
+    Schema schema = new Schema(required(1, "col", Types.DateType.get()));
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(schema, 1, 3).updateColumn("col", Types.TimestampType.withZone()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: col: date -> timestamptz");
+  }
+
+  @Test
+  public void testUpdatePartitionedDateToTimestampV3Succeeds() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()), required(2, "ts", Types.DateType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).day("ts").build();
+
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            schema, spec, "file:/tmp", ImmutableMap.of("format-version", "3"));
+
+    Schema updated =
+        new SchemaUpdate(metadata).updateColumn("ts", Types.TimestampType.withoutZone()).apply();
+
+    Schema expected =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "ts", Types.TimestampType.withoutZone()));
+
+    assertThat(updated.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testUpdatePartitionedDateToTimestampV3Fails() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()), required(2, "ts", Types.DateType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("ts", 4).build();
+
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            schema, spec, "file:/tmp", ImmutableMap.of("format-version", "3"));
+
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(metadata)
+                    .updateColumn("ts", Types.TimestampType.withoutZone())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: ts: date -> timestamp");
+  }
+
+  @Test
+  public void testUpdateIdentityPartitionedDateToTimestampV3Fails() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()), required(2, "ts", Types.DateType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("ts").build();
+
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            schema, spec, "file:/tmp", ImmutableMap.of("format-version", "3"));
+
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(metadata)
+                    .updateColumn("ts", Types.TimestampType.withoutZone())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: ts: date -> timestamp");
+  }
+
+  @Test
+  public void testUpdateDateToTimestampChecksHistoricalSpecs() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()), required(2, "ts", Types.DateType.get()));
+
+    PartitionSpec bucketSpec = PartitionSpec.builderFor(schema).bucket("ts", 4).build();
+
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            schema, bucketSpec, "file:/tmp", ImmutableMap.of("format-version", "3"));
+
+    // the bucket spec is replaced, but data files written with it are still bucketed by date
+    TableMetadata updated =
+        metadata.updatePartitionSpec(PartitionSpec.builderFor(schema).day("ts").build());
+
+    assertThatThrownBy(
+            () ->
+                new SchemaUpdate(updated)
+                    .updateColumn("ts", Types.TimestampType.withoutZone())
+                    .apply())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change column type: ts: date -> timestamp");
   }
 }
