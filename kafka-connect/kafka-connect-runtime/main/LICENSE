@@ -1227,7 +1227,14 @@ License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2
 
 --------------------------------------------------------------------------------
 
-This product bundles the Common Expression Language (CEL) specification (shaded by gRPC-xds).
+This product bundles CEL-Java.
+
+Project URL: https://github.com/google/cel-java
+License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+--------------------------------------------------------------------------------
+
+This product bundles the Common Expression Language (CEL) specification (shaded by gRPC-xds and bundled by CEL-Java).
 
 Project URL: https://github.com/google/cel-spec
 License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
