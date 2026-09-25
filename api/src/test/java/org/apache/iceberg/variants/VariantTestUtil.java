@@ -270,7 +270,6 @@ public class VariantTestUtil {
 
     int dataSize = 0;
     for (VariantValue value : values) {
-      // TODO: produce size for every variant without serializing
       dataSize += value.sizeInBytes();
     }
 
