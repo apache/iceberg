@@ -25,6 +25,7 @@ import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFA
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -97,6 +98,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private Long newDataFilesDataSequenceNumber;
   private final List<DeleteFile> v2Deletes = Lists.newArrayList();
   private final Map<String, List<DeleteFile>> dvsByReferencedFile = Maps.newLinkedHashMap();
+  private final Map<String, MergedConcurrentDV> mergedConcurrentDVsByFile = Maps.newHashMap();
+  private final List<String> mergedDVFileLocations = Lists.newArrayList();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private final SnapshotSummary.Builder addedDataFilesSummary = SnapshotSummary.builder();
@@ -865,14 +868,30 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
-  // validates there are no concurrently added DVs for referenced data files
+  /**
+   * Whether concurrently added DVs for this operation's referenced data files may be merged into
+   * this operation's DVs instead of failing validation. Even when merging is allowed, only DVs
+   * added by delete operations are merged.
+   */
+  protected boolean canMergeConcurrentDVs() {
+    return false;
+  }
+
+  // validates there are no concurrently added DVs for referenced data files, or merges the
+  // concurrent DVs into this operation's DVs if merging is allowed
   protected void validateAddedDVs(
       TableMetadata base,
       Long startingSnapshotId,
       Expression conflictDetectionFilter,
       Snapshot parent) {
-    // skip if there is no current table state or this operation doesn't add new DVs
-    if (parent == null || dvsByReferencedFile.isEmpty()) {
+    // skip if this operation doesn't add new DVs
+    if (dvsByReferencedFile.isEmpty()) {
+      return;
+    }
+
+    // the branch may have been removed after an earlier attempt merged concurrent DVs
+    if (parent == null) {
+      mergeConcurrentDVs(ImmutableList.of());
       return;
     }
 
@@ -891,15 +910,43 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             filterManifestsByPartition(base, conflictDetectionFilter, newDeleteManifests),
             ManifestFile::hasAddedFiles);
 
+    List<DeleteFile> concurrentDVs =
+        canMergeConcurrentDVs() ? Collections.synchronizedList(Lists.newArrayList()) : null;
+
+    // only DVs added by delete operations can be merged; a DV added by an operation that also
+    // adds data files marks rows that were rewritten into those files, so merging it would let
+    // rows deleted by this operation survive in the rewritten files
+    Set<Long> mergeableSnapshotIds =
+        concurrentDVs == null
+            ? Collections.emptySet()
+            : newSnapshotIds.stream()
+                .filter(id -> DataOperations.DELETE.equals(base.snapshot(id).operation()))
+                .collect(Collectors.toSet());
+
     Tasks.foreach(matchingManifests)
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(workerPool())
-        .run(manifest -> validateAddedDVs(manifest, conflictDetectionFilter, newSnapshotIds));
+        .run(
+            manifest ->
+                validateAddedDVs(
+                    manifest,
+                    conflictDetectionFilter,
+                    newSnapshotIds,
+                    mergeableSnapshotIds,
+                    concurrentDVs));
+
+    if (concurrentDVs != null) {
+      mergeConcurrentDVs(concurrentDVs);
+    }
   }
 
   private void validateAddedDVs(
-      ManifestFile manifest, Expression conflictDetectionFilter, Set<Long> newSnapshotIds) {
+      ManifestFile manifest,
+      Expression conflictDetectionFilter,
+      Set<Long> newSnapshotIds,
+      Set<Long> mergeableSnapshotIds,
+      List<DeleteFile> concurrentDVs) {
     try (CloseableIterable<ManifestEntry<DeleteFile>> entries =
         ManifestFiles.readDeleteManifest(manifest, ops().io(), ops().current().specsById())
             .filterRows(conflictDetectionFilter)
@@ -908,18 +955,108 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
       for (ManifestEntry<DeleteFile> entry : entries) {
         DeleteFile file = entry.file();
-        if (newSnapshotIds.contains(entry.snapshotId()) && ContentFileUtil.isDV(file)) {
+        if (newSnapshotIds.contains(entry.snapshotId())
+            && ContentFileUtil.isDV(file)
+            && dvsByReferencedFile.containsKey(file.referencedDataFile())) {
           ValidationException.check(
-              !dvsByReferencedFile.containsKey(file.referencedDataFile()),
+              concurrentDVs != null && mergeableSnapshotIds.contains(entry.snapshotId()),
               "Found concurrently added DV for %s: %s",
               file.referencedDataFile(),
               ContentFileUtil.dvDesc(file));
+          concurrentDVs.add(file.copy());
         }
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
   }
+
+  /**
+   * Merges concurrently added DVs into this operation's DVs.
+   *
+   * <p>The format requires a DV to include all deleted positions from the DV it replaces, so the
+   * newest concurrent DV for a data file contains the content of all older DVs for that file. That
+   * DV is removed from the table and its content is merged into this operation's DV for the same
+   * data file. Pending removals of delete files for that data file are dropped because the
+   * concurrent commits have already removed them.
+   *
+   * <p>A merge from an earlier commit attempt is undone when the concurrent DV it merged is no
+   * longer present, which happens when the commit that added it is replaced or rolled back.
+   */
+  private void mergeConcurrentDVs(List<DeleteFile> concurrentDVs) {
+    Map<String, DeleteFile> newestDVByReferencedFile = Maps.newHashMap();
+    for (DeleteFile dv : concurrentDVs) {
+      newestDVByReferencedFile.merge(
+          dv.referencedDataFile(),
+          dv,
+          (dv1, dv2) -> dv1.dataSequenceNumber() >= dv2.dataSequenceNumber() ? dv1 : dv2);
+    }
+
+    for (String referencedDataFile : ImmutableList.copyOf(mergedConcurrentDVsByFile.keySet())) {
+      MergedConcurrentDV merged = mergedConcurrentDVsByFile.get(referencedDataFile);
+      DeleteFile concurrentDV = newestDVByReferencedFile.get(referencedDataFile);
+      if (concurrentDV == null || !isSameDV(merged.concurrentDV(), concurrentDV)) {
+        undoConcurrentDVMerge(referencedDataFile, merged);
+      }
+    }
+
+    for (Map.Entry<String, DeleteFile> entry : newestDVByReferencedFile.entrySet()) {
+      String referencedDataFile = entry.getKey();
+      DeleteFile concurrentDV = entry.getValue();
+
+      if (mergedConcurrentDVsByFile.containsKey(referencedDataFile)) {
+        // already merged in a previous commit attempt
+        continue;
+      }
+
+      LOG.info(
+          "Merging concurrently added DV {} for {} into the new DV in table {}",
+          concurrentDV.location(),
+          referencedDataFile,
+          tableName);
+
+      List<DeleteFile> droppedRemovals =
+          deleteFilterManager.filesToBeDeleted().stream()
+              .filter(file -> referencedDataFile.equals(file.referencedDataFile()))
+              .collect(ImmutableList.toImmutableList());
+      droppedRemovals.forEach(deleteFilterManager::dropDelete);
+
+      // the null data sequence number matches this operation's pending DVs, as merging requires
+      DeleteFile pendingDV = Delegates.pendingDeleteFile(concurrentDV, null);
+      dvsByReferencedFile.get(referencedDataFile).add(pendingDV);
+      mergedConcurrentDVsByFile.put(
+          referencedDataFile, new MergedConcurrentDV(concurrentDV, pendingDV, droppedRemovals));
+      delete(concurrentDV);
+      this.hasNewDeleteFiles = true;
+    }
+  }
+
+  /** Restores the state changed when a concurrent DV was merged in an earlier commit attempt. */
+  private void undoConcurrentDVMerge(String referencedDataFile, MergedConcurrentDV merged) {
+    LOG.info(
+        "Dropping merged DV {} for {} that is no longer present in table {}",
+        merged.concurrentDV().location(),
+        referencedDataFile,
+        tableName);
+
+    dvsByReferencedFile.get(referencedDataFile).remove(merged.pendingDV());
+    deleteFilterManager.dropDelete(merged.concurrentDV());
+    merged.droppedRemovals().forEach(this::delete);
+    mergedConcurrentDVsByFile.remove(referencedDataFile);
+    this.hasNewDeleteFiles = true;
+  }
+
+  private static boolean isSameDV(DeleteFile dv1, DeleteFile dv2) {
+    return dv1.location().equals(dv2.location())
+        && Objects.equals(dv1.contentOffset(), dv2.contentOffset());
+  }
+
+  /**
+   * A concurrent DV merged into this operation's DV for a data file, with the delete file removals
+   * that the merge dropped.
+   */
+  private record MergedConcurrentDV(
+      DeleteFile concurrentDV, DeleteFile pendingDV, List<DeleteFile> droppedRemovals) {}
 
   private Iterable<ManifestFile> filterManifestsByPartition(
       TableMetadata base, Expression conflictDetectionFilter, List<ManifestFile> manifests) {
@@ -1184,6 +1321,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       // merge,
       // and the summary cannot be generated until after merging is complete.
       addedDeleteFilesSummary.clear();
+      // merged DV files from the invalidated attempt are only referenced by the deleted manifests
+      deleteMergedDVFiles();
     }
 
     if (cachedNewDeleteManifests.isEmpty()) {
@@ -1207,8 +1346,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   private List<DeleteFile> mergeDVs() {
+    boolean requiresMerge = false;
     for (Map.Entry<String, List<DeleteFile>> entry : dvsByReferencedFile.entrySet()) {
       if (entry.getValue().size() > 1) {
+        requiresMerge = true;
         LOG.warn(
             "Merging {} duplicate DVs for data file {} in table {}.",
             entry.getValue().size(),
@@ -1227,12 +1368,33 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                     String.format(
                         "merged-dvs-%s-%s", snapshotId(), dvMergeAttempt.incrementAndGet())));
 
-    return DVUtil.mergeAndWriteDVsIfRequired(
-        dvsByReferencedFile,
-        dvOutputLocation,
-        fileIO,
-        ops().current().specsById(),
-        ThreadPools.getDeleteWorkerPool());
+    List<DeleteFile> mergedDVs =
+        DVUtil.mergeAndWriteDVsIfRequired(
+            dvsByReferencedFile,
+            dvOutputLocation,
+            fileIO,
+            ops().current().specsById(),
+            ThreadPools.getDeleteWorkerPool());
+
+    if (requiresMerge) {
+      mergedDVFileLocations.add(fileIO.newOutputFile(dvOutputLocation).location());
+    }
+
+    return mergedDVs;
+  }
+
+  private void deleteMergedDVFiles() {
+    for (String mergedDVFileLocation : mergedDVFileLocations) {
+      deleteFile(mergedDVFileLocation);
+    }
+
+    mergedDVFileLocations.clear();
+  }
+
+  @Override
+  protected void cleanAll() {
+    super.cleanAll();
+    deleteMergedDVFiles();
   }
 
   private class DataFileFilterManager extends ManifestFilterManager<DataFile> {
