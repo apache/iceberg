@@ -71,11 +71,10 @@ public class IcebergSplit extends InputSplit
   public String[] getLocations() {
     // The implementation of getLocations() is only meant to be used during split computation
     // getLocations() won't be accurate when called on worker nodes and will always return "*"
-    if (locations == null && conf != null) {
-      boolean localityPreferred = conf.getBoolean(InputFormatConfig.LOCALITY, false);
+    if (locations == null) {
+      boolean localityPreferred =
+          conf != null && conf.getBoolean(InputFormatConfig.LOCALITY, false);
       locations = localityPreferred ? Util.blockLocations(task, conf) : ANYWHERE.clone();
-    } else {
-      locations = ANYWHERE.clone();
     }
 
     return locations;
