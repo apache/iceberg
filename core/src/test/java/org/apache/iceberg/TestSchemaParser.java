@@ -41,6 +41,36 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestSchemaParser extends DataTestBase {
+  private static Stream<Arguments> floatingPointDefaults() {
+    return Stream.of(
+        Arguments.of(Types.FloatType.get(), "0", 0F),
+        Arguments.of(Types.FloatType.get(), "1", 1F),
+        Arguments.of(Types.FloatType.get(), "-1", -1F),
+        Arguments.of(Types.FloatType.get(), "2147483648", 2147483648F),
+        Arguments.of(Types.FloatType.get(), "1.5", 1.5F),
+        Arguments.of(Types.FloatType.get(), "1e2", 100F),
+        Arguments.of(Types.DoubleType.get(), "0", 0D),
+        Arguments.of(Types.DoubleType.get(), "1", 1D),
+        Arguments.of(Types.DoubleType.get(), "-1", -1D),
+        Arguments.of(Types.DoubleType.get(), "2147483648", 2147483648D),
+        Arguments.of(Types.DoubleType.get(), "1.5", 1.5D),
+        Arguments.of(Types.DoubleType.get(), "1e2", 100D));
+  }
+
+  @ParameterizedTest
+  @MethodSource("floatingPointDefaults")
+  void floatingPointDefaultsAcceptNumericNodes(Type type, String jsonValue, Number expected) {
+    String json =
+        String.format(
+            "{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
+                + "{\"id\":1,\"name\":\"score\",\"required\":false,\"type\":\"%s\","
+                + "\"initial-default\":%s,\"write-default\":%s}]}",
+            type, jsonValue, jsonValue);
+    Schema parsed = SchemaParser.fromJson(json);
+    assertThat(parsed.findField("score").initialDefault()).isEqualTo(expected);
+    assertThat(parsed.findField("score").writeDefault()).isEqualTo(expected);
+  }
+
   @Override
   protected boolean supportsUnknown() {
     return true;
