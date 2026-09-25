@@ -133,6 +133,10 @@ separators that this format adds must not be followed by a space. Each type uses
 In a struct field name, `\`, `:`, `,`, `<`, and `>` must each be escaped with a preceding `\`. Without escaping, a
 field name that contains a separator would produce the same string as a different set of fields.
 
+A `definition-id` may contain any Unicode character, because struct field names are user-supplied. When a
+`definition-id` is used in a URL path segment or query parameter, it must be percent-encoded per RFC 3986
+over its UTF-8 bytes.
+
 Examples of complete definition-id signatures:
 
 * `int` – single int parameter
