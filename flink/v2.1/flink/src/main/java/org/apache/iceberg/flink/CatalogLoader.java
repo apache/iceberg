@@ -29,6 +29,7 @@ import org.apache.iceberg.hadoop.SerializableConfiguration;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTCatalog;
 
@@ -44,6 +45,11 @@ public interface CatalogLoader extends Serializable, Cloneable {
    * @return a newly created {@link Catalog}
    */
   Catalog loadCatalog();
+
+  /** Returns immutable catalog configuration, which may contain credentials. */
+  default Map<String, String> properties() {
+    return ImmutableMap.of();
+  }
 
   /** Clone a CatalogLoader. */
   @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
@@ -85,6 +91,11 @@ public interface CatalogLoader extends Serializable, Cloneable {
     public Catalog loadCatalog() {
       return CatalogUtil.loadCatalog(
           HadoopCatalog.class.getName(), catalogName, properties, hadoopConf.get());
+    }
+
+    @Override
+    public Map<String, String> properties() {
+      return ImmutableMap.copyOf(properties);
     }
 
     @Override
@@ -130,6 +141,11 @@ public interface CatalogLoader extends Serializable, Cloneable {
     }
 
     @Override
+    public Map<String, String> properties() {
+      return ImmutableMap.copyOf(properties);
+    }
+
+    @Override
     @SuppressWarnings({"checkstyle:NoClone", "checkstyle:SuperClone"})
     public CatalogLoader clone() {
       return new HiveCatalogLoader(catalogName, new Configuration(hadoopConf.get()), properties);
@@ -162,6 +178,11 @@ public interface CatalogLoader extends Serializable, Cloneable {
     public Catalog loadCatalog() {
       return CatalogUtil.loadCatalog(
           RESTCatalog.class.getName(), catalogName, properties, hadoopConf.get());
+    }
+
+    @Override
+    public Map<String, String> properties() {
+      return ImmutableMap.copyOf(properties);
     }
 
     @Override
@@ -199,6 +220,11 @@ public interface CatalogLoader extends Serializable, Cloneable {
     @Override
     public Catalog loadCatalog() {
       return CatalogUtil.loadCatalog(impl, name, properties, hadoopConf.get());
+    }
+
+    @Override
+    public Map<String, String> properties() {
+      return ImmutableMap.copyOf(properties);
     }
 
     @Override

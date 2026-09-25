@@ -117,6 +117,20 @@ public interface TableLoader extends Closeable, Serializable, Cloneable {
       this.identifier = tableIdentifier.toString();
     }
 
+    CatalogLoader catalogLoader() {
+      return catalogLoader;
+    }
+
+    /** Re-parsed from the stored string, as {@link TableIdentifier} is not serializable. */
+    TableIdentifier tableIdentifier() {
+      return TableIdentifier.parse(identifier);
+    }
+
+    /** Returns the open catalog, or null when the loader is closed. */
+    Catalog catalog() {
+      return catalog;
+    }
+
     @Override
     public void open() {
       catalog = catalogLoader.loadCatalog();

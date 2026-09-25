@@ -36,11 +36,16 @@ import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.api.connector.source.SplitEnumerator;
 import org.apache.flink.api.connector.source.SplitEnumeratorContext;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.PipelineOptions;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.lineage.LineageDataset;
+import org.apache.flink.streaming.api.lineage.LineageVertex;
+import org.apache.flink.streaming.api.lineage.LineageVertexProvider;
+import org.apache.flink.streaming.api.lineage.SourceLineageVertex;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.legacy.api.TableSchema;
@@ -53,6 +58,7 @@ import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkReadConf;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.flink.IcebergLineageUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.source.assigner.OrderedSplitAssignerFactory;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
@@ -86,7 +92,8 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEnumeratorState> {
+public class IcebergSource<T>
+    implements Source<T, IcebergSourceSplit, IcebergEnumeratorState>, LineageVertexProvider {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSource.class);
 
   // This table loader can be closed, and it is only safe to use this instance for resource
@@ -101,11 +108,19 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   private final SerializableComparator<IcebergSourceSplit> splitComparator;
   private final SerializableRecordEmitter<T> emitter;
   private final String tableName;
+  // Captured by the builder from the catalog it opened to load the table, since only a live catalog
+  // knows it and this source's own loader is closed by then.
+  private final String lineageRestPrefix;
 
   // cache the discovered splits by planSplitsForBatch, which can be called twice. And they come
   // from two different threads: (1) source/stream construction by main thread (2) enumerator
   // creation. Hence need volatile here.
   private volatile List<IcebergSourceSplit> batchSplits;
+
+  // Flink asks for the lineage vertex twice per source — once to extract the dataset, once when
+  // constructing the transformation — so the datasets are resolved once and reused. Transient
+  // because lineage is a client-side concern; the field is never read after serialization.
+  private transient volatile List<LineageDataset> lineageDatasets;
 
   IcebergSource(
       TableLoader tableLoader,
@@ -114,7 +129,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       SplitAssignerFactory assignerFactory,
       SerializableComparator<IcebergSourceSplit> splitComparator,
       Table table,
-      SerializableRecordEmitter<T> emitter) {
+      SerializableRecordEmitter<T> emitter,
+      String lineageRestPrefix) {
     Preconditions.checkNotNull(tableLoader, "tableLoader is required.");
     Preconditions.checkNotNull(readerFunction, "readerFunction is required.");
     Preconditions.checkNotNull(assignerFactory, "assignerFactory is required.");
@@ -126,6 +142,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     this.splitComparator = splitComparator;
     this.emitter = emitter;
     this.tableName = table.name();
+    this.lineageRestPrefix = lineageRestPrefix;
   }
 
   String name() {
@@ -172,6 +189,33 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   @Override
   public Boundedness getBoundedness() {
     return scanContext.isStreaming() ? Boundedness.CONTINUOUS_UNBOUNDED : Boundedness.BOUNDED;
+  }
+
+  @Override
+  public LineageVertex getLineageVertex() {
+    List<LineageDataset> datasets = lineageDatasets();
+    // Must be a SourceLineageVertex rather than a plain LineageVertex: Flink's
+    // LineageGraphUtils#processSource casts source vertices to it.
+    return new SourceLineageVertex() {
+      @Override
+      public List<LineageDataset> datasets() {
+        return datasets;
+      }
+
+      @Override
+      public Boundedness boundedness() {
+        return getBoundedness();
+      }
+    };
+  }
+
+  /** The datasets this source publishes, resolved once. A repeat resolution is identical. */
+  private List<LineageDataset> lineageDatasets() {
+    if (lineageDatasets == null) {
+      lineageDatasets = IcebergLineageUtil.datasetsOf(tableLoader, tableName, lineageRestPrefix);
+    }
+
+    return lineageDatasets;
   }
 
   @Override
@@ -235,11 +279,21 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
   }
 
-  private boolean shouldInferParallelism() {
+  /** Parallelism is inferred from the split count, which only a bounded scan has up front. */
+  boolean shouldInferParallelism() {
     return !scanContext.isStreaming();
   }
 
   private int inferParallelism(ReadableConfig flinkConf, StreamExecutionEnvironment env) {
+    return inferParallelism(flinkConf, env.getMaxParallelism());
+  }
+
+  /** Infers source parallelism, capped by the configured maximum parallelism. */
+  int inferParallelism(ReadableConfig flinkConf) {
+    return inferParallelism(flinkConf, flinkConf.get(PipelineOptions.MAX_PARALLELISM));
+  }
+
+  private int inferParallelism(ReadableConfig flinkConf, int maxParallelism) {
     int parallelism =
         SourceUtil.inferParallelism(
             flinkConf,
@@ -249,8 +303,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
               return splits.size();
             });
 
-    if (env.getMaxParallelism() > 0) {
-      parallelism = Math.min(parallelism, env.getMaxParallelism());
+    if (maxParallelism > 0) {
+      parallelism = Math.min(parallelism, maxParallelism);
     }
 
     return parallelism;
@@ -570,13 +624,17 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     public IcebergSource<T> build() {
+      String lineageRestPrefix;
       if (table == null) {
         try (TableLoader loader = tableLoader) {
           loader.open();
           this.table = tableLoader.loadTable();
+          lineageRestPrefix = IcebergLineageUtil.restPrefixOf(loader);
         } catch (IOException e) {
           throw new UncheckedIOException(e);
         }
+      } else {
+        lineageRestPrefix = IcebergLineageUtil.restPrefixOf(tableLoader);
       }
 
       contextBuilder.resolveConfig(table, readOptions, flinkConfig);
@@ -629,7 +687,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
           splitAssignerFactory,
           splitComparator,
           table,
-          emitter);
+          emitter,
+          lineageRestPrefix);
     }
 
     /**

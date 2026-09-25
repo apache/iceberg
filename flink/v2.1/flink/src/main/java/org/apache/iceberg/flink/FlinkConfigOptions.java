@@ -97,6 +97,16 @@ public class FlinkConfigOptions {
           .defaultValue(false)
           .withDescription("Use the SinkV2 API based Iceberg sink implementation.");
 
+  public static final ConfigOption<Boolean> TABLE_EXEC_ICEBERG_EMIT_LINEAGE =
+      ConfigOptions.key("table.exec.iceberg.emit-lineage")
+          .booleanType()
+          .defaultValue(false)
+          .withDescription(
+              "Enable Iceberg lineage for SQL and Table API jobs using the FLIP-27 source and V2 sink. "
+                  + "Enabling this option changes runtime providers and may change operator UIDs. "
+                  + "The V2 sink also requires table.exec.uid.generation=ALWAYS. "
+                  + "This option does not affect the DataStream API.");
+
   public static final ConfigOption<SplitAssignerType> TABLE_EXEC_SPLIT_ASSIGNER_TYPE =
       ConfigOptions.key("table.exec.iceberg.split-assigner-type")
           .enumType(SplitAssignerType.class)

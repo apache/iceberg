@@ -34,6 +34,7 @@ import org.apache.flink.table.connector.ProviderContext;
 import org.apache.flink.table.connector.source.DataStreamScanProvider;
 import org.apache.flink.table.connector.source.DynamicTableSource;
 import org.apache.flink.table.connector.source.ScanTableSource;
+import org.apache.flink.table.connector.source.SourceProvider;
 import org.apache.flink.table.connector.source.abilities.SupportsFilterPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsLimitPushDown;
 import org.apache.flink.table.connector.source.abilities.SupportsProjectionPushDown;
@@ -134,7 +135,7 @@ public class IcebergTableSource
         .build();
   }
 
-  private DataStream<RowData> createFLIP27Stream(StreamExecutionEnvironment env) {
+  private IcebergSource.Builder<RowData> flip27SourceBuilder() {
     SplitAssignerType assignerType =
         readableConfig.get(FlinkConfigOptions.TABLE_EXEC_SPLIT_ASSIGNER_TYPE);
     return IcebergSource.forRowData()
@@ -144,8 +145,7 @@ public class IcebergTableSource
         .project(getProjectedSchema())
         .limit(limit)
         .filters(filters)
-        .flinkConfig(readableConfig)
-        .buildStream(env);
+        .flinkConfig(readableConfig);
   }
 
   private ResolvedSchema getProjectedSchema() {
@@ -204,15 +204,21 @@ public class IcebergTableSource
 
   @Override
   public ScanRuntimeProvider getScanRuntimeProvider(ScanContext runtimeProviderContext) {
+    if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_EMIT_LINEAGE)
+        && readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE)) {
+      IcebergSource<RowData> source = flip27SourceBuilder().build();
+      return SourceProvider.of(source, scanParallelism(source));
+    }
+
     return new DataStreamScanProvider() {
       @Override
       public DataStream<RowData> produceDataStream(
           ProviderContext providerContext, StreamExecutionEnvironment execEnv) {
         if (readableConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE)) {
-          return createFLIP27Stream(execEnv);
-        } else {
-          return createDataStream(execEnv);
+          return flip27SourceBuilder().buildStream(execEnv);
         }
+
+        return createDataStream(execEnv);
       }
 
       @Override
@@ -222,10 +228,23 @@ public class IcebergTableSource
 
       @Override
       public Optional<Integer> getParallelism() {
-        return Optional.ofNullable(
-            PropertyUtil.propertyAsNullableInt(properties, FactoryUtil.SOURCE_PARALLELISM.key()));
+        return Optional.ofNullable(configuredParallelism());
       }
     };
+  }
+
+  /** The configured or inferred source parallelism, or null to use the job default. */
+  private Integer scanParallelism(IcebergSource<RowData> source) {
+    Integer configured = configuredParallelism();
+    if (configured != null) {
+      return configured;
+    }
+
+    return source.shouldInferParallelism() ? source.inferParallelism(readableConfig) : null;
+  }
+
+  private Integer configuredParallelism() {
+    return PropertyUtil.propertyAsNullableInt(properties, FactoryUtil.SOURCE_PARALLELISM.key());
   }
 
   @Override

@@ -52,6 +52,9 @@ import org.apache.flink.streaming.api.connector.sink2.SupportsPreWriteTopology;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.streaming.api.lineage.LineageDataset;
+import org.apache.flink.streaming.api.lineage.LineageVertex;
+import org.apache.flink.streaming.api.lineage.LineageVertexProvider;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.util.DataFormatConverters;
@@ -72,6 +75,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
+import org.apache.iceberg.flink.IcebergLineageUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.ConvertEqualityDeletes;
 import org.apache.iceberg.flink.maintenance.api.ConvertEqualityDeletesConfig;
@@ -150,7 +154,8 @@ public class IcebergSink
         SupportsCommitter<IcebergCommittable>,
         SupportsPreCommitTopology<WriteResult, IcebergCommittable>,
         SupportsPostCommitTopology<IcebergCommittable>,
-        SupportsConcurrentExecutionAttempts {
+        SupportsConcurrentExecutionAttempts,
+        LineageVertexProvider {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSink.class);
   private final TableLoader tableLoader;
   private final Map<String, String> snapshotProperties;
@@ -169,12 +174,20 @@ public class IcebergSink
   private final int workerPoolSize;
   private final boolean maintenanceEnabled;
   private final Table table;
+  // Captured by the builder from the catalog it opened to load the table, since only a live catalog
+  // knows it and this sink's own loader is closed by then.
+  private final String lineageRestPrefix;
   // This should only be used for logging/error messages. For any actual logic always use
   // equalityFieldIds instead.
   private final Set<String> equalityFieldColumns;
 
   private final transient List<MaintenanceTaskBuilder<?>> maintenanceTasks;
   private final transient FlinkMaintenanceConfig flinkMaintenanceConfig;
+
+  // Flink asks for the lineage vertex twice per sink — once to extract the dataset, once when
+  // constructing the transformation — so the datasets are resolved once and reused. Transient
+  // because lineage is a client-side concern; the field is never read after serialization.
+  private transient volatile List<LineageDataset> lineageDatasets;
 
   private IcebergSink(
       TableLoader tableLoader,
@@ -190,7 +203,8 @@ public class IcebergSink
       boolean overwriteMode,
       List<MaintenanceTaskBuilder<?>> maintenanceTasks,
       FlinkMaintenanceConfig flinkMaintenanceConfig,
-      Set<String> equalityFieldColumns) {
+      Set<String> equalityFieldColumns,
+      String lineageRestPrefix) {
     this.tableLoader = tableLoader;
     this.snapshotProperties = snapshotProperties;
     this.uidSuffix = uidSuffix;
@@ -214,6 +228,7 @@ public class IcebergSink
     this.maintenanceTasks = maintenanceTasks;
     this.flinkMaintenanceConfig = flinkMaintenanceConfig;
     this.equalityFieldColumns = equalityFieldColumns;
+    this.lineageRestPrefix = lineageRestPrefix;
   }
 
   @Override
@@ -304,6 +319,21 @@ public class IcebergSink
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to create tableMaintenance ", e);
     }
+  }
+
+  @Override
+  public LineageVertex getLineageVertex() {
+    List<LineageDataset> datasets = lineageDatasets();
+    return () -> datasets;
+  }
+
+  /** The datasets this sink publishes, resolved once. A repeat resolution is identical. */
+  private List<LineageDataset> lineageDatasets() {
+    if (lineageDatasets == null) {
+      lineageDatasets = IcebergLineageUtil.datasetsOf(tableLoader, table.name(), lineageRestPrefix);
+    }
+
+    return lineageDatasets;
   }
 
   @Override
@@ -749,12 +779,15 @@ public class IcebergSink
       return this;
     }
 
-    IcebergSink build() {
-
-      Preconditions.checkArgument(
-          inputCreator != null,
-          "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
+    /**
+     * Builds the sink without wiring it into a {@link DataStream}. Use this when Flink calls {@code
+     * DataStream#sinkTo} itself, as it does for a {@code SinkV2Provider}; use {@link #append()} to
+     * attach the sink to an input stream directly.
+     */
+    public IcebergSink build() {
       Preconditions.checkNotNull(tableLoader(), "Table loader shouldn't be null");
+
+      String lineageRestPrefix = captureLineageRestPrefix();
 
       // Set the table if it is not yet set in the builder, so we can do the equalityId checks
       SerializableTable serializableTable = checkAndGetTable(tableLoader(), table);
@@ -843,7 +876,8 @@ public class IcebergSink
           overwriteMode,
           maintenanceTasks,
           flinkMaintenanceConfig,
-          equalityFieldColumnsSet);
+          equalityFieldColumnsSet,
+          lineageRestPrefix);
     }
 
     private void addConvertEqualityDeletesTask(
@@ -879,6 +913,9 @@ public class IcebergSink
      */
     @Override
     public DataStreamSink<RowData> append() {
+      Preconditions.checkArgument(
+          inputCreator != null,
+          "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
       IcebergSink sink = build();
       String suffix = defaultSuffix(sink.uidSuffix, table.name());
       DataStream<RowData> rowDataInput = inputCreator.apply(suffix);
@@ -893,6 +930,15 @@ public class IcebergSink
       // The following parallelism will be propagated to all of the above operators.
       rowDataDataStreamSink.setParallelism(sink.resolveWriterParallelism(rowDataInput));
       return rowDataDataStreamSink;
+    }
+
+    // Table loading owns cleanup when the catalog must be opened here.
+    private String captureLineageRestPrefix() {
+      if (table == null && !tableLoader().isOpen()) {
+        tableLoader().open();
+      }
+
+      return IcebergLineageUtil.restPrefixOf(tableLoader());
     }
   }
 
@@ -1157,5 +1203,13 @@ public class IcebergSink
    */
   public static Builder forRowData(DataStream<RowData> input) {
     return new Builder().forRowData(input);
+  }
+
+  /**
+   * A {@link Builder} with no input stream, for use with {@link Builder#build()} rather than {@link
+   * Builder#append()}. Set at least a {@link Builder#tableLoader} and a schema.
+   */
+  public static Builder builder() {
+    return new Builder();
   }
 }
