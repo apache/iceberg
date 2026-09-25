@@ -1643,6 +1643,42 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testUpdateSchemaRejectsReservedFieldIds() {
+    Schema schema = new Schema(Types.NestedField.required(1, "id", Types.LongType.get()));
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            schema, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of());
+
+    Schema maxFieldId =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2147483447, "data", Types.StringType.get()));
+    assertThat(meta.updateSchema(maxFieldId).lastColumnId()).isEqualTo(2147483447);
+
+    Schema reservedFieldId =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2147483448, "data", Types.StringType.get()));
+    assertThatThrownBy(() -> meta.updateSchema(reservedFieldId))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Invalid schema: field data uses reserved field ID 2147483448 (field IDs must be <= 2147483447)");
+
+    Schema reservedNestedFieldId =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(
+                2,
+                "point",
+                Types.StructType.of(
+                    Types.NestedField.optional(
+                        MetadataColumns.FILE_PATH.fieldId(), "x", Types.DoubleType.get()))));
+    assertThatThrownBy(() -> meta.updateSchema(reservedNestedFieldId))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("field point.x uses reserved field ID 2147483646");
+  }
+
+  @Test
   public void testUpdateSchema() {
     Schema schema =
         new Schema(0, Types.NestedField.required(1, "y", Types.LongType.get(), "comment"));
