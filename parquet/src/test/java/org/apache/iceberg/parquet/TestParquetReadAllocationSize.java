@@ -24,10 +24,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntFunction;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -48,8 +51,11 @@ import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.conf.HadoopParquetConfiguration;
+import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
@@ -114,13 +120,19 @@ public class TestParquetReadAllocationSize {
    */
   public static class RecordingLocalFileSystem extends RawLocalFileSystem {
     private static final ThreadLocal<List<Integer>> RECORDED_READ_LENGTHS = new ThreadLocal<>();
+    private static final ThreadLocal<AtomicInteger> RECORDED_VECTORED_READS = new ThreadLocal<>();
 
     static void record(List<Integer> requestedLengths) {
       RECORDED_READ_LENGTHS.set(requestedLengths);
     }
 
+    static void recordVectoredReads(AtomicInteger vectoredReads) {
+      RECORDED_VECTORED_READS.set(vectoredReads);
+    }
+
     static void stopRecording() {
       RECORDED_READ_LENGTHS.remove();
+      RECORDED_VECTORED_READS.remove();
     }
 
     @Override
@@ -129,17 +141,21 @@ public class TestParquetReadAllocationSize {
       List<Integer> requestedLengths = RECORDED_READ_LENGTHS.get();
       return requestedLengths == null
           ? delegate
-          : new FSDataInputStream(new RecordingStream(delegate, requestedLengths));
+          : new FSDataInputStream(
+              new RecordingStream(delegate, requestedLengths, RECORDED_VECTORED_READS.get()));
     }
 
     private static class RecordingStream extends InputStream
         implements Seekable, PositionedReadable {
       private final FSDataInputStream delegate;
       private final List<Integer> requestedLengths;
+      private final AtomicInteger vectoredReads;
 
-      RecordingStream(FSDataInputStream delegate, List<Integer> requestedLengths) {
+      RecordingStream(
+          FSDataInputStream delegate, List<Integer> requestedLengths, AtomicInteger vectoredReads) {
         this.delegate = delegate;
         this.requestedLengths = requestedLengths;
+        this.vectoredReads = vectoredReads;
       }
 
       @Override
@@ -182,6 +198,16 @@ public class TestParquetReadAllocationSize {
       @Override
       public void readFully(long position, byte[] buffer) throws IOException {
         delegate.readFully(position, buffer);
+      }
+
+      @Override
+      public void readVectored(
+          List<? extends org.apache.hadoop.fs.FileRange> ranges, IntFunction<ByteBuffer> allocate)
+          throws IOException {
+        if (vectoredReads != null) {
+          vectoredReads.incrementAndGet();
+        }
+        PositionedReadable.super.readVectored(ranges, allocate);
       }
 
       @Override
@@ -318,6 +344,73 @@ public class TestParquetReadAllocationSize {
     assertThat(requestedLengths)
         .as("no single read should request more than the ambient configuration's allocation size")
         .allSatisfy(len -> assertThat(len).isLessThanOrEqualTo(maxAllocationSizeInBytes));
+  }
+
+  /** Reads the Hadoop file back and returns how many vectored reads reached the FileSystem. */
+  private static int countHadoopVectoredReads(HadoopInputFile file, int expected)
+      throws IOException {
+    AtomicInteger vectoredReads = new AtomicInteger();
+    RecordingLocalFileSystem.record(Lists.newArrayList());
+    RecordingLocalFileSystem.recordVectoredReads(vectoredReads);
+    try (CloseableIterable<Record> reader =
+        Parquet.read(file)
+            .project(SCHEMA)
+            .createReaderFunc(fileSchema -> InternalReader.create(SCHEMA, fileSchema))
+            .build()) {
+      assertThat(reader).as("all records should be read back").hasSize(expected);
+    } finally {
+      RecordingLocalFileSystem.stopRecording();
+    }
+
+    return vectoredReads.get();
+  }
+
+  @Test
+  public void testHadoopVectoredIoIsEnabledByDefault(@TempDir Path tempDir) throws IOException {
+    List<Record> expected = highEntropyRecords(4000, 1024);
+    HadoopInputFile file = writeHadoopFile(expected, tempDir, newRecordingConfiguration());
+
+    assertThat(countHadoopVectoredReads(file, expected.size()))
+        .as("vectored reads should be used when nothing is configured")
+        .isGreaterThan(0);
+  }
+
+  @Test
+  public void testAmbientHadoopConfigurationVectoredIoDisabledIsRespected(@TempDir Path tempDir)
+      throws IOException {
+    List<Record> expected = highEntropyRecords(4000, 1024);
+    Configuration conf = newRecordingConfiguration();
+    conf.setBoolean("parquet.hadoop.vectored.io.enabled", false);
+    HadoopInputFile file = writeHadoopFile(expected, tempDir, conf);
+
+    // the default must not replace a value already present in the file's Configuration
+    assertThat(countHadoopVectoredReads(file, expected.size()))
+        .as("vectored reads should not be used when disabled in the Hadoop Configuration")
+        .isZero();
+  }
+
+  @Test
+  public void testVectoredIoDefaultIsOnlyAppliedWhenUnset() {
+    String key = "parquet.hadoop.vectored.io.enabled";
+
+    // independent of parquet-java's own default, which was false before 1.16.0
+    PlainParquetConfiguration unset = new PlainParquetConfiguration();
+    Parquet.applyVectoredIoDefault(unset);
+    assertThat(unset.get(key)).isEqualTo("true");
+
+    PlainParquetConfiguration disabled =
+        new PlainParquetConfiguration(ImmutableMap.of(key, "false"));
+    Parquet.applyVectoredIoDefault(disabled);
+    assertThat(disabled.get(key)).isEqualTo("false");
+
+    Configuration hadoopUnset = new Configuration(false);
+    Parquet.applyVectoredIoDefault(new HadoopParquetConfiguration(hadoopUnset));
+    assertThat(hadoopUnset.get(key)).isEqualTo("true");
+
+    Configuration hadoopDisabled = new Configuration(false);
+    hadoopDisabled.setBoolean(key, false);
+    Parquet.applyVectoredIoDefault(new HadoopParquetConfiguration(hadoopDisabled));
+    assertThat(hadoopDisabled.get(key)).isEqualTo("false");
   }
 
   private static void assertReadsAll(InputFile file, String key, String value, int expected)
