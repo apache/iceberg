@@ -28,23 +28,30 @@ import org.junit.jupiter.api.Test;
 
 class TestRootManifestFile {
   private static final long SNAPSHOT_ID = 42L;
+  private static final long SEQUENCE_NUMBER = 7L;
+  private static final long FIRST_ROW_ID = 1000L;
   private static final byte[] CONTENTS = new byte[] {1, 2, 3, 4, 5};
   private static final String LOCATION = "s3://bucket/db/table/metadata/root.parquet";
 
   private final InputFile file = new InMemoryInputFile(LOCATION, CONTENTS);
 
   @Test
-  void exposesLocationLengthAndSnapshotId() {
-    RootManifestFile root = new RootManifestFile(file, SNAPSHOT_ID, /* keyMetadata= */ null);
+  void exposesFileMetadata() {
+    RootManifestFile root =
+        new RootManifestFile(
+            file, SNAPSHOT_ID, SEQUENCE_NUMBER, FIRST_ROW_ID, /* keyMetadata= */ null);
 
     assertThat(root.path()).isEqualTo(LOCATION);
     assertThat(root.length()).isEqualTo(CONTENTS.length);
     assertThat(root.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(root.sequenceNumber()).isEqualTo(SEQUENCE_NUMBER);
+    assertThat(root.firstRowId()).isEqualTo(FIRST_ROW_ID);
   }
 
   @Test
   void readableAsAV4DataManifest() {
-    RootManifestFile root = new RootManifestFile(file, SNAPSHOT_ID, null);
+    RootManifestFile root =
+        new RootManifestFile(file, SNAPSHOT_ID, SEQUENCE_NUMBER, FIRST_ROW_ID, null);
 
     assertThat(root.content()).isEqualTo(ManifestContent.DATA);
     assertThat(root.formatVersion()).isEqualTo(4);
@@ -52,22 +59,30 @@ class TestRootManifestFile {
 
   @Test
   void keyMetadataRoundTrips() {
-    assertThat(new RootManifestFile(file, SNAPSHOT_ID, null).keyMetadata()).isNull();
+    assertThat(
+            new RootManifestFile(file, SNAPSHOT_ID, SEQUENCE_NUMBER, FIRST_ROW_ID, null)
+                .keyMetadata())
+        .isNull();
 
     ByteBuffer keyMetadata = ByteBuffer.wrap(new byte[] {9, 8, 7});
-    assertThat(new RootManifestFile(file, SNAPSHOT_ID, keyMetadata).keyMetadata())
+    assertThat(
+            new RootManifestFile(file, SNAPSHOT_ID, SEQUENCE_NUMBER, FIRST_ROW_ID, keyMetadata)
+                .keyMetadata())
         .isEqualTo(keyMetadata);
   }
 
   @Test
   void copyPreservesValues() {
     ByteBuffer keyMetadata = ByteBuffer.wrap(new byte[] {9, 8, 7});
-    RootManifestFile original = new RootManifestFile(file, SNAPSHOT_ID, keyMetadata);
+    RootManifestFile original =
+        new RootManifestFile(file, SNAPSHOT_ID, SEQUENCE_NUMBER, FIRST_ROW_ID, keyMetadata);
     ManifestFile copy = original.copy();
 
     assertThat(copy.path()).isEqualTo(LOCATION);
     assertThat(copy.length()).isEqualTo(CONTENTS.length);
     assertThat(copy.snapshotId()).isEqualTo(SNAPSHOT_ID);
+    assertThat(copy.sequenceNumber()).isEqualTo(SEQUENCE_NUMBER);
+    assertThat(copy.firstRowId()).isEqualTo(FIRST_ROW_ID);
     assertThat(copy.keyMetadata()).isEqualTo(keyMetadata);
     assertThat(copy.keyMetadata().array())
         .as("copy should not share the key metadata backing array")
@@ -76,14 +91,12 @@ class TestRootManifestFile {
 
   @Test
   void unsupportedAccessorsThrow() {
-    RootManifestFile root = new RootManifestFile(file, SNAPSHOT_ID, null);
+    RootManifestFile root =
+        new RootManifestFile(file, SNAPSHOT_ID, SEQUENCE_NUMBER, FIRST_ROW_ID, null);
 
     assertThatThrownBy(root::partitionSpecId)
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Root manifest has no partition spec");
-    assertThatThrownBy(root::sequenceNumber)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Root manifest has no sequence number");
     assertThatThrownBy(root::minSequenceNumber)
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Root manifest has no minimum sequence number");

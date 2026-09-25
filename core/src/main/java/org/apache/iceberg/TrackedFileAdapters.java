@@ -46,15 +46,6 @@ class TrackedFileAdapters {
     return new TrackedDVDeleteFile(file, resolveSpecId(file, specsById));
   }
 
-  static DeleteFile asDVDeleteFile(DataFile dataFile) {
-    Preconditions.checkArgument(
-        dataFile instanceof TrackedDataFile,
-        "Cannot create DV delete file from DataFile: %s",
-        dataFile);
-    TrackedDataFile tracked = (TrackedDataFile) dataFile;
-    return new TrackedDVDeleteFile(tracked.file(), tracked.specId());
-  }
-
   static DeleteFile asEqualityDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(
         file.contentType() == FileContent.EQUALITY_DELETES,
@@ -214,7 +205,7 @@ class TrackedFileAdapters {
   }
 
   /** Adapts a TrackedFile DATA entry to the {@link DataFile} interface. */
-  private static class TrackedDataFile extends TrackedContentFile<DataFile> implements DataFile {
+  static class TrackedDataFile extends TrackedContentFile<DataFile> implements DataFile {
     private TrackedDataFile(TrackedFile file, int specId) {
       super(file, specId);
     }
