@@ -92,7 +92,7 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
   public Type struct(StructType struct, List<Type> types) {
     StructField[] fields = struct.fields();
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(fields.length);
-    boolean isRoot = root.equals(struct);
+    boolean isRoot = root != null && root.equals(struct);
     for (int i = 0; i < fields.length; i += 1) {
       StructField field = fields[i];
       Type type = types.get(i);
