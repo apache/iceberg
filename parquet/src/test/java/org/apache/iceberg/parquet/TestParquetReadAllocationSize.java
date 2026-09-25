@@ -48,8 +48,11 @@ import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.FileRange;
+import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -323,6 +326,8 @@ public class TestParquetReadAllocationSize {
     int maxAllocationSizeInBytes = 4096;
     Configuration conf = newRecordingConfiguration();
     conf.setInt("parquet.read.allocation.size", maxAllocationSizeInBytes);
+    // vectored reads allocate one buffer per range and ignore the allocation size
+    conf.setBoolean("parquet.hadoop.vectored.io.enabled", false);
 
     HadoopInputFile file = writeHadoopFile(expected, tempDir, conf);
 
@@ -340,10 +345,134 @@ public class TestParquetReadAllocationSize {
       RecordingLocalFileSystem.stopRecording();
     }
 
-    assertThat(requestedLengths).as("test should exercise at least one buffered read").isNotEmpty();
+    assertThat(requestedLengths.stream().mapToLong(Integer::longValue).sum())
+        .as("column data should be read through the recorded, allocation-bounded reads")
+        .isGreaterThan(MIN_TOTAL_BYTES);
     assertThat(requestedLengths)
         .as("no single read should request more than the ambient configuration's allocation size")
         .allSatisfy(len -> assertThat(len).isLessThanOrEqualTo(maxAllocationSizeInBytes));
+  }
+
+  /**
+   * Wraps a file so its streams implement {@link RangeReadable} (as S3FileIO's do), which makes
+   * vectored reads available to Parquet, and counts every vectored read Parquet issues.
+   */
+  private static InputFile vectoredReadCountingFile(InputFile delegate, AtomicInteger counter) {
+    InputFile spy = Mockito.spy(delegate);
+    Mockito.doAnswer(
+            invocation ->
+                new VectoredReadCountingStream(
+                    (SeekableInputStream) invocation.callRealMethod(), counter))
+        .when(spy)
+        .newStream();
+    return spy;
+  }
+
+  private static class VectoredReadCountingStream extends SeekableInputStream
+      implements RangeReadable {
+    private final SeekableInputStream delegate;
+    private final AtomicInteger vectoredReads;
+
+    VectoredReadCountingStream(SeekableInputStream delegate, AtomicInteger vectoredReads) {
+      this.delegate = delegate;
+      this.vectoredReads = vectoredReads;
+    }
+
+    @Override
+    public long getPos() throws IOException {
+      return delegate.getPos();
+    }
+
+    @Override
+    public void seek(long newPos) throws IOException {
+      delegate.seek(newPos);
+    }
+
+    @Override
+    public int read() throws IOException {
+      return delegate.read();
+    }
+
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+      return delegate.read(b, off, len);
+    }
+
+    @Override
+    public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
+      long pos = delegate.getPos();
+      delegate.seek(position);
+      IOUtil.readFully(delegate, buffer, offset, length);
+      delegate.seek(pos);
+    }
+
+    @Override
+    public int readTail(byte[] buffer, int offset, int length) throws IOException {
+      throw new UnsupportedOperationException("not used by these tests");
+    }
+
+    @Override
+    public void readVectored(List<FileRange> ranges, IntFunction<ByteBuffer> allocate)
+        throws IOException {
+      vectoredReads.incrementAndGet();
+      RangeReadable.super.readVectored(ranges, allocate);
+    }
+
+    @Override
+    public void close() throws IOException {
+      delegate.close();
+    }
+  }
+
+  /** Reads the file back and returns how many vectored reads Parquet issued. */
+  private static int countVectoredReads(InputFile file, String vectoredIoEnabled, int expected)
+      throws IOException {
+    AtomicInteger vectoredReads = new AtomicInteger();
+    Parquet.ReadBuilder builder =
+        Parquet.read(vectoredReadCountingFile(file, vectoredReads))
+            .project(SCHEMA)
+            .createReaderFunc(fileSchema -> InternalReader.create(SCHEMA, fileSchema));
+    if (vectoredIoEnabled != null) {
+      builder.set("parquet.hadoop.vectored.io.enabled", vectoredIoEnabled);
+    }
+
+    try (CloseableIterable<Record> reader = builder.build()) {
+      assertThat(reader).as("all records should be read back").hasSize(expected);
+    }
+
+    return vectoredReads.get();
+  }
+
+  @Test
+  public void testVectoredIoIsEnabledByDefault() throws IOException {
+    List<Record> expected = highEntropyRecords(4000, 1024);
+    InputFile file = writeFile(expected);
+
+    // no set(...) call: parquet-java's own default (enabled) applies
+    assertThat(countVectoredReads(file, null, expected.size()))
+        .as("vectored reads should still be used when nothing is configured")
+        .isGreaterThan(0);
+  }
+
+  @Test
+  public void testVectoredIoIsEnabledWhenSetToTrue() throws IOException {
+    List<Record> expected = highEntropyRecords(4000, 1024);
+    InputFile file = writeFile(expected);
+
+    assertThat(countVectoredReads(file, "true", expected.size()))
+        .as("vectored reads should be used when explicitly enabled")
+        .isGreaterThan(0);
+  }
+
+  @Test
+  public void testVectoredIoIsDisabledWhenSetToFalse() throws IOException {
+    List<Record> expected = highEntropyRecords(4000, 1024);
+    InputFile file = writeFile(expected);
+
+    // previously overridden by an unconditional withUseHadoopVectoredIo(true) in build()
+    assertThat(countVectoredReads(file, "false", expected.size()))
+        .as("vectored reads should not be used when explicitly disabled")
+        .isZero();
   }
 
   /** Reads the Hadoop file back and returns how many vectored reads reached the FileSystem. */
