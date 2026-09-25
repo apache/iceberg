@@ -74,7 +74,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final String tableLocation;
   private final InclusiveStatsEvaluator statsFilter;
   private final Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters; // by spec ID
-  private final boolean includeAll;
   private final Set<Integer> requestedStatsFieldIds;
   private final boolean isUncommitted;
   private final ScanMetrics scanMetrics;
@@ -88,7 +87,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       String tableLocation,
       InclusiveStatsEvaluator statsFilter,
       Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters,
-      boolean includeAll,
       Set<Integer> requestedStatsFieldIds,
       boolean isUncommitted,
       ScanMetrics scanMetrics) {
@@ -99,7 +97,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     this.tableLocation = tableLocation;
     this.statsFilter = statsFilter;
     this.partitionFilters = partitionFilters;
-    this.includeAll = includeAll;
     this.requestedStatsFieldIds = requestedStatsFieldIds;
     this.isUncommitted = isUncommitted;
     this.scanMetrics = scanMetrics;
@@ -120,15 +117,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     CloseableIterable<TrackedFile> files =
         CloseableIterable.transform(open(), this::applyInheritance);
 
-    if (!includeAll) {
-      if (dv != null) {
-        files =
-            CloseableIterable.filter(files, file -> file.tracking().isLive() && !isDeleted(file));
-      } else {
-        files = CloseableIterable.filter(files, file -> file.tracking().isLive());
-      }
-    } else if (dv != null) {
-      files = CloseableIterable.transform(files, this::applyMDVDeletes);
+    if (dv != null) {
+      files =
+          CloseableIterable.filter(files, file -> file.tracking().isLive() && !isDeletedByMDV(file));
+    } else {
+      files = CloseableIterable.filter(files, file -> file.tracking().isLive());
     }
 
     if (statsFilter != null) {
@@ -167,18 +160,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return file;
   }
 
-  private boolean isDeleted(TrackedFile file) {
+  private boolean isDeletedByMDV(TrackedFile file) {
     return dv.isSet(Math.toIntExact(file.tracking().manifestPos()));
-  }
-
-  private TrackedFile applyMDVDeletes(TrackedFile file) {
-    if (file.tracking().isLive() && isDeleted(file)) {
-      // the reader uses TrackingStruct to read tracking so this cast is safe
-      // set snapshot ID to null because the snapshot ID when the MDV was updated is unknown
-      ((TrackingStruct) file.tracking()).convertToDeleted(null);
-    }
-
-    return file;
   }
 
   private boolean matchesPartition(TrackedFile trackedFile) {
@@ -286,7 +269,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private String tableLocation = null;
     private Expression rowFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
-    private boolean includeAll = false;
     private boolean scanPlanning = false;
     private Set<String> requestedColumns = null;
     private Schema requestedProjection = null;
@@ -345,12 +327,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
     Builder caseSensitive(boolean isCaseSensitive) {
       this.caseSensitive = isCaseSensitive;
-      return this;
-    }
-
-    /** Returns all entries without filtering by {@link Tracking#isLive() liveness}. */
-    Builder includeAll() {
-      this.includeAll = true;
       return this;
     }
 
@@ -440,7 +416,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           tableLocation,
           statsFilter(),
           partitionFilters,
-          includeAll,
           requestedStatsFieldIds,
           isUncommitted,
           scanMetrics);

@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -265,52 +264,6 @@ class TestTrackingStruct {
     TrackingStruct tracking = new TrackingStruct(status, null, null, null, null, null, null, null);
 
     assertThat(tracking.isLive()).isEqualTo(status.isLive());
-  }
-
-  @ParameterizedTest
-  @EnumSource
-  void convertToDeleted(EntryStatus status) {
-    byte[] deletedBitmap = new byte[] {1, 2, 3};
-    byte[] replacedBitmap = new byte[] {4, 5, 6};
-    TrackingStruct tracking =
-        new TrackingStruct(status, 42L, 5L, 5L, 44L, 10_000L, deletedBitmap, replacedBitmap);
-    Tracking expected =
-        new TrackingStruct(
-            EntryStatus.DELETED, 142L, 5L, 5L, 44L, 10_000L, deletedBitmap, replacedBitmap);
-
-    if (status.isLive()) {
-      Tracking converted = tracking.convertToDeleted(142L);
-
-      assertThat(converted).isSameAs(tracking);
-      assertThat(converted).usingComparator(V4TestComparators.TRACKING).isEqualTo(expected);
-    } else {
-      assertThatThrownBy(() -> tracking.convertToDeleted(142L))
-          .isInstanceOf(IllegalStateException.class)
-          .hasMessage("Cannot convert " + status + " to DELETED");
-    }
-  }
-
-  @ParameterizedTest
-  @EnumSource
-  void convertToReplaced(EntryStatus status) {
-    byte[] deletedBitmap = new byte[] {1, 2, 3};
-    byte[] replacedBitmap = new byte[] {4, 5, 6};
-    TrackingStruct tracking =
-        new TrackingStruct(status, 42L, 5L, 5L, 44L, 10_000L, deletedBitmap, replacedBitmap);
-    Tracking expected =
-        new TrackingStruct(
-            EntryStatus.REPLACED, 142L, 5L, 5L, 44L, 10_000L, deletedBitmap, replacedBitmap);
-
-    if (status.isLive()) {
-      Tracking converted = tracking.convertToReplaced(142L);
-
-      assertThat(converted).isSameAs(tracking);
-      assertThat(converted).usingComparator(V4TestComparators.TRACKING).isEqualTo(expected);
-    } else {
-      assertThatThrownBy(() -> tracking.convertToReplaced(142L))
-          .isInstanceOf(IllegalStateException.class)
-          .hasMessage("Cannot convert " + status + " to REPLACED");
-    }
   }
 
   @Test

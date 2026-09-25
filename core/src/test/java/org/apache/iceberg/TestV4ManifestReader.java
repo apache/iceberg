@@ -369,11 +369,6 @@ class TestV4ManifestReader {
     assertThat(liveFiles)
         .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
         .containsExactly(expectedFiles.get(0), expectedFiles.get(1), expectedFiles.get(3));
-
-    List<TrackedFile> allFiles = read(builder.includeAll());
-    assertThat(allFiles)
-        .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
-        .isEqualTo(expectedFiles);
   }
 
   @ParameterizedTest
@@ -434,11 +429,6 @@ class TestV4ManifestReader {
     assertThat(liveFiles)
         .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
         .containsExactly(expectedFiles.get(0), expectedFiles.get(3));
-
-    List<TrackedFile> allFiles = read(builder.includeAll());
-    assertThat(allFiles)
-        .usingComparatorForType(FILE_AND_TRACKING_COMPARATOR, TrackedFile.class)
-        .isEqualTo(expectedFiles);
   }
 
   @ParameterizedTest
@@ -1766,7 +1756,17 @@ class TestV4ManifestReader {
   }
 
   private static TrackedFile unpartitionedFileWithoutStats(String location) {
-    return unpartitionedFileWithStatus(EntryStatus.ADDED, location);
+    Tracking tracking =
+        new TrackingStruct(
+            EntryStatus.ADDED,
+            SNAPSHOT_ID,
+            3L, // data sequence number
+            3L, // file sequence number
+            null, // dv snapshot id
+            null, // first row id
+            null, // deleted positions
+            null); // replaced positions
+    return unpartitionedDataFile(tracking, location, null /* no stats */, null /* no DV */);
   }
 
   private static TrackedFile idPartitionedDataFileWithoutStats(
@@ -1849,20 +1849,6 @@ class TestV4ManifestReader {
   }
 
   private static TrackedFile unpartitionedDataFile(Tracking tracking, String location) {
-    return unpartitionedDataFile(tracking, location, null /* no stats */, null /* no DV */);
-  }
-
-  private static TrackedFile unpartitionedFileWithStatus(EntryStatus status, String location) {
-    Tracking tracking =
-        new TrackingStruct(
-            status,
-            SNAPSHOT_ID,
-            3L, // data sequence number
-            3L, // file sequence number
-            null, // dv snapshot id
-            null, // first row id
-            null, // deleted positions
-            null); // replaced positions
     return unpartitionedDataFile(tracking, location, null /* no stats */, null /* no DV */);
   }
 
