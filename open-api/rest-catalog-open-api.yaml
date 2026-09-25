@@ -280,6 +280,13 @@ paths:
           schema:
             type: string
           example: "accounting%1Ftax"
+        - name: recursive
+          in: query
+          description: An optional flag indicating whether to list namespaces recursively.
+          required: false
+          schema:
+            type: boolean
+            default: false
       responses:
         200:
           $ref: '#/components/responses/ListNamespacesResponse'
