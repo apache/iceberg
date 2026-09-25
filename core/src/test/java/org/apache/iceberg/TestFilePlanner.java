@@ -1,0 +1,669 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg;
+
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.function.UnaryOperator;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.inmemory.InMemoryFileIO;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileAppender;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.DefaultMetricsContext;
+import org.apache.iceberg.metrics.ScanMetrics;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.ThreadPools;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.FieldSource;
+
+class TestFilePlanner {
+  private static final long SNAPSHOT_ID = 42L;
+  private static final long SEQUENCE_NUMBER = 7L;
+  private static final long FIRST_ROW_ID = 1000L;
+  private static final int WRITER_FORMAT_VERSION = 4;
+  private static final long RECORD_COUNT = 100L;
+  private static final long FILE_SIZE_IN_BYTES = 1024L;
+  private static final String TABLE_LOCATION = "s3://bucket/db/table";
+  private static final String DV_LOCATION = "s3://bucket/db/table/dv.puffin";
+  private static final long DV_OFFSET = 100L;
+  private static final long DV_SIZE_IN_BYTES = 50L;
+  private static final long DV_CARDINALITY = 5L;
+
+  private static final Schema TABLE_SCHEMA =
+      new Schema(
+          optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
+  private static final PartitionSpec SPEC =
+      PartitionSpec.builderFor(TABLE_SCHEMA).identity("id").build();
+  private static final Types.StructType PARTITION_TYPE = SPEC.partitionType();
+  private static final Types.StructType EMPTY_PARTITION = Types.StructType.of();
+  private static final PartitionData EMPTY_PARTITION_DATA = new PartitionData(EMPTY_PARTITION);
+  private static final Map<Integer, PartitionSpec> PARTITIONED_SPECS =
+      ImmutableMap.of(SPEC.specId(), SPEC);
+  private static final Map<Integer, PartitionSpec> UNPARTITIONED_SPECS =
+      ImmutableMap.of(PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned());
+
+  private static final List<FileFormat> MANIFEST_FORMATS =
+      ImmutableList.of(FileFormat.AVRO, FileFormat.PARQUET);
+
+  private static final MetricsConfig METRICS_CONFIG =
+      MetricsConfig.from(ImmutableMap.of(), TABLE_SCHEMA, null);
+  private static final Types.StructType STATS_TYPE =
+      StatsUtil.statsWriteSchema(TABLE_SCHEMA, METRICS_CONFIG);
+
+  private final InMemoryFileIO fileIO = new InMemoryFileIO();
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void rootWithDirectDataEntries(FileFormat format) throws IOException {
+    InputFile root =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFile("a.parquet", EMPTY_PARTITION_DATA),
+                dataFile("b.parquet", EMPTY_PARTITION_DATA)));
+
+    List<FileScanTask> tasks = plan(root, UNPARTITIONED_SPECS);
+
+    assertThat(tasks)
+        .hasSize(2)
+        .extracting(task -> task.file().location())
+        .containsExactlyInAnyOrder(resolved("a.parquet"), resolved("b.parquet"));
+    assertThat(tasks).allSatisfy(task -> assertThat(task.deletes()).isEmpty());
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void rootWithLeafManifestEntriesOnly(FileFormat format) throws IOException {
+    InputFile leaf =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFile("leaf-a.parquet", EMPTY_PARTITION_DATA),
+                dataFile("leaf-b.parquet", EMPTY_PARTITION_DATA)));
+    InputFile root =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
+
+    ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
+    List<FileScanTask> tasks =
+        plan(root, UNPARTITIONED_SPECS, planner -> planner.scanMetrics(metrics));
+
+    assertThat(tasks)
+        .hasSize(2)
+        .extracting(task -> task.file().location())
+        .containsExactlyInAnyOrder(resolved("leaf-a.parquet"), resolved("leaf-b.parquet"));
+    assertThat(metrics.scannedDataManifests().value())
+        .as("the root and the expanded leaf are each counted as a scanned manifest")
+        .isEqualTo(2L);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void mixedRootDataAndLeafManifest(FileFormat format) throws IOException {
+    InputFile leaf =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(dataFile("leaf-data-file.parquet", EMPTY_PARTITION_DATA)));
+    InputFile root =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFile("root-data-file.parquet", EMPTY_PARTITION_DATA),
+                dataManifest(leaf.location())));
+
+    List<FileScanTask> tasks = plan(root, UNPARTITIONED_SPECS);
+
+    assertThat(tasks)
+        .hasSize(2)
+        .extracting(task -> task.file().location())
+        .containsExactlyInAnyOrder(
+            resolved("root-data-file.parquet"), resolved("leaf-data-file.parquet"));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void deletionVectorAttachedToTask(FileFormat format) throws IOException {
+    TrackedFile fileWithDv =
+        dataFile(
+            "with-dv.parquet",
+            EMPTY_PARTITION_DATA,
+            deletionVector(DV_LOCATION, DV_OFFSET, DV_SIZE_IN_BYTES, DV_CARDINALITY));
+    InputFile root = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(fileWithDv));
+
+    List<FileScanTask> tasks = plan(root, UNPARTITIONED_SPECS);
+
+    assertThat(tasks).hasSize(1);
+    assertThat(tasks.get(0).deletes())
+        .hasSize(1)
+        .allSatisfy(
+            delete -> {
+              assertThat(delete.content()).isEqualTo(FileContent.POSITION_DELETES);
+              assertThat(delete.location()).isEqualTo(DV_LOCATION);
+              assertThat(delete.referencedDataFile()).isEqualTo(resolved("with-dv.parquet"));
+              assertThat(delete.recordCount()).isEqualTo(DV_CARDINALITY);
+              assertThat(delete.contentOffset()).isEqualTo(DV_OFFSET);
+              assertThat(delete.contentSizeInBytes()).isEqualTo(DV_SIZE_IN_BYTES);
+            });
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void residualAttachedFromFilter(FileFormat format) throws IOException {
+    InputFile root =
+        writeManifest(
+            format, PARTITION_TYPE, ImmutableList.of(dataFile("keep.parquet", partition(1))));
+
+    List<FileScanTask> withResidual =
+        plan(
+            root, PARTITIONED_SPECS, planner -> planner.filterData(Expressions.equal("data", "x")));
+    assertThat(withResidual.get(0).residual())
+        .hasToString(Expressions.equal("data", "x").toString());
+
+    List<FileScanTask> ignored =
+        plan(
+            root,
+            PARTITIONED_SPECS,
+            planner -> planner.filterData(Expressions.equal("data", "x")).ignoreResiduals());
+    assertThat(ignored.get(0).residual()).isEqualTo(Expressions.alwaysTrue());
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void sameSpecFilesShareContext(FileFormat format) throws IOException {
+    InputFile root =
+        writeManifest(
+            format,
+            PARTITION_TYPE,
+            ImmutableList.of(
+                dataFile("a.parquet", partition(1)), dataFile("b.parquet", partition(1))));
+
+    List<FileScanTask> tasks =
+        plan(
+            root, PARTITIONED_SPECS, planner -> planner.filterData(Expressions.equal("data", "x")));
+
+    // both files share spec 0, so both tasks resolve from the same shared context
+    assertThat(tasks).hasSize(2);
+    FileScanTask first = tasks.get(0);
+    FileScanTask second = tasks.get(1);
+    assertThat(second.schema()).isSameAs(first.schema());
+    assertThat(second.spec()).isSameAs(first.spec());
+    assertThat(second.residual()).isSameAs(first.residual());
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void buildingAndClosingWithoutIteratingDoesNotScanLeaves(FileFormat format) throws IOException {
+    InputFile leaf =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(dataFile("leaf.parquet", EMPTY_PARTITION_DATA)));
+    InputFile root =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
+
+    ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
+    FilePlanner planner =
+        new FilePlanner(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .tableLocation(TABLE_LOCATION)
+            .scanMetrics(metrics);
+    planner.planFiles().close();
+
+    assertThat(metrics.scannedDataManifests().value())
+        .as(
+            "the root is read eagerly but leaf readers open lazily, so closing "
+                + "without iterating scans only the root, not the leaf")
+        .isEqualTo(1L);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void parallelLeafExpansionYieldsAllFiles(FileFormat format) throws IOException {
+    TrackedFile withDv =
+        dataFile(
+            "leaf1-data.parquet",
+            partition(1),
+            deletionVector(DV_LOCATION, DV_OFFSET, DV_SIZE_IN_BYTES, DV_CARDINALITY));
+    InputFile leaf1 = writeManifest(format, PARTITION_TYPE, ImmutableList.of(withDv));
+    InputFile leaf2 =
+        writeManifest(
+            format, PARTITION_TYPE, ImmutableList.of(dataFile("leaf2-data.parquet", partition(1))));
+    InputFile root =
+        writeManifest(
+            format,
+            PARTITION_TYPE,
+            ImmutableList.of(dataManifest(leaf1.location()), dataManifest(leaf2.location())));
+
+    ExecutorService pool = ThreadPools.newFixedThreadPool("test-scan-task-planner", 2);
+    try {
+      List<FileScanTask> tasks =
+          plan(
+              root,
+              PARTITIONED_SPECS,
+              planner -> planner.filterData(Expressions.equal("data", "x")).planWith(pool));
+      String residual = Expressions.equal("data", "x").toString();
+      assertThat(tasks)
+          .extracting(
+              task -> task.file().location(),
+              task -> task.residual().toString(),
+              task -> task.deletes().size())
+          .containsExactlyInAnyOrder(
+              tuple(resolved("leaf1-data.parquet"), residual, 1),
+              tuple(resolved("leaf2-data.parquet"), residual, 0));
+    } finally {
+      pool.shutdownNow();
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void deleteContentInRootIsUnsupported(FileFormat format) throws IOException {
+    InputFile root =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(deleteManifest("deletes.avro")));
+
+    FilePlanner planner =
+        new FilePlanner(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .tableLocation(TABLE_LOCATION);
+    assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("v3 and earlier deletes are not yet supported");
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void nonDataEntryInLeafFailsPlanning(FileFormat format) throws IOException {
+    InputFile leaf =
+        writeManifest(
+            format, EMPTY_PARTITION, ImmutableList.of(dataManifest("nested-leaf.parquet")));
+    InputFile root =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
+
+    FilePlanner planner =
+        new FilePlanner(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .tableLocation(TABLE_LOCATION);
+    assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid content type for DataFile: DATA_MANIFEST");
+  }
+
+  @Test
+  void emptyRootYieldsNoTasks() throws IOException {
+    // Avro is used because the Parquet writer does not materialize a file when no records are
+    // appended.
+    InputFile root = writeManifest(FileFormat.AVRO, EMPTY_PARTITION, ImmutableList.of());
+
+    assertThat(plan(root, UNPARTITIONED_SPECS)).isEmpty();
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void planFilesAcrossMultipleSpecs(FileFormat format) throws IOException {
+    PartitionSpec spec0 =
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .withSpecId(0)
+            .add(1, 1000, "id", Transforms.identity())
+            .build();
+    PartitionSpec spec1 =
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .withSpecId(1)
+            .add(2, 1001, "data", Transforms.identity())
+            .build();
+    Map<Integer, PartitionSpec> specsById =
+        ImmutableMap.of(spec0.specId(), spec0, spec1.specId(), spec1);
+    Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
+
+    TrackedFile spec0Keep =
+        dataFile("spec0-keep.parquet", spec0.specId(), unionPartition(unionType, 1, null), null);
+    TrackedFile spec0Prune =
+        dataFile("spec0-prune.parquet", spec0.specId(), unionPartition(unionType, 2, null), null);
+    TrackedFile spec1File =
+        dataFile("spec1.parquet", spec1.specId(), unionPartition(unionType, null, "x"), null);
+    InputFile root =
+        writeManifest(format, unionType, ImmutableList.of(spec0Keep, spec0Prune, spec1File));
+
+    // id = 1 prunes the spec0 file partitioned on id=2; spec1 is not partitioned by id, so its
+    // residual keeps the predicate.
+    List<FileScanTask> tasks =
+        plan(root, specsById, planner -> planner.filterData(Expressions.equal("id", 1)));
+
+    assertThat(tasks)
+        .extracting(
+            task -> task.file().location(),
+            task -> task.spec().specId(),
+            task -> task.residual().toString())
+        .containsExactlyInAnyOrder(
+            tuple(resolved("spec0-keep.parquet"), 0, Expressions.alwaysTrue().toString()),
+            tuple(resolved("spec1.parquet"), 1, Expressions.equal("id", 1).toString()));
+
+    // `data` sits at union position 1 but spec1 position 0; the emitted task must expose the
+    // partition in its own spec order
+    FileScanTask spec1Task =
+        tasks.stream().filter(task -> task.spec().specId() == 1).findFirst().orElseThrow();
+    assertThat(spec1Task.file().partition().get(0, CharSequence.class)).hasToString("x");
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void planFilesReportsScanMetrics(FileFormat format) throws IOException {
+    TrackedFile fileWithDv =
+        dataFile(
+            "with-dv.parquet",
+            EMPTY_PARTITION_DATA,
+            deletionVector(DV_LOCATION, DV_OFFSET, DV_SIZE_IN_BYTES, DV_CARDINALITY));
+    InputFile root =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(dataFile("plain.parquet", EMPTY_PARTITION_DATA), fileWithDv));
+
+    ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
+    List<FileScanTask> tasks =
+        plan(root, UNPARTITIONED_SPECS, planner -> planner.scanMetrics(metrics));
+
+    assertThat(tasks).hasSize(2);
+    assertThat(metrics.scannedDataManifests().value())
+        .as("the root is scanned; there are no leaves")
+        .isEqualTo(1L);
+    assertThat(metrics.resultDataFiles().value()).isEqualTo(2L);
+    assertThat(metrics.totalFileSizeInBytes().value()).isEqualTo(2 * FILE_SIZE_IN_BYTES);
+    assertThat(metrics.resultDeleteFiles().value())
+        .as("only the file with a colocated DV contributes a delete file")
+        .isEqualTo(1L);
+    assertThat(metrics.totalDeleteFileSizeInBytes().value())
+        .as("the DV delete contributes its size")
+        .isEqualTo(DV_SIZE_IN_BYTES);
+    assertThat(metrics.dvs().value()).isEqualTo(1L);
+    assertThat(metrics.indexedDeleteFiles().value())
+        .as("co-located DVs are not indexed delete files")
+        .isEqualTo(0L);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void filterAppliesToLeafManifestFiles(FileFormat format) throws IOException {
+    InputFile leaf =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFileWithStats("leaf-keep.parquet", idStats(0, 99)),
+                dataFileWithStats("leaf-prune.parquet", idStats(100, 199))));
+    InputFile root =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
+
+    List<FileScanTask> tasks =
+        plan(root, UNPARTITIONED_SPECS, planner -> planner.filterData(Expressions.equal("id", 50)));
+
+    assertThat(Iterables.getOnlyElement(tasks).file().location())
+        .as("only the leaf file whose stats match the filter survives")
+        .isEqualTo(resolved("leaf-keep.parquet"));
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  void prunedLeafManifestIsNotExpanded(FileFormat format) throws IOException {
+    InputFile root =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataManifestWithStats(
+                    "unopened-leaf." + format.name().toLowerCase(Locale.ROOT), idStats(100, 199)),
+                dataFileWithStats("root-keep.parquet", idStats(0, 99))));
+
+    ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
+    List<FileScanTask> tasks =
+        plan(
+            root,
+            UNPARTITIONED_SPECS,
+            planner -> planner.filterData(Expressions.equal("id", 50)).scanMetrics(metrics));
+
+    assertThat(Iterables.getOnlyElement(tasks).file().location())
+        .isEqualTo(resolved("root-keep.parquet"));
+    assertThat(metrics.skippedDataManifests().value())
+        .as("the leaf manifest ref is pruned by its stats")
+        .isEqualTo(1L);
+    assertThat(metrics.scannedDataManifests().value())
+        .as("only the root is scanned; the pruned leaf is never opened")
+        .isEqualTo(1L);
+  }
+
+  private List<FileScanTask> plan(InputFile root, Map<Integer, PartitionSpec> specsById)
+      throws IOException {
+    return plan(root, specsById, UnaryOperator.identity());
+  }
+
+  private List<FileScanTask> plan(
+      InputFile root, Map<Integer, PartitionSpec> specsById, UnaryOperator<FilePlanner> configure)
+      throws IOException {
+    FilePlanner planner =
+        configure.apply(
+            new FilePlanner(fileIO, asManifest(root), TABLE_SCHEMA, specsById)
+                .tableLocation(TABLE_LOCATION));
+    try (CloseableIterable<FileScanTask> tasks = planner.planFiles()) {
+      return Lists.newArrayList(tasks);
+    }
+  }
+
+  private static ManifestFile asManifest(InputFile file) {
+    return new RootManifestFile(
+        file, SNAPSHOT_ID, SEQUENCE_NUMBER, FIRST_ROW_ID, /* keyMetadata= */ null);
+  }
+
+  private static TrackedFile dataFile(String location, PartitionData partition) {
+    return dataFile(location, specId(partition), partition, null);
+  }
+
+  private static TrackedFile dataFile(String location, PartitionData partition, DeletionVector dv) {
+    return dataFile(location, specId(partition), partition, dv);
+  }
+
+  private static TrackedFile dataFile(
+      String location, Integer specId, PartitionData partition, DeletionVector dv) {
+    return trackedFile(addedTracking(), FileContent.DATA, location, specId, partition, dv, null);
+  }
+
+  private static TrackedFile dataFileWithStats(String location, ContentStats stats) {
+    return trackedFile(
+        addedTracking(),
+        FileContent.DATA,
+        location,
+        specId(EMPTY_PARTITION_DATA),
+        EMPTY_PARTITION_DATA,
+        stats,
+        null, // dv
+        null); // manifestInfo
+  }
+
+  private static TrackedFile dataManifest(String location) {
+    return trackedFile(
+        addedTracking(), FileContent.DATA_MANIFEST, location, null, null, null, dataManifestInfo());
+  }
+
+  private static TrackedFile dataManifestWithStats(String location, ContentStats stats) {
+    return trackedFile(
+        addedTracking(),
+        FileContent.DATA_MANIFEST,
+        location,
+        null, // specId
+        null, // partition
+        stats,
+        null, // dv
+        dataManifestInfo());
+  }
+
+  private static ContentStats idStats(int lower, int upper) {
+    ContentStatsStruct stats = new ContentStatsStruct(STATS_TYPE);
+    stats.setStats(
+        TABLE_SCHEMA.findField("id").fieldId(),
+        new FieldStatsStruct<>(
+            STATS_TYPE.fieldType("id").asStructType(),
+            lower,
+            upper,
+            true, // tightBounds
+            RECORD_COUNT,
+            0, // nullValueCount
+            0, // nanValueCount
+            null)); // avgValueSize
+    return stats;
+  }
+
+  private static ManifestInfo dataManifestInfo() {
+    return ManifestInfoStruct.builder()
+        .addedFilesCount(1)
+        .existingFilesCount(0)
+        .deletedFilesCount(0)
+        .replacedFilesCount(0)
+        .addedRowsCount(RECORD_COUNT)
+        .existingRowsCount(0)
+        .deletedRowsCount(0)
+        .replacedRowsCount(0)
+        .minSequenceNumber(0L)
+        .build();
+  }
+
+  private static TrackedFile deleteManifest(String location) {
+    return trackedFile(
+        addedTracking(), FileContent.DELETE_MANIFEST, location, null, null, null, null);
+  }
+
+  private static TrackedFile trackedFile(
+      TrackingStruct tracking,
+      FileContent contentType,
+      String location,
+      Integer specId,
+      PartitionData partition,
+      DeletionVector dv,
+      ManifestInfo manifestInfo) {
+    return trackedFile(tracking, contentType, location, specId, partition, null, dv, manifestInfo);
+  }
+
+  private static TrackedFile trackedFile(
+      TrackingStruct tracking,
+      FileContent contentType,
+      String location,
+      Integer specId,
+      PartitionData partition,
+      ContentStats contentStats,
+      DeletionVector dv,
+      ManifestInfo manifestInfo) {
+    return new TrackedFileStruct(
+        tracking,
+        contentType,
+        WRITER_FORMAT_VERSION,
+        location,
+        FileFormat.fromFileName(location),
+        RECORD_COUNT,
+        FILE_SIZE_IN_BYTES,
+        specId,
+        partition,
+        contentStats,
+        null, // sortOrderId
+        dv, // deletionVector
+        manifestInfo,
+        null, // keyMetadata
+        null, // splitOffsets
+        null); // equalityIds
+  }
+
+  private static TrackingStruct addedTracking() {
+    return new TrackingStruct(
+        EntryStatus.ADDED,
+        SNAPSHOT_ID,
+        null, // dataSequenceNumber
+        null, // fileSequenceNumber
+        null, // dvSnapshotId
+        null, // firstRowId
+        null, // deletedPositions
+        null); // replacedPositions
+  }
+
+  private static Integer specId(PartitionData partition) {
+    boolean unpartitioned = partition.size() == 0;
+    return unpartitioned ? PartitionSpec.unpartitioned().specId() : SPEC.specId();
+  }
+
+  private static PartitionData partition(int id) {
+    PartitionData partition = new PartitionData(PARTITION_TYPE);
+    partition.set(0, id);
+    return partition;
+  }
+
+  // the location a relative fixture resolves to once read against TABLE_LOCATION
+  private static String resolved(String location) {
+    return LocationUtil.resolveLocation(TABLE_LOCATION, location);
+  }
+
+  private static PartitionData unionPartition(Types.StructType unionType, Integer id, String data) {
+    PartitionData partition = new PartitionData(unionType);
+    partition.set(0, id);
+    partition.set(1, data);
+    return partition;
+  }
+
+  private static DeletionVector deletionVector(
+      String location, long offset, long sizeInBytes, long cardinality) {
+    return DeletionVectorStruct.builder()
+        .location(location)
+        .offset(offset)
+        .sizeInBytes(sizeInBytes)
+        .cardinality(cardinality)
+        .build();
+  }
+
+  private InputFile writeManifest(
+      FileFormat format, Types.StructType partitionType, Iterable<TrackedFile> files)
+      throws IOException {
+    Schema writeSchema = TrackedFile.schema(partitionType, STATS_TYPE);
+    OutputFile out =
+        fileIO.newOutputFile(
+            TABLE_LOCATION
+                + "/metadata/manifest-"
+                + System.nanoTime()
+                + "."
+                + format.name().toLowerCase(Locale.ROOT));
+    try (FileAppender<StructLike> appender =
+        InternalData.write(format, out).schema(writeSchema).named("tracked_file").build()) {
+      for (TrackedFile file : files) {
+        appender.add((StructLike) file);
+      }
+    }
+
+    return out.toInputFile();
+  }
+}

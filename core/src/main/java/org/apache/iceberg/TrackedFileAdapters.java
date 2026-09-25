@@ -205,7 +205,7 @@ class TrackedFileAdapters {
   }
 
   /** Adapts a TrackedFile DATA entry to the {@link DataFile} interface. */
-  private static class TrackedDataFile extends TrackedContentFile<DataFile> implements DataFile {
+  static class TrackedDataFile extends TrackedContentFile<DataFile> implements DataFile {
     private TrackedDataFile(TrackedFile file, int specId) {
       super(file, specId);
     }
