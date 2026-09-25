@@ -88,7 +88,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
-import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import software.amazon.awssdk.awscore.AwsServiceClientConfiguration;
@@ -115,10 +115,10 @@ import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
 @Testcontainers
 public class TestS3FileIO {
-  @Container private final MinIOContainer minio = createMinIOContainer();
+  @Container private final GenericContainer<?> objectStore = startObjectStore();
 
   private final SerializableSupplier<S3Client> s3 =
-      () -> MinioUtil.createS3Client(minio, legacyMd5PluginEnabled());
+      () -> ObjectStoreUtil.createS3Client(objectStore);
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3.get()));
   private final Random random = new Random(1);
   private final int numBucketsForBatchDeletion = 3;
@@ -136,14 +136,10 @@ public class TestS3FileIO {
           "s3.delete.batch-size",
           Integer.toString(batchDeletionSize));
 
-  protected MinIOContainer createMinIOContainer() {
-    MinIOContainer container = MinioUtil.createContainer();
+  private static GenericContainer<?> startObjectStore() {
+    GenericContainer<?> container = ObjectStoreUtil.createContainer();
     container.start();
     return container;
-  }
-
-  protected boolean legacyMd5PluginEnabled() {
-    return false;
   }
 
   @BeforeEach
