@@ -1897,6 +1897,10 @@ class ViewMetadata(BaseModel):
 
 
 class AddSchemaUpdate(BaseUpdate):
+    """
+    Adds a schema. The field IDs (`StructField.id`) in `schema` are assigned by the client. A server SHOULD preserve them rather than reassigning them - a field ID is the durable identifier of a field, and reassigning it can break references that depend on it.
+    """
+
     action: Literal['add-schema']
     schema_: Schema = Field(..., alias='schema')
     last_column_id: int | None = Field(
@@ -2061,6 +2065,10 @@ class CommitTransactionRequest(BaseModel):
 
 
 class CreateTableRequest(BaseModel):
+    """
+    Table creation request. The field IDs in `schema` are assigned by the client, but because a newly created table has no committed data, a server MAY (re)assign them when creating the table.
+    """
+
     name: str
     location: str | None = None
     schema_: Schema = Field(..., alias='schema')
