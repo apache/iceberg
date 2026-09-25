@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aliyun;
 
+import com.aliyun.kms20160120.Client;
 import com.aliyun.oss.OSS;
 import java.io.Serializable;
 import java.util.Map;
@@ -30,6 +31,13 @@ public interface AliyunClientFactory extends Serializable {
    * @return oss client.
    */
   OSS newOSSClient();
+
+  /**
+   * Create an aliyun KMS client.
+   *
+   * @return kms client.
+   */
+  Client newKmsClient();
 
   /**
    * Initialize Aliyun client factory from catalog properties.
