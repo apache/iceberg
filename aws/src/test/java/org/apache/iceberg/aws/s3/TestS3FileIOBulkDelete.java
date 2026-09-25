@@ -122,6 +122,7 @@ class TestS3FileIOBulkDelete {
       assertThatThrownBy(
               () -> fileIO.deleteFiles(List.of("s3://bucket/a/one", "s3://bucket/a/two")))
           .isInstanceOf(BulkDeletionFailureException.class)
+          .hasMessage("Failed to delete 1 files")
           .satisfies(
               failure ->
                   assertThat(((BulkDeletionFailureException) failure).numberFailedObjects())
