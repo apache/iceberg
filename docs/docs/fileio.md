@@ -39,3 +39,21 @@ Different FileIO implementations are used depending on the type of storage. Iceb
 - Object Service Storage (including https)
 - Dell Enterprise Cloud Storage
 - Hadoop (adapts any Hadoop FileSystem implementation)
+
+## Google Cloud Storage FileIO
+
+Iceberg writes to GCS through `GCSFileIO`. Catalogs can load it with the `io-impl` catalog property.
+
+### Single-shot uploads
+
+Objects smaller than `gcs.write.threshold-bytes` are uploaded with a single GCS insert (`Storage.create`).
+Larger objects use a `WriteChannel`, which is the existing streaming write path.
+
+The default is 8 MiB so typical Iceberg metadata, snapshot lists, manifests, and delete files use the
+single-shot path. Data files are larger than the threshold and still stream after an 8 MiB in-memory
+prefix. GCS recommends simple/direct upload under about 5 MiB; 8 MiB is a coverage tradeoff and should
+not be raised without evidence. Set the property to `0` to always use `WriteChannel`.
+
+| Property                    | Default | Description                                                                                          |
+| --------------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
+| gcs.write.threshold-bytes   | 8MB     | Max size for a single-shot upload. `0` disables single-shot upload and always streams via WriteChannel. |

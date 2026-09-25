@@ -78,4 +78,5 @@ nav:
     - nessie.md
   - Storage:
     - AWS S3: aws/#s3-fileio
+    - Google Cloud Storage: fileio.md#google-cloud-storage-fileio
     - Dell ECS: dell.md
