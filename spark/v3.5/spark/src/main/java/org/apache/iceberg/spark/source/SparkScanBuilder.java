@@ -31,8 +31,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.MetricsConfig;
-import org.apache.iceberg.MetricsModes;
+import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -58,7 +57,6 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -233,7 +231,7 @@ public class SparkScanBuilder
 
     aggregateEvaluator = AggregateEvaluator.create(expressions);
 
-    if (!metricsModeSupportsAggregatePushDown(aggregateEvaluator.aggregates())) {
+    if (!MetricsUtil.metricsModeSupportsAggregatePushDown(table, aggregateEvaluator.aggregates())) {
       return false;
     }
 
@@ -285,41 +283,6 @@ public class SparkScanBuilder
     if (aggregation.groupByExpressions().length > 0) {
       LOG.info("Skipping aggregate pushdown: group by aggregation push down is not supported");
       return false;
-    }
-
-    return true;
-  }
-
-  private boolean metricsModeSupportsAggregatePushDown(List<BoundAggregate<?, ?>> aggregates) {
-    MetricsConfig config = MetricsConfig.forTable(table);
-    for (BoundAggregate aggregate : aggregates) {
-      String colName = aggregate.columnName();
-      if (!colName.equals("*")) {
-        MetricsModes.MetricsMode mode = config.columnMode(colName);
-        if (mode instanceof MetricsModes.None) {
-          LOG.info("Skipping aggregate pushdown: No metrics for column {}", colName);
-          return false;
-        } else if (mode instanceof MetricsModes.Counts) {
-          if (aggregate.op() == Expression.Operation.MAX
-              || aggregate.op() == Expression.Operation.MIN) {
-            LOG.info(
-                "Skipping aggregate pushdown: Cannot produce min or max from count for column {}",
-                colName);
-            return false;
-          }
-        } else if (aggregate.type().typeId() == Type.TypeID.STRING
-            || aggregate.type().typeId() == Type.TypeID.BINARY) {
-          // lower_bounds and upper_bounds may have been truncated before, so disable push down
-          // regardless of the current mode
-          if (aggregate.op() == Expression.Operation.MAX
-              || aggregate.op() == Expression.Operation.MIN) {
-            LOG.info(
-                "Skipping aggregate pushdown: Cannot produce min or max from truncated values for column {}",
-                colName);
-            return false;
-          }
-        }
-      }
     }
 
     return true;
