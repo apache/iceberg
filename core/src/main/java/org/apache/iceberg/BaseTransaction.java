@@ -454,15 +454,30 @@ public class BaseTransaction implements Transaction {
   }
 
   // returns the manifest lists and manifests referenced by the given committed snapshots
-  private static Set<String> committedFiles(FileIO io, Set<Snapshot> snapshots) {
+  private Set<String> committedFiles(FileIO io, Set<Snapshot> snapshots) {
     Set<String> committedFiles = Sets.newHashSet();
 
     for (Snapshot snap : snapshots) {
       committedFiles.add(snap.manifestListLocation());
-      snap.allManifests(io).forEach(manifest -> committedFiles.add(manifest.path()));
+      committedFiles.addAll(committedManifestPaths(io, snap));
     }
 
     return committedFiles;
+  }
+
+  // uses the manifest paths held by the update that wrote the snapshot's manifest list, if any
+  private Set<String> committedManifestPaths(FileIO io, Snapshot snapshot) {
+    for (PendingUpdate update : updates) {
+      if (update instanceof SnapshotProducer) {
+        Set<String> paths =
+            ((SnapshotProducer<?>) update).writtenManifestPaths(snapshot.manifestListLocation());
+        if (paths != null) {
+          return paths;
+        }
+      }
+    }
+
+    return snapshot.allManifests(io).stream().map(ManifestFile::path).collect(Collectors.toSet());
   }
 
   public class TransactionTableOperations implements TableOperations {
