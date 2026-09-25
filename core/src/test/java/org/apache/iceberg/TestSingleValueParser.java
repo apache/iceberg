@@ -168,6 +168,27 @@ public class TestSingleValueParser {
         .hasMessageStartingWith("Cannot parse default as a timestamptz_ns value");
   }
 
+  @Test
+  void unknownTypeRoundTrip() throws IOException {
+    // When a partition spec references a dropped column, the type becomes UNKNOWN.
+    // Serialization should produce the value's string representation,
+    // and deserialization should parse it back as a string.
+    Type unknownType = Types.UnknownType.get();
+
+    // null values
+    jsonStringEquals("null", defaultValueParseAndUnParseRoundTrip(unknownType, "null"));
+
+    // integer value serialized as string (e.g., days since epoch for a dropped DATE column)
+    String intResult = SingleValueParser.toJson(unknownType, 4888);
+    jsonStringEquals("\"4888\"", intResult);
+    assertThat(SingleValueParser.fromJson(unknownType, intResult)).isEqualTo("4888");
+
+    // string value round-trips correctly
+    String strResult = SingleValueParser.toJson(unknownType, "hello");
+    jsonStringEquals("\"hello\"", strResult);
+    assertThat(SingleValueParser.fromJson(unknownType, strResult)).isEqualTo("hello");
+  }
+
   // serialize to json and deserialize back should return the same result
   private static String defaultValueParseAndUnParseRoundTrip(Type type, String defaultValue) {
     Object javaDefaultValue = SingleValueParser.fromJson(type, defaultValue);
