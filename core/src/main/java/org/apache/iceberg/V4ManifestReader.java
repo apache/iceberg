@@ -68,12 +68,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   private final ManifestFile manifest;
+  private final ManifestBitmap dv;
   private final FileIO io;
   private final Schema readSchema;
   private final String tableLocation;
   private final InclusiveStatsEvaluator statsFilter;
   private final Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters; // by spec ID
-  private final boolean includeAll;
   private final Set<Integer> requestedStatsFieldIds;
   private final boolean isUncommitted;
   private final ScanMetrics scanMetrics;
@@ -87,17 +87,16 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       String tableLocation,
       InclusiveStatsEvaluator statsFilter,
       Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters,
-      boolean includeAll,
       Set<Integer> requestedStatsFieldIds,
       boolean isUncommitted,
       ScanMetrics scanMetrics) {
     this.manifest = manifest;
+    this.dv = manifest.manifestDeletionVector();
     this.io = io;
     this.readSchema = readSchema;
     this.tableLocation = tableLocation;
     this.statsFilter = statsFilter;
     this.partitionFilters = partitionFilters;
-    this.includeAll = includeAll;
     this.requestedStatsFieldIds = requestedStatsFieldIds;
     this.isUncommitted = isUncommitted;
     this.scanMetrics = scanMetrics;
@@ -113,10 +112,16 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   @Override
   public CloseableIterator<TrackedFile> iterator() {
+    // first row ID assignment must happen first to maintain consistent assignment when files are
+    // removed or filtered
     CloseableIterable<TrackedFile> files =
         CloseableIterable.transform(open(), this::applyInheritance);
 
-    if (!includeAll) {
+    if (dv != null) {
+      files =
+          CloseableIterable.filter(
+              files, file -> file.tracking().isLive() && !isDeletedByMDV(file));
+    } else {
       files = CloseableIterable.filter(files, file -> file.tracking().isLive());
     }
 
@@ -154,6 +159,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     return file;
+  }
+
+  private boolean isDeletedByMDV(TrackedFile file) {
+    return dv.isSet(Math.toIntExact(file.tracking().manifestPos()));
   }
 
   private boolean matchesPartition(TrackedFile trackedFile) {
@@ -237,10 +246,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       copy.setLocation(LocationUtil.resolveLocation(tableLocation, copy.location()));
     }
 
-    DeletionVector dv = copy.deletionVector();
-    if (dv != null && dv.location() != null) {
-      ((DeletionVectorStruct) dv)
-          .setLocation(LocationUtil.resolveLocation(tableLocation, dv.location()));
+    DeletionVector deletionVector = copy.deletionVector();
+    if (deletionVector != null && deletionVector.location() != null) {
+      ((DeletionVectorStruct) deletionVector)
+          .setLocation(LocationUtil.resolveLocation(tableLocation, deletionVector.location()));
     }
 
     return copy;
@@ -261,7 +270,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private String tableLocation = null;
     private Expression rowFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
-    private boolean includeAll = false;
     private boolean scanPlanning = false;
     private Set<String> requestedColumns = null;
     private Schema requestedProjection = null;
@@ -290,11 +298,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       FileFormat format = FileFormat.fromFileName(manifest.path());
       Preconditions.checkArgument(
           format != null, "Cannot determine format of manifest: %s", manifest.path());
-
-      if (manifest.manifestDeletionVector() != null) {
-        throw new UnsupportedOperationException(
-            "Cannot read manifest with a deletion vector: " + manifest.path());
-      }
 
       this.manifest = manifest;
       this.io = io;
@@ -325,12 +328,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
     Builder caseSensitive(boolean isCaseSensitive) {
       this.caseSensitive = isCaseSensitive;
-      return this;
-    }
-
-    /** Returns all entries without filtering by {@link Tracking#isLive() liveness}. */
-    Builder includeAll() {
-      this.includeAll = true;
       return this;
     }
 
@@ -420,7 +417,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           tableLocation,
           statsFilter(),
           partitionFilters,
-          includeAll,
           requestedStatsFieldIds,
           isUncommitted,
           scanMetrics);

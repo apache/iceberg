@@ -94,9 +94,7 @@ class V4TestComparators {
               .thenComparing(Tracking::dvSnapshotId, natural())
               .thenComparing(Tracking::firstRowId, natural())
               .thenComparing(Tracking::deletedPositions, BYTES)
-              .thenComparing(Tracking::replacedPositions, BYTES)
-              .thenComparing(Tracking::manifestLocation, natural())
-              .thenComparingLong(Tracking::manifestPos));
+              .thenComparing(Tracking::replacedPositions, BYTES));
 
   // compare only status, ignoring inherited fields and fields set during a write
   static final Comparator<Tracking> STATUS_ONLY_TRACKING =
