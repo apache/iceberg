@@ -21,6 +21,8 @@ package org.apache.iceberg.spark.sql;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
@@ -28,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -165,9 +168,15 @@ public class TestSparkDefaultValues extends CatalogTestBase {
             + "TBLPROPERTIES ('format-version'='3')",
         tableName);
 
+    long expectedMicros =
+        DateTimeUtil.microsFromInstant(
+            LocalDateTime.parse("2026-09-24T21:26:02.98269")
+                .atZone(ZoneId.of(spark.sessionState().conf().sessionLocalTimeZone()))
+                .toInstant());
+
     Types.NestedField idField = validationCatalog.loadTable(tableIdent).schema().findField("ts");
-    assertThat(idField.initialDefault()).isEqualTo(1790310362982690L);
-    assertThat(idField.writeDefault()).isEqualTo(1790310362982690L);
+    assertThat(idField.initialDefault()).isEqualTo(expectedMicros);
+    assertThat(idField.writeDefault()).isEqualTo(expectedMicros);
   }
 
   @TestTemplate
