@@ -320,6 +320,40 @@ public class TestParquetReadAllocationSize {
         .allSatisfy(len -> assertThat(len).isLessThanOrEqualTo(maxAllocationSizeInBytes));
   }
 
+  private static void assertReadsAll(InputFile file, String key, String value, int expected)
+      throws IOException {
+    try (CloseableIterable<Record> reader =
+        Parquet.read(file)
+            .project(SCHEMA)
+            .set(key, value)
+            .createReaderFunc(fileSchema -> InternalReader.create(SCHEMA, fileSchema))
+            .build()) {
+      assertThat(reader).as("all records should be read back").hasSize(expected);
+    }
+  }
+
+  @Test
+  public void testNullPropertyValueIsTolerated(@TempDir Path tempDir) throws IOException {
+    List<Record> expected = highEntropyRecords(4000, 1024);
+    InputFile file = writeFile(expected);
+    HadoopInputFile hadoopFile = writeHadoopFile(expected, tempDir, new Configuration());
+
+    // Hadoop's Configuration rejects null values, so they must not be copied into it
+    assertReadsAll(file, "parquet.custom.property", null, expected.size());
+    assertReadsAll(hadoopFile, "parquet.custom.property", null, expected.size());
+  }
+
+  @Test
+  public void testRemovedReadPropertiesAreNotApplied(@TempDir Path tempDir) throws IOException {
+    List<Record> expected = highEntropyRecords(4000, 1024);
+    InputFile file = writeFile(expected);
+    HadoopInputFile hadoopFile = writeHadoopFile(expected, tempDir, new Configuration());
+
+    // Parquet would fail to load this record filter class if the property reached it
+    assertReadsAll(file, "parquet.read.filter", "org.example.MissingFilter", expected.size());
+    assertReadsAll(hadoopFile, "parquet.read.filter", "org.example.MissingFilter", expected.size());
+  }
+
   @Test
   public void testDefaultAllocationSizeIsNotBoundedByASmallCap() throws IOException {
     List<Record> expected = highEntropyRecords(4000, 1024);

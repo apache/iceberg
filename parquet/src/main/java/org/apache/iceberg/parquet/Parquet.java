@@ -1528,6 +1528,14 @@ public class Parquet {
       if (batchedReaderFunc != null
           || batchedReaderFuncWithSchema != null
           || readerFunction != null) {
+        // skip removed read properties and null values, which Hadoop's Configuration rejects
+        Map<String, String> readProperties =
+            Maps.filterEntries(
+                properties,
+                entry ->
+                    entry.getValue() != null
+                        && !READ_PROPERTIES_TO_REMOVE.contains(entry.getKey()));
+
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopConfigurable) {
           // remove read properties already set that may conflict with this read
@@ -1535,13 +1543,12 @@ public class Parquet {
           for (String property : READ_PROPERTIES_TO_REMOVE) {
             conf.unset(property);
           }
-          // populate before constructing the builder: HadoopReadOptions.Builder parses several
-          // fields (e.g. allocation size, vectored IO) from the Configuration once, at
-          // construction time, not from later set(key, value) calls.
-          properties.forEach(conf::set);
+          // must happen before builder(conf) below, which parses some fields from conf once
+          readProperties.forEach(conf::set);
           optionsBuilder = HadoopReadOptions.builder(conf);
         } else {
-          optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration(properties));
+          optionsBuilder =
+              ParquetReadOptions.builder(new PlainParquetConfiguration(readProperties));
         }
 
         for (Map.Entry<String, String> entry : properties.entrySet()) {
