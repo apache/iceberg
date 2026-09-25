@@ -175,7 +175,8 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
                           LoadTableResponse.class,
                           Map.of(),
                           ErrorHandlers.tableCommitHandler()))
-          .isInstanceOf(BadRequestException.class);
+          .isInstanceOf(BadRequestException.class)
+          .hasMessageContaining("field IDs must be <= 2147483447");
     }
 
     assertThat(restCatalog.loadTable(TABLE).schema().asStruct())
