@@ -48,6 +48,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
@@ -100,6 +101,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class TestParquet {
+
+  private static final int COLUMN_STATS_RECORD_COUNT = 5;
+
+  private static final Schema COLUMN_STATS_SCHEMA =
+      new Schema(
+          optional(1, "int_field", IntegerType.get()),
+          optional(2, "string_field", Types.StringType.get()),
+          optional(3, "long_field", Types.LongType.get()));
 
   @TempDir private Path temp;
 
@@ -304,30 +313,58 @@ public class TestParquet {
   }
 
   @Test
-  public void testColumnStatisticsEnabled() throws Exception {
-    Schema schema =
-        new Schema(
-            optional(1, "int_field", IntegerType.get()),
-            optional(2, "string_field", Types.StringType.get()));
+  public void columnStatisticsDefault() throws Exception {
+    writeAndAssertColumnStatistics(
+        Collections.emptyMap(),
+        ImmutableMap.of("int_field", true, "string_field", true, "long_field", true));
+  }
 
+  @Test
+  public void testColumnStatisticsEnabled() throws Exception {
+    writeAndAssertColumnStatistics(
+        ImmutableMap.of(
+            PARQUET_COLUMN_STATS_ENABLED_PREFIX + "int_field", "true",
+            PARQUET_COLUMN_STATS_ENABLED_PREFIX + "string_field", "false"),
+        ImmutableMap.of("int_field", true, "string_field", false, "long_field", true));
+  }
+
+  @Test
+  public void multipleColumnsStatisticsDisabled() throws Exception {
+    writeAndAssertColumnStatistics(
+        ImmutableMap.of(
+            PARQUET_COLUMN_STATS_ENABLED_PREFIX + "int_field", "false",
+            PARQUET_COLUMN_STATS_ENABLED_PREFIX + "string_field", "false"),
+        ImmutableMap.of("int_field", false, "string_field", false, "long_field", true));
+  }
+
+  @Test
+  public void allColumnsStatisticsDisabled() throws Exception {
+    writeAndAssertColumnStatistics(
+        ImmutableMap.of(
+            PARQUET_COLUMN_STATS_ENABLED_PREFIX + "int_field", "false",
+            PARQUET_COLUMN_STATS_ENABLED_PREFIX + "string_field", "false",
+            PARQUET_COLUMN_STATS_ENABLED_PREFIX + "long_field", "false"),
+        ImmutableMap.of("int_field", false, "string_field", false, "long_field", false));
+  }
+
+  private void writeAndAssertColumnStatistics(
+      Map<String, String> properties, Map<String, Boolean> expectedStatistics) throws IOException {
     File file = createTempFile(temp);
 
-    List<GenericData.Record> records = Lists.newArrayListWithCapacity(5);
-    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
-    for (int i = 1; i <= 5; i++) {
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(COLUMN_STATS_SCHEMA.asStruct());
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(COLUMN_STATS_RECORD_COUNT);
+    for (int i = 1; i <= COLUMN_STATS_RECORD_COUNT; i++) {
       GenericData.Record record = new GenericData.Record(avroSchema);
       record.put("int_field", i);
       record.put("string_field", "test");
+      record.put("long_field", (long) i);
       records.add(record);
     }
 
     write(
         file,
-        schema,
-        ImmutableMap.<String, String>builder()
-            .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "int_field", "true")
-            .put(PARQUET_COLUMN_STATS_ENABLED_PREFIX + "string_field", "false")
-            .buildOrThrow(),
+        COLUMN_STATS_SCHEMA,
+        properties,
         ParquetAvroWriter::buildWriter,
         records.toArray(new GenericData.Record[] {}));
 
@@ -336,12 +373,13 @@ public class TestParquet {
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inputFile))) {
       for (BlockMetaData block : reader.getFooter().getBlocks()) {
         for (ColumnChunkMetaData column : block.getColumns()) {
-          boolean emptyStats = column.getStatistics().isEmpty();
-          if (column.getPath().toDotString().equals("int_field")) {
-            assertThat(emptyStats).as("int_field has statistics").isEqualTo(false);
-          } else if (column.getPath().toDotString().equals("string_field")) {
-            assertThat(emptyStats).as("string_field has statistics").isEqualTo(true);
-          }
+          String columnName = column.getPath().toDotString();
+          assertThat(expectedStatistics)
+              .as("Missing expected statistics for column %s", columnName)
+              .containsKey(columnName);
+          assertThat(!column.getStatistics().isEmpty())
+              .as("Statistics for column %s", columnName)
+              .isEqualTo(expectedStatistics.get(columnName));
         }
       }
     }
