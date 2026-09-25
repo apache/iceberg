@@ -88,6 +88,7 @@ public class SparkV2Filters {
   private static final String OR = "OR";
   private static final String NOT = "NOT";
   private static final String STARTS_WITH = "STARTS_WITH";
+  private static final String CONTAINS_OP = "CONTAINS";
 
   private static final Map<String, Operation> FILTERS =
       ImmutableMap.<String, Operation>builder()
@@ -107,6 +108,7 @@ public class SparkV2Filters {
           .put(OR, Operation.OR)
           .put(NOT, Operation.NOT)
           .put(STARTS_WITH, Operation.STARTS_WITH)
+          .put(CONTAINS_OP, Operation.CONTAINS)
           .buildOrThrow();
 
   private SparkV2Filters() {}
@@ -303,6 +305,10 @@ public class SparkV2Filters {
         case STARTS_WITH:
           String colName = SparkUtil.toColumnName(leftChild(predicate));
           return startsWith(colName, convertLiteral(rightChild(predicate)).toString());
+        case CONTAINS:
+          String containsColName = SparkUtil.toColumnName(leftChild(predicate));
+          return Expressions.contains(
+              containsColName, convertLiteral(rightChild(predicate)).toString());
       }
     }
 
