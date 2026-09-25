@@ -657,11 +657,11 @@ A data or delete file is associated with a sort order by the sort order's id wit
 
 ### Constraints
 
+Constraints are added in v4 and are not supported in v3 or earlier.
+
 A **constraint** declares a property that a table's rows are expected to satisfy. A constraint's definition is stored in table metadata. Whether a constraint holds is recorded for each snapshot, see [Constraint Validation](#constraint-validation).
 
 Iceberg does not evaluate constraints. Enforcement and validation are performed by engines that write to a table. Iceberg stores constraint definitions and records the status that a writer reports for a commit without verifying it.
-
-Constraints are added in v4 and are not supported in v3 or earlier.
 
 Three constraint types are defined:
 
@@ -669,9 +669,7 @@ Three constraint types are defined:
 * `unique` -- the non-null values of a set of fields must be distinct across all rows; more than one row may have a null value
 * `primary-key` -- the values of a set of fields must be distinct across all rows and must not be null
 
-Constraints are stored separately from schemas because the two evolve independently. Every constraint references the fields that it applies to by field ID, so a constraint continues to apply to the same columns after a column is renamed or reordered.
-
-A required field in a schema expresses `NOT NULL`. It is not represented as a constraint.
+Constraints are stored separately from schemas because they span multiple fields and evolve independently. Every constraint references the fields that it applies to by field ID, so a constraint continues to apply to the same columns after a column is renamed or reordered.
 
 #### Constraint Fields
 
