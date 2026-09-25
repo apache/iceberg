@@ -64,7 +64,9 @@ public class TestEventSerialization {
             ".*avroSchema",
             ".*icebergSchema",
             ".*schema",
-            ".*fromProjectionPos")
+            ".*fromProjectionPos",
+            ".*splitOffsetList",
+            ".*equalityFieldIdList")
         .isEqualTo(event);
   }
 
