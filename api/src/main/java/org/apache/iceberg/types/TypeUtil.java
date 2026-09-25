@@ -475,25 +475,21 @@ public class TypeUtil {
       return true;
     }
 
-    switch (from.typeId()) {
-      case INTEGER:
-        return to.typeId() == Type.TypeID.LONG;
-
-      case FLOAT:
-        return to.typeId() == Type.TypeID.DOUBLE;
-
-      case DECIMAL:
+    return switch (from.typeId()) {
+      case INTEGER -> to.typeId() == Type.TypeID.LONG;
+      case FLOAT -> to.typeId() == Type.TypeID.DOUBLE;
+      case DECIMAL -> {
         Types.DecimalType fromDecimal = (Types.DecimalType) from;
         if (to.typeId() != Type.TypeID.DECIMAL) {
-          return false;
+          yield false;
         }
 
         Types.DecimalType toDecimal = (Types.DecimalType) to;
-        return fromDecimal.scale() == toDecimal.scale()
+        yield fromDecimal.scale() == toDecimal.scale()
             && fromDecimal.precision() <= toDecimal.precision();
-    }
-
-    return false;
+      }
+      default -> false;
+    };
   }
 
   /**
@@ -579,61 +575,45 @@ public class TypeUtil {
   }
 
   private static int estimateSize(Type type) {
-    switch (type.typeId()) {
-      case BOOLEAN:
+    return switch (type.typeId()) {
         // the size of a boolean variable is virtual machine dependent
         // it is common to believe booleans occupy 1 byte in most JVMs
-        return 1;
-      case INTEGER:
-      case FLOAT:
-      case DATE:
+      case BOOLEAN -> 1;
         // ints and floats occupy 4 bytes
         // dates are internally represented as ints
-        return 4;
-      case LONG:
-      case DOUBLE:
-      case TIME:
-      case TIMESTAMP:
-      case TIMESTAMP_NANO:
+      case INTEGER, FLOAT, DATE -> 4;
         // longs and doubles occupy 8 bytes
         // times and timestamps are internally represented as longs
-        return 8;
-      case STRING:
+      case LONG, DOUBLE, TIME, TIMESTAMP, TIMESTAMP_NANO -> 8;
         // 12 (header) + 6 (fields) + 16 (array overhead) + 20 (10 chars, 2 bytes each) = 54 bytes
-        return 54;
-      case UUID:
+      case STRING -> 54;
         // 12 (header) + 16 (two long variables) = 28 bytes
-        return 28;
-      case FIXED:
-        return ((Types.FixedType) type).length();
-      case BINARY:
-      case VARIANT:
-        return 80;
-      case GEOMETRY:
-      case GEOGRAPHY:
+      case UUID -> 28;
+      case FIXED -> ((Types.FixedType) type).length();
+      case BINARY, VARIANT -> 80;
         // 80 bytes is an approximate size for a polygon or linestring with 4 to 5 coordinates.
         // This is a reasonable estimate for the size of a geometry or geography object without
         // additional details.
-        return 80;
-      case UNKNOWN:
+      case GEOMETRY, GEOGRAPHY -> 80;
         // Consider Unknown as null
-        return 0;
-      case DECIMAL:
+      case UNKNOWN -> 0;
         // 12 (header) + (12 + 12 + 4) (BigInteger) + 4 (scale) = 44 bytes
-        return 44;
-      case STRUCT:
+      case DECIMAL -> 44;
+      case STRUCT -> {
         Types.StructType struct = (Types.StructType) type;
-        return HEADER_SIZE + struct.fields().stream().mapToInt(TypeUtil::estimateSize).sum();
-      case LIST:
+        yield HEADER_SIZE + struct.fields().stream().mapToInt(TypeUtil::estimateSize).sum();
+      }
+      case LIST -> {
         Types.ListType list = (Types.ListType) type;
-        return HEADER_SIZE + 5 * estimateSize(list.elementType());
-      case MAP:
+        yield HEADER_SIZE + 5 * estimateSize(list.elementType());
+      }
+      case MAP -> {
         Types.MapType map = (Types.MapType) type;
         int entrySize = HEADER_SIZE + estimateSize(map.keyType()) + estimateSize(map.valueType());
-        return HEADER_SIZE + 5 * entrySize;
-      default:
-        return 16;
-    }
+        yield HEADER_SIZE + 5 * entrySize;
+      }
+      default -> 16;
+    };
   }
 
   /** Interface for passing a function that assigns column IDs. */
@@ -763,8 +743,8 @@ public class TypeUtil {
   }
 
   public static <T> T visit(Type type, SchemaVisitor<T> visitor) {
-    switch (type.typeId()) {
-      case STRUCT:
+    return switch (type.typeId()) {
+      case STRUCT -> {
         Types.StructType struct = type.asNestedType().asStructType();
         List<T> results = Lists.newArrayListWithExpectedSize(struct.fields().size());
         for (Types.NestedField field : struct.fields()) {
@@ -777,9 +757,9 @@ public class TypeUtil {
           }
           results.add(visitor.field(field, result));
         }
-        return visitor.struct(struct, results);
-
-      case LIST:
+        yield visitor.struct(struct, results);
+      }
+      case LIST -> {
         Types.ListType list = type.asNestedType().asListType();
         T elementResult;
 
@@ -791,9 +771,9 @@ public class TypeUtil {
           visitor.afterListElement(elementField);
         }
 
-        return visitor.list(list, elementResult);
-
-      case MAP:
+        yield visitor.list(list, elementResult);
+      }
+      case MAP -> {
         Types.MapType map = type.asNestedType().asMapType();
         T keyResult;
         T valueResult;
@@ -814,14 +794,11 @@ public class TypeUtil {
           visitor.afterMapValue(valueField);
         }
 
-        return visitor.map(map, keyResult, valueResult);
-
-      case VARIANT:
-        return visitor.variant(type.asVariantType());
-
-      default:
-        return visitor.primitive(type.asPrimitiveType());
-    }
+        yield visitor.map(map, keyResult, valueResult);
+      }
+      case VARIANT -> visitor.variant(type.asVariantType());
+      default -> visitor.primitive(type.asPrimitiveType());
+    };
   }
 
   public static class CustomOrderSchemaVisitor<T> {
@@ -903,8 +880,8 @@ public class TypeUtil {
    * @return the result of traversing the given type with the visitor
    */
   public static <T> T visit(Type type, CustomOrderSchemaVisitor<T> visitor) {
-    switch (type.typeId()) {
-      case STRUCT:
+    return switch (type.typeId()) {
+      case STRUCT -> {
         Types.StructType struct = type.asNestedType().asStructType();
         List<VisitFieldFuture<T>> results =
             Lists.newArrayListWithExpectedSize(struct.fields().size());
@@ -912,25 +889,22 @@ public class TypeUtil {
           results.add(new VisitFieldFuture<>(field, visitor));
         }
 
-        return visitor.struct(struct, Iterables.transform(results, VisitFieldFuture::get));
-
-      case LIST:
+        yield visitor.struct(struct, Iterables.transform(results, VisitFieldFuture::get));
+      }
+      case LIST -> {
         Types.ListType list = type.asNestedType().asListType();
-        return visitor.list(list, new VisitFuture<>(list.elementType(), visitor));
-
-      case MAP:
+        yield visitor.list(list, new VisitFuture<>(list.elementType(), visitor));
+      }
+      case MAP -> {
         Types.MapType map = type.asNestedType().asMapType();
-        return visitor.map(
+        yield visitor.map(
             map,
             new VisitFuture<>(map.keyType(), visitor),
             new VisitFuture<>(map.valueType(), visitor));
-
-      case VARIANT:
-        return visitor.variant(type.asVariantType());
-
-      default:
-        return visitor.primitive(type.asPrimitiveType());
-    }
+      }
+      case VARIANT -> visitor.variant(type.asVariantType());
+      default -> visitor.primitive(type.asPrimitiveType());
+    };
   }
 
   static int decimalMaxPrecision(int numBytes) {
