@@ -27,6 +27,7 @@ import org.apache.spark.sql.catalyst.analysis.ResolvedIdentifier
 import org.apache.spark.sql.catalyst.analysis.ResolvedNamespace
 import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.plans.logical.AddPartitionField
+import org.apache.spark.sql.catalyst.plans.logical.AlterViewSchemaBinding
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceBranch
 import org.apache.spark.sql.catalyst.plans.logical.CreateOrReplaceTag
 import org.apache.spark.sql.catalyst.plans.logical.DescribeRelation
@@ -185,6 +186,9 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
 
     case UnsetViewProperties(ResolvedV2View(catalog, ident, _), propertyKeys, ifExists) =>
       IcebergAlterV2ViewUnsetPropertiesExec(catalog, ident, propertyKeys, ifExists) :: Nil
+
+    case AlterViewSchemaBinding(ResolvedV2View(catalog, ident, _), schemaMode) =>
+      IcebergAlterV2ViewSchemaBindingExec(catalog, ident, schemaMode) :: Nil
 
     case _ => Nil
   }
