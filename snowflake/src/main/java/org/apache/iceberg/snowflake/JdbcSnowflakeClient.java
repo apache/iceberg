@@ -171,6 +171,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       }
       throw new UncheckedSQLException(e, "Failed to check if database '%s' exists", database);
     } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(
           e, "Interrupted while checking if database '%s' exists", database);
     }
@@ -202,6 +203,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       }
       throw new UncheckedSQLException(e, "Failed to check if schema '%s' exists", schema);
     } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(
           e, "Interrupted while checking if schema '%s' exists", schema);
     }
@@ -222,6 +224,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       throw snowflakeExceptionToIcebergException(
           SnowflakeIdentifier.ofRoot(), e, "Failed to list databases");
     } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(e, "Interrupted while listing databases");
     }
     databases.forEach(
@@ -265,6 +268,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       throw snowflakeExceptionToIcebergException(
           scope, e, String.format("Failed to list schemas for scope '%s'", scope));
     } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(
           e, "Interrupted while listing schemas for scope '%s'", scope);
     }
@@ -314,6 +318,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
       throw snowflakeExceptionToIcebergException(
           scope, e, String.format("Failed to list tables for scope '%s'", scope));
     } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(
           e, "Interrupted while listing tables for scope '%s'", scope);
     }
@@ -350,6 +355,7 @@ class JdbcSnowflakeClient implements SnowflakeClient {
           e,
           String.format("Failed to get table metadata for '%s'", tableIdentifier));
     } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
       throw new UncheckedInterruptedException(
           e, "Interrupted while getting table metadata for '%s'", tableIdentifier);
     }

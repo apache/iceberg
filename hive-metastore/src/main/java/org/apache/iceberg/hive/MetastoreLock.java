@@ -218,7 +218,7 @@ class MetastoreLock implements HiveLock {
                               "Waiting for lock on table %s.%s", databaseName, tableName));
                     }
                   } catch (InterruptedException e) {
-                    Thread.interrupted(); // Clear the interrupt status flag
+                    Thread.currentThread().interrupt();
                     LOG.warn(
                         "Interrupted while waiting for lock on table {}.{}",
                         databaseName,
@@ -487,7 +487,11 @@ class MetastoreLock implements HiveLock {
               client.heartbeat(0, lockId);
               return null;
             });
-      } catch (TException | InterruptedException e) {
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        this.encounteredException = e;
+        throw new CommitFailedException(e, "Failed to heartbeat for lock: %d", lockId);
+      } catch (TException e) {
         this.encounteredException = e;
         throw new CommitFailedException(e, "Failed to heartbeat for lock: %d", lockId);
       }
