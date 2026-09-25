@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -53,6 +54,7 @@ import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.S3CrtAsyncClientBuilder;
+import software.amazon.awssdk.services.s3.model.ChecksumAlgorithm;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Tag;
 
@@ -291,6 +293,20 @@ public class S3FileIOProperties implements Serializable {
 
   public static final boolean CHECKSUM_ENABLED_DEFAULT = false;
 
+  /**
+   * Configures the checksum algorithm the AWS SDK uses for data integrity protection on S3 upload
+   * requests (PutObject, UploadPart). Valid values are the algorithms supported by S3, e.g. {@code
+   * CRC32}, {@code CRC32C}, {@code CRC64NVME}, {@code SHA1}, {@code SHA256} (case-insensitive). If
+   * not set, the AWS SDK default algorithm (CRC32) is used when the SDK calculates a checksum.
+   *
+   * <p>Note that setting a checksum algorithm causes the SDK to calculate a checksum for these
+   * requests even when the SDK request checksum calculation is configured to {@code WHEN_REQUIRED}.
+   *
+   * <p>For more details, see:
+   * https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
+   */
+  public static final String CHECKSUM_ALGORITHM = "s3.checksum-algorithm";
+
   public static final String REMOTE_SIGNING_ENABLED = "s3.remote-signing-enabled";
 
   public static final boolean REMOTE_SIGNING_ENABLED_DEFAULT = false;
@@ -521,6 +537,7 @@ public class S3FileIOProperties implements Serializable {
   private String stagingDirectory;
   private ObjectCannedACL acl;
   private boolean isChecksumEnabled;
+  private final ChecksumAlgorithm checksumAlgorithm;
   private boolean isChunkedEncodingEnabled;
   private final Set<Tag> writeTags;
   private boolean isWriteTableTagEnabled;
@@ -564,6 +581,7 @@ public class S3FileIOProperties implements Serializable {
     this.deleteBatchSize = DELETE_BATCH_SIZE_DEFAULT;
     this.stagingDirectory = System.getProperty("java.io.tmpdir");
     this.isChecksumEnabled = CHECKSUM_ENABLED_DEFAULT;
+    this.checksumAlgorithm = null;
     this.isChunkedEncodingEnabled = CHUNKED_ENCODING_ENABLED_DEFAULT;
     this.writeTags = Sets.newHashSet();
     this.isWriteTableTagEnabled = WRITE_TABLE_TAG_ENABLED_DEFAULT;
@@ -655,6 +673,7 @@ public class S3FileIOProperties implements Serializable {
         "Cannot support S3 CannedACL " + aclType);
     this.isChecksumEnabled =
         PropertyUtil.propertyAsBoolean(properties, CHECKSUM_ENABLED, CHECKSUM_ENABLED_DEFAULT);
+    this.checksumAlgorithm = parseChecksumAlgorithm(properties.get(CHECKSUM_ALGORITHM));
     this.isChunkedEncodingEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, CHUNKED_ENCODING_ENABLED, CHUNKED_ENCODING_ENABLED_DEFAULT);
@@ -823,6 +842,24 @@ public class S3FileIOProperties implements Serializable {
 
   public boolean isChecksumEnabled() {
     return this.isChecksumEnabled;
+  }
+
+  public ChecksumAlgorithm checksumAlgorithm() {
+    return this.checksumAlgorithm;
+  }
+
+  private static ChecksumAlgorithm parseChecksumAlgorithm(String value) {
+    if (value == null) {
+      return null;
+    }
+
+    ChecksumAlgorithm algorithm = ChecksumAlgorithm.fromValue(value.toUpperCase(Locale.ROOT));
+    Preconditions.checkArgument(
+        ChecksumAlgorithm.knownValues().contains(algorithm),
+        "Invalid checksum algorithm: %s (valid values: %s)",
+        value,
+        ChecksumAlgorithm.knownValues());
+    return algorithm;
   }
 
   public boolean isChunkedEncodingEnabled() {
