@@ -29,7 +29,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
-public class RustFSUtil {
+public class ObjectStoreUtil {
   private static final String IMAGE = "rustfs/rustfs:1.0.0";
   private static final int S3_PORT = 9000;
   private static final String ACCESS_KEY_ENV = "RUSTFS_ACCESS_KEY";
@@ -37,7 +37,7 @@ public class RustFSUtil {
   private static final AwsCredentials DEFAULT_CREDENTIALS =
       AwsBasicCredentials.create("admin", "password");
 
-  private RustFSUtil() {}
+  private ObjectStoreUtil() {}
 
   public static GenericContainer<?> createContainer() {
     return createContainer(DEFAULT_CREDENTIALS);
@@ -48,9 +48,7 @@ public class RustFSUtil {
     container.withExposedPorts(S3_PORT);
     container.withEnv(ACCESS_KEY_ENV, credentials.accessKeyId());
     container.withEnv(SECRET_KEY_ENV, credentials.secretAccessKey());
-    container.withEnv("RUSTFS_CONSOLE_ENABLE", "false");
     container.withEnv("RUSTFS_OBS_LOG_STDOUT_ENABLED", "true");
-    container.withCommand("/data");
     container.waitingFor(Wait.forHttp("/health/ready").forPort(S3_PORT));
     return container;
   }

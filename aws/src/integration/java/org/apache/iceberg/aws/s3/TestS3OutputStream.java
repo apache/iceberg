@@ -74,10 +74,12 @@ public class TestS3OutputStream {
   private static final String BUCKET = "test-bucket";
   private static final int FIVE_MBS = 5 * 1024 * 1024;
 
-  @Container private static final GenericContainer<?> RUSTFS = RustFSUtil.createContainer();
+  @Container
+  private static final GenericContainer<?> OBJECT_STORE = ObjectStoreUtil.createContainer();
+
   @TempDir private static Path tmpDir = null;
 
-  private final S3Client s3 = RustFSUtil.createS3Client(RUSTFS);
+  private final S3Client s3 = ObjectStoreUtil.createS3Client(OBJECT_STORE);
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3));
   private final Random random = new Random(1);
   @TempDir private Path newTmpDirectory;

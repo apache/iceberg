@@ -41,10 +41,12 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Testcontainers
 public class TestS3InputStream {
-  @Container private static final GenericContainer<?> RUSTFS = RustFSUtil.createContainer();
+  @Container
+  private static final GenericContainer<?> OBJECT_STORE = ObjectStoreUtil.createContainer();
+
   private static final int EOF = -1;
 
-  private final S3Client s3 = RustFSUtil.createS3Client(RUSTFS);
+  private final S3Client s3 = ObjectStoreUtil.createS3Client(OBJECT_STORE);
   private final Random random = new Random(1);
 
   @BeforeEach

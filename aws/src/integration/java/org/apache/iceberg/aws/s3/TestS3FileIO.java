@@ -115,9 +115,10 @@ import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
 @Testcontainers
 public class TestS3FileIO {
-  @Container private final GenericContainer<?> rustfs = startRustFS();
+  @Container private final GenericContainer<?> objectStore = startObjectStore();
 
-  private final SerializableSupplier<S3Client> s3 = () -> RustFSUtil.createS3Client(rustfs);
+  private final SerializableSupplier<S3Client> s3 =
+      () -> ObjectStoreUtil.createS3Client(objectStore);
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3.get()));
   private final Random random = new Random(1);
   private final int numBucketsForBatchDeletion = 3;
@@ -135,8 +136,8 @@ public class TestS3FileIO {
           "s3.delete.batch-size",
           Integer.toString(batchDeletionSize));
 
-  private static GenericContainer<?> startRustFS() {
-    GenericContainer<?> container = RustFSUtil.createContainer();
+  private static GenericContainer<?> startObjectStore() {
+    GenericContainer<?> container = ObjectStoreUtil.createContainer();
     container.start();
     return container;
   }

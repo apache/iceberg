@@ -32,7 +32,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.aws.s3.RustFSUtil;
+import org.apache.iceberg.aws.s3.ObjectStoreUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
@@ -88,8 +88,8 @@ public class TestS3RestSigner {
           AwsBasicCredentials.create("accessKeyId", "secretAccessKey"));
 
   @Container
-  private static final GenericContainer<?> RUSTFS_CONTAINER =
-      RustFSUtil.createContainer(CREDENTIALS_PROVIDER.resolveCredentials());
+  private static final GenericContainer<?> OBJECT_STORE =
+      ObjectStoreUtil.createContainer(CREDENTIALS_PROVIDER.resolveCredentials());
 
   private static Server httpServer;
   private static ValidatingSigner validatingSigner;
@@ -97,7 +97,7 @@ public class TestS3RestSigner {
 
   @BeforeAll
   public static void beforeClass() throws Exception {
-    assertThat(RUSTFS_CONTAINER.isRunning()).isTrue();
+    assertThat(OBJECT_STORE.isRunning()).isTrue();
 
     if (null == httpServer) {
       httpServer = initHttpServer();
@@ -157,7 +157,7 @@ public class TestS3RestSigner {
 
   @BeforeEach
   public void before() throws Exception {
-    RUSTFS_CONTAINER.start();
+    OBJECT_STORE.start();
     s3 =
         S3Client.builder()
             .region(REGION)
@@ -166,7 +166,7 @@ public class TestS3RestSigner {
                 s3ClientBuilder ->
                     s3ClientBuilder.httpClientBuilder(
                         software.amazon.awssdk.http.apache5.Apache5HttpClient.builder()))
-            .endpointOverride(RustFSUtil.endpoint(RUSTFS_CONTAINER))
+            .endpointOverride(ObjectStoreUtil.endpoint(OBJECT_STORE))
             .forcePathStyle(true) // OSX won't resolve subdomains
             .overrideConfiguration(
                 c -> c.putAdvancedOption(SdkAdvancedClientOption.SIGNER, validatingSigner))
@@ -248,7 +248,7 @@ public class TestS3RestSigner {
 
   @AfterEach
   public void after() {
-    RUSTFS_CONTAINER.stop();
+    OBJECT_STORE.stop();
   }
 
   @Test
@@ -378,9 +378,9 @@ public class TestS3RestSigner {
    * payload signing <a
    * href="https://github.com/aws/aws-sdk-java-v2/blob/ee30e19bf6618462a9a5ec1b3beac1e29013379b/core/auth/src/main/java/software/amazon/awssdk/auth/signer/internal/AbstractAwsS3V4Signer.java#L281">here</a>.
    *
-   * <p>However, we run RustFS with <b>http</b> and don't have a means to disable payload signing in
-   * order to achieve the same signature in the {@link ValidatingSigner#sign(SdkHttpFullRequest,
-   * ExecutionAttributes)} check above.
+   * <p>However, we run the object store with <b>http</b> and don't have a means to disable payload
+   * signing in order to achieve the same signature in the {@link
+   * ValidatingSigner#sign(SdkHttpFullRequest, ExecutionAttributes)} check above.
    */
   private static class CustomAwsS3V4Signer extends AbstractAwsS3V4Signer {
 

@@ -36,12 +36,13 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @Testcontainers
-public class TestRustFSUtil {
-  @Container private static final GenericContainer<?> RUSTFS = RustFSUtil.createContainer();
+public class TestObjectStoreUtil {
+  @Container
+  private static final GenericContainer<?> OBJECT_STORE = ObjectStoreUtil.createContainer();
 
   @Test
   void validateS3ConditionalWrites() {
-    S3Client s3Client = RustFSUtil.createS3Client(RUSTFS);
+    S3Client s3Client = ObjectStoreUtil.createS3Client(OBJECT_STORE);
 
     String bucket = "test-bucket-" + UUID.randomUUID();
 
