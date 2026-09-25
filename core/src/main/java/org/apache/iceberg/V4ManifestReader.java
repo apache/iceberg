@@ -119,7 +119,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
     if (dv != null) {
       files =
-          CloseableIterable.filter(files, file -> file.tracking().isLive() && !isDeletedByMDV(file));
+          CloseableIterable.filter(
+              files, file -> file.tracking().isLive() && !isDeletedByMDV(file));
     } else {
       files = CloseableIterable.filter(files, file -> file.tracking().isLive());
     }
