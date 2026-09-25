@@ -388,7 +388,7 @@ class TestIcebergCommitter extends TestBase {
     String jobId1 = "jobId1";
     OperatorSubtaskState snapshot;
 
-    // We cannot test a different checkpoint thant 0 because when using the OperatorTestHarness
+    // We cannot test a different checkpoint than 0 because when using the OperatorTestHarness
     // for recovery the lastCompleted checkpoint is always reset to 0.
     // see: https://github.com/apache/iceberg/issues/10942
     long checkpointId = 0;
@@ -478,7 +478,7 @@ class TestIcebergCommitter extends TestBase {
     String jobId1 = "jobId1";
     OperatorSubtaskState snapshot;
 
-    // We cannot test a different checkpoint thant 0 because when using the OperatorTestHarness
+    // We cannot test a different checkpoint than 0 because when using the OperatorTestHarness
     // for recovery the lastCompleted checkpoint is always reset to 0.
     // see: https://github.com/apache/iceberg/issues/10942
     long checkpointId = 0;
@@ -572,7 +572,7 @@ class TestIcebergCommitter extends TestBase {
     CommittableSummary<IcebergCommittable> committableSummary;
     OperatorSubtaskState snapshot;
 
-    // We cannot test a different checkpoint thant 0 because when using the OperatorTestHarness
+    // We cannot test a different checkpoint than 0 because when using the OperatorTestHarness
     // for recovery the lastCompleted checkpoint is always reset to 0.
     // see: https://github.com/apache/iceberg/issues/10942
     long checkpointId = 0;
@@ -651,7 +651,7 @@ class TestIcebergCommitter extends TestBase {
     // We've two steps in checkpoint: 1. snapshotState(ckp); 2. notifyCheckpointComplete(ckp).
     // The Flink job should be able to restore from a checkpoint with only step#1 finished.
 
-    // We cannot test a different checkpoint thant 0 because when using the OperatorTestHarness
+    // We cannot test a different checkpoint than 0 because when using the OperatorTestHarness
     // for recovery the lastCompleted checkpoint is always reset to 0.
     // see: https://github.com/apache/iceberg/issues/10942
     long checkpointId = 0;
@@ -875,7 +875,7 @@ class TestIcebergCommitter extends TestBase {
   @TestTemplate
   public void testMultipleSinksRecoveryFromValidSnapshot() throws Exception {
 
-    // We cannot test a different checkpoint thant 0 because when using the OperatorTestHarness
+    // We cannot test a different checkpoint than 0 because when using the OperatorTestHarness
     // for recovery the lastCompleted checkpoint is always reset to 0.
     // see: https://github.com/apache/iceberg/issues/10942
     long checkpointId = 0;

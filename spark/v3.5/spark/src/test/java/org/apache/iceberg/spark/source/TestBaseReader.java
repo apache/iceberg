@@ -138,7 +138,7 @@ public class TestBaseReader {
     tasks.forEach(
         t ->
             assertThat(reader.isIteratorClosed(t))
-                .as("All iterators should be closed after read exhausion")
+                .as("All iterators should be closed after read exhaustion")
                 .isTrue());
   }
 
@@ -211,7 +211,7 @@ public class TestBaseReader {
         t -> {
           if (reader.hasIterator(t)) {
             assertThat(reader.isIteratorClosed(t))
-                .as("Iterator should be closed after read exhausion")
+                .as("Iterator should be closed after read exhaustion")
                 .isTrue();
           }
         });
@@ -235,7 +235,7 @@ public class TestBaseReader {
       reader.close();
       for (int i = 0; i < 5; i++) {
         assertThat(reader.isIteratorClosed(tasks.get(i)))
-            .as("Iterator should be closed after read exhausion")
+            .as("Iterator should be closed after read exhaustion")
             .isTrue();
       }
       for (int i = 5; i < 10; i++) {
