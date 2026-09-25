@@ -24,7 +24,7 @@ Iceberg table encryption protects confidentiality and integrity of table data in
 
 The `metadata.json` file does not contain data or stats, and is therefore not encrypted.
 
-Currently, encryption is supported in the Hive and REST catalogs for tables with Parquet and Avro data formats.
+Currently, encryption is supported in the Hive, Glue and REST catalogs for tables with Parquet and Avro data formats.
 
 Two parameters are required to activate encryption of a table:
 
