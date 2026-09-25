@@ -60,37 +60,18 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue, 
   }
 
   private static long payloadSize(PhysicalType type, ByteBuffer value) {
-    switch (type) {
-      case NULL:
-      case BOOLEAN_TRUE:
-      case BOOLEAN_FALSE:
-        return 0;
-      case INT8:
-        return 1;
-      case INT16:
-        return 2;
-      case INT32:
-      case DATE:
-      case FLOAT:
-        return 4;
-      case INT64:
-      case TIMESTAMPTZ:
-      case TIMESTAMPNTZ:
-      case TIME:
-      case TIMESTAMPTZ_NANOS:
-      case TIMESTAMPNTZ_NANOS:
-      case DOUBLE:
-        return 8;
-      case DECIMAL4:
-        return 5;
-      case DECIMAL8:
-        return 9;
-      case DECIMAL16:
-        return 17;
-      case UUID:
-        return 16;
-      case BINARY:
-      case STRING:
+    return switch (type) {
+      case NULL, BOOLEAN_TRUE, BOOLEAN_FALSE -> 0;
+      case INT8 -> 1;
+      case INT16 -> 2;
+      case INT32, DATE, FLOAT -> 4;
+      case INT64, TIMESTAMPTZ, TIMESTAMPNTZ, TIME, TIMESTAMPTZ_NANOS, TIMESTAMPNTZ_NANOS, DOUBLE ->
+          8;
+      case DECIMAL4 -> 5;
+      case DECIMAL8 -> 9;
+      case DECIMAL16 -> 17;
+      case UUID -> 16;
+      case BINARY, STRING -> {
         Preconditions.checkArgument(
             PRIMITIVE_OFFSET + 4 <= value.remaining(),
             "Invalid variant primitive: %s size field extends past buffer",
@@ -98,75 +79,55 @@ class SerializedPrimitive implements VariantPrimitive<Object>, SerializedValue, 
         int size = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
         Preconditions.checkArgument(
             size >= 0, "Invalid variant primitive: negative %s size %s", type, size);
-        return 4L + size;
-    }
-
-    throw new UnsupportedOperationException("Unsupported primitive type: " + type);
+        yield 4L + size;
+      }
+      default -> throw new UnsupportedOperationException("Unsupported primitive type: " + type);
+    };
   }
 
   private Object read() {
-    switch (type) {
-      case NULL:
-        return null;
-      case BOOLEAN_TRUE:
-        return true;
-      case BOOLEAN_FALSE:
-        return false;
-      case INT8:
-        return ByteBuffers.readLittleEndianInt8(value, PRIMITIVE_OFFSET);
-      case INT16:
-        return ByteBuffers.readLittleEndianInt16(value, PRIMITIVE_OFFSET);
-      case INT32:
-      case DATE:
-        return ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
-      case INT64:
-      case TIMESTAMPTZ:
-      case TIMESTAMPNTZ:
-      case TIME:
-      case TIMESTAMPTZ_NANOS:
-      case TIMESTAMPNTZ_NANOS:
-        return ByteBuffers.readLittleEndianInt64(value, PRIMITIVE_OFFSET);
-      case FLOAT:
-        return VariantUtil.readFloat(value, PRIMITIVE_OFFSET);
-      case DOUBLE:
-        return VariantUtil.readDouble(value, PRIMITIVE_OFFSET);
-      case DECIMAL4:
-        {
-          int scale = ByteBuffers.readByte(value, PRIMITIVE_OFFSET);
-          int unscaled = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET + 1);
-          return new BigDecimal(BigInteger.valueOf(unscaled), scale);
+    return switch (type) {
+      case NULL -> null;
+      case BOOLEAN_TRUE -> true;
+      case BOOLEAN_FALSE -> false;
+      case INT8 -> ByteBuffers.readLittleEndianInt8(value, PRIMITIVE_OFFSET);
+      case INT16 -> ByteBuffers.readLittleEndianInt16(value, PRIMITIVE_OFFSET);
+      case INT32, DATE -> ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
+      case INT64, TIMESTAMPTZ, TIMESTAMPNTZ, TIME, TIMESTAMPTZ_NANOS, TIMESTAMPNTZ_NANOS ->
+          ByteBuffers.readLittleEndianInt64(value, PRIMITIVE_OFFSET);
+      case FLOAT -> VariantUtil.readFloat(value, PRIMITIVE_OFFSET);
+      case DOUBLE -> VariantUtil.readDouble(value, PRIMITIVE_OFFSET);
+      case DECIMAL4 -> {
+        int scale = ByteBuffers.readByte(value, PRIMITIVE_OFFSET);
+        int unscaled = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET + 1);
+        yield new BigDecimal(BigInteger.valueOf(unscaled), scale);
+      }
+      case DECIMAL8 -> {
+        int scale = ByteBuffers.readByte(value, PRIMITIVE_OFFSET);
+        long unscaled = ByteBuffers.readLittleEndianInt64(value, PRIMITIVE_OFFSET + 1);
+        yield new BigDecimal(BigInteger.valueOf(unscaled), scale);
+      }
+      case DECIMAL16 -> {
+        int scale = ByteBuffers.readByte(value, PRIMITIVE_OFFSET);
+        byte[] unscaled = new byte[16];
+        for (int i = 0; i < 16; i += 1) {
+          unscaled[i] = (byte) ByteBuffers.readByte(value, PRIMITIVE_OFFSET + 16 - i);
         }
-      case DECIMAL8:
-        {
-          int scale = ByteBuffers.readByte(value, PRIMITIVE_OFFSET);
-          long unscaled = ByteBuffers.readLittleEndianInt64(value, PRIMITIVE_OFFSET + 1);
-          return new BigDecimal(BigInteger.valueOf(unscaled), scale);
-        }
-      case DECIMAL16:
-        {
-          int scale = ByteBuffers.readByte(value, PRIMITIVE_OFFSET);
-          byte[] unscaled = new byte[16];
-          for (int i = 0; i < 16; i += 1) {
-            unscaled[i] = (byte) ByteBuffers.readByte(value, PRIMITIVE_OFFSET + 16 - i);
-          }
-          return new BigDecimal(new BigInteger(unscaled), scale);
-        }
-      case BINARY:
-        {
-          int size = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
-          return VariantUtil.slice(value, PRIMITIVE_OFFSET + 4, size);
-        }
-      case STRING:
-        {
-          int size = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
-          return VariantUtil.readString(value, PRIMITIVE_OFFSET + 4, size);
-        }
-      case UUID:
-        return UUIDUtil.convert(
-            VariantUtil.slice(value, PRIMITIVE_OFFSET, 16).order(ByteOrder.BIG_ENDIAN));
-    }
-
-    throw new UnsupportedOperationException("Unsupported primitive type: " + type);
+        yield new BigDecimal(new BigInteger(unscaled), scale);
+      }
+      case BINARY -> {
+        int size = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
+        yield VariantUtil.slice(value, PRIMITIVE_OFFSET + 4, size);
+      }
+      case STRING -> {
+        int size = ByteBuffers.readLittleEndianInt32(value, PRIMITIVE_OFFSET);
+        yield VariantUtil.readString(value, PRIMITIVE_OFFSET + 4, size);
+      }
+      case UUID ->
+          UUIDUtil.convert(
+              VariantUtil.slice(value, PRIMITIVE_OFFSET, 16).order(ByteOrder.BIG_ENDIAN));
+      default -> throw new UnsupportedOperationException("Unsupported primitive type: " + type);
+    };
   }
 
   @Override
