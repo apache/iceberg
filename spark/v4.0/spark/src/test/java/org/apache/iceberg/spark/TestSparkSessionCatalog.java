@@ -32,6 +32,9 @@ import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
+import org.apache.spark.sql.execution.datasources.v2.V2SessionCatalog;
+import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.internal.StaticSQLConf;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -127,6 +130,20 @@ public class TestSparkSessionCatalog extends TestBase {
     catalog.setDelegateCatalog(sessionCatalog);
 
     assertThat(catalog.listViews("default")).containsExactly(viewIdent);
+  }
+
+  @Test
+  public void sessionCatalogPicksUpDefaultDatabaseConfig() {
+    SQLConf sqlConf = new SQLConf();
+    sqlConf.setConf(StaticSQLConf.CATALOG_DEFAULT_DATABASE(), "testDefaultDB");
+    SQLConf.setSQLConfGetter(() -> sqlConf);
+
+    var v1SessionCatalogMock = mock(org.apache.spark.sql.catalyst.catalog.SessionCatalog.class);
+    V2SessionCatalog v2SessionCatalog = new V2SessionCatalog(v1SessionCatalogMock);
+
+    SparkSessionCatalog<?> icebergSessionCatalog = new NoViewCatalog<>();
+    icebergSessionCatalog.setDelegateCatalog(v2SessionCatalog);
+    assertThat(icebergSessionCatalog.defaultNamespace()).containsExactly("testDefaultDB");
   }
 
   private static class NoViewCatalog<
