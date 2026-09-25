@@ -39,6 +39,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import scala.Function0;
 
 public class TestSparkSessionCatalog extends TestBase {
   private final String envHmsUriKey = "spark.hadoop." + METASTOREURIS.varname;
@@ -136,14 +137,20 @@ public class TestSparkSessionCatalog extends TestBase {
   public void sessionCatalogPicksUpDefaultDatabaseConfig() {
     SQLConf sqlConf = new SQLConf();
     sqlConf.setConf(StaticSQLConf.CATALOG_DEFAULT_DATABASE(), "testDefaultDB");
-    SQLConf.setSQLConfGetter(() -> sqlConf);
+    String[] result =
+        SQLConf.withExistingConf(
+            sqlConf,
+            (Function0<String[]>)
+                () -> {
+                  var v1SessionCatalogMock =
+                      mock(org.apache.spark.sql.catalyst.catalog.SessionCatalog.class);
+                  V2SessionCatalog v2SessionCatalog = new V2SessionCatalog(v1SessionCatalogMock);
 
-    var v1SessionCatalogMock = mock(org.apache.spark.sql.catalyst.catalog.SessionCatalog.class);
-    V2SessionCatalog v2SessionCatalog = new V2SessionCatalog(v1SessionCatalogMock);
-
-    SparkSessionCatalog<?> icebergSessionCatalog = new NoViewCatalog<>();
-    icebergSessionCatalog.setDelegateCatalog(v2SessionCatalog);
-    assertThat(icebergSessionCatalog.defaultNamespace()).containsExactly("testDefaultDB");
+                  SparkSessionCatalog<?> icebergSessionCatalog = new NoViewCatalog<>();
+                  icebergSessionCatalog.setDelegateCatalog(v2SessionCatalog);
+                  return icebergSessionCatalog.defaultNamespace();
+                });
+    assertThat(result).containsExactly("testDefaultDB");
   }
 
   private static class NoViewCatalog<
