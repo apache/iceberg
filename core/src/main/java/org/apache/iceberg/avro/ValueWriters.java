@@ -360,7 +360,9 @@ public class ValueWriters {
           "Cannot write byte buffer of length %s as fixed[%s]",
           bytes.remaining(),
           length);
-      encoder.writeBytes(bytes);
+      byte[] arr = new byte[length];
+      bytes.duplicate().get(arr);
+      encoder.writeFixed(arr);
     }
   }
 
