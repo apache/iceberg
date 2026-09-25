@@ -51,6 +51,7 @@ public abstract class ExtensionsTestBase extends CatalogTestBase {
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
             .config("spark.testing", "true")
+            .config("spark.sql.planChangeValidation", "true")
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
             .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
             .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
