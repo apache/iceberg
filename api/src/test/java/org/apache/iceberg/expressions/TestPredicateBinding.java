@@ -529,6 +529,30 @@ public class TestPredicateBinding {
   }
 
   @Test
+  public void testInPredicateTestWithNull() {
+    StructType struct = StructType.of(optional(36, "s", Types.StringType.get()));
+
+    Expression expr = Expressions.in("s", "abc", "abd").bind(struct);
+    BoundSetPredicate<CharSequence> bound = assertAndUnwrapBoundSet(expr);
+
+    assertThat(bound.test((CharSequence) null)).as("null in [abc, abd] => false").isFalse();
+    assertThat(bound.test("abc")).as("abc in [abc, abd] => true").isTrue();
+    assertThat(bound.test("xyz")).as("xyz in [abc, abd] => false").isFalse();
+  }
+
+  @Test
+  public void testNotInPredicateTestWithNull() {
+    StructType struct = StructType.of(optional(37, "s", Types.StringType.get()));
+
+    Expression expr = Expressions.notIn("s", "abc", "abd").bind(struct);
+    BoundSetPredicate<CharSequence> bound = assertAndUnwrapBoundSet(expr);
+
+    assertThat(bound.test((CharSequence) null)).as("null not in [abc, abd] => true").isTrue();
+    assertThat(bound.test("abc")).as("abc not in [abc, abd] => false").isFalse();
+    assertThat(bound.test("xyz")).as("xyz not in [abc, abd] => true").isTrue();
+  }
+
+  @Test
   public void testNotInPredicateBinding() {
     StructType struct =
         StructType.of(

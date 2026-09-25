@@ -34,20 +34,43 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
  * staging data file from {@code SnapshotChanges#addedDataFiles}) and need to feed it into the
  * reader. For data files that already come from a planned scan, we pass the native {@link
  * FileScanTask} through directly.
+ *
+ * <p>A plain class rather than a record to please Kryo 2.x in Flink 1.20, both of which cannot
+ * build a serializer for record classes.
  */
 @Internal
-record FlinkAddedRowsScanTask(DataFile file, PartitionSpec spec, List<DeleteFile> deletes)
-    implements FileScanTask {
+class FlinkAddedRowsScanTask implements FileScanTask {
 
-  FlinkAddedRowsScanTask {
+  private final DataFile file;
+  private final PartitionSpec spec;
+  private final List<DeleteFile> deletes;
+
+  FlinkAddedRowsScanTask(DataFile file, PartitionSpec spec, List<DeleteFile> deletes) {
+    this.file = file;
+    this.spec = spec;
     // Iceberg's scan APIs return Guava ImmutableList (see BaseAddedRowsScanTask#deletes), which
-    // does not round-trip through Flink's Kryo fallback. Copy into a plain ArrayList so the record
+    // does not round-trip through Flink's Kryo fallback. Copy into a plain ArrayList so the task
     // serializes cleanly regardless of what the caller passes.
-    deletes = Lists.newArrayList(deletes);
+    this.deletes = Lists.newArrayList(deletes);
   }
 
   FlinkAddedRowsScanTask(DataFile file, PartitionSpec spec) {
     this(file, spec, Collections.emptyList());
+  }
+
+  @Override
+  public DataFile file() {
+    return file;
+  }
+
+  @Override
+  public PartitionSpec spec() {
+    return spec;
+  }
+
+  @Override
+  public List<DeleteFile> deletes() {
+    return deletes;
   }
 
   @Override

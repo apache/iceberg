@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** Adapts {@link TrackedFile} entries to the {@link DataFile} and {@link DeleteFile} APIs. */
+/** Adapts {@link TrackedFile} entries to their read APIs, for example {@link DataFile}. */
 class TrackedFileAdapters {
 
   private TrackedFileAdapters() {}
@@ -34,7 +35,7 @@ class TrackedFileAdapters {
         file.contentType() == FileContent.DATA,
         "Invalid content type for DataFile: %s",
         file.contentType());
-    return new TrackedDataFile(file, resolveSpec(file, specsById));
+    return new TrackedDataFile(file, resolveSpecId(file, specsById));
   }
 
   static DeleteFile asDVDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
@@ -42,7 +43,7 @@ class TrackedFileAdapters {
         file.contentType() == FileContent.DATA,
         "Invalid content type for DV delete file: %s",
         file.contentType());
-    return new TrackedDVDeleteFile(file, resolveSpec(file, specsById));
+    return new TrackedDVDeleteFile(file, resolveSpecId(file, specsById));
   }
 
   static DeleteFile asEqualityDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
@@ -50,31 +51,31 @@ class TrackedFileAdapters {
         file.contentType() == FileContent.EQUALITY_DELETES,
         "Invalid content type for equality delete file: %s",
         file.contentType());
-    return new TrackedEqualityDeleteFile(file, resolveSpec(file, specsById));
+    return new TrackedEqualityDeleteFile(file, resolveSpecId(file, specsById));
   }
 
-  /** Shared base for all tracked file adapters. */
-  private abstract static class TrackedFileAdapter<F extends ContentFile<F>>
-      implements ContentFile<F> {
-    private final TrackedFile file;
-    private final PartitionSpec spec;
+  static ManifestFile asManifestFile(TrackedFile file) {
+    Preconditions.checkArgument(
+        file.contentType() == FileContent.DATA_MANIFEST
+            || file.contentType() == FileContent.DELETE_MANIFEST,
+        "Invalid content type for ManifestFile: %s",
+        file.contentType());
+    return new TrackedManifestFile(file);
+  }
 
-    private TrackedFileAdapter(TrackedFile file, PartitionSpec spec) {
-      Preconditions.checkArgument(
-          file.specId() == null ? spec.isUnpartitioned() : file.specId() == spec.specId(),
-          "File spec ID %s does not match partition spec %s",
-          file.specId(),
-          spec.specId());
+  /** Shared base for data and delete file adapters. */
+  private abstract static class TrackedFileAdapter<F extends ContentFile<F>>
+      implements ContentFile<F>, Serializable {
+    private final TrackedFile file;
+    private final int specId;
+
+    private TrackedFileAdapter(TrackedFile file, int specId) {
       this.file = file;
-      this.spec = spec;
+      this.specId = specId;
     }
 
     protected TrackedFile file() {
       return file;
-    }
-
-    protected PartitionSpec spec() {
-      return spec;
     }
 
     protected Tracking tracking() {
@@ -95,12 +96,12 @@ class TrackedFileAdapters {
 
     @Override
     public int specId() {
-      return spec.specId();
+      return specId;
     }
 
     @Override
     public StructLike partition() {
-      return file().partition();
+      return file().partition() != null ? file().partition() : PartitionData.EMPTY;
     }
 
     @Override
@@ -122,8 +123,8 @@ class TrackedFileAdapters {
    */
   private abstract static class TrackedContentFile<F extends ContentFile<F>>
       extends TrackedFileAdapter<F> {
-    private TrackedContentFile(TrackedFile file, PartitionSpec spec) {
-      super(file, spec);
+    private TrackedContentFile(TrackedFile file, int specId) {
+      super(file, specId);
     }
 
     @SuppressWarnings("deprecation")
@@ -174,34 +175,39 @@ class TrackedFileAdapters {
 
     @Override
     public Map<Integer, Long> valueCounts() {
-      return MetricsUtil.valueCounts(file().contentStats());
+      return ContentStatsBackedMap.valueCounts(file().contentStats());
     }
 
     @Override
     public Map<Integer, Long> nullValueCounts() {
-      return MetricsUtil.nullValueCounts(file().contentStats());
+      return ContentStatsBackedMap.nullValueCounts(file().contentStats());
     }
 
     @Override
     public Map<Integer, Long> nanValueCounts() {
-      return MetricsUtil.nanValueCounts(file().contentStats());
+      return ContentStatsBackedMap.nanValueCounts(file().contentStats());
+    }
+
+    @Override
+    public Map<Integer, Integer> avgValueSizes() {
+      return ContentStatsBackedMap.avgValueSizes(file().contentStats());
     }
 
     @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
-      return MetricsUtil.lowerBounds(file().contentStats());
+      return ContentStatsBackedMap.lowerBounds(file().contentStats());
     }
 
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
-      return MetricsUtil.upperBounds(file().contentStats());
+      return ContentStatsBackedMap.upperBounds(file().contentStats());
     }
   }
 
   /** Adapts a TrackedFile DATA entry to the {@link DataFile} interface. */
   private static class TrackedDataFile extends TrackedContentFile<DataFile> implements DataFile {
-    private TrackedDataFile(TrackedFile file, PartitionSpec spec) {
-      super(file, spec);
+    private TrackedDataFile(TrackedFile file, int specId) {
+      super(file, specId);
     }
 
     @Override
@@ -215,8 +221,13 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public DeletionVector deletionVector() {
+      return file().deletionVector();
+    }
+
+    @Override
     public DataFile copy() {
-      return new TrackedDataFile(file().copy(), spec());
+      return new TrackedDataFile(file().copy(), specId());
     }
 
     @Override
@@ -226,20 +237,20 @@ class TrackedFileAdapters {
 
     @Override
     public DataFile copyWithoutStats() {
-      return new TrackedDataFile(file().copyWithoutStats(), spec());
+      return new TrackedDataFile(file().copyWithoutStats(), specId());
     }
 
     @Override
     public DataFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return new TrackedDataFile(file().copyWithStats(requestedColumnIds), spec());
+      return new TrackedDataFile(file().copyWithStats(requestedColumnIds), specId());
     }
   }
 
   /** Adapts a TrackedFile EQUALITY_DELETES entry to the {@link DeleteFile} interface. */
   private static class TrackedEqualityDeleteFile extends TrackedContentFile<DeleteFile>
       implements DeleteFile {
-    private TrackedEqualityDeleteFile(TrackedFile file, PartitionSpec spec) {
-      super(file, spec);
+    private TrackedEqualityDeleteFile(TrackedFile file, int specId) {
+      super(file, specId);
     }
 
     @Override
@@ -254,7 +265,7 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copy() {
-      return new TrackedEqualityDeleteFile(file().copy(), spec());
+      return new TrackedEqualityDeleteFile(file().copy(), specId());
     }
 
     @Override
@@ -264,12 +275,12 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copyWithoutStats() {
-      return new TrackedEqualityDeleteFile(file().copyWithoutStats(), spec());
+      return new TrackedEqualityDeleteFile(file().copyWithoutStats(), specId());
     }
 
     @Override
     public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return new TrackedEqualityDeleteFile(file().copyWithStats(requestedColumnIds), spec());
+      return new TrackedEqualityDeleteFile(file().copyWithStats(requestedColumnIds), specId());
     }
   }
 
@@ -280,8 +291,8 @@ class TrackedFileAdapters {
       implements DeleteFile {
     private final DeletionVector dv;
 
-    private TrackedDVDeleteFile(TrackedFile file, PartitionSpec spec) {
-      super(file, spec);
+    private TrackedDVDeleteFile(TrackedFile file, int specId) {
+      super(file, specId);
       Preconditions.checkArgument(
           file.deletionVector() != null, "Cannot create DV delete file: no deletion vector");
       this.dv = file.deletionVector();
@@ -331,7 +342,7 @@ class TrackedFileAdapters {
 
     @Override
     public ByteBuffer keyMetadata() {
-      return null;
+      return dv.keyMetadata();
     }
 
     @Override
@@ -386,7 +397,7 @@ class TrackedFileAdapters {
 
     @Override
     public DeleteFile copy() {
-      return new TrackedDVDeleteFile(file().copyWithoutStats(), spec());
+      return new TrackedDVDeleteFile(file().copyWithoutStats(), specId());
     }
 
     @Override
@@ -405,20 +416,131 @@ class TrackedFileAdapters {
     }
   }
 
-  private static PartitionSpec resolveSpec(
-      TrackedFile file, Map<Integer, PartitionSpec> specsById) {
+  /** Adapts a TrackedFile to {@link ManifestFile}. */
+  private static class TrackedManifestFile implements ManifestFile {
+    private final TrackedFile file;
+
+    private TrackedManifestFile(TrackedFile file) {
+      this.file = file;
+    }
+
+    @Override
+    public String path() {
+      return file.location();
+    }
+
+    @Override
+    public long length() {
+      return file.fileSizeInBytes();
+    }
+
+    @Override
+    public int partitionSpecId() {
+      throw new UnsupportedOperationException(
+          "v4 manifests are not bound to a single partition spec");
+    }
+
+    @Override
+    public ManifestContent content() {
+      switch (file.contentType()) {
+        case DATA_MANIFEST:
+          return ManifestContent.DATA;
+        case DELETE_MANIFEST:
+          return ManifestContent.DELETES;
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported content type for manifests: " + file.contentType());
+      }
+    }
+
+    @Override
+    public long sequenceNumber() {
+      return file.tracking().dataSequenceNumber();
+    }
+
+    @Override
+    public long minSequenceNumber() {
+      return file.manifestInfo().minSequenceNumber();
+    }
+
+    @Override
+    public Long snapshotId() {
+      return file.tracking().snapshotId();
+    }
+
+    @Override
+    public Integer addedFilesCount() {
+      return file.manifestInfo().addedFilesCount();
+    }
+
+    @Override
+    public Long addedRowsCount() {
+      return file.manifestInfo().addedRowsCount();
+    }
+
+    @Override
+    public Integer existingFilesCount() {
+      return file.manifestInfo().existingFilesCount();
+    }
+
+    @Override
+    public Long existingRowsCount() {
+      return file.manifestInfo().existingRowsCount();
+    }
+
+    @Override
+    public Integer deletedFilesCount() {
+      return file.manifestInfo().deletedFilesCount();
+    }
+
+    @Override
+    public Long deletedRowsCount() {
+      return file.manifestInfo().deletedRowsCount();
+    }
+
+    @Override
+    public List<PartitionFieldSummary> partitions() {
+      return null;
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return file.keyMetadata();
+    }
+
+    @Override
+    public Long firstRowId() {
+      return file.tracking().firstRowId();
+    }
+
+    @Override
+    public ManifestBitmap manifestDeletionVector() {
+      return file.manifestInfo().manifestDeletionVector();
+    }
+
+    @Override
+    public int formatVersion() {
+      return file.formatVersion();
+    }
+
+    @Override
+    public ManifestFile copy() {
+      return new TrackedManifestFile(file.copy());
+    }
+  }
+
+  private static int resolveSpecId(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
     Integer specId = file.specId();
     if (specId != null) {
-      PartitionSpec spec = specsById.get(specId);
       Preconditions.checkArgument(
-          spec != null, "Cannot find partition spec for spec ID: %s", specId);
-      return spec;
+          specsById.containsKey(specId), "Cannot find partition spec for spec ID: %s", specId);
+      return specId;
     }
 
     // A null spec ID means the file is unpartitioned; use the table's unpartitioned spec.
     for (PartitionSpec spec : specsById.values()) {
       if (spec.isUnpartitioned()) {
-        return spec;
+        return spec.specId();
       }
     }
 

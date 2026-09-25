@@ -215,6 +215,34 @@ public class TestVariantWriters {
     InternalTestHelpers.assertEquals(SCHEMA.asStruct(), record, actual);
   }
 
+  @Test
+  public void testShreddedDecimal16RoundTripUsesWriterCompatibleFixedLength() throws IOException {
+    // A DECIMAL16 value (20-digit integer) shreds to a FIXED_LEN_BYTE_ARRAY typed_value whose
+    // declared length must equal decimalRequiredBytes, or the write fails. toParquetSchema shreds
+    // DECIMAL16 as BINARY, so this fixed-length path is otherwise untested.
+    VariantValue value = Variants.of(new BigDecimal("12345678901234567890"));
+    Variant variant = Variant.of(EMPTY_METADATA, value);
+    Record record = RECORD.copy("id", 1, "var", variant);
+
+    VariantShreddingAnalyzer<VariantValue, Void> analyzer =
+        new VariantShreddingAnalyzer<>() {
+          @Override
+          protected List<VariantValue> extractVariantValues(List<VariantValue> rows, int idx) {
+            return rows;
+          }
+
+          @Override
+          protected int resolveColumnIndex(Void engineSchema, String columnName) {
+            throw new UnsupportedOperationException("Not used in this test");
+          }
+        };
+
+    Record actual =
+        writeAndRead((id, name) -> analyzer.analyzeAndCreateSchema(List.of(value), 0), record);
+
+    InternalTestHelpers.assertEquals(SCHEMA.asStruct(), record, actual);
+  }
+
   @ParameterizedTest
   @FieldSource("VARIANTS")
   public void testMixedShredding(Variant variant) throws IOException {

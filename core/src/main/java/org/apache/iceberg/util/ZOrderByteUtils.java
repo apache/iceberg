@@ -102,7 +102,7 @@ public class ZOrderByteUtils {
   public static ByteBuffer floatingPointOrderedBytes(double val, ByteBuffer reuse) {
     ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
     long lval = Double.doubleToLongBits(val);
-    lval ^= ((lval >> (Integer.SIZE - 1)) | Long.MIN_VALUE);
+    lval ^= ((lval >> (Long.SIZE - 1)) | Long.MIN_VALUE);
     bytes.putLong(lval);
     return bytes;
   }

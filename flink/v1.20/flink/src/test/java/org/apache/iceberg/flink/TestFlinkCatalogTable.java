@@ -33,7 +33,9 @@ import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Schema.UnresolvedPrimaryKey;
 import org.apache.flink.table.api.TableException;
 import org.apache.flink.table.api.ValidationException;
+import org.apache.flink.table.catalog.CatalogMaterializedTable;
 import org.apache.flink.table.catalog.CatalogTable;
+import org.apache.flink.table.catalog.IntervalFreshness;
 import org.apache.flink.table.catalog.ObjectPath;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.iceberg.BaseTable;
@@ -228,13 +230,15 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                 .column("id", DataTypes.BIGINT())
                 .build());
 
-    String srcCatalogProps = FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl", config);
+    String srcCatalogProps = FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl");
     Map<String, String> options = catalogTable.getOptions();
     assertThat(options)
         .containsEntry(
             FlinkCreateTableOptions.CONNECTOR_PROPS_KEY,
             FlinkDynamicTableFactory.FACTORY_IDENTIFIER)
         .containsEntry(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, srcCatalogProps);
+    assertThat(options.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY))
+        .doesNotContain("extra-catalog-prop", "extra-value");
   }
 
   @TestTemplate
@@ -741,6 +745,31 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
             .map(ContentFile::location)
             .collect(Collectors.toSet());
     assertThat(actualFilePaths).as("Files should match").isEqualTo(expectedFilePaths);
+  }
+
+  @TestTemplate
+  public void testCreateMaterializedTableIsUnsupported() {
+    CatalogMaterializedTable materializedTable =
+        CatalogMaterializedTable.newBuilder()
+            .schema(
+                org.apache.flink.table.api.Schema.newBuilder()
+                    .column("id", DataTypes.BIGINT())
+                    .build())
+            .definitionQuery("SELECT id FROM tl")
+            .freshness(IntervalFreshness.ofMinute("5"))
+            .logicalRefreshMode(CatalogMaterializedTable.LogicalRefreshMode.AUTOMATIC)
+            .refreshMode(CatalogMaterializedTable.RefreshMode.CONTINUOUS)
+            .refreshStatus(CatalogMaterializedTable.RefreshStatus.INITIALIZING)
+            .build();
+
+    assertThatThrownBy(
+            () ->
+                getTableEnv()
+                    .getCatalog(catalogName)
+                    .get()
+                    .createTable(new ObjectPath(DATABASE, "mt_table"), materializedTable, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Materialized tables and other table kinds are not supported");
   }
 
   private Table table(String name) {

@@ -111,7 +111,7 @@ Iceberg is built using Gradle with Java 17 or 21.
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`
 * To fix code style: `./gradlew spotlessApply`
-* To build particular Spark/Flink Versions: `./gradlew build -DsparkVersions=3.5,4.0 -DflinkVersions=1.20,2.0`
+* To build particular Spark/Flink Versions: `./gradlew build -DsparkVersions=3.5,4.0,4.1 -DflinkVersions=1.20,2.1,2.2,2.3`
 
 Iceberg table support is organized in library modules:
 
@@ -126,7 +126,7 @@ Iceberg table support is organized in library modules:
 
 This project Iceberg also has modules for adding Iceberg support to processing engines:
 
-* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use runtime jars for a shaded version)
+* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each Spark version (use runtime jars for a shaded version)
 * `iceberg-flink` contains classes for integrating with Apache Flink (use iceberg-flink-runtime for a shaded version)
 * `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
 
@@ -299,9 +299,9 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
 Java code adheres to the [Google style](https://google.github.io/styleguide/javaguide.html), which will be verified via `./gradlew spotlessCheck` during builds.
 In order to automatically fix Java code style issues, please use `./gradlew spotlessApply`.
 
-**NOTE**: The **google-java-format** plugin will always use the latest version of the **google-java-format**. However, `spotless` itself is configured to use **google-java-format** 1.7
-since that version is compatible with JDK 8. When formatting the code in the IDE, there is a slight chance that it will produce slightly different results. In such a case please run `./gradlew spotlessApply`
-as CI will check the style against **google-java-format** 1.7.
+**NOTE**: The **google-java-format** plugin will always use the latest version of the **google-java-format**. However, `spotless` itself is configured to use **google-java-format** 1.22.0
+to produce consistent results on JDK 17 and 21. When formatting the code in the IDE, there is a slight chance that it will produce slightly different results. In such a case please run `./gradlew spotlessApply`
+as CI will check the style against **google-java-format** 1.22.0.
 
 ### Copyright
 

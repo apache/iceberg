@@ -21,9 +21,11 @@ package org.apache.iceberg.spark;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -92,13 +94,8 @@ public class TestSparkValueConverter {
     Types.MapType map =
         Types.MapType.ofOptional(1, 2, Types.StringType.get(), Types.StringType.get());
 
-    for (Types.NestedField field :
-        new Types.NestedField[] {
-          Types.NestedField.required(0, "s", struct),
-          Types.NestedField.required(0, "l", list),
-          Types.NestedField.required(0, "m", map)
-        }) {
-      assertThatThrownBy(() -> SparkValueConverter.convertToSpark(field.type(), "unused"))
+    for (Type type : List.of(struct, list, map)) {
+      assertThatThrownBy(() -> SparkValueConverter.convertToSpark(type, "unused"))
           .isInstanceOf(UnsupportedOperationException.class)
           .hasMessageContaining("Complex types currently not supported");
     }

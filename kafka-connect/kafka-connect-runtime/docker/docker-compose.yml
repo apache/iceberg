@@ -19,43 +19,55 @@ volumes:
   data: {}
 
 services:
-  minio:
-    image: minio/minio
-    hostname: minio
+  object-store:
+    image: rustfs/rustfs:1.0.0
+    hostname: object-store
     environment:
-      - MINIO_ROOT_USER=minioadmin
-      - MINIO_ROOT_PASSWORD=minioadmin
+      - RUSTFS_ACCESS_KEY=admin
+      - RUSTFS_SECRET_KEY=password
+      - RUSTFS_OBS_LOG_STDOUT_ENABLED=true
     ports:
       - 9000:9000
       - 9001:9001
     volumes:
       - data:/data
-    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:9000/health/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   create-bucket:
-    image: minio/mc
+    image: rustfs/rustfs:1.0.0
     depends_on:
-      - minio
-    volumes:
-      - data:/data
-    entrypoint: mc mb /data/bucket
+      object-store:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - >-
+        curl -sf -o /dev/null --aws-sigv4 aws:amz:us-east-1:s3 --user admin:password
+        --head http://object-store:9000/bucket ||
+        curl -sSf --aws-sigv4 aws:amz:us-east-1:s3 --user admin:password
+        -X PUT http://object-store:9000/bucket
 
   iceberg:
     image: apache/iceberg-rest-fixture
     depends_on:
-      - create-bucket
+      create-bucket:
+        condition: service_completed_successfully
     hostname: iceberg
     ports:
       - 8181:8181
     environment:
       - AWS_REGION=us-east-1
       - CATALOG_WAREHOUSE=s3://bucket/warehouse/
-      - CATALOG_URI=jdbc:sqlite:file:/tmp/iceberg_rest_mode=memory
+      - CATALOG_URI=jdbc:sqlite:/tmp/iceberg_catalog.db?journal_mode=WAL
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
-      - CATALOG_S3_ENDPOINT=http://minio:9000
+      - CATALOG_S3_ENDPOINT=http://object-store:9000
       - CATALOG_S3_PATH__STYLE__ACCESS=true
-      - CATALOG_S3_ACCESS__KEY__ID=minioadmin
-      - CATALOG_S3_SECRET__ACCESS__KEY=minioadmin
+      - CATALOG_S3_ACCESS__KEY__ID=admin
+      - CATALOG_S3_SECRET__ACCESS__KEY=password
 
   kafka:
     image: confluentinc/cp-kafka:7.8.1

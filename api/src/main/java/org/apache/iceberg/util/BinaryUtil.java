@@ -37,6 +37,8 @@ public class BinaryUtil {
    *
    * @param input The ByteBuffer to be truncated
    * @param length The non-negative length to truncate input to
+   * @return a ByteBuffer truncated to the given length, or the input if it is already no longer
+   *     than length
    */
   public static ByteBuffer truncateBinary(ByteBuffer input, int length) {
     Preconditions.checkArgument(length >= 0, "Truncate length should be non-negative");
@@ -57,6 +59,8 @@ public class BinaryUtil {
    *
    * @param value The ByteBuffer to be truncated
    * @param width The non-negative length to truncate input to
+   * @return a ByteBuffer view of the input truncated to the given width, sharing the input's
+   *     backing data
    */
   public static ByteBuffer truncateBinaryUnsafe(ByteBuffer value, int width) {
     ByteBuffer ret = value.duplicate();
