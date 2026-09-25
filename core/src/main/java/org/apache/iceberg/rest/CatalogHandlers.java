@@ -51,7 +51,6 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.IncrementalAppendScan;
-import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataUpdate.UpgradeFormatVersion;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RetryableValidationException;
@@ -492,10 +491,6 @@ public class CatalogHandlers {
   }
 
   public static UnregisterTableResponse unregisterTable(Catalog catalog, TableIdentifier ident) {
-    if (MetadataTableType.from(ident.name()) != null) {
-      throw new NoSuchTableException("Table does not exist: %s", ident);
-    }
-
     Table table = catalog.unregisterTable(ident);
     if (!(table instanceof BaseTable)) {
       throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");

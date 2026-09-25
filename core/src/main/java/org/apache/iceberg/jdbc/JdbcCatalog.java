@@ -18,15 +18,6 @@
  */
 package org.apache.iceberg.jdbc;
 
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.sql.Connection;
@@ -43,7 +34,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -80,7 +70,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewOperations;
@@ -316,38 +305,17 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   public Table unregisterTable(TableIdentifier identifier) {
     Preconditions.checkArgument(
         identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
-
-    TableMetadata initialMetadata = newTableOps(identifier).current();
-    if (initialMetadata == null) {
-      throw new NoSuchTableException("Table does not exist: %s", identifier);
-    }
-
-    AtomicReference<Table> unregistered = new AtomicReference<>();
-    Tasks.foreach(identifier)
-        .retry(initialMetadata.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
-        .exponentialBackoff(
-            initialMetadata.propertyAsInt(
-                COMMIT_MIN_RETRY_WAIT_MS, COMMIT_MIN_RETRY_WAIT_MS_DEFAULT),
-            initialMetadata.propertyAsInt(
-                COMMIT_MAX_RETRY_WAIT_MS, COMMIT_MAX_RETRY_WAIT_MS_DEFAULT),
-            initialMetadata.propertyAsInt(
-                COMMIT_TOTAL_RETRY_TIME_MS, COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT),
-            2.0 /* exponential */)
-        .onlyRetryOn(CommitFailedException.class)
-        .run(tableIdentifier -> unregistered.set(unregisterTableOnce(tableIdentifier)));
-    return unregistered.get();
-  }
-
-  private Table unregisterTableOnce(TableIdentifier identifier) {
     TableOperations ops = newTableOps(identifier);
     TableMetadata metadata = ops.current();
+
     if (metadata == null) {
       throw new NoSuchTableException("Table does not exist: %s", identifier);
     }
 
     if (dropTableIfMetadataMatches(identifier, metadata.metadataFileLocation()) == 0) {
       throw new CommitFailedException(
-          "Cannot unregister table %s: metadata location changed concurrently", identifier);
+          "Cannot unregister table %s: metadata location has changed or table was dropped",
+          identifier);
     }
 
     StaticTableOperations staticOps =
