@@ -89,7 +89,6 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
   }
 
   @Override
-  @SuppressWarnings("ReferenceEquality")
   public Type struct(StructType struct, List<Type> types) {
     StructField[] fields = struct.fields();
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(fields.length);
