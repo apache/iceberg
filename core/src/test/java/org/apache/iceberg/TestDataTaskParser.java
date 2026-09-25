@@ -26,8 +26,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.StringWriter;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -153,6 +155,32 @@ public class TestDataTaskParser {
     assertThatThrownBy(() -> DataTaskParser.fromJson(missingTableRowsNode))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot parse missing field: rows");
+  }
+
+  @Test
+  void optionalNullMapValueInScanTask() throws Exception {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(
+                1,
+                "attributes",
+                Types.MapType.ofOptional(2, 3, Types.StringType.get(), Types.StringType.get())));
+    Map<String, String> attributes = Collections.singletonMap("missing", null);
+    DataTask task =
+        StaticDataTask.of(
+            Files.localInput("/tmp/metadata.json"),
+            schema,
+            schema,
+            Collections.singletonList(attributes),
+            StaticDataTask.Row::of);
+
+    DataTask restored = ScanTaskParser.fromJson(ScanTaskParser.toJson(task), true).asDataTask();
+
+    try (CloseableIterable<StructLike> rows = restored.rows()) {
+      assertThat(rows)
+          .singleElement()
+          .satisfies(row -> assertThat(row.get(0, Map.class)).isEqualTo(attributes));
+    }
   }
 
   @Test
