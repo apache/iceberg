@@ -19,9 +19,25 @@
 package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.MetadataUpdate;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.CatalogTests;
+import org.apache.iceberg.exceptions.BadRequestException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.rest.auth.AuthManager;
+import org.apache.iceberg.rest.auth.AuthManagers;
+import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.LoadTableResponse;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -113,6 +129,57 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
   protected boolean supportsVariant() {
     return PropertyUtil.propertyAsBoolean(
         restCatalog.properties(), RESTCompatibilityKitSuite.RCK_SUPPORTS_VARIANT, false);
+  }
+
+  @Test
+  public void testUpdateTableSchemaRejectsReservedFieldIds() throws Exception {
+    if (requiresNamespaceCreate()) {
+      restCatalog.createNamespace(NS);
+    }
+
+    Table table = restCatalog.buildTable(TABLE, SCHEMA).create();
+    Schema reservedSchema =
+        new Schema(
+            ImmutableList.<Types.NestedField>builder()
+                .addAll(table.schema().columns())
+                .add(Types.NestedField.optional(2147483448, "reserved", Types.StringType.get()))
+                .build());
+
+    // the client-side metadata builder rejects reserved IDs, so send the update directly to
+    // check that the server validates it too
+    UpdateTableRequest request =
+        UpdateTableRequest.create(
+            TABLE,
+            List.of(
+                new UpdateRequirement.AssertTableUUID(
+                    ((BaseTable) table).operations().current().uuid())),
+            List.of(
+                new MetadataUpdate.AddSchema(reservedSchema),
+                new MetadataUpdate.SetCurrentSchema(-1)));
+
+    Map<String, String> props = restCatalog.properties();
+    try (RESTClient client =
+            HTTPClient.builder(props)
+                .uri(props.get(CatalogProperties.URI))
+                .withHeaders(RESTUtil.configHeaders(props))
+                .build();
+        AuthManager authManager = AuthManagers.loadAuthManager("rck", props);
+        AuthSession session = authManager.catalogSession(client, props)) {
+      assertThatThrownBy(
+              () ->
+                  client
+                      .withAuthSession(session)
+                      .post(
+                          ResourcePaths.forCatalogProperties(props).table(TABLE),
+                          request,
+                          LoadTableResponse.class,
+                          Map.of(),
+                          ErrorHandlers.tableCommitHandler()))
+          .isInstanceOf(BadRequestException.class);
+    }
+
+    assertThat(restCatalog.loadTable(TABLE).schema().asStruct())
+        .isEqualTo(table.schema().asStruct());
   }
 
   @Disabled("RESTServerExtension isn’t configurable per test")
