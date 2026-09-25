@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -45,6 +46,7 @@ import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.StorageCredential;
+import org.apache.iceberg.io.SupportsPreSigning;
 import org.apache.iceberg.io.SupportsRecoveryOperations;
 import org.apache.iceberg.io.SupportsStorageCredentials;
 import org.apache.iceberg.metrics.MetricsContext;
@@ -59,6 +61,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.SetMultimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.rest.RemoteSigningClient;
+import org.apache.iceberg.rest.requests.ImmutableRemoteSignRequest;
+import org.apache.iceberg.rest.requests.RemoteSignRequest;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -95,7 +100,8 @@ public class S3FileIO
     implements CredentialSupplier,
         DelegateFileIO,
         SupportsRecoveryOperations,
-        SupportsStorageCredentials {
+        SupportsStorageCredentials,
+        SupportsPreSigning {
   private static final Logger LOG = LoggerFactory.getLogger(S3FileIO.class);
   private static final String DEFAULT_METRICS_IMPL =
       "org.apache.iceberg.hadoop.HadoopMetricsContext";
@@ -113,6 +119,7 @@ public class S3FileIO
   private volatile List<StorageCredential> storageCredentials = Lists.newArrayList();
   private transient volatile Map<String, PrefixedS3Client> clientByPrefix;
   private transient volatile ScheduledFuture<?> refreshFuture;
+  private transient volatile RemoteSigningClient signingClient;
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -160,6 +167,32 @@ public class S3FileIO
   @Override
   public OutputFile newOutputFile(String path) {
     return S3OutputFile.fromLocation(path, clientForStoragePath(path), metrics);
+  }
+
+  @Override
+  public Map<String, URI> preSign(Collection<String> paths) {
+    return signingClient().preSign(paths, this::remoteSignRequest);
+  }
+
+  private RemoteSignRequest remoteSignRequest(String path) {
+    return ImmutableRemoteSignRequest.builder()
+        .method("GET")
+        .region(clientForStoragePath(path).s3().serviceClientConfiguration().region().id())
+        .uri(URI.create(path))
+        .provider(ROOT_PREFIX)
+        .build();
+  }
+
+  private RemoteSigningClient signingClient() {
+    if (null == signingClient) {
+      synchronized (this) {
+        if (null == signingClient) {
+          this.signingClient = RemoteSigningClient.create(properties);
+        }
+      }
+    }
+
+    return signingClient;
   }
 
   @Override
@@ -545,6 +578,10 @@ public class S3FileIO
       if (refreshFuture != null) {
         refreshFuture.cancel(true);
         refreshFuture = null;
+      }
+      if (signingClient != null) {
+        signingClient.close();
+        this.signingClient = null;
       }
     }
   }

@@ -27,6 +27,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
+import static org.mockserver.integration.ClientAndServer.startClientAndServer;
+import static org.mockserver.model.HttpRequest.request;
+import static org.mockserver.model.HttpResponse.response;
 
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.OAuth2Credentials;
@@ -38,6 +41,7 @@ import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -59,11 +63,17 @@ import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.RESTCatalogProperties;
+import org.apache.iceberg.rest.RemoteSigningClient;
+import org.apache.iceberg.rest.requests.RemoteSignRequest;
+import org.apache.iceberg.rest.requests.RemoteSignRequestParser;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockserver.integration.ClientAndServer;
+import org.mockserver.model.HttpRequest;
 
 public class TestGCSFileIO {
   private static final String TEST_BUCKET = "TEST_BUCKET";
@@ -574,5 +584,52 @@ public class TestGCSFileIO {
         .asInstanceOf(InstanceOfAssertFactories.type(GCSFileIO.class))
         .extracting(GCSFileIO::credentials)
         .isEqualTo(storageCredentials);
+  }
+
+  @Test
+  public void testPreSign() {
+    try (ClientAndServer signer = startClientAndServer(0)) {
+      URI preSigned =
+          URI.create(
+              "https://storage.googleapis.com/bucket/path/to/file.parquet?X-Goog-Signature=1");
+      signer
+          .when(
+              request()
+                  .withMethod("POST")
+                  .withPath("/v1/namespaces/ns/tables/t/sign")
+                  .withHeader(
+                      RemoteSigningClient.ACCESS_DELEGATION_HEADER,
+                      RemoteSigningClient.PRESIGNED_URLS))
+          .respond(
+              response()
+                  .withStatusCode(200)
+                  .withHeader("Content-Type", "application/json")
+                  .withBody("{\"uri\": \"" + preSigned + "\", \"headers\": {}}"));
+
+      Map<String, String> properties =
+          ImmutableMap.of(
+              CatalogProperties.URI,
+              "http://localhost:" + signer.getPort(),
+              RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+              "v1/namespaces/ns/tables/t/sign");
+      try (GCSFileIO fileIO = new GCSFileIO(() -> storage)) {
+        fileIO.initialize(properties);
+        assertThat(fileIO.preSign("gs://bucket/path/to/file.parquet")).isEqualTo(preSigned);
+
+        // the location as is, without a region
+        RemoteSignRequest request = lastSignRequest(signer);
+        assertThat(request.uri()).isEqualTo(URI.create("gs://bucket/path/to/file.parquet"));
+        assertThat(request.region()).isEmpty();
+        assertThat(request.provider()).isEqualTo("gs");
+        assertThat(request.method()).isEqualTo("GET");
+        assertThat(request.headers()).isEmpty();
+      }
+    }
+  }
+
+  private static RemoteSignRequest lastSignRequest(ClientAndServer signer) {
+    HttpRequest[] recorded =
+        signer.retrieveRecordedRequests(request().withPath("/v1/namespaces/ns/tables/t/sign"));
+    return RemoteSignRequestParser.fromJson(recorded[recorded.length - 1].getBodyAsString());
   }
 }

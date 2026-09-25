@@ -24,6 +24,10 @@ import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -33,10 +37,16 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.s3.MinioUtil;
+import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.aws.s3.S3FileIOProperties;
+import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
+import org.apache.iceberg.rest.requests.RemoteSignRequest;
 import org.apache.iceberg.util.ThreadPools;
 import org.eclipse.jetty.compression.gzip.GzipCompression;
 import org.eclipse.jetty.compression.server.CompressionHandler;
@@ -48,6 +58,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -93,7 +105,9 @@ public class TestS3RestSigner {
       MinioUtil.createContainer(MinioUtil.LATEST_TAG, CREDENTIALS_PROVIDER.resolveCredentials());
 
   private static Server httpServer;
+  private static S3SignerServlet servlet;
   private static ValidatingSigner validatingSigner;
+  private static final HttpClient HTTP = HttpClient.newHttpClient();
   private S3Client s3;
 
   @BeforeAll
@@ -186,7 +200,7 @@ public class TestS3RestSigner {
   }
 
   private static Server initHttpServer() throws Exception {
-    S3SignerServlet servlet = new S3SignerServlet();
+    servlet = new S3SignerServlet(URI.create(MINIO_CONTAINER.getS3URL()), REGION);
     ServletContextHandler servletContext =
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
     servletContext.addServlet(new ServletHolder(servlet), "/*");
@@ -404,5 +418,85 @@ public class TestS3RestSigner {
       }
       return S3V4RestSignerClient.UNSIGNED_PAYLOAD;
     }
+  }
+
+  @Test
+  public void testPreSignedUrlsAreReadable() throws Exception {
+    s3.putObject(
+        PutObjectRequest.builder().bucket(BUCKET).key("random/key2").build(),
+        Paths.get("/etc/hosts"));
+    List<String> locations =
+        List.of("s3://" + BUCKET + "/random/key", "s3://" + BUCKET + "/random/key2");
+
+    try (S3FileIO io = s3FileIO()) {
+      Map<String, URI> urls = io.preSign(locations);
+      assertThat(urls).containsOnlyKeys(locations);
+      for (URI url : urls.values()) {
+        assertThat(fetch(url)).isEqualTo(Files.readAllBytes(Paths.get("/etc/hosts")));
+      }
+
+      // the location as is, with the region the S3 client signs with
+      RemoteSignRequest request = servlet.lastRequest();
+      assertThat(request.uri()).isEqualTo(URI.create("s3://" + BUCKET + "/random/key2"));
+      assertThat(request.region()).isEqualTo(REGION.id());
+      assertThat(request.provider()).isEqualTo("s3");
+      assertThat(request.method()).isEqualTo("GET");
+      assertThat(request.headers()).isEmpty();
+    }
+  }
+
+  @Test
+  public void testPreSignThroughResolvingFileIO() throws Exception {
+    try (ResolvingFileIO io = new ResolvingFileIO()) {
+      io.initialize(fileIOProperties());
+      URI url = io.preSign("s3://" + BUCKET + "/random/key");
+      assertThat(fetch(url)).isEqualTo(Files.readAllBytes(Paths.get("/etc/hosts")));
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testPreSignAfterSerialization(
+      TestHelpers.RoundTripSerializer<S3FileIO> roundTripSerializer) throws Exception {
+    String location = "s3://" + BUCKET + "/random/key";
+    try (S3FileIO io = s3FileIO()) {
+      // the signing client exists before the round trip; it is transient and rebuilt by the copy
+      io.preSign(location);
+
+      try (S3FileIO executorCopy = roundTripSerializer.apply(io)) {
+        assertThat(fetch(executorCopy.preSign(location)))
+            .isEqualTo(Files.readAllBytes(Paths.get("/etc/hosts")));
+      }
+    }
+  }
+
+  private static S3FileIO s3FileIO() {
+    S3FileIO io = new S3FileIO();
+    io.initialize(fileIOProperties());
+    return io;
+  }
+
+  private static Map<String, String> fileIOProperties() {
+    return ImmutableMap.<String, String>builder()
+        .put(CatalogProperties.URI, httpServer.getURI().toString())
+        .put(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT, S3SignerServlet.S3_SIGNER_ENDPOINT)
+        .put(S3FileIOProperties.ENDPOINT, MINIO_CONTAINER.getS3URL())
+        .put(S3FileIOProperties.PATH_STYLE_ACCESS, "true")
+        .put(
+            S3FileIOProperties.ACCESS_KEY_ID,
+            CREDENTIALS_PROVIDER.resolveCredentials().accessKeyId())
+        .put(
+            S3FileIOProperties.SECRET_ACCESS_KEY,
+            CREDENTIALS_PROVIDER.resolveCredentials().secretAccessKey())
+        .put(AwsClientProperties.CLIENT_REGION, REGION.id())
+        .build();
+  }
+
+  private static byte[] fetch(URI url) throws Exception {
+    HttpResponse<byte[]> response =
+        HTTP.send(
+            HttpRequest.newBuilder(url).GET().build(), HttpResponse.BodyHandlers.ofByteArray());
+    assertThat(response.statusCode()).as("GET %s", url).isEqualTo(200);
+    return response.body();
   }
 }
