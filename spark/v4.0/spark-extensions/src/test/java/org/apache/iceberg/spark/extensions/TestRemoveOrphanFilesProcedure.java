@@ -668,6 +668,72 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testRemoveOrphanFilesWithPrefixListingMaxSeedDepth() throws IOException {
+    if (catalogName.equals("testhadoop")) {
+      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    } else {
+      sql(
+          "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
+          tableName, java.nio.file.Files.createTempDirectory(temp, "junit"));
+    }
+
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    String dataLocation = table.location() + "/data";
+
+    sql("CREATE TABLE p (id bigint) USING parquet LOCATION '%s'", dataLocation);
+    sql("INSERT INTO TABLE p VALUES (1)");
+    sql("INSERT INTO TABLE p VALUES (2)");
+
+    waitUntilAfter(System.currentTimeMillis());
+
+    Timestamp currentTimestamp = Timestamp.from(Instant.ofEpochMilli(System.currentTimeMillis()));
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.remove_orphan_files("
+                + "table => '%s',"
+                + "older_than => TIMESTAMP '%s',"
+                + "prefix_listing => true,"
+                + "prefix_listing_max_seed_depth => %d)",
+            catalogName, tableIdent, currentTimestamp, 2);
+    assertThat(output).as("Should find orphan files in the data folder").hasSize(2);
+
+    List<Object[]> output2 =
+        sql(
+            "CALL %s.system.remove_orphan_files("
+                + "table => '%s',"
+                + "older_than => TIMESTAMP '%s',"
+                + "prefix_listing => true,"
+                + "prefix_listing_max_seed_depth => %d)",
+            catalogName, tableIdent, currentTimestamp, 2);
+    assertThat(output2).as("Should be no more orphan files").isEmpty();
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(2L, "b")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testRemoveOrphanFilesWithNegativePrefixListingMaxSeedDepth() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.remove_orphan_files("
+                        + "table => '%s',"
+                        + "prefix_listing => true,"
+                        + "prefix_listing_max_seed_depth => %d)",
+                    catalogName, tableIdent, -1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Prefix listing max seed depth must be non-negative");
+  }
+
+  @TestTemplate
   public void testRemoveOrphanFilesProcedureWithEqualAuthorities()
       throws NoSuchTableException, ParseException, IOException {
     if (catalogName.equals("testhadoop")) {

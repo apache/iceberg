@@ -44,6 +44,8 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PrefixListing;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsRecoveryOperations;
 import org.apache.iceberg.io.SupportsStorageCredentials;
@@ -76,10 +78,12 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.ObjectVersion;
 import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.model.Tag;
 import software.amazon.awssdk.services.s3.model.Tagging;
 import software.amazon.awssdk.services.s3.paginators.ListObjectVersionsIterable;
@@ -343,13 +347,82 @@ public class S3FileIO
     return () ->
         client.s3().listObjectsV2Paginator(request).stream()
             .flatMap(r -> r.contents().stream())
-            .map(
-                o ->
-                    new FileInfo(
-                        String.format("%s://%s/%s", s3uri.scheme(), s3uri.bucket(), o.key()),
-                        o.size(),
-                        o.lastModified().toEpochMilli()))
+            .map(o -> createFileInfo(s3uri, o))
             .iterator();
+  }
+
+  @Override
+  public PrefixListing listPrefix(String prefix, String delimiter) {
+    PrefixedS3Client client = clientForStoragePath(prefix);
+
+    S3URI uri = new S3URI(prefix, client.s3FileIOProperties().bucketToAccessPointMapping());
+    if (!supportsPrefixListingWithDelimiter(uri, client.s3FileIOProperties(), delimiter)) {
+      throw new UnsupportedOperationException(
+          String.format("Prefix listing with delimiter '%s' is not supported", delimiter));
+    }
+
+    if (uri.useS3DirectoryBucket()
+        && client.s3FileIOProperties().isS3DirectoryBucketListPrefixAsDirectory()) {
+      uri = uri.toDirectoryPath();
+    }
+
+    S3URI s3uri = uri;
+    ListObjectsV2Request request =
+        ListObjectsV2Request.builder()
+            .bucket(s3uri.bucket())
+            .prefix(s3uri.key())
+            .delimiter(delimiter)
+            .build();
+
+    return PrefixListing.of(
+        () ->
+            client.s3().listObjectsV2Paginator(request).stream()
+                .map(response -> createPrefixListingPage(s3uri, response))
+                .iterator());
+  }
+
+  @Override
+  public boolean supportsPrefixListingWithDelimiter(String prefix, String delimiter) {
+    if (delimiter == null || delimiter.isEmpty()) {
+      return false;
+    }
+
+    PrefixedS3Client client = clientForStoragePath(prefix);
+    S3URI uri = new S3URI(prefix, client.s3FileIOProperties().bucketToAccessPointMapping());
+    return supportsPrefixListingWithDelimiter(uri, client.s3FileIOProperties(), delimiter);
+  }
+
+  private static boolean supportsPrefixListingWithDelimiter(
+      S3URI uri, S3FileIOProperties properties, String delimiter) {
+    if (delimiter == null || delimiter.isEmpty()) {
+      return false;
+    } else if (!uri.useS3DirectoryBucket()) {
+      return true;
+    }
+
+    return "/".equals(delimiter)
+        && (uri.key().isEmpty()
+            || uri.key().endsWith("/")
+            || properties.isS3DirectoryBucketListPrefixAsDirectory());
+  }
+
+  private PrefixListingPage createPrefixListingPage(S3URI s3uri, ListObjectsV2Response response) {
+    List<FileInfo> files = Lists.newArrayList();
+    List<String> subPrefixes = Lists.newArrayList();
+    response.contents().forEach(object -> files.add(createFileInfo(s3uri, object)));
+    response
+        .commonPrefixes()
+        .forEach(commonPrefix -> subPrefixes.add(toUri(s3uri, commonPrefix.prefix())));
+    return PrefixListingPage.of(files, subPrefixes);
+  }
+
+  private FileInfo createFileInfo(S3URI s3uri, S3Object object) {
+    return new FileInfo(
+        toUri(s3uri, object.key()), object.size(), object.lastModified().toEpochMilli());
+  }
+
+  private String toUri(S3URI s3uri, String key) {
+    return String.format("%s://%s/%s", s3uri.scheme(), s3uri.bucket(), key);
   }
 
   /**
