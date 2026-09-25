@@ -114,7 +114,7 @@ There are two types of row-level deletes:
 
 * **Position deletes** -- Mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files) (V2) or [_deletion vector_](#deletion-vectors) (V3 or above).
 
-* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in [_equality delete file_](#equality-delete-files) (May be created in V2 and V3 Tables Only).
+* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in [_equality delete file_](#equality-delete-files) (may be created in v2 and v3 tables only).
 
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
 
@@ -1358,7 +1358,7 @@ This section details how to encode row-level deletes in Iceberg delete files. Ro
 There are different formats for encoding row-level deletes:
 
 * Deletion vectors (DVs) identify deleted rows within a single referenced data file by position in a bitmap
-* Position delete files identify deleted rows by file location and row position (**deprecated** in v3)
+* Position delete files identify deleted rows by file location and row position (**prohibited** in v3)
 * Equality delete files identify deleted rows by the value of one or more columns (**prohibited** in v4)
 
 Deletion vectors are a binary representation of deletes for a single data file that is more efficient at execution time than position delete files. Unlike equality or position delete files, there can be at most one deletion vector for a given data file in a snapshot. Writers must ensure that there is at most one deletion vector per data file and must merge new deletes with existing vectors or position delete files.
@@ -1916,11 +1916,11 @@ Reading v4 metadata:
 * Relative paths must be resolved against the table location before use (see [Path Resolution](#path-resolution))
 * When `location` is omitted, the table location must be provided (see [Table Location Specification](#table-location-specification))
 
-Row-level delete changes:
+Equality deletes are prohibited in v4.
 
 * Writers must not add equality delete files to v4 tables; equality deletes cannot be added as an entry to a v4 manifest
+* Upgrading a v2 or v3 table to v4 does not require rewriting data or delete files
 * Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
-* Upgrading a v2 or v3 table to v4 is metadata-only and does not rewrite data or delete files
 
 ### Version 3
 
