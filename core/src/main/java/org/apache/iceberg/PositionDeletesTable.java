@@ -55,9 +55,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
   public static final String CONTENT_OFFSET = "content_offset";
   public static final String CONTENT_SIZE_IN_BYTES = "content_size_in_bytes";
 
-  private final Schema schema;
-  private final int defaultSpecId;
-  private final Map<Integer, PartitionSpec> specs;
+  private volatile MetadataTableState state;
 
   PositionDeletesTable(Table table) {
     this(table, table.name() + ".position_deletes");
@@ -65,9 +63,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
 
   PositionDeletesTable(Table table, String name) {
     super(table, name);
-    this.schema = calculateSchema();
-    this.defaultSpecId = table.spec().specId();
-    this.specs = transformSpecs(schema(), table.specs());
+    this.state = newState();
   }
 
   @Override
@@ -88,17 +84,24 @@ public class PositionDeletesTable extends BaseMetadataTable {
 
   @Override
   public Schema schema() {
-    return schema;
+    return state.schema;
   }
 
   @Override
   public PartitionSpec spec() {
-    return specs.get(defaultSpecId);
+    MetadataTableState currentState = state;
+    return currentState.specs.get(currentState.defaultSpecId);
   }
 
   @Override
   public Map<Integer, PartitionSpec> specs() {
-    return specs;
+    return state.specs;
+  }
+
+  @Override
+  public void refresh() {
+    super.refresh();
+    this.state = newState();
   }
 
   @Override
@@ -109,6 +112,12 @@ public class PositionDeletesTable extends BaseMetadataTable {
         table().properties().entrySet().stream()
             .filter(entry -> entry.getKey().startsWith("write."))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+  }
+
+  private MetadataTableState newState() {
+    Schema currentSchema = calculateSchema();
+    return new MetadataTableState(
+        currentSchema, table().spec().specId(), transformSpecs(currentSchema, table().specs()));
   }
 
   private Schema calculateSchema() {
@@ -381,4 +390,7 @@ public class PositionDeletesTable extends BaseMetadataTable {
               });
     }
   }
+
+  private record MetadataTableState(
+      Schema schema, int defaultSpecId, Map<Integer, PartitionSpec> specs) {}
 }
