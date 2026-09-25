@@ -278,12 +278,12 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
   @CsvSource(
       useHeadersInDisplayName = false,
       value = {
-        "ALTER TABLE %s ADD COLUMNS (new_col string), ADD COLUMNS",
-        "ALTER TABLE %s ALTER COLUMN price COMMENT 'new price comment', CHANGE COLUMN",
-        "ALTER TABLE %s SET TBLPROPERTIES ('new_prop' = 'value'), SET TBLPROPERTIES",
-        "COMMENT ON TABLE %s IS 'new table comment', SET TBLPROPERTIES"
+        "ALTER TABLE %s ADD COLUMNS (new_col string), schema",
+        "ALTER TABLE %s ALTER COLUMN price COMMENT 'new price comment', schema",
+        "ALTER TABLE %s SET TBLPROPERTIES ('new_prop' = 'value'), configuration",
+        "COMMENT ON TABLE %s IS 'new table comment', description"
       })
-  public void testSchemaEvolutionAddColumn(String sqlTemplate, String expectedOperation) {
+  public void testSchemaEvolutionAddColumn(String sqlTemplate, String expectedChange) {
     String sourceTable = toFullTableName(DEFAULT_SPARK_CATALOG, "add_column_table");
     String sourceTableLocation = sourceLocation.toURI().toString();
 
@@ -303,8 +303,8 @@ public class TestSnapshotDeltaLakeKernelTable extends SparkDeltaLakeSnapshotTest
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             String.format(
-                "Cannot convert Delta table: schema evolution operation '%s' is not supported (detected at Delta version 1).",
-                expectedOperation));
+                "Cannot convert Delta table: metadata change of '%s' is not supported (detected at Delta version 1).",
+                expectedChange));
   }
 
   private void checkLatestSnapshotIntegrity(

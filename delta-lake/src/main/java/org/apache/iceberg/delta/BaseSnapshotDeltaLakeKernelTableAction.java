@@ -36,7 +36,9 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
@@ -62,6 +64,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
 import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.delta.InternalDeltaKernelUtils.DeltaAddFile;
+import org.apache.iceberg.delta.InternalDeltaKernelUtils.DeltaMetadata;
 import org.apache.iceberg.delta.InternalDeltaKernelUtils.DeltaRemoveFile;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -93,14 +96,10 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
   private static final String CONVERSION_TOOL_VALUE = "iceberg-delta-lake";
   private static final String DELTA_VERSION_TAG_PREFIX = "delta-version-";
   private static final String DELTA_TIMESTAMP_TAG_PREFIX = "delta-ts-";
-  private static final Set<String> UNSUPPORTED_DELTA_OPERATIONS =
-      Set.of(
-          "ADD COLUMNS",
-          "CHANGE COLUMN",
-          "RENAME COLUMN",
-          "DROP COLUMN",
-          "ADD CONSTRAINT",
-          "SET TBLPROPERTIES"); // The operations will be supported eventually
+  private static final String METADATA_CHANGE_SCHEMA = "schema";
+  private static final String METADATA_CHANGE_PARTITION_COLUMNS = "partition columns";
+  private static final String METADATA_CHANGE_CONFIGURATION = "configuration";
+  private static final String METADATA_CHANGE_DESCRIPTION = "description";
 
   private final ImmutableMap.Builder<String, String> icebergPropertiesBuilder =
       ImmutableMap.builder();
@@ -109,6 +108,7 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
   private Engine deltaEngine;
   private Table deltaTable;
   private Snapshot deltaLatestSnapshot;
+  private DeltaMetadata currentDeltaMetadata;
 
   private Catalog icebergCatalog;
   private TableIdentifier newTableIdentifier;
@@ -275,6 +275,7 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
       Snapshot deltaSnapshot, Transaction transaction, Set<String> processedDataFiles)
       throws IOException {
     Scan scan = deltaSnapshot.getScanBuilder().build();
+    this.currentDeltaMetadata = InternalDeltaKernelUtils.metadata(deltaSnapshot);
     try (CloseableIterator<FilteredColumnarBatch> changes = scan.getScanFiles(deltaEngine)) {
 
       commitDeltaRowsToIcebergTransaction(
@@ -376,8 +377,10 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
             Row commitInfo = row.getStruct(row.getSchema().indexOf("commitInfo"));
             originalCommitTimestamp =
                 commitInfo.getLong(commitInfo.getSchema().indexOf("timestamp"));
-
-            assertSupportedDeltaOperation(deltaVersion, commitInfo);
+          } else if (DeltaLakeActionsTranslationUtil.isMetaData(row)) {
+            DeltaMetadata newMetadata = InternalDeltaKernelUtils.toMetadata(row);
+            assertSupportedMetadataChange(deltaVersion, currentDeltaMetadata, newMetadata);
+            this.currentDeltaMetadata = newMetadata;
           } else if (DeltaLakeActionsTranslationUtil.isAdd(row)) {
             DeltaAddFile addFile = InternalDeltaKernelUtils.toAddFile(row);
             DataFile dataFile = buildDataFileFromAddDeltaAction(addFile, transaction);
@@ -633,14 +636,37 @@ class BaseSnapshotDeltaLakeKernelTableAction implements SnapshotDeltaLakeTable {
         exception);
   }
 
-  private static void assertSupportedDeltaOperation(Long deltaVersion, Row commitInfo) {
-    String operation = commitInfo.getString(commitInfo.getSchema().indexOf("operation"));
-    if (UNSUPPORTED_DELTA_OPERATIONS.contains(operation)) {
+  /**
+   * Asserts that a Delta "metaData" action does not change the table metadata. A "metaData" action
+   * is required by the Delta protocol for every change of the table metadata, so comparing it with
+   * the previously known metadata detects schema evolution regardless of the optional "commitInfo"
+   * action.
+   */
+  private static void assertSupportedMetadataChange(
+      long deltaVersion, DeltaMetadata previousMetadata, DeltaMetadata newMetadata) {
+    List<String> changes = Lists.newArrayList();
+    if (!previousMetadata.schema().equals(newMetadata.schema())) {
+      changes.add(METADATA_CHANGE_SCHEMA);
+    }
+
+    if (!previousMetadata.partitionColumns().equals(newMetadata.partitionColumns())) {
+      changes.add(METADATA_CHANGE_PARTITION_COLUMNS);
+    }
+
+    if (!previousMetadata.configuration().equals(newMetadata.configuration())) {
+      changes.add(METADATA_CHANGE_CONFIGURATION);
+    }
+
+    if (!Objects.equals(previousMetadata.description(), newMetadata.description())) {
+      changes.add(METADATA_CHANGE_DESCRIPTION);
+    }
+
+    if (!changes.isEmpty()) {
       throw new IllegalStateException(
           String.format(
-              java.util.Locale.ROOT,
-              "Cannot convert Delta table: schema evolution operation '%s' is not supported (detected at Delta version %d).",
-              operation,
+              Locale.ROOT,
+              "Cannot convert Delta table: metadata change of '%s' is not supported (detected at Delta version %d).",
+              String.join(", ", changes),
               deltaVersion));
     }
   }

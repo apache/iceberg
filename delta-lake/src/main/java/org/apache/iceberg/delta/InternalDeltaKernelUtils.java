@@ -32,10 +32,13 @@ import io.delta.kernel.internal.actions.DeletionVectorDescriptor;
 import io.delta.kernel.internal.deletionvectors.DeletionVectorUtils;
 import io.delta.kernel.internal.deletionvectors.RoaringBitmapArray;
 import io.delta.kernel.internal.fs.Path;
+import io.delta.kernel.internal.types.DataTypeJsonSerDe;
 import io.delta.kernel.internal.util.Tuple2;
 import io.delta.kernel.internal.util.VectorUtils;
+import io.delta.kernel.types.StructType;
 import io.delta.kernel.utils.CloseableIterator;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -80,6 +83,16 @@ class InternalDeltaKernelUtils {
 
   static DeltaRemoveFile toRemoveFile(Row row) {
     return new DeltaRemoveFile(row);
+  }
+
+  /** Creates a {@link DeltaMetadata} from a Delta log row that contains a "metaData" action. */
+  static DeltaMetadata toMetadata(Row row) {
+    return new DeltaMetadata(row.getStruct(row.getSchema().indexOf("metaData")));
+  }
+
+  /** Creates a {@link DeltaMetadata} that represents the metadata of the given snapshot. */
+  static DeltaMetadata metadata(Snapshot snapshot) {
+    return new DeltaMetadata(((SnapshotImpl) snapshot).getMetadata().toRow());
   }
 
   static long[] readDeltaDVPositions(Engine engine, String tablePath, DeltaAddFile addFile) {
@@ -168,6 +181,52 @@ class InternalDeltaKernelUtils {
         return Map.of();
       }
       return VectorUtils.toJavaMap(removeFileRow.getMap(partitionValuesIndex));
+    }
+  }
+
+  /**
+   * A wrapper class around the Delta Lake "metaData" action Row.
+   *
+   * <p>The field names (such as "metaData", "schemaString", "partitionColumns", "configuration" and
+   * "description") are defined by the Delta Transaction Log Protocol and are guaranteed to remain
+   * stable. Therefore, it is safe to access them directly by name from the underlying Row.
+   *
+   * <p>For more information see {@link io.delta.kernel.internal.actions.Metadata}.
+   */
+  static class DeltaMetadata {
+    private final Row metadataRow;
+
+    DeltaMetadata(Row metadataRow) {
+      this.metadataRow = metadataRow;
+    }
+
+    public StructType schema() {
+      return DataTypeJsonSerDe.deserializeStructType(
+          metadataRow.getString(metadataRow.getSchema().indexOf("schemaString")));
+    }
+
+    public List<String> partitionColumns() {
+      int index = metadataRow.getSchema().indexOf("partitionColumns");
+      if (index < 0 || metadataRow.isNullAt(index)) {
+        return List.of();
+      }
+      return VectorUtils.toJavaList(metadataRow.getArray(index));
+    }
+
+    public Map<String, String> configuration() {
+      int index = metadataRow.getSchema().indexOf("configuration");
+      if (index < 0 || metadataRow.isNullAt(index)) {
+        return Map.of();
+      }
+      return VectorUtils.toJavaMap(metadataRow.getMap(index));
+    }
+
+    public String description() {
+      int index = metadataRow.getSchema().indexOf("description");
+      if (index < 0 || metadataRow.isNullAt(index)) {
+        return null;
+      }
+      return metadataRow.getString(index);
     }
   }
 }
