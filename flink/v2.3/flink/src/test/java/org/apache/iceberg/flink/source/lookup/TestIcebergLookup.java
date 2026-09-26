@@ -42,6 +42,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.TestFixtures;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -59,8 +60,8 @@ class TestIcebergLookup {
 
   private static final String[] PROJECTED_COLUMNS = {"id", "data", "category"};
   private static final RowType ROW_TYPE = FlinkSchemaUtil.convert(SCHEMA);
-  private static final int[] ID_KEY_INDICES = {0};
-  private static final int[] ID_AND_CATEGORY_KEY_INDICES = {0, 2};
+  private static final int[] ID_KEY_INDEXES = {0};
+  private static final int[] ID_AND_CATEGORY_KEY_INDEXES = {0, 2};
 
   @TempDir private Path temporaryFolder;
 
@@ -84,12 +85,13 @@ class TestIcebergLookup {
         lookupReader(table, ImmutableList.of(Expressions.equal("category", "B")), false);
 
     List<List<Object>> rows = Lists.newArrayList();
-    reader.read(
-        IcebergLookupReader.CURRENT_SNAPSHOT,
-        row ->
-            rows.add(
-                ImmutableList.of(
-                    row.getLong(0), row.getString(1).toString(), row.getString(2).toString())));
+    try (CloseableIterable<RowData> rowData = reader.read(IcebergLookupReader.CURRENT_SNAPSHOT)) {
+      for (RowData row : rowData) {
+        rows.add(
+            ImmutableList.of(
+                row.getLong(0), row.getString(1).toString(), row.getString(2).toString()));
+      }
+    }
 
     assertThat(rows).containsExactly(ImmutableList.of(2L, "bob", "B"));
   }
@@ -100,8 +102,7 @@ class TestIcebergLookup {
     List<Expression> filters = ImmutableList.of(Expressions.equal("CATEGORY", "B"));
 
     IcebergLookupReader caseSensitiveReader = lookupReader(table, filters, true);
-    assertThatThrownBy(
-            () -> caseSensitiveReader.read(IcebergLookupReader.CURRENT_SNAPSHOT, row -> {}))
+    assertThatThrownBy(() -> readIds(caseSensitiveReader, IcebergLookupReader.CURRENT_SNAPSHOT))
         .as("Case sensitive lookup should reject a filter that doesn't match the column case")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("CATEGORY");
@@ -131,7 +132,7 @@ class TestIcebergLookup {
   void lookupFunctionReturnsRowsFromCache() throws Exception {
     Table table = createTableWithRecords();
 
-    lookupFunction = newLookupFunction(ID_KEY_INDICES, false);
+    lookupFunction = newLookupFunction(ID_KEY_INDEXES, false);
     lookupFunction.open(new FunctionContext(null));
 
     assertThat(lookupFunction.lookup(keyRow(1L)))
@@ -151,7 +152,7 @@ class TestIcebergLookup {
   void lookupFunctionWithMultiColumnKey() throws Exception {
     Table table = createTableWithRecords();
 
-    lookupFunction = newLookupFunction(ID_AND_CATEGORY_KEY_INDICES, false);
+    lookupFunction = newLookupFunction(ID_AND_CATEGORY_KEY_INDEXES, false);
     lookupFunction.open(new FunctionContext(null));
 
     assertThat(lookupFunction.lookup(keyRow(1L, "A")))
@@ -171,7 +172,7 @@ class TestIcebergLookup {
   void lookupFunctionLoadsCacheLazily() throws Exception {
     Table table = createTableWithRecords();
 
-    lookupFunction = newLookupFunction(ID_KEY_INDICES, false);
+    lookupFunction = newLookupFunction(ID_KEY_INDEXES, false);
     lookupFunction.open(new FunctionContext(null));
 
     // Nothing is loaded yet, so the first lookup sees the row appended after opening.
@@ -186,7 +187,7 @@ class TestIcebergLookup {
   void lookupFunctionLoadsCacheEagerly() throws Exception {
     Table table = createTableWithRecords();
 
-    lookupFunction = newLookupFunction(ID_KEY_INDICES, true);
+    lookupFunction = newLookupFunction(ID_KEY_INDEXES, true);
     lookupFunction.open(new FunctionContext(null));
 
     appendRecords(table, ImmutableList.of(record(6L, "frank", "D")));
@@ -205,7 +206,7 @@ class TestIcebergLookup {
         ImmutableList.of(
             record(1L, "alice", "A"), record(1L, "alice-2", "A"), record(2L, "bob", "B")));
 
-    lookupFunction = newLookupFunction(ID_KEY_INDICES, false);
+    lookupFunction = newLookupFunction(ID_KEY_INDEXES, false);
     lookupFunction.open(new FunctionContext(null));
 
     assertThat(lookupFunction.lookup(keyRow(1L)))
@@ -224,7 +225,7 @@ class TestIcebergLookup {
         new IcebergFullCachingLookupFunction(
             CATALOG_EXTENSION.tableLoader().clone(),
             ROW_TYPE,
-            ID_KEY_INDICES,
+            ID_KEY_INDEXES,
             ImmutableList.of(Expressions.equal("category", "B")),
             true,
             false);
@@ -236,11 +237,12 @@ class TestIcebergLookup {
         .satisfies(row -> assertRow(row, 2L, "bob", "B"));
   }
 
-  private IcebergFullCachingLookupFunction newLookupFunction(int[] keyIndices, boolean eagerLoad) {
+  private IcebergFullCachingLookupFunction newLookupFunction(
+      int[] lookupKeyIndexes, boolean eagerLoad) {
     return new IcebergFullCachingLookupFunction(
         CATALOG_EXTENSION.tableLoader().clone(),
         ROW_TYPE,
-        keyIndices,
+        lookupKeyIndexes,
         ImmutableList.of(),
         false,
         eagerLoad);
@@ -255,7 +257,12 @@ class TestIcebergLookup {
   private static List<Long> readIds(IcebergLookupReader reader, long snapshotId)
       throws IOException {
     List<Long> ids = Lists.newArrayList();
-    reader.read(snapshotId, row -> ids.add(row.isNullAt(0) ? null : row.getLong(0)));
+    try (CloseableIterable<RowData> rows = reader.read(snapshotId)) {
+      for (RowData row : rows) {
+        ids.add(row.isNullAt(0) ? null : row.getLong(0));
+      }
+    }
+
     return ids;
   }
 

@@ -22,19 +22,28 @@ import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 class InMemoryLookupCache {
 
-  private final Map<RowData, List<RowData>> cache = Maps.newHashMap();
+  private final Map<BinaryRowData, List<RowData>> cache;
+
+  InMemoryLookupCache() {
+    this.cache = Maps.newHashMap();
+  }
+
+  InMemoryLookupCache(int expectedSize) {
+    this.cache = Maps.newHashMapWithExpectedSize(expectedSize);
+  }
 
   @Nullable
-  List<RowData> get(RowData key) {
+  List<RowData> get(BinaryRowData key) {
     return cache.get(key);
   }
 
-  void add(RowData key, RowData row) {
+  void add(BinaryRowData key, RowData row) {
     cache.computeIfAbsent(key, k -> Lists.newArrayList()).add(row);
   }
 

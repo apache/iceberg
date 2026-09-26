@@ -53,7 +53,6 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
   @BeforeEach
   @Override
   public void before() throws IOException {
-    setUpTableEnv(getTableEnv());
     setUpTableEnv(getStreamingTableEnv());
   }
 
