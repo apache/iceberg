@@ -75,7 +75,7 @@ class TestV4ManifestReader {
   private static final Tracking ADDED_TRACKING = TrackingBuilder.added(SNAPSHOT_ID).build();
 
   private static final ManifestInfo MANIFEST_INFO =
-      new ManifestInfoStruct(49, 51, 0, 0, 4_900L, 5_100L, 0L, 0L, 1L, null);
+      new ManifestInfoStruct(49, 51, 0, 0, 1, 4_900L, 5_100L, 0L, 0L, 100L, 1L, null);
 
   private static final Schema TABLE_SCHEMA =
       new Schema(

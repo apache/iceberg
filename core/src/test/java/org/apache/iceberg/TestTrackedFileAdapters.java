@@ -115,10 +115,12 @@ class TestTrackedFileAdapters {
           .existingFilesCount(5)
           .deletedFilesCount(2)
           .replacedFilesCount(0)
+          .modifiedFilesCount(0)
           .addedRowsCount(300L)
           .existingRowsCount(500L)
           .deletedRowsCount(200L)
           .replacedRowsCount(0L)
+          .modifiedRowsCount(0L)
           .minSequenceNumber(7L)
           .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
           .build();
