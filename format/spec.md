@@ -689,7 +689,7 @@ The fields that define what a constraint requires are embedded directly in the c
 
 The `field-ids` of a `unique` or `primary-key` constraint must reference primitive fields that are either top-level fields or nested in required structs, and must not reference fields within a `list` or a `map`. These are the same restrictions that apply to [identifier fields](#identifier-field-ids).
 
-When a constraint is `enforced`, writers must verify that the rows they add satisfy the constraint and must fail the write if they do not. A writer that cannot verify an enforced constraint must reject writes to the table rather than add rows that have not been verified. When a constraint is not enforced, writers are not required to verify the rows they add.
+When a constraint is `enforced`, writers must verify that the rows they add satisfy the constraint and must fail the write if they do not. A writer that cannot verify an enforced constraint must reject writes to the table. When a constraint is not enforced, writers are not required to verify the rows they add.
 
 Whether to trust a constraint that is not enforced is left to engines and is not tracked in table metadata.
 
