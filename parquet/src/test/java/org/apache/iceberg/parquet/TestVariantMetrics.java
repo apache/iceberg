@@ -33,6 +33,7 @@ import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.MetricsTestUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
@@ -293,10 +294,9 @@ public class TestVariantMetrics {
     VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
 
     MetricsConfig metricsConfig =
-        MetricsConfig.from(
+        MetricsTestUtil.from(
             ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "truncate(8)"),
-            SCHEMA,
-            null);
+            SCHEMA);
 
     Metrics metrics =
         writeParquetWithMetricsConfig(
@@ -321,10 +321,9 @@ public class TestVariantMetrics {
     VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
 
     MetricsConfig metricsConfig =
-        MetricsConfig.from(
+        MetricsTestUtil.from(
             ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "full"),
-            SCHEMA,
-            null);
+            SCHEMA);
 
     Metrics metrics =
         writeParquetWithMetricsConfig(
@@ -349,10 +348,9 @@ public class TestVariantMetrics {
     VariantValue value = Variants.of(ByteBuffer.wrap(BINARY_20_BYTES));
 
     MetricsConfig metricsConfig =
-        MetricsConfig.from(
+        MetricsTestUtil.from(
             ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "counts"),
-            SCHEMA,
-            null);
+            SCHEMA);
 
     Metrics metrics =
         writeParquetWithMetricsConfig(
@@ -373,10 +371,9 @@ public class TestVariantMetrics {
     VariantValue value = Variants.of("iceberg_variant");
 
     MetricsConfig metricsConfig =
-        MetricsConfig.from(
+        MetricsTestUtil.from(
             ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "truncate(8)"),
-            SCHEMA,
-            null);
+            SCHEMA);
 
     Metrics metrics =
         writeParquetWithMetricsConfig(
@@ -401,10 +398,9 @@ public class TestVariantMetrics {
     VariantValue value = Variants.of("iceberg_variant_full");
 
     MetricsConfig metricsConfig =
-        MetricsConfig.from(
+        MetricsTestUtil.from(
             ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "full"),
-            SCHEMA,
-            null);
+            SCHEMA);
 
     Metrics metrics =
         writeParquetWithMetricsConfig(
@@ -429,10 +425,9 @@ public class TestVariantMetrics {
     VariantValue value = Variants.of("iceberg_variant");
 
     MetricsConfig metricsConfig =
-        MetricsConfig.from(
+        MetricsTestUtil.from(
             ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "var", "counts"),
-            SCHEMA,
-            null);
+            SCHEMA);
 
     Metrics metrics =
         writeParquetWithMetricsConfig(

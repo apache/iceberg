@@ -353,7 +353,7 @@ public abstract class TestMetrics {
             MetricsModes.None.get().toString(),
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "nestedStructCol.longCol",
             MetricsModes.Full.get().toString());
-    MetricsConfig config = MetricsConfig.from(properties, NESTED_SCHEMA, null);
+    MetricsConfig config = MetricsTestUtil.from(properties, NESTED_SCHEMA);
 
     Metrics metrics = getMetrics(NESTED_SCHEMA, config, buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
@@ -595,8 +595,8 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             NESTED_SCHEMA,
-            MetricsConfig.from(
-                ImmutableMap.of("write.metadata.metrics.default", "none"), NESTED_SCHEMA, null),
+            MetricsTestUtil.from(
+                ImmutableMap.of("write.metadata.metrics.default", "none"), NESTED_SCHEMA),
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).isEmpty();
@@ -617,8 +617,8 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             NESTED_SCHEMA,
-            MetricsConfig.from(
-                ImmutableMap.of("write.metadata.metrics.default", "counts"), NESTED_SCHEMA, null),
+            MetricsTestUtil.from(
+                ImmutableMap.of("write.metadata.metrics.default", "counts"), NESTED_SCHEMA),
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
@@ -640,8 +640,8 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             NESTED_SCHEMA,
-            MetricsConfig.from(
-                ImmutableMap.of("write.metadata.metrics.default", "full"), NESTED_SCHEMA, null),
+            MetricsTestUtil.from(
+                ImmutableMap.of("write.metadata.metrics.default", "full"), NESTED_SCHEMA),
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
@@ -675,10 +675,9 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             singleStringColSchema,
-            MetricsConfig.from(
+            MetricsTestUtil.from(
                 ImmutableMap.of("write.metadata.metrics.default", "truncate(10)"),
-                singleStringColSchema,
-                null),
+                singleStringColSchema),
             record);
 
     CharBuffer expectedMinBound = CharBuffer.wrap("Lorem ipsu");
@@ -702,10 +701,9 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             singleBinaryColSchema,
-            MetricsConfig.from(
+            MetricsTestUtil.from(
                 ImmutableMap.of("write.metadata.metrics.default", "truncate(5)"),
-                singleBinaryColSchema,
-                null),
+                singleBinaryColSchema),
             record);
 
     ByteBuffer expectedMinBounds = ByteBuffer.wrap(new byte[] {0x1, 0x2, 0x3, 0x4, 0x5});

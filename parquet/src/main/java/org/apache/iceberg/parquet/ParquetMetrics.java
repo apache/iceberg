@@ -31,7 +31,6 @@ import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
-import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -114,7 +113,7 @@ class ParquetMetrics {
             type.getColumnDescription(column.getPath().toArray()).getPrimitiveType().getId();
         if (id != null) {
           int fieldId = id.intValue();
-          MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+          MetricsModes.MetricsMode mode = metricsConfig.columnMode(fieldId);
           if (mode != MetricsModes.None.get()) {
             columnSizes.put(fieldId, columnSizes.getOrDefault(fieldId, 0L) + column.getTotalSize());
           }
@@ -246,7 +245,7 @@ class ParquetMetrics {
       }
       int fieldId = id.intValue();
 
-      MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+      MetricsModes.MetricsMode mode = metricsConfig.columnMode(fieldId);
       if (mode == MetricsModes.None.get()) {
         return ImmutableList.of();
       }
@@ -397,7 +396,7 @@ class ParquetMetrics {
       }
       int fieldId = id.intValue();
 
-      MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+      MetricsModes.MetricsMode mode = metricsConfig.columnMode(fieldId);
       if (mode == MetricsModes.None.get()) {
         return ImmutableList.of();
       }

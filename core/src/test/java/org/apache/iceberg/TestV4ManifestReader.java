@@ -92,7 +92,7 @@ class TestV4ManifestReader {
       ImmutableMap.of(PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned());
 
   private static final MetricsConfig METRICS_CONFIG =
-      MetricsConfig.from(ImmutableMap.of(), TABLE_SCHEMA, null);
+      MetricsTestUtil.from(ImmutableMap.of(), TABLE_SCHEMA);
   private static final Types.StructType STATS_TYPE =
       StatsUtil.statsWriteSchema(TABLE_SCHEMA, METRICS_CONFIG);
   private static final Types.StructType ID_ONLY_STATS_TYPE =
@@ -647,10 +647,9 @@ class TestV4ManifestReader {
   @Test
   public void projectionDependsOnMetricsConfig() {
     MetricsConfig metricsWithoutID =
-        MetricsConfig.from(
+        MetricsTestUtil.from(
             ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "none"),
-            TABLE_SCHEMA,
-            null);
+            TABLE_SCHEMA);
 
     Types.StructType readSchema =
         V4ManifestReader.builder(UNREAD_MANIFEST_FILE, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
@@ -695,10 +694,9 @@ class TestV4ManifestReader {
   @Test
   public void projectionForScanPlanningOverridesMetricsConfig() {
     MetricsConfig metricsWithoutID =
-        MetricsConfig.from(
+        MetricsTestUtil.from(
             ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "none"),
-            TABLE_SCHEMA,
-            null);
+            TABLE_SCHEMA);
 
     Types.StructType readSchema =
         V4ManifestReader.builder(UNREAD_MANIFEST_FILE, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
@@ -723,10 +721,9 @@ class TestV4ManifestReader {
   @Test
   public void projectionForScanPlanningIncludesRequestedStatsMetricsConfig() {
     MetricsConfig metricsWithoutID =
-        MetricsConfig.from(
+        MetricsTestUtil.from(
             ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "none"),
-            TABLE_SCHEMA,
-            null);
+            TABLE_SCHEMA);
 
     Types.StructType readSchema =
         V4ManifestReader.builder(UNREAD_MANIFEST_FILE, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
