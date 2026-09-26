@@ -121,6 +121,30 @@ public class TestOAuth2RefreshCredentialsHandler {
   }
 
   @Test
+  public void resolvesRelativeCredentialsUri() {
+    HttpRequest mockRequest =
+        HttpRequest.request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    HttpResponse mockResponse =
+        HttpResponse.response(
+                LoadCredentialsResponseParser.toJson(
+                    ImmutableLoadCredentialsResponse.builder().build()))
+            .withStatusCode(200);
+    mockServer.when(mockRequest).respond(mockResponse);
+
+    try (OAuth2RefreshCredentialsHandler handler =
+        OAuth2RefreshCredentialsHandler.create(
+            ImmutableMap.of(
+                GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+                "/credentials",
+                CatalogProperties.URI,
+                CATALOG_URI))) {
+      assertThat(handler.fetchCredentials().credentials()).isEmpty();
+    }
+
+    mockServer.verify(mockRequest, VerificationTimes.once());
+  }
+
+  @Test
   public void noGcsCredentialInResponse() {
     HttpRequest mockRequest =
         HttpRequest.request("/v1/credentials").withMethod(HttpMethod.GET.name());
