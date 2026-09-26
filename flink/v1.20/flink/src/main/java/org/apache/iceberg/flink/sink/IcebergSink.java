@@ -241,6 +241,9 @@ public class IcebergSink
   public Committer<IcebergCommittable> createCommitter(CommitterInitContext context) {
     IcebergFilesCommitterMetrics metrics =
         new IcebergFilesCommitterMetrics(context.metricGroup(), table.name());
+    // Detect a stateless restart (no checkpoint/savepoint restored) so the committer does not
+    // mistake the previous run's committed checkpoint ids for its own and silently drop commits.
+    boolean isRestored = context.getRestoredCheckpointId().isPresent();
     return new IcebergCommitter(
         tableLoader,
         branch,
@@ -250,7 +253,8 @@ public class IcebergSink
         sinkId,
         metrics,
         maintenanceEnabled,
-        context.getTaskInfo().getIndexOfThisSubtask());
+        context.getTaskInfo().getIndexOfThisSubtask(),
+        isRestored);
   }
 
   @Override
