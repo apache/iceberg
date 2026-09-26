@@ -44,6 +44,7 @@ import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Or;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -393,5 +394,27 @@ public class TestProjection {
         (UnboundPredicate<Integer>)
             Projections.inclusive(partitionSpec).project(equal(truncate("string", 10), "abc"));
     assertThat(predicate.ref().name()).isEqualTo("string_trunc");
+  }
+
+  @Test
+  void identityProjectionWithTransformPredicate() {
+    // Regression test for https://github.com/apache/iceberg/issues/15502.
+    // Identity transform cannot project a transform-based predicate (e.g., hours(ts)),
+    // so projection must fall back to alwaysTrue (inclusive) or alwaysFalse (strict).
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            required(2, "ts", Types.TimestampType.withZone()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("ts").build();
+    Expression hourFilter = equal(hour("ts"), 490674);
+
+    Expression projected = Projections.inclusive(spec).project(hourFilter);
+    assertThat(projected).isEqualTo(Expressions.alwaysTrue());
+
+    Expression strictProjected = Projections.strict(spec).project(hourFilter);
+    assertThat(strictProjected).isEqualTo(Expressions.alwaysFalse());
+
+    assertThat(ManifestEvaluator.forRowFilter(hourFilter, spec, true)).isNotNull();
   }
 }
