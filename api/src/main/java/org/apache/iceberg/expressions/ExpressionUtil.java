@@ -704,8 +704,8 @@ public class ExpressionUtil {
               PhysicalType fieldType = fieldValue.type();
               return String.format(
                   Locale.ROOT,
-                  "(hash-%s): %s",
-                  field,
+                  "%s: %s",
+                  sanitizeSimpleString(field),
                   sanitizeVariantValue(fieldValue, fieldType, now, today));
             })
         .collect(Collectors.joining(", ", "{", "}"));
