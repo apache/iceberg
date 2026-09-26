@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.Set;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.util.DataFileSet;
@@ -139,6 +140,8 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
       // files
       validateNoNewDeletesForDataFiles(base, startingSnapshotId, replacedDataFiles, parent);
     }
+
+    validateAddedDVs(base, startingSnapshotId, Expressions.alwaysTrue(), parent);
   }
 
   private void validateReplacedAndAddedFiles() {
