@@ -72,6 +72,7 @@ project(':iceberg-mr') {
     }
     testImplementation libs.tez08.dag
     testImplementation libs.tez08.mapreduce
+    testRuntimeOnly project(':iceberg-vortex')
   }
 
   test {

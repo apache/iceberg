@@ -97,6 +97,8 @@ public class TestSparkMetadataColumns extends TestBase {
       parameters.add(new Object[] {FileFormat.AVRO, false, version});
       parameters.add(new Object[] {FileFormat.ORC, false, version});
       parameters.add(new Object[] {FileFormat.ORC, true, version});
+      // Vortex reads are always vectorized, so the flag has no effect and is fixed at false.
+      parameters.add(new Object[] {FileFormat.VORTEX, false, version});
     }
     return parameters.toArray(new Object[0][]);
   }

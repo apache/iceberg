@@ -179,6 +179,11 @@ public abstract class ReadFormatModelTests<T> {
   static final String FEATURE_NATIVE_ENCRYPTION = "nativeEncryption";
   static final String FEATURE_AES_STREAM_ENCRYPTION = "aesStreamEncryption";
   static final String FEATURE_VARIANT = "variant";
+  static final String FEATURE_FIXED = "fixed";
+  static final String FEATURE_WRITER_OVERWRITE = "writerOverwrite";
+  static final String FEATURE_WRITER_PROPERTIES = "writerProperties";
+  static final String FEATURE_WRITER_METADATA = "writerMetadata";
+  static final String FEATURE_EVOLUTION_BY_FIELD_ID = "evolutionByFieldId";
 
   private static final Map<FileFormat, String[]> MISSING_FEATURES =
       Map.of(
@@ -201,7 +206,21 @@ public abstract class ReadFormatModelTests<T> {
             FEATURE_VARIANT
           },
           FileFormat.PARQUET,
-          new String[] {FEATURE_AES_STREAM_ENCRYPTION});
+          new String[] {FEATURE_AES_STREAM_ENCRYPTION},
+          FileFormat.VORTEX,
+          new String[] {
+            // Vortex has no fixed-width binary type; the writer rejects Iceberg FIXED columns
+            // and directs callers to BINARY instead.
+            FEATURE_FIXED,
+            // The Vortex appender neither rejects a write to an existing location nor reads back
+            // correctly from one that was overwritten in place.
+            FEATURE_WRITER_OVERWRITE,
+            // Vortex has no write properties -- the writer accepts none today, though some are
+            // planned -- so there is nothing to set and nothing to observe in the written file.
+            FEATURE_WRITER_PROPERTIES,
+            FEATURE_AES_STREAM_ENCRYPTION,
+            FEATURE_NATIVE_ENCRYPTION
+          });
 
   private static final FileFormat[] FILE_FORMATS = FileFormatTestSupport.formats();
 
@@ -1430,6 +1449,8 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testPrimitiveDefaultValuesNotApplied(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_FIXED);
+
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
     Schema readSchema = filterUnsupported(DataGenerators.PrimitiveDefaults.READ_SCHEMA);
@@ -2155,6 +2176,7 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionDropAndReAddSameNameColumn(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_EVOLUTION_BY_FIELD_ID);
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema writeSchema = dataGenerator.schema();
@@ -2246,6 +2268,8 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionRenameColumn(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_EVOLUTION_BY_FIELD_ID);
+
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema writeSchema = dataGenerator.schema();
 
@@ -2412,9 +2436,14 @@ public abstract class ReadFormatModelTests<T> {
   }
 
   private static boolean supportsGenerator(FileFormat fileFormat, DataGenerator generator) {
-    boolean hasVariant =
-        TypeUtil.find(generator.schema(), type -> type.typeId() == Type.TypeID.VARIANT) != null;
-    return !hasVariant || supportsFeature(fileFormat, FEATURE_VARIANT);
+    return supportsType(fileFormat, generator, Type.TypeID.VARIANT, FEATURE_VARIANT)
+        && supportsType(fileFormat, generator, Type.TypeID.FIXED, FEATURE_FIXED);
+  }
+
+  private static boolean supportsType(
+      FileFormat fileFormat, DataGenerator generator, Type.TypeID typeId, String feature) {
+    boolean hasType = TypeUtil.find(generator.schema(), type -> type.typeId() == typeId) != null;
+    return !hasType || supportsFeature(fileFormat, feature);
   }
 
   /**
