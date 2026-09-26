@@ -16,38 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.view;
+package org.apache.spark.sql.catalyst.plans.logical
 
-import javax.annotation.Nullable;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.immutables.value.Value;
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.connector.catalog.Identifier
+import org.apache.spark.sql.connector.catalog.ViewCatalog
 
-/**
- * A version of the view at a point in time.
- *
- * <p>A version consists of a view metadata file.
- *
- * <p>Versions are created by view operations, like Create and Replace.
- */
-@Value.Immutable
-@SuppressWarnings("ImmutablesStyle")
-@Value.Style(
-    typeImmutable = "ImmutableViewVersion",
-    visibilityString = "PUBLIC",
-    builderVisibilityString = "PUBLIC")
-interface BaseViewVersion extends ViewVersion {
-
-  @Override
-  @Value.Lazy
-  default String operation() {
-    return ViewVersion.super.operation();
-  }
-
-  @Override
-  @Nullable
-  String defaultCatalog();
-
-  @Override
-  @Nullable
-  TableIdentifier storageTable();
+case class RefreshMaterializedViewStatement(catalog: ViewCatalog, ident: Identifier)
+    extends LeafCommand {
+  override def output: Seq[Attribute] = Nil
 }
