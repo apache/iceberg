@@ -416,6 +416,7 @@ public class OAuth2Util {
     private static int tokenRefreshNumRetries = 5;
     private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
     private static final long MIN_REFRESH_WAIT_MILLIS = 10;
+    private static final long FAILED_REFRESH_RETRY_WAIT_MILLIS = 60_000; // 1 minute
     private volatile Map<String, String> headers;
     private volatile AuthConfig config;
 
@@ -600,6 +601,16 @@ public class OAuth2Util {
                   executor,
                   session,
                   refreshStartTime + expiration.second().toMillis(expiration.first()));
+            } else if (session.config().keepRefreshed()) {
+              // the refresh failed, but the session is still active; schedule a bounded
+              // retry so a transient token endpoint failure does not permanently stop
+              // the refresh chain. If the session has been closed (stopRefreshing or
+              // close called), keepRefreshed is false, and no further refresh is scheduled.
+              scheduleTokenRefresh(
+                  client,
+                  executor,
+                  session,
+                  refreshStartTime + FAILED_REFRESH_RETRY_WAIT_MILLIS);
             }
           },
           timeToWait,
@@ -636,8 +647,13 @@ public class OAuth2Util {
             // otherwise use the expiration time from the token response
             expiresAtMillis = startTimeMillis + expiration.second().toMillis(expiration.first());
           }
+        } else if (session.config().keepRefreshed()) {
+          // token refresh failed, but the session is still active; schedule a bounded
+          // retry so a temporary token endpoint failure does not permanently stop
+          // refresh for this session
+          expiresAtMillis = startTimeMillis + FAILED_REFRESH_RETRY_WAIT_MILLIS;
         } else {
-          // token refresh failed, don't reattempt with the original expiration
+          // token refresh failed and refresh has been disabled; don't reattempt
           expiresAtMillis = null;
         }
       } else if (null == expiresAtMillis && defaultExpiresAtMillis != null) {
