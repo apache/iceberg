@@ -255,77 +255,112 @@ public final class MetricsConfig implements Serializable {
    * @return metrics configuration
    */
   public static MetricsConfig from(Map<String, String> props, Schema schema, SortOrder order) {
-    int maxInferredDefaultColumns = maxInferredColumnDefaults(props);
-    Map<Integer, String> idToName = Maps.newHashMap();
-    Map<String, MetricsMode> columnModes = Maps.newHashMap();
+    int maxDefaultColumns = maxInferredColumnDefaults(props);
 
-    // Handle user override of default mode
+    // Handle configured default mode
+    MetricsMode configuredDefault = configuredDefault(props);
+    Map<String, MetricsMode> defaultColumnConf = defaultColumnModes(schema, maxDefaultColumns);
+
     MetricsMode defaultMode;
-    String configuredDefault = props.get(DEFAULT_WRITE_METRICS_MODE);
-
     if (configuredDefault != null) {
-      // a user-configured default mode is applied for all columns
-      defaultMode = parseMode(configuredDefault, DEFAULT_MODE, "default");
-    } else if (schema == null) {
+      defaultMode = configuredDefault;
+    } else if (defaultColumnConf.size() < maxDefaultColumns) {
+      // an additional column should use the default mode
       defaultMode = DEFAULT_MODE;
     } else {
-      Set<Integer> ids = TypeUtil.getProjectedIds(schema);
-      if (ids.size() <= maxInferredDefaultColumns) {
-        for (int id : ids) {
-          idToName.put(id, schema.findColumnName(id));
-        }
-
-        // there are less than the inferred limit (including structs), so the default is used
-        // everywhere
-        defaultMode = DEFAULT_MODE;
-      } else {
-        for (Integer id : limitFieldIds(schema, maxInferredDefaultColumns)) {
-          String name = schema.findColumnName(id);
-          idToName.put(id, name);
-          columnModes.put(name, DEFAULT_MODE);
-        }
-
-        // all other columns don't use metrics
-        defaultMode = MetricsModes.None.get();
-      }
+      // an additional column should not store metrics
+      defaultMode = MetricsModes.None.get();
     }
 
-    // First set sorted column with sorted column default (can be overridden by user)
-    MetricsMode sortedColDefaultMode = sortedColumnDefaultMode(defaultMode);
-    Set<String> sortedCols = SortOrderUtil.orderPreservingSortedColumns(order);
-    sortedCols.forEach(
-        name -> {
-          columnModes.put(name, sortedColDefaultMode);
-          Types.NestedField field = schema != null ? schema.findField(name) : null;
-          if (field != null) {
-            idToName.put(field.fieldId(), name);
-          }
-        });
+    Map<String, MetricsMode> columnModes = Maps.newHashMap();
 
-    // Handle user overrides of defaults
-    for (String key : props.keySet()) {
-      if (key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX)) {
-        String columnAlias = key.replaceFirst(METRICS_MODE_COLUMN_CONF_PREFIX, "");
-        MetricsMode mode = parseMode(props.get(key), defaultMode, "column " + columnAlias);
-        columnModes.put(columnAlias, mode);
-        Types.NestedField field = schema != null ? schema.findField(columnAlias) : null;
-        if (field != null) {
-          idToName.put(field.fieldId(), columnAlias);
-        }
-      }
+    if (configuredDefault == null) {
+      columnModes.putAll(defaultColumnConf);
     }
+
+    // Default sort columns to at least truncate (overridden by config)
+    columnModes.putAll(sortColumnModes(order, configuredDefault));
+
+    // Override automatic modes with configured modes
+    columnModes.putAll(configuredColumnModes(props));
+
+    Map<Integer, String> idToName = idToName(schema, columnModes);
 
     return new MetricsConfig(columnModes, defaultMode, idToName);
   }
 
+  private static MetricsMode configuredDefault(Map<String, String> props) {
+    String configuredDefault = props.get(DEFAULT_WRITE_METRICS_MODE);
+    if (configuredDefault != null) {
+      // a user-configured default mode is applied for all columns
+      return parseMode(configuredDefault, null, "default");
+    }
+
+    return null;
+  }
+
+  private static Map<String, MetricsMode> defaultColumnModes(Schema schema, int maxColumns) {
+    ImmutableMap.Builder<String, MetricsMode> builder = ImmutableMap.builder();
+    if (schema != null) {
+      for (int id : limitFieldIds(schema, maxColumns)) {
+        builder.put(schema.findColumnName(id), DEFAULT_MODE);
+      }
+    }
+
+    return builder.build();
+  }
+
+  private static Map<String, MetricsMode> sortColumnModes(
+      SortOrder order, MetricsMode configuredDefault) {
+    ImmutableMap.Builder<String, MetricsMode> builder = ImmutableMap.builder();
+    MetricsMode sortDefault = promoteToIncludeBounds(configuredDefault);
+    for (String name : SortOrderUtil.orderPreservingSortedColumns(order)) {
+      builder.put(name, sortDefault);
+    }
+
+    return builder.build();
+  }
+
+  private static Map<String, MetricsMode> configuredColumnModes(Map<String, String> props) {
+    ImmutableMap.Builder<String, MetricsMode> builder = ImmutableMap.builder();
+    for (String key : props.keySet()) {
+      if (key.startsWith(METRICS_MODE_COLUMN_CONF_PREFIX)) {
+        String columnAlias = key.replaceFirst(METRICS_MODE_COLUMN_CONF_PREFIX, "");
+        MetricsMode mode = parseMode(props.get(key), null, "column " + columnAlias);
+        if (mode != null) {
+          builder.put(columnAlias, mode);
+        }
+      }
+    }
+
+    return builder.build();
+  }
+
+  private static Map<Integer, String> idToName(
+      Schema schema, Map<String, MetricsMode> columnModes) {
+    if (schema != null) {
+      ImmutableMap.Builder<Integer, String> builder = ImmutableMap.builder();
+      for (String name : columnModes.keySet()) {
+        builder.put(schema.findField(name).fieldId(), name);
+      }
+
+      return builder.build();
+    }
+
+    return null;
+  }
+
   /**
-   * Auto promote sorted columns to truncate(16) if default is set at Counts or None.
+   * Mode used for automatic metrics for sort and partitioning. Uses truncate(16) if default is
+   * Counts or None.
    *
    * @param defaultMode default mode
    * @return mode to use
    */
-  private static MetricsMode sortedColumnDefaultMode(MetricsMode defaultMode) {
-    if (defaultMode == MetricsModes.None.get() || defaultMode == MetricsModes.Counts.get()) {
+  private static MetricsMode promoteToIncludeBounds(MetricsMode defaultMode) {
+    if (defaultMode == null
+        || defaultMode == MetricsModes.None.get()
+        || defaultMode == MetricsModes.Counts.get()) {
       return MetricsModes.Truncate.withLength(16);
     } else {
       return defaultMode;
