@@ -37,7 +37,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /** Use the FlinkSource */
-public class TestFlinkSourceSql extends TestSqlBase {
+public class TestFlinkSourceSql extends TestSourceSqlBase {
   @BeforeEach
   @Override
   public void before() throws IOException {
