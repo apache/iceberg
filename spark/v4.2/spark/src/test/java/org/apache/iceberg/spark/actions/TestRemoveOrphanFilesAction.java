@@ -66,6 +66,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.actions.DeleteOrphanFiles;
+import org.apache.iceberg.actions.FileIdentifier;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -1195,6 +1196,16 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testValidFileIdentifiersExcludeURI() {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+    DeleteOrphanFilesSparkAction action = SparkActions.get().deleteOrphanFiles(table);
+
+    Dataset<FileIdentifier> validFileIdentDS = action.validFileIdentDS();
+
+    assertThat(validFileIdentDS.columns()).containsExactlyInAnyOrder("path", "scheme", "authority");
+  }
+
+  @TestTemplate
   public void testDefaultToHadoopListing() {
     assumeThat(usePrefixListing)
         .as(
@@ -1249,14 +1260,21 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
       Map<String, String> equalAuthorities,
       DeleteOrphanFiles.PrefixMismatchMode mode) {
 
-    StringToFileURI toFileUri = new StringToFileURI(equalSchemes, equalAuthorities);
+    StringToFileURI toFileURI = new StringToFileURI(equalSchemes, equalAuthorities);
 
-    Dataset<String> validFileDS = spark.createDataset(validFiles, Encoders.STRING());
     Dataset<String> actualFileDS = spark.createDataset(actualFiles, Encoders.STRING());
+    List<FileIdentifier> validFileIdentifiers =
+        validFiles.stream()
+            .map(
+                location ->
+                    new FileIdentifier(new Path(location).toUri(), equalSchemes, equalAuthorities))
+            .collect(Collectors.toList());
+    Dataset<FileIdentifier> validFileIdentDS =
+        spark.createDataset(validFileIdentifiers, Encoders.bean(FileIdentifier.class));
 
     Dataset<String> orphanFileDS =
         DeleteOrphanFilesSparkAction.findOrphanFiles(
-            toFileUri.apply(actualFileDS), toFileUri.apply(validFileDS), mode);
+            toFileURI.apply(actualFileDS), validFileIdentDS, mode);
 
     List<String> orphanFiles = orphanFileDS.collectAsList();
     orphanFileDS.unpersist();
