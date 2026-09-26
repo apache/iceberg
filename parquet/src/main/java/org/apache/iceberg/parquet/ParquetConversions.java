@@ -84,6 +84,11 @@ class ParquetConversions {
         return value -> ((Float) fromParquet.apply(value)).doubleValue();
       } else if (icebergType.typeId() == Type.TypeID.UUID) {
         return binary -> UUIDUtil.convert(((Binary) binary).toByteBuffer());
+      } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP_NANO
+          && parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT96) {
+        return binary ->
+            ParquetUtil.extractTimestampInt96Nanos(
+                ((Binary) binary).toByteBuffer().order(ByteOrder.LITTLE_ENDIAN));
       }
     }
 
