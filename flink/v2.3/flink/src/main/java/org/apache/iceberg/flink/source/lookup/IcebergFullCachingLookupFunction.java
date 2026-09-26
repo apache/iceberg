@@ -24,26 +24,28 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.flink.table.functions.FunctionContext;
 import org.apache.flink.table.functions.LookupFunction;
-import org.apache.flink.table.runtime.typeutils.InternalSerializers;
+import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkRowData;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.data.RowDataUtil;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,17 +62,16 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
 
   private final TableLoader tableLoader;
   private final RowType projectedRowType;
-  private final int[] lookupKeyIndices;
+  private final int[] lookupKeyIndexes;
   private final List<Expression> pushedFilters;
   private final boolean caseSensitive;
   private final boolean eagerLoad;
 
   private transient Table table;
   private transient IcebergLookupReader reader;
-  private transient RowData.FieldGetter[] lookupKeyGetters;
-  private transient RowData.FieldGetter[] cacheKeyGetters;
-  private transient RowData.FieldGetter[] rowFieldGetters;
-  private transient TypeSerializer[] fieldSerializers;
+  private transient RowDataSerializer rowSerializer;
+  private transient RowDataSerializer keySerializer;
+  private transient RowData.FieldGetter[] keyGetters;
   private transient InMemoryLookupCache cache;
 
   private transient Counter lookupMissCounter;
@@ -80,14 +81,16 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   public IcebergFullCachingLookupFunction(
       TableLoader tableLoader,
       RowType projectedRowType,
-      int[] keyIndices,
+      int[] lookupKeyIndexes,
       List<Expression> pushedFilters,
       boolean caseSensitive,
       boolean eagerLoad) {
+    Preconditions.checkNotNull(pushedFilters, "Pushed filters should not be null");
+
     this.tableLoader = tableLoader;
     this.projectedRowType = projectedRowType;
-    this.lookupKeyIndices = keyIndices;
-    this.pushedFilters = pushedFilters == null ? ImmutableList.of() : pushedFilters;
+    this.lookupKeyIndexes = lookupKeyIndexes;
+    this.pushedFilters = pushedFilters;
     this.caseSensitive = caseSensitive;
     this.eagerLoad = eagerLoad;
   }
@@ -96,9 +99,9 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   public void open(FunctionContext context) throws Exception {
     super.open(context);
     LOG.info(
-        "IcebergFullCachingLookupFunction opening, projected fields={}, keyIndices={}",
+        "IcebergFullCachingLookupFunction opening, projected fields={}, lookupKeyIndexes={}",
         projectedRowType.getFieldNames(),
-        Arrays.toString(lookupKeyIndices));
+        Arrays.toString(lookupKeyIndexes));
 
     MetricGroup metricGroup = context.getMetricGroup().addGroup(METRIC_GROUP);
     this.lookupMissCounter = metricGroup.counter("lookupMiss");
@@ -131,7 +134,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
       loadCache();
     }
 
-    List<RowData> hit = cache.get(extractLookupKey(keyRow, lookupKeyGetters));
+    List<RowData> hit = cache.get(keySerializer.toBinaryRow(keyRow));
     if (hit == null) {
       lookupMissCounter.inc();
       return Collections.emptyList();
@@ -164,64 +167,59 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
         projectedRowType.getFieldNames(),
         pushedFilters);
 
-    InMemoryLookupCache loaded = new InMemoryLookupCache();
-    int[] rowCnt = {0};
+    InMemoryLookupCache loaded = createCache(snapshot);
+    int rowCnt = 0;
     long start = System.currentTimeMillis();
-    reader.read(
-        snapshotId,
-        row -> {
-          RowData copied = copyRow(row);
-          loaded.add(extractLookupKey(copied, cacheKeyGetters), copied);
-          rowCnt[0]++;
-        });
+    try (CloseableIterable<RowData> rows = reader.read(snapshotId)) {
+      for (RowData row : rows) {
+        loaded.add(extractKey(row), rowSerializer.copy(row));
+        rowCnt++;
+      }
+    }
 
     this.cache = loaded;
     this.currentSnapshotId = snapshotId;
-    this.cachedRows = rowCnt[0];
+    this.cachedRows = rowCnt;
 
     LOG.info(
         "IcebergFullCachingLookupFunction loading finished, snapshot={}, rows={}, cost={} ms",
-        snapshot == null ? "none" : snapshot.snapshotId(),
-        rowCnt[0],
+        snapshot == null ? "none" : snapshotId,
+        rowCnt,
         System.currentTimeMillis() - start);
   }
 
-  private RowData copyRow(RowData row) {
-    return RowDataUtil.clone(
-        row,
-        new GenericRowData(projectedRowType.getFieldCount()),
-        projectedRowType,
-        fieldSerializers,
-        rowFieldGetters);
+  private InMemoryLookupCache createCache(Snapshot snapshot) {
+    if (snapshot != null && pushedFilters.isEmpty()) {
+      Long totalRecords =
+          PropertyUtil.propertyAsNullableLong(
+              snapshot.summary(), SnapshotSummary.TOTAL_RECORDS_PROP);
+      if (totalRecords != null) {
+        return new InMemoryLookupCache((int) Math.min(totalRecords, Integer.MAX_VALUE));
+      }
+    }
+
+    return new InMemoryLookupCache();
   }
 
-  private static RowData extractLookupKey(RowData row, RowData.FieldGetter[] keyGetters) {
+  private BinaryRowData extractKey(RowData row) {
     GenericRowData key = new GenericRowData(keyGetters.length);
     for (int i = 0; i < keyGetters.length; i++) {
       key.setField(i, keyGetters[i].getFieldOrNull(row));
     }
 
-    return key;
+    return keySerializer.toBinaryRow(key).copy();
   }
 
   private void createAccessors() {
-    this.lookupKeyGetters = new RowData.FieldGetter[lookupKeyIndices.length];
-    this.cacheKeyGetters = new RowData.FieldGetter[lookupKeyIndices.length];
-    for (int i = 0; i < lookupKeyIndices.length; i++) {
-      int projectedIndex = lookupKeyIndices[i];
-      LogicalType type = projectedRowType.getTypeAt(projectedIndex);
-      this.lookupKeyGetters[i] = FlinkRowData.createFieldGetter(type, i);
-      this.cacheKeyGetters[i] = FlinkRowData.createFieldGetter(type, projectedIndex);
+    LogicalType[] keyTypes = new LogicalType[lookupKeyIndexes.length];
+    this.keyGetters = new RowData.FieldGetter[lookupKeyIndexes.length];
+    for (int i = 0; i < lookupKeyIndexes.length; i++) {
+      int projectedIndex = lookupKeyIndexes[i];
+      keyTypes[i] = projectedRowType.getTypeAt(projectedIndex);
+      this.keyGetters[i] = FlinkRowData.createFieldGetter(keyTypes[i], projectedIndex);
     }
 
-    this.rowFieldGetters = new RowData.FieldGetter[projectedRowType.getFieldCount()];
-    for (int i = 0; i < projectedRowType.getFieldCount(); i++) {
-      this.rowFieldGetters[i] = FlinkRowData.createFieldGetter(projectedRowType.getTypeAt(i), i);
-    }
-
-    this.fieldSerializers =
-        projectedRowType.getChildren().stream()
-            .map(InternalSerializers::create)
-            .toArray(TypeSerializer[]::new);
+    this.rowSerializer = new RowDataSerializer(projectedRowType);
+    this.keySerializer = new RowDataSerializer(keyTypes);
   }
 }

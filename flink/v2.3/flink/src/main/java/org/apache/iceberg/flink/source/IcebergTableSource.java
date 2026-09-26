@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -58,7 +59,6 @@ import org.apache.iceberg.flink.source.assigner.SplitAssignerType;
 import org.apache.iceberg.flink.source.lookup.IcebergFullCachingLookupFunction;
 import org.apache.iceberg.flink.source.lookup.IcebergLookupOptions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -100,7 +100,7 @@ public class IcebergTableSource
       ResolvedSchema schema,
       Map<String, String> properties,
       ReadableConfig readableConfig) {
-    this(loader, schema, properties, null, false, null, ImmutableList.of(), readableConfig);
+    this(loader, schema, properties, null, false, null, Collections.emptyList(), readableConfig);
   }
 
   private IcebergTableSource(
@@ -253,16 +253,15 @@ public class IcebergTableSource
   @Override
   public LookupRuntimeProvider getLookupRuntimeProvider(LookupContext context) {
     int[][] lookupKeys = context.getKeys();
-    int[] keyIndices = new int[lookupKeys.length];
+    int[] lookupKeyIndexes = new int[lookupKeys.length];
     for (int i = 0; i < lookupKeys.length; i++) {
       Preconditions.checkArgument(
           lookupKeys[i].length == 1, "Iceberg lookup source doesn't support nested lookup key.");
-      keyIndices[i] = lookupKeys[i][0];
+      lookupKeyIndexes[i] = lookupKeys[i][0];
     }
 
     ResolvedSchema projected = getProjectedSchema();
     RowType projectedRowType = (RowType) projected.toPhysicalRowDataType().getLogicalType();
-    List<Expression> pushedFilters = filters == null ? ImmutableList.of() : filters;
 
     LookupOptions.LookupCacheType requestedCacheType =
         flinkConfParser
@@ -293,7 +292,7 @@ public class IcebergTableSource
 
     LookupFunction lookupFn =
         new IcebergFullCachingLookupFunction(
-            loader, projectedRowType, keyIndices, pushedFilters, caseSensitive, eagerLoad);
+            loader, projectedRowType, lookupKeyIndexes, filters, caseSensitive, eagerLoad);
     return LookupFunctionProvider.of(lookupFn);
   }
 }

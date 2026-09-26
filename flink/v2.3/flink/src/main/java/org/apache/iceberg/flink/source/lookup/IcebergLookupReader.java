@@ -19,9 +19,7 @@
 package org.apache.iceberg.flink.source.lookup;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
-import java.util.function.Consumer;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.table.data.RowData;
@@ -32,8 +30,13 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.source.DataIterator;
+import org.apache.iceberg.flink.source.FileScanTaskReader;
 import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.SnapshotUtil;
 
 /** Reads all rows of an Iceberg table to build a lookup cache. */
@@ -55,9 +58,11 @@ class IcebergLookupReader {
       List<Expression> baseFilters,
       boolean caseSensitive,
       @Nullable String nameMapping) {
+    Preconditions.checkNotNull(baseFilters, "Base filters should not be null");
+
     this.table = table;
     this.projectedSchema = projectedSchema;
-    this.baseFilters = baseFilters == null ? Collections.emptyList() : baseFilters;
+    this.baseFilters = baseFilters;
     this.caseSensitive = caseSensitive;
     this.nameMapping = nameMapping;
 
@@ -69,7 +74,7 @@ class IcebergLookupReader {
     this.filter = combinedFilter;
   }
 
-  public void read(long snapshotId, Consumer<RowData> consumer) throws IOException {
+  CloseableIterable<RowData> read(long snapshotId) {
     Schema tableSchema =
         snapshotId == CURRENT_SNAPSHOT ? table.schema() : SnapshotUtil.schemaFor(table, snapshotId);
 
@@ -83,15 +88,37 @@ class IcebergLookupReader {
       scan = scan.useSnapshot(snapshotId);
     }
 
-    try (CloseableIterable<CombinedScanTask> tasks = scan.planTasks()) {
-      for (CombinedScanTask task : tasks) {
-        try (DataIterator<RowData> rows =
-            new DataIterator<>(fileReader, task, table.io(), table.encryption())) {
-          while (rows.hasNext()) {
-            consumer.accept(rows.next());
-          }
-        }
-      }
+    return new LookupIterable(scan.planTasks(), fileReader);
+  }
+
+  private class LookupIterable extends CloseableGroup implements CloseableIterable<RowData> {
+    private final CloseableIterable<CombinedScanTask> tasks;
+    private final FileScanTaskReader<RowData> fileReader;
+
+    private LookupIterable(
+        CloseableIterable<CombinedScanTask> tasks, FileScanTaskReader<RowData> fileReader) {
+      this.tasks = tasks;
+      this.fileReader = fileReader;
+    }
+
+    @Override
+    public CloseableIterator<RowData> iterator() {
+      CloseableIterator<RowData> rows =
+          CloseableIterable.concat(Iterables.transform(tasks, this::taskRows)).iterator();
+      addCloseable(rows);
+      return rows;
+    }
+
+    @Override
+    public void close() throws IOException {
+      tasks.close();
+      super.close();
+    }
+
+    private CloseableIterable<RowData> taskRows(CombinedScanTask task) {
+      DataIterator<RowData> rows =
+          new DataIterator<>(fileReader, task, table.io(), table.encryption());
+      return CloseableIterable.combine(() -> rows, rows);
     }
   }
 }
