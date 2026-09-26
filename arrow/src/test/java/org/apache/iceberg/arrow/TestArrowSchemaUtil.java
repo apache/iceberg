@@ -20,6 +20,7 @@ package org.apache.iceberg.arrow;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.apache.arrow.vector.extension.UuidType;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -265,7 +266,9 @@ public class TestArrowSchemaUtil {
         break;
       case UUID:
         assertThat(field.getName()).isEqualTo(UUID_FIELD);
-        assertThat(arrowType.getTypeID()).isEqualTo(ArrowType.FixedSizeBinary.TYPE_TYPE);
+        assertThat(arrowType).isInstanceOf(UuidType.class);
+        assertThat(((ArrowType.ExtensionType) arrowType).storageType())
+            .isEqualTo(new ArrowType.FixedSizeBinary(16));
         break;
       default:
         throw new UnsupportedOperationException("Check not implemented for type: " + iceberg);

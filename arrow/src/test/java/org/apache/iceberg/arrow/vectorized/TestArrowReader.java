@@ -58,9 +58,11 @@ import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
 import org.apache.arrow.vector.TimeStampNanoTZVector;
 import org.apache.arrow.vector.TimeStampNanoVector;
+import org.apache.arrow.vector.UuidVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.extension.UuidType;
 import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -1357,11 +1359,8 @@ public class TestArrowReader {
             new Field("time", new FieldType(false, MinorType.TIMEMICRO.getType(), null), null),
             new Field(
                 "time_nullable", new FieldType(true, MinorType.TIMEMICRO.getType(), null), null),
-            new Field("uuid", new FieldType(false, new ArrowType.FixedSizeBinary(16), null), null),
-            new Field(
-                "uuid_nullable",
-                new FieldType(true, new ArrowType.FixedSizeBinary(16), null),
-                null),
+            new Field("uuid", new FieldType(false, UuidType.INSTANCE, null), null),
+            new Field("uuid_nullable", new FieldType(true, UuidType.INSTANCE, null), null),
             new Field(
                 "decimal", new FieldType(false, new ArrowType.Decimal(9, 2, 128), null), null),
             new Field(
@@ -1579,8 +1578,8 @@ public class TestArrowReader {
     assertEqualsForField(root, columnSet, "date_nullable", DateDayVector.class);
     assertEqualsForField(root, columnSet, "time", TimeMicroVector.class);
     assertEqualsForField(root, columnSet, "time_nullable", TimeMicroVector.class);
-    assertEqualsForField(root, columnSet, "uuid", FixedSizeBinaryVector.class);
-    assertEqualsForField(root, columnSet, "uuid_nullable", FixedSizeBinaryVector.class);
+    assertEqualsForField(root, columnSet, "uuid", UuidVector.class);
+    assertEqualsForField(root, columnSet, "uuid_nullable", UuidVector.class);
     assertEqualsForField(root, columnSet, "int_promotion", IntVector.class);
     assertEqualsForField(root, columnSet, "decimal", DecimalVector.class);
     assertEqualsForField(root, columnSet, "decimal_nullable", DecimalVector.class);
@@ -1786,7 +1785,7 @@ public class TestArrowReader {
         columnSet,
         "uuid",
         (records, i) -> records.get(i).getField("uuid"),
-        (vector, i) -> UUIDUtil.convert(((FixedSizeBinaryVector) vector).get(i)));
+        (vector, i) -> ((UuidVector) vector).getObject(i));
 
     checkVectorValues(
         expectedNumRows,
@@ -1795,7 +1794,7 @@ public class TestArrowReader {
         columnSet,
         "uuid_nullable",
         (records, i) -> records.get(i).getField("uuid_nullable"),
-        (vector, i) -> UUIDUtil.convert(((FixedSizeBinaryVector) vector).get(i)));
+        (vector, i) -> ((UuidVector) vector).getObject(i));
 
     checkVectorValues(
         expectedNumRows,
