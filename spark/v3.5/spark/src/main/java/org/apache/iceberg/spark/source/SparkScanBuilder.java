@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -46,14 +47,31 @@ import org.apache.iceberg.expressions.BoundAggregate;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.expressions.NamedReference;
+import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.index.HashTransform;
+import org.apache.iceberg.index.IndexCatalog;
+import org.apache.iceberg.index.IndexIdentifier;
+import org.apache.iceberg.index.IndexMetadata;
+import org.apache.iceberg.index.IndexSnapshot;
+import org.apache.iceberg.index.LeafFileEntry;
+import org.apache.iceberg.index.LeafFileReader;
+import org.apache.iceberg.index.TrackingFileEntry;
+import org.apache.iceberg.index.TrackingFileReader;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.IndexSnapshotUtil;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkAggregates;
+import org.apache.iceberg.spark.SparkIndexCatalogs;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -61,6 +79,7 @@ import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -105,6 +124,7 @@ public class SparkScanBuilder
   private List<Expression> filterExpressions = null;
   private Predicate[] pushedPredicates = NO_PREDICATES;
   private Integer limit = null;
+  private Set<String> scalarIndexResolvedFilePaths = null;
 
   SparkScanBuilder(
       SparkSession spark,
@@ -191,7 +211,348 @@ public class SparkScanBuilder
     this.filterExpressions = expressions;
     this.pushedPredicates = pushableFilters.toArray(new Predicate[0]);
 
+    tryPruneUsingScalarIndex();
+
     return postScanFilters.toArray(new Predicate[0]);
+  }
+
+  private static final Set<Expression.Operation> SCALAR_INDEX_PRUNABLE_OPS =
+      ImmutableSet.of(
+          Expression.Operation.EQ,
+          Expression.Operation.IN,
+          Expression.Operation.LT,
+          Expression.Operation.LT_EQ,
+          Expression.Operation.GT,
+          Expression.Operation.GT_EQ);
+
+  // Open Question 2 in the design doc: without a bound, a misconfigured index (e.g. a very large
+  // hash.num-buckets, or a wide IN list) could resolve to more candidate leaf files than it would
+  // ever be worth opening -- planning could end up slower than no index at all. Overridable per
+  // table via the scalar-index.max-candidate-leaf-files property, read below.
+  private static final String MAX_CANDIDATE_LEAF_FILES_PROPERTY =
+      "scalar-index.max-candidate-leaf-files";
+  private static final int DEFAULT_MAX_CANDIDATE_LEAF_FILES = 100;
+
+  /**
+   * If a SCALAR index exists on a column referenced by an equality, {@code IN}, or range
+   * predicate in {@link #filterExpressions}, resolves the predicate(s) against the index's leaf
+   * files and records the matching source file paths in {@link #scalarIndexResolvedFilePaths}, so
+   * {@link #buildBatchScan} can constrain the scan to just those files via {@link
+   * FileScanTaskFilteringScan}.
+   *
+   * <p>An equality predicate (HASH or IDENTITY transform) resolves to a single transform value.
+   * An {@code IN} predicate resolves to one transform value per literal (HASH or IDENTITY),
+   * queried as separate points rather than a combined range -- HASH in particular can scatter an
+   * IN-list's values across unrelated, non-contiguous buckets, so there is no single [min, max]
+   * that would be both correct and useful. A range predicate ({@code <}, {@code <=}, {@code >},
+   * {@code >=} -- including a {@code BETWEEN}, which Spark decomposes into two range predicates on
+   * the same column) only makes sense against an IDENTITY-transform index: HASH scatters values
+   * across buckets, so a contiguous range on the original column does not map to a contiguous
+   * range of transform values the way it does for IDENTITY, where the transform value is the key
+   * value itself.
+   *
+   * <p>Restricting the scan to files that could satisfy one AND'd predicate (or set of predicates
+   * on the same column) is always sound: any row satisfying the full pushed-down conjunction must
+   * also satisfy it, so it must live in one of these files. The predicate itself is still pushed
+   * down and applied as a residual regardless, so a wrong or stale resolution here can only miss
+   * an optimization, never produce a wrong result -- except for the zero-match case (key confirmed
+   * absent from a fully fresh index, with no uncovered files), which is deliberately NOT pruned to
+   * zero files here: that would be a correctness-sensitive optimization (a bug would silently
+   * return wrong empty results, not just miss a speedup), left as a documented follow-up rather
+   * than attempted in this pass.
+   *
+   * <p>Staleness is handled via the covered/uncovered-files model from Huaxin Gao's Primary Key
+   * Index for Apache Iceberg proposal (Section 8, "Staleness Semantics"): files that existed at
+   * the index's own snapshot ("covered") can be pruned using the index as usual; files added to
+   * the table since ("uncovered") are never known to the index and are always included in the
+   * resolved set, unconditionally. This lets a stale index still help, rather than falling back
+   * to no pruning at all on any snapshot mismatch. See {@link #uncoveredFilePathsSince}.
+   *
+   * <p>Only the first column whose predicate(s) resolve against an existing index is used;
+   * combining resolutions from multiple SCALAR indexes on an AND'd query would need set
+   * intersection across indexes, which is not yet attempted.
+   *
+   * <p>Any failure -- no index registered, an unsupported predicate shape, a non-append snapshot
+   * (e.g. compaction) between the index's snapshot and the current one, an I/O error reading the
+   * tracking or leaf file -- falls back silently to normal planning, matching the design
+   * proposal's rule that the index must never be required for correctness.
+   */
+  private void tryPruneUsingScalarIndex() {
+    if (filterExpressions == null || filterExpressions.isEmpty()) {
+      return;
+    }
+
+    Map<String, List<UnboundPredicate<?>>> candidatesByColumn = Maps.newLinkedHashMap();
+    for (Expression expr : filterExpressions) {
+      if (!(expr instanceof UnboundPredicate) || !SCALAR_INDEX_PRUNABLE_OPS.contains(expr.op())) {
+        continue;
+      }
+
+      UnboundPredicate<?> predicate = (UnboundPredicate<?>) expr;
+      if (!(predicate.term() instanceof NamedReference)) {
+        continue;
+      }
+
+      String columnName = ((NamedReference<?>) predicate.term()).name();
+      candidatesByColumn.computeIfAbsent(columnName, c -> Lists.newArrayList()).add(predicate);
+    }
+
+    if (candidatesByColumn.isEmpty()) {
+      return;
+    }
+
+    IndexCatalog indexCatalog = SparkIndexCatalogs.get().catalogFor(table);
+    for (Map.Entry<String, List<UnboundPredicate<?>>> entry : candidatesByColumn.entrySet()) {
+      if (tryPruneUsingScalarIndex(indexCatalog, entry.getKey(), entry.getValue())) {
+        return;
+      }
+    }
+  }
+
+  /**
+   * Attempts to resolve {@code predicates} (all on {@code columnName}, each {@code EQ}, {@code
+   * IN}, or a range comparison) against a SCALAR index on that column, if one exists. Returns
+   * {@code true} if it resolved and set {@link #scalarIndexResolvedFilePaths}, {@code false} to
+   * let {@link #tryPruneUsingScalarIndex()} try the next column's predicates instead.
+   */
+  private boolean tryPruneUsingScalarIndex(
+      IndexCatalog indexCatalog, String columnName, List<UnboundPredicate<?>> predicates) {
+    Types.NestedField keyField = schema.findField(columnName);
+    if (keyField == null) {
+      return false;
+    }
+
+    // Derived the same way BuildScalarIndexProcedure derives it (TableIdentifier.parse of the
+    // core Table's own name), not from the Spark catalog Identifier -- the two must produce an
+    // identical TableIdentifier or indexExists() below silently and permanently returns false.
+    IndexIdentifier indexIdent =
+        IndexIdentifier.of(
+            org.apache.iceberg.catalog.TableIdentifier.parse(table.name()), columnName + "_idx");
+
+    try {
+      if (!indexCatalog.indexExists(indexIdent)) {
+        return false;
+      }
+
+      IndexMetadata metadata = indexCatalog.loadIndex(indexIdent);
+      if (!metadata.keyColumnIds().contains(keyField.fieldId())
+          || table.currentSnapshot() == null) {
+        return false;
+      }
+
+      IndexSnapshot indexSnapshot = metadata.currentSnapshot();
+      if (indexSnapshot == null) {
+        return false;
+      }
+
+      long currentTableSnapshotId = table.currentSnapshot().snapshotId();
+      Set<String> uncoveredFilePaths = ImmutableSet.of();
+      if (indexSnapshot.sourceTableSnapshotId() != currentTableSnapshotId) {
+        // Stale relative to the current table snapshot -- rather than fall back entirely,
+        // find the files added since the index's snapshot (uncovered) so covered files can
+        // still be pruned via the index. Throws if the index's snapshot isn't a clean append
+        // ancestor of the current one (e.g. a compaction ran in between); the outer catch
+        // below falls back to no pruning at all in that case, same as before this change.
+        uncoveredFilePaths =
+            uncoveredFilePathsSince(indexSnapshot.sourceTableSnapshotId(), currentTableSnapshotId);
+      }
+
+      Optional<UnboundPredicate<?>> eqPredicate =
+          predicates.stream().filter(p -> p.op() == Expression.Operation.EQ).findFirst();
+      Optional<UnboundPredicate<?>> inPredicate =
+          predicates.stream().filter(p -> p.op() == Expression.Operation.IN).findFirst();
+
+      List<TransformValueRange> targetRanges;
+      Expression leafFilter;
+      Object literalValueForLog;
+
+      if (eqPredicate.isPresent()) {
+        Object literalValue = eqPredicate.get().literal().value();
+        long targetTransformValue = transformValue(metadata, literalValue);
+        targetRanges = ImmutableList.of(new TransformValueRange(targetTransformValue, targetTransformValue));
+        leafFilter = Expressions.equal(columnName, literalValue);
+        literalValueForLog = literalValue;
+      } else if (inPredicate.isPresent()) {
+        List<Object> literalValues = Lists.newArrayList();
+        for (Literal<?> literal : inPredicate.get().literals()) {
+          literalValues.add(literal.value());
+        }
+        if (literalValues.isEmpty()) {
+          return false;
+        }
+
+        List<TransformValueRange> ranges = Lists.newArrayListWithExpectedSize(literalValues.size());
+        for (Object literalValue : literalValues) {
+          long tv = transformValue(metadata, literalValue);
+          ranges.add(new TransformValueRange(tv, tv));
+        }
+        targetRanges = ranges;
+        leafFilter = Expressions.in(columnName, literalValues);
+        literalValueForLog = literalValues;
+      } else {
+        // No equality or IN predicate in this group -- only IDENTITY preserves enough order for
+        // a range comparison to map to a contiguous transform-value range; HASH scatters values
+        // across buckets, so a range on the original column tells us nothing about which
+        // buckets to look in.
+        if (!"IDENTITY".equals(metadata.transformFunction())) {
+          return false;
+        }
+
+        long lowerBound = Long.MIN_VALUE;
+        long upperBound = Long.MAX_VALUE;
+        Expression combinedFilter = null;
+        for (UnboundPredicate<?> predicate : predicates) {
+          long value = ((Number) predicate.literal().value()).longValue();
+          switch (predicate.op()) {
+            case GT:
+            case GT_EQ:
+              // Deliberately loose (uses value, not value + 1, for GT): the coarse tracking-file
+              // range only needs to be a superset of the true match set -- LeafFileReader
+              // re-applies the exact original predicate below, so this can only cost scanning
+              // one extra boundary leaf file, never under-prune a real match away.
+              lowerBound = Math.max(lowerBound, value);
+              break;
+            case LT:
+            case LT_EQ:
+              upperBound = Math.min(upperBound, value);
+              break;
+            default:
+              // EQ/IN are handled above; SCALAR_INDEX_PRUNABLE_OPS admits nothing else here.
+              break;
+          }
+          combinedFilter =
+              combinedFilter == null ? predicate : Expressions.and(combinedFilter, predicate);
+        }
+
+        if (combinedFilter == null || lowerBound > upperBound) {
+          return false;
+        }
+
+        targetRanges = ImmutableList.of(new TransformValueRange(lowerBound, upperBound));
+        leafFilter = combinedFilter;
+        literalValueForLog = "[" + lowerBound + ", " + upperBound + "]";
+      }
+
+      // Dedupe by location: an IN predicate's separate target ranges can resolve to the same
+      // leaf file (e.g. two IN values landing in the same HASH bucket), and reading it twice
+      // would just waste work, not affect correctness.
+      List<TrackingFileEntry> candidateLeafFiles =
+          collectCandidateLeafFiles(table.io(), indexSnapshot.trackingFile(), targetRanges);
+
+      int maxCandidateLeafFiles =
+          PropertyUtil.propertyAsInt(
+              table.properties(),
+              MAX_CANDIDATE_LEAF_FILES_PROPERTY,
+              DEFAULT_MAX_CANDIDATE_LEAF_FILES);
+      if (candidateLeafFiles.size() > maxCandidateLeafFiles) {
+        // Resolved to more candidate leaf files than it's worth opening -- bail out to normal
+        // planning rather than let a misconfigured index make planning slower than no index at
+        // all. The original predicate is still applied downstream regardless, so this is purely
+        // a missed optimization, not a correctness concern.
+        LOG.info(
+            "SCALAR index on {} resolved to {} candidate leaf file(s), exceeding the planning-cost"
+                + " bound of {} ({}) -- falling back to normal planning",
+            columnName,
+            candidateLeafFiles.size(),
+            maxCandidateLeafFiles,
+            MAX_CANDIDATE_LEAF_FILES_PROPERTY);
+        return false;
+      }
+
+      List<LeafFileEntry> matches = Lists.newArrayList();
+      for (TrackingFileEntry leaf : candidateLeafFiles) {
+        matches.addAll(
+            LeafFileReader.readMatching(
+                table.io().newInputFile(leaf.location()), keyField, leafFilter));
+      }
+
+      if (!matches.isEmpty() || !uncoveredFilePaths.isEmpty()) {
+        // Uncovered files are unconditionally included regardless of what the index says --
+        // they're not covered by it, so they must always be scanned. Safe even when matches is
+        // empty: this isn't "the index says zero files match," it's "zero *covered* files
+        // match, plus every uncovered file, which is never an empty set here."
+        Set<String> resolvedPaths = Sets.newHashSet(uncoveredFilePaths);
+        matches.forEach(m -> resolvedPaths.add(m.filePath()));
+        this.scalarIndexResolvedFilePaths = resolvedPaths;
+        LOG.info(
+            "SCALAR index on {} resolved {} {} to {} file(s) ({} covered match(es), {} "
+                + "uncovered file(s)): {}",
+            columnName,
+            columnName,
+            literalValueForLog,
+            resolvedPaths.size(),
+            matches.size(),
+            uncoveredFilePaths.size(),
+            resolvedPaths);
+        return true;
+      }
+      // 0 matches (key not present in covered files) and no uncovered files either -- fall
+      // back to normal planning rather than prune to zero; the original predicate itself
+      // still gets applied downstream and yields no rows.
+      return false;
+    } catch (Exception e) {
+      LOG.warn(
+          "Failed to use SCALAR index on column {}, falling back to normal planning: {}",
+          columnName,
+          e.getMessage());
+      return false;
+    }
+  }
+
+  /**
+   * One [min, max] transform-value sub-range to query the tracking file for.
+   *
+   * <p>Package-private (not private), along with {@link #collectCandidateLeafFiles}, so both can
+   * be tested directly against a real tracking file without needing a full Spark session -- see
+   * TestSparkScanBuilderCandidateLeafFiles in this package.
+   */
+  static final class TransformValueRange {
+    final long min;
+    final long max;
+
+    TransformValueRange(long min, long max) {
+      this.min = min;
+      this.max = max;
+    }
+  }
+
+  /**
+   * Collects the tracking-file entries whose transform-value range overlaps any of {@code
+   * targetRanges}, deduped by location. An {@code IN} predicate's separate target ranges can
+   * resolve to the same leaf file (e.g. two IN values landing in the same HASH bucket); reading
+   * it twice would just waste work, not affect correctness, but is worth avoiding.
+   */
+  static List<TrackingFileEntry> collectCandidateLeafFiles(
+      FileIO io, String trackingFileLocation, List<TransformValueRange> targetRanges) {
+    Map<String, TrackingFileEntry> byLocation = Maps.newLinkedHashMap();
+    for (TransformValueRange range : targetRanges) {
+      for (TrackingFileEntry entry :
+          TrackingFileReader.readMatching(io.newInputFile(trackingFileLocation), range.min, range.max)) {
+        byLocation.putIfAbsent(entry.location(), entry);
+      }
+    }
+    return Lists.newArrayList(byLocation.values());
+  }
+
+  private static long transformValue(IndexMetadata metadata, Object literalValue) {
+    if ("HASH".equals(metadata.transformFunction())) {
+      int numBuckets =
+          Integer.parseInt(metadata.properties().getOrDefault("hash.num-buckets", "256"));
+      return new HashTransform(numBuckets).apply(literalValue);
+    }
+    return ((Number) literalValue).longValue();
+  }
+
+  /**
+   * Data file paths added to {@link #table} strictly after {@code sourceSnapshotId} up to and
+   * including {@code currentSnapshotId} -- the "uncovered" files in the covered/uncovered-files
+   * staleness model (see {@link #tryPruneUsingScalarIndex}). Delegates to {@link
+   * IndexSnapshotUtil#addedFilePathsSince}, shared with the write side ({@code
+   * BuildScalarIndexProcedure}'s incremental build path) so a fix to this correctness-sensitive
+   * logic can't diverge between the two.
+   */
+  private Set<String> uncoveredFilePathsSince(long sourceSnapshotId, long currentSnapshotId) {
+    return IndexSnapshotUtil.addedFilePathsSince(table, sourceSnapshotId, currentSnapshotId);
   }
 
   private boolean unpartitioned() {
@@ -499,7 +860,15 @@ public class SparkScanBuilder
       scan = scan.useRef(tag);
     }
 
-    return configureSplitPlanning(scan);
+    BatchScan configured = configureSplitPlanning(scan);
+    if (scalarIndexResolvedFilePaths != null) {
+      // Scoped to the plain SELECT batch-scan path only -- incremental-append, changelog,
+      // merge-on-read, and copy-on-write scans have different correctness considerations (e.g.
+      // row-level operations may need to see files beyond ones matching a single equality
+      // predicate) and are intentionally left untouched by this optimization.
+      return new FileScanTaskFilteringScan(configured, scalarIndexResolvedFilePaths);
+    }
+    return configured;
   }
 
   private org.apache.iceberg.Scan buildIncrementalAppendScan(
