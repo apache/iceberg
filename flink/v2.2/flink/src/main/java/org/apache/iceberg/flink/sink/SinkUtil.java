@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
 @Internal
 public class SinkUtil {
 
-  private static final long INITIAL_CHECKPOINT_ID = -1L;
+  static final long INITIAL_CHECKPOINT_ID = -1L;
 
   public static final String FLINK_JOB_ID = "flink.job-id";
 
