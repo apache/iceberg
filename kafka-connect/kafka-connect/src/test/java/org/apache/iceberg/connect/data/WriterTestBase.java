@@ -21,15 +21,19 @@ package org.apache.iceberg.connect.data;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.UUID;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.events.TableReference;
@@ -64,7 +68,7 @@ public class WriterTestBase {
   public void before() {
     fileIO = new InMemoryFileIO();
 
-    table = mock(Table.class);
+    table = mock(Table.class, withSettings().extraInterfaces(HasTableOperations.class));
     when(table.schema()).thenReturn(SCHEMA);
     when(table.spec()).thenReturn(PartitionSpec.unpartitioned());
     when(table.io()).thenReturn(fileIO);
@@ -72,6 +76,12 @@ public class WriterTestBase {
         .thenReturn(LocationProviders.locationsFor("file", ImmutableMap.of()));
     when(table.encryption()).thenReturn(PlaintextEncryptionManager.instance());
     when(table.properties()).thenReturn(ImmutableMap.of());
+
+    TableOperations ops = mock(TableOperations.class);
+    TableMetadata metadata = mock(TableMetadata.class);
+    when(metadata.formatVersion()).thenReturn(2);
+    when(ops.current()).thenReturn(metadata);
+    when(((HasTableOperations) table).operations()).thenReturn(ops);
   }
 
   protected WriteResult writeTest(
