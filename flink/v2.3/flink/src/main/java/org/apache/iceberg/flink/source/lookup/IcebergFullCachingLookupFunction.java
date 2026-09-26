@@ -145,13 +145,15 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
 
   @Override
   public void close() throws Exception {
-    tableLoader.close();
+    try {
+      tableLoader.close();
+    } finally {
+      if (cache != null) {
+        cache.close();
+      }
 
-    if (cache != null) {
-      cache.close();
+      super.close();
     }
-
-    super.close();
   }
 
   private void loadCache() throws IOException {
@@ -172,7 +174,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
     long start = System.currentTimeMillis();
     try (CloseableIterable<RowData> rows = reader.read(snapshotId)) {
       for (RowData row : rows) {
-        loaded.add(extractKey(row), rowSerializer.copy(row));
+        loaded.add(extractKey(row), rowSerializer.toBinaryRow(row).copy());
         rowCnt++;
       }
     }

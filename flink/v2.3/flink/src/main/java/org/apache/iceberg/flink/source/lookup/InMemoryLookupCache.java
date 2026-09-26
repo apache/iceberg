@@ -43,7 +43,7 @@ class InMemoryLookupCache {
     return cache.get(key);
   }
 
-  void add(BinaryRowData key, RowData row) {
+  void add(BinaryRowData key, BinaryRowData row) {
     cache.computeIfAbsent(key, k -> Lists.newArrayList()).add(row);
   }
 
