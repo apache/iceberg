@@ -92,7 +92,7 @@ class ParquetMetrics {
         fields.collect(Collectors.toMap(FieldMetrics::id, Function.identity()));
 
     return TypeWithSchemaVisitor.visit(
-        schema.asStruct(), type, new MetricsVisitor(schema, metricsConfig, metricsById, columns));
+        schema.asStruct(), type, new MetricsVisitor(metricsConfig, metricsById, columns));
   }
 
   private static long rowCount(ParquetMetadata metadata) {
@@ -105,7 +105,7 @@ class ParquetMetrics {
   }
 
   private static Map<Integer, Long> columnSizes(
-      Schema schema, MessageType type, ParquetMetadata metadata, MetricsConfig metricsConfig) {
+      MessageType type, ParquetMetadata metadata, MetricsConfig metricsConfig) {
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     for (BlockMetaData block : metadata.getBlocks()) {
       for (ColumnChunkMetaData column : block.getColumns()) {
@@ -131,7 +131,7 @@ class ParquetMetrics {
       ParquetMetadata metadata,
       Stream<FieldMetrics<?>> fields) {
     long rowCount = rowCount(metadata);
-    Map<Integer, Long> columnSizes = columnSizes(schema, type, metadata, metricsConfig);
+    Map<Integer, Long> columnSizes = columnSizes(type, metadata, metricsConfig);
 
     Map<Integer, Long> valueCounts = Maps.newHashMap();
     Map<Integer, Long> nullValueCounts = Maps.newHashMap();
@@ -189,17 +189,14 @@ class ParquetMetrics {
   }
 
   private static class MetricsVisitor extends TypeWithSchemaVisitor<Iterable<FieldMetrics<?>>> {
-    private final Schema schema;
     private final MetricsConfig metricsConfig;
     private final Map<Integer, FieldMetrics<?>> metricsById;
     private final Multimap<ColumnPath, ColumnChunkMetaData> columns;
 
     private MetricsVisitor(
-        Schema schema,
         MetricsConfig metricsConfig,
         Map<Integer, FieldMetrics<?>> metricsById,
         Multimap<ColumnPath, ColumnChunkMetaData> columns) {
-      this.schema = schema;
       this.metricsConfig = metricsConfig;
       this.metricsById = metricsById;
       this.columns = columns;
