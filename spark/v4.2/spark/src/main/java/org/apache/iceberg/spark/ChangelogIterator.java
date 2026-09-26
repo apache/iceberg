@@ -38,10 +38,12 @@ public abstract class ChangelogIterator implements Iterator<Row> {
   private final Iterator<Row> rowIterator;
   private final int changeTypeIndex;
   private final StructType rowType;
+  private final SparkValueEquality.ValueEquality[] fieldEqualities;
 
   protected ChangelogIterator(Iterator<Row> rowIterator, StructType rowType) {
     this.rowIterator = rowIterator;
     this.rowType = rowType;
+    this.fieldEqualities = SparkValueEquality.forFields(rowType);
     this.changeTypeIndex = rowType.fieldIndex(MetadataColumns.CHANGE_TYPE.name());
   }
 
@@ -109,7 +111,7 @@ public abstract class ChangelogIterator implements Iterator<Row> {
   }
 
   protected boolean isDifferentValue(Row currentRow, Row nextRow, int idx) {
-    return !Objects.equals(nextRow.get(idx), currentRow.get(idx));
+    return !fieldEqualities[idx].test(currentRow.get(idx), nextRow.get(idx));
   }
 
   protected static int[] generateIndicesToIdentifySameRow(
