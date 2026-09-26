@@ -20,25 +20,33 @@ package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.ViewCatalogTests;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@ExtendWith(RESTServerExtension.class)
 public class RESTCompatibilityKitViewCatalogTests extends ViewCatalogTests<RESTCatalog> {
   private static final Logger LOG =
       LoggerFactory.getLogger(RESTCompatibilityKitViewCatalogTests.class);
+
+  // a free port rather than the fixed default, so that the local server cannot collide with
+  // another REST server on the host (for example the kafka-connect integration stack) when Gradle
+  // runs test tasks in parallel
+  @RegisterExtension
+  private static final RESTServerExtension REST_SERVER_EXTENSION =
+      new RESTServerExtension(Map.of(RESTCatalogServer.REST_PORT, RESTServerExtension.FREE_PORT));
+
   private static RESTCatalog restCatalog;
 
   @BeforeAll
   static void beforeClass() throws Exception {
-    restCatalog = RCKUtils.initCatalogClient();
+    restCatalog = RCKUtils.initCatalogClient(REST_SERVER_EXTENSION.config());
 
     assertThat(restCatalog.listNamespaces())
         .withFailMessage("Namespaces list should not contain: %s", RCKUtils.TEST_NAMESPACES)
