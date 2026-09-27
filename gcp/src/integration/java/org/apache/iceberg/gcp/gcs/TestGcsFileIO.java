@@ -19,6 +19,7 @@
 package org.apache.iceberg.gcp.gcs;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.github.dockerjava.api.model.ExposedPort;
@@ -183,6 +184,47 @@ public class TestGcsFileIO {
     for (String location : locations) {
       assertThat(fileIO.newInputFile(location).exists()).isFalse();
     }
+  }
+
+  @Test
+  public void deleteFilesIgnoresMissingObjects() {
+    String prefix = "delete-missing";
+    List<String> existing = Lists.newArrayList();
+    for (int i = 0; i < 3; i++) {
+      String location = String.format("gs://%s/%s/file-%d.txt", BUCKET, prefix, i);
+      existing.add(location);
+      storage.create(BlobInfo.newBuilder(BlobId.fromGsUtilUri(location)).build(), new byte[] {1});
+    }
+
+    List<String> toDelete = Lists.newArrayList(existing);
+    toDelete.add(String.format("gs://%s/%s/missing-1.txt", BUCKET, prefix));
+    toDelete.add(String.format("gs://%s/%s/missing-2.txt", BUCKET, prefix));
+
+    // A mix of present and already-gone objects (HTTP 404) must delete cleanly, without a failure.
+    assertThatCode(() -> fileIO.deleteFiles(toDelete)).doesNotThrowAnyException();
+
+    for (String location : existing) {
+      assertThat(fileIO.newInputFile(location).exists()).isFalse();
+    }
+  }
+
+  @Test
+  public void deleteFilesIsIdempotentOnRetry() {
+    String prefix = "delete-retry";
+    List<String> locations = Lists.newArrayList();
+    for (int i = 0; i < 5; i++) {
+      String location = String.format("gs://%s/%s/file-%d.txt", BUCKET, prefix, i);
+      locations.add(location);
+      storage.create(BlobInfo.newBuilder(BlobId.fromGsUtilUri(location)).build(), new byte[] {1});
+    }
+
+    fileIO.deleteFiles(locations);
+    for (String location : locations) {
+      assertThat(fileIO.newInputFile(location).exists()).isFalse();
+    }
+
+    // Re-issuing the deletes, as a retried cleanup would, must not raise BulkDeletionFailureException.
+    assertThatCode(() -> fileIO.deleteFiles(locations)).doesNotThrowAnyException();
   }
 
   @Test
