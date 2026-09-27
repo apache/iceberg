@@ -22,22 +22,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.github.dockerjava.api.model.ExposedPort;
-import com.github.dockerjava.api.model.HostConfig;
-import com.github.dockerjava.api.model.PortBinding;
-import com.github.dockerjava.api.model.Ports.Binding;
-import com.google.cloud.NoCredentials;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
-import com.google.cloud.storage.BucketInfo;
 import com.google.cloud.storage.Storage;
-import com.google.cloud.storage.StorageOptions;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -47,91 +41,61 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.wait.strategy.HttpWaitStrategy;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
-@Testcontainers
-public class TestGcsFileIO {
+public abstract class TestGcsFileIO {
 
-  private static final String BUCKET = "test-bucket";
-  private static final String PROJECT_ID = "test-project";
-  private static final int GCS_EMULATOR_PORT = 4443;
-  private static final Random RANDOM = new Random(1);
+  protected static final Random RANDOM = new Random(1);
+  private static final String TEST_PREFIX = "integration-test";
 
-  @Container
-  private static final GenericContainer<?> GCS_EMULATOR =
-      new GenericContainer<>("fsouza/fake-gcs-server:latest")
-          .withExposedPorts(GCS_EMULATOR_PORT)
-          .withCreateContainerCmdModifier(
-              cmd ->
-                  cmd.withHostConfig(
-                      new HostConfig()
-                          .withPortBindings(
-                              new PortBinding(
-                                  Binding.bindPort(GCS_EMULATOR_PORT),
-                                  new ExposedPort(GCS_EMULATOR_PORT)))))
-          .withCommand(
-              "-scheme",
-              "http",
-              "-external-url",
-              String.format("http://localhost:%d", GCS_EMULATOR_PORT))
-          .waitingFor(
-              new HttpWaitStrategy()
-                  .forPort(GCS_EMULATOR_PORT)
-                  .forPath("/storage/v1/b")
-                  .forStatusCode(200)
-                  .withStartupTimeout(Duration.ofMinutes(2)));
-
+  protected Storage storage;
+  protected String bucket;
+  private String prefix;
   private GCSFileIO fileIO;
-  private static Storage storage;
 
-  @BeforeAll
-  public static void beforeClass() {
-    String endpoint = String.format("http://localhost:%d", GCS_EMULATOR_PORT);
-    StorageOptions options =
-        StorageOptions.newBuilder()
-            .setProjectId(PROJECT_ID)
-            .setHost(endpoint)
-            .setCredentials(NoCredentials.getInstance())
-            .build();
-    storage = options.getService();
-    storage.create(BucketInfo.of(BUCKET));
+  /** Subclasses assign {@link #storage} and {@link #bucket} here. */
+  protected abstract void init() throws IOException;
+
+  /** Backend connection properties for the analytics-core reader, e.g. host and auth. */
+  protected Map<String, String> properties() {
+    return ImmutableMap.of();
   }
 
-  @AfterAll
-  public static void afterClass() {
-    if (storage != null) {
-      storage.delete(BUCKET);
-    }
+  private Map<String, String> analyticsCoreProperties() {
+    return ImmutableMap.<String, String>builder()
+        .putAll(properties())
+        .put(GCPProperties.GCS_ANALYTICS_CORE_ENABLED, "true")
+        .buildKeepingLast();
+  }
+
+  private String location(String name) {
+    return String.format("gs://%s/%s/%s", bucket, prefix, name);
   }
 
   @BeforeEach
-  public void before() {
+  public void before() throws IOException {
+    init();
+    assertThat(storage).as("init() must set storage").isNotNull();
+    assertThat(bucket).as("init() must set bucket").isNotNull();
+    prefix = TEST_PREFIX + "/" + UUID.randomUUID();
     fileIO = new GCSFileIO(() -> storage);
     fileIO.initialize(ImmutableMap.of());
-    for (Blob blob : storage.list(BUCKET).iterateAll()) {
-      storage.delete(blob.getBlobId());
-    }
   }
 
   @AfterEach
   public void after() {
-    for (Blob blob : storage.list(BUCKET).iterateAll()) {
+    for (Blob blob :
+        storage.list(bucket, Storage.BlobListOption.prefix(prefix + "/")).iterateAll()) {
       storage.delete(blob.getBlobId());
     }
   }
 
   @Test
   public void newInputFileGcsAnalyticsCoreDisabled() throws IOException {
-    String location = String.format("gs://%s/path/to/file.txt", BUCKET);
+    String location = location("path/to/file.txt");
     byte[] expected = new byte[1024 * 1024];
     RANDOM.nextBytes(expected);
     storage.create(BlobInfo.newBuilder(BlobId.fromGsUtilUri(location)).build(), expected);
@@ -147,16 +111,11 @@ public class TestGcsFileIO {
 
   @Test
   public void newInputFileGcsAnalyticsCoreEnabled() throws IOException {
-    String location = String.format("gs://%s/path/to/file.txt", BUCKET);
+    String location = location("path/to/file.txt");
     byte[] expected = new byte[1024 * 1024];
     RANDOM.nextBytes(expected);
     storage.create(BlobInfo.newBuilder(BlobId.fromGsUtilUri(location)).build(), expected);
-    fileIO.initialize(
-        ImmutableMap.of(
-            GCPProperties.GCS_ANALYTICS_CORE_ENABLED, "true",
-            GCPProperties.GCS_NO_AUTH, "true",
-            GCPProperties.GCS_SERVICE_HOST,
-                String.format("http://localhost:%d", GCS_EMULATOR_PORT)));
+    fileIO.initialize(analyticsCoreProperties());
     InputFile in = fileIO.newInputFile(location);
     byte[] actual = new byte[1024 * 1024];
 
@@ -171,10 +130,9 @@ public class TestGcsFileIO {
 
   @Test
   public void deleteFiles() {
-    String prefix = "delete-files";
     List<String> locations = Lists.newArrayList();
     for (int i = 0; i < 10; i++) {
-      String location = String.format("gs://%s/%s/file-%d.txt", BUCKET, prefix, i);
+      String location = location("delete-files/file-" + i + ".txt");
       locations.add(location);
       storage.create(BlobInfo.newBuilder(BlobId.fromGsUtilUri(location)).build(), new byte[] {1});
     }
@@ -188,17 +146,16 @@ public class TestGcsFileIO {
 
   @Test
   public void deleteFilesIgnoresMissingObjects() {
-    String prefix = "delete-missing";
     List<String> existing = Lists.newArrayList();
     for (int i = 0; i < 3; i++) {
-      String location = String.format("gs://%s/%s/file-%d.txt", BUCKET, prefix, i);
+      String location = location("delete-missing/file-" + i + ".txt");
       existing.add(location);
       storage.create(BlobInfo.newBuilder(BlobId.fromGsUtilUri(location)).build(), new byte[] {1});
     }
 
     List<String> toDelete = Lists.newArrayList(existing);
-    toDelete.add(String.format("gs://%s/%s/missing-1.txt", BUCKET, prefix));
-    toDelete.add(String.format("gs://%s/%s/missing-2.txt", BUCKET, prefix));
+    toDelete.add(location("delete-missing/missing-1.txt"));
+    toDelete.add(location("delete-missing/missing-2.txt"));
 
     // A mix of present and already-gone objects (HTTP 404) must delete cleanly, without a failure.
     assertThatCode(() -> fileIO.deleteFiles(toDelete)).doesNotThrowAnyException();
@@ -210,10 +167,9 @@ public class TestGcsFileIO {
 
   @Test
   public void deleteFilesIsIdempotentOnRetry() {
-    String prefix = "delete-retry";
     List<String> locations = Lists.newArrayList();
     for (int i = 0; i < 5; i++) {
-      String location = String.format("gs://%s/%s/file-%d.txt", BUCKET, prefix, i);
+      String location = location("delete-retry/file-" + i + ".txt");
       locations.add(location);
       storage.create(BlobInfo.newBuilder(BlobId.fromGsUtilUri(location)).build(), new byte[] {1});
     }
@@ -223,15 +179,15 @@ public class TestGcsFileIO {
       assertThat(fileIO.newInputFile(location).exists()).isFalse();
     }
 
-    // Re-issuing the deletes, as a retried cleanup would, must not raise BulkDeletionFailureException.
+    // Re-issuing the deletes, as a retried cleanup would, must not raise
+    // BulkDeletionFailureException.
     assertThatCode(() -> fileIO.deleteFiles(locations)).doesNotThrowAnyException();
   }
 
   @Test
   public void listPrefix() {
-    String prefix = "list-prefix";
-    String dir1 = String.format("gs://%s/%s/d1", BUCKET, prefix);
-    String dir2 = String.format("gs://%s/%s/d2", BUCKET, prefix);
+    String dir1 = location("list-prefix/d1");
+    String dir2 = location("list-prefix/d2");
     storage.create(
         BlobInfo.newBuilder(BlobId.fromGsUtilUri(dir1 + "/f1.txt")).build(), new byte[] {1});
     storage.create(
@@ -239,8 +195,7 @@ public class TestGcsFileIO {
     storage.create(
         BlobInfo.newBuilder(BlobId.fromGsUtilUri(dir2 + "/f3.txt")).build(), new byte[] {1});
 
-    List<FileInfo> files =
-        Lists.newArrayList(fileIO.listPrefix(String.format("gs://%s/%s/", BUCKET, prefix)));
+    List<FileInfo> files = Lists.newArrayList(fileIO.listPrefix(location("list-prefix/")));
     List<String> paths = files.stream().map(FileInfo::location).collect(Collectors.toList());
 
     assertThat(files).hasSize(3);
@@ -249,7 +204,7 @@ public class TestGcsFileIO {
 
   @Test
   public void deletePrefix() {
-    String prefixToDelete = String.format("gs://%s/delete-prefix/", BUCKET);
+    String prefixToDelete = location("delete-prefix/");
     storage.create(
         BlobInfo.newBuilder(BlobId.fromGsUtilUri(prefixToDelete + "f1.txt")).build(),
         new byte[] {1});
@@ -267,7 +222,7 @@ public class TestGcsFileIO {
 
   @Test
   public void readMissingLocation() throws IOException {
-    String location = String.format("gs://%s/path/to/data.parquet", BUCKET);
+    String location = location("path/to/data.parquet");
     InputFile input = fileIO.newInputFile(location);
 
     // Creating an input stream or changing the read position in it are local operations
@@ -279,7 +234,7 @@ public class TestGcsFileIO {
       assertThatThrownBy(in::read)
           .isInstanceOf(NotFoundException.class)
           .hasCauseInstanceOf(IOException.class)
-          .hasMessage("Location does not exist: gs://test-bucket/path/to/data.parquet");
+          .hasMessage("Location does not exist: " + location);
     }
   }
 
@@ -289,26 +244,19 @@ public class TestGcsFileIO {
           + "enable once fixed version available")
   @Test
   public void readMissingLocationGcsAnalyticsCoreEnabled() throws IOException {
-    String location = String.format("gs://%s/path/to/data.parquet", BUCKET);
-    fileIO.initialize(
-        ImmutableMap.of(
-            GCPProperties.GCS_ANALYTICS_CORE_ENABLED,
-            "true",
-            GCPProperties.GCS_NO_AUTH,
-            "true",
-            GCPProperties.GCS_SERVICE_HOST,
-            String.format("http://localhost:%d", GCS_EMULATOR_PORT)));
+    String location = location("path/to/data.parquet");
+    fileIO.initialize(analyticsCoreProperties());
     InputFile in = fileIO.newInputFile(location);
 
     assertThatThrownBy(() -> in.newStream().read())
         .isInstanceOf(NotFoundException.class)
         .hasCauseInstanceOf(IOException.class)
-        .hasMessage("Location does not exist: gs://test-bucket/path/to/data.parquet");
+        .hasMessage("Location does not exist: " + location);
   }
 
   @Test
   public void deleteFile() {
-    String location = String.format("gs://%s/path/to/file.txt", BUCKET);
+    String location = location("path/to/file.txt");
     storage.create(BlobInfo.newBuilder(BlobId.fromGsUtilUri(location)).build(), new byte[] {1});
     InputFile in = fileIO.newInputFile(location);
     assertThat(in.exists()).as("File should exist before delete").isTrue();
