@@ -39,7 +39,6 @@ import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
-import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.vortex.PositionDeleteVortexWriter;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -54,6 +53,7 @@ import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
@@ -190,9 +190,9 @@ public class VortexFormatModel<D, S, R>
     @Override
     public ModelWriteBuilder<D, S> meta(String property, String value) {
       Preconditions.checkArgument(
-          !VortexSchemas.ICEBERG_SCHEMA_KEY.equals(property),
+          !VortexSchemas.NAME_MAPPING_KEY.equals(property),
           "Cannot set reserved file metadata key: %s",
-          VortexSchemas.ICEBERG_SCHEMA_KEY);
+          VortexSchemas.NAME_MAPPING_KEY);
       fileMetadata.put(property, value.getBytes(StandardCharsets.UTF_8));
       return this;
     }
@@ -282,15 +282,16 @@ public class VortexFormatModel<D, S, R>
       NativeWritable outputStream = VortexIO.writable(outputFile.encryptingOutputFile());
       VortexWriter vortexWriter;
       try {
-        // Persist the Iceberg schema in the file's metadata. Vortex drops Arrow field metadata, so
-        // this is the only channel that carries Iceberg field ids, and readers need them to rebind
-        // columns renamed since the file was written.
+        // Persist the schema's name mapping in the file's metadata. Vortex drops Arrow field
+        // metadata, so this is the only channel that carries Iceberg field ids, and readers need
+        // them to rebind columns renamed since the file was written.
         vortexWriter =
             VortexWriter.builder(session, outputStream, vortexSchema, vortexAllocator)
                 .metadata(fileMetadata)
                 .putMetadata(
-                    VortexSchemas.ICEBERG_SCHEMA_KEY,
-                    SchemaParser.toJson(writeSchema).getBytes(StandardCharsets.UTF_8))
+                    VortexSchemas.NAME_MAPPING_KEY,
+                    NameMappingParser.toJson(VortexSchemas.writtenMapping(writeSchema))
+                        .getBytes(StandardCharsets.UTF_8))
                 .build();
       } catch (IOException | RuntimeException e) {
         try {

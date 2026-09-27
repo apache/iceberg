@@ -32,6 +32,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.MappedFields;
+import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -57,17 +58,20 @@ public final class VortexSchemas {
   public static final String MAP_KEY_NAME = "key";
   public static final String MAP_VALUE_NAME = "value";
 
+  // Name mappings name a list's element "element" (see MappingUtil).
+  private static final String LIST_ELEMENT_NAME = "element";
+
   /**
-   * Vortex file-metadata key holding the JSON Iceberg schema the file was written with. Vortex
-   * drops Arrow field and schema metadata, so this file-level channel is the only way to persist
-   * Iceberg field ids.
+   * Vortex file-metadata key holding the JSON name mapping of the schema the file was written with.
+   * Vortex drops Arrow field and schema metadata, so this file-level channel is the only way to
+   * persist Iceberg field ids.
    */
-  public static final String ICEBERG_SCHEMA_KEY = "iceberg.schema";
+  public static final String NAME_MAPPING_KEY = "iceberg.name-mapping";
 
   /**
    * Arrow field-metadata key carrying a field's Iceberg id. Only ever set in memory, by {@link
-   * #withFieldIds}, from the schema stored under {@link #ICEBERG_SCHEMA_KEY}; it is never written
-   * to a file.
+   * #withFieldIds}, from the mapping stored under {@link #NAME_MAPPING_KEY}; it is never written to
+   * a file.
    */
   public static final String FIELD_ID_KEY = "PARQUET:field_id";
 
@@ -149,6 +153,43 @@ public final class VortexSchemas {
   }
 
   /**
+   * Returns the name mapping of the fields a file stores: the mapping of {@code schema} without the
+   * unknown struct fields that {@link #writtenFields} drops.
+   */
+  static NameMapping writtenMapping(Schema schema) {
+    return MappingUtil.create(new Schema(writtenType(schema.asStruct()).asStructType().fields()));
+  }
+
+  private static Type writtenType(Type type) {
+    return switch (type.typeId()) {
+      case STRUCT -> {
+        List<Types.NestedField> fields = Lists.newArrayList();
+        for (Types.NestedField field : writtenFields(type.asStructType().fields())) {
+          fields.add(Types.NestedField.from(field).ofType(writtenType(field.type())).build());
+        }
+
+        yield Types.StructType.of(fields);
+      }
+      case LIST -> {
+        Types.ListType list = type.asListType();
+        Type element = writtenType(list.elementType());
+        yield list.isElementOptional()
+            ? Types.ListType.ofOptional(list.elementId(), element)
+            : Types.ListType.ofRequired(list.elementId(), element);
+      }
+      case MAP -> {
+        Types.MapType map = type.asMapType();
+        Type key = writtenType(map.keyType());
+        Type value = writtenType(map.valueType());
+        yield map.isValueOptional()
+            ? Types.MapType.ofOptional(map.keyId(), map.valueId(), key, value)
+            : Types.MapType.ofRequired(map.keyId(), map.valueId(), key, value);
+      }
+      default -> type;
+    };
+  }
+
+  /**
    * Convert a relocated Vortex Arrow schema to an Arrow Schema suitable for local Arrow vectors.
    */
   public static org.apache.arrow.vector.types.pojo.Schema toArrowSchema(
@@ -204,8 +245,8 @@ public final class VortexSchemas {
       case STRING -> new Field(name, new FieldType(nullable, ArrowType.Utf8.INSTANCE, null), null);
       case BINARY, GEOMETRY, GEOGRAPHY ->
           // Geometry and geography are stored as WKB binary (see the geospatial appendix of the
-          // spec). The Iceberg schema in the file's metadata is what tells them apart from BINARY
-          // on read; a file read without one surfaces them as BINARY.
+          // spec). The expected read schema is what tells them apart from BINARY on read; a file
+          // converted without one surfaces them as BINARY.
           new Field(name, new FieldType(nullable, ArrowType.Binary.INSTANCE, null), null);
       case FIXED -> throw unsupportedFixed(name);
       case DECIMAL -> {
@@ -958,83 +999,8 @@ public final class VortexSchemas {
   }
 
   /**
-   * Returns a copy of {@code arrowSchema} with every field annotated with the Iceberg id it carries
-   * in {@code icebergSchema}, so readers can bind columns by id instead of by name.
-   *
-   * <p>Both schemas describe the same file, so they are walked in parallel: struct children match
-   * by name, and list elements and map keys/values match positionally. A subtree whose names do not
-   * line up is left unannotated and falls back to name-based binding.
-   */
-  public static org.apache.arrow.vector.types.pojo.Schema withFieldIds(
-      org.apache.arrow.vector.types.pojo.Schema arrowSchema, Schema icebergSchema) {
-    return new org.apache.arrow.vector.types.pojo.Schema(
-        withFieldIds(arrowSchema.getFields(), icebergSchema.asStruct()),
-        arrowSchema.getCustomMetadata());
-  }
-
-  private static List<Field> withFieldIds(List<Field> arrowFields, Types.StructType struct) {
-    ImmutableList.Builder<Field> annotated = ImmutableList.builder();
-    for (Field arrowField : arrowFields) {
-      Types.NestedField icebergField = struct.field(arrowField.getName());
-      annotated.add(
-          icebergField == null
-              ? arrowField
-              : withFieldId(arrowField, icebergField.fieldId(), icebergField.type()));
-    }
-
-    return annotated.build();
-  }
-
-  private static Field withFieldId(Field arrowField, int fieldId, Type icebergType) {
-    Map<String, String> metadata =
-        ImmutableMap.<String, String>builder()
-            .putAll(arrowField.getMetadata())
-            .put(FIELD_ID_KEY, String.valueOf(fieldId))
-            .buildKeepingLast();
-
-    return new Field(
-        arrowField.getName(),
-        new FieldType(
-            arrowField.isNullable(), arrowField.getType(), arrowField.getDictionary(), metadata),
-        annotatedChildren(arrowField, icebergType));
-  }
-
-  // Variant storage is an Iceberg-level encoding rather than nested Iceberg fields, so its Arrow
-  // children carry no ids and are left alone.
-  private static List<Field> annotatedChildren(Field arrowField, Type icebergType) {
-    List<Field> children = arrowField.getChildren();
-    if (children.isEmpty() || !icebergType.isNestedType()) {
-      return children;
-    }
-
-    if (icebergType.isStructType()) {
-      return withFieldIds(children, icebergType.asStructType());
-    }
-
-    if (icebergType.isListType()) {
-      Types.ListType list = icebergType.asListType();
-      return ImmutableList.of(withFieldId(children.get(0), list.elementId(), list.elementType()));
-    }
-
-    Types.MapType map = icebergType.asMapType();
-    List<Field> entries = children.get(0).getChildren();
-    if (entries.size() != 2) {
-      return children;
-    }
-
-    Field annotatedEntries =
-        new Field(
-            children.get(0).getName(),
-            children.get(0).getFieldType(),
-            ImmutableList.of(
-                withFieldId(entries.get(0), map.keyId(), map.keyType()),
-                withFieldId(entries.get(1), map.valueId(), map.valueType())));
-    return ImmutableList.of(annotatedEntries);
-  }
-
-  /**
    * Returns a copy of {@code arrowSchema} with every field annotated with the Iceberg id the {@code
-   * mapping} gives it, for files that do not carry an Iceberg schema of their own.
+   * mapping} gives it, so readers can bind columns by id instead of by name.
    *
    * <p>Fields the mapping does not name are left unannotated, along with everything below them, and
    * fall back to name-based binding.
@@ -1060,7 +1026,11 @@ public final class VortexSchemas {
   }
 
   private static Field withMappedId(Field arrowField, MappedFields mapping) {
-    Integer id = mapping.id(arrowField.getName());
+    return withMappedId(arrowField, mapping, arrowField.getName());
+  }
+
+  private static Field withMappedId(Field arrowField, MappedFields mapping, String mappedName) {
+    Integer id = mapping.id(mappedName);
     if (id == null) {
       return arrowField;
     }
@@ -1080,9 +1050,9 @@ public final class VortexSchemas {
   }
 
   /**
-   * Name mappings name list elements {@code element} and map entries {@code key} and {@code value},
-   * matching the Arrow child names, except that Arrow nests a map's key and value one level deeper
-   * inside its {@code entries} struct.
+   * Name mappings name list elements {@code element} and map entries {@code key} and {@code value}.
+   * Arrow nests a map's key and value one level deeper inside its {@code entries} struct, and
+   * Vortex reads list elements back as {@code item}, so a list's only child is bound by position.
    */
   private static List<Field> mappedChildren(Field arrowField, MappedFields nested) {
     List<Field> children = arrowField.getChildren();
@@ -1101,6 +1071,10 @@ public final class VortexSchemas {
               entries.getName(),
               entries.getFieldType(),
               withMappedIds(entries.getChildren(), nested)));
+    }
+
+    if (arrowField.getType() instanceof ArrowType.List) {
+      return ImmutableList.of(withMappedId(children.get(0), nested, LIST_ELEMENT_NAME));
     }
 
     return withMappedIds(children, nested);
@@ -1161,7 +1135,7 @@ public final class VortexSchemas {
         return matched;
       }
 
-      // Fields the file's Iceberg schema does not describe carry no id, so they can only be matched
+      // Fields the file's name mapping does not describe carry no id, so they can only be matched
       // by name: the synthetic _pos column the scan materializes, and any subtree withFieldIds
       // could not annotate. An id-carrying field is never matched by name, so a column added under
       // a name that used to belong to another column reads as missing rather than as that column.

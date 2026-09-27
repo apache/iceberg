@@ -31,8 +31,8 @@ public class VortexFiles {
   /**
    * Reads the key/value metadata stored in a Vortex file.
    *
-   * <p>This is the channel Iceberg uses to persist the writer's schema (under {@link
-   * VortexSchemas#ICEBERG_SCHEMA_KEY}, so that readers can rebind renamed columns by field id) as
+   * <p>This is the channel Iceberg uses to persist the writer's name mapping (under {@link
+   * VortexSchemas#NAME_MAPPING_KEY}, so that readers can rebind renamed columns by field id) as
    * well as any user metadata set through the write builder's {@code meta} methods.
    *
    * @param inputFile the Vortex file to read

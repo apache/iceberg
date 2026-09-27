@@ -43,13 +43,13 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -159,14 +159,13 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     org.apache.arrow.vector.types.pojo.Schema fileArrowSchema =
         VortexSchemas.toArrowSchema(vortexArrowSchema);
 
-    // A file whose writer stored an Iceberg schema in Vortex file metadata carries field ids: tag
-    // the Arrow fields with them so readers bind columns by id. A file that stores no schema is
-    // exactly the case a name mapping exists for; without either, binding falls back to by name.
-    Schema fileIcebergSchema = readIcebergSchema(session, readable);
-    if (fileIcebergSchema != null) {
-      fileArrowSchema = VortexSchemas.withFieldIds(fileArrowSchema, fileIcebergSchema);
-    } else if (nameMapping != null) {
-      fileArrowSchema = VortexSchemas.withFieldIds(fileArrowSchema, nameMapping);
+    // A file whose writer stored a name mapping in Vortex file metadata carries field ids: tag the
+    // Arrow fields with them so readers bind columns by id. A file that stores none falls back to
+    // the table's name mapping; without either, binding falls back to by name.
+    NameMapping fileMapping = readNameMapping(session, readable);
+    NameMapping mapping = fileMapping != null ? fileMapping : nameMapping;
+    if (mapping != null) {
+      fileArrowSchema = VortexSchemas.withFieldIds(fileArrowSchema, mapping);
     }
 
     Optional<dev.vortex.api.Expression> scanFilter =
@@ -265,14 +264,14 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
   }
 
   /**
-   * Reads the Iceberg schema the file was written with from Vortex file metadata, or returns null
+   * Reads the name mapping the file was written with from Vortex file metadata, or returns null
    * when the file carries none. A file that has no entry is not an error, and neither is one whose
    * entry will not parse: both fall back to binding by name rather than failing the scan.
    */
-  private Schema readIcebergSchema(Session session, NativeReadable readable) {
+  private NameMapping readNameMapping(Session session, NativeReadable readable) {
     byte[] json;
     try {
-      json = NativeFiles.readMetadata(session, readable).get(VortexSchemas.ICEBERG_SCHEMA_KEY);
+      json = NativeFiles.readMetadata(session, readable).get(VortexSchemas.NAME_MAPPING_KEY);
     } catch (RuntimeException e) {
       LOG.warn("Failed to read Vortex file metadata for {}", inputFile.location(), e);
       return null;
@@ -283,9 +282,9 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
     }
 
     try {
-      return SchemaParser.fromJson(new String(json, StandardCharsets.UTF_8));
+      return NameMappingParser.fromJson(new String(json, StandardCharsets.UTF_8));
     } catch (RuntimeException e) {
-      LOG.warn("Ignoring unreadable Iceberg schema in {}", inputFile.location(), e);
+      LOG.warn("Ignoring unreadable name mapping in {}", inputFile.location(), e);
       return null;
     }
   }

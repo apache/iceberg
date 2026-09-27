@@ -35,7 +35,6 @@ import java.util.Map;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.vortex.GenericVortexReader;
@@ -48,6 +47,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
@@ -55,9 +55,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Covers the Iceberg schema Vortex files carry in their file metadata, and the id-based column
- * binding it enables: that the schema is written, that a renamed column is bound through it, that
- * an id the file does not have is not bound by name instead, and that a file carrying no schema
+ * Covers the name mapping Vortex files carry in their file metadata, and the id-based column
+ * binding it enables: that the mapping is written, that a renamed column is bound through it, that
+ * an id the file does not have is not bound by name instead, and that a file carrying no mapping
  * falls back to binding by name.
  */
 public class TestVortexSchemaMetadata {
@@ -80,17 +80,50 @@ public class TestVortexSchemaMetadata {
   @TempDir private Path temp;
 
   @Test
-  public void testWrittenFileCarriesTheIcebergSchema() throws IOException {
+  public void testWrittenFileCarriesTheNameMapping() throws IOException {
     InputFile file = write(SCHEMA, record(SCHEMA));
 
     Map<String, byte[]> metadata =
         NativeFiles.readMetadata(VortexSessions.shared(), readable(file));
-    assertThat(metadata).containsKey(VortexSchemas.ICEBERG_SCHEMA_KEY);
+    assertThat(metadata).containsKey(VortexSchemas.NAME_MAPPING_KEY);
 
-    Schema stored =
-        SchemaParser.fromJson(
-            new String(metadata.get(VortexSchemas.ICEBERG_SCHEMA_KEY), StandardCharsets.UTF_8));
-    assertThat(stored.asStruct()).isEqualTo(SCHEMA.asStruct());
+    NameMapping stored =
+        NameMappingParser.fromJson(
+            new String(metadata.get(VortexSchemas.NAME_MAPPING_KEY), StandardCharsets.UTF_8));
+    assertThat(stored.asMappedFields()).isEqualTo(MappingUtil.create(SCHEMA).asMappedFields());
+  }
+
+  @Test
+  public void testNameMappingOmitsUnknownColumns() throws IOException {
+    // Unknown struct members are not stored, so the mapping leaves them out. An unknown list
+    // element is stored as a null column and stays mapped.
+    Schema withUnknown =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "u", Types.UnknownType.get()),
+            optional(
+                3,
+                "s",
+                Types.StructType.of(
+                    optional(4, "kept", Types.IntegerType.get()),
+                    optional(5, "dropped", Types.UnknownType.get()))),
+            optional(6, "l", Types.ListType.ofOptional(7, Types.UnknownType.get())));
+    Schema written =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(3, "s", Types.StructType.of(optional(4, "kept", Types.IntegerType.get()))),
+            optional(6, "l", Types.ListType.ofOptional(7, Types.UnknownType.get())));
+
+    Record record = GenericRecord.create(withUnknown);
+    record.setField("id", 1L);
+    InputFile file = write(withUnknown, record);
+
+    Map<String, byte[]> metadata =
+        NativeFiles.readMetadata(VortexSessions.shared(), readable(file));
+    NameMapping stored =
+        NameMappingParser.fromJson(
+            new String(metadata.get(VortexSchemas.NAME_MAPPING_KEY), StandardCharsets.UTF_8));
+    assertThat(stored.asMappedFields()).isEqualTo(MappingUtil.create(written).asMappedFields());
   }
 
   @Test
@@ -144,9 +177,9 @@ public class TestVortexSchemaMetadata {
   }
 
   @Test
-  public void testFileWithoutAnIcebergSchemaStillBindsByName() throws IOException {
+  public void testFileWithoutANameMappingStillBindsByName() throws IOException {
     // Written straight through the Vortex writer with no metadata, standing in for a file whose
-    // producer stores no Iceberg schema.
+    // producer stores no name mapping.
     Schema flat =
         new Schema(
             required(1, "id", Types.LongType.get()), optional(2, "data", Types.StringType.get()));
@@ -154,7 +187,7 @@ public class TestVortexSchemaMetadata {
 
     Map<String, byte[]> metadata =
         NativeFiles.readMetadata(VortexSessions.shared(), readable(file));
-    assertThat(metadata).doesNotContainKey(VortexSchemas.ICEBERG_SCHEMA_KEY);
+    assertThat(metadata).doesNotContainKey(VortexSchemas.NAME_MAPPING_KEY);
 
     // Matching names still resolve...
     Record read = readOne(file, flat);
@@ -170,7 +203,7 @@ public class TestVortexSchemaMetadata {
   }
 
   @Test
-  public void testNameMappingSuppliesFieldIdsForAFileWithoutASchema() throws IOException {
+  public void testNameMappingSuppliesFieldIdsForAFileWithoutAMapping() throws IOException {
     Schema flat =
         new Schema(
             required(1, "id", Types.LongType.get()), optional(2, "data", Types.StringType.get()));
@@ -189,10 +222,10 @@ public class TestVortexSchemaMetadata {
   }
 
   @Test
-  public void testStoredSchemaWinsOverNameMapping() throws IOException {
+  public void testStoredMappingWinsOverNameMapping() throws IOException {
     InputFile file = write(SCHEMA, record(SCHEMA));
 
-    // A mapping that points the file's own names at unrelated ids must not displace the schema the
+    // A mapping that points the file's own names at unrelated ids must not displace the mapping the
     // file carries.
     NameMapping mapping = NameMapping.of(MappedField.of(999, "id"), MappedField.of(998, "data"));
     Record read = readOne(file, SCHEMA, mapping);
@@ -230,7 +263,7 @@ public class TestVortexSchemaMetadata {
     return outputFile.toInputFile();
   }
 
-  /** Writes a single row with the raw Vortex writer, so the file carries no Iceberg schema. */
+  /** Writes a single row with the raw Vortex writer, so the file carries no name mapping. */
   private InputFile writeWithoutMetadata(Schema schema) throws IOException {
     OutputFile outputFile =
         Files.localOutput(temp.resolve("bare-" + System.nanoTime() + ".vortex").toFile());
