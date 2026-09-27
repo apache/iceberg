@@ -58,7 +58,7 @@ A catalog is created and named by adding a property `spark.sql.catalog.(catalog-
 
 Iceberg supplies two implementations:
 
-* `org.apache.iceberg.spark.SparkCatalog` supports a Hive Metastore or a Hadoop warehouse as a catalog
+* `org.apache.iceberg.spark.SparkCatalog` supports Hive, Hadoop, REST, Glue, JDBC, and Nessie catalogs
 * `org.apache.iceberg.spark.SparkSessionCatalog` adds support for Iceberg tables to Spark's built-in catalog, and delegates to the built-in catalog for non-Iceberg tables
 
 Both catalogs are configured using properties nested under the catalog name. Common configuration properties for Hive and Hadoop are:
@@ -206,7 +206,8 @@ val spark = SparkSession.builder()
 | spark.sql.iceberg.executor-cache.max-entry-size        | 67108864 (64MB)                                                | Max size per cache entry (bytes)                                                                                                |
 | spark.sql.iceberg.executor-cache.max-total-size        | 134217728 (128MB)                                              | Max total executor cache size (bytes)                                                                                           |
 | spark.sql.iceberg.executor-cache.locality.enabled      | false                                                          | Enables locality-aware executor cache usage                                                                                     |
-| spark.sql.iceberg.merge-schema                         | false                                                          | Enables modifying the table schema to match the write schema. Only adds columns missing columns                                 |
+| spark.sql.iceberg.merge-schema                         | false                                                          | Enables modifying the table schema to match the write schema. Only adds missing columns                                         |
+| spark.sql.iceberg.view.schema-binding-mode             | BINDING                                                        | Coercion applied to view columns: `BINDING` (widening only), `COMPENSATION` (any ANSI cast)                                     |
 | spark.sql.iceberg.report-column-stats                  | true                                                           | Report Puffin Table Statistics if available to Spark's Cost Based Optimizer. CBO must be enabled for this to be effective       |
 | spark.sql.iceberg.read.adaptive-split-size.enabled     | Table default                                                  | Enables adaptive split sizing for read operations. When enabled, split size is automatically adjusted based on scan size and parallelism |
 | spark.sql.iceberg.read.adaptive-split-size.parallelism | max(spark.default.parallelism, spark.sql.shuffle.partitions)                                    | Overrides the parallelism used for adaptive split sizing. Must be greater than 0                                                |

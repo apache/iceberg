@@ -36,6 +36,7 @@ import org.apache.avro.util.Utf8;
 import org.apache.iceberg.DoubleFieldMetrics;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FloatFieldMetrics;
+import org.apache.iceberg.GeometryFieldMetrics;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.ValueSizeFieldMetrics;
 import org.apache.iceberg.deletes.PositionDelete;
@@ -123,6 +124,11 @@ public class ParquetValueWriters {
 
   public static PrimitiveWriter<ByteBuffer> geospatial(ColumnDescriptor desc) {
     return new GeospatialWriter(desc);
+  }
+
+  public static PrimitiveWriter<ByteBuffer> geometry(
+      ColumnDescriptor desc, org.apache.iceberg.types.Type geometryType) {
+    return new GeometryWriter(desc, geometryType);
   }
 
   public static PrimitiveWriter<ByteBuffer> fixedBuffers(ColumnDescriptor desc) {
@@ -362,6 +368,30 @@ public class ParquetValueWriters {
     }
   }
 
+  private static class GeometryWriter extends PrimitiveWriter<ByteBuffer> {
+    private final GeometryFieldMetrics.Builder metricsBuilder;
+
+    private GeometryWriter(ColumnDescriptor desc, org.apache.iceberg.types.Type geometryType) {
+      super(desc);
+      this.metricsBuilder =
+          new GeometryFieldMetrics.Builder(
+              desc.getPrimitiveType().getId().intValue(), geometryType);
+    }
+
+    @Override
+    public void write(int repetitionLevel, ByteBuffer buffer) {
+      // Accumulate the bounding box before writing, so it reads the buffer's coordinates while the
+      // position is intact (the scanner reads a duplicate and leaves this buffer untouched).
+      metricsBuilder.addValue(buffer);
+      column.writeBinary(repetitionLevel, Binary.fromReusedByteBuffer(buffer));
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return Stream.of(metricsBuilder.build());
+    }
+  }
+
   private static class FixedBufferWriter extends PrimitiveWriter<ByteBuffer> {
     private final int length;
 
@@ -467,36 +497,32 @@ public class ParquetValueWriters {
     @Override
     public Stream<FieldMetrics<?>> metrics() {
       if (writer instanceof PrimitiveWriter) {
-        List<FieldMetrics<?>> fieldMetricsFromWriter =
-            writer.metrics().collect(Collectors.toList());
-
-        if (fieldMetricsFromWriter.isEmpty()) {
-          // we are not tracking field metrics for this type ourselves
-          return Stream.empty();
-        } else if (fieldMetricsFromWriter.size() == 1) {
-          FieldMetrics<?> metrics = fieldMetricsFromWriter.get(0);
-          return Stream.of(
-              new FieldMetrics<>(
-                  metrics.id(),
-                  metrics.valueCount() + nullValueCount,
-                  nullValueCount,
-                  metrics.nanValueCount(),
-                  metrics.lowerBound(),
-                  metrics.upperBound(),
-                  metrics.originalType(),
-                  metrics.avgValueSizeInBytes()));
-        } else {
-          throw new IllegalStateException(
-              String.format(
-                  "OptionWriter should only expect at most one field metric from a primitive writer."
-                      + "Current number of fields: %s, primitive writer type: %s",
-                  fieldMetricsFromWriter.size(), writer.getClass().getSimpleName()));
-        }
+        List<FieldMetrics<?>> primitiveMetrics = writer.metrics().collect(Collectors.toList());
+        Preconditions.checkState(
+            primitiveMetrics.size() <= 1,
+            "Invalid number of field metrics from primitive writer %s: %s",
+            writer.getClass().getSimpleName(),
+            primitiveMetrics.size());
+        return primitiveMetrics.stream().map(this::addNulls);
       }
 
-      // skipping updating null stats for non-primitive types since we don't use them today, to
-      // avoid unnecessary work
-      return writer.metrics();
+      return writer.metrics().map(this::addNulls);
+    }
+
+    private FieldMetrics<?> addNulls(FieldMetrics<?> metrics) {
+      long updatedNullValueCount =
+          metrics.nullValueCount() < 0
+              ? metrics.nullValueCount()
+              : metrics.nullValueCount() + nullValueCount;
+      return new FieldMetrics<>(
+          metrics.id(),
+          metrics.valueCount() + nullValueCount,
+          updatedNullValueCount,
+          metrics.nanValueCount(),
+          metrics.lowerBound(),
+          metrics.upperBound(),
+          metrics.originalType(),
+          metrics.avgValueSizeInBytes());
     }
   }
 
@@ -551,6 +577,15 @@ public class ParquetValueWriters {
       writer.setColumnStore(columnStore);
     }
 
+    /**
+     * Returns an iterator over the elements of a value.
+     *
+     * <p>The iterator is fully consumed before {@code write} returns and is never retained, so
+     * implementations may return a reused iterator instance.
+     *
+     * @param value a value to write
+     * @return an iterator over the value's elements
+     */
     protected abstract Iterator<E> elements(L value);
 
     @Override
@@ -632,6 +667,17 @@ public class ParquetValueWriters {
       valueWriter.setColumnStore(columnStore);
     }
 
+    /**
+     * Returns an iterator over the key-value pairs of a value.
+     *
+     * <p>The iterator is fully consumed before {@code write} returns and is never retained, so
+     * implementations may return a reused iterator instance. The entries it produces are passed to
+     * the key and value writers before the next entry is requested, so implementations may also
+     * return a reused entry instance.
+     *
+     * @param value a value to write
+     * @return an iterator over the value's key-value pairs
+     */
     protected abstract Iterator<Map.Entry<K, V>> pairs(M value);
 
     @Override
@@ -729,8 +775,6 @@ public class ParquetValueWriters {
           return pathTransformFunc.apply(delete.path());
         case 1:
           return delete.pos();
-        case 2:
-          return delete.row();
       }
       throw new IllegalArgumentException("Cannot get value for invalid index: " + index);
     }

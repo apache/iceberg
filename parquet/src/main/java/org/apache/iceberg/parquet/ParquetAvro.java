@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.variants.Variant;
 
 class ParquetAvro {
 
@@ -220,6 +221,9 @@ class ParquetAvro {
             }
           } else if ("uuid".equals(logicalType.getName())) {
             return (Conversion<T>) uuidConversion;
+          } else if ("variant".equals(logicalType.getName())
+              && Variant.class.isAssignableFrom(datumClass)) {
+            return (Conversion<T>) variantConversion;
           }
           return super.getConversionByClass(datumClass, logicalType);
         }

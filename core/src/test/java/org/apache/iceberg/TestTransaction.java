@@ -28,6 +28,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -39,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
@@ -321,6 +325,68 @@ public class TestTransaction extends TestBase {
 
     assertThat(Sets.newHashSet(table.currentSnapshot().allManifests(table.io())))
         .isEqualTo(appendManifests);
+  }
+
+  @TestTemplate
+  public void testTransactionRetryCleansUpWhenCatalogReturnsStaleMetadata() throws IOException {
+    File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    String tableName = "txnStaleMetadataCleanupTest";
+    // fail the first two commits, each after a concurrent metadata update, so the transaction
+    // re-applies twice and writes a new manifest list each time. after the successful commit,
+    // serve stale metadata from current() to simulate a catalog that caches table pointers.
+    AtomicInteger injectedFailures = new AtomicInteger(0);
+    AtomicBoolean captureStaleMetadata = new AtomicBoolean(false);
+    AtomicReference<TableMetadata> staleMetadata = new AtomicReference<>(null);
+    TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations(tableName, location, spyFileIO) {
+          @Override
+          public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+            if (injectedFailures.getAndDecrement() > 0) {
+              TestTables.load(location, tableName)
+                  .updateProperties()
+                  .set("conflict-" + injectedFailures.get(), "true")
+                  .commit();
+              throw new CommitFailedException("Injected failure");
+            }
+            super.commit(base, updatedMetadata);
+            if (captureStaleMetadata.get()) {
+              staleMetadata.compareAndSet(null, base);
+            }
+          }
+
+          @Override
+          public TableMetadata current() {
+            if (staleMetadata.get() != null) {
+              return staleMetadata.get();
+            }
+            return super.current();
+          }
+        };
+    TestTables.TestTable txnTable =
+        TestTables.create(
+            location, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
+
+    txnTable.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "3").commit();
+
+    Transaction txn = txnTable.newTransaction();
+    txn.newFastAppend().appendFile(FILE_A).commit();
+
+    injectedFailures.set(2);
+    captureStaleMetadata.set(true);
+    txn.commitTransaction();
+
+    // clean-up must run off the transaction's committed metadata, not the stale catalog state
+    ArgumentCaptor<String> deletedPaths = ArgumentCaptor.forClass(String.class);
+    Mockito.verify(spyFileIO, Mockito.atLeastOnce()).deleteFile(deletedPaths.capture());
+    List<String> deletedManifestLists =
+        deletedPaths.getAllValues().stream()
+            .filter(path -> path.contains("snap-"))
+            .collect(Collectors.toList());
+    assertThat(deletedManifestLists).hasSize(2).doesNotHaveDuplicates();
+    assertThat(deletedManifestLists)
+        .doesNotContain(
+            TestTables.load(location, tableName).currentSnapshot().manifestListLocation());
   }
 
   @TestTemplate

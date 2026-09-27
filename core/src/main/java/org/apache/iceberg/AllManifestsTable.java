@@ -123,12 +123,14 @@ public class AllManifestsTable extends BaseMetadataTable {
       FileIO io = table().io();
       Map<Integer, PartitionSpec> specs = Maps.newHashMap(table().specs());
       Schema dataTableSchema = table().schema();
-      Expression filter = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : filter();
+      Expression rowFilter = filter();
 
       SnapshotEvaluator snapshotEvaluator =
-          new SnapshotEvaluator(filter, MANIFEST_FILE_SCHEMA.asStruct(), isCaseSensitive());
+          new SnapshotEvaluator(rowFilter, MANIFEST_FILE_SCHEMA.asStruct(), isCaseSensitive());
       Iterable<Snapshot> filteredSnapshots =
           Iterables.filter(table().snapshots(), snapshotEvaluator::eval);
+
+      Expression residual = shouldIgnoreResiduals() ? Expressions.alwaysTrue() : rowFilter;
 
       return CloseableIterable.withNoopClose(
           Iterables.transform(
@@ -141,7 +143,7 @@ public class AllManifestsTable extends BaseMetadataTable {
                       schema(),
                       specs,
                       new BaseManifestListFile(snap.manifestListLocation(), snap.keyId()),
-                      filter,
+                      residual,
                       snap.snapshotId());
                 } else {
                   return StaticDataTask.of(
