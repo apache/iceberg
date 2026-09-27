@@ -169,7 +169,7 @@ interface DataConverter {
     @Override
     public RowData convert(Object object) {
       RowData sourceData = (RowData) object;
-      GenericRowData targetData = new GenericRowData(fieldGetters.length);
+      GenericRowData targetData = new GenericRowData(sourceData.getRowKind(), fieldGetters.length);
       for (int i = 0; i < fieldGetters.length; i++) {
         Object value = fieldGetters[i].getFieldOrNull(sourceData);
         targetData.setField(i, dataConverters[i].convert(value));

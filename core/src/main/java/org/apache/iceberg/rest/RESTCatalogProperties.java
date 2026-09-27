@@ -32,6 +32,9 @@ public final class RESTCatalogProperties {
   public static final SnapshotMode SNAPSHOT_LOADING_MODE_DEFAULT = SnapshotMode.ALL;
   public static final String SNAPSHOTS_QUERY_PARAMETER = "snapshots";
 
+  public static final String REFERENCED_BY_QUERY_PARAMETER = "referenced-by";
+  public static final String PLAN_ID_QUERY_PARAMETER = "planId";
+
   public static final String METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   public static final boolean METRICS_REPORTING_ENABLED_DEFAULT = true;
 
@@ -52,6 +55,8 @@ public final class RESTCatalogProperties {
   public static final ScanPlanningMode SCAN_PLANNING_MODE_DEFAULT = ScanPlanningMode.CLIENT;
 
   public static final String REST_SCAN_PLAN_ID = "rest-scan-plan-id";
+
+  public static final String REST_REFERENCED_BY = "rest-referenced-by";
 
   public static final String REST_SCAN_PLANNING_POLL_TIMEOUT_MS =
       "rest-scan-planning.poll-timeout-ms";

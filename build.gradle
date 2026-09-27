@@ -540,7 +540,7 @@ project(':iceberg-aws') {
     compileOnly(platform(libs.awssdk.bom))
     compileOnly(libs.awssdk.s3accessgrants)
     compileOnly("software.amazon.awssdk:url-connection-client")
-    compileOnly("software.amazon.awssdk:apache-client")
+    compileOnly("software.amazon.awssdk:apache5-client")
     compileOnly("software.amazon.awssdk:auth")
     compileOnly("software.amazon.awssdk:http-auth-aws-crt")
     compileOnly("software.amazon.awssdk:s3")
@@ -570,7 +570,6 @@ project(':iceberg-aws') {
     testImplementation libs.sqlite.jdbc
     testImplementation libs.testcontainers
     testImplementation libs.testcontainers.junit.jupiter
-    testImplementation libs.testcontainers.minio
     testImplementation libs.httpcomponents.httpclient5
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
