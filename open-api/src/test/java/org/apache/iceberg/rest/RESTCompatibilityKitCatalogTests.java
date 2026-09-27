@@ -109,6 +109,12 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
     return false;
   }
 
+  @Override
+  protected boolean supportsVariant() {
+    return PropertyUtil.propertyAsBoolean(
+        restCatalog.properties(), RESTCompatibilityKitSuite.RCK_SUPPORTS_VARIANT, false);
+  }
+
   @Disabled("RESTServerExtension isn’t configurable per test")
   @Test
   public void createTableInUniqueLocation() {

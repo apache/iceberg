@@ -17,14 +17,17 @@
 #
 # Trivy ignore file for the Kafka Connect runtime distribution.
 #
-# The Kafka Connect runtime's own jackson-databind is already aligned to the
-# project version (2.22.x). The remaining finding comes from parquet-jackson,
-# which ships its own shaded copy of jackson-databind (relocated under
-# shaded.parquet.*). That copy cannot be upgraded independently of Apache
-# Parquet, and 1.17.1 still bundles a vulnerable version.
+# The Kafka Connect runtime's own jackson-core / jackson-databind are already
+# aligned to the project version (2.22.x). The remaining findings come from
+# parquet-jackson, which ships its own shaded copy of jackson-core /
+# jackson-databind (relocated under shaded.parquet.*). That copy cannot be
+# upgraded independently of Apache Parquet, and 1.17.1 still bundles
+# vulnerable versions.
 #
 # jackson-databind CVEs shaded into parquet-jackson, only fixed in jackson
 # >= 2.21.4 / 2.18.8.
 CVE-2026-54512
 CVE-2026-54513
+# jackson-core CVE shaded into parquet-jackson, only fixed in jackson
+# >= 2.18.8 / 2.21.4 / 2.22.1.
 GHSA-r7wm-3cxj-wff9

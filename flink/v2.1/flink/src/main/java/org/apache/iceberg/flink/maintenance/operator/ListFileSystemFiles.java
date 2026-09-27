@@ -101,7 +101,7 @@ public class ListFileSystemFiles extends ProcessFunction<Trigger, String> {
         Predicate<FileInfo> predicate = fileInfo -> fileInfo.createdAtMillis() < olderThanTimestamp;
         Preconditions.checkArgument(
             io instanceof SupportsPrefixOperations,
-            "Cannot use prefix listing with FileIO {} which does not support prefix operations.",
+            "Cannot use prefix listing with FileIO %s which does not support prefix operations.",
             io);
 
         FileSystemWalker.listDirRecursivelyWithFileIO(

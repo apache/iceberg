@@ -28,6 +28,7 @@ import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -50,6 +51,9 @@ class TableSerializerCache implements Serializable {
 
   private final CatalogLoader catalogLoader;
   private final int maximumSize;
+
+  // Intentionally not closed; the catalog is reused for the serializer's lifetime.
+  private transient Catalog catalog;
   private transient Map<String, SerializerInfo> serializers;
 
   TableSerializerCache(CatalogLoader catalogLoader, int maximumSize) {
@@ -120,7 +124,11 @@ class TableSerializerCache implements Serializable {
     }
 
     private void update() {
-      Table table = catalogLoader.loadCatalog().loadTable(TableIdentifier.parse(tableName));
+      if (catalog == null) {
+        catalog = catalogLoader.loadCatalog();
+      }
+
+      Table table = catalog.loadTable(TableIdentifier.parse(tableName));
       schemas = table.schemas();
       specs = table.specs();
     }

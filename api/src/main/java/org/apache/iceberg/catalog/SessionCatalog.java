@@ -223,6 +223,21 @@ public interface SessionCatalog {
   Table loadTable(SessionContext context, TableIdentifier ident);
 
   /**
+   * Load a table, passing the context it is being loaded with.
+   *
+   * <p>The default implementation ignores the context.
+   *
+   * @param context session context
+   * @param ident a table identifier
+   * @param loadContext context for this load
+   * @return instance of {@link Table} implementation referred by {@code ident}
+   * @throws NoSuchTableException if the table does not exist
+   */
+  default Table loadTable(SessionContext context, TableIdentifier ident, LoadContext loadContext) {
+    return loadTable(context, ident);
+  }
+
+  /**
    * Drop a table, without requesting that files are immediately deleted.
    *
    * <p>Data and metadata files should be deleted according to the catalog's policy.
@@ -363,6 +378,7 @@ public interface SessionCatalog {
    * @param namespace a {@link Namespace namespace}
    * @param updates properties to set for the namespace
    * @param removals properties to remove from the namespace
+   * @return true if the namespace metadata was successfully updated, false otherwise
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    * @throws UnsupportedOperationException If namespace properties are not supported
    */

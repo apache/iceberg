@@ -48,7 +48,14 @@ public class RowDataWrapper implements StructLike {
 
     for (int i = 0; i < size; i++) {
       types[i] = rowType.getTypeAt(i);
-      getters[i] = buildGetter(types[i], struct.fields().get(i).type());
+      PositionalGetter<?> getter = buildGetter(types[i], struct.fields().get(i).type());
+      if (getter == null) {
+        // Pre-build the Flink field getter once instead of recreating it on every access.
+        RowData.FieldGetter fieldGetter = FlinkRowData.createFieldGetter(types[i], i);
+        getter = (row, pos) -> fieldGetter.getFieldOrNull(row);
+      }
+
+      getters[i] = getter;
     }
   }
 
@@ -66,12 +73,9 @@ public class RowDataWrapper implements StructLike {
   public <T> T get(int pos, Class<T> javaClass) {
     if (rowData.isNullAt(pos)) {
       return null;
-    } else if (getters[pos] != null) {
-      return javaClass.cast(getters[pos].get(rowData, pos));
     }
 
-    Object value = FlinkRowData.createFieldGetter(types[pos], pos).getFieldOrNull(rowData);
-    return javaClass.cast(value);
+    return javaClass.cast(getters[pos].get(rowData, pos));
   }
 
   @Override

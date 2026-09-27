@@ -42,8 +42,13 @@ underscores become dashes (`-`). Names are lowercased.
 | `CATALOG_IO__IMPL` | `io-impl` |
 | `CATALOG_JDBC_USER` | `jdbc.user` |
 
-If `catalog-impl` and `uri` are unset, the fixture defaults to an in-memory
-SQLite `JdbcCatalog`.
+If `catalog-impl` and `uri` are unset, the fixture defaults to a SQLite
+`JdbcCatalog` at `/tmp/iceberg_catalog.db` opened in WAL mode
+(`jdbc:sqlite:/tmp/iceberg_catalog.db?journal_mode=WAL`), so concurrent
+clients don't fail with `SQLITE_BUSY`.
+
+Keep the `?journal_mode=WAL` suffix if you override `CATALOG_URI` with another
+SQLite path.
 
 ### Catalog name
 
