@@ -28,6 +28,8 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public abstract class TestByteBufferInputStreams {
 
@@ -332,6 +334,33 @@ public abstract class TestByteBufferInputStreams {
         .isEqualTo(length);
 
     assertThat(stream.skip(10)).as("Should return -1 when at end").isEqualTo(-1);
+  }
+
+  @ParameterizedTest
+  @ValueSource(longs = {-1, -10, Long.MIN_VALUE + 1})
+  public void negativeSkipDoesNotChangePosition(long count) throws Exception {
+    ByteBufferInputStream stream = newStream();
+
+    assertThat(stream.skip(count)).isZero();
+    assertThat(stream.getPos()).isZero();
+    assertThat(stream.read()).isZero();
+
+    long position = stream.getPos();
+    assertThat(stream.skip(count)).isZero();
+    assertThat(stream.getPos()).isEqualTo(position);
+    assertThat(stream.read()).isEqualTo((int) position);
+  }
+
+  @ParameterizedTest
+  @ValueSource(longs = {-1, -10, Long.MIN_VALUE + 1})
+  public void negativeSkipAtEndDoesNotChangePosition(long count) throws Exception {
+    ByteBufferInputStream stream = newStream();
+    stream.skipFully(stream.available());
+    long position = stream.getPos();
+
+    assertThat(stream.skip(count)).isZero();
+    assertThat(stream.getPos()).isEqualTo(position);
+    assertThat(stream.read()).isEqualTo(-1);
   }
 
   @Test
