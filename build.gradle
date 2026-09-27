@@ -826,6 +826,8 @@ project(':iceberg-gcp') {
     classpath = sourceSets.integration.runtimeClasspath
     jvmArgs += project.property('extraJvmArgs')
   }
+
+  check.dependsOn integrationTest
 }
 
 project(':iceberg-hive-metastore') {
