@@ -56,7 +56,6 @@ public class OAuth2Manager implements AuthManager {
   private static final Set<String> TABLE_SESSION_ALLOW_LIST =
       ImmutableSet.<String>builder()
           .add(OAuth2Properties.TOKEN)
-          .add(OAuth2Properties.TOKEN_PATH)
           .addAll(TOKEN_PREFERENCE_ORDER)
           .build();
 

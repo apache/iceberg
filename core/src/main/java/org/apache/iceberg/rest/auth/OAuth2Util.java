@@ -419,7 +419,7 @@ public class OAuth2Util {
     private static int tokenRefreshNumRetries = 5;
     private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
     private static final long MIN_REFRESH_WAIT_MILLIS = 10;
-    private static final long FILE_REFRESH_RETRY_WAIT_MILLIS = 5_000; // 5 seconds
+    static final long FILE_REFRESH_RETRY_WAIT_MILLIS = 5_000; // 5 seconds
     private volatile Map<String, String> headers;
     private volatile AuthConfig config;
 
@@ -692,7 +692,11 @@ public class OAuth2Util {
                   .build());
 
       if (null != executor) {
-        scheduleFileTokenRefresh(executor, session, expiresAtMillis, refreshBufferMillis);
+        scheduleFileTokenRefresh(
+            executor,
+            session,
+            fileRefreshDelayMillis(expiresAtMillis, refreshBufferMillis),
+            refreshBufferMillis);
       }
 
       return session;
@@ -737,22 +741,27 @@ public class OAuth2Util {
     }
 
     /**
-     * Schedule the next file-based token refresh, {@code refreshBufferMillis} ahead of {@code
-     * expiresAtMillis}. Unlike {@link #scheduleTokenRefresh}, this never calls out over the
-     * network: on a transient read failure, it retries after a short fixed delay instead of giving
-     * up.
+     * Delay until the next file re-read: {@code refreshBufferMillis} ahead of {@code
+     * expiresAtMillis}, but never less than {@link #FILE_REFRESH_RETRY_WAIT_MILLIS}, so a file that
+     * has not been rotated yet (or holds an already-expired token) is not re-read in a tight loop.
+     */
+    private static long fileRefreshDelayMillis(long expiresAtMillis, long refreshBufferMillis) {
+      return Math.max(
+          expiresAtMillis - refreshBufferMillis - System.currentTimeMillis(),
+          FILE_REFRESH_RETRY_WAIT_MILLIS);
+    }
+
+    /**
+     * Schedule the next file-based token refresh after {@code delayMillis}. Unlike {@link
+     * #scheduleTokenRefresh}, this never calls out over the network: on a transient read failure,
+     * it retries after {@link #FILE_REFRESH_RETRY_WAIT_MILLIS} instead of giving up.
      */
     @SuppressWarnings("FutureReturnValueIgnored")
     private static void scheduleFileTokenRefresh(
         ScheduledExecutorService executor,
         AuthSession session,
-        long expiresAtMillis,
+        long delayMillis,
         long refreshBufferMillis) {
-      long waitMillis =
-          Math.max(
-              expiresAtMillis - refreshBufferMillis - System.currentTimeMillis(),
-              MIN_REFRESH_WAIT_MILLIS);
-
       executor.schedule(
           () -> {
             if (!session.config().keepRefreshed()) {
@@ -760,13 +769,13 @@ public class OAuth2Util {
             }
 
             Long newExpiresAtMillis = session.refreshFromFile();
-            long nextExpiresAtMillis =
+            long nextDelayMillis =
                 null != newExpiresAtMillis
-                    ? newExpiresAtMillis
-                    : System.currentTimeMillis() + FILE_REFRESH_RETRY_WAIT_MILLIS;
-            scheduleFileTokenRefresh(executor, session, nextExpiresAtMillis, refreshBufferMillis);
+                    ? fileRefreshDelayMillis(newExpiresAtMillis, refreshBufferMillis)
+                    : FILE_REFRESH_RETRY_WAIT_MILLIS;
+            scheduleFileTokenRefresh(executor, session, nextDelayMillis, refreshBufferMillis);
           },
-          waitMillis,
+          delayMillis,
           TimeUnit.MILLISECONDS);
     }
 

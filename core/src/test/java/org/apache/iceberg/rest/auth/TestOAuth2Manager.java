@@ -589,6 +589,28 @@ class TestOAuth2Manager {
   }
 
   @Test
+  void tableSessionTokenPathIgnored() {
+    // token-path from server-provided table config would let server pick local file whose
+    // contents get sent back as bearer token; must be ignored
+    Map<String, String> catalogProperties = Map.of();
+    Map<String, String> tableProperties = Map.of(OAuth2Properties.TOKEN_PATH, "/etc/passwd");
+    TableIdentifier table = TableIdentifier.of("ns", "tbl");
+    try (OAuth2Manager manager = new OAuth2Manager("test");
+        OAuth2Util.AuthSession catalogSession = manager.catalogSession(client, catalogProperties);
+        OAuth2Util.AuthSession tableSession =
+            manager.tableSession(table, tableProperties, catalogSession)) {
+      assertThat(tableSession).isSameAs(catalogSession);
+      assertThat(manager)
+          .extracting("sessionCache")
+          .asInstanceOf(type(AuthSessionCache.class))
+          .as("should not create session cache for ignored table token path")
+          .satisfies(cache -> assertThat(cache.sessionCache().asMap()).isEmpty());
+    }
+    Mockito.verify(client).withAuthSession(any());
+    Mockito.verifyNoMoreInteractions(client);
+  }
+
+  @Test
   void tokenAndTokenPathAreMutuallyExclusive() {
     Map<String, String> properties =
         Map.of(OAuth2Properties.TOKEN, "test", OAuth2Properties.TOKEN_PATH, "/some/path");
