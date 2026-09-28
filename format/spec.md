@@ -150,7 +150,7 @@ Version 4 of the Iceberg spec adds support for relative locations in metadata, e
 * **Snapshot root** -- The per-snapshot file that tracks a snapshot's manifests; a manifest list (v1-v3) or a root manifest (v4).
 * **Manifest list** -- (v1-v3 only) A file that lists manifest files; one per snapshot.
 * **Root manifest** -- (v4+) A manifest that can reference data files, data manifests, and delete manifests; one per snapshot.
-* **Data manifest** -- A file that lists data files; a subset of a snapshot.
+* **Data manifest** -- A file that lists data files and, in v4, their deletion vectors and column files; a subset of a snapshot.
 * **Delete manifest** -- A file that lists delete files to be associated with data files at planning time.
 * **Data file** -- A file that contains rows of a table.
 * **Delete file** -- A file that encodes rows of a table that are deleted by position or data values.
@@ -776,7 +776,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     |----------|------|------|----------|-------------|
     | 134 | **`content_type`** | `int` (0: DATA, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | *required* | Type of content stored in the entry. |
     | 157 | **`format_version`** | `int` (0: PRE-V4, 4: V4) | *required* | Writer format version. |
-    | 100 | **`location`** | `string` | *required* | Location of the file or manifest. |
+    | 100 | **`location`** | `string` | *required* | Location of the file. |
     | 101 | **`file_format`** | `string` | *required* | String file format name: `avro`, `orc`, or `parquet` |
     | 147 | **`tracking`** | `tracking` struct | *required* | Groups status, snapshot, and sequence number. See tracking struct below. |
     | 141 | **`spec_id`** | `int` | *optional* | ID of the partition spec used to write this manifest or data file. |
@@ -789,7 +789,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | 131 | **`key_metadata`** | `binary` | *optional* | Implementation-specific key metadata for encryption. |
     | 132 | **`split_offsets`** | `list<133: long>` | *optional* | Split offsets for the data file. Must be sorted ascending. |
     | 148 | **`deletion_vector`** | `deletion_vector` struct | *optional* | Row-level deletion vector for a data file. |
-    | 158 | **`column_files`** | `list<159: column_file>` | *optional* | Column update files associated with this entry. |
+    | 158 | **`column_files`** | `list<159: column_file>` | *optional* | Column files associated with this file. |
 
     **`tracking` struct (field 147)**
 
@@ -862,9 +862,11 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
 
     When a file is added to the dataset, its tracked file must set status to ADDED and store the snapshot ID in which the file was added.
 
-    When a data file's deletion vector or column files are updated, the writer records a MODIFIED entry for the live version and marks the prior version as replaced, either with a REPLACED entry or in a [manifest deletion vector](#manifest-deletion-vectors). The resulting entries' `dv_snapshot_id` or `latest_column_file_snapshot_id` must record the snapshot in which the deletion vector or column files, respectively, last changed. For leaf manifest entries, MODIFIED marks a live manifest whose `dv` changed.
+    When a data file's deletion vector or column files are updated, the writer must record a MODIFIED entry for the live version and must mark the prior version as replaced with a REPLACED entry or in a [manifest deletion vector](#manifest-deletion-vectors). When using a manifest deletion vector, the writer must set the position in the leaf manifest's `tracking.replaced_positions` and `manifest_info.dv`. The resulting entries' `dv_snapshot_id` or `latest_column_file_snapshot_id` must record the snapshot in which their deletion vector, manifest deletion vector, or column files last changed.
 
-    When a file is deleted from the dataset, the deletion must be recorded in the snapshot that deletes the file with a DELETED entry that stores the snapshot ID in which the file was deleted or, for an entry in a leaf manifest, alternatively by setting its position in the referencing root manifest entry's `tracking.deleted_positions` and `manifest_info.dv` and updating `tracking.dv_snapshot_id` to the new snapshot ID. The position should not be set in `tracking.deleted_positions` in subsequent snapshots.
+    When a file is deleted from the dataset, the deletion must be recorded in the snapshot that deletes the file with a DELETED entry that stores the snapshot ID in which the file was deleted or, for an entry in a leaf manifest, alternatively by setting its position in the leaf manifest's `tracking.deleted_positions` and `manifest_info.dv` and updating `tracking.dv_snapshot_id` to the new snapshot ID.
+
+    A leaf manifest whose `manifest_info.dv` changed must have status MODIFIED. `tracking.deleted_positions` and `tracking.replaced_positions` should only be set in the snapshot that changes `manifest_info.dv`.
 
 The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
 
@@ -943,8 +945,8 @@ Each stats struct holds statistics for one table field. It may contain the follo
 
 | Requirement | Offset | Name                      | Type                      | Included for                                  | Description |
 |-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
-| _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types [1] |
-| _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types [1] |
+| _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type [1], or `geo_lower` for geo types |
+| _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type [1], or `geo_upper` for geo types |
 | _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry` and `geography` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
 | _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
@@ -1118,10 +1120,10 @@ For other optional snapshot summary fields, see [Appendix F](#optional-snapshot-
 Data and delete files for a snapshot can be stored in more than one manifest. This enables:
 
 * Appends can add a new manifest to minimize the amount of data written, instead of adding new records by rewriting and appending to an existing manifest. (This is called a “fast append”.)
-* Tables can use multiple partition specs. A table’s partition configuration can evolve if, for example, its data volume changes. Each manifest uses a single partition spec, and queries do not need to change because partition filters are derived from data predicates.
+* Tables can use multiple partition specs. A table’s partition configuration can evolve if, for example, its data volume changes. Queries do not need to change because partition filters are derived from data predicates. In v1-v3, each manifest uses a single partition spec.
 * Large tables can be split across multiple manifests so that implementations can parallelize job planning or reduce the cost of rewriting a manifest.
 
-Manifests for a snapshot are tracked by a manifest list.
+Manifests for a snapshot are tracked by the snapshot root.
 
 Valid snapshots are stored as a list in table metadata. For serialization, see Appendix C.
 
@@ -1198,7 +1200,7 @@ A scan uses only [live](#entries-in-manifests) entries.
 
 Manifests that contain no matching files, determined using file counts, partition summaries (v1-v3), or column stats (v4), may be skipped.
 
-For each manifest, scan predicates, which filter data rows, are converted to partition predicates, which filter partition tuples. These partition predicates are used to select relevant data files, delete files, and deletion vector metadata. Conversion uses the partition spec that was used to write the manifest file regardless of the current partition spec.
+In v1-v3, for each manifest, scan predicates, which filter data rows, are converted to partition predicates, which filter partition tuples. These partition predicates are used to select relevant data files, delete files, and deletion vector metadata. Conversion uses the partition spec that was used to write the manifest file regardless of the current partition spec.
 
 Scan predicates are converted to partition predicates using an _inclusive projection_: if a scan predicate matches a row, then the partition predicate must match that row’s partition. This is called _inclusive_ [1] because rows that do not match the scan predicate may be included in the scan by the partition predicate.
 
