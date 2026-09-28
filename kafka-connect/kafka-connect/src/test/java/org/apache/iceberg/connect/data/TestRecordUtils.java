@@ -101,6 +101,31 @@ public class TestRecordUtils extends WriterTestBase {
     }
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testExtractFromRecordValueStructNestedReplaceNullWithDefault(
+      boolean replaceNullWithDefault) {
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    Schema idSchema =
+        SchemaBuilder.struct()
+            .field("key", SchemaBuilder.int64().optional().defaultValue(123L).build())
+            .build();
+    Schema dataSchema = SchemaBuilder.struct().field("id", idSchema).build();
+    Schema valSchema = SchemaBuilder.struct().field("data", dataSchema).build();
+
+    Struct id = new Struct(idSchema).put("key", null);
+    Struct data = new Struct(dataSchema).put("id", id);
+    Struct val = new Struct(valSchema).put("data", data);
+
+    Object result = RecordUtils.extractFromRecordValue(val, "data.id.key", config);
+    if (replaceNullWithDefault) {
+      assertThat(result).isEqualTo(123L);
+    } else {
+      assertThat(result).isNull();
+    }
+  }
+
   @Test
   public void testExtractFromRecordValueMap() {
     Map<String, Object> val = ImmutableMap.of("key", 123L);

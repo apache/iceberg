@@ -143,6 +143,51 @@ public class TestSinkWriter {
     assertThat(writerResults).hasSize(0);
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testStaticRouteReplaceNullWithDefault(boolean replaceNullWithDefault) {
+    TableSinkConfig tableConfig = mock(TableSinkConfig.class);
+    when(tableConfig.routeRegex()).thenReturn(Pattern.compile("val"));
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(tableConfig);
+    when(config.tablesRouteField()).thenReturn(ROUTE_FIELD);
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    org.apache.kafka.connect.data.Schema valueSchema =
+        SchemaBuilder.struct()
+            .field("id", org.apache.kafka.connect.data.Schema.OPTIONAL_INT64_SCHEMA)
+            .field(ROUTE_FIELD, SchemaBuilder.string().optional().defaultValue("val").build())
+            .build();
+    Struct value = new Struct(valueSchema).put("id", 123L).put(ROUTE_FIELD, null);
+
+    SinkWriter sinkWriter = new SinkWriter(catalog, config);
+    SinkRecord rec =
+        new SinkRecord(
+            "topic",
+            1,
+            null,
+            "key",
+            valueSchema,
+            value,
+            100L,
+            Instant.now().toEpochMilli(),
+            TimestampType.LOG_APPEND_TIME);
+    sinkWriter.save(ImmutableList.of(rec));
+    SinkWriterResult result = sinkWriter.completeWrite();
+
+    if (replaceNullWithDefault) {
+      // the schema default is used as the route value
+      assertThat(result.writerResults()).hasSize(1);
+      assertThat(result.writerResults().get(0).tableReference().identifier())
+          .isEqualTo(TABLE_IDENTIFIER);
+    } else {
+      // an explicitly-null route field is skipped like any other null route value
+      assertThat(result.writerResults()).isEmpty();
+    }
+  }
+
   @Test
   public void testDynamicRoute() {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
