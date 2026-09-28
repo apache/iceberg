@@ -1532,7 +1532,7 @@ public class Parquet {
       if (batchedReaderFunc != null
           || batchedReaderFuncWithSchema != null
           || readerFunction != null) {
-        // skip removed read properties and null values, which Hadoop's Configuration rejects
+        // Hadoop's Configuration rejects null values
         Map<String, String> readProperties =
             Maps.filterEntries(
                 properties,
@@ -1680,8 +1680,7 @@ public class Parquet {
     }
   }
 
-  // enable vectored IO unless explicitly configured, since parquet-java only defaults it to true
-  // starting with 1.16.0
+  // parquet-java defaults vectored IO to false before 1.16.0
   @VisibleForTesting
   static void applyVectoredIoDefault(ParquetConfiguration conf) {
     if (conf.get(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED) == null) {
