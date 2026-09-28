@@ -25,16 +25,25 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SingleValueParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -50,6 +59,30 @@ public class ExpressionParser {
   private static final String CHILD = "child";
   private static final String REFERENCE = "reference";
   private static final String LITERAL = "literal";
+  private static final String LITERALS = "literals";
+  private static final String DATA_TYPE = "data-type";
+  private static final String APPLY = "apply";
+  private static final String FUNCTION = "function";
+  private static final String ARGUMENTS = "arguments";
+  private static final String NAME = "name";
+  private static final String ID = "id";
+  private static final String IDENTIFIER = "identifier";
+  private static final String CATALOG = "catalog";
+
+  private static final Pattern HAS_WIDTH = Pattern.compile("(\\w+)\\[(\\d+)]");
+
+  private static final String ICEBERG_FUNCTIONS = "iceberg_functions";
+  // the expressions spec defines partition transforms as functions, other than void
+  private static final Map<String, Supplier<Transform<?, ?>>> TRANSFORMS =
+      ImmutableMap.of(
+          "identity", Transforms::identity,
+          "year", Transforms::year,
+          "month", Transforms::month,
+          "day", Transforms::day,
+          "hour", Transforms::hour);
+  // bucket and truncate take the transform parameter as their first argument
+  private static final Map<String, IntFunction<Transform<?, ?>>> PARAMETERIZED_TRANSFORMS =
+      ImmutableMap.of("bucket", Transforms::bucket, "truncate", Transforms::truncate);
 
   private ExpressionParser() {}
 
@@ -152,16 +185,20 @@ public class ExpressionParser {
       return generate(
           () -> {
             gen.writeStartObject();
-
             gen.writeStringField(TYPE, operationType(pred.op()));
-            gen.writeFieldName(TERM);
-            term(pred.term());
 
-            if (pred.isLiteralPredicate()) {
-              gen.writeFieldName(VALUE);
+            if (pred.isUnaryPredicate()) {
+              gen.writeFieldName(CHILD);
+              writeExpr(pred.term());
+            } else if (pred.isLiteralPredicate()) {
+              gen.writeFieldName(LEFT);
+              writeExpr(pred.term());
+              gen.writeFieldName(RIGHT);
               SingleValueParser.toJson(
                   pred.term().type(), pred.asLiteralPredicate().literal().value(), gen);
             } else if (pred.isSetPredicate()) {
+              gen.writeFieldName(CHILD);
+              writeExpr(pred.term());
               gen.writeArrayFieldStart(VALUES);
               for (T value : pred.asSetPredicate().literalSet()) {
                 SingleValueParser.toJson(pred.term().type(), value, gen);
@@ -178,24 +215,26 @@ public class ExpressionParser {
       return generate(
           () -> {
             gen.writeStartObject();
-
             gen.writeStringField(TYPE, operationType(pred.op()));
-            gen.writeFieldName(TERM);
-            term(pred.term());
 
-            if (pred.literals() != null) {
-              if (pred.op() == Expression.Operation.IN
-                  || pred.op() == Expression.Operation.NOT_IN) {
-                gen.writeArrayFieldStart(VALUES);
+            if (pred.op() == Expression.Operation.IN || pred.op() == Expression.Operation.NOT_IN) {
+              gen.writeFieldName(CHILD);
+              writeExpr(pred.term());
+              gen.writeArrayFieldStart(VALUES);
+              if (pred.literals() != null) {
                 for (Literal<T> lit : pred.literals()) {
                   unboundLiteral(lit.value());
                 }
-                gen.writeEndArray();
-
-              } else {
-                gen.writeFieldName(VALUE);
-                unboundLiteral(pred.literal().value());
               }
+              gen.writeEndArray();
+            } else if (pred.literals() == null || pred.literals().isEmpty()) {
+              gen.writeFieldName(CHILD);
+              writeExpr(pred.term());
+            } else {
+              gen.writeFieldName(LEFT);
+              writeExpr(pred.term());
+              gen.writeFieldName(RIGHT);
+              unboundLiteral(pred.literal().value());
             }
 
             gen.writeEndObject();
@@ -226,6 +265,9 @@ public class ExpressionParser {
         BigDecimal decimal = (BigDecimal) object;
         SingleValueParser.toJson(
             Types.DecimalType.of(decimal.precision(), decimal.scale()), decimal, gen);
+      } else {
+        throw new UnsupportedOperationException(
+            "Cannot write literal of unsupported type: " + object.getClass().getName());
       }
     }
 
@@ -233,29 +275,88 @@ public class ExpressionParser {
       return op.toString().replace('_', '-').toLowerCase(Locale.ROOT);
     }
 
-    private void term(Term term) throws IOException {
-      if (term instanceof UnboundTransform) {
+    private void writeExpr(Term term) throws IOException {
+      if (term instanceof UnboundApply) {
+        writeApply((UnboundApply<?>) term);
+      } else if (term instanceof UnboundTransform) {
         UnboundTransform<?, ?> transform = (UnboundTransform<?, ?>) term;
-        transform(transform.transform().toString(), transform.ref().name());
-        return;
+        writeTransform(transform.transform(), transform.ref());
       } else if (term instanceof BoundTransform) {
         BoundTransform<?, ?> transform = (BoundTransform<?, ?>) term;
-        transform(transform.transform().toString(), transform.ref().name());
-        return;
+        writeTransform(transform.transform(), transform.ref());
+      } else if (term instanceof BoundReference) {
+        BoundReference<?> ref = (BoundReference<?>) term;
+        gen.writeStartObject();
+        gen.writeStringField(TYPE, REFERENCE);
+        gen.writeNumberField(ID, ref.fieldId());
+        gen.writeEndObject();
       } else if (term instanceof Reference) {
-        gen.writeString(((Reference<?>) term).name());
-        return;
+        gen.writeStartObject();
+        gen.writeStringField(TYPE, REFERENCE);
+        gen.writeStringField(NAME, ((Reference<?>) term).name());
+        gen.writeEndObject();
+      } else {
+        throw new UnsupportedOperationException("Cannot write unsupported term: " + term);
       }
-
-      throw new UnsupportedOperationException("Cannot write unsupported term: " + term);
     }
 
-    private void transform(String transform, String name) throws IOException {
+    /**
+     * Writes a transform as an apply expression. Parameterized transforms are written as
+     * two-argument functions with the parameter first, like {@code bucket(16, ref)}.
+     */
+    private void writeTransform(Transform<?, ?> transform, Term ref) throws IOException {
+      String transformStr = transform.toString();
       gen.writeStartObject();
-      gen.writeStringField(TYPE, TRANSFORM);
-      gen.writeStringField(TRANSFORM, transform);
-      gen.writeStringField(TERM, name);
+      gen.writeStringField(TYPE, APPLY);
+
+      Matcher matcher = HAS_WIDTH.matcher(transformStr);
+      boolean parameterized = matcher.matches();
+      gen.writeStringField(FUNCTION, parameterized ? matcher.group(1) : transformStr);
+
+      gen.writeArrayFieldStart(ARGUMENTS);
+      if (parameterized) {
+        gen.writeNumber(Integer.parseInt(matcher.group(2)));
+      }
+      writeExpr(ref);
+      gen.writeEndArray();
+
       gen.writeEndObject();
+    }
+
+    private void writeApply(UnboundApply<?> apply) throws IOException {
+      gen.writeStartObject();
+      gen.writeStringField(TYPE, APPLY);
+
+      writeFunctionRef(apply.function());
+
+      gen.writeArrayFieldStart(ARGUMENTS);
+      for (Object arg : apply.arguments()) {
+        if (arg instanceof Term) {
+          writeExpr((Term) arg);
+        } else if (arg instanceof Expression) {
+          ExpressionParser.toJson((Expression) arg, gen);
+        } else {
+          // remaining arguments are constants, written as bare literal values
+          unboundLiteral(((Literal<?>) arg).value());
+        }
+      }
+      gen.writeEndArray();
+
+      gen.writeEndObject();
+    }
+
+    private void writeFunctionRef(FunctionReference ref) throws IOException {
+      if (ref.catalog() == null && ref.identifier().size() == 1) {
+        gen.writeStringField(FUNCTION, ref.name());
+      } else if (ref.catalog() == null) {
+        JsonUtil.writeStringArray(FUNCTION, ref.identifier(), gen);
+      } else {
+        gen.writeFieldName(FUNCTION);
+        gen.writeStartObject();
+        gen.writeStringField(CATALOG, ref.catalog());
+        JsonUtil.writeStringArray(IDENTIFIER, ref.identifier(), gen);
+        gen.writeEndObject();
+      }
     }
   }
 
@@ -296,6 +397,12 @@ public class ExpressionParser {
 
     Expression.Operation op = fromType(type);
     switch (op) {
+      case TRUE:
+        // deprecated: the constant true predicate is written as a bare boolean
+        return Expressions.alwaysTrue();
+      case FALSE:
+        // deprecated: the constant false predicate is written as a bare boolean
+        return Expressions.alwaysFalse();
       case NOT:
         return Expressions.not(fromJson(JsonUtil.get(CHILD, json), schema));
       case AND:
@@ -308,25 +415,45 @@ public class ExpressionParser {
             fromJson(JsonUtil.get(RIGHT, json), schema));
     }
 
-    return predicateFromJson(op, json, schema);
+    if (json.has(TERM)) {
+      return termPredicateFromJson(op, json, schema);
+    } else {
+      return predicateFromJson(op, json, schema);
+    }
   }
 
   private static Expression.Operation fromType(String type) {
     return Expression.Operation.fromString(type.replace('-', '_'));
   }
 
-  @SuppressWarnings("unchecked")
   private static <T> UnboundPredicate<T> predicateFromJson(
       Expression.Operation op, JsonNode node, Schema schema) {
-    UnboundTerm<T> term = term(JsonUtil.get(TERM, node));
+    return switch (op) {
+      case IS_NULL, NOT_NULL, IS_NAN, NOT_NAN -> {
+        UnboundTerm<T> child = exprFromJson(JsonUtil.get(CHILD, node), schema);
+        yield Expressions.predicate(op, child);
+      }
+      case LT, LT_EQ, GT, GT_EQ, EQ, NOT_EQ, STARTS_WITH, NOT_STARTS_WITH -> {
+        UnboundTerm<T> left = exprFromJson(JsonUtil.get(LEFT, node), schema);
+        Function<JsonNode, T> convertValue = valueConverter(left, schema);
+        T value = literalFromJson(JsonUtil.get(RIGHT, node), convertValue);
+        yield Expressions.predicate(op, left, ImmutableList.of(value));
+      }
+      case IN, NOT_IN -> {
+        UnboundTerm<T> child = exprFromJson(JsonUtil.get(CHILD, node), schema);
+        Function<JsonNode, T> convertValue = valueConverter(child, schema);
+        Iterable<T> values = literalsFromJson(JsonUtil.get(VALUES, node), convertValue);
+        yield Expressions.predicate(op, child, values);
+      }
+      default -> throw new UnsupportedOperationException("Unsupported operation: " + op);
+    };
+  }
 
-    Function<JsonNode, T> convertValue;
-    if (schema != null) {
-      BoundTerm<?> bound = term.bind(schema.asStruct(), false);
-      convertValue = valueNode -> (T) SingleValueParser.fromJson(bound.type(), valueNode);
-    } else {
-      convertValue = valueNode -> (T) ExpressionParser.asObject(valueNode);
-    }
+  private static <T> UnboundPredicate<T> termPredicateFromJson(
+      Expression.Operation op, JsonNode node, Schema schema) {
+    UnboundTerm<T> term = termFromJson(JsonUtil.get(TERM, node));
+
+    Function<JsonNode, T> convertValue = valueConverter(term, schema);
 
     switch (op) {
       case IS_NULL:
@@ -352,7 +479,7 @@ public class ExpressionParser {
             node.has(VALUE), "Cannot parse %s predicate: missing value", op);
         Preconditions.checkArgument(
             !node.has(VALUES), "Cannot parse %s predicate: has invalid values field", op);
-        T value = literal(JsonUtil.get(VALUE, node), convertValue);
+        T value = literalFromJson(JsonUtil.get(VALUE, node), convertValue);
         return Expressions.predicate(op, term, ImmutableList.of(value));
       case IN:
       case NOT_IN:
@@ -364,26 +491,237 @@ public class ExpressionParser {
         JsonNode valuesNode = JsonUtil.get(VALUES, node);
         Preconditions.checkArgument(
             valuesNode.isArray(), "Cannot parse literals from non-array: %s", valuesNode);
-        return Expressions.predicate(
-            op,
-            term,
-            Iterables.transform(
-                ((ArrayNode) valuesNode)::elements, valueNode -> literal(valueNode, convertValue)));
+        return Expressions.predicate(op, term, literalsFromJson(valuesNode, convertValue));
       default:
         throw new UnsupportedOperationException("Unsupported operation: " + op);
     }
   }
 
-  private static <T> T literal(JsonNode valueNode, Function<JsonNode, T> toValue) {
+  @SuppressWarnings("unchecked")
+  private static <T> Function<JsonNode, T> valueConverter(UnboundTerm<T> term, Schema schema) {
+    if (schema != null) {
+      BoundTerm<?> bound = term.bind(schema.asStruct(), false);
+      return valueNode -> (T) valueFromJson(bound.type(), valueNode);
+    } else {
+      return valueNode -> (T) ExpressionParser.asObject(valueNode);
+    }
+  }
+
+  private static <T> UnboundTerm<T> exprFromJson(JsonNode node, Schema schema) {
+    if (node.isObject()) {
+      String type = JsonUtil.getString(TYPE, node);
+      return switch (type) {
+        case REFERENCE -> referenceFromJson(node, schema);
+        case APPLY -> applyFromJson(node, schema);
+        default -> throw new IllegalArgumentException("Unknown value expression type: " + type);
+      };
+    }
+
+    // a bare string is a literal value, which cannot be a predicate operand
+    throw new IllegalArgumentException(
+        "Cannot parse value expression, expected a reference or apply: " + node);
+  }
+
+  private static <T> UnboundTerm<T> referenceFromJson(JsonNode node, Schema schema) {
+    if (node.has(NAME)) {
+      return Expressions.ref(JsonUtil.getString(NAME, node));
+    } else if (node.has(ID)) {
+      int fieldId = JsonUtil.getInt(ID, node);
+      Preconditions.checkArgument(
+          schema != null, "Cannot parse reference by field ID %s without a schema", fieldId);
+      String name = schema.findColumnName(fieldId);
+      Preconditions.checkArgument(name != null, "Cannot find field with ID %s in schema", fieldId);
+      return Expressions.ref(name);
+    } else if (node.has(TERM)) {
+      return Expressions.ref(JsonUtil.getString(TERM, node));
+    }
+
+    throw new IllegalArgumentException(
+        "Cannot parse reference (requires 'name', 'id', or 'term' field): " + node);
+  }
+
+  private static <T> UnboundTerm<T> applyFromJson(JsonNode node, Schema schema) {
+    FunctionReference function = functionRefFromJson(JsonUtil.get(FUNCTION, node));
+    List<Object> arguments = Lists.newArrayList();
+
+    if (node.has(ARGUMENTS)) {
+      JsonNode argsNode = JsonUtil.get(ARGUMENTS, node);
+      Preconditions.checkArgument(
+          argsNode.isArray(), "Apply arguments must be an array: %s", argsNode);
+      for (JsonNode argNode : argsNode) {
+        arguments.add(argumentFromJson(argNode, schema));
+      }
+    }
+
+    if (isIcebergFunction(function)) {
+      String name = function.name().toLowerCase(Locale.ROOT);
+      if (TRANSFORMS.containsKey(name) || PARAMETERIZED_TRANSFORMS.containsKey(name)) {
+        return transformFromApply(function, name, arguments);
+      }
+    }
+
+    return Expressions.apply(function, arguments);
+  }
+
+  /**
+   * Returns whether a function reference may be a function defined by the expressions spec.
+   *
+   * <p>The spec defines Iceberg partition transforms as functions in the {@code iceberg_functions}
+   * catalog, other than {@code void}.
+   */
+  private static boolean isIcebergFunction(FunctionReference function) {
+    return function.catalog() == null || function.catalog().equalsIgnoreCase(ICEBERG_FUNCTIONS);
+  }
+
+  /**
+   * Converts a call to an Iceberg partition transform to an {@link UnboundTransform}.
+   *
+   * <p>Parameterized transforms are called as two-argument functions with the transform parameter
+   * first, like {@code bucket(16, ref)}.
+   */
+  @SuppressWarnings("unchecked")
+  private static <T> UnboundTerm<T> transformFromApply(
+      FunctionReference function, String name, List<Object> arguments) {
+    IntFunction<Transform<?, ?>> parameterized = PARAMETERIZED_TRANSFORMS.get(name);
+    int expectedArgs = parameterized != null ? 2 : 1;
+    Preconditions.checkArgument(
+        arguments.size() == expectedArgs,
+        "Cannot convert %s to a transform: expected %s argument(s), got %s",
+        function,
+        expectedArgs,
+        arguments.size());
+
+    Transform<?, ?> transform;
+    if (parameterized != null) {
+      Object parameter = arguments.get(0);
+      Preconditions.checkArgument(
+          isInt(parameter),
+          "Cannot convert %s to a transform: first argument must be an int, got %s",
+          function,
+          parameter);
+      transform = parameterized.apply(((Number) parameter).intValue());
+    } else {
+      transform = TRANSFORMS.get(name).get();
+    }
+
+    Object valueArg = arguments.get(expectedArgs - 1);
+    Preconditions.checkArgument(
+        valueArg instanceof NamedReference,
+        "Cannot convert %s to a transform: last argument must be a reference, got %s",
+        function,
+        valueArg);
+
+    return (UnboundTerm<T>)
+        Expressions.transform(((NamedReference<?>) valueArg).name(), (Transform<?, T>) transform);
+  }
+
+  private static boolean isInt(Object value) {
+    return value instanceof Integer || (value instanceof Long l && l == l.intValue());
+  }
+
+  private static Object argumentFromJson(JsonNode node, Schema schema) {
+    if (node.isIntegralNumber()) {
+      return node.canConvertToInt() ? (Object) node.asInt() : (Object) node.asLong();
+    } else if (node.isFloatingPointNumber()) {
+      return node.asDouble();
+    } else if (node.isTextual()) {
+      // a bare string is a literal value, not a reference
+      return node.asText();
+    } else if (node.isBoolean()) {
+      return node.asBoolean() ? Expressions.alwaysTrue() : Expressions.alwaysFalse();
+    } else if (node.isObject()) {
+      String type = JsonUtil.getString(TYPE, node);
+      return switch (type) {
+        case REFERENCE, APPLY -> exprFromJson(node, schema);
+        case LITERAL -> literalFromJson(node, ExpressionParser::asObject);
+        default -> fromJson(node, schema);
+      };
+    }
+
+    throw new IllegalArgumentException("Cannot parse apply argument: " + node);
+  }
+
+  private static FunctionReference functionRefFromJson(JsonNode node) {
+    if (node.isTextual()) {
+      return Expressions.function(node.asText());
+    } else if (node.isArray()) {
+      return Expressions.function(JsonUtil.getStringArray(node));
+    } else if (node.isObject()) {
+      return Expressions.function(
+          JsonUtil.getStringOrNull(CATALOG, node), JsonUtil.getStringList(IDENTIFIER, node));
+    }
+
+    throw new IllegalArgumentException("Cannot parse function reference: " + node);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> T literalFromJson(JsonNode valueNode, Function<JsonNode, T> toValue) {
     if (valueNode.isObject() && valueNode.has(TYPE)) {
       String type = JsonUtil.getString(TYPE, valueNode);
       Preconditions.checkArgument(
           type.equalsIgnoreCase(LITERAL), "Cannot parse type as a literal: %s", type);
-      return toValue.apply(JsonUtil.get(VALUE, valueNode));
+      JsonNode value = JsonUtil.get(VALUE, valueNode);
+      if (valueNode.hasNonNull(DATA_TYPE)) {
+        return (T) requiredValueFromJson(dataTypeFromJson(valueNode), value);
+      }
+
+      return toValue.apply(value);
     }
 
     // the node is a directly embedded literal value
     return toValue.apply(valueNode);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static <T> Iterable<T> literalsFromJson(
+      JsonNode node, Function<JsonNode, T> convertValue) {
+    if (node.isArray()) {
+      return Iterables.transform(
+          ((ArrayNode) node)::elements, valueNode -> literalFromJson(valueNode, convertValue));
+    } else if (node.isObject() && node.has(TYPE)) {
+      String type = JsonUtil.getString(TYPE, node);
+      Preconditions.checkArgument(
+          type.equalsIgnoreCase(LITERALS), "Cannot parse type as literals: %s", type);
+      JsonNode valuesNode = JsonUtil.get(VALUES, node);
+      Preconditions.checkArgument(
+          valuesNode.isArray(), "Cannot parse literals values from non-array: %s", valuesNode);
+      if (node.hasNonNull(DATA_TYPE)) {
+        Type dataType = dataTypeFromJson(node);
+        return Iterables.transform(
+            ((ArrayNode) valuesNode)::elements,
+            valueNode -> (T) requiredValueFromJson(dataType, valueNode));
+      }
+
+      return Iterables.transform(((ArrayNode) valuesNode)::elements, convertValue::apply);
+    }
+
+    throw new IllegalArgumentException("Cannot parse literals: " + node);
+  }
+
+  private static Type dataTypeFromJson(JsonNode node) {
+    return Types.fromPrimitiveString(JsonUtil.getString(DATA_TYPE, node));
+  }
+
+  private static Object requiredValueFromJson(Type dataType, JsonNode valueNode) {
+    Object value = valueFromJson(dataType, valueNode);
+    Preconditions.checkArgument(value != null, "Cannot parse %s literal from null value", dataType);
+    return value;
+  }
+
+  /**
+   * Parses a value of the given type into the object used to create an unbound literal.
+   *
+   * <p>Nanosecond timestamps are returned as their validated ISO-8601 string. Unbound literals are
+   * created from values with {@code Literals.from}, which would read a long as microseconds when
+   * binding to a nanosecond timestamp; a string literal converts to nanoseconds correctly.
+   */
+  private static Object valueFromJson(Type type, JsonNode valueNode) {
+    Object value = SingleValueParser.fromJson(type, valueNode);
+    if (value != null && type.typeId() == Type.TypeID.TIMESTAMP_NANO) {
+      return valueNode.asText();
+    }
+
+    return value;
   }
 
   private static Object asObject(JsonNode node) {
@@ -401,16 +739,16 @@ public class ExpressionParser {
   }
 
   @SuppressWarnings("unchecked")
-  private static <T> UnboundTerm<T> term(JsonNode node) {
+  private static <T> UnboundTerm<T> termFromJson(JsonNode node) {
     if (node.isTextual()) {
       return Expressions.ref(node.asText());
     } else if (node.isObject()) {
       String type = JsonUtil.getString(TYPE, node);
       switch (type) {
         case REFERENCE:
-          return Expressions.ref(JsonUtil.getString(TERM, node));
+          return referenceFromJson(node, null);
         case TRANSFORM:
-          UnboundTerm<T> child = term(JsonUtil.get(TERM, node));
+          UnboundTerm<T> child = termFromJson(JsonUtil.get(TERM, node));
           String transform = JsonUtil.getString(TRANSFORM, node);
           return (UnboundTerm<T>)
               Expressions.transform(child.ref().name(), Transforms.fromString(transform));
