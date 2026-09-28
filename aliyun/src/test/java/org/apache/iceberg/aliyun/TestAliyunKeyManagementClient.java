@@ -41,7 +41,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.AfterEach;
@@ -92,8 +94,18 @@ public class TestAliyunKeyManagementClient {
   }
 
   @Test
-  public void testSupportsKeyGenerationByDefault() {
-    assertThat(kmsClient(ImmutableMap.of()).supportsKeyGeneration()).isTrue();
+  public void testKeyGenerationDisabledByDefault() {
+    assertThat(kmsClient(ImmutableMap.of()).supportsKeyGeneration()).isFalse();
+  }
+
+  @Test
+  public void testCreateFromKmsType() {
+    KeyManagementClient client =
+        EncryptionUtil.createKmsClient(
+            ImmutableMap.of(
+                CatalogProperties.ENCRYPTION_KMS_TYPE,
+                CatalogProperties.ENCRYPTION_KMS_TYPE_ALIYUN));
+    assertThat(client).isInstanceOf(AliyunKeyManagementClient.class);
   }
 
   @Test
@@ -123,7 +135,8 @@ public class TestAliyunKeyManagementClient {
 
   @Test
   public void testWrapKeyRejectedWhenKeyGenerationEnabled() {
-    KeyManagementClient client = kmsClient(ImmutableMap.of());
+    KeyManagementClient client =
+        kmsClient(ImmutableMap.of(AliyunProperties.KMS_KEY_GENERATION_ENABLED, "true"));
     assertThatThrownBy(() -> client.wrapKey(ByteBuffer.wrap(RAW_KEY), WRAPPING_KEY_ID))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageContaining("key generation is enabled");
@@ -137,7 +150,7 @@ public class TestAliyunKeyManagementClient {
         .thenReturn(response);
 
     KeyManagementClient client =
-        kmsClient(ImmutableMap.of(AliyunKeyManagementClient.ENABLE_KEY_GENERATION, "false"));
+        kmsClient(ImmutableMap.of(AliyunProperties.KMS_KEY_GENERATION_ENABLED, "false"));
     assertThat(client.supportsKeyGeneration()).isFalse();
 
     ByteBuffer wrapped = client.wrapKey(ByteBuffer.wrap(RAW_KEY), WRAPPING_KEY_ID);
@@ -216,10 +229,15 @@ public class TestAliyunKeyManagementClient {
         ImmutableMap.of(
             AliyunProperties.CLIENT_REGION, "cn-hangzhou",
             AliyunProperties.KMS_DATA_KEY_SPEC, "AES_256",
-            AliyunKeyManagementClient.CLIENT_MAX_ATTEMPTS, "5");
+            AliyunProperties.KMS_CLIENT_MAX_ATTEMPTS, "5");
 
-    // key generation enabled (default): generate + unwrap survive serialization
-    KeyManagementClient genClient = kmsClient(baseProps);
+    // key generation enabled: generate + unwrap survive serialization
+    Map<String, String> genProps =
+        ImmutableMap.<String, String>builder()
+            .putAll(baseProps)
+            .put(AliyunProperties.KMS_KEY_GENERATION_ENABLED, "true")
+            .build();
+    KeyManagementClient genClient = kmsClient(genProps);
     assertThat(genClient.supportsKeyGeneration()).isTrue();
     KeyManagementClient genRoundTripped = roundTripSerializer.apply(genClient);
     assertThat(genRoundTripped.supportsKeyGeneration()).isTrue();
@@ -236,7 +254,7 @@ public class TestAliyunKeyManagementClient {
     Map<String, String> wrapProps =
         ImmutableMap.<String, String>builder()
             .putAll(baseProps)
-            .put(AliyunKeyManagementClient.ENABLE_KEY_GENERATION, "false")
+            .put(AliyunProperties.KMS_KEY_GENERATION_ENABLED, "false")
             .build();
     KeyManagementClient wrapClient = kmsClient(wrapProps);
     assertThat(wrapClient.supportsKeyGeneration()).isFalse();

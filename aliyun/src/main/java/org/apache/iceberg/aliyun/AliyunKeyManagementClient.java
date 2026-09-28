@@ -33,7 +33,6 @@ import java.util.Map;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableMap;
 
 /**
@@ -42,64 +41,32 @@ import org.apache.iceberg.util.SerializableMap;
  */
 public class AliyunKeyManagementClient implements KeyManagementClient {
 
-  /**
-   * Enables server-side data key generation. When enabled (the default), Iceberg calls {@link
-   * #generateKey(String)}; set to {@code false} to have Iceberg generate keys locally and {@link
-   * #wrapKey(ByteBuffer, String)} them via KMS.
-   */
-  public static final String ENABLE_KEY_GENERATION = "kms.client.aliyun.key.generation.enabled";
-
-  /** Maximum number of attempts (including the first) for each KMS call. */
-  public static final String CLIENT_MAX_ATTEMPTS = "kms.client.aliyun.max.attempts";
-
-  /** Connect timeout in milliseconds for KMS calls. */
-  public static final String CLIENT_CONNECT_TIMEOUT_MS = "kms.client.aliyun.connect.timeout.ms";
-
-  /** Read timeout in milliseconds for KMS calls. */
-  public static final String CLIENT_READ_TIMEOUT_MS = "kms.client.aliyun.read.timeout.ms";
-
-  private static final boolean DEFAULT_ENABLE_KEY_GENERATION = true;
-  private static final int DEFAULT_MAX_ATTEMPTS = 3;
-  private static final int DEFAULT_CONNECT_TIMEOUT_MS = 2_000;
-  private static final int DEFAULT_READ_TIMEOUT_MS = 30_000;
   private static final int BACKOFF_PERIOD_MS = 100;
   private static final String ALIAS_PREFIX = "alias/";
   private static final String ARN_KEY_SEPARATOR = "key/";
 
   private Map<String, String> allProperties;
-  private String dataKeySpec;
-  private boolean enableKeyGeneration = DEFAULT_ENABLE_KEY_GENERATION;
-  private int maxAttempts = DEFAULT_MAX_ATTEMPTS;
-  private int connectTimeoutMs = DEFAULT_CONNECT_TIMEOUT_MS;
-  private int readTimeoutMs = DEFAULT_READ_TIMEOUT_MS;
+  private AliyunProperties aliyunProperties;
 
   private transient volatile ClientState state;
 
   @Override
   public void initialize(Map<String, String> properties) {
     this.allProperties = SerializableMap.copyOf(properties);
-    this.dataKeySpec = new AliyunProperties(properties).kmsDataKeySpec();
-    this.enableKeyGeneration =
-        PropertyUtil.propertyAsBoolean(
-            properties, ENABLE_KEY_GENERATION, DEFAULT_ENABLE_KEY_GENERATION);
-    this.maxAttempts =
-        PropertyUtil.propertyAsInt(properties, CLIENT_MAX_ATTEMPTS, DEFAULT_MAX_ATTEMPTS);
-    this.connectTimeoutMs =
-        PropertyUtil.propertyAsInt(
-            properties, CLIENT_CONNECT_TIMEOUT_MS, DEFAULT_CONNECT_TIMEOUT_MS);
-    this.readTimeoutMs =
-        PropertyUtil.propertyAsInt(properties, CLIENT_READ_TIMEOUT_MS, DEFAULT_READ_TIMEOUT_MS);
+    this.aliyunProperties = new AliyunProperties(properties);
   }
 
   @Override
   public boolean supportsKeyGeneration() {
-    return enableKeyGeneration;
+    return aliyunProperties.kmsKeyGenerationEnabled();
   }
 
   @Override
   public KeyGenerationResult generateKey(String wrappingKeyId) {
     GenerateDataKeyRequest request =
-        new GenerateDataKeyRequest().setKeyId(wrappingKeyId).setKeySpec(dataKeySpec);
+        new GenerateDataKeyRequest()
+            .setKeyId(wrappingKeyId)
+            .setKeySpec(aliyunProperties.kmsDataKeySpec());
     try {
       GenerateDataKeyResponse response =
           client().generateDataKeyWithOptions(request, runtimeOptions());
@@ -113,7 +80,7 @@ public class AliyunKeyManagementClient implements KeyManagementClient {
 
   @Override
   public ByteBuffer wrapKey(ByteBuffer key, String wrappingKeyId) {
-    if (enableKeyGeneration) {
+    if (aliyunProperties.kmsKeyGenerationEnabled()) {
       throw new UnsupportedOperationException(
           "wrapKey shouldn't be called as key generation is enabled.");
     }
@@ -188,11 +155,11 @@ public class AliyunKeyManagementClient implements KeyManagementClient {
           RuntimeOptions options =
               new RuntimeOptions()
                   .setAutoretry(true)
-                  .setMaxAttempts(maxAttempts)
+                  .setMaxAttempts(aliyunProperties.kmsClientMaxAttempts())
                   .setBackoffPolicy("fixed")
                   .setBackoffPeriod(BACKOFF_PERIOD_MS)
-                  .setConnectTimeout(connectTimeoutMs)
-                  .setReadTimeout(readTimeoutMs);
+                  .setConnectTimeout(aliyunProperties.kmsClientConnectTimeoutMs())
+                  .setReadTimeout(aliyunProperties.kmsClientReadTimeoutMs());
           state = new ClientState(kmsClient, options);
         }
       }

@@ -146,8 +146,16 @@ public class StandardEncryptionManager implements EncryptionManager {
     }
 
     // No unexpired key encryption keys; create one
-    ByteBuffer unwrapped = newKey();
-    ByteBuffer wrapped = kmsClient.wrapKey(unwrapped, tableKeyId);
+    ByteBuffer unwrapped;
+    ByteBuffer wrapped;
+    if (kmsClient.supportsKeyGeneration()) {
+      KeyManagementClient.KeyGenerationResult generated = kmsClient.generateKey(tableKeyId);
+      unwrapped = generated.key();
+      wrapped = generated.wrappedKey();
+    } else {
+      unwrapped = newKey();
+      wrapped = kmsClient.wrapKey(unwrapped, tableKeyId);
+    }
     Map<String, String> properties = Maps.newHashMap();
     properties.put(KEY_TIMESTAMP, "" + currentTimeMillis());
     EncryptedKey key = new BaseEncryptedKey(generateKeyId(), wrapped, tableKeyId, properties);
