@@ -2208,21 +2208,26 @@ components:
 
         Clients SHOULD send this header. When it is sent, the Iceberg client
         library token MUST be present so that a server can always identify the
-        library and its version: use `iceberg-java`, `pyiceberg`,
-        `iceberg-rust`, or `iceberg-go`. A client not built on an Iceberg
-        library uses its own product token in that position. The remaining
-        tokens SHOULD be ordered from the outermost component to the innermost,
-        so the most specific caller appears first: the engine or application,
-        then any integration or connector, then the Iceberg library, then the
-        language runtime.
+        library and its version: use the token for the Iceberg library the
+        client is built on, such as `iceberg-java`, `pyiceberg`,
+        `iceberg-rust`, `iceberg-go`, or `iceberg-cpp`. This list is
+        illustrative, not exhaustive: any other Iceberg library, or a
+        proprietary or custom implementation, uses its own descriptive product
+        token in that position. The remaining tokens SHOULD be ordered from the
+        outermost component to the innermost, so the most specific caller
+        appears first: the engine or application, then any integration or
+        connector, then the Iceberg library.
 
 
         The optional trailing comment, enclosed in parentheses as defined by
         the RFC, carries lower-value context such as build identifiers, the
-        HTTP library, the language runtime, or the operating system. Everything
-        inside the parentheses is a free-form comment rather than a
-        `product/version` token; servers SHOULD treat it as opaque and MUST NOT
-        depend on its contents.
+        HTTP library, the language runtime, or the operating system. These
+        context items SHOULD be grouped into a single comment placed after all
+        product tokens rather than interleaved between them, and separated by
+        `; ` when there is more than one, for example `(jvm 17.0.9; ubuntu
+        26.04)`. Everything inside the parentheses is a free-form comment
+        rather than a `product/version` token; servers SHOULD treat it as
+        opaque and MUST NOT depend on its contents.
 
 
         Examples:
