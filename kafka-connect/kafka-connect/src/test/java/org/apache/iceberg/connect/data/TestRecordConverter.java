@@ -988,6 +988,102 @@ public class TestRecordConverter {
     assertThat(consumer.empty()).isTrue();
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testNoSchemaEvolutionStructWithNullValueOfFieldWithDefault(
+      boolean replaceNullWithDefault) {
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    org.apache.iceberg.Schema nestedStructSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2, "nested", StructType.of(NestedField.optional(3, "a", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(nestedStructSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    SchemaBuilder connectNestedSchemaBuilder =
+        SchemaBuilder.struct().optional().field("a", Schema.OPTIONAL_INT32_SCHEMA);
+    Struct nestedDefault = new Struct(connectNestedSchemaBuilder).put("a", 42);
+    Schema connectNestedSchema = connectNestedSchemaBuilder.defaultValue(nestedDefault).build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    if (replaceNullWithDefault) {
+      Record nested = (Record) result.getField("nested");
+      assertThat(nested.getField("a")).isEqualTo(42);
+    } else {
+      assertThat(result.getField("nested")).isNull();
+    }
+
+    assertThat(consumer.addColumns()).isEmpty();
+    assertThat(consumer.makeOptionals()).isEmpty();
+    assertThat(consumer.updateTypes()).isEmpty();
+    assertThat(consumer.empty()).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testNestedSchemaEvolutionStructWithNullValueOfFieldWithDefault(
+      boolean replaceNullWithDefault) {
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    org.apache.iceberg.Schema nestedStructSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2, "nested", StructType.of(NestedField.required(3, "a", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(nestedStructSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    SchemaBuilder connectNestedSchemaBuilder =
+        SchemaBuilder.struct()
+            .optional()
+            .field("a", Schema.INT32_SCHEMA)
+            .field("b", Schema.OPTIONAL_STRING_SCHEMA);
+    Struct nestedDefault = new Struct(connectNestedSchemaBuilder).put("a", 42).put("b", "def");
+    Schema connectNestedSchema = connectNestedSchemaBuilder.defaultValue(nestedDefault).build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    if (replaceNullWithDefault) {
+      Record nested = (Record) result.getField("nested");
+      assertThat(nested.getField("a")).isEqualTo(42);
+    } else {
+      assertThat(result.getField("nested")).isNull();
+    }
+
+    // the new column is discovered from the record schema either way
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("nested");
+    assertThat(addCol.name()).isEqualTo("b");
+    assertThat(addCol.type()).isInstanceOf(StringType.class);
+    assertThat(consumer.makeOptionals()).isEmpty();
+    assertThat(consumer.updateTypes()).isEmpty();
+  }
+
   @Test
   @SuppressWarnings("unchecked")
   public void testNestedSchemaEvolutionListOfStructsWithNullValue() {
