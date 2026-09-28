@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,6 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
@@ -105,6 +107,7 @@ public class SparkTable extends BaseSparkTable
           TableCapability.OVERWRITE_DYNAMIC);
 
   private final Schema schema; // effective schema (not necessarily current table schema)
+  private final Set<Integer> mapKeyFieldIds;
   private final Snapshot snapshot; // always set unless table is empty
   private final String branch; // set if table is loaded for specific branch
   private final TimeTravel timeTravel; // set if table is loaded for time travel
@@ -136,6 +139,7 @@ public class SparkTable extends BaseSparkTable
       Table table, Schema schema, Snapshot snapshot, String branch, TimeTravel timeTravel) {
     super(table, schema);
     this.schema = schema;
+    this.mapKeyFieldIds = mapKeyFieldIds(schema);
     this.snapshot = snapshot;
     this.branch = branch;
     this.timeTravel = timeTravel;
@@ -171,6 +175,10 @@ public class SparkTable extends BaseSparkTable
 
   @Override
   public boolean supportsColumnChange(TableChange.ColumnChange change) {
+    if (isMapKeyChange(change)) {
+      return false;
+    }
+
     if (change instanceof TableChange.AddColumn) {
       TableChange.AddColumn add = (TableChange.AddColumn) change;
       return add.isNullable() && add.defaultValue() == null && canConvert(add.dataType());
@@ -185,6 +193,31 @@ public class SparkTable extends BaseSparkTable
           || change instanceof TableChange.UpdateColumnComment
           || change instanceof TableChange.UpdateColumnPosition;
     }
+  }
+
+  private static Set<Integer> mapKeyFieldIds(Schema schema) {
+    Set<Integer> keyFieldIds = Sets.newHashSet();
+    for (Types.NestedField field : TypeUtil.indexById(schema.asStruct()).values()) {
+      if (field.type().isMapType()) {
+        Types.MapType map = field.type().asMapType();
+        keyFieldIds.addAll(TypeUtil.indexById(Types.StructType.of(map.fields().get(0))).keySet());
+      }
+    }
+
+    return keyFieldIds;
+  }
+
+  private boolean isMapKeyChange(TableChange.ColumnChange change) {
+    String[] fieldNames = change.fieldNames();
+    int pathLength =
+        change instanceof TableChange.AddColumn ? fieldNames.length - 1 : fieldNames.length;
+    if (pathLength == 0) {
+      return false;
+    }
+
+    Types.NestedField field =
+        schema.findField(String.join(".", Arrays.copyOf(fieldNames, pathLength)));
+    return field != null && mapKeyFieldIds.contains(field.fieldId());
   }
 
   private boolean supportsTypeUpdate(TableChange.UpdateColumnType update) {

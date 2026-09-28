@@ -104,6 +104,50 @@ public class TestSparkTable extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testMapKeySchemaEvolutionChanges() {
+    sql("ALTER TABLE %s ADD COLUMN m map<int, string>", tableName);
+    sql("ALTER TABLE %s ADD COLUMN value_map map<int, int>", tableName);
+    sql("ALTER TABLE %s ADD COLUMN struct_key_map map<struct<key_field: int>, string>", tableName);
+    sql("ALTER TABLE %s ADD COLUMN struct_value_map map<int, struct<value_field: int>>", tableName);
+    SparkTable table = loadSparkTable();
+
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(new String[] {"m", "key"}, DataTypes.LongType)))
+        .isFalse();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(
+                        new String[] {"struct_key_map", "key", "key_field"}, DataTypes.LongType)))
+        .isFalse();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.addColumn(
+                        new String[] {"struct_key_map", "key", "new_field"},
+                        DataTypes.IntegerType,
+                        true)))
+        .isFalse();
+
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(
+                        new String[] {"value_map", "value"}, DataTypes.LongType)))
+        .isTrue();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.addColumn(
+                        new String[] {"struct_value_map", "value", "new_field"},
+                        DataTypes.IntegerType,
+                        true)))
+        .isTrue();
+  }
+
+  @TestTemplate
   public void testTableEquality() {
     SparkTable table1 = loadSparkTable();
     SparkTable table2 = loadSparkTable();
