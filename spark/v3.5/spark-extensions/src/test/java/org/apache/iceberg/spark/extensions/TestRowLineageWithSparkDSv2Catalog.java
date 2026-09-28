@@ -53,10 +53,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
  * every resolved row-level command, not only on Iceberg tables.
  */
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestRowLineageWithForeignCatalog extends ExtensionsTestBase {
+public class TestRowLineageWithSparkDSv2Catalog extends ExtensionsTestBase {
 
-  private static final String FOREIGN_CATALOG = "foreign_catalog";
-  private static final String FOREIGN_TABLE = FOREIGN_CATALOG + ".ns.foreign_table";
+  private static final String DSV2_CATALOG = "dsv2_catalog";
+  private static final String DSV2_TABLE = DSV2_CATALOG + ".ns.dsv2_table";
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
@@ -71,20 +71,19 @@ public class TestRowLineageWithForeignCatalog extends ExtensionsTestBase {
 
   @AfterEach
   public void removeTables() {
-    spark.conf().unset("spark.sql.catalog." + FOREIGN_CATALOG);
+    spark.conf().unset("spark.sql.catalog." + DSV2_CATALOG);
   }
 
   @TestTemplate
   public void deleteFromTableInAnotherCatalog() {
-    spark.conf().set("spark.sql.catalog." + FOREIGN_CATALOG, ForeignCatalog.class.getName());
-    sql("CREATE TABLE %s (id bigint, data string) USING foreign", FOREIGN_TABLE);
+    spark.conf().set("spark.sql.catalog." + DSV2_CATALOG, SparkDSv2Catalog.class.getName());
+    sql("CREATE TABLE %s (id bigint, data string) USING dsv2", DSV2_TABLE);
 
-    assertThatCode(() -> sql("DELETE FROM %s WHERE id = 1", FOREIGN_TABLE))
-        .doesNotThrowAnyException();
+    assertThatCode(() -> sql("DELETE FROM %s WHERE id = 1", DSV2_TABLE)).doesNotThrowAnyException();
   }
 
   /** A minimal v2 catalog whose tables are not Iceberg tables. */
-  public static class ForeignCatalog implements TableCatalog {
+  public static class SparkDSv2Catalog implements TableCatalog {
     private final Map<String, Table> tables = Maps.newHashMap();
     private String catalogName;
 
@@ -116,7 +115,7 @@ public class TestRowLineageWithForeignCatalog extends ExtensionsTestBase {
     @Override
     public Table createTable(
         Identifier ident, StructType schema, Transform[] partitions, Map<String, String> props) {
-      Table table = new ForeignTable(ident.name(), schema);
+      Table table = new SparkDSv2Table(ident.name(), schema);
       tables.put(ident.toString(), table);
       return table;
     }
@@ -138,11 +137,11 @@ public class TestRowLineageWithForeignCatalog extends ExtensionsTestBase {
   }
 
   /** An empty v2 table that accepts deletes by filter. */
-  public static class ForeignTable implements Table, SupportsDeleteV2, SupportsRead {
+  public static class SparkDSv2Table implements Table, SupportsDeleteV2, SupportsRead {
     private final String tableName;
     private final StructType tableSchema;
 
-    ForeignTable(String tableName, StructType tableSchema) {
+    SparkDSv2Table(String tableName, StructType tableSchema) {
       this.tableName = tableName;
       this.tableSchema = tableSchema;
     }
