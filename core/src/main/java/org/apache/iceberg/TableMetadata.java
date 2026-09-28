@@ -379,15 +379,6 @@ public class TableMetadata implements Serializable {
       }
       last = logEntry;
     }
-    if (last != null) {
-      Preconditions.checkArgument(
-          // commits can happen concurrently from different machines.
-          // A tolerance helps us avoid failure for small clock skew
-          lastUpdatedMillis - last.timestampMillis() >= -ONE_MINUTE,
-          "Invalid update timestamp %s: before last snapshot log entry at %s",
-          lastUpdatedMillis,
-          last.timestampMillis());
-    }
 
     MetadataLogEntry previous = null;
     for (MetadataLogEntry metadataEntry : previousFiles) {
@@ -1270,6 +1261,18 @@ public class TableMetadata implements Serializable {
           "Cannot add snapshot with sequence number %s older than last sequence number %s",
           snapshot.sequenceNumber(),
           lastSequenceNumber);
+
+      if (formatVersion >= MIN_FORMAT_VERSION_MONOTONIC_TIMESTAMPS && snapshot.parentId() != null) {
+        Snapshot parent = snapshotsById.get(snapshot.parentId());
+        if (parent != null) {
+          ValidationException.check(
+              snapshot.timestampMillis() > parent.timestampMillis(),
+              "Invalid snapshot timestamp %s: not after parent snapshot %s at %s",
+              snapshot.timestampMillis(),
+              snapshot.parentId(),
+              parent.timestampMillis());
+        }
+      }
 
       this.lastSequenceNumber = snapshot.sequenceNumber();
       snapshots.add(snapshot);

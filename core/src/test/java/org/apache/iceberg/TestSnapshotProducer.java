@@ -33,6 +33,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -281,54 +282,83 @@ public class TestSnapshotProducer extends TestBase {
   }
 
   @TestTemplate
-  public void testSnapshotTimestampsAreMonotonicallyIncreasing() {
-    assumeThat(formatVersion)
-        .isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_MONOTONIC_TIMESTAMPS);
-
+  public void snapshotTimestampsAreMonotonicallyIncreasing() {
     table.newFastAppend().appendFile(FILE_A).commit();
     Snapshot first = table.currentSnapshot();
 
     table.newFastAppend().appendFile(FILE_B).commit();
     Snapshot second = table.currentSnapshot();
-    assertThat(second.timestampMillis())
-        .as("V4 snapshot timestamps must be strictly increasing")
-        .isGreaterThan(first.timestampMillis());
+    assertThat(second.timestampMillis()).isGreaterThan(first.timestampMillis());
 
     table.newFastAppend().appendFile(FILE_C).commit();
     Snapshot third = table.currentSnapshot();
-    assertThat(third.timestampMillis())
-        .as("V4 snapshot timestamps must be strictly increasing")
-        .isGreaterThan(second.timestampMillis());
+    assertThat(third.timestampMillis()).isGreaterThan(second.timestampMillis());
   }
 
   @TestTemplate
-  public void testV4LamportClockFastForwardsDriftedClock() {
-    assumeThat(formatVersion)
-        .isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_MONOTONIC_TIMESTAMPS);
-
+  public void lamportClockFastForwardsDriftedClock() {
     table.newFastAppend().appendFile(FILE_A).commit();
     long firstTs = table.currentSnapshot().timestampMillis();
 
-    // simulate clock drift: wall clock reports a time far in the past
-    long driftedTime = firstTs - 10_000;
+    long driftedTime = firstTs - TimeUnit.MINUTES.toMillis(2);
     Clock driftedClock = Clock.fixed(Instant.ofEpochMilli(driftedTime), ZoneOffset.UTC);
     AppendFiles append = table.newFastAppend().appendFile(FILE_B);
     ((SnapshotProducer<?>) append).setClock(driftedClock);
     append.commit();
 
-    long secondTs = table.currentSnapshot().timestampMillis();
-    assertThat(secondTs)
-        .as(
-            "Lamport clock should fast-forward past the drifted wall clock to the last snapshot timestamp + 1 ms")
-        .isEqualTo(firstTs + 1);
+    assertThat(table.currentSnapshot().timestampMillis()).isEqualTo(firstTs + 1);
   }
 
   @TestTemplate
-  public void testV4MonotonicityIsScopedToTargetBranch() {
-    assumeThat(formatVersion)
-        .isGreaterThanOrEqualTo(TableMetadata.MIN_FORMAT_VERSION_MONOTONIC_TIMESTAMPS);
+  public void transactionCommitsProduceMonotonicTimestamps() {
+    Transaction txn = table.newTransaction();
+    txn.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot first = txn.table().currentSnapshot();
+    txn.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot second = txn.table().currentSnapshot();
+    txn.commitTransaction();
 
-    // Establish a base snapshot on main.
+    assertThat(second.parentId()).isEqualTo(first.snapshotId());
+    assertThat(second.timestampMillis()).isGreaterThan(first.timestampMillis());
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(second.snapshotId());
+  }
+
+  @TestTemplate
+  public void transactionRetryFastForwardsTimestampsPastConflictingSnapshot() {
+    table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "1").commit();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long baseTs = table.currentSnapshot().timestampMillis();
+
+    Clock staleClock = Clock.fixed(Instant.ofEpochMilli(baseTs + 1), ZoneOffset.UTC);
+    Transaction txn = table.newTransaction();
+    AppendFiles firstAppend = txn.newFastAppend().appendFile(FILE_B);
+    ((SnapshotProducer<?>) firstAppend).setClock(staleClock);
+    firstAppend.commit();
+    AppendFiles secondAppend = txn.newFastAppend().appendFile(FILE_C);
+    ((SnapshotProducer<?>) secondAppend).setClock(staleClock);
+    secondAppend.commit();
+
+    long conflictTs = baseTs + 1_000_000L;
+    AppendFiles conflictAppend = table.newFastAppend().appendFile(FILE_D);
+    ((SnapshotProducer<?>) conflictAppend)
+        .setClock(Clock.fixed(Instant.ofEpochMilli(conflictTs), ZoneOffset.UTC));
+    conflictAppend.commit();
+    Snapshot conflict = table.currentSnapshot();
+    assertThat(conflict.timestampMillis()).isEqualTo(conflictTs);
+    assertThat(txn.table().currentSnapshot().timestampMillis()).isLessThan(conflictTs);
+
+    txn.commitTransaction();
+
+    Snapshot retriedSecond = table.currentSnapshot();
+    Snapshot retriedFirst = table.snapshot(retriedSecond.parentId());
+    assertThat(retriedFirst.parentId()).isEqualTo(conflict.snapshotId());
+    assertThat(retriedFirst.timestampMillis()).isGreaterThan(conflict.timestampMillis());
+    assertThat(retriedSecond.timestampMillis()).isGreaterThan(retriedFirst.timestampMillis());
+  }
+
+  @TestTemplate
+  public void monotonicityIsScopedToTargetBranch() {
     table.newFastAppend().appendFile(FILE_A).commit();
     long mainParentTs = table.currentSnapshot().timestampMillis();
 
