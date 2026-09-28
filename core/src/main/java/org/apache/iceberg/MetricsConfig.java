@@ -253,7 +253,9 @@ public final class MetricsConfig implements Serializable {
    * @param schema table schema
    * @param order sort order columns, will be promoted to truncate(16)
    * @return metrics configuration
+   * @deprecated will be removed in 1.14.0; use {@link #forTable(Table)} instead.
    */
+  @Deprecated
   public static MetricsConfig from(Map<String, String> props, Schema schema, SortOrder order) {
     int maxDefaultColumns = maxInferredColumnDefaults(props);
 
@@ -341,10 +343,13 @@ public final class MetricsConfig implements Serializable {
     if (schema != null) {
       ImmutableMap.Builder<Integer, String> builder = ImmutableMap.builder();
       for (String name : columnModes.keySet()) {
-        builder.put(schema.findField(name).fieldId(), name);
+        Types.NestedField field = schema.findField(name);
+        if (field != null) {
+          builder.put(field.fieldId(), name);
+        }
       }
 
-      return builder.build();
+      return builder.buildKeepingLast();
     }
 
     return null;
