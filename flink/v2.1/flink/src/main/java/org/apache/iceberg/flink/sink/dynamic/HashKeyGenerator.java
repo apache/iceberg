@@ -153,14 +153,15 @@ class HashKeyGenerator {
             return equalityFieldKeySelector(
                 tableName, schema, equalityFields, writeParallelism, maxWriteParallelism);
           } else {
-            // Compare by field ID: a partition source that is a nested field has a simple name
-            // (e.g. "name") that differs from the dotted equality-field name (e.g. "user.name"),
-            // so a name-based check would wrongly reject a valid nested partition/equality field.
-            Set<Integer> equalityFieldIds =
-                DynamicSinkUtil.getEqualityFieldIds(equalityFields, schema);
+            // Compare by fully-qualified name: a partition source that is a nested field has a
+            // simple name (e.g. "name") that differs from the dotted equality-field name (e.g.
+            // "user.name"). Names are also stable across schema evolution, whereas field IDs are
+            // only meaningful within the schema that assigned them, and the spec's schema may not
+            // match the schema used here.
             for (PartitionField partitionField : spec.fields()) {
+              String sourceName = spec.schema().findColumnName(partitionField.sourceId());
               Preconditions.checkState(
-                  equalityFieldIds.contains(partitionField.sourceId()),
+                  sourceName != null && equalityFields.contains(sourceName),
                   "%s: In 'hash' distribution mode with equality fields set, partition field '%s' "
                       + "should be included in equality fields: '%s'",
                   tableName,

@@ -122,8 +122,8 @@ class TestHashKeyGenerator {
   @Test
   void testHashDistributionModeWithNestedEqualityAndPartitionField() throws Exception {
     // A partition sourced from a nested field that is also an equality field must be accepted.
-    // The check matches by field ID, not by the source field's simple name ("name"), which differs
-    // from the dotted equality-field name ("user.name").
+    // The check matches by fully-qualified name ("user.name"), not by the source field's simple
+    // name ("name") which would not match the dotted equality-field name.
     int writeParallelism = 3;
     int maxWriteParallelism = 8;
     HashKeyGenerator generator = new HashKeyGenerator(16, maxWriteParallelism);
