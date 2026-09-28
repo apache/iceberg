@@ -67,12 +67,13 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   apply plugin: 'distribution'
 
   configurations {
-    hive {
-      extendsFrom runtimeClasspath
-    }
     all {
       exclude group: 'javax.activation', module: 'activation'
       exclude group: 'org.jspecify', module: 'jspecify'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      // as in iceberg-aws-bundle: no log4j binding inside the connector plugin
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'org.apache.logging.slf4j'
       // force upgrades for dependencies with known vulnerabilities...
       resolutionStrategy {
         force 'org.codehaus.jettison:jettison:1.5.7'
@@ -119,11 +120,18 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
 
+    // The cloud SDK dependencies below mirror the dependency lists of the
+    // iceberg-aws-bundle, iceberg-gcp-bundle and iceberg-azure-bundle projects, so
+    // the distribution offers the same features as the bundles and its LICENSE and
+    // NOTICE content can be kept in sync with theirs. The bundle jars themselves are
+    // not shipped: they would duplicate every class already present as a loose jar.
     implementation project(':iceberg-aws')
     implementation platform(libs.awssdk.bom)
+    implementation libs.awssdk.s3accessgrants
     implementation 'software.amazon.awssdk:apache-client'
     implementation 'software.amazon.awssdk:auth'
-    implementation "software.amazon.awssdk:http-auth-aws-crt"
+    implementation 'software.amazon.awssdk:crt-core'
+    implementation 'software.amazon.awssdk:http-auth-aws-crt'
     implementation 'software.amazon.awssdk:iam'
     implementation 'software.amazon.awssdk:sso'
     implementation 'software.amazon.awssdk:s3'
@@ -132,45 +140,23 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     implementation 'software.amazon.awssdk:sts'
     implementation 'software.amazon.awssdk:dynamodb'
     implementation 'software.amazon.awssdk:lakeformation'
+    implementation libs.analyticsaccelerator.s3
 
     implementation project(':iceberg-gcp')
     implementation project(':iceberg-bigquery')
     implementation platform(libs.google.libraries.bom)
+    implementation platform(libs.jackson.bom)
     implementation 'com.google.cloud:google-cloud-storage'
     implementation 'com.google.cloud:google-cloud-bigquery'
     implementation 'com.google.cloud:google-cloud-core'
+    implementation 'com.google.cloud:google-cloud-kms'
+    implementation libs.gcs.analytics.core
 
     implementation project(':iceberg-azure')
     implementation platform(libs.azuresdk.bom)
     implementation 'com.azure:azure-storage-file-datalake'
+    implementation 'com.azure:azure-security-keyvault-keys'
     implementation 'com.azure:azure-identity'
-
-    hive project(':iceberg-hive-metastore')
-    hive(libs.hive2.metastore) {
-      exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-      exclude group: 'org.pentaho' // missing dependency
-      exclude group: 'org.apache.hbase'
-      exclude group: 'org.apache.logging.log4j'
-      exclude group: 'co.cask.tephra'
-      exclude group: 'com.google.code.findbugs', module: 'jsr305'
-      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
-      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
-      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
-      exclude group: 'com.tdunning', module: 'json'
-      exclude group: 'javax.transaction', module: 'transaction-api'
-      exclude group: 'com.zaxxer', module: 'HikariCP'
-      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-common'
-      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-applicationhistoryservice'
-      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-resourcemanager'
-      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-web-proxy'
-      exclude group: 'org.apache.hive', module: 'hive-service-rpc'
-      exclude group: 'com.github.joshelser', module: 'dropwizard-metrics-hadoop-metrics2-reporter'
-    }
-    hive(libs.hadoop3.client) {
-      exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-    }
 
     integrationImplementation project(':iceberg-api')
     integrationImplementation project(':iceberg-common')
@@ -217,21 +203,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
         }
       }
     }
-    hive {
-      contents {
-        from "${processResources.destinationDir}/manifest.json"
-        into('lib/') {
-          from configurations.hive
-        }
-        into('doc/') {
-          from "$projectDir/hive/LICENSE"
-          from "$projectDir/hive/NOTICE"
-        }
-        into('assets/') {
-          from "${processResources.destinationDir}/iceberg.png"
-        }
-      }
-    }
   }
 
   // there are no Maven artifacts so disable publishing tasks...
@@ -245,14 +216,10 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   distZip.dependsOn processResources
   installDist.dependsOn processResources
 
-  tasks.hiveDistTar.enabled = false
-  hiveDistZip.dependsOn processResources
-  installHiveDist.dependsOn processResources
-
   integrationTest.dependsOn installDist
   check.dependsOn integrationTest
 
-  assemble.dependsOn distZip, hiveDistZip
+  assemble.dependsOn distZip
 
   apply from: "${rootDir}/runtime-deps.gradle"
 }
