@@ -21,13 +21,22 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.util.TokenBuffer;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
 import org.apache.iceberg.encryption.BaseEncryptedKey;
 import org.apache.iceberg.encryption.EncryptedKey;
+import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestEncryptedKeyParser {
   private static final byte[] KEY_BYTES = "key".getBytes(StandardCharsets.UTF_8);
@@ -56,6 +65,42 @@ public class TestEncryptedKeyParser {
     assertThat(actual.encryptedKeyMetadata()).isEqualTo(key.encryptedKeyMetadata());
     assertThat(actual.encryptedById()).isEqualTo(key.encryptedById());
     assertThat(actual.properties()).isEqualTo(key.properties());
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 1, 2, 3, 257, 8193})
+  void jsonPreservesBase64Encoding(int payloadLength) throws IOException {
+    byte[] payload = new byte[payloadLength];
+    for (int index = 0; index < payload.length; index++) {
+      payload[index] = (byte) index;
+    }
+    EncryptedKey key = new BaseEncryptedKey("a", ByteBuffer.wrap(payload), null, Map.of());
+    String expected =
+        "{\"key-id\":\"a\",\"encrypted-key-metadata\":\""
+            + Base64.getEncoder().encodeToString(payload)
+            + "\"}";
+
+    assertThat(EncryptedKeyParser.toJson(key, false)).isEqualTo(expected);
+
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    try (JsonGenerator generator = JsonUtil.factory().createGenerator(output)) {
+      EncryptedKeyParser.toJson(key, generator);
+    }
+    assertThat(output.toString(StandardCharsets.UTF_8)).isEqualTo(expected);
+  }
+
+  @Test
+  void nativeBinaryGeneratorPreservesTextMetadata() throws IOException {
+    EncryptedKey key = new BaseEncryptedKey("a", ByteBuffer.wrap(KEY_BYTES), null, Map.of());
+    try (TokenBuffer generator = new TokenBuffer(JsonUtil.mapper(), false)) {
+      EncryptedKeyParser.toJson(key, generator);
+      try (JsonParser parser = generator.asParser()) {
+        JsonNode node = JsonUtil.mapper().readTree(parser);
+        assertThat(node.get("encrypted-key-metadata").isTextual()).isTrue();
+        assertThat(EncryptedKeyParser.fromJson(node).encryptedKeyMetadata())
+            .isEqualTo(key.encryptedKeyMetadata());
+      }
+    }
   }
 
   @Test
