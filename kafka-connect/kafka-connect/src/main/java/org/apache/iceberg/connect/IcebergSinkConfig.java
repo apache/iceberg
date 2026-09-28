@@ -186,7 +186,7 @@ public class IcebergSinkConfig extends AbstractConfig {
         ConfigDef.Type.BOOLEAN,
         true,
         Importance.MEDIUM,
-        "Set to false to preserve explicit null values instead of replacing them with the record schema default value, true otherwise");
+        "Set to true to replace null struct field values with the record schema default value, false to preserve explicit nulls (default is true)");
     configDef.define(
         CATALOG_NAME_PROP,
         ConfigDef.Type.STRING,
