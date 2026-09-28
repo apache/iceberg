@@ -99,12 +99,14 @@ class RecordConverter {
   private final Schema tableSchema;
   private final NameMapping nameMapping;
   private final IcebergSinkConfig config;
+  private final boolean replaceNullWithDefault;
   private final Map<Integer, Map<String, NestedField>> structNameMap = Maps.newHashMap();
 
   RecordConverter(Table table, IcebergSinkConfig config) {
     this.tableSchema = table.schema();
     this.nameMapping = createNameMapping(table);
     this.config = config;
+    this.replaceNullWithDefault = config.replaceNullWithDefault();
   }
 
   Record convert(Object data) {
@@ -259,7 +261,8 @@ class RecordConverter {
                     hasSchemaUpdates = true;
                   }
                 }
-                Object recordFieldValue = fieldValue(struct, recordField);
+                Object recordFieldValue = fieldValueFromStruct(struct, recordField);
+                logIfNullForRequiredColumn(recordFieldValue, tableField, hasSchemaUpdates);
                 if (recordFieldValue == null && schemaUpdateConsumer != null && !hasSchemaUpdates) {
                   evolveSchemaFromConnectSchema(
                       recordField.schema(),
@@ -356,6 +359,16 @@ class RecordConverter {
     }
   }
 
+  private void logIfNullForRequiredColumn(
+      Object value, NestedField tableField, boolean hasSchemaUpdates) {
+    if (value == null && tableField.isRequired() && !hasSchemaUpdates) {
+      LOG.warn(
+          "Explicit null value for required column {}; the write will fail. Consider setting"
+              + " iceberg.tables.schema-force-optional=true or altering the column to optional",
+          tableSchema.findColumnName(tableField.fieldId()));
+    }
+  }
+
   private void logMismatchedType(
       org.apache.kafka.connect.data.Schema.Type recordSchemaType, Type tableType) {
     LOG.warn(
@@ -368,10 +381,8 @@ class RecordConverter {
    * substitution happens is controlled by the {@code iceberg.tables.replace-null-with-default}
    * setting.
    */
-  private Object fieldValue(Struct struct, Field field) {
-    return config.replaceNullWithDefault()
-        ? struct.get(field)
-        : struct.getWithoutDefault(field.name());
+  private Object fieldValueFromStruct(Struct struct, Field field) {
+    return replaceNullWithDefault ? struct.get(field) : struct.getWithoutDefault(field.name());
   }
 
   private NestedField lookupStructField(String fieldName, StructType schema, int structFieldId) {
@@ -640,7 +651,7 @@ class RecordConverter {
       fields.forEach(
           field -> {
             names.add(field.name());
-            names.addAll(collectFieldNames(fieldValue(struct, field)));
+            names.addAll(collectFieldNames(fieldValueFromStruct(struct, field)));
           });
       return names;
     }
@@ -677,7 +688,7 @@ class RecordConverter {
       for (Field field : struct.schema().fields()) {
         object.put(
             field.name(),
-            objectToVariantValue(fieldValue(struct, field), metadata, field.schema()));
+            objectToVariantValue(fieldValueFromStruct(struct, field), metadata, field.schema()));
       }
       return object;
     }
