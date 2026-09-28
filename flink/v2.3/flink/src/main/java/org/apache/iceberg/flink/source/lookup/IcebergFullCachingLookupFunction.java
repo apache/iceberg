@@ -44,14 +44,17 @@ import org.apache.iceberg.flink.FlinkRowData;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A full caching lookup function: the whole projected Iceberg dimension table is loaded into an
- * in-memory cache on the first lookup, and every lookup is served from that cache.
+ * A lookup function that serves every lookup from an in-memory cache of the rows of an Iceberg
+ * table, after projection and pushed-down filters are applied.
+ *
+ * <p>The cache is loaded from the current snapshot either when the function is opened or on the
+ * first lookup, depending on {@link IcebergLookupOptions#FULL_CACHE_EAGER_LOAD}. It is never
+ * refreshed, so later changes to the table are not visible.
  */
 @Internal
 public class IcebergFullCachingLookupFunction extends LookupFunction {
@@ -85,8 +88,6 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
       List<Expression> pushedFilters,
       boolean caseSensitive,
       boolean eagerLoad) {
-    Preconditions.checkNotNull(pushedFilters, "Pushed filters should not be null");
-
     this.tableLoader = tableLoader;
     this.projectedRowType = projectedRowType;
     this.lookupKeyIndexes = lookupKeyIndexes;
@@ -128,6 +129,10 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
     }
   }
 
+  /**
+   * Returns the cached rows for the key. The returned collection and its rows are shared with the
+   * cache, so they must not be modified.
+   */
   @Override
   public Collection<RowData> lookup(RowData keyRow) throws IOException {
     if (cache == null) {

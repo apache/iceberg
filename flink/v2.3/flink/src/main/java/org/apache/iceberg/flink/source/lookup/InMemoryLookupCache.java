@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.source.lookup;
 
+import java.io.Closeable;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
@@ -26,7 +27,7 @@ import org.apache.flink.table.data.binary.BinaryRowData;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-class InMemoryLookupCache {
+class InMemoryLookupCache implements Closeable {
 
   private final Map<BinaryRowData, List<RowData>> cache;
 
@@ -47,7 +48,8 @@ class InMemoryLookupCache {
     cache.computeIfAbsent(key, k -> Lists.newArrayList()).add(row);
   }
 
-  void close() {
+  @Override
+  public void close() {
     cache.clear();
   }
 }
