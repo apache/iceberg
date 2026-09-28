@@ -109,6 +109,8 @@ LEFT JOIN iceberg_catalog.db.user_dim
 
 Iceberg implements lookup join with a full cache: the whole projected dimension table is loaded into the cache, and every lookup is served from it without falling back to the table. The full cache is held in memory on the TaskManager heap, so lookup join targets dimension tables that fit comfortably there.
 
+`lookup.cache` can be left unset. If it is set, the only supported value is `FULL`, and it must be upper case: unlike in Flink's built-in connectors, `'lookup.cache'='full'` is rejected.
+
 `lookup.full-cache.eager-load` decides whether the job blocks at startup or on the first lookup. With the default `true`, the lookup function loads the cache when it is opened, so the job blocks during deployment, before it processes any data, and fails at startup if the dimension table cannot be read; with `false`, the load is deferred to the first lookup, so the data flow blocks only when the first probe row arrives, and the subtasks of the join can end up on different snapshots of the dimension table.
 
 There is no background refresh: each subtask keeps the snapshot it loaded, so subtasks can serve different snapshots of the dimension table. Populate the dimension table before the join starts.
