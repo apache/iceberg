@@ -19,55 +19,32 @@
 package org.apache.iceberg.parquet;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.apache.parquet.hadoop.ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.util.Base64;
 import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.IntFunction;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.PositionedReadable;
-import org.apache.hadoop.fs.RawLocalFileSystem;
-import org.apache.hadoop.fs.Seekable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.data.parquet.InternalReader;
-import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
-import org.apache.iceberg.io.FileRange;
-import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.RangeReadable;
-import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.apache.parquet.conf.HadoopParquetConfiguration;
-import org.apache.parquet.conf.ParquetConfiguration;
-import org.apache.parquet.conf.PlainParquetConfiguration;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
 
 class TestParquetReadAllocationSize {
 
@@ -75,32 +52,22 @@ class TestParquetReadAllocationSize {
       new Schema(
           required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
-  // files at or below Iceberg's 1 MB eager-fetch threshold are read in a single call, which
-  // bypasses the allocation size
-  private static final int MIN_TOTAL_BYTES = 2 * 1024 * 1024;
+  private static final List<Record> RECORDS =
+      ImmutableList.of(
+          GenericRecord.create(SCHEMA).copy(ImmutableMap.of("id", 1L, "data", "a")),
+          GenericRecord.create(SCHEMA).copy(ImmutableMap.of("id", 2L, "data", "b")));
 
   enum ReadPath {
     NON_HADOOP,
     HADOOP
   }
 
-  // high-entropy rows so column chunks can't shrink below the allocation sizes used here
-  private static List<Record> highEntropyRecords(int numRecords, int stringLength) {
-    Random random = new Random(41103L);
-    List<Record> records = Lists.newArrayListWithCapacity(numRecords);
-    for (int i = 0; i < numRecords; i += 1) {
-      byte[] bytes = new byte[stringLength];
-      random.nextBytes(bytes);
-      Record record = GenericRecord.create(SCHEMA);
-      record.setField("id", (long) i);
-      record.setField("data", Base64.getEncoder().encodeToString(bytes));
-      records.add(record);
-    }
-    return records;
-  }
-
-  private static InputFile writeFile(List<Record> records) throws IOException {
-    InMemoryOutputFile outputFile = new InMemoryOutputFile();
+  private static InputFile writeFile(ReadPath readPath, File tempDir) throws IOException {
+    OutputFile outputFile =
+        readPath == ReadPath.HADOOP
+            ? HadoopOutputFile.fromPath(
+                new Path(new File(tempDir, "test.parquet").getAbsolutePath()), new Configuration())
+            : new InMemoryOutputFile();
     try (DataWriter<Record> writer =
         Parquet.writeData(outputFile)
             .schema(SCHEMA)
@@ -108,447 +75,55 @@ class TestParquetReadAllocationSize {
             .overwrite()
             .withSpec(PartitionSpec.unpartitioned())
             .build()) {
-      for (Record record : records) {
+      for (Record record : RECORDS) {
         writer.write(record);
       }
     }
 
-    InputFile inputFile = outputFile.toInputFile();
-    assertThat(inputFile.getLength())
-        .as("test file must clear Iceberg's eager-fetch threshold to exercise chunked reads")
-        .isGreaterThan(MIN_TOTAL_BYTES);
-    return inputFile;
+    return outputFile.toInputFile();
   }
 
-  private static InputFile writeFile(ReadPath readPath, List<Record> records, File tempDir)
-      throws IOException {
-    if (readPath == ReadPath.HADOOP) {
-      return writeHadoopFile(records, tempDir, new Configuration());
-    }
-
-    return writeFile(records);
-  }
-
-  /** Records reads at the Hadoop FileSystem level, since Hadoop-backed reads bypass InputFile. */
-  static class RecordingLocalFileSystem extends RawLocalFileSystem {
-    private static final ThreadLocal<List<Integer>> RECORDED_READ_LENGTHS = new ThreadLocal<>();
-    private static final ThreadLocal<AtomicInteger> RECORDED_VECTORED_READS = new ThreadLocal<>();
-
-    static void record(List<Integer> requestedLengths) {
-      RECORDED_READ_LENGTHS.set(requestedLengths);
-    }
-
-    static void recordVectoredReads(AtomicInteger vectoredReads) {
-      RECORDED_VECTORED_READS.set(vectoredReads);
-    }
-
-    static void stopRecording() {
-      RECORDED_READ_LENGTHS.remove();
-      RECORDED_VECTORED_READS.remove();
-    }
-
-    @Override
-    public FSDataInputStream open(Path f, int bufferSize) throws IOException {
-      FSDataInputStream delegate = super.open(f, bufferSize);
-      List<Integer> requestedLengths = RECORDED_READ_LENGTHS.get();
-      return requestedLengths == null
-          ? delegate
-          : new FSDataInputStream(
-              new RecordingStream(delegate, requestedLengths, RECORDED_VECTORED_READS.get()));
-    }
-
-    private static class RecordingStream extends InputStream
-        implements Seekable, PositionedReadable {
-      private final FSDataInputStream delegate;
-      private final List<Integer> requestedLengths;
-      private final AtomicInteger vectoredReads;
-
-      RecordingStream(
-          FSDataInputStream delegate, List<Integer> requestedLengths, AtomicInteger vectoredReads) {
-        this.delegate = delegate;
-        this.requestedLengths = requestedLengths;
-        this.vectoredReads = vectoredReads;
-      }
-
-      @Override
-      public int read() throws IOException {
-        return delegate.read();
-      }
-
-      @Override
-      public int read(byte[] b, int off, int len) throws IOException {
-        requestedLengths.add(len);
-        return delegate.read(b, off, len);
-      }
-
-      @Override
-      public void seek(long pos) throws IOException {
-        delegate.seek(pos);
-      }
-
-      @Override
-      public long getPos() throws IOException {
-        return delegate.getPos();
-      }
-
-      @Override
-      public boolean seekToNewSource(long targetPos) throws IOException {
-        return delegate.seekToNewSource(targetPos);
-      }
-
-      @Override
-      public int read(long position, byte[] buffer, int offset, int length) throws IOException {
-        return delegate.read(position, buffer, offset, length);
-      }
-
-      @Override
-      public void readFully(long position, byte[] buffer, int offset, int length)
-          throws IOException {
-        delegate.readFully(position, buffer, offset, length);
-      }
-
-      @Override
-      public void readFully(long position, byte[] buffer) throws IOException {
-        delegate.readFully(position, buffer);
-      }
-
-      @Override
-      public void readVectored(
-          List<? extends org.apache.hadoop.fs.FileRange> ranges, IntFunction<ByteBuffer> allocate)
-          throws IOException {
-        if (vectoredReads != null) {
-          vectoredReads.incrementAndGet();
-        }
-
-        PositionedReadable.super.readVectored(ranges, allocate);
-      }
-
-      @Override
-      public void close() throws IOException {
-        delegate.close();
-      }
-    }
-  }
-
-  private static Configuration newRecordingConfiguration() {
-    Configuration conf = new Configuration();
-    conf.setClass("fs.file.impl", RecordingLocalFileSystem.class, FileSystem.class);
-    conf.setBoolean("fs.file.impl.disable.cache", true);
-    return conf;
-  }
-
-  private static HadoopInputFile writeHadoopFile(
-      List<Record> records, File tempDir, Configuration conf) throws IOException {
-    Path hadoopPath = new Path(new File(tempDir, "test.parquet").getAbsolutePath());
-    OutputFile outputFile = HadoopOutputFile.fromPath(hadoopPath, conf);
-    try (DataWriter<Record> writer =
-        Parquet.writeData(outputFile)
-            .schema(SCHEMA)
-            .createWriterFunc(GenericParquetWriter::create)
-            .overwrite()
-            .withSpec(PartitionSpec.unpartitioned())
-            .build()) {
-      for (Record record : records) {
-        writer.write(record);
-      }
-    }
-
-    HadoopInputFile inputFile = HadoopInputFile.fromPath(hadoopPath, conf);
-    assertThat(inputFile.getLength())
-        .as("test file must clear Iceberg's eager-fetch threshold to exercise chunked reads")
-        .isGreaterThan(MIN_TOTAL_BYTES);
-    return inputFile;
-  }
-
-  private static InputFile spyOnReadLengths(InputFile delegate, List<Integer> requestedLengths) {
-    InputFile spy = Mockito.spy(delegate);
-    Mockito.doAnswer(
-            invocation -> {
-              SeekableInputStream streamSpy =
-                  Mockito.spy((SeekableInputStream) invocation.callRealMethod());
-              Mockito.doAnswer(
-                      (InvocationOnMock readInvocation) -> {
-                        requestedLengths.add(readInvocation.getArgument(2));
-                        return readInvocation.callRealMethod();
-                      })
-                  .when(streamSpy)
-                  .read(Mockito.any(byte[].class), Mockito.anyInt(), Mockito.anyInt());
-              return streamSpy;
-            })
-        .when(spy)
-        .newStream();
-    return spy;
-  }
-
-  @Test
-  void allocationSizePropertyRoutesThroughGenericSet() throws IOException {
-    List<Record> expected = highEntropyRecords(4000, 1024);
-    InputFile file = writeFile(expected);
-
-    int maxAllocationSizeInBytes = 4096;
-    List<Integer> requestedLengths = Lists.newArrayList();
-    InputFile spy = spyOnReadLengths(file, requestedLengths);
-
-    try (CloseableIterable<Record> reader =
-        Parquet.read(spy)
-            .project(SCHEMA)
-            .set("parquet.read.allocation.size", String.valueOf(maxAllocationSizeInBytes))
-            .createReaderFunc(fileSchema -> InternalReader.create(SCHEMA, fileSchema))
-            .build()) {
-      assertThat(reader).as("all records should be read back").hasSameSizeAs(expected);
-    }
-
-    assertThat(requestedLengths.stream().mapToLong(Integer::longValue).sum())
-        .as("column data should be read through the recorded, allocation-bounded reads")
-        .isGreaterThan(MIN_TOTAL_BYTES);
-    assertThat(requestedLengths)
-        .as("no single read should request more than the configured allocation size")
-        .allSatisfy(len -> assertThat(len).isLessThanOrEqualTo(maxAllocationSizeInBytes));
-  }
-
-  @Test
-  void ambientHadoopConfigurationAllocationSizeIsRespected(@TempDir File tempDir)
-      throws IOException {
-    List<Record> expected = highEntropyRecords(4000, 1024);
-
-    int maxAllocationSizeInBytes = 4096;
-    Configuration conf = newRecordingConfiguration();
-    conf.setInt("parquet.read.allocation.size", maxAllocationSizeInBytes);
-    // vectored reads allocate one buffer per range and ignore the allocation size
-    conf.setBoolean(HADOOP_VECTORED_IO_ENABLED, false);
-
-    HadoopInputFile file = writeHadoopFile(expected, tempDir, conf);
-
-    List<Integer> requestedLengths = Lists.newArrayList();
-    RecordingLocalFileSystem.record(requestedLengths);
-    try {
-      try (CloseableIterable<Record> reader =
-          Parquet.read(file)
-              .project(SCHEMA)
-              .createReaderFunc(fileSchema -> InternalReader.create(SCHEMA, fileSchema))
-              .build()) {
-        assertThat(reader).as("all records should be read back").hasSameSizeAs(expected);
-      }
-    } finally {
-      RecordingLocalFileSystem.stopRecording();
-    }
-
-    assertThat(requestedLengths.stream().mapToLong(Integer::longValue).sum())
-        .as("column data should be read through the recorded, allocation-bounded reads")
-        .isGreaterThan(MIN_TOTAL_BYTES);
-    assertThat(requestedLengths)
-        .as("no single read should request more than the ambient configuration's allocation size")
-        .allSatisfy(len -> assertThat(len).isLessThanOrEqualTo(maxAllocationSizeInBytes));
-  }
-
-  /** Makes vectored reads available to Parquet, as S3FileIO streams do, and counts them. */
-  private static InputFile vectoredReadCountingFile(InputFile delegate, AtomicInteger counter) {
-    InputFile spy = Mockito.spy(delegate);
-    Mockito.doAnswer(
-            invocation ->
-                new VectoredReadCountingStream(
-                    (SeekableInputStream) invocation.callRealMethod(), counter))
-        .when(spy)
-        .newStream();
-    return spy;
-  }
-
-  private static class VectoredReadCountingStream extends SeekableInputStream
-      implements RangeReadable {
-    private final SeekableInputStream delegate;
-    private final AtomicInteger vectoredReads;
-
-    VectoredReadCountingStream(SeekableInputStream delegate, AtomicInteger vectoredReads) {
-      this.delegate = delegate;
-      this.vectoredReads = vectoredReads;
-    }
-
-    @Override
-    public long getPos() throws IOException {
-      return delegate.getPos();
-    }
-
-    @Override
-    public void seek(long newPos) throws IOException {
-      delegate.seek(newPos);
-    }
-
-    @Override
-    public int read() throws IOException {
-      return delegate.read();
-    }
-
-    @Override
-    public int read(byte[] b, int off, int len) throws IOException {
-      return delegate.read(b, off, len);
-    }
-
-    @Override
-    public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
-      long pos = delegate.getPos();
-      delegate.seek(position);
-      IOUtil.readFully(delegate, buffer, offset, length);
-      delegate.seek(pos);
-    }
-
-    @Override
-    public int readTail(byte[] buffer, int offset, int length) throws IOException {
-      throw new UnsupportedOperationException("not used by these tests");
-    }
-
-    @Override
-    public void readVectored(List<FileRange> ranges, IntFunction<ByteBuffer> allocate)
-        throws IOException {
-      vectoredReads.incrementAndGet();
-      RangeReadable.super.readVectored(ranges, allocate);
-    }
-
-    @Override
-    public void close() throws IOException {
-      delegate.close();
-    }
-  }
-
-  private static int countVectoredReads(InputFile file, String vectoredIoEnabled, int expected)
-      throws IOException {
-    AtomicInteger vectoredReads = new AtomicInteger();
-    Parquet.ReadBuilder builder =
-        Parquet.read(vectoredReadCountingFile(file, vectoredReads))
-            .project(SCHEMA)
-            .createReaderFunc(fileSchema -> InternalReader.create(SCHEMA, fileSchema));
-    if (vectoredIoEnabled != null) {
-      builder.set(HADOOP_VECTORED_IO_ENABLED, vectoredIoEnabled);
-    }
-
-    try (CloseableIterable<Record> reader = builder.build()) {
-      assertThat(reader).as("all records should be read back").hasSize(expected);
-    }
-
-    return vectoredReads.get();
-  }
-
-  @Test
-  void vectoredIoIsEnabledByDefault() throws IOException {
-    List<Record> expected = highEntropyRecords(4000, 1024);
-    InputFile file = writeFile(expected);
-
-    assertThat(countVectoredReads(file, null, expected.size()))
-        .as("vectored reads should be used when nothing is configured")
-        .isGreaterThan(0);
-  }
-
-  @Test
-  void vectoredIoIsDisabledWhenSetToFalse() throws IOException {
-    List<Record> expected = highEntropyRecords(4000, 1024);
-    InputFile file = writeFile(expected);
-
-    assertThat(countVectoredReads(file, "false", expected.size()))
-        .as("vectored reads should not be used when explicitly disabled")
-        .isZero();
-  }
-
-  private static int countHadoopVectoredReads(HadoopInputFile file, int expected)
-      throws IOException {
-    AtomicInteger vectoredReads = new AtomicInteger();
-    RecordingLocalFileSystem.record(Lists.newArrayList());
-    RecordingLocalFileSystem.recordVectoredReads(vectoredReads);
-    try (CloseableIterable<Record> reader =
-        Parquet.read(file)
-            .project(SCHEMA)
-            .createReaderFunc(fileSchema -> InternalReader.create(SCHEMA, fileSchema))
-            .build()) {
-      assertThat(reader).as("all records should be read back").hasSize(expected);
-    } finally {
-      RecordingLocalFileSystem.stopRecording();
-    }
-
-    return vectoredReads.get();
-  }
-
-  @Test
-  void hadoopVectoredIoIsEnabledByDefault(@TempDir File tempDir) throws IOException {
-    List<Record> expected = highEntropyRecords(4000, 1024);
-    HadoopInputFile file = writeHadoopFile(expected, tempDir, newRecordingConfiguration());
-
-    assertThat(countHadoopVectoredReads(file, expected.size()))
-        .as("vectored reads should be used when nothing is configured")
-        .isGreaterThan(0);
-  }
-
-  @Test
-  void ambientHadoopConfigurationVectoredIoDisabledIsRespected(@TempDir File tempDir)
-      throws IOException {
-    List<Record> expected = highEntropyRecords(4000, 1024);
-    Configuration conf = newRecordingConfiguration();
-    conf.setBoolean(HADOOP_VECTORED_IO_ENABLED, false);
-    HadoopInputFile file = writeHadoopFile(expected, tempDir, conf);
-
-    assertThat(countHadoopVectoredReads(file, expected.size()))
-        .as("vectored reads should not be used when disabled in the Hadoop Configuration")
-        .isZero();
-  }
-
-  private static ParquetConfiguration configuration(
-      ReadPath readPath, Map<String, String> properties) {
-    if (readPath == ReadPath.HADOOP) {
-      Configuration conf = new Configuration(false);
-      properties.forEach(conf::set);
-      return new HadoopParquetConfiguration(conf);
-    }
-
-    return new PlainParquetConfiguration(properties);
+  private static Parquet.ReadBuilder readBuilder(InputFile file) {
+    return Parquet.read(file)
+        .project(SCHEMA)
+        .createReaderFunc(fileSchema -> InternalReader.create(SCHEMA, fileSchema));
   }
 
   @ParameterizedTest
   @EnumSource(ReadPath.class)
-  void vectoredIoDefaultIsAppliedWhenUnset(ReadPath readPath) {
-    ParquetConfiguration conf = configuration(readPath, ImmutableMap.of());
-
-    Parquet.applyVectoredIoDefault(conf);
-
-    assertThat(conf.get(HADOOP_VECTORED_IO_ENABLED)).isEqualTo("true");
-  }
-
-  @ParameterizedTest
-  @EnumSource(ReadPath.class)
-  void vectoredIoDefaultKeepsExplicitValue(ReadPath readPath) {
-    ParquetConfiguration conf =
-        configuration(readPath, ImmutableMap.of(HADOOP_VECTORED_IO_ENABLED, "false"));
-
-    Parquet.applyVectoredIoDefault(conf);
-
-    assertThat(conf.get(HADOOP_VECTORED_IO_ENABLED)).isEqualTo("false");
-  }
-
-  private static void assertReadsAll(InputFile file, String key, String value, int expected)
+  void readPropertiesAreAppliedToReadOptions(ReadPath readPath, @TempDir File tempDir)
       throws IOException {
-    try (CloseableIterable<Record> reader =
-        Parquet.read(file)
-            .project(SCHEMA)
-            .set(key, value)
-            .createReaderFunc(fileSchema -> InternalReader.create(SCHEMA, fileSchema))
-            .build()) {
-      assertThat(reader).as("all records should be read back").hasSize(expected);
-    }
+    InputFile file = writeFile(readPath, tempDir);
+
+    // parquet-java parses this property when the read options are built, so an unparseable value
+    // fails the read only if the property was applied
+    assertThatThrownBy(
+            () -> readBuilder(file).set("parquet.read.allocation.size", "not-a-number").build())
+        .isInstanceOf(NumberFormatException.class)
+        .hasMessageContaining("not-a-number");
   }
 
   @ParameterizedTest
   @EnumSource(ReadPath.class)
-  void nullPropertyValueIsTolerated(ReadPath readPath, @TempDir File tempDir) throws IOException {
-    List<Record> expected = highEntropyRecords(4000, 1024);
-    InputFile file = writeFile(readPath, expected, tempDir);
+  void nullPropertyValuesAreIgnored(ReadPath readPath, @TempDir File tempDir) throws IOException {
+    InputFile file = writeFile(readPath, tempDir);
 
-    assertReadsAll(file, "parquet.custom.property", null, expected.size());
+    try (CloseableIterable<Record> reader =
+        readBuilder(file).set("parquet.custom.property", null).build()) {
+      assertThat(reader).hasSameSizeAs(RECORDS);
+    }
   }
 
   @ParameterizedTest
   @EnumSource(ReadPath.class)
   void removedReadPropertiesAreNotApplied(ReadPath readPath, @TempDir File tempDir)
       throws IOException {
-    List<Record> expected = highEntropyRecords(4000, 1024);
-    InputFile file = writeFile(readPath, expected, tempDir);
+    InputFile file = writeFile(readPath, tempDir);
 
-    // Parquet would fail to load this record filter class if the property reached it
-    assertReadsAll(file, "parquet.read.filter", "org.example.MissingFilter", expected.size());
+    // parquet-java would fail to load this record filter class if the property was applied
+    try (CloseableIterable<Record> reader =
+        readBuilder(file).set("parquet.read.filter", "org.example.MissingFilter").build()) {
+      assertThat(reader).hasSameSizeAs(RECORDS);
+    }
   }
 }

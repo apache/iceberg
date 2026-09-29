@@ -104,7 +104,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.parquet.ParquetValueWriters.PositionDeleteStructWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -1680,9 +1679,8 @@ public class Parquet {
     }
   }
 
-  // parquet-java defaults vectored IO to false before 1.16.0
-  @VisibleForTesting
-  static void applyVectoredIoDefault(ParquetConfiguration conf) {
+  // Keeps an explicit value, but sets the default so parquet-java older than 1.16.0 also uses true
+  private static void applyVectoredIoDefault(ParquetConfiguration conf) {
     if (conf.get(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED) == null) {
       conf.setBoolean(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, true);
     }
