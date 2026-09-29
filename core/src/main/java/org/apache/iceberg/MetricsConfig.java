@@ -118,7 +118,7 @@ public final class MetricsConfig implements Serializable {
    * @return a metrics config for the given table
    */
   public static MetricsConfig forTable(Table table) {
-    return from(table.properties(), table.schema(), table.sortOrder());
+    return from(table.properties(), table.schema(), table.sortOrder(), table.spec());
   }
 
   public Iterable<Integer> metricsFieldIds() {
@@ -257,6 +257,11 @@ public final class MetricsConfig implements Serializable {
    */
   @Deprecated
   public static MetricsConfig from(Map<String, String> props, Schema schema, SortOrder order) {
+    return from(props, schema, order, null);
+  }
+
+  private static MetricsConfig from(
+      Map<String, String> props, Schema schema, SortOrder order, PartitionSpec spec) {
     int maxDefaultColumns = maxInferredColumnDefaults(props);
 
     // Handle configured default mode
@@ -285,6 +290,9 @@ public final class MetricsConfig implements Serializable {
 
     // Override automatic modes with configured modes
     columnModes.putAll(configuredColumnModes(props));
+
+    // Force full metrics for partition source columns
+    columnModes.putAll(partitionColumnModes(spec));
 
     Map<Integer, String> idToName = idToName(schema, columnModes);
 
@@ -336,6 +344,24 @@ public final class MetricsConfig implements Serializable {
     }
 
     return builder.build();
+  }
+
+  private static Map<String, MetricsMode> partitionColumnModes(PartitionSpec spec) {
+    if (spec == null) {
+      return ImmutableMap.of();
+    }
+
+    ImmutableMap.Builder<String, MetricsMode> builder = ImmutableMap.builder();
+    for (PartitionField field : spec.fields()) {
+      if (field.transform().preservesOrder()) {
+        String name = spec.schema().findColumnName(field.sourceId());
+        // truncate[W] could use stats truncated to at least W, but full is used for simplicity
+        builder.put(name, MetricsModes.Full.get());
+      }
+    }
+
+    // multiple partition fields can share a source column, so allow duplicate keys
+    return builder.buildKeepingLast();
   }
 
   private static Map<Integer, String> idToName(
