@@ -52,25 +52,33 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private static final int SUPPORTED_FORMAT_VERSION = 4;
   private static final Set<Integer> REQUIRED_COLUMN_IDS =
       ImmutableSet.of(
-          Tracking.STATUS.fieldId(), // needed to filter live files
+          Tracking.STATUS.fieldId(), // needed to filter live files and for inheritance
           MetadataColumns.ROW_POSITION.fieldId(), // needed to apply metadata DVs
           TrackedFile.CONTENT_TYPE.fieldId(), // needed for content filtering
           TrackedFile.RECORD_COUNT.fieldId()); // needed for first_row_id assignment and filtering
 
   static Builder builder(
       ManifestFile manifest, FileIO io, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
-    return new Builder(manifest, io, tableSchema, specsById);
+    return new Builder(manifest, io, tableSchema, specsById, false /* committed */);
+  }
+
+  static Builder uncommitted(
+      ManifestFile manifest, FileIO io, Schema tableSchema, Map<Integer, PartitionSpec> specsById) {
+    return new Builder(manifest, io, tableSchema, specsById, true /* uncommitted */);
   }
 
   private final ManifestFile manifest;
+  private final ManifestBitmap dv;
   private final FileIO io;
   private final Schema readSchema;
   private final String tableLocation;
   private final InclusiveStatsEvaluator statsFilter;
   private final Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters; // by spec ID
-  private final boolean includeAll;
   private final Set<Integer> requestedStatsFieldIds;
+  private final boolean isUncommitted;
   private final ScanMetrics scanMetrics;
+
+  private Long nextRowId = null;
 
   private V4ManifestReader(
       ManifestFile manifest,
@@ -79,18 +87,22 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       String tableLocation,
       InclusiveStatsEvaluator statsFilter,
       Map<Integer, Pair<Evaluator, StructProjection>> partitionFilters,
-      boolean includeAll,
       Set<Integer> requestedStatsFieldIds,
+      boolean isUncommitted,
       ScanMetrics scanMetrics) {
     this.manifest = manifest;
+    this.dv = manifest.manifestDeletionVector();
     this.io = io;
     this.readSchema = readSchema;
     this.tableLocation = tableLocation;
     this.statsFilter = statsFilter;
     this.partitionFilters = partitionFilters;
-    this.includeAll = includeAll;
     this.requestedStatsFieldIds = requestedStatsFieldIds;
+    this.isUncommitted = isUncommitted;
     this.scanMetrics = scanMetrics;
+
+    // initialize the next row ID to the manifest's first row ID
+    this.nextRowId = manifest.firstRowId();
   }
 
   @VisibleForTesting
@@ -98,12 +110,18 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return readSchema;
   }
 
-  /** Returns copies of the tracked files that match this reader's configured filters. */
   @Override
   public CloseableIterator<TrackedFile> iterator() {
-    CloseableIterable<TrackedFile> files = CloseableIterable.transform(open(), this::prepare);
+    // first row ID assignment must happen first to maintain consistent assignment when files are
+    // removed or filtered
+    CloseableIterable<TrackedFile> files =
+        CloseableIterable.transform(open(), this::applyInheritance);
 
-    if (!includeAll) {
+    if (dv != null) {
+      files =
+          CloseableIterable.filter(
+              files, file -> file.tracking().isLive() && !isDeletedByMDV(file));
+    } else {
       files = CloseableIterable.filter(files, file -> file.tracking().isLive());
     }
 
@@ -125,6 +143,26 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     return CloseableIterable.transform(files, this::copyResolved).iterator();
+  }
+
+  private TrackedFile applyInheritance(TrackedFile file) {
+    // the reader uses TrackingStruct to read tracking so this cast is safe
+    TrackingStruct tracking = (TrackingStruct) file.tracking();
+    if (isUncommitted) {
+      // uncommitted files cannot have a sequence number or assign first row ID
+      tracking.inherit(manifest.snapshotId());
+    } else {
+      tracking.inherit(manifest.snapshotId(), manifest.sequenceNumber());
+      if (tracking.assignFirstRowId(nextRowId)) {
+        this.nextRowId += file.recordCount();
+      }
+    }
+
+    return file;
+  }
+
+  private boolean isDeletedByMDV(TrackedFile file) {
+    return dv.isSet(Math.toIntExact(file.tracking().manifestPos()));
   }
 
   private boolean matchesPartition(TrackedFile trackedFile) {
@@ -196,16 +234,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return reader;
   }
 
-  private TrackedFile prepare(TrackedFile trackedFile) {
-    Tracking tracking = trackedFile.tracking();
-    // manifestLocation is not stored in the manifest; the reader fills it in
-    if (tracking instanceof TrackingStruct) {
-      ((TrackingStruct) tracking).setManifestLocation(manifest.path());
-    }
-
-    return trackedFile;
-  }
-
   // resolves stored locations against the table location
   private TrackedFile copyResolved(TrackedFile trackedFile) {
     TrackedFileStruct copy =
@@ -218,10 +246,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       copy.setLocation(LocationUtil.resolveLocation(tableLocation, copy.location()));
     }
 
-    DeletionVector dv = copy.deletionVector();
-    if (dv != null && dv.location() != null) {
-      ((DeletionVectorStruct) dv)
-          .setLocation(LocationUtil.resolveLocation(tableLocation, dv.location()));
+    DeletionVector deletionVector = copy.deletionVector();
+    if (deletionVector != null && deletionVector.location() != null) {
+      ((DeletionVectorStruct) deletionVector)
+          .setLocation(LocationUtil.resolveLocation(tableLocation, deletionVector.location()));
     }
 
     return copy;
@@ -238,10 +266,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private final Schema tableSchema;
     private final Types.StructType unionPartitionType;
     private final Map<Integer, PartitionSpec> specsById;
+    private final boolean isUncommitted;
     private String tableLocation = null;
     private Expression rowFilter = Expressions.alwaysTrue();
     private boolean caseSensitive = true;
-    private boolean includeAll = false;
     private boolean scanPlanning = false;
     private Set<String> requestedColumns = null;
     private Schema requestedProjection = null;
@@ -253,7 +281,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         ManifestFile manifest,
         FileIO io,
         Schema tableSchema,
-        Map<Integer, PartitionSpec> specsById) {
+        Map<Integer, PartitionSpec> specsById,
+        boolean isUncommitted) {
       Preconditions.checkArgument(tableSchema != null, "Invalid table schema: null");
       int formatVersion = manifest.formatVersion();
       Preconditions.checkArgument(
@@ -270,16 +299,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Preconditions.checkArgument(
           format != null, "Cannot determine format of manifest: %s", manifest.path());
 
-      if (manifest.manifestDeletionVector() != null) {
-        throw new UnsupportedOperationException(
-            "Cannot read manifest with a deletion vector: " + manifest.path());
-      }
-
       this.manifest = manifest;
       this.io = io;
       this.tableSchema = tableSchema;
-      this.specsById = specsById;
       this.unionPartitionType = Partitioning.unionPartitionTypes(specsById.values());
+      this.specsById = specsById;
+      this.isUncommitted = isUncommitted;
     }
 
     /**
@@ -306,14 +331,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return this;
     }
 
-    /** Returns all entries without filtering by {@link Tracking#isLive() liveness}. */
-    Builder includeAll() {
-      this.includeAll = true;
-      return this;
-    }
-
     /** Configures the reader to select the minimal fields needed for scan planning. */
     Builder forScanPlanning() {
+      Preconditions.checkState(
+          !isUncommitted, "Cannot plan scan using uncommitted manifest: %s", manifest.path());
       Preconditions.checkState(
           requestedColumns == null && requestedProjection == null,
           "Cannot use forScanPlanning() with select(Iterable<String>) or project(Schema)");
@@ -396,8 +417,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           tableLocation,
           statsFilter(),
           partitionFilters,
-          includeAll,
           requestedStatsFieldIds,
+          isUncommitted,
           scanMetrics);
     }
 

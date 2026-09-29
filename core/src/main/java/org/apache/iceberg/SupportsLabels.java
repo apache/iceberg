@@ -16,22 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.aws.s3;
+package org.apache.iceberg;
 
-import org.testcontainers.containers.MinIOContainer;
-import org.testcontainers.junit.jupiter.Testcontainers;
-
-@Testcontainers
-public class TestS3FileIOWithLegacyMinIO extends TestS3FileIO {
-  @Override
-  protected MinIOContainer createMinIOContainer() {
-    MinIOContainer container = MinioUtil.createContainer(MinioUtil.LEGACY_TAG, null);
-    container.start();
-    return container;
-  }
-
-  @Override
-  protected boolean legacyMd5PluginEnabled() {
-    return true;
-  }
+/**
+ * Implemented by tables that can expose catalog-provided labels.
+ *
+ * <p>Labels are optional enrichment supplied by the catalog, not table state. They are advisory:
+ * callers may ignore them, and implementations may drop them across serialization.
+ */
+public interface SupportsLabels {
+  /**
+   * Returns the catalog-provided labels for this table, or an empty instance when there are none.
+   */
+  Labels labels();
 }

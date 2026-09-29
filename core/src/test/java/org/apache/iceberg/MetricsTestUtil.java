@@ -18,26 +18,22 @@
  */
 package org.apache.iceberg;
 
-import org.apache.iceberg.data.parquet.InternalReader;
-import org.apache.iceberg.data.parquet.InternalWriter;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.parquet.Parquet;
+import java.util.Map;
+import org.mockito.Mockito;
 
-public class InternalParquet {
-  private InternalParquet() {}
+public class MetricsTestUtil {
+  private MetricsTestUtil() {}
 
-  public static void register() {
-    InternalData.register(
-        FileFormat.PARQUET, InternalParquet::writeInternal, InternalParquet::readInternal);
+  public static MetricsConfig from(Map<String, String> properties, Schema schema) {
+    return from(properties, schema, null);
   }
 
-  private static Parquet.WriteBuilder writeInternal(OutputFile outputFile) {
-    return Parquet.write(outputFile).createWriterFunc(InternalWriter::createWriter);
-  }
-
-  private static Parquet.ReadBuilder readInternal(InputFile inputFile) {
-    return Parquet.read(inputFile)
-        .createReaderFunc(InternalReader.readerFunction(inputFile.location()));
+  public static MetricsConfig from(
+      Map<String, String> properties, Schema schema, SortOrder sortOrder) {
+    Table mock = Mockito.mock(Table.class);
+    Mockito.when(mock.properties()).thenReturn(properties);
+    Mockito.when(mock.schema()).thenReturn(schema);
+    Mockito.when(mock.sortOrder()).thenReturn(sortOrder);
+    return MetricsConfig.forTable(mock);
   }
 }

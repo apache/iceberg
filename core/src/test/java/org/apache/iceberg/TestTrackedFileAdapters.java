@@ -67,8 +67,9 @@ class TestTrackedFileAdapters {
           .build();
   private static final PartitionData PARTITION = partition("books");
 
-  // manifestPos is populated by readers using the setter with the position of the field.
-  private static final int MANIFEST_POS_ORDINAL = Tracking.schema().fields().size();
+  // these are populated by readers using the setter with the position of the field.
+  private static final int MANIFEST_LOCATION_ORDINAL = Tracking.schema().fields().size();
+  private static final int MANIFEST_POSITION_ORDINAL = Tracking.schema().fields().size() + 1;
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
@@ -114,10 +115,12 @@ class TestTrackedFileAdapters {
           .existingFilesCount(5)
           .deletedFilesCount(2)
           .replacedFilesCount(0)
+          .modifiedFilesCount(0)
           .addedRowsCount(300L)
           .existingRowsCount(500L)
           .deletedRowsCount(200L)
           .replacedRowsCount(0L)
+          .modifiedRowsCount(0L)
           .minSequenceNumber(7L)
           .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
           .build();
@@ -134,8 +137,8 @@ class TestTrackedFileAdapters {
             FIRST_ROW_ID,
             null,
             null);
-    tracking.setManifestLocation(MANIFEST_LOCATION);
-    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
+    tracking.set(MANIFEST_LOCATION_ORDINAL, MANIFEST_LOCATION);
+    tracking.set(MANIFEST_POSITION_ORDINAL, MANIFEST_POS);
 
     DeletionVector dv = mock(DeletionVector.class);
     TrackedFile file =
@@ -215,8 +218,8 @@ class TestTrackedFileAdapters {
             FIRST_ROW_ID,
             null,
             null);
-    tracking.setManifestLocation(MANIFEST_LOCATION);
-    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
+    tracking.set(MANIFEST_LOCATION_ORDINAL, MANIFEST_LOCATION);
+    tracking.set(MANIFEST_POSITION_ORDINAL, MANIFEST_POS);
 
     TrackedFile file =
         new TrackedFileStruct(
@@ -304,8 +307,8 @@ class TestTrackedFileAdapters {
             FIRST_ROW_ID,
             null,
             null);
-    tracking.setManifestLocation(MANIFEST_LOCATION);
-    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
+    tracking.set(MANIFEST_LOCATION_ORDINAL, MANIFEST_LOCATION);
+    tracking.set(MANIFEST_POSITION_ORDINAL, MANIFEST_POS);
 
     TrackedFile file =
         new TrackedFileStruct(
@@ -428,8 +431,8 @@ class TestTrackedFileAdapters {
             FIRST_ROW_ID,
             null,
             null);
-    tracking.setManifestLocation(MANIFEST_LOCATION);
-    tracking.set(MANIFEST_POS_ORDINAL, MANIFEST_POS);
+    tracking.set(MANIFEST_LOCATION_ORDINAL, MANIFEST_LOCATION);
+    tracking.set(MANIFEST_POSITION_ORDINAL, MANIFEST_POS);
 
     DeletionVector dv =
         DeletionVectorStruct.builder()

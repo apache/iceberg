@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -41,16 +42,28 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.hadoop.ParquetOutputFormat;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /** Vectorized-read tests focused on Iceberg field defaults. */
 public class TestVectorizedDefaultValues {
 
+  private static final int NUM_ROWS = 7;
+
   @TempDir private File tempDir;
 
-  @Test
-  public void testDecimalWithDefaultValueNotDictionaryEncoded() throws Exception {
+  private static Stream<Arguments> readConfigurations() {
+    return Stream.of(2, NUM_ROWS, 1024)
+        .flatMap(
+            batchSize -> Stream.of(Arguments.of(batchSize, false), Arguments.of(batchSize, true)));
+  }
+
+  @ParameterizedTest(name = "batchSize={0}, reuseContainers={1}")
+  @MethodSource("readConfigurations")
+  void decimalWithDefaultsPreservesStoredValues(int batchSize, boolean reuseContainers)
+      throws Exception {
     Schema schema =
         new Schema(
             Types.NestedField.required("id").withId(1).ofType(Types.LongType.get()).build(),
@@ -83,12 +96,15 @@ public class TestVectorizedDefaultValues {
 
     List<GenericRecord> records = Lists.newArrayList();
     GenericRecord template = GenericRecord.create(schema);
-    for (long i = 0; i < 5; i++) {
+    for (long i = 0; i < NUM_ROWS; i++) {
       GenericRecord rec = template.copy();
       rec.setField("id", i);
-      rec.setField("int_backed", new BigDecimal("12.34"));
-      rec.setField("long_backed", new BigDecimal("1234567890.12"));
-      rec.setField("fixed_backed", new BigDecimal("9876543210.99"));
+      BigDecimal multiplier = BigDecimal.valueOf(i + 1);
+      rec.setField("int_backed", i % 3 == 0 ? null : new BigDecimal("12.34").multiply(multiplier));
+      rec.setField(
+          "long_backed", i % 3 == 1 ? null : new BigDecimal("1234567890.12").multiply(multiplier));
+      rec.setField(
+          "fixed_backed", i % 3 == 2 ? null : new BigDecimal("9876543210.99").multiply(multiplier));
       records.add(rec);
     }
 
@@ -113,7 +129,7 @@ public class TestVectorizedDefaultValues {
 
     int rowsRead = 0;
     try (VectorizedTableScanIterable reader =
-        new VectorizedTableScanIterable(table.newScan(), 1024, false)) {
+        new VectorizedTableScanIterable(table.newScan(), batchSize, reuseContainers)) {
       for (ColumnarBatch batch : reader) {
         ColumnVector idColumn = batch.column(0);
         ColumnVector intBackedColumn = batch.column(1);

@@ -184,7 +184,9 @@ class TableMetadataCache {
               compatible,
               CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED,
               DataConverter.get(
-                  FlinkSchemaUtil.convert(input), FlinkSchemaUtil.convert(compatible)));
+                  FlinkSchemaUtil.convert(input),
+                  FlinkSchemaUtil.convert(compatible),
+                  caseSensitive));
       cached.inputSchemas.put(input, newResult);
       return newResult;
     } else if (cached != null && cached.tableExists) {

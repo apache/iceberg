@@ -33,16 +33,29 @@ class TestManifestInfoStruct {
   void fieldAccess() {
     ManifestInfoStruct info =
         new ManifestInfoStruct(
-            10, 20, 3, 2, 1000L, 2000L, 300L, 200L, 5L, MumblingTestUtil.onlyFirstBitSetBytes());
+            10,
+            20,
+            3,
+            2,
+            1,
+            1000L,
+            2000L,
+            300L,
+            200L,
+            100L,
+            5L,
+            MumblingTestUtil.onlyFirstBitSetBytes());
 
     assertThat(info.addedFilesCount()).isEqualTo(10);
     assertThat(info.existingFilesCount()).isEqualTo(20);
     assertThat(info.deletedFilesCount()).isEqualTo(3);
     assertThat(info.replacedFilesCount()).isEqualTo(2);
+    assertThat(info.modifiedFilesCount()).isEqualTo(1);
     assertThat(info.addedRowsCount()).isEqualTo(1000L);
     assertThat(info.existingRowsCount()).isEqualTo(2000L);
     assertThat(info.deletedRowsCount()).isEqualTo(300L);
     assertThat(info.replacedRowsCount()).isEqualTo(200L);
+    assertThat(info.modifiedRowsCount()).isEqualTo(100L);
     assertThat(info.minSequenceNumber()).isEqualTo(5L);
     assertThat(info.manifestDeletionVector().buffer())
         .isEqualTo(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()));
@@ -57,10 +70,12 @@ class TestManifestInfoStruct {
             .existingFilesCount(20)
             .deletedFilesCount(3)
             .replacedFilesCount(2)
+            .modifiedFilesCount(1)
             .addedRowsCount(1000L)
             .existingRowsCount(2000L)
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
+            .modifiedRowsCount(100L)
             .minSequenceNumber(5L)
             .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
             .build();
@@ -71,10 +86,12 @@ class TestManifestInfoStruct {
     assertThat(copy.existingFilesCount()).isEqualTo(20);
     assertThat(copy.deletedFilesCount()).isEqualTo(3);
     assertThat(copy.replacedFilesCount()).isEqualTo(2);
+    assertThat(copy.modifiedFilesCount()).isEqualTo(1);
     assertThat(copy.addedRowsCount()).isEqualTo(1000L);
     assertThat(copy.existingRowsCount()).isEqualTo(2000L);
     assertThat(copy.deletedRowsCount()).isEqualTo(300L);
     assertThat(copy.replacedRowsCount()).isEqualTo(200L);
+    assertThat(copy.modifiedRowsCount()).isEqualTo(100L);
     assertThat(copy.minSequenceNumber()).isEqualTo(5L);
 
     // verify deep copy of dv byte array
@@ -90,10 +107,12 @@ class TestManifestInfoStruct {
             .existingFilesCount(0)
             .deletedFilesCount(0)
             .replacedFilesCount(0)
+            .modifiedFilesCount(0)
             .addedRowsCount(0L)
             .existingRowsCount(0L)
             .deletedRowsCount(0L)
             .replacedRowsCount(0L)
+            .modifiedRowsCount(0L)
             .minSequenceNumber(0L)
             .build();
 
@@ -110,7 +129,7 @@ class TestManifestInfoStruct {
     assertThat(info.size()).isEqualTo(2);
 
     // projected position 0 maps to internal position 0 (added_files_count)
-    // projected position 1 maps to internal position 8 (min_sequence_number)
+    // projected position 1 maps to internal position 10 (min_sequence_number)
     info.set(0, 10);
     info.set(1, 5L);
 
@@ -128,10 +147,12 @@ class TestManifestInfoStruct {
             .existingFilesCount(20)
             .deletedFilesCount(3)
             .replacedFilesCount(2)
+            .modifiedFilesCount(1)
             .addedRowsCount(1000L)
             .existingRowsCount(2000L)
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
+            .modifiedRowsCount(100L)
             .minSequenceNumber(5L)
             .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
             .build();
@@ -145,10 +166,12 @@ class TestManifestInfoStruct {
     assertThat(info.existingFilesCount()).isEqualTo(20);
     assertThat(info.deletedFilesCount()).isEqualTo(3);
     assertThat(info.replacedFilesCount()).isEqualTo(2);
+    assertThat(info.modifiedFilesCount()).isEqualTo(1);
     assertThat(info.addedRowsCount()).isEqualTo(1000L);
     assertThat(info.existingRowsCount()).isEqualTo(2000L);
     assertThat(info.deletedRowsCount()).isEqualTo(300L);
     assertThat(info.replacedRowsCount()).isEqualTo(200L);
+    assertThat(info.modifiedRowsCount()).isEqualTo(100L);
     assertThat(info.minSequenceNumber()).isEqualTo(5L);
     assertThat(info.manifestDeletionVector()).isSameAs(mdv);
   }
@@ -161,10 +184,12 @@ class TestManifestInfoStruct {
             .existingFilesCount(20)
             .deletedFilesCount(3)
             .replacedFilesCount(2)
+            .modifiedFilesCount(1)
             .addedRowsCount(1000L)
             .existingRowsCount(2000L)
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
+            .modifiedRowsCount(100L)
             .minSequenceNumber(5L)
             .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
             .build();
@@ -175,10 +200,12 @@ class TestManifestInfoStruct {
     assertThat(deserialized.existingFilesCount()).isEqualTo(20);
     assertThat(deserialized.deletedFilesCount()).isEqualTo(3);
     assertThat(deserialized.replacedFilesCount()).isEqualTo(2);
+    assertThat(deserialized.modifiedFilesCount()).isEqualTo(1);
     assertThat(deserialized.addedRowsCount()).isEqualTo(1000L);
     assertThat(deserialized.existingRowsCount()).isEqualTo(2000L);
     assertThat(deserialized.deletedRowsCount()).isEqualTo(300L);
     assertThat(deserialized.replacedRowsCount()).isEqualTo(200L);
+    assertThat(deserialized.modifiedRowsCount()).isEqualTo(100L);
     assertThat(deserialized.minSequenceNumber()).isEqualTo(5L);
     assertThat(deserialized.manifestDeletionVector().buffer())
         .isEqualTo(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()));
@@ -192,10 +219,12 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -210,10 +239,12 @@ class TestManifestInfoStruct {
                     .addedFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -228,10 +259,12 @@ class TestManifestInfoStruct {
                     .addedFilesCount(0)
                     .existingFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -246,10 +279,12 @@ class TestManifestInfoStruct {
                     .addedFilesCount(0)
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -265,9 +300,11 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -283,9 +320,11 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -301,9 +340,11 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -319,9 +360,11 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -329,7 +372,7 @@ class TestManifestInfoStruct {
   }
 
   @Test
-  void builderMissingMinSequenceNumber() {
+  void builderMissingModifiedFilesCount() {
     assertThatThrownBy(
             () ->
                 ManifestInfoStruct.builder()
@@ -341,6 +384,48 @@ class TestManifestInfoStruct {
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
+                    .minSequenceNumber(0L)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required value: modified files count");
+  }
+
+  @Test
+  void builderMissingModifiedRowsCount() {
+    assertThatThrownBy(
+            () ->
+                ManifestInfoStruct.builder()
+                    .addedFilesCount(0)
+                    .existingFilesCount(0)
+                    .deletedFilesCount(0)
+                    .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
+                    .addedRowsCount(0L)
+                    .existingRowsCount(0L)
+                    .deletedRowsCount(0L)
+                    .replacedRowsCount(0L)
+                    .minSequenceNumber(0L)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Missing required value: modified rows count");
+  }
+
+  @Test
+  void builderMissingMinSequenceNumber() {
+    assertThatThrownBy(
+            () ->
+                ManifestInfoStruct.builder()
+                    .addedFilesCount(0)
+                    .existingFilesCount(0)
+                    .deletedFilesCount(0)
+                    .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
+                    .addedRowsCount(0L)
+                    .existingRowsCount(0L)
+                    .deletedRowsCount(0L)
+                    .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Missing required value: min sequence number");
@@ -375,6 +460,13 @@ class TestManifestInfoStruct {
   }
 
   @Test
+  void builderRejectsNegativeModifiedFilesCount() {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().modifiedFilesCount(-1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid modified files count: -1 (must be >= 0)");
+  }
+
+  @Test
   void builderRejectsNegativeAddedRowsCount() {
     assertThatThrownBy(() -> ManifestInfoStruct.builder().addedRowsCount(-1L))
         .isInstanceOf(IllegalArgumentException.class)
@@ -403,6 +495,13 @@ class TestManifestInfoStruct {
   }
 
   @Test
+  void builderRejectsNegativeModifiedRowsCount() {
+    assertThatThrownBy(() -> ManifestInfoStruct.builder().modifiedRowsCount(-1L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid modified rows count: -1 (must be >= 0)");
+  }
+
+  @Test
   void builderRejectsNegativeMinSequenceNumber() {
     assertThatThrownBy(() -> ManifestInfoStruct.builder().minSequenceNumber(-1L))
         .isInstanceOf(IllegalArgumentException.class)
@@ -418,10 +517,12 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(10L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -434,10 +535,12 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(5L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -450,10 +553,12 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(3L)
                     .replacedRowsCount(0L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -466,14 +571,34 @@ class TestManifestInfoStruct {
                     .existingFilesCount(0)
                     .deletedFilesCount(0)
                     .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
                     .addedRowsCount(0L)
                     .existingRowsCount(0L)
                     .deletedRowsCount(0L)
                     .replacedRowsCount(7L)
+                    .modifiedRowsCount(0L)
                     .minSequenceNumber(0L)
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid replaced counts: 7 rows in 0 files");
+
+    assertThatThrownBy(
+            () ->
+                ManifestInfoStruct.builder()
+                    .addedFilesCount(0)
+                    .existingFilesCount(0)
+                    .deletedFilesCount(0)
+                    .replacedFilesCount(0)
+                    .modifiedFilesCount(0)
+                    .addedRowsCount(0L)
+                    .existingRowsCount(0L)
+                    .deletedRowsCount(0L)
+                    .replacedRowsCount(0L)
+                    .modifiedRowsCount(4L)
+                    .minSequenceNumber(0L)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid modified counts: 4 rows in 0 files");
   }
 
   @Test
@@ -484,10 +609,12 @@ class TestManifestInfoStruct {
             .existingFilesCount(5)
             .deletedFilesCount(5)
             .replacedFilesCount(5)
+            .modifiedFilesCount(5)
             .addedRowsCount(0L)
             .existingRowsCount(0L)
             .deletedRowsCount(0L)
             .replacedRowsCount(0L)
+            .modifiedRowsCount(0L)
             .minSequenceNumber(0L)
             .build();
 
@@ -495,10 +622,12 @@ class TestManifestInfoStruct {
     assertThat(info.existingFilesCount()).isEqualTo(5);
     assertThat(info.deletedFilesCount()).isEqualTo(5);
     assertThat(info.replacedFilesCount()).isEqualTo(5);
+    assertThat(info.modifiedFilesCount()).isEqualTo(5);
     assertThat(info.addedRowsCount()).isEqualTo(0L);
     assertThat(info.existingRowsCount()).isEqualTo(0L);
     assertThat(info.deletedRowsCount()).isEqualTo(0L);
     assertThat(info.replacedRowsCount()).isEqualTo(0L);
+    assertThat(info.modifiedRowsCount()).isEqualTo(0L);
   }
 
   @Test
@@ -509,10 +638,12 @@ class TestManifestInfoStruct {
             .existingFilesCount(20)
             .deletedFilesCount(3)
             .replacedFilesCount(2)
+            .modifiedFilesCount(1)
             .addedRowsCount(1000L)
             .existingRowsCount(2000L)
             .deletedRowsCount(300L)
             .replacedRowsCount(200L)
+            .modifiedRowsCount(100L)
             .minSequenceNumber(5L)
             .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
             .build();
@@ -523,10 +654,12 @@ class TestManifestInfoStruct {
     assertThat(deserialized.existingFilesCount()).isEqualTo(20);
     assertThat(deserialized.deletedFilesCount()).isEqualTo(3);
     assertThat(deserialized.replacedFilesCount()).isEqualTo(2);
+    assertThat(deserialized.modifiedFilesCount()).isEqualTo(1);
     assertThat(deserialized.addedRowsCount()).isEqualTo(1000L);
     assertThat(deserialized.existingRowsCount()).isEqualTo(2000L);
     assertThat(deserialized.deletedRowsCount()).isEqualTo(300L);
     assertThat(deserialized.replacedRowsCount()).isEqualTo(200L);
+    assertThat(deserialized.modifiedRowsCount()).isEqualTo(100L);
     assertThat(deserialized.minSequenceNumber()).isEqualTo(5L);
     assertThat(deserialized.manifestDeletionVector().buffer())
         .isEqualTo(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()));
