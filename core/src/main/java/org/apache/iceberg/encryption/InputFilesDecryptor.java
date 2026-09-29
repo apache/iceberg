@@ -19,11 +19,16 @@
 package org.apache.iceberg.encryption;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.ColumnFile;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentFile;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -80,12 +85,31 @@ public class InputFilesDecryptor {
     Map<String, ContentFile<?>> files = Maps.newHashMap();
     for (FileScanTask task : tasks) {
       files.put(task.file().location(), task.file());
+
+      List<ColumnFile> columnFiles = task.file().columnFiles();
+      if (columnFiles != null) {
+        for (ColumnFile columnFile : columnFiles) {
+          files.put(columnFile.location(), asDataFile(columnFile));
+        }
+      }
+
       for (DeleteFile delete : task.deletes()) {
         files.put(delete.location(), delete);
       }
     }
 
     return files.values();
+  }
+
+  private static DataFile asDataFile(ColumnFile columnFile) {
+    // For decryption location, length and keyMetadata is what matters
+    return DataFiles.builder(PartitionSpec.unpartitioned())
+        .withPath(columnFile.location())
+        .withFormat(columnFile.fileFormat())
+        .withFileSizeInBytes(columnFile.fileSizeInBytes())
+        .withRecordCount(0)
+        .withEncryptionKeyMetadata(columnFile.keyMetadata())
+        .build();
   }
 
   /**
