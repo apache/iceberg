@@ -129,7 +129,8 @@ public class TestTasks {
             () ->
                 Tasks.foreach(1)
                     .countAttempts(counter)
-                    .exponentialBackoff(0, 0, 5000, 0)
+                    .totalTimeoutMs(5000)
+                    .backoffStrategy(attempt -> 0L)
                     .retry(3)
                     .run(
                         x -> {
