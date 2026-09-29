@@ -21,39 +21,36 @@ title: "Index Spec"
 
 ## Background and Motivation
 
+An index is a secondary store of data from a table that is structured to accelerate specific access patterns.
+An index is derived from the rows of a source table and is stored separately from table data, so it can be built,
+refreshed, or dropped without rewriting the table.
+
 An index is most valuable when it is a property of the table rather than of the engine that built it. This
 specification defines a common format for index metadata and a common storage architecture for index data, so that any
 engine can build an index, maintain it, and use it to plan queries against the table.
 
 ## Goals
 
-* **Portability** -- An index written by one engine will be readable by any other engine.
-* **Separation** -- Index metadata will be committed separately from table metadata. Building and maintaining an index
-  will not rewrite the table.
-* **Optionality** -- Indexes will be optional. Engines may ignore an index they do not support.
-* **Consistency** -- Each index snapshot will index exactly the live rows of one source table snapshot.
+* **Independence** -- An index is committed as a separate object, without modifying its source table.
+* **Consistency** -- An index reflects exactly the live rows of a single state of its source table.
+* **Read-optimized** -- An index is structured for fast reads, at the cost of extra work when writing.
+* **Incrementality** -- An index is refreshed by writing only the index data affected by the table's changes.
+* **Scalability** -- An index supports any table size that the table spec supports.
+* **Portability** -- An index is readable and maintainable by any engine, not only the one that wrote it.
+* **Extensibility** -- An index type or clustering strategy can be added without disrupting existing indexes or
+  engines that do not implement it.
 
 ## Overview
 
-An index is recorded in an index metadata file that contains the index definition and a set of index snapshots. Each
-index snapshot corresponds to a snapshot of the source table and references the index data for that state.
+Index state is maintained in index metadata files. All changes to index state create a new metadata file and replace
+the old metadata with an atomic swap, as defined in [Commits and Concurrency](#commits-and-concurrency). An index
+metadata file tracks the index definition, index properties, and index snapshots of a single index. A table may have
+any number of indexes, including multiple indexes of the same type.
 
-Index metadata files and index data files are immutable. Every update writes a new metadata file. An update that adds an
-index snapshot also writes a new tracking file and may reuse existing region files. Every update is committed by an
-atomic swap of the index metadata file, as defined in [Commits and Concurrency](#commits-and-concurrency).
-
-The index data of a snapshot is organized as a [tracking file](#tracking-file) that lists a set of
-[region files](#region-files):
-
-```text
-Index Metadata
-    |
-    +-- Index Snapshot(s)
-            |
-            +-- Tracking File
-                    |
-                    +-- Region Files
-```
+An index snapshot represents the state of an index for one snapshot of its source table and is used to access the
+complete set of index data files for that state. The index data of an index snapshot is organized as a
+[tracking file](#tracking-file) that lists a set of [region files](#region-files). Index data files are immutable and
+may be referenced by more than one index snapshot.
 
 ## Specification
 
@@ -66,11 +63,11 @@ Index Metadata
 * **Tracking file** -- A file that lists the region files of an index snapshot; one per index snapshot.
 * **Region file** -- A file that stores the index entries for a range of clustering keys; a subset of an index snapshot.
 
-### Paths in Metadata
+### Locations in Metadata
 
-Path strings stored in index metadata are classified and resolved as defined by
-[paths in metadata](spec.md#paths-in-metadata) in the table specification. Relative paths are resolved against the
-index `location`, which must be an absolute path.
+Location strings stored in index metadata are classified and resolved as defined by
+[paths in metadata](spec.md#paths-in-metadata) in the table specification. Relative locations are resolved against the
+index `location`, which must be an absolute location.
 
 ### Index Definition
 
@@ -79,10 +76,8 @@ a clustering key. The definition is fixed when the index is created and must not
 so region files remain readable through every index snapshot that references them. A different definition requires a
 new index.
 
-Index properties are not part of the definition. They configure how an index is written and maintained and may be
-changed by a commit.
-
-A table may have multiple indexes of the same index type.
+Index properties configure how an index is written and maintained, such as the target size of region files. Any commit
+may change properties, and readers must not depend on them.
 
 #### Index Type
 
@@ -90,13 +85,11 @@ The index type defines the logical category of an index and the class of queries
 
 | Type     | Description                                                                                                           |
 |----------|-----------------------------------------------------------------------------------------------------------------------|
-| `SCALAR` | Accelerates point lookups on clustered fields, and range filters when the clustering expressions are order preserving |
+| `scalar` | Accelerates point lookups on clustered fields, and range filters when the clustering expressions are order preserving |
 
-This specification defines a single index type, `SCALAR`. Future specifications may define additional types, see
-[Future Extensions](#future-extensions).
+This specification defines a single index type, `scalar`. Future specifications may define additional types.
 
-Writers must write `type` in upper case. Readers must match it case-insensitively. A reader that does not implement an
-index type must ignore the index and read the source table directly; it must not fail.
+Writers must write `index-type` in lower case. Readers must match it case-insensitively.
 
 #### Index Fields
 
@@ -177,7 +170,7 @@ The index metadata file has the following fields:
 | _required_  | `table-uuid`              | `string`                   | UUID of the indexed table                                                                          |
 | _required_  | `location`                | `string`                   | Index root location                                                                                |
 | _required_  | `last-updated-ms`         | `long`                     | Timestamp when the index was last updated (ms from epoch) [1]                                      |
-| _required_  | `type`                    | `string`                   | Logical index type                                                                                 |
+| _required_  | `index-type`              | `string`                   | Logical index type                                                                                 |
 | _required_  | `identity-fields`         | `list<int>`                | Source table fields stored in region files, see [Identity Fields](#identity-fields)                |
 | _optional_  | `materialized-fields`     | `list<expression-field>`   | Expression fields stored in region files, see [Materialized Fields](#materialized-fields)          |
 | _optional_  | `non-materialized-fields` | `list<expression-field>`   | Fields stored only in tracking statistics, see [Non-Materialized Fields](#non-materialized-fields) |
@@ -462,14 +455,6 @@ The `snapshots` list of the current index metadata file is the only root for rea
 file is live because a listed index snapshot references it. A commit that removes an index snapshot should delete the
 files that only that snapshot referenced.
 
-### Future Extensions
-
-Future specifications may define additional index types, for example vector indexes for similarity search or text/term
-indexes. Additional clustering strategies do not require changes to this specification and can be added as functions
-in the `iceberg_functions` catalog of the [expressions specification](expressions-spec.md), for example a function that
-maps multi-column values to their Hilbert curve position. The result can be declared as an index field and referenced
-by `clustering-key`.
-
 ## Appendix B: Recommendations
 
 ### Recording the Source Row Location
@@ -516,7 +501,7 @@ CREATE INDEX bucket_index
     CLUSTERED BY (bucket(256, user_id), user_id);
 ```
 
-This creates a `SCALAR` index on the `user_id` column that clusters entries by the hash bucket of `user_id` and then by
+This creates a `scalar` index on the `user_id` column that clusters entries by the hash bucket of `user_id` and then by
 `user_id` itself. When the index is created, the engine (or a later index maintenance job) reads the current table
 snapshot, writes the region files and a tracking file, and produces the first index metadata file containing a single
 index snapshot. Region file boundaries follow the clustering, so a region file holds a contiguous range of buckets or a
@@ -549,7 +534,7 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
   "table-uuid" : "fb072c92-a02b-11e9-ae9c-1bb7bc9eca94",
   "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "last-updated-ms" : 1573518431292,
-  "type" : "SCALAR",
+  "index-type" : "scalar",
   "identity-fields" : [ 1 ],
   "materialized-fields" : [ {
     "field-id" : 105,
