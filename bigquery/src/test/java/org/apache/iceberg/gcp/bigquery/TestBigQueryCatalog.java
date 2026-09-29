@@ -107,7 +107,7 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
       String catalogName, Map<String, String> additionalProperties) {
 
     String warehouseLocation = tempFolder.toPath().resolve("hive-warehouse").toString();
-    this.client = spy(new FakeBigQueryMetastoreClient());
+    client = spy(new FakeBigQueryMetastoreClient());
 
     Map<String, String> properties =
         Map.of(
