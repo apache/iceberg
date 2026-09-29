@@ -291,7 +291,7 @@ public final class MetricsConfig implements Serializable {
     // Override automatic modes with configured modes
     columnModes.putAll(configuredColumnModes(props));
 
-    // Force full metrics for partition source columns (cannot be overridden by config)
+    // Force full metrics for partition source columns
     columnModes.putAll(partitionColumnModes(spec, schema));
 
     Map<Integer, String> idToName = idToName(schema, columnModes);
