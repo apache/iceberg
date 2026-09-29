@@ -61,12 +61,12 @@ class TestDataFileReadBuilder {
           Types.NestedField.optional(2, "data", Types.StringType.get()),
           Types.NestedField.optional(3, "category", Types.StringType.get()));
   private static final ColumnFile COLUMN_FILE =
-      ColumnFileStruct.builder()
-          .formatVersion(4)
-          .fieldIds(List.of(2, 3))
-          .location(COLUMN_FILE_LOCATION)
-          .fileFormat(FileFormat.PARQUET)
-          .fileSizeInBytes(128L)
+      ColumnFiles.builder()
+          .withFormatVersion(4)
+          .withFieldIds(List.of(2, 3))
+          .withLocation(COLUMN_FILE_LOCATION)
+          .withFileFormat(FileFormat.PARQUET)
+          .withFileSizeInBytes(128L)
           .build();
   private static final int POSITION_ID = MetadataColumns.ROW_POSITION.fieldId();
   private static final Function<String, InputFile> MISSING_FILES = location -> null;
