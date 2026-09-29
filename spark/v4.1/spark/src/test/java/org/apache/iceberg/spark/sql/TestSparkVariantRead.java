@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Consumer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.DataFile;
@@ -51,6 +52,7 @@ import org.apache.spark.unsafe.types.VariantVal;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -106,10 +108,8 @@ public class TestSparkVariantRead extends TestBase {
     Object v1row2 = directRows.get(1).get(1);
     assertThat(v1row1).isInstanceOf(VariantVal.class);
     assertThat(v1row2).isInstanceOf(VariantVal.class);
-    VariantVal r1 = (VariantVal) v1row1;
-    VariantVal r2 = (VariantVal) v1row2;
-    Variant vv1 = new Variant(r1.getValue(), r1.getMetadata());
-    Variant vv2 = new Variant(r2.getValue(), r2.getMetadata());
+    Variant vv1 = asVariant(directRows.get(0), 1);
+    Variant vv2 = asVariant(directRows.get(1), 1);
 
     // row 1 has {"a":1}
     Variant fieldA = vv1.getFieldByKey("a");
@@ -225,10 +225,7 @@ public class TestSparkVariantRead extends TestBase {
     assertThat(rows).hasSize(1);
     assertThat(rows.get(0).getLong(0)).isEqualTo(2L);
 
-    Variant v1 =
-        new Variant(
-            ((VariantVal) rows.get(0).get(1)).getValue(),
-            ((VariantVal) rows.get(0).get(1)).getMetadata());
+    Variant v1 = asVariant(rows.get(0), 1);
     assertThat(v1.getFieldByKey("b").getLong()).isEqualTo(2L);
 
     sql("DROP TABLE IF EXISTS %s", deleteTable);
@@ -256,13 +253,13 @@ public class TestSparkVariantRead extends TestBase {
     assertThat(rows.get(0).getLong(0)).isEqualTo(1L);
     Object sv1 = rows.get(0).get(1);
     assertThat(sv1).isInstanceOf(VariantVal.class);
-    Variant sv1Var = new Variant(((VariantVal) sv1).getValue(), ((VariantVal) sv1).getMetadata());
+    Variant sv1Var = asVariant(rows.get(0), 1);
     assertThat(sv1Var.getFieldByKey("a").getLong()).isEqualTo(1L);
 
     assertThat(rows.get(1).getLong(0)).isEqualTo(2L);
     Object sv2 = rows.get(1).get(1);
     assertThat(sv2).isInstanceOf(VariantVal.class);
-    Variant sv2Var = new Variant(((VariantVal) sv2).getValue(), ((VariantVal) sv2).getMetadata());
+    Variant sv2Var = asVariant(rows.get(1), 1);
     assertThat(sv2Var.getFieldByKey("b").getLong()).isEqualTo(2L);
 
     sql("DROP TABLE IF EXISTS %s", structTable);
@@ -291,25 +288,13 @@ public class TestSparkVariantRead extends TestBase {
         spark.table(arrayTable).selectExpr("id", "arr[0] as e0", "arr[1] as e1").orderBy("id");
     java.util.List<Row> rows = df.collectAsList();
     assertThat(rows.get(0).getLong(0)).isEqualTo(1L);
-    Variant e0r1 =
-        new Variant(
-            ((VariantVal) rows.get(0).get(1)).getValue(),
-            ((VariantVal) rows.get(0).get(1)).getMetadata());
-    Variant e1r1 =
-        new Variant(
-            ((VariantVal) rows.get(0).get(2)).getValue(),
-            ((VariantVal) rows.get(0).get(2)).getMetadata());
+    Variant e0r1 = asVariant(rows.get(0), 1);
+    Variant e1r1 = asVariant(rows.get(0), 2);
     assertThat(e0r1.getFieldByKey("a").getLong()).isEqualTo(1L);
     assertThat(e1r1.getFieldByKey("x").getLong()).isEqualTo(10L);
     assertThat(rows.get(1).getLong(0)).isEqualTo(2L);
-    Variant e0r2 =
-        new Variant(
-            ((VariantVal) rows.get(1).get(1)).getValue(),
-            ((VariantVal) rows.get(1).get(1)).getMetadata());
-    Variant e1r2 =
-        new Variant(
-            ((VariantVal) rows.get(1).get(2)).getValue(),
-            ((VariantVal) rows.get(1).get(2)).getMetadata());
+    Variant e0r2 = asVariant(rows.get(1), 1);
+    Variant e1r2 = asVariant(rows.get(1), 2);
     assertThat(e0r2.getFieldByKey("b").getLong()).isEqualTo(2L);
     assertThat(e1r2.getFieldByKey("y").getLong()).isEqualTo(20L);
 
@@ -346,25 +331,13 @@ public class TestSparkVariantRead extends TestBase {
             .orderBy("id");
     java.util.List<Row> rows = df.collectAsList();
     assertThat(rows.get(0).getLong(0)).isEqualTo(1L);
-    Variant k1r1 =
-        new Variant(
-            ((VariantVal) rows.get(0).get(1)).getValue(),
-            ((VariantVal) rows.get(0).get(1)).getMetadata());
-    Variant k2r1 =
-        new Variant(
-            ((VariantVal) rows.get(0).get(2)).getValue(),
-            ((VariantVal) rows.get(0).get(2)).getMetadata());
+    Variant k1r1 = asVariant(rows.get(0), 1);
+    Variant k2r1 = asVariant(rows.get(0), 2);
     assertThat(k1r1.getFieldByKey("a").getLong()).isEqualTo(1L);
     assertThat(k2r1.getFieldByKey("x").getLong()).isEqualTo(10L);
     assertThat(rows.get(1).getLong(0)).isEqualTo(2L);
-    Variant k1r2 =
-        new Variant(
-            ((VariantVal) rows.get(1).get(1)).getValue(),
-            ((VariantVal) rows.get(1).get(1)).getMetadata());
-    Variant k2r2 =
-        new Variant(
-            ((VariantVal) rows.get(1).get(2)).getValue(),
-            ((VariantVal) rows.get(1).get(2)).getMetadata());
+    Variant k1r2 = asVariant(rows.get(1), 1);
+    Variant k2r2 = asVariant(rows.get(1), 2);
     assertThat(k1r2.getFieldByKey("b").getLong()).isEqualTo(2L);
     assertThat(k2r2.getFieldByKey("y").getLong()).isEqualTo(20L);
 
@@ -400,18 +373,12 @@ public class TestSparkVariantRead extends TestBase {
 
     assertThat(rows).hasSize(2);
     assertThat(rows.get(0).getLong(0)).isEqualTo(1L);
-    Variant v1 =
-        new Variant(
-            ((VariantVal) rows.get(0).get(1)).getValue(),
-            ((VariantVal) rows.get(0).get(1)).getMetadata());
+    Variant v1 = asVariant(rows.get(0), 1);
     assertThat(v1.getFieldByKey("name").getString()).describedAs("v1.name").isEqualTo("alice");
     assertThat(v1.getFieldByKey("age").getLong()).describedAs("v1.age").isEqualTo(31L);
 
     assertThat(rows.get(1).getLong(0)).isEqualTo(2L);
-    Variant v2 =
-        new Variant(
-            ((VariantVal) rows.get(1).get(1)).getValue(),
-            ((VariantVal) rows.get(1).get(1)).getMetadata());
+    Variant v2 = asVariant(rows.get(1), 1);
     assertThat(v2.getFieldByKey("name").getString()).describedAs("v2.name").isEqualTo("bob");
     assertThat(v2.getFieldByKey("age").getLong()).describedAs("v2.age").isEqualTo(25L);
 
@@ -429,16 +396,11 @@ public class TestSparkVariantRead extends TestBase {
             + "TBLPROPERTIES ('format-version'='3', 'write.parquet.shred-variants'='true')",
         toggleTable);
 
-    spark.conf().set("spark.sql.iceberg.shred-variants", "true");
-    try {
-      sql(
-          "INSERT INTO %s VALUES "
-              + "(1, parse_json('{\"name\":\"alice\",\"age\":30}')), "
-              + "(2, parse_json('{\"name\":\"bob\",\"age\":25}'))",
-          toggleTable);
-    } finally {
-      spark.conf().unset("spark.sql.iceberg.shred-variants");
-    }
+    insertShredded(
+        "INSERT INTO %s VALUES "
+            + "(1, parse_json('{\"name\":\"alice\",\"age\":30}')), "
+            + "(2, parse_json('{\"name\":\"bob\",\"age\":25}'))",
+        toggleTable);
 
     Table table = Spark3Util.loadIcebergTable(spark, toggleTable);
     assertHasTypedValueSubtree(table);
@@ -448,16 +410,10 @@ public class TestSparkVariantRead extends TestBase {
 
     List<Row> rows = spark.table(toggleTable).select("id", "v").orderBy("id").collectAsList();
     assertThat(rows).hasSize(2);
-    Variant v1 =
-        new Variant(
-            ((VariantVal) rows.get(0).get(1)).getValue(),
-            ((VariantVal) rows.get(0).get(1)).getMetadata());
+    Variant v1 = asVariant(rows.get(0), 1);
     assertThat(v1.getFieldByKey("name").getString()).isEqualTo("alice");
     assertThat(v1.getFieldByKey("age").getLong()).isEqualTo(30L);
-    Variant v2 =
-        new Variant(
-            ((VariantVal) rows.get(1).get(1)).getValue(),
-            ((VariantVal) rows.get(1).get(1)).getMetadata());
+    Variant v2 = asVariant(rows.get(1), 1);
     assertThat(v2.getFieldByKey("name").getString()).isEqualTo("bob");
     assertThat(v2.getFieldByKey("age").getLong()).isEqualTo(25L);
 
@@ -478,16 +434,11 @@ public class TestSparkVariantRead extends TestBase {
             + "'write.metadata.metrics.default'='%s')",
         noStatsTable, metricsMode);
 
-    spark.conf().set("spark.sql.iceberg.shred-variants", "true");
-    try {
-      sql(
-          "INSERT INTO %s VALUES "
-              + "(1, parse_json('{\"name\":\"alice\",\"age\":30}')), "
-              + "(2, parse_json('{\"name\":\"bob\",\"age\":25}'))",
-          noStatsTable);
-    } finally {
-      spark.conf().unset("spark.sql.iceberg.shred-variants");
-    }
+    insertShredded(
+        "INSERT INTO %s VALUES "
+            + "(1, parse_json('{\"name\":\"alice\",\"age\":30}')), "
+            + "(2, parse_json('{\"name\":\"bob\",\"age\":25}'))",
+        noStatsTable);
 
     Table table = Spark3Util.loadIcebergTable(spark, noStatsTable);
     assertHasTypedValueSubtree(table);
@@ -495,18 +446,82 @@ public class TestSparkVariantRead extends TestBase {
 
     List<Row> rows = spark.table(noStatsTable).select("id", "v").orderBy("id").collectAsList();
     assertThat(rows).hasSize(2);
-    Variant v1 =
-        new Variant(
-            ((VariantVal) rows.get(0).get(1)).getValue(),
-            ((VariantVal) rows.get(0).get(1)).getMetadata());
+    Variant v1 = asVariant(rows.get(0), 1);
     assertThat(v1.getFieldByKey("name").getString()).isEqualTo("alice");
-    Variant v2 =
-        new Variant(
-            ((VariantVal) rows.get(1).get(1)).getValue(),
-            ((VariantVal) rows.get(1).get(1)).getMetadata());
+    Variant v2 = asVariant(rows.get(1), 1);
     assertThat(v2.getFieldByKey("name").getString()).isEqualTo("bob");
 
     sql("DROP TABLE IF EXISTS %s", noStatsTable);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testMultipleUnshreddedVariantColumns(boolean vectorized)
+      throws IOException, NoSuchTableException, ParseException {
+    assertMultipleVariantColumns(false, vectorized);
+  }
+
+  @Test
+  public void testMultipleShreddedVariantColumns()
+      throws IOException, NoSuchTableException, ParseException {
+    assertMultipleVariantColumns(true, true);
+  }
+
+  private void assertMultipleVariantColumns(boolean shredded, boolean vectorized)
+      throws IOException, NoSuchTableException, ParseException {
+    String multiTable = CATALOG + ".default.var_multi";
+    sql("DROP TABLE IF EXISTS %s", multiTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, v1 VARIANT, v2 VARIANT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'write.parquet.shred-variants'='%s')",
+        multiTable, Boolean.toString(shredded));
+
+    String insert =
+        "INSERT INTO %s VALUES "
+            + "(1, parse_json('{\"name\":\"alice\",\"age\":30}'), "
+            + "parse_json('{\"city\":\"nyc\",\"zip\":10001}')), "
+            + "(2, parse_json('{\"name\":\"bob\",\"age\":25}'), "
+            + "parse_json('{\"city\":\"la\",\"zip\":90001}'))";
+    if (shredded) {
+      insertShredded(insert, multiTable);
+      assertHasTypedValueSubtree(Spark3Util.loadIcebergTable(spark, multiTable), "v1", "v2");
+    } else {
+      sql(insert, multiTable);
+    }
+    setVectorization(multiTable, vectorized);
+
+    List<Row> rows = spark.table(multiTable).select("id", "v1", "v2").orderBy("id").collectAsList();
+    assertThat(rows).hasSize(2);
+
+    Variant v1r1 = asVariant(rows.get(0), 1);
+    Variant v2r1 = asVariant(rows.get(0), 2);
+    assertThat(v1r1.getFieldByKey("name").getString()).isEqualTo("alice");
+    assertThat(v1r1.getFieldByKey("age").getLong()).isEqualTo(30L);
+    assertThat(v2r1.getFieldByKey("city").getString()).isEqualTo("nyc");
+    assertThat(v2r1.getFieldByKey("zip").getLong()).isEqualTo(10001L);
+
+    Variant v1r2 = asVariant(rows.get(1), 1);
+    Variant v2r2 = asVariant(rows.get(1), 2);
+    assertThat(v1r2.getFieldByKey("name").getString()).isEqualTo("bob");
+    assertThat(v1r2.getFieldByKey("age").getLong()).isEqualTo(25L);
+    assertThat(v2r2.getFieldByKey("city").getString()).isEqualTo("la");
+    assertThat(v2r2.getFieldByKey("zip").getLong()).isEqualTo(90001L);
+
+    sql("DROP TABLE IF EXISTS %s", multiTable);
+  }
+
+  private void insertShredded(String insertSql, Object... args) {
+    spark.conf().set("spark.sql.iceberg.shred-variants", "true");
+    try {
+      sql(insertSql, args);
+    } finally {
+      spark.conf().unset("spark.sql.iceberg.shred-variants");
+    }
+  }
+
+  private static Variant asVariant(Row row, int col) {
+    VariantVal val = (VariantVal) row.get(col);
+    return new Variant(val.getValue(), val.getMetadata());
   }
 
   private void setVectorization(boolean on) {
@@ -522,15 +537,36 @@ public class TestSparkVariantRead extends TestBase {
   }
 
   private static void assertHasTypedValueSubtree(Table table) throws IOException {
+    forEachDataFileSchema(
+        table,
+        schema ->
+            assertThat(containsTypedValue(schema))
+                .as("Expected variant column to be shredded with a typed_value subtree")
+                .isTrue());
+  }
+
+  private static void assertHasTypedValueSubtree(Table table, String... columns)
+      throws IOException {
+    forEachDataFileSchema(
+        table,
+        schema -> {
+          for (String column : columns) {
+            assertThat(containsTypedValue(schema.getType(column)))
+                .as("Expected column %s to be shredded with a typed_value subtree", column)
+                .isTrue();
+          }
+        });
+  }
+
+  private static void forEachDataFileSchema(
+      Table table, Consumer<org.apache.parquet.schema.MessageType> schemaCheck) throws IOException {
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       assertThat(tasks).isNotEmpty();
       for (FileScanTask task : tasks) {
         HadoopInputFile inputFile =
             HadoopInputFile.fromPath(new Path(task.file().location()), new Configuration());
         try (ParquetFileReader reader = ParquetFileReader.open(inputFile)) {
-          assertThat(containsTypedValue(reader.getFileMetaData().getSchema()))
-              .as("Expected variant column to be shredded with a typed_value subtree")
-              .isTrue();
+          schemaCheck.accept(reader.getFileMetaData().getSchema());
         }
       }
     }
