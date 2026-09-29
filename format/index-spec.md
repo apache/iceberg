@@ -44,24 +44,24 @@ engine can build an index, maintain it, and use it to plan queries against the t
 
 Index state is maintained in index metadata files. All changes to index state create a new metadata file and replace
 the old metadata with an atomic swap, as defined in [Commits and Concurrency](#commits-and-concurrency). An index
-metadata file tracks the index definition, index properties, and index snapshots of a single index. A table may have
+metadata file tracks the index definition, index properties, and extracts of a single index. A table may have
 any number of indexes, including multiple indexes of the same type.
 
-An index snapshot represents the state of an index for one snapshot of its source table and is used to access the
-complete set of index data files for that state. The index data of an index snapshot is organized as a
+An extract represents the state of an index for one snapshot of its source table and is used to access the
+complete set of index data files for that state. The index data of an extract is organized as a
 [tracking file](#tracking-file) that lists a set of [region files](#region-files). Index data files are immutable and
-may be referenced by more than one index snapshot.
+may be referenced by more than one extract.
 
 ## Specification
 
 ### Terms
 
 * **Index** -- A structure that accelerates retrieval of rows from a source table.
-* **Index snapshot** -- The state of an index for a single snapshot of the source table.
+* **Extract** -- The state of an index for a single snapshot of the source table.
 * **Index entry** -- The values produced by the index fields for one indexed row of the source table.
-* **Clustering key** -- The tuple of values that determines the position of an index entry within an index snapshot.
-* **Tracking file** -- A file that lists the region files of an index snapshot; one per index snapshot.
-* **Region file** -- A file that stores the index entries for a range of clustering keys; a subset of an index snapshot.
+* **Clustering key** -- The tuple of values that determines the position of an index entry within an extract.
+* **Tracking file** -- A file that lists the region files of an extract; one per extract.
+* **Region file** -- A file that stores the index entries for a range of clustering keys; a subset of an extract.
 
 ### Locations in Metadata
 
@@ -73,7 +73,7 @@ index `location`, which must be an absolute location.
 
 An index is defined by a source table, an index type, identity fields, materialized fields, non-materialized fields, and
 a clustering key. The definition is fixed when the index is created and must not change for the lifetime of the index,
-so region files remain readable through every index snapshot that references them. A different definition requires a
+so region files remain readable through every extract that references them. A different definition requires a
 new index.
 
 Index properties configure how an index is written and maintained, such as the target size of region files. Any commit
@@ -112,7 +112,7 @@ Every index field has a field ID that must be unique across the three lists.
 `identity-fields` is a non-empty list of unique source table field IDs. Each entry must reference a data field.
 [Metadata columns](spec.md#reserved-field-ids) are not allowed. Each listed field is stored in the
 [region files](#region-files) under its own field ID and takes its type from the schema of the source table snapshot
-that an index snapshot references.
+that an extract references.
 
 Every source table field referenced by an expression field in the [clustering key](#clustering-key) must be an identity
 field.
@@ -165,7 +165,7 @@ Every referenced field must have a primitive type.
 
 ### Index Metadata
 
-The index metadata file stores the index definition and snapshot history. It is encoded as JSON.
+The index metadata file stores the index definition and extract history. It is encoded as JSON.
 
 #### Index Metadata File
 
@@ -183,8 +183,8 @@ The index metadata file has the following fields:
 | _optional_  | `materialized-fields`     | `list<expression-field>`   | Expression fields stored in region files, see [Materialized Fields](#materialized-fields)          |
 | _optional_  | `non-materialized-fields` | `list<expression-field>`   | Fields stored only in tracking statistics, see [Non-Materialized Fields](#non-materialized-fields) |
 | _required_  | `clustering-key`          | `list<int>`                | Field IDs that form the clustering key, see [Clustering Key](#clustering-key)                      |
-| _optional_  | `properties`              | `map<string, string>`      | Index properties applicable for every snapshot                                                     |
-| _optional_  | `snapshots`               | `list<index-snapshot>`     | Index snapshots [2]                                                                                |
+| _optional_  | `properties`              | `map<string, string>`      | Index properties applicable for every extract                                                      |
+| _optional_  | `extracts`                | `list<extract>`            | Extracts [2]                                                                                       |
 | _optional_  | `metadata-log`            | `list<metadata-log-entry>` | Previous index metadata files, see [Metadata Log](#metadata-log)                                   |
 | _optional_  | `encryption-keys`         | `list<encryption-key>`     | Encryption keys used by the index, see [Encryption Keys](#encryption-keys)                         |
 
@@ -193,31 +193,31 @@ A missing optional list must be read as an empty list.
 Notes:
 
 1. Each index metadata file should update `last-updated-ms` just before writing.
-2. An index that has not been built yet has no snapshots.
+2. An index that has not been built yet has no extracts.
 3. Index names are not stored in index metadata. It is the catalog's responsibility to map index names to metadata file
    locations.
 4. How the indexes of a table are discovered is out of scope for this specification and is defined by the catalog
    specification.
 
-#### Index Snapshot
+#### Extract
 
-An index snapshot is an immutable version of the index data generated from a specific source table snapshot. It
+An extract is an immutable version of the index data generated from a specific source table snapshot. It
 references a complete set of index files through the location of a single [tracking file](#tracking-file).
 
-An index snapshot must index exactly the live rows of the referenced table snapshot.
+An extract must index exactly the live rows of the referenced table snapshot.
 
 | Requirement | Field name                 | Type                  | Description                                                                  |
 |-------------|----------------------------|-----------------------|------------------------------------------------------------------------------|
-| _required_  | `snapshot-id`              | `long`                | Index snapshot identifier                                                    |
+| _required_  | `extract-id`               | `long`                | Extract identifier                                                           |
 | _required_  | `source-table-snapshot-id` | `long`                | Source table snapshot                                                        |
-| _required_  | `timestamp-ms`             | `long`                | Timestamp when the index snapshot was created (ms from epoch)                |
+| _required_  | `timestamp-ms`             | `long`                | Timestamp when the extract was created (ms from epoch)                       |
 | _required_  | `tracking-file`            | `string`              | Location of the tracking file                                                |
-| _optional_  | `properties`               | `map<string, string>` | Snapshot properties specific to this snapshot                                |
+| _optional_  | `properties`               | `map<string, string>` | Extract properties specific to this extract                                  |
 | _optional_  | `key-id`                   | `string`              | ID of the encryption key that holds the tracking file key metadata           |
 
-Each `snapshot-id` must be unique within the `snapshots` list. Engines locate index data by matching
-`source-table-snapshot-id`. More than one index snapshot may reference the same source table snapshot, and an engine may
-use any of the matching index snapshots.
+Each `extract-id` must be unique within the `extracts` list. Engines locate index data by matching
+`source-table-snapshot-id`. More than one extract may reference the same source table snapshot, and an engine may
+use any of the matching extracts.
 
 #### Metadata Log
 
@@ -234,21 +234,21 @@ metadata file it replaces. The number of entries to retain is controlled by the 
 #### Encryption Keys
 
 An index must not store indexed values with weaker protection than its source table. If the source table snapshot that
-an index snapshot indexes is encrypted, indicated by the snapshot's `key-id` as defined by the table specification, the
-tracking file and the region files of that index snapshot must be encrypted.
+an extract indexes is encrypted, indicated by the snapshot's `key-id` as defined by the table specification, the
+tracking file and the region files of that extract must be encrypted.
 
 Index metadata is not encrypted, so keys are never stored in plain form. Keys used for index encryption are tracked in
 index metadata as a list named `encryption-keys`, using the [encryption keys](spec.md#encryption-keys) structure defined
 by the table specification. The format of encrypted key metadata is determined by the index's encryption scheme and can
 be a wrapped format specific to the KMS provider.
 
-The `key-id` of an index snapshot must reference a `key-id` in the index metadata `encryption-keys` list. The
-`encrypted-key-metadata` of the referenced entry is the key metadata of the snapshot's tracking file, which in turn
+The `key-id` of an extract must reference a `key-id` in the index metadata `encryption-keys` list. The
+`encrypted-key-metadata` of the referenced entry is the key metadata of the extract's tracking file, which in turn
 holds the key metadata of the region files.
 
 ### Commits and Concurrency
 
-Index metadata is immutable. Every update, whether adding a snapshot, dropping a snapshot, or changing index properties,
+Index metadata is immutable. Every update, whether adding an extract, dropping an extract, or changing index properties,
 must produce a new index metadata file with a unique name.
 
 A commit replaces the current index metadata file with the new one. The swap must be atomic and must succeed only if the
@@ -260,15 +260,15 @@ and retry the update on top of it, or discard the attempted update.
 
 Index maintenance may be performed synchronously with the table commit that produces a new source-table snapshot, or
 asynchronously by a separate maintenance process. A catalog may enforce transactional commits that atomically update
-both the table and the index, guaranteeing that every committed table snapshot has a corresponding index snapshot. When
-an index is updated asynchronously, the index may lag behind the table and engines must reconcile the index snapshot
+both the table and the index, guaranteeing that every committed table snapshot has a corresponding extract. When
+an index is updated asynchronously, the index may lag behind the table and engines must reconcile the extract
 against the source-table snapshot they intend to read.
 
 ### Index Data
 
 #### Clustering and Ordering
 
-The clustering key defines an ordering over all index entries of an index snapshot. Index entries must be partitioned
+The clustering key defines an ordering over all index entries of an extract. Index entries must be partitioned
 into ranges of clustering key values that do not overlap, and each range must be stored in a separate region file. A
 region boundary must fall at a change in clustering key, so all index entries that share a clustering key are stored in
 the same region file.
@@ -287,13 +287,13 @@ position in the ordering:
 
 #### Tracking File
 
-The tracking file contains metadata of all region files belonging to the index snapshot. It may be stored using any
+The tracking file contains metadata of all region files belonging to the extract. It may be stored using any
 supported metadata file format.
 
 ##### Tracking File Entry
 
 Each tracking file contains a collection of tracking file entries. A tracking file entry describes a single region file
-tracked by an index snapshot. The fields are the subset of the V4 [data file fields](spec.md#data-file-fields) that are
+tracked by an extract. The fields are the subset of the V4 [data file fields](spec.md#data-file-fields) that are
 relevant to planning queries against the index.
 
 Tracking file entries must be stored in the [clustering order](#clustering-and-ordering) of the region files they
@@ -379,7 +379,7 @@ IDs in comparison order without repeating their expressions. Engines match query
 determine whether the index applies and which stored field contains a result. Because expressions reference only fields
 and metadata columns of the source table, each index field can be evaluated directly from a source row.
 
-That is also why only some metadata columns can be referenced. An index snapshot indexes the live rows of a single
+That is also why only some metadata columns can be referenced. An extract indexes the live rows of a single
 table snapshot, so a row has one position and one file, and the value of a column such as `_deleted` is fixed for every
 indexed row. The changelog columns describe a row's change between two snapshots rather than a value within one, and
 the delete file columns describe a delete file record rather than a source row, so neither can be evaluated from the
@@ -455,13 +455,13 @@ it from its expression.
 
 Index metadata is immutable and committed by an atomic swap, mirroring how Iceberg commits table metadata. Requiring
 the current metadata file to be unchanged is what prevents concurrent maintenance processes from silently overwriting
-each other and losing snapshots.
+each other and losing extracts.
 
 ### Reclaiming Index Files
 
-The `snapshots` list of the current index metadata file is the only root for reachability. A tracking file or region
-file is live because a listed index snapshot references it. A commit that removes an index snapshot should delete the
-files that only that snapshot referenced.
+The `extracts` list of the current index metadata file is the only root for reachability. A tracking file or region
+file is live because a listed extract references it. A commit that removes an extract should delete the
+files that only that extract referenced.
 
 ## Appendix B: Recommendations
 
@@ -512,7 +512,7 @@ CREATE INDEX bucket_index
 This creates a `scalar` index on the `user_id` column that clusters entries by the hash bucket of `user_id` and then by
 `user_id` itself. When the index is created, the engine (or a later index maintenance job) reads the current table
 snapshot, writes the region files and a tracking file, and produces the first index metadata file containing a single
-index snapshot. Region file boundaries follow the clustering, so a region file holds a contiguous range of buckets or a
+extract. Region file boundaries follow the clustering, so a region file holds a contiguous range of buckets or a
 range of `user_id` values within a single bucket. The tracking file describes each region file with its location,
 format, record count, and size, together with the statistics used for pruning.
 
@@ -566,8 +566,8 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
     }
   } ],
   "clustering-key" : [ 104, 1 ],
-  "snapshots" : [ {
-    "snapshot-id" : 8744736658442914487,
+  "extracts" : [ {
+    "extract-id" : 8744736658442914487,
     "source-table-snapshot-id" : 3055729675574597004,
     "timestamp-ms" : 1573518431292,
     "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00001-(uuid).parquet"
@@ -575,8 +575,8 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
 }
 ```
 
-The tracking file at `tracking-file` lists the region files of this snapshot. It is stored in a metadata file
-format rather than JSON, so its tracking file entries are shown here as a table. In this example the index snapshot has
+The tracking file at `tracking-file` lists the region files of this extract. It is stored in a metadata file
+format rather than JSON, so its tracking file entries are shown here as a table. In this example the extract has
 two region files:
 
 | file_path                | file_format | record_count | file_size_in_bytes |
@@ -637,7 +637,7 @@ Later, new data is added to the `events` table, producing a new table snapshot (
 maintenance runs again and writes new region files for the added data, plus a new tracking file that references both the
 still-valid old region files and the new region files.
 
-This produces a new index metadata file that completely replaces the previous one. The first index snapshot is kept
+This produces a new index metadata file that completely replaces the previous one. The first extract is kept
 alongside the new one, so engines can still use the index against the older table snapshot. The index definition is
 unchanged, so it is elided from the new metadata file below:
 
@@ -648,13 +648,13 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid)
 {
   ...
   "last-updated-ms" : 1573518981593,
-  "snapshots" : [ {
-    "snapshot-id" : 8744736658442914487,
+  "extracts" : [ {
+    "extract-id" : 8744736658442914487,
     "source-table-snapshot-id" : 3055729675574597004,
     "timestamp-ms" : 1573518431292,
     "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00001-(uuid).parquet"
   }, {
-    "snapshot-id" : 6574117201097113750,
+    "extract-id" : 6574117201097113750,
     "source-table-snapshot-id" : 5459876531255530170,
     "timestamp-ms" : 1573518981593,
     "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00002-(uuid).parquet"
@@ -669,7 +669,7 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid)
 The new rows fall into buckets that lie inside the range already covered by `region-00001.parquet`. Because region files
 must hold non-overlapping clustering ranges, maintenance rewrites that region file as `region-00003.parquet`
 with the merged entries. `region-00002.parquet` covers a disjoint range and is reused unchanged, so the tracking file of
-the second index snapshot references it as well:
+the second extract references it as well:
 
 | file_path                | file_format | record_count | file_size_in_bytes |
 |--------------------------|-------------|--------------|--------------------|
@@ -691,14 +691,14 @@ new data file, keeping the clustering order:
 | 40318   | .../data/00002-0-(uuid).parquet | 22  | `{ 62, 40318 }`  |
 | 55310   | .../data/00000-0-(uuid).parquet | 92  | `{ 88, 55310 }`  |
 
-`region-00001.parquet` is no longer referenced by the second index snapshot, but it is still referenced by the first and
-must be retained while that snapshot exists.
+`region-00001.parquet` is no longer referenced by the second extract, but it is still referenced by the first and
+must be retained while that extract exists.
 
-Eventually the older table snapshot is no longer needed, so maintenance drops the first index snapshot. It writes a new
-index metadata file that removes the snapshot from the `snapshots` list and replaces the previous metadata file.
-Maintenance then deletes the files referenced only by the removed snapshot: its tracking file,
+Eventually the older table snapshot is no longer needed, so maintenance drops the first extract. It writes a new
+index metadata file that removes the extract from the `extracts` list and replaces the previous metadata file.
+Maintenance then deletes the files referenced only by the removed extract: its tracking file,
 `tracking-00001-(uuid).parquet`, and `region-00001.parquet`. `region-00002.parquet` and `region-00003.parquet` are
-still referenced by the second index snapshot and are retained. The index definition is again elided:
+still referenced by the second extract and are retained. The index definition is again elided:
 
 ```
 s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00003-(uuid).metadata.json
@@ -707,8 +707,8 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00003-(uuid)
 {
   ...
   "last-updated-ms" : 1573519505104,
-  "snapshots" : [ {
-    "snapshot-id" : 6574117201097113750,
+  "extracts" : [ {
+    "extract-id" : 6574117201097113750,
     "source-table-snapshot-id" : 5459876531255530170,
     "timestamp-ms" : 1573518981593,
     "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00002-(uuid).parquet"
