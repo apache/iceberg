@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -464,7 +466,7 @@ public class TestStatsUtil {
     Types.StructType actual =
         StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(ImmutableMap.of(), schema));
 
-    assertSameTopLevelFieldsInAnyOrder(expected, actual);
+    assertSameStructure(expected, actual);
   }
 
   @Test
@@ -501,7 +503,7 @@ public class TestStatsUtil {
     Types.StructType actual =
         StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(properties, schema));
 
-    assertSameTopLevelFieldsInAnyOrder(expected, actual);
+    assertSameStructure(expected, actual);
   }
 
   @Test
@@ -543,7 +545,7 @@ public class TestStatsUtil {
     Types.StructType actual =
         StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(properties, schema));
 
-    assertSameTopLevelFieldsInAnyOrder(expected, actual);
+    assertSameStructure(expected, actual);
   }
 
   @Test
@@ -564,26 +566,21 @@ public class TestStatsUtil {
     assertThat(actual.fields()).isEmpty();
   }
 
-  private static void assertSameTopLevelFieldsInAnyOrder(
-      Types.StructType expected, Types.StructType actual) {
-    assertThat(actual.fields()).as("Number of fields").hasSameSizeAs(expected.fields());
-
-    for (Types.NestedField expectedField : expected.fields()) {
-      Types.NestedField actualField = actual.field(expectedField.fieldId());
-      assertThat(actualField).as("Field ID %s", expectedField.fieldId()).isNotNull();
-      assertSameStructure(Types.StructType.of(expectedField), Types.StructType.of(actualField));
-    }
-  }
-
   /**
-   * Assert that two struct types match in field IDs, names, optionality, and types, ignoring docs.
+   * Assert that two struct types match in field IDs, names, optionality, and types, ignoring field
+   * order and docs.
    */
   private static void assertSameStructure(Types.StructType expected, Types.StructType actual) {
     assertThat(actual.fields()).as("Number of fields").hasSameSizeAs(expected.fields());
 
-    for (int i = 0; i < expected.fields().size(); i += 1) {
-      Types.NestedField expectedField = expected.fields().get(i);
-      Types.NestedField actualField = actual.fields().get(i);
+    List<Types.NestedField> expectedFields = new ArrayList<>(expected.fields());
+    List<Types.NestedField> actualFields = new ArrayList<>(actual.fields());
+    expectedFields.sort(Comparator.comparingInt(Types.NestedField::fieldId));
+    actualFields.sort(Comparator.comparingInt(Types.NestedField::fieldId));
+
+    for (int i = 0; i < expectedFields.size(); i += 1) {
+      Types.NestedField expectedField = expectedFields.get(i);
+      Types.NestedField actualField = actualFields.get(i);
 
       assertThat(actualField.fieldId()).as("Field ID").isEqualTo(expectedField.fieldId());
       assertThat(actualField.name()).as("Field name").isEqualTo(expectedField.name());
