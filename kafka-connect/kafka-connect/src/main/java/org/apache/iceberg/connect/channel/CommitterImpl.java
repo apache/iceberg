@@ -144,6 +144,10 @@ public class CommitterImpl implements Committer {
       SinkTaskContext sinkTaskContext,
       Collection<TopicPartition> addedPartitions) {
     initialize(icebergCatalog, icebergSinkConfig, sinkTaskContext);
+    if (coordinatorThread != null) {
+      coordinatorThread.assignmentChanged();
+    }
+
     if (hasLeaderPartition(addedPartitions)) {
       LOG.info("Committer {} received leader partition. Starting Coordinator.", taskId);
       startCoordinator();
@@ -159,6 +163,10 @@ public class CommitterImpl implements Committer {
 
   @Override
   public void close(Collection<TopicPartition> closedPartitions) {
+    if (coordinatorThread != null) {
+      coordinatorThread.assignmentChanged();
+    }
+
     // Always try to stop the worker to avoid duplicates.
     stopWorker();
 

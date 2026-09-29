@@ -154,6 +154,10 @@ abstract class Channel {
     return controlTopicOffsets;
   }
 
+  Admin admin() {
+    return admin;
+  }
+
   /**
    * Commit consumer offsets. Only commits offsets if it has not committed offsets before or the
    * value is greater than the cached offset.
