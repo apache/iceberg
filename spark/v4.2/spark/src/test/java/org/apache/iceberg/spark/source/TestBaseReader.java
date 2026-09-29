@@ -31,18 +31,17 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseCombinedScanTask;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -94,8 +93,8 @@ public class TestBaseReader {
     }
 
     @Override
-    protected Stream<ContentFile<?>> referencedFiles(FileScanTask task) {
-      return Stream.of();
+    protected InputFilesDecryptor newInputFilesDecryptor() {
+      return InputFilesDecryptor.fromTasks(taskGroup().tasks(), encryptingFileIO());
     }
 
     @Override
