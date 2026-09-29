@@ -32,8 +32,10 @@ import javax.net.ssl.HostnameVerifier;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
+import org.apache.hc.client5.http.classic.ExecChain;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
 import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.impl.ChainElement;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
@@ -43,14 +45,18 @@ import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
 import org.apache.hc.client5.http.ssl.HostnameVerificationPolicy;
+import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.impl.EnglishReasonPhraseCatalog;
+import org.apache.hc.core5.http.io.entity.BufferedHttpEntity;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.hc.core5.http.protocol.HttpContext;
@@ -127,6 +133,13 @@ public class HTTPClient extends BaseHTTPClient {
     int maxRetries = PropertyUtil.propertyAsInt(properties, REST_MAX_RETRIES, 5);
     clientBuilder.setRetryStrategy(new ExponentialHttpRequestRetryStrategy(maxRetries));
 
+    // Buffer the response body inside the retry-aware exec chain so that transient wire failures
+    // while reading the body (e.g. MalformedChunkCodingException on a chunked/gzip stream) are
+    // retried like any other transient IOException, instead of escaping the retry strategy in the
+    // response handler. See https://github.com/apache/iceberg/issues/15030.
+    clientBuilder.addExecInterceptorAfter(
+        ChainElement.RETRY.name(), "BUFFER_RESPONSE_BODY", HTTPClient::bufferResponseBody);
+
     String userAgent = PropertyUtil.propertyAsString(properties, REST_USER_AGENT, null);
     if (userAgent != null) {
       clientBuilder.setUserAgent(userAgent);
@@ -162,6 +175,28 @@ public class HTTPClient extends BaseHTTPClient {
   public HTTPClient withAuthSession(AuthSession session) {
     Preconditions.checkNotNull(session, "Invalid auth session: null");
     return new HTTPClient(this, session);
+  }
+
+  /**
+   * Reads the full response body into memory while still inside the retry-aware exec chain.
+   *
+   * <p>The body is otherwise read lazily in the response handler, which runs outside the exec
+   * chain, so a transient failure while reading it (e.g. {@code MalformedChunkCodingException} on a
+   * chunked/gzip stream) would escape the retry strategy and fail the request. Buffering here
+   * surfaces such failures as retryable {@link IOException}s handled by the configured retry
+   * strategy. The entity is wrapped transparently (preserving content type and encoding), so the
+   * body is still parsed exactly once by the response handler.
+   */
+  private static ClassicHttpResponse bufferResponseBody(
+      ClassicHttpRequest request, ExecChain.Scope scope, ExecChain chain)
+      throws IOException, HttpException {
+    ClassicHttpResponse response = chain.proceed(request, scope);
+    HttpEntity entity = response.getEntity();
+    if (entity != null) {
+      response.setEntity(new BufferedHttpEntity(entity));
+    }
+
+    return response;
   }
 
   private static String extractResponseBodyAsString(ClassicHttpResponse response) {
