@@ -70,7 +70,9 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation libs.datasketches
     implementation libs.roaringbitmap
 
-    testImplementation libs.flink23.connector.test.utils
+    testImplementation(libs.flink23.connector.test.utils) {
+      exclude group: 'junit'
+    }
     testImplementation libs.flink23.core
     testImplementation libs.flink23.runtime
     testImplementation(libs.flink23.test.utilsjunit) {
