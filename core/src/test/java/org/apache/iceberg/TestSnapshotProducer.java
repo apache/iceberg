@@ -167,17 +167,18 @@ public class TestSnapshotProducer extends TestBase {
 
   @TestTemplate
   public void manifestNotCleanedUpWhenSnapshotNotLoadableAfterCommit() {
-    // Uses a custom TableOps that returns stale metadata (without the new snapshot) on the
-    // first refresh() after commit, simulating eventual consistency. Verifies that commit succeeds
-    // and that the committed data is visible once the table is refreshed again
+    // Uses a custom TableOps that returns stale metadata (without the new snapshot) from current()
+    // and the first refresh() after commit, simulating eventual consistency. Verifies that commit
+    // succeeds and that the committed data is visible once the table is refreshed again
     String tableName = "stale-table-on-first-refresh";
     TestTables.TestTableOperations ops = opsWithStaleRefreshAfterCommit(tableName, tableDir);
     TestTables.TestTable tableWithStaleRefresh =
         TestTables.create(
             tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
 
-    // the first refresh() after the commit will return stale metadata (without this snapshot), so
-    // SnapshotProducer will skip cleanup to avoid accidentally deleting files that are part of the
+    // current() and the first refresh() after the commit will return stale metadata (without this
+    // snapshot), so SnapshotProducer will skip cleanup to avoid accidentally deleting files that
+    // are part of the
     // committed snapshot but commit still succeeds
     tableWithStaleRefresh.newAppend().appendFile(FILE_A).commit();
 
@@ -196,11 +197,11 @@ public class TestSnapshotProducer extends TestBase {
   }
 
   /**
-   * Creates a TableOperations that returns stale metadata (without the newly committed snapshot) on
-   * the first refresh() after a commit. This simulates eventual consistency where the committed
-   * snapshot is not yet visible. Used to verify that when the snapshot cannot be loaded after
-   * commit, cleanup is skipped to avoid accidentally deleting files that are part of the committed
-   * snapshot.
+   * Creates a TableOperations that returns stale metadata (without the newly committed snapshot)
+   * from current() and the first refresh() after a commit. This simulates eventual consistency
+   * where the committed snapshot is not yet visible. Used to verify that when the snapshot cannot
+   * be loaded after commit, cleanup is skipped to avoid accidentally deleting files that are part
+   * of the committed snapshot.
    */
   private static TestTables.TestTableOperations opsWithStaleRefreshAfterCommit(
       String name, File location) {
@@ -211,7 +212,8 @@ public class TestSnapshotProducer extends TestBase {
       public void commit(TableMetadata base, TableMetadata updatedMetadata) {
         super.commit(base, updatedMetadata);
         if (base != null) {
-          // return stale metadata on the first refresh() call
+          // return stale metadata from current() and the first refresh() call
+          this.current = base;
           this.metadataToReturnOnNextRefresh = base;
         }
       }
