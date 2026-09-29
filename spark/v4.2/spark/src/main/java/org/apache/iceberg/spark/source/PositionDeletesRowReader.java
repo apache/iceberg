@@ -19,18 +19,17 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
-import java.util.stream.Stream;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -67,8 +66,13 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
   }
 
   @Override
-  protected Stream<ContentFile<?>> referencedFiles(PositionDeletesScanTask task) {
-    return Stream.of(task.file());
+  protected InputFilesDecryptor newInputFilesDecryptor() {
+    return InputFilesDecryptor.fromFiles(
+        () ->
+            taskGroup().tasks().stream()
+                .<ContentFile<?>>map(PositionDeletesScanTask::file)
+                .iterator(),
+        encryptingFileIO());
   }
 
   @SuppressWarnings("resource") // handled by BaseReader
@@ -93,7 +97,6 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
 
     if (ContentFileUtil.isDV(task.file())) {
       InputFile inputFile = getInputFile(filePath);
-      Preconditions.checkNotNull(inputFile, "Could not find InputFile associated with %s", task);
       return new DVIterator(inputFile, task.file(), expectedSchema(), idToConstant);
     }
 

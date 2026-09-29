@@ -32,7 +32,6 @@ import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
@@ -66,8 +65,6 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Schema projection,
       Map<Integer, ?> idToConstant) {
     InputFile inputFile = getInputFile(file.location());
-    Preconditions.checkArgument(
-        inputFile != null, "Cannot find input file for location: %s", file.location());
     ReadBuilder<InternalRow, ?> reader =
         FormatModelRegistry.readBuilder(file.format(), InternalRow.class, inputFile);
     return configureReader(reader, start, length, residual, projection, idToConstant);
