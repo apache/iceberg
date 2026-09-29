@@ -100,6 +100,21 @@ By default the connector will attempt to use Kafka client config from the worker
 the control topic. If that config cannot be read for some reason, Kafka client settings
 can be set explicitly using `iceberg.kafka.*` properties.
 
+#### Assignment changes and completeness
+
+The coordinator verifies stable source-group assignments before each commit cycle and again before
+accepting a full commit. Assignment and revocation callbacks invalidate the current cycle's eligibility
+for full completion, even when the coordinator remains on the same task.
+
+If assignments change or cannot be verified, the cycle can still commit buffered files when
+`iceberg.control.commit.timeout-ms` expires. This partial commit does not set the snapshot's
+`kafka.connect.valid-through-ts` property, and its completion events carry no completeness timestamp.
+Restoring stable metadata does not make an invalidated cycle eligible for full completion; a later
+cycle must verify assignments afresh.
+
+These checks cover the assignments observed when admitting a full commit. They do not fence changes
+that occur after admission, and commits to different tables are not atomic.
+
 #### Message format
 
 Messages should be converted to a struct or map using the appropriate Kafka Connect converter.

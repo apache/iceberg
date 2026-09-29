@@ -30,6 +30,9 @@ import java.lang.reflect.Field;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -58,14 +61,30 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.kafka.clients.admin.MemberAssignment;
+import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.ConsumerGroupState;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class TestCoordinator extends ChannelTestBase {
+
+  @BeforeEach
+  void describeSourceAssignment() {
+    MemberDescription member =
+        new MemberDescription(
+            "member",
+            Optional.empty(),
+            "client",
+            "localhost",
+            new MemberAssignment(Set.of(new TopicPartition("topic", 1))));
+    describeConsumerGroup(ConsumerGroupState.STABLE, List.of(member));
+  }
 
   @Test
   public void testCommitAppend() {
