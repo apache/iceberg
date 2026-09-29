@@ -1159,6 +1159,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                     overwriteMode,
                     10,
                     "sinkId",
+                    DynamicCommitter.INITIAL_CHECKPOINT_ID,
                     new DynamicCommitterMetrics(new UnregisteredMetricsGroup())));
 
     executeDynamicSink(records, env, true, 2, duplicateCommit, overwriteMode);
@@ -1830,6 +1831,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           overwriteMode,
           10,
           "sinkId",
+          context.getRestoredCheckpointId().orElse(Long.MAX_VALUE),
           new DynamicCommitterMetrics(context.metricGroup()));
     }
   }
