@@ -113,12 +113,12 @@ class TestVerticalSplitProjectionPlanner {
   }
 
   private static ColumnFile columnFile(String location, List<Integer> fieldIds) {
-    return ColumnFileStruct.builder()
-        .formatVersion(4)
-        .fieldIds(fieldIds)
-        .location(location)
-        .fileFormat(FileFormat.PARQUET)
-        .fileSizeInBytes(128L)
+    return ColumnFiles.builder()
+        .withFormatVersion(4)
+        .withFieldIds(fieldIds)
+        .withLocation(location)
+        .withFileFormat(FileFormat.PARQUET)
+        .withFileSizeInBytes(128L)
         .build();
   }
 

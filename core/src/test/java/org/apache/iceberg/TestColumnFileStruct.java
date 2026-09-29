@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -171,107 +170,5 @@ class TestColumnFileStruct {
     assertThat((StructLike) deserialized)
         .usingComparator(Comparators.forType(ColumnFile.schema()))
         .isEqualTo(columnFile);
-  }
-
-  @Test
-  void invalidBuilderValues() {
-    assertThatThrownBy(() -> ColumnFileStruct.builder().fieldIds(null).build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid field IDs: null");
-
-    assertThatThrownBy(() -> ColumnFileStruct.builder().fieldIds(Lists.newArrayList()).build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid field IDs: empty");
-
-    assertThatThrownBy(
-            () -> ColumnFileStruct.builder().fieldIds(Lists.newArrayList(1, 2, 1)).build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid field IDs: duplicated IDs found in: [1, 2, 1]");
-
-    assertThatThrownBy(() -> ColumnFileStruct.builder().location(null).build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid location: null");
-
-    assertThatThrownBy(() -> ColumnFileStruct.builder().location("").build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid location: empty");
-
-    assertThatThrownBy(() -> ColumnFileStruct.builder().fileFormat(null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid file format: null");
-
-    assertThatThrownBy(() -> ColumnFileStruct.builder().fileSizeInBytes(-1).build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid file size in bytes: -1 (must be >= 0)");
-
-    assertThatThrownBy(() -> ColumnFileStruct.builder().formatVersion(-1))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid format version: -1 (must be >= 0)");
-
-    assertThatThrownBy(() -> ColumnFileStruct.builder().keyMetadata(null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid key metadata: null");
-
-    assertThatThrownBy(() -> ColumnFileStruct.builder().splitOffsets(null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid split offsets: null");
-  }
-
-  @Test
-  void missingBuilderValues() {
-    assertThatThrownBy(
-            () ->
-                ColumnFileStruct.builder()
-                    .fieldIds(FIELD_IDS)
-                    .location(LOCATION)
-                    .fileFormat(FILE_FORMAT)
-                    .fileSizeInBytes(FILE_SIZE_IN_BYTES)
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing required value: format version");
-
-    assertThatThrownBy(
-            () ->
-                ColumnFileStruct.builder()
-                    .formatVersion(FORMAT_VERSION)
-                    .location(LOCATION)
-                    .fileFormat(FILE_FORMAT)
-                    .fileSizeInBytes(FILE_SIZE_IN_BYTES)
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing required value: field IDs");
-
-    assertThatThrownBy(
-            () ->
-                ColumnFileStruct.builder()
-                    .formatVersion(FORMAT_VERSION)
-                    .fieldIds(FIELD_IDS)
-                    .fileFormat(FILE_FORMAT)
-                    .fileSizeInBytes(FILE_SIZE_IN_BYTES)
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing required value: location");
-
-    assertThatThrownBy(
-            () ->
-                ColumnFileStruct.builder()
-                    .formatVersion(FORMAT_VERSION)
-                    .fieldIds(FIELD_IDS)
-                    .location(LOCATION)
-                    .fileSizeInBytes(FILE_SIZE_IN_BYTES)
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing required value: file format");
-
-    assertThatThrownBy(
-            () ->
-                ColumnFileStruct.builder()
-                    .formatVersion(FORMAT_VERSION)
-                    .fieldIds(FIELD_IDS)
-                    .location(LOCATION)
-                    .fileFormat(FILE_FORMAT)
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Missing required value: file size in bytes");
   }
 }

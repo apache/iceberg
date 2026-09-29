@@ -68,20 +68,20 @@ class TestTrackedFileAdapters {
           .build();
   private static final PartitionData PARTITION = partition("books");
   private static final ColumnFile COLUMN_FILE_1 =
-      ColumnFileStruct.builder()
-          .formatVersion(FORMAT_VERSION_V4)
-          .fieldIds(List.of(1, 2))
-          .location("column_file_1.parquet")
-          .fileFormat(FileFormat.PARQUET)
-          .fileSizeInBytes(128L)
+      ColumnFiles.builder()
+          .withFormatVersion(FORMAT_VERSION_V4)
+          .withFieldIds(List.of(1, 2))
+          .withLocation("column_file_1.parquet")
+          .withFileFormat(FileFormat.PARQUET)
+          .withFileSizeInBytes(128L)
           .build();
   private static final ColumnFile COLUMN_FILE_2 =
-      ColumnFileStruct.builder()
-          .formatVersion(FORMAT_VERSION_V4)
-          .fieldIds(List.of(3))
-          .location("column_file_2.parquet")
-          .fileFormat(FileFormat.PARQUET)
-          .fileSizeInBytes(256L)
+      ColumnFiles.builder()
+          .withFormatVersion(FORMAT_VERSION_V4)
+          .withFieldIds(List.of(3))
+          .withLocation("column_file_2.parquet")
+          .withFileFormat(FileFormat.PARQUET)
+          .withFileSizeInBytes(256L)
           .build();
   private static final List<ColumnFile> COLUMN_FILES = List.of(COLUMN_FILE_1, COLUMN_FILE_2);
 

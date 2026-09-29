@@ -24,8 +24,6 @@ import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
@@ -173,10 +171,6 @@ class ColumnFileStruct extends SupportsIndexProjection implements ColumnFile, Se
     }
   }
 
-  static Builder builder() {
-    return new Builder();
-  }
-
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
@@ -188,84 +182,5 @@ class ColumnFileStruct extends SupportsIndexProjection implements ColumnFile, Se
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
         .toString();
-  }
-
-  static class Builder {
-    private Integer formatVersion = null;
-    private List<Integer> fieldIds = null;
-    private String location = null;
-    private FileFormat fileFormat = null;
-    private Long fileSizeInBytes = null;
-    private ByteBuffer keyMetadata = null;
-    private List<Long> splitOffsets = null;
-
-    Builder formatVersion(int newFormatVersion) {
-      Preconditions.checkArgument(
-          newFormatVersion >= 0, "Invalid format version: %s (must be >= 0)", newFormatVersion);
-      this.formatVersion = newFormatVersion;
-      return this;
-    }
-
-    Builder fieldIds(List<Integer> newFieldIds) {
-      Preconditions.checkArgument(newFieldIds != null, "Invalid field IDs: null");
-      Preconditions.checkArgument(!newFieldIds.isEmpty(), "Invalid field IDs: empty");
-      Preconditions.checkArgument(
-          Sets.newHashSet(newFieldIds).size() == newFieldIds.size(),
-          "Invalid field IDs: duplicated IDs found in: %s",
-          newFieldIds);
-      this.fieldIds = newFieldIds;
-      return this;
-    }
-
-    Builder location(String newLocation) {
-      Preconditions.checkArgument(newLocation != null, "Invalid location: null");
-      Preconditions.checkArgument(!newLocation.isEmpty(), "Invalid location: empty");
-      this.location = newLocation;
-      return this;
-    }
-
-    Builder fileFormat(FileFormat newFileFormat) {
-      Preconditions.checkArgument(newFileFormat != null, "Invalid file format: null");
-      this.fileFormat = newFileFormat;
-      return this;
-    }
-
-    Builder fileSizeInBytes(long newFileSizeInBytes) {
-      Preconditions.checkArgument(
-          newFileSizeInBytes >= 0,
-          "Invalid file size in bytes: %s (must be >= 0)",
-          newFileSizeInBytes);
-      this.fileSizeInBytes = newFileSizeInBytes;
-      return this;
-    }
-
-    Builder keyMetadata(ByteBuffer newKeyMetadata) {
-      Preconditions.checkArgument(newKeyMetadata != null, "Invalid key metadata: null");
-      this.keyMetadata = newKeyMetadata;
-      return this;
-    }
-
-    Builder splitOffsets(List<Long> newSplitOffsets) {
-      Preconditions.checkArgument(newSplitOffsets != null, "Invalid split offsets: null");
-      this.splitOffsets = newSplitOffsets;
-      return this;
-    }
-
-    ColumnFile build() {
-      Preconditions.checkArgument(formatVersion != null, "Missing required value: format version");
-      Preconditions.checkArgument(fieldIds != null, "Missing required value: field IDs");
-      Preconditions.checkArgument(location != null, "Missing required value: location");
-      Preconditions.checkArgument(fileFormat != null, "Missing required value: file format");
-      Preconditions.checkArgument(
-          fileSizeInBytes != null, "Missing required value: file size in bytes");
-      return new ColumnFileStruct(
-          formatVersion,
-          fieldIds,
-          location,
-          fileFormat,
-          fileSizeInBytes,
-          keyMetadata,
-          splitOffsets);
-    }
   }
 }
