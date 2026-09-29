@@ -233,8 +233,8 @@ class Delegates {
     }
 
     @Override
-    public Map<Integer, Integer> avgValueSizes() {
-      return wrapped.avgValueSizes();
+    public Map<Integer, Long> totalBytes() {
+      return wrapped.totalBytes();
     }
 
     @Override
