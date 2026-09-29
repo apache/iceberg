@@ -25,6 +25,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -37,6 +38,8 @@ import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.events.AvroUtil;
+import org.apache.iceberg.connect.events.CommitComplete;
+import org.apache.iceberg.connect.events.CommitToTable;
 import org.apache.iceberg.connect.events.DataComplete;
 import org.apache.iceberg.connect.events.DataWritten;
 import org.apache.iceberg.connect.events.Event;
@@ -57,6 +60,8 @@ import org.junit.jupiter.api.Test;
 
 class TestCoordinatorTableLookup extends ChannelTestBase {
   private static final TopicPartition CONTROL_PARTITION = new TopicPartition(CTL_TOPIC_NAME, 0);
+  private static final OffsetDateTime VALID_THROUGH_TS =
+      OffsetDateTime.parse("2026-09-29T12:00:00Z");
   private Coordinator activeCoordinator;
 
   @AfterEach
@@ -76,17 +81,7 @@ class TestCoordinatorTableLookup extends ChannelTestBase {
     completeCommit(coordinator, commitId, 2L);
 
     table.refresh();
-    assertThat(table.snapshots()).hasSize(1);
-    assertThat(
-            SnapshotChanges.builderFor(table)
-                .snapshot(table.currentSnapshot())
-                .build()
-                .addedDataFiles())
-        .extracting(DataFile::location)
-        .containsExactly(dataFile.location());
-    assertThat(table.currentSnapshot().summary()).containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":3}");
-    assertThat(consumer.committed(Set.of(CONTROL_PARTITION)))
-        .containsEntry(CONTROL_PARTITION, new OffsetAndMetadata(3L));
+    assertCommitCompleted(table, dataFile, commitId, 3L, VALID_THROUGH_TS);
     assertThat(producer.history())
         .extracting(record -> AvroUtil.decode(record.value()).type())
         .containsExactly(
@@ -137,19 +132,11 @@ class TestCoordinatorTableLookup extends ChannelTestBase {
     catalog.renameTable(movedIdentifier, TABLE_IDENTIFIER);
     assertThat(catalog.loadTable(TABLE_IDENTIFIER).uuid()).isEqualTo(originalUuid);
     coordinator.process();
-    completeCommit(coordinator, currentCommitId(), 3L);
+    UUID recoveredCommitId = currentCommitId();
+    completeCommit(coordinator, recoveredCommitId, 3L);
 
     Table recovered = catalog.loadTable(TABLE_IDENTIFIER);
-    assertThat(recovered.snapshots()).hasSize(1);
-    assertThat(
-            SnapshotChanges.builderFor(recovered)
-                .snapshot(recovered.currentSnapshot())
-                .build()
-                .addedDataFiles())
-        .extracting(DataFile::location)
-        .containsExactly(dataFile.location());
-    assertThat(consumer.committed(Set.of(CONTROL_PARTITION)))
-        .containsEntry(CONTROL_PARTITION, new OffsetAndMetadata(4L));
+    assertCommitCompleted(recovered, dataFile, recoveredCommitId, 4L, VALID_THROUGH_TS);
     assertThat(producer.history())
         .extracting(record -> AvroUtil.decode(record.value()).type())
         .containsExactly(
@@ -188,19 +175,11 @@ class TestCoordinatorTableLookup extends ChannelTestBase {
     catalog.renameTable(movedIdentifier, TABLE_IDENTIFIER);
     assertThat(catalog.loadTable(TABLE_IDENTIFIER).uuid()).isEqualTo(originalUuid);
     coordinator.process();
-    completeCommit(coordinator, currentCommitId(), 3L);
+    UUID recoveredCommitId = currentCommitId();
+    completeCommit(coordinator, recoveredCommitId, 3L);
 
     Table recovered = catalog.loadTable(TABLE_IDENTIFIER);
-    assertThat(recovered.snapshots()).hasSize(1);
-    assertThat(
-            SnapshotChanges.builderFor(recovered)
-                .snapshot(recovered.currentSnapshot())
-                .build()
-                .addedDataFiles())
-        .extracting(DataFile::location)
-        .containsExactly(dataFile.location());
-    assertThat(consumer.committed(Set.of(CONTROL_PARTITION)))
-        .containsEntry(CONTROL_PARTITION, new OffsetAndMetadata(4L));
+    assertCommitCompleted(recovered, dataFile, recoveredCommitId, 4L, VALID_THROUGH_TS);
   }
 
   @Test
@@ -271,6 +250,42 @@ class TestCoordinatorTableLookup extends ChannelTestBase {
         .hasMessageContaining("unresolved tables");
     assertThat(coordinator.partialCommitFailureCount()).isEqualTo(2L);
     assertCheckpoint(1L);
+    assertNoCommitComplete();
+  }
+
+  @Test
+  void successfulPartialRecoveryDoesNotResetLookupFailureCount() {
+    when(config.commitMaxConsecutiveFailures()).thenReturn(2);
+    Coordinator coordinator = startCoordinator();
+    DataFile firstFile = dataFile("first");
+    bufferFile(coordinator, currentCommitId(), firstFile);
+    TableIdentifier movedIdentifier = TableIdentifier.of(NAMESPACE, "unavailable");
+    catalog.renameTable(TABLE_IDENTIFIER, movedIdentifier);
+    when(config.commitTimeoutMs()).thenReturn(-1);
+
+    coordinator.process();
+    assertThat(coordinator.partialCommitFailureCount()).isEqualTo(1L);
+    assertCheckpoint(1L);
+    assertNoCommitComplete();
+
+    catalog.renameTable(movedIdentifier, TABLE_IDENTIFIER);
+    coordinator.process();
+    assertCommitCompleted(
+        catalog.loadTable(TABLE_IDENTIFIER), firstFile, currentCommitId(), 2L, null);
+    assertThat(coordinator.partialCommitFailureCount()).isEqualTo(1L);
+    producer.clear();
+
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+    coordinator.process();
+    writeResponse(TABLE_IDENTIFIER, table.uuid(), dataFile("second"), 2L);
+    catalog.renameTable(TABLE_IDENTIFIER, movedIdentifier);
+    when(config.commitTimeoutMs()).thenReturn(-1);
+
+    assertThatThrownBy(coordinator::process)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("unresolved tables");
+    assertThat(coordinator.partialCommitFailureCount()).isEqualTo(2L);
+    assertCheckpoint(2L);
     assertNoCommitComplete();
   }
 
@@ -431,6 +446,43 @@ class TestCoordinatorTableLookup extends ChannelTestBase {
         .doesNotContain(PayloadType.COMMIT_COMPLETE);
   }
 
+  private void assertCommitCompleted(
+      Table target,
+      DataFile expectedFile,
+      UUID commitId,
+      long committedOffset,
+      OffsetDateTime validThroughTs) {
+    assertFiles(target, expectedFile);
+    assertCheckpoint(committedOffset);
+    assertThat(target.currentSnapshot().summary())
+        .containsEntry("kafka.connect.commit-id", commitId.toString())
+        .containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":" + committedOffset + "}");
+    if (validThroughTs == null) {
+      assertThat(target.currentSnapshot().summary())
+          .doesNotContainKey("kafka.connect.valid-through-ts");
+    } else {
+      assertThat(target.currentSnapshot().summary())
+          .containsEntry("kafka.connect.valid-through-ts", validThroughTs.toString());
+    }
+
+    int eventCount = producer.history().size();
+    assertThat(AvroUtil.decode(producer.history().get(eventCount - 2).value()).payload())
+        .isInstanceOfSatisfying(
+            CommitToTable.class,
+            complete -> {
+              assertThat(complete.commitId()).isEqualTo(commitId);
+              assertThat(complete.snapshotId()).isEqualTo(target.currentSnapshot().snapshotId());
+              assertThat(complete.validThroughTs()).isEqualTo(validThroughTs);
+            });
+    assertThat(AvroUtil.decode(producer.history().get(eventCount - 1).value()).payload())
+        .isInstanceOfSatisfying(
+            CommitComplete.class,
+            complete -> {
+              assertThat(complete.commitId()).isEqualTo(commitId);
+              assertThat(complete.validThroughTs()).isEqualTo(validThroughTs);
+            });
+  }
+
   private static DataFile dataFile(String name) {
     return DataFiles.builder(PartitionSpec.unpartitioned())
         .withPath(name + ".parquet")
@@ -498,7 +550,8 @@ class TestCoordinatorTableLookup extends ChannelTestBase {
         new Event(
             config.connectGroupId(),
             new DataComplete(
-                commitId, List.of(new TopicPartitionOffset(SRC_TOPIC_NAME, 0, offset, null))));
+                commitId,
+                List.of(new TopicPartitionOffset(SRC_TOPIC_NAME, 0, offset, VALID_THROUGH_TS))));
     consumer.addRecord(
         new ConsumerRecord<>(CTL_TOPIC_NAME, 0, offset, "key", AvroUtil.encode(event)));
     coordinator.process();
