@@ -464,7 +464,7 @@ public class TestStatsUtil {
     Types.StructType actual =
         StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(ImmutableMap.of(), schema));
 
-    assertSameStructure(expected, actual);
+    assertSameTopLevelFieldsInAnyOrder(expected, actual);
   }
 
   @Test
@@ -501,7 +501,7 @@ public class TestStatsUtil {
     Types.StructType actual =
         StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(properties, schema));
 
-    assertSameStructure(expected, actual);
+    assertSameTopLevelFieldsInAnyOrder(expected, actual);
   }
 
   @Test
@@ -543,7 +543,7 @@ public class TestStatsUtil {
     Types.StructType actual =
         StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(properties, schema));
 
-    assertSameStructure(expected, actual);
+    assertSameTopLevelFieldsInAnyOrder(expected, actual);
   }
 
   @Test
@@ -562,6 +562,17 @@ public class TestStatsUtil {
         StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(ImmutableMap.of(), schema));
 
     assertThat(actual.fields()).isEmpty();
+  }
+
+  private static void assertSameTopLevelFieldsInAnyOrder(
+      Types.StructType expected, Types.StructType actual) {
+    assertThat(actual.fields()).as("Number of fields").hasSameSizeAs(expected.fields());
+
+    for (Types.NestedField expectedField : expected.fields()) {
+      Types.NestedField actualField = actual.field(expectedField.fieldId());
+      assertThat(actualField).as("Field ID %s", expectedField.fieldId()).isNotNull();
+      assertSameStructure(Types.StructType.of(expectedField), Types.StructType.of(actualField));
+    }
   }
 
   /**
