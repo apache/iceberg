@@ -22,25 +22,20 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 public class TestMetricsConfig {
-
-  @TempDir private File temp;
 
   private static final int ID = 1;
   private static final int EVENT_TIME = 2;
   private static final int CATEGORY = 3;
   private static final int DATA = 4;
 
-  private static final Schema PARTITIONED_SCHEMA =
+  private static final Schema SCHEMA =
       new Schema(
           required(ID, "id", Types.IntegerType.get()),
           optional(EVENT_TIME, "event_time", Types.TimestampType.withoutZone()),
@@ -48,35 +43,57 @@ public class TestMetricsConfig {
           optional(DATA, "data", Types.StringType.get()));
 
   @Test
-  public void testConfigCannotDisablePartitionSourceMetrics() throws IOException {
-    PartitionSpec spec = PartitionSpec.builderFor(PARTITIONED_SCHEMA).identity("category").build();
+  void configCannotDisablePartitionSourceMetrics() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("category").build();
     Map<String, String> props =
         ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "category", "none");
-    Table table = TestTables.create(temp, "identity-override", PARTITIONED_SCHEMA, spec, 4, props);
+    MetricsConfig config = MetricsTestUtil.from(props, SCHEMA, SortOrder.unsorted(), spec);
 
-    assertThat(MetricsConfig.forTable(table).columnMode(CATEGORY))
+    assertThat(config.columnMode(CATEGORY))
         .as("column config should not be able to disable metrics for a partition source column")
         .isEqualTo(MetricsModes.Full.get());
   }
 
   @Test
-  public void testBucketPartitionColumnIgnored() throws IOException {
-    PartitionSpec spec = PartitionSpec.builderFor(PARTITIONED_SCHEMA).bucket("category", 4).build();
-    Table table = TestTables.create(temp, "bucket", PARTITIONED_SCHEMA, spec, 4, ImmutableMap.of());
+  void bucketPartitionColumnIgnored() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("category", 4).build();
+    MetricsConfig config =
+        MetricsTestUtil.from(ImmutableMap.of(), SCHEMA, SortOrder.unsorted(), spec);
 
-    assertThat(MetricsConfig.forTable(table).columnMode(CATEGORY))
+    assertThat(config.columnMode(CATEGORY))
         .as("non-order-preserving partition transform should not promote its source column")
         .isEqualTo(MetricsModes.Truncate.withLength(16));
   }
 
   @Test
-  public void testColumnModeAndFieldIdsFromPartitionSpec() throws IOException {
-    PartitionSpec spec =
-        PartitionSpec.builderFor(PARTITIONED_SCHEMA).day("event_time").identity("category").build();
-    Table table =
-        TestTables.create(temp, "day-and-identity", PARTITIONED_SCHEMA, spec, 4, ImmutableMap.of());
+  void truncatePartitionColumnFullMetrics() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).truncate("category", 4).build();
+    MetricsConfig config =
+        MetricsTestUtil.from(ImmutableMap.of(), SCHEMA, SortOrder.unsorted(), spec);
 
-    MetricsConfig config = MetricsConfig.forTable(table);
+    assertThat(config.columnMode(CATEGORY))
+        .as("truncate partition source column should get full metrics")
+        .isEqualTo(MetricsModes.Full.get());
+  }
+
+  @Test
+  void multiplePartitionFieldsForSameSourceColumn() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA).identity("category").truncate("category", 4).build();
+    MetricsConfig config =
+        MetricsTestUtil.from(ImmutableMap.of(), SCHEMA, SortOrder.unsorted(), spec);
+
+    assertThat(config.columnMode(CATEGORY))
+        .as("source column of multiple partition fields should get full metrics")
+        .isEqualTo(MetricsModes.Full.get());
+  }
+
+  @Test
+  void columnModeAndFieldIdsFromPartitionSpec() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA).day("event_time").identity("category").build();
+    MetricsConfig config =
+        MetricsTestUtil.from(ImmutableMap.of(), SCHEMA, SortOrder.unsorted(), spec);
 
     assertThat(config.metricsFieldIds())
         .as("Should track field ids for partition and non-partition columns")

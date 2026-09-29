@@ -30,10 +30,16 @@ public class MetricsTestUtil {
 
   public static MetricsConfig from(
       Map<String, String> properties, Schema schema, SortOrder sortOrder) {
+    return from(properties, schema, sortOrder, null);
+  }
+
+  public static MetricsConfig from(
+      Map<String, String> properties, Schema schema, SortOrder sortOrder, PartitionSpec spec) {
     Table mock = Mockito.mock(Table.class);
     Mockito.when(mock.properties()).thenReturn(properties);
     Mockito.when(mock.schema()).thenReturn(schema);
     Mockito.when(mock.sortOrder()).thenReturn(sortOrder);
+    Mockito.when(mock.spec()).thenReturn(spec);
     return MetricsConfig.forTable(mock);
   }
 }

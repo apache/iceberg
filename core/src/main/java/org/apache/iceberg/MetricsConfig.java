@@ -292,7 +292,7 @@ public final class MetricsConfig implements Serializable {
     columnModes.putAll(configuredColumnModes(props));
 
     // Force full metrics for partition source columns
-    columnModes.putAll(partitionColumnModes(spec, schema));
+    columnModes.putAll(partitionColumnModes(spec));
 
     Map<Integer, String> idToName = idToName(schema, columnModes);
 
@@ -346,21 +346,21 @@ public final class MetricsConfig implements Serializable {
     return builder.build();
   }
 
-  private static Map<String, MetricsMode> partitionColumnModes(PartitionSpec spec, Schema schema) {
-    if (spec == null || schema == null) {
+  private static Map<String, MetricsMode> partitionColumnModes(PartitionSpec spec) {
+    if (spec == null) {
       return ImmutableMap.of();
     }
 
     ImmutableMap.Builder<String, MetricsMode> builder = ImmutableMap.builder();
     for (PartitionField field : spec.fields()) {
       if (field.transform().preservesOrder()) {
-        String name = schema.findColumnName(field.sourceId());
-        Preconditions.checkArgument(
-            name != null, "Cannot find source column for partition field: %s", field.name());
+        String name = spec.schema().findColumnName(field.sourceId());
+        // truncate[W] could use stats truncated to at least W, but full is used for simplicity
         builder.put(name, MetricsModes.Full.get());
       }
     }
 
+    // multiple partition fields can share a source column, so allow duplicate keys
     return builder.buildKeepingLast();
   }
 
