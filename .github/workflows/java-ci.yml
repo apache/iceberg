@@ -76,10 +76,6 @@ jobs:
       matrix:
         jvm: [17, 21]
         event_name: ['${{ github.event_name }}']
-        exclude:
-          # Pull requests run the baseline JDK only.
-          - event_name: pull_request
-            jvm: 21
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -95,7 +91,10 @@ jobs:
         # Read-only: java-ci's build-checks (17) is the global canonical writer.
         cache-read-only: true
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-    - run: ./gradlew check -DsparkVersions= -DflinkVersions= -DkafkaVersions= -Pquick=true -x javadoc -x spotlessCheck
+    - if: ${{ matrix.jvm != 21 || github.event_name != 'pull_request' }}
+      run: ./gradlew check -DsparkVersions= -DflinkVersions= -DkafkaVersions= -Pquick=true -x javadoc -x spotlessCheck
+    - if: ${{ matrix.jvm == 21 && github.event_name == 'pull_request' }}
+      run: ./gradlew :iceberg-core:check -Pquick=true -x javadoc -x spotlessCheck
     - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       if: failure()
       with:

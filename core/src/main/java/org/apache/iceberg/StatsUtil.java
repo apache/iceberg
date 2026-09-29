@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -154,6 +155,7 @@ class StatsUtil {
       }
     }
 
+    fieldStructs.sort(Comparator.comparingInt(Types.NestedField::fieldId));
     return Types.StructType.of(fieldStructs);
   }
 
