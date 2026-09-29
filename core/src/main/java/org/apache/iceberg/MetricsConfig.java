@@ -355,9 +355,9 @@ public final class MetricsConfig implements Serializable {
     for (PartitionField field : spec.fields()) {
       if (field.transform().preservesOrder()) {
         String name = schema.findColumnName(field.sourceId());
-        if (name != null) {
-          builder.put(name, MetricsModes.Full.get());
-        }
+        Preconditions.checkArgument(
+            name != null, "Cannot find source column for partition field: %s", field.name());
+        builder.put(name, MetricsModes.Full.get());
       }
     }
 

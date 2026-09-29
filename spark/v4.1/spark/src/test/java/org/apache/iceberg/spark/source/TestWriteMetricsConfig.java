@@ -274,6 +274,7 @@ public class TestWriteMetricsConfig {
         .save(tableLocation);
 
     Schema schema = table.schema();
+    Types.NestedField strCol = schema.findField("strCol");
     Types.NestedField longCol = schema.findField("longCol");
     Types.NestedField recordId = schema.findField("record.id");
     Types.NestedField recordData = schema.findField("record.data");
@@ -282,13 +283,15 @@ public class TestWriteMetricsConfig {
 
       Map<Integer, Long> nullValueCounts = file.nullValueCounts();
       assertThat(nullValueCounts)
-          .hasSize(3)
-          .containsKeys(longCol.fieldId(), recordId.fieldId(), recordData.fieldId());
+          .hasSize(4)
+          .containsKeys(
+              strCol.fieldId(), longCol.fieldId(), recordId.fieldId(), recordData.fieldId());
 
       Map<Integer, Long> valueCounts = file.valueCounts();
       assertThat(valueCounts)
-          .hasSize(3)
-          .containsKeys(longCol.fieldId(), recordId.fieldId(), recordData.fieldId());
+          .hasSize(4)
+          .containsKeys(
+              strCol.fieldId(), longCol.fieldId(), recordId.fieldId(), recordData.fieldId());
 
       Map<Integer, ByteBuffer> lowerBounds = file.lowerBounds();
       assertThat(lowerBounds).hasSize(2).containsKey(recordId.fieldId());
