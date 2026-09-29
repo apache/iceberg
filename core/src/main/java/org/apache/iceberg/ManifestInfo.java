@@ -33,7 +33,10 @@ interface ManifestInfo {
           506, "deleted_files_count", Types.IntegerType.get(), "Number of deleted files");
   Types.NestedField REPLACED_FILES_COUNT =
       Types.NestedField.required(
-          520, "replaced_files_count", Types.IntegerType.get(), "Number of replaced files");
+          523, "replaced_files_count", Types.IntegerType.get(), "Number of replaced files");
+  Types.NestedField MODIFIED_FILES_COUNT =
+      Types.NestedField.required(
+          525, "modified_files_count", Types.IntegerType.get(), "Number of modified files");
   Types.NestedField ADDED_ROWS_COUNT =
       Types.NestedField.required(
           512, "added_rows_count", Types.LongType.get(), "Number of rows in added files");
@@ -45,7 +48,10 @@ interface ManifestInfo {
           514, "deleted_rows_count", Types.LongType.get(), "Number of rows in deleted files");
   Types.NestedField REPLACED_ROWS_COUNT =
       Types.NestedField.required(
-          521, "replaced_rows_count", Types.LongType.get(), "Number of rows in replaced files");
+          524, "replaced_rows_count", Types.LongType.get(), "Number of rows in replaced files");
+  Types.NestedField MODIFIED_ROWS_COUNT =
+      Types.NestedField.required(
+          526, "modified_rows_count", Types.LongType.get(), "Number of rows in modified files");
   Types.NestedField MIN_SEQUENCE_NUMBER =
       Types.NestedField.required(
           516,
@@ -62,10 +68,12 @@ interface ManifestInfo {
         EXISTING_FILES_COUNT,
         DELETED_FILES_COUNT,
         REPLACED_FILES_COUNT,
+        MODIFIED_FILES_COUNT,
         ADDED_ROWS_COUNT,
         EXISTING_ROWS_COUNT,
         DELETED_ROWS_COUNT,
         REPLACED_ROWS_COUNT,
+        MODIFIED_ROWS_COUNT,
         MIN_SEQUENCE_NUMBER,
         DV);
   }
@@ -82,6 +90,9 @@ interface ManifestInfo {
   /** Returns the number of replaced files in this manifest. */
   int replacedFilesCount();
 
+  /** Returns the number of modified files in this manifest. */
+  int modifiedFilesCount();
+
   /** Returns the number of rows in added files. */
   long addedRowsCount();
 
@@ -93,6 +104,9 @@ interface ManifestInfo {
 
   /** Returns the number of rows in replaced files. */
   long replacedRowsCount();
+
+  /** Returns the number of rows in modified files. */
+  long modifiedRowsCount();
 
   /** Returns the minimum sequence number of files in this manifest. */
   long minSequenceNumber();

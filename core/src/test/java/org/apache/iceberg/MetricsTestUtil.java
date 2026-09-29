@@ -16,22 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.aws.s3;
+package org.apache.iceberg;
 
-import org.testcontainers.containers.MinIOContainer;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import java.util.Map;
+import org.mockito.Mockito;
 
-@Testcontainers
-public class TestS3FileIOWithLegacyMinIO extends TestS3FileIO {
-  @Override
-  protected MinIOContainer createMinIOContainer() {
-    MinIOContainer container = MinioUtil.createContainer(MinioUtil.LEGACY_TAG, null);
-    container.start();
-    return container;
+public class MetricsTestUtil {
+  private MetricsTestUtil() {}
+
+  public static MetricsConfig from(Map<String, String> properties, Schema schema) {
+    return from(properties, schema, null);
   }
 
-  @Override
-  protected boolean legacyMd5PluginEnabled() {
-    return true;
+  public static MetricsConfig from(
+      Map<String, String> properties, Schema schema, SortOrder sortOrder) {
+    Table mock = Mockito.mock(Table.class);
+    Mockito.when(mock.properties()).thenReturn(properties);
+    Mockito.when(mock.schema()).thenReturn(schema);
+    Mockito.when(mock.sortOrder()).thenReturn(sortOrder);
+    return MetricsConfig.forTable(mock);
   }
 }

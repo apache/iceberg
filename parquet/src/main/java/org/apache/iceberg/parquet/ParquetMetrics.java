@@ -31,7 +31,6 @@ import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
-import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -93,7 +92,7 @@ class ParquetMetrics {
         fields.collect(Collectors.toMap(FieldMetrics::id, Function.identity()));
 
     return TypeWithSchemaVisitor.visit(
-        schema.asStruct(), type, new MetricsVisitor(schema, metricsConfig, metricsById, columns));
+        schema.asStruct(), type, new MetricsVisitor(metricsConfig, metricsById, columns));
   }
 
   private static long rowCount(ParquetMetadata metadata) {
@@ -106,7 +105,7 @@ class ParquetMetrics {
   }
 
   private static Map<Integer, Long> columnSizes(
-      Schema schema, MessageType type, ParquetMetadata metadata, MetricsConfig metricsConfig) {
+      MessageType type, ParquetMetadata metadata, MetricsConfig metricsConfig) {
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     for (BlockMetaData block : metadata.getBlocks()) {
       for (ColumnChunkMetaData column : block.getColumns()) {
@@ -114,7 +113,7 @@ class ParquetMetrics {
             type.getColumnDescription(column.getPath().toArray()).getPrimitiveType().getId();
         if (id != null) {
           int fieldId = id.intValue();
-          MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+          MetricsModes.MetricsMode mode = metricsConfig.columnMode(fieldId);
           if (mode != MetricsModes.None.get()) {
             columnSizes.put(fieldId, columnSizes.getOrDefault(fieldId, 0L) + column.getTotalSize());
           }
@@ -132,7 +131,7 @@ class ParquetMetrics {
       ParquetMetadata metadata,
       Stream<FieldMetrics<?>> fields) {
     long rowCount = rowCount(metadata);
-    Map<Integer, Long> columnSizes = columnSizes(schema, type, metadata, metricsConfig);
+    Map<Integer, Long> columnSizes = columnSizes(type, metadata, metricsConfig);
 
     Map<Integer, Long> valueCounts = Maps.newHashMap();
     Map<Integer, Long> nullValueCounts = Maps.newHashMap();
@@ -190,17 +189,14 @@ class ParquetMetrics {
   }
 
   private static class MetricsVisitor extends TypeWithSchemaVisitor<Iterable<FieldMetrics<?>>> {
-    private final Schema schema;
     private final MetricsConfig metricsConfig;
     private final Map<Integer, FieldMetrics<?>> metricsById;
     private final Multimap<ColumnPath, ColumnChunkMetaData> columns;
 
     private MetricsVisitor(
-        Schema schema,
         MetricsConfig metricsConfig,
         Map<Integer, FieldMetrics<?>> metricsById,
         Multimap<ColumnPath, ColumnChunkMetaData> columns) {
-      this.schema = schema;
       this.metricsConfig = metricsConfig;
       this.metricsById = metricsById;
       this.columns = columns;
@@ -246,7 +242,7 @@ class ParquetMetrics {
       }
       int fieldId = id.intValue();
 
-      MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+      MetricsModes.MetricsMode mode = metricsConfig.columnMode(fieldId);
       if (mode == MetricsModes.None.get()) {
         return ImmutableList.of();
       }
@@ -397,7 +393,7 @@ class ParquetMetrics {
       }
       int fieldId = id.intValue();
 
-      MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+      MetricsModes.MetricsMode mode = metricsConfig.columnMode(fieldId);
       if (mode == MetricsModes.None.get()) {
         return ImmutableList.of();
       }

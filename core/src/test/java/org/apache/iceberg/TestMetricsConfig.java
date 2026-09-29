@@ -128,7 +128,7 @@ public class TestMetricsConfig {
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "full",
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data", "none");
 
-    MetricsConfig config = MetricsConfig.from(props, schema, null);
+    MetricsConfig config = MetricsTestUtil.from(props, schema);
 
     assertThat(config.metricsFieldIds())
         .as("Should track field ids for configured and defaulted columns")
@@ -151,7 +151,7 @@ public class TestMetricsConfig {
             optional(2, "data", Types.StringType.get()),
             optional(3, "category", Types.StringType.get()));
 
-    MetricsConfig config = MetricsConfig.from(ImmutableMap.of(), schema, null);
+    MetricsConfig config = MetricsTestUtil.from(ImmutableMap.of(), schema);
 
     assertThat(config.metricsFieldIds())
         .as("Should track field ids for all columns that use the default mode")
@@ -174,7 +174,7 @@ public class TestMetricsConfig {
 
     Map<String, String> limitedToTwo =
         ImmutableMap.of(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "2");
-    MetricsConfig config = MetricsConfig.from(limitedToTwo, schema, null);
+    MetricsConfig config = MetricsTestUtil.from(limitedToTwo, schema);
 
     // only the fields within the inferred limit are tracked, matching limitFieldIds
     assertThat(config.metricsFieldIds())
@@ -195,7 +195,7 @@ public class TestMetricsConfig {
     // raising the limit expands both the tracked ids and the columns with metrics
     Map<String, String> limitedToThree =
         ImmutableMap.of(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "3");
-    MetricsConfig wider = MetricsConfig.from(limitedToThree, schema, null);
+    MetricsConfig wider = MetricsTestUtil.from(limitedToThree, schema);
 
     assertThat(wider.metricsFieldIds())
         .as("Raising the limit should track more field ids")

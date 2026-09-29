@@ -112,9 +112,7 @@ public class MetricsUtil {
 
     return fieldMetrics
         .filter(metrics -> !inMapOrList(inputSchema, parents, metrics.id()))
-        .filter(
-            metrics ->
-                metricsMode(inputSchema, metricsConfig, metrics.id()) != MetricsModes.None.get())
+        .filter(metrics -> metricsConfig.columnMode(metrics.id()) != MetricsModes.None.get())
         .collect(Collectors.toMap(FieldMetrics::id, FieldMetrics::nanValueCount));
   }
 
@@ -129,14 +127,18 @@ public class MetricsUtil {
     return false;
   }
 
-  /** Extract MetricsMode for the given field id from metrics config. */
+  /**
+   * Extract MetricsMode for the given field id from metrics config.
+   *
+   * @deprecated will be removed in 1.14.0; use metricsConfig.columnMode(int) instead.
+   */
+  @Deprecated
   public static MetricsModes.MetricsMode metricsMode(
       Schema inputSchema, MetricsConfig metricsConfig, int fieldId) {
     Preconditions.checkNotNull(inputSchema, "inputSchema is required");
     Preconditions.checkNotNull(metricsConfig, "metricsConfig is required");
 
-    String columnName = inputSchema.findColumnName(fieldId);
-    return metricsConfig.columnMode(columnName);
+    return metricsConfig.columnMode(fieldId);
   }
 
   public static final List<ReadableMetricColDefinition> READABLE_METRIC_COLS =
