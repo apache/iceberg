@@ -107,12 +107,16 @@ three lists of index fields:
 
 Every index field has a field ID that must be unique across the three lists.
 
+Every source table field that an index field references must be present in the source schema of an [extract](#extract).
+When a referenced field has been dropped, no new extract can be created, but existing extracts remain readable using
+their own source schema.
+
 ##### Identity Fields
 
 `identity-fields` is a non-empty list of unique source table field IDs. Each entry must reference a data field.
 [Metadata columns](spec.md#reserved-field-ids) are not allowed. Each listed field is stored in the
-[region files](#region-files) under its own field ID and takes its type from the schema of the source table snapshot
-that an extract references.
+[region files](#region-files) under its own field ID and takes its type from the source schema of an
+[extract](#extract).
 
 Every source table field referenced by an expression field in the [ordering key](#ordering-key) must be an identity
 field.
@@ -141,6 +145,8 @@ Each expression field must satisfy the following requirements:
   `file_path`, `pos`, and `row` columns of delete files.
 - `expr` must be deterministic and must produce the declared `data-type`.
 - `field-id` must not be a [reserved field ID](spec.md#reserved-field-ids).
+- `data-type` must not change. A source table schema change that makes `expr` incompatible with `data-type` requires a
+  new index definition and prevents new extracts from being created.
 
 Expressions are serialized using the [JSON serialization](expressions-spec.md#appendix-b-json-serialization) defined by
 the expressions specification. Types are serialized using the [type serialization](spec.md#schemas) defined by the table
@@ -205,6 +211,9 @@ An extract is an immutable version of the index data generated from a specific s
 references a complete set of index files through the location of a single [tracking file](#tracking-file).
 
 An extract must index exactly the live rows of the referenced table snapshot.
+
+The referenced snapshot must have a `schema-id`. The schema it identifies is the **source schema** of the extract, the
+schema that index fields resolve source table fields against.
 
 | Requirement | Field name                 | Type                  | Description                                                                  |
 |-------------|----------------------------|-----------------------|------------------------------------------------------------------------------|
@@ -284,6 +293,9 @@ position in the ordering:
 - `null` values are ordered before all other values (nulls-first)
 - `float` and `double` values are ordered `-NaN` < `-Infinity` < `-value` < `-0.0` < `0.0` < `value` < `Infinity` <
   `NaN`, as defined by [sorting](spec.md#sorting) in the table specification
+
+An extract may reuse a region file written for an earlier extract only if the `ordering-key` field types in its
+[source schema](#extract) order all values of the earlier types identically.
 
 #### Tracking File
 
@@ -432,8 +444,7 @@ performance choice, because a reader can search it directly.
 
 The `data-type` declared by an expression field fixes the physical and statistics types for the lifetime of the index.
 It also allows a reader to construct those schemas without binding the expression against a possibly evolved source
-schema. A source schema change that makes an expression incompatible with its declared type requires a new index
-definition. Fields outside `ordering-key` may use any Iceberg type, and a nested `data-type` includes IDs for the
+table schema. Fields outside `ordering-key` may use any Iceberg type, and a nested `data-type` includes IDs for the
 fields in its subtree, allowing a covering index to store lists, maps, or structs.
 
 An identity field declares only a source field ID, and its type is resolved from the source table schema rather than
@@ -449,6 +460,20 @@ reserved. For example, an Iceberg reader synthesizes `_pos` from the position of
 is the region file rather than the source data file, so storing a region schema field under that ID would collide. A
 metadata column is therefore indexed with a materialized field that takes an ordinary field ID, and a reader recognizes
 it from its expression.
+
+### Source Table Schema Evolution
+
+An extract resolves types against the schema of the snapshot it indexes, so it is always read with the types it was
+written with, and requiring that snapshot to have a `schema-id` makes the resolution total. Source table schema
+evolution therefore only limits which extracts can be created next: a dropped field prevents new extracts, and a type
+promotion applies only to extracts created after it.
+
+Ordering key fields are the exception, because a region file may be reused unchanged by a later extract whose source
+schema promoted one of them. Its entries keep the order they were written in, so a promotion that reordered values
+would leave the reused region file misordered, breaking the non-overlapping region ranges and the `group_max_value`
+bounds used to prune them. The restriction is placed on reuse rather than on the promotion, because a source table is
+evolved without knowledge of the indexes built over it, so only the index writer can detect the case and rewrite the
+region file instead.
 
 ### Atomic Commits
 
