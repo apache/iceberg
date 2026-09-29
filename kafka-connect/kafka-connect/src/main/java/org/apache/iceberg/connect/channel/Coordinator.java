@@ -437,6 +437,7 @@ class Coordinator extends Channel {
         throw new ConnectException("Timed out waiting for coordinator shutdown");
       }
     } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
       throw new ConnectException("Interrupted while waiting for coordinator shutdown", e);
     }
   }

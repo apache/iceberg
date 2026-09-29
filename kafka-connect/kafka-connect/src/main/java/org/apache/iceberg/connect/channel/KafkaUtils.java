@@ -47,7 +47,11 @@ class KafkaUtils {
           admin.describeConsumerGroups(ImmutableList.of(consumerGroupId));
       return result.describedGroups().get(consumerGroupId).get();
 
-    } catch (InterruptedException | ExecutionException e) {
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ConnectException(
+          "Cannot retrieve members for consumer group: " + consumerGroupId, e);
+    } catch (ExecutionException e) {
       throw new ConnectException(
           "Cannot retrieve members for consumer group: " + consumerGroupId, e);
     }

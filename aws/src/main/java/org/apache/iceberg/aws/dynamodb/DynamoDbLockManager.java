@@ -214,6 +214,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
       try {
         Thread.sleep(Long.parseLong(currentItem.get(COL_LEASE_DURATION_MS).n()));
       } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
         throw new IllegalStateException(
             String.format(
                 "Fail to acquire lock %s by %s, interrupted during sleep", entityId, ownerId),
