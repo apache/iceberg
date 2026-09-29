@@ -1401,7 +1401,7 @@ class TestIcebergCommitter extends TestBase {
     return getCommitter(true);
   }
 
-  private IcebergCommitter getCommitter(boolean restored) {
+  private IcebergCommitter getCommitter(boolean isRestored) {
     IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
     return new IcebergCommitter(
         tableLoader,
@@ -1412,7 +1412,7 @@ class TestIcebergCommitter extends TestBase {
         "sinkId",
         metric,
         false,
-        restored,
+        isRestored,
         0);
   }
 

@@ -79,7 +79,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
   private ExecutorService workerPool;
   private int continuousEmptyCheckpoints = 0;
   private final boolean tableMaintenanceEnabled;
-  private final boolean restored;
+  private final boolean isRestored;
   private final int subtaskId;
 
   IcebergCommitter(
@@ -91,7 +91,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       String sinkId,
       IcebergFilesCommitterMetrics committerMetrics,
       boolean tableMaintenanceEnabled,
-      boolean restored,
+      boolean isRestored,
       int subtaskId) {
     this.branch = branch;
     this.snapshotProperties = snapshotProperties;
@@ -99,7 +99,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     this.committerMetrics = committerMetrics;
     this.tableLoader = tableLoader;
     this.tableMaintenanceEnabled = tableMaintenanceEnabled;
-    this.restored = restored;
+    this.isRestored = isRestored;
     this.subtaskId = subtaskId;
 
     // IcebergSink#addPreCommitTopology routes all committables to subtask 0 via a .global()
@@ -143,14 +143,22 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     IcebergCommittable last = commitRequestMap.lastEntry().getValue().getCommittable();
     // A stateless start has no committed checkpoints; the table's mark would drop every commit.
     long maxCommittedCheckpointId =
-        restored
+        isRestored
             ? SinkUtil.getMaxCommittedCheckpointId(table, last.jobId(), last.operatorId(), branch)
             : SinkUtil.INITIAL_CHECKPOINT_ID;
     // Mark the already committed FilesCommittable(s) as finished
-    commitRequestMap
-        .headMap(maxCommittedCheckpointId, true)
-        .values()
-        .forEach(CommitRequest::signalAlreadyCommitted);
+    NavigableMap<Long, CommitRequest<IcebergCommittable>> alreadyCommitted =
+        commitRequestMap.headMap(maxCommittedCheckpointId, true);
+    if (!alreadyCommitted.isEmpty()) {
+      LOG.warn(
+          "Skipping {} already committed checkpoint(s) up to {} for table {}, branch {}: {}",
+          alreadyCommitted.size(),
+          maxCommittedCheckpointId,
+          table.name(),
+          branch,
+          alreadyCommitted.keySet());
+    }
+    alreadyCommitted.values().forEach(CommitRequest::signalAlreadyCommitted);
     NavigableMap<Long, CommitRequest<IcebergCommittable>> uncommitted =
         commitRequestMap.tailMap(maxCommittedCheckpointId, false);
     if (!uncommitted.isEmpty()) {
