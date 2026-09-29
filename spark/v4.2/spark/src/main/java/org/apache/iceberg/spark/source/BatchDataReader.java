@@ -19,12 +19,11 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
-import java.util.stream.Stream;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.spark.OrcBatchReadConf;
@@ -91,8 +90,8 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
   }
 
   @Override
-  protected Stream<ContentFile<?>> referencedFiles(FileScanTask task) {
-    return Stream.concat(Stream.of(task.file()), task.deletes().stream());
+  protected InputFilesDecryptor newInputFilesDecryptor() {
+    return InputFilesDecryptor.fromTasks(taskGroup().tasks(), encryptingFileIO());
   }
 
   @Override

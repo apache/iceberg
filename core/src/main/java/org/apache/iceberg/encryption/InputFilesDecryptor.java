@@ -53,6 +53,11 @@ public class InputFilesDecryptor {
     return new InputFilesDecryptor(() -> referencedFiles(tasks).iterator(), encryptingIO);
   }
 
+  public static InputFilesDecryptor fromFiles(
+      Iterable<? extends ContentFile<?>> files, EncryptingFileIO encryptingIO) {
+    return new InputFilesDecryptor(files, encryptingIO);
+  }
+
   private InputFilesDecryptor(
       Iterable<? extends ContentFile<?>> files, EncryptingFileIO encryptingIO) {
     this.referencedFiles = files;

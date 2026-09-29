@@ -27,8 +27,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
@@ -44,6 +42,7 @@ import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.deletes.DeleteCounter;
 import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
@@ -78,7 +77,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   private final DeleteCounter counter;
   private final boolean cacheDeleteFilesOnExecutors;
 
-  private Map<String, InputFile> lazyInputFiles;
+  private final InputFilesDecryptor inputFilesDecryptor;
   private CloseableIterator<T> currentIterator;
   private T current = null;
   private TaskT currentTask = null;
@@ -102,11 +101,12 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         nameMappingString != null ? NameMappingParser.fromJson(nameMappingString) : null;
     this.counter = new DeleteCounter();
     this.cacheDeleteFilesOnExecutors = cacheDeleteFilesOnExecutors;
+    this.inputFilesDecryptor = newInputFilesDecryptor();
   }
 
   protected abstract CloseableIterator<T> open(TaskT task);
 
-  protected abstract Stream<ContentFile<?>> referencedFiles(TaskT task);
+  protected abstract InputFilesDecryptor newInputFilesDecryptor();
 
   protected Schema expectedSchema() {
     return expectedSchema;
@@ -148,12 +148,8 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
         }
       }
     } catch (IOException | RuntimeException e) {
-      if (currentTask != null && !currentTask.isDataTask()) {
-        String filePaths =
-            referencedFiles(currentTask)
-                .map(ContentFile::location)
-                .collect(Collectors.joining(", "));
-        LOG.error("Error reading file(s): {}", filePaths, e);
+      if (currentTask instanceof ContentScanTask<?> contentTask && !currentTask.isDataTask()) {
+        LOG.error("Error reading file: {}", contentTask.file().location(), e);
       }
       throw e;
     }
@@ -177,17 +173,15 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   }
 
   protected InputFile getInputFile(String location) {
-    return inputFiles().get(location);
+    return inputFilesDecryptor.getInputFile(location);
   }
 
-  private Map<String, InputFile> inputFiles() {
-    if (lazyInputFiles == null) {
-      this.lazyInputFiles =
-          fileIO.bulkDecrypt(
-              () -> taskGroup.tasks().stream().flatMap(this::referencedFiles).iterator());
-    }
+  protected ScanTaskGroup<TaskT> taskGroup() {
+    return taskGroup;
+  }
 
-    return lazyInputFiles;
+  protected EncryptingFileIO encryptingFileIO() {
+    return fileIO;
   }
 
   protected Map<Integer, ?> constantsMap(ContentScanTask<?> task, Schema readSchema) {

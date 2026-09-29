@@ -33,6 +33,7 @@ import org.apache.iceberg.DeletedRowsScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -136,7 +137,13 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
   }
 
   @Override
-  protected Stream<ContentFile<?>> referencedFiles(ChangelogScanTask task) {
+  protected InputFilesDecryptor newInputFilesDecryptor() {
+    return InputFilesDecryptor.fromFiles(
+        () -> taskGroup().tasks().stream().flatMap(ChangelogRowReader::referencedFiles).iterator(),
+        encryptingFileIO());
+  }
+
+  private static Stream<ContentFile<?>> referencedFiles(ChangelogScanTask task) {
     if (task instanceof AddedRowsScanTask) {
       return addedRowsScanTaskFiles((AddedRowsScanTask) task);
 
