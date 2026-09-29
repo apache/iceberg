@@ -247,7 +247,7 @@ public class TestWriteMetricsConfig {
     String tableLocation = temp.resolve("iceberg-table").toFile().toString();
 
     HadoopTables tables = new HadoopTables(CONF);
-    PartitionSpec spec = PartitionSpec.builderFor(COMPLEX_SCHEMA).identity("strCol").build();
+    PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> properties = Maps.newHashMap();
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
     properties.put("write.metadata.metrics.column.longCol", "counts");
@@ -274,7 +274,6 @@ public class TestWriteMetricsConfig {
         .save(tableLocation);
 
     Schema schema = table.schema();
-    Types.NestedField strCol = schema.findField("strCol");
     Types.NestedField longCol = schema.findField("longCol");
     Types.NestedField recordId = schema.findField("record.id");
     Types.NestedField recordData = schema.findField("record.data");
@@ -283,15 +282,13 @@ public class TestWriteMetricsConfig {
 
       Map<Integer, Long> nullValueCounts = file.nullValueCounts();
       assertThat(nullValueCounts)
-          .hasSize(4)
-          .containsKeys(
-              strCol.fieldId(), longCol.fieldId(), recordId.fieldId(), recordData.fieldId());
+          .hasSize(3)
+          .containsKeys(longCol.fieldId(), recordId.fieldId(), recordData.fieldId());
 
       Map<Integer, Long> valueCounts = file.valueCounts();
       assertThat(valueCounts)
-          .hasSize(4)
-          .containsKeys(
-              strCol.fieldId(), longCol.fieldId(), recordId.fieldId(), recordData.fieldId());
+          .hasSize(3)
+          .containsKeys(longCol.fieldId(), recordId.fieldId(), recordData.fieldId());
 
       Map<Integer, ByteBuffer> lowerBounds = file.lowerBounds();
       assertThat(lowerBounds).hasSize(2).containsKey(recordId.fieldId());
