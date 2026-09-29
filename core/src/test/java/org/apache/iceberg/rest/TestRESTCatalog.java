@@ -3793,7 +3793,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     table.newAppend().appendFile(FILE_A).commit();
 
     // loadTable is executed once
-    Mockito.verify(adapter, times(2))
+    Mockito.verify(adapter, times(1))
         .execute(matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
 
     // CommitReport reflects the table state after the commit (reported asynchronously)
@@ -3815,6 +3815,19 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any(),
             any(),
             any());
+  }
+
+  @Test
+  void numLoadTableCallsForFastAppend() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    Table table = catalog.createTable(TABLE, SCHEMA);
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    Mockito.verify(adapter, times(1))
+        .execute(matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
   }
 
   @Test
