@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import static org.apache.iceberg.actions.RewriteDataFiles.TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.MIN_INPUT_FILES;
+import static org.apache.iceberg.actions.SizeBasedFileRewritePlanner.TARGET_FILE_SIZE_BYTES;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.executeRewrite;
 import static org.apache.iceberg.flink.maintenance.operator.RewriteUtil.planDataFileRewrite;
 import static org.assertj.core.api.Assertions.assertThat;
