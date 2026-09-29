@@ -37,7 +37,7 @@ engine can build an index, maintain it, and use it to plan queries against the t
 * **Incrementality** -- An index is refreshed by writing only the index data affected by the table's changes.
 * **Scalability** -- An index supports any table size that the table spec supports.
 * **Portability** -- An index is readable and maintainable by any engine, not only the one that wrote it.
-* **Extensibility** -- An index type or clustering strategy can be added without disrupting existing indexes or
+* **Extensibility** -- An index type or ordering strategy can be added without disrupting existing indexes or
   engines that do not implement it.
 
 ## Overview
@@ -59,9 +59,9 @@ may be referenced by more than one extract.
 * **Index** -- A structure that accelerates retrieval of rows from a source table.
 * **Extract** -- The state of an index for a single snapshot of the source table.
 * **Index entry** -- The values produced by the index fields for one indexed row of the source table.
-* **Clustering key** -- The tuple of values that determines the position of an index entry within an extract.
+* **Ordering key** -- The tuple of values that determines the position of an index entry within an extract.
 * **Tracking file** -- A file that lists the region files of an extract; one per extract.
-* **Region file** -- A file that stores the index entries for a range of clustering keys; a subset of an extract.
+* **Region file** -- A file that stores the index entries for a range of ordering keys; a subset of an extract.
 
 ### Locations in Metadata
 
@@ -72,7 +72,7 @@ index `location`, which must be an absolute location.
 ### Index Definition
 
 An index is defined by a source table, an index type, identity fields, materialized fields, non-materialized fields, and
-a clustering key. The definition is fixed when the index is created and must not change for the lifetime of the index,
+an ordering key. The definition is fixed when the index is created and must not change for the lifetime of the index,
 so region files remain readable through every extract that references them. A different definition requires a
 new index.
 
@@ -83,9 +83,9 @@ may change properties, and readers must not depend on them.
 
 The index type defines the logical category of an index and the class of queries it accelerates.
 
-| Type     | Description                                                                                                           |
-|----------|-----------------------------------------------------------------------------------------------------------------------|
-| `scalar` | Accelerates point lookups on clustered fields, and range filters when the clustering expressions are order preserving |
+| Type     | Description                                                                                                            |
+|----------|------------------------------------------------------------------------------------------------------------------------|
+| `scalar` | Accelerates point lookups on ordering key fields, and range filters when the ordering expressions are order preserving |
 
 This specification defines a single index type, `scalar`. Future specifications may define additional types.
 
@@ -97,13 +97,13 @@ An index field defines one value of an index entry, produced for an indexed row 
 three lists of index fields:
 
 * [Identity fields](#identity-fields) store a source table field in region files as is, so a reader can return the
-  indexed values and distinguish entries that share a clustering key.
+  indexed values and distinguish entries that share an ordering key.
 * [Materialized fields](#materialized-fields) store a value computed from an indexed row in region files. A value is
   materialized when a reader cannot recompute it from the stored fields, such as the file and position, or when
   recomputing it would cost more than storing it, such as a bucket or Hilbert value.
 * [Non-materialized fields](#non-materialized-fields) keep only statistics in
   [tracking file entries](#tracking-file-entry), for a value a reader can recompute from the stored fields, so it can
-  take part in clustering and pruning without being stored for every entry.
+  take part in ordering and pruning without being stored for every entry.
 
 Every index field has a field ID that must be unique across the three lists.
 
@@ -114,7 +114,7 @@ Every index field has a field ID that must be unique across the three lists.
 [region files](#region-files) under its own field ID and takes its type from the schema of the source table snapshot
 that an extract references.
 
-Every source table field referenced by an expression field in the [clustering key](#clustering-key) must be an identity
+Every source table field referenced by an expression field in the [ordering key](#ordering-key) must be an identity
 field.
 
 ##### Expression Fields
@@ -156,11 +156,11 @@ Evaluating the identity fields and the materialized fields for one indexed row p
 `non-materialized-fields` is a list of expression fields whose row values are not stored in region files. Only their
 field statistics are stored, in [tracking file entries](#tracking-file-entry).
 
-#### Clustering Key
+#### Ordering Key
 
-`clustering-key` is a list of field IDs from `identity-fields`, `materialized-fields`, and `non-materialized-fields`.
-The values of the referenced fields, in list order, form the clustering key of an indexed row and determine the row's
-position in the index, as defined in [Clustering and Ordering](#clustering-and-ordering). The list must not be empty.
+`ordering-key` is a list of field IDs from `identity-fields`, `materialized-fields`, and `non-materialized-fields`.
+The values of the referenced fields, in list order, form the ordering key of an indexed row and determine the row's
+position in the index, as defined in [Ordering](#ordering). The list must not be empty.
 Every referenced field must have a primitive type.
 
 ### Index Metadata
@@ -182,7 +182,7 @@ The index metadata file has the following fields:
 | _required_  | `identity-fields`         | `list<int>`                | Source table fields stored in region files, see [Identity Fields](#identity-fields)                |
 | _optional_  | `materialized-fields`     | `list<expression-field>`   | Expression fields stored in region files, see [Materialized Fields](#materialized-fields)          |
 | _optional_  | `non-materialized-fields` | `list<expression-field>`   | Fields stored only in tracking statistics, see [Non-Materialized Fields](#non-materialized-fields) |
-| _required_  | `clustering-key`          | `list<int>`                | Field IDs that form the clustering key, see [Clustering Key](#clustering-key)                      |
+| _required_  | `ordering-key`            | `list<int>`                | Field IDs that form the ordering key, see [Ordering Key](#ordering-key)                            |
 | _optional_  | `properties`              | `map<string, string>`      | Index properties applicable for every extract                                                      |
 | _optional_  | `extracts`                | `list<extract>`            | Extracts [2]                                                                                       |
 | _optional_  | `metadata-log`            | `list<metadata-log-entry>` | Previous index metadata files, see [Metadata Log](#metadata-log)                                   |
@@ -266,15 +266,15 @@ against the source-table snapshot they intend to read.
 
 ### Index Data
 
-#### Clustering and Ordering
+#### Ordering
 
-The clustering key defines an ordering over all index entries of an extract. Index entries must be partitioned
-into ranges of clustering key values that do not overlap, and each range must be stored in a separate region file. A
-region boundary must fall at a change in clustering key, so all index entries that share a clustering key are stored in
+The ordering key defines an ordering over all index entries of an extract. Index entries must be partitioned
+into ranges of ordering key values that do not overlap, and each range must be stored in a separate region file. A
+region boundary must fall at a change in ordering key, so all index entries that share an ordering key are stored in
 the same region file.
 
-Index entries are ordered by the [clustering key](#clustering-key) produced for each indexed row. The key is compared by
-the fields in `clustering-key` order: index entries are compared by the value of the first field, and the next field is
+Index entries are ordered by the [ordering key](#ordering-key) produced for each indexed row. The key is compared by
+the fields in `ordering-key` order: index entries are compared by the value of the first field, and the next field is
 used only when the preceding values compare as equal. Each field is ordered ascending.
 
 Primitive values are compared using the rules defined in the
@@ -296,18 +296,18 @@ Each tracking file contains a collection of tracking file entries. A tracking fi
 tracked by an extract. The fields are the subset of the V4 [data file fields](spec.md#data-file-fields) that are
 relevant to planning queries against the index.
 
-Tracking file entries must be stored in the [clustering order](#clustering-and-ordering) of the region files they
-describe, which is the ascending order of the `group_max_value` statistics recorded for the clustering key fields in the
+Tracking file entries must be stored in the [index order](#ordering) of the region files they
+describe, which is the ascending order of the `group_max_value` statistics recorded for the ordering key fields in the
 [content statistics](#content-statistics).
 
-| Requirement | Field id, name                | Type      | Description                                                                                          |
-|-------------|-------------------------------|-----------|------------------------------------------------------------------------------------------------------|
-| _required_  | **`100  file_path`**          | `string`  | Full URI of the referenced region file                                                               |
-| _required_  | **`101  file_format`**        | `string`  | File format name, such as `parquet`, `avro`, or `orc`                                                |
-| _required_  | **`103  record_count`**       | `long`    | Number of records contained in the referenced region file                                            |
-| _required_  | **`104  file_size_in_bytes`** | `long`    | Total file size in bytes                                                                             |
-| _required_  | **`146  content_stats`**      | `struct`  | Field statistics and clustering bounds for the referenced region file, used for planning and pruning |
-| _optional_  | **`131  key_metadata`**       | `binary`  | Implementation-specific key metadata, used for region file encryption                                |
+| Requirement | Field id, name                | Type      | Description                                                                                            |
+|-------------|-------------------------------|-----------|--------------------------------------------------------------------------------------------------------|
+| _required_  | **`100  file_path`**          | `string`  | Full URI of the referenced region file                                                                 |
+| _required_  | **`101  file_format`**        | `string`  | File format name, such as `parquet`, `avro`, or `orc`                                                  |
+| _required_  | **`103  record_count`**       | `long`    | Number of records contained in the referenced region file                                              |
+| _required_  | **`104  file_size_in_bytes`** | `long`    | Total file size in bytes                                                                               |
+| _required_  | **`146  content_stats`**      | `struct`  | Field statistics and ordering key bounds for the referenced region file, used for planning and pruning |
+| _optional_  | **`131  key_metadata`**       | `binary`  | Implementation-specific key metadata, used for region file encryption                                  |
 
 ##### Content Statistics
 
@@ -317,26 +317,26 @@ the metrics supported for that type.
 
 The following metrics are required:
 
-| Index field               | Required metrics                                |
-|---------------------------|-------------------------------------------------|
-| Field in `clustering-key` | `lower_bound`, `upper_bound`, `group_max_value` |
-| Non-materialized field    | `lower_bound`, `upper_bound`                    |
-| Other materialized field  | None                                            |
+| Index field              | Required metrics                                |
+|--------------------------|-------------------------------------------------|
+| Field in `ordering-key`  | `lower_bound`, `upper_bound`, `group_max_value` |
+| Non-materialized field   | `lower_bound`, `upper_bound`                    |
+| Other materialized field | None                                            |
 
 All other metrics are optional. Statistics for a non-materialized field describe the rows that the region file indexes,
 not values stored in it.
 
 ###### Group Max Value
 
-The field statistics struct for each field in `clustering-key` must contain a `group_max_value` metric at offset `8`
+The field statistics struct for each field in `ordering-key` must contain a `group_max_value` metric at offset `8`
 from the field's stats `base-id`. It has the index field's data type and is optional so that it can represent a null
-clustering value. Unlike other metrics, a null `group_max_value` is a null clustering value, not an unknown statistic.
+ordering key value. Unlike other metrics, a null `group_max_value` is a null ordering key value, not an unknown
+statistic.
 
-The `group_max_value` metrics, read in `clustering-key` order, must be the exact clustering key of the last index entry
-in the region file according to the [clustering order](#clustering-and-ordering). They must not be truncated or
-rounded. Readers use these keys as inclusive region file upper bounds. The clustering keys of a region file are
-strictly greater than the `group_max_value` key of the preceding tracking file entry, so tracking file entries must be
-read in order.
+The `group_max_value` metrics, read in `ordering-key` order, must be the exact ordering key of the last index entry in
+the region file according to the [index order](#ordering). They must not be truncated or rounded. Readers use these
+keys as inclusive region file upper bounds. The ordering keys of a region file are strictly greater than the
+`group_max_value` key of the preceding tracking file entry, so tracking file entries must be read in order.
 
 #### Region Files
 
@@ -346,8 +346,7 @@ requirements define how each type is encoded and where a column's field ID is re
 
 Each region file row is one index entry and holds the [identity field](#identity-fields) and
 [materialized field](#materialized-fields) values of one indexed row. Index entries within a region file must be stored
-in the [clustering order](#clustering-and-ordering). Index entries that share a clustering key may be stored in any
-order.
+in the [index order](#ordering). Index entries that share an ordering key may be stored in any order.
 
 ##### Region Schema
 
@@ -369,12 +368,12 @@ class of index, so an engine can skip a type it does not implement without inspe
 ### Expression-based Definitions
 
 Beyond the source columns it indexes directly, an index is defined by expressions, which keeps the definition open
-ended. Expressions must be deterministic for the same reason clustering must be stable: an expression that depends on
+ended. Expressions must be deterministic for the same reason ordering must be stable: an expression that depends on
 `random` or on the evaluation time would place entries at positions that cannot be reproduced.
 
 Each expression field contains the expression that produces its value. A field that indexes a source table field as is
 carries no expression: it is declared by its ID in `identity-fields`. Materialized field values are stored in region
-files, while non-materialized field values are represented only by tracking statistics. The clustering key lists field
+files, while non-materialized field values are represented only by tracking statistics. The ordering key lists field
 IDs in comparison order without repeating their expressions. Engines match query expressions to index fields to
 determine whether the index applies and which stored field contains a result. Because expressions reference only fields
 and metadata columns of the source table, each index field can be evaluated directly from a source row.
@@ -385,39 +384,39 @@ indexed row. The changelog columns describe a row's change between two snapshots
 the delete file columns describe a delete file record rather than a source row, so neither can be evaluated from the
 row an index entry is built from.
 
-### Clustering Order and Pruning
+### Ordering and Pruning
 
-Each field in the clustering key determines part of the position of an entry, so its result type is limited to values
+Each field in the ordering key determines part of the position of an entry, so its result type is limited to values
 that Iceberg can order. Primitives are ordered by the rules the expressions specification already defines.
-Multi-component clustering keys are compared field by field, which is an extension of the sort orders in the Iceberg
+Multi-component ordering keys are compared field by field, which is an extension of the sort orders in the Iceberg
 table specification. Structs, lists, and maps are excluded because Iceberg does not define ordering for lists and maps,
 and a struct is represented as separate index fields instead.
 
-Clustering keys do not have to be unique. Region boundaries fall only where the clustering key changes, so all entries
+Ordering keys do not have to be unique. Region boundaries fall only where the ordering key changes, so all entries
 that share a key are in one region file and a lookup resolves to a single region file. Because a region file holds every
-entry with a given clustering key, the order of those entries within the file has no effect on planning or on region
+entry with a given ordering key, the order of those entries within the file has no effect on planning or on region
 file bounds, and the specification leaves it to the writer.
 
-The clustering order makes the index usable at two levels: region files can be pruned without being opened, and the
+The index order makes the index usable at two levels: region files can be pruned without being opened, and the
 entries of a region file that is opened can be located without reading all of it.
 
-Region files hold non-overlapping clustering ranges, so the `group_max_value` statistics in the tracking file are enough
-to eliminate a region file. Only the upper bound of a range is stored: clustered tracking file entries make the lower
-bound redundant, because it is exclusive and equal to the upper bound of the preceding entry. Each component of the
-bound is stored in the field statistics of the clustered field, and the clustering key supplies the component order. The
-bound has to be exact, because a bound rounded up would place the next region file's lower bound above entries that file
-actually contains, so a lookup would prune to the wrong file and miss rows.
+Region files hold non-overlapping ordering key ranges, so the `group_max_value` statistics in the tracking file are
+enough to eliminate a region file. Only the upper bound of a range is stored: ordered tracking file entries make the
+lower bound redundant, because it is exclusive and equal to the upper bound of the preceding entry. Each component of
+the bound is stored in the field statistics of the ordering key field, and the ordering key supplies the component
+order. The bound has to be exact, because a bound rounded up would place the next region file's lower bound above
+entries that file actually contains, so a lookup would prune to the wrong file and miss rows.
 
-Ordinary lower and upper bounds are required for clustered and non-materialized fields because they support pruning on
-partial clustering keys, which the `group_max_value` keys alone cannot do. Bounds for the other fields stored in region
-files are optional and, when present, extend pruning to fields outside the clustering key.
+Ordinary lower and upper bounds are required for ordering key fields and non-materialized fields because they support
+pruning on partial ordering keys, which the `group_max_value` keys alone cannot do. Bounds for the other fields stored
+in region files are optional and, when present, extend pruning to fields outside the ordering key.
 
 Within a region file, the entries that match a lookup are contiguous, so a reader can locate them with the structures
 the file format provides for stored columns, such as Parquet page indexes, instead of examining every entry. Those
-structures work on a stored field that clustering keeps sorted, or a value from which the clustering expression is order
-preserving: a file clustered on `day(ts)` is also ordered by a stored `ts` field. Clustering on `bucket(256, user_id)`
-leaves a stored `user_id` field unsorted unless the bucket field is also stored, so a reader may need to evaluate the
-clustering expression over region file rows.
+structures work on a stored field that the ordering keeps sorted, or a value from which the ordering expression is
+order preserving: a file ordered by `day(ts)` is also ordered by a stored `ts` field. Ordering by
+`bucket(256, user_id)` leaves a stored `user_id` field unsorted unless the bucket field is also stored, so a reader may
+need to evaluate the ordering expression over region file rows.
 
 ### Region Schema Derivation
 
@@ -425,16 +424,16 @@ The region schema is derived from the identity fields and the materialized field
 physical layout of the index cannot drift apart and the schema does not have to be maintained as a second, redundant
 copy of the definition.
 
-Requiring the stored fields to identify matching rows is what keeps a region file useful on its own. A clustering value
-alone cannot distinguish the entries that share it, so the source values behind each clustering key field have to be
-indexed as identity fields. Clustering on `bucket(256, user_id)`, for example, requires `user_id` to be an identity
+Requiring the stored fields to identify matching rows is what keeps a region file useful on its own. An ordering key
+value alone cannot distinguish the entries that share it, so the source values behind each ordering key field have to
+be indexed as identity fields. Ordering by `bucket(256, user_id)`, for example, requires `user_id` to be an identity
 field, because rows with different `user_id` values can share a bucket. Storing the expression result as well is a
 performance choice, because a reader can search it directly.
 
 The `data-type` declared by an expression field fixes the physical and statistics types for the lifetime of the index.
 It also allows a reader to construct those schemas without binding the expression against a possibly evolved source
 schema. A source schema change that makes an expression incompatible with its declared type requires a new index
-definition. Fields outside `clustering-key` may use any Iceberg type, and a nested `data-type` includes IDs for the
+definition. Fields outside `ordering-key` may use any Iceberg type, and a nested `data-type` includes IDs for the
 fields in its subtree, allowing a covering index to store lists, maps, or structs.
 
 An identity field declares only a source field ID, and its type is resolved from the source table schema rather than
@@ -482,20 +481,20 @@ pointer valid when a data file is rewritten, at the cost of resolving the row ID
 An index that only has to eliminate data files can materialize `_file` alone. Recording statistics for a materialized
 `_file` field also lets index maintenance find the entries produced by a data file that has since been rewritten.
 
-An index that materializes none of these can still prune region files by clustering key, but it cannot return source
+An index that materializes none of these can still prune region files by ordering key, but it cannot return source
 rows.
 
 ### Choosing Non-Materialized Fields
 
-Leaving a field non-materialized suits a clustering expression whose result is as large as its source, such as
+Leaving a field non-materialized suits an ordering expression whose result is as large as its source, such as
 `lower(name)` over an identity field `name`. Storing the result would nearly double the stored bytes, and a reader can
 recompute it from `name` while searching.
 
-### Choosing a Clustering Key
+### Choosing an Ordering Key
 
-A region file cannot hold fewer entries than a single clustering key produces, because a region boundary falls only
-where the clustering key changes. Clustering on a low-cardinality expression alone, such as `bucket(256, user_id)` on a
-large table, therefore forces very large region files. Ending `clustering-key` with a high-cardinality field, as in
+A region file cannot hold fewer entries than a single ordering key produces, because a region boundary falls only
+where the ordering key changes. Ordering by a low-cardinality expression alone, such as `bucket(256, user_id)` on a
+large table, therefore forces very large region files. Ending `ordering-key` with a high-cardinality field, as in
 `[ bucket(256, user_id), user_id ]`, keeps region files bounded.
 
 ## Appendix C: Example - Key Lookup Index
@@ -506,19 +505,19 @@ point lookups on the `user_id` column, a key lookup index is created.
 ```sql
 CREATE INDEX bucket_index
     ON events (user_id)
-    CLUSTERED BY (bucket(256, user_id), user_id);
+    ORDERED BY (bucket(256, user_id), user_id);
 ```
 
-This creates a `scalar` index on the `user_id` column that clusters entries by the hash bucket of `user_id` and then by
+This creates a `scalar` index on the `user_id` column that orders entries by the hash bucket of `user_id` and then by
 `user_id` itself. When the index is created, the engine (or a later index maintenance job) reads the current table
 snapshot, writes the region files and a tracking file, and produces the first index metadata file containing a single
-extract. Region file boundaries follow the clustering, so a region file holds a contiguous range of buckets or a
+extract. Region file boundaries follow the ordering, so a region file holds a contiguous range of buckets or a
 range of `user_id` values within a single bucket. The tracking file describes each region file with its location,
 format, record count, and size, together with the statistics used for pruning.
 
 The index stores `user_id` and the source row location. `user_id` is an identity field, so it keeps the field ID and the
 type of the source column, while the location fields are materialized fields that reference metadata columns and so
-take ordinary field IDs. The bucket is field `104`; it is evaluated for clustering and tracking statistics but is not
+take ordinary field IDs. The bucket is field `104`; it is evaluated for ordering and tracking statistics but is not
 stored in region files. The resulting region schema is:
 
 | Field id, name    | Type     | Description                                              |
@@ -527,7 +526,7 @@ stored in region files. The resulting region schema is:
 | **`105  file`**   | `string` | The source data file that contains the row, from `_file` |
 | **`106  pos`**    | `long`   | The row position within that data file, from `_pos`      |
 
-The location fields are not part of the clustering key, so entries that fall in the same bucket with the same `user_id`
+The location fields are not part of the ordering key, so entries that fall in the same bucket with the same `user_id`
 are ordered by source location only because the writer chose to store them that way.
 
 The JSON metadata file is shown below.
@@ -565,7 +564,7 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
       "arguments" : [ 256, { "type" : "reference", "id" : 1 } ]
     }
   } ],
-  "clustering-key" : [ 104, 1 ],
+  "ordering-key" : [ 104, 1 ],
   "extracts" : [ {
     "extract-id" : 8744736658442914487,
     "source-table-snapshot-id" : 3055729675574597004,
@@ -585,8 +584,8 @@ two region files:
 | .../region-00002.parquet | parquet     | 2            | 1024               |
 
 Each tracking file entry also carries a `content_stats` struct. The location fields are materialized fields outside
-`clustering-key`, so no statistics are required for them and this writer stores none. The struct holds field statistics
-for the identity field `user_id` and the non-materialized bucket. Both fields participate in `clustering-key`, so both
+`ordering-key`, so no statistics are required for them and this writer stores none. The struct holds field statistics
+for the identity field `user_id` and the non-materialized bucket. Both fields participate in `ordering-key`, so both
 stats structs include `group_max_value`:
 
 ```
@@ -611,20 +610,20 @@ stats structs include `group_max_value`:
 | `region-00002.parquet` | bucket    | `120`         | `209`         | `209`             |
 | `region-00002.parquet` | `user_id` | `3277`        | `99182`       | `3277`            |
 
-The `group_max_value` metrics form the clustering upper bounds `{ bucket: 88, user_id: 55310 }` and
-`{ bucket: 209, user_id: 3277 }` when read in `clustering-key` order. The `user_id` bounds of the two files overlap, so
-ordinary field statistics alone cannot eliminate either file. The clustering ranges do not overlap:
+The `group_max_value` metrics form the ordering key upper bounds `{ bucket: 88, user_id: 55310 }` and
+`{ bucket: 209, user_id: 3277 }` when read in `ordering-key` order. The `user_id` bounds of the two files overlap, so
+ordinary field statistics alone cannot eliminate either file. The ordering key ranges do not overlap:
 `region-00002.parquet` is the second tracking file entry, so its range starts after the first entry's upper bound.
 
-A lookup for `user_id = 55310` evaluates the clustering expressions for that value, producing
+A lookup for `user_id = 55310` evaluates the ordering expressions for that value, producing
 `{ bucket: 88, user_id: 55310 }`. That key is not greater than the upper bound of `region-00001.parquet`, the first
 tracking file entry, so only the first region file is read.
 
 The rows of `region-00001.parquet` follow the region schema constructed from the identity field and the materialized
-fields. They are stored in clustering order. The non-materialized bucket is shown here to make the complete clustering
+fields. They are stored in index order. The non-materialized bucket is shown here to make the complete ordering
 key visible:
 
-| user_id | file                            | pos | (clustering key) |
+| user_id | file                            | pos | (ordering key) |
 |---------|---------------------------------|-----|------------------|
 | 84721   | .../data/00000-0-(uuid).parquet | 14  | `{ 3, 84721 }`   |
 | 12094   | .../data/00001-0-(uuid).parquet | 3   | `{ 41, 12094 }`  |
@@ -667,7 +666,7 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid)
 ```
 
 The new rows fall into buckets that lie inside the range already covered by `region-00001.parquet`. Because region files
-must hold non-overlapping clustering ranges, maintenance rewrites that region file as `region-00003.parquet`
+must hold non-overlapping ordering key ranges, maintenance rewrites that region file as `region-00003.parquet`
 with the merged entries. `region-00002.parquet` covers a disjoint range and is reused unchanged, so the tracking file of
 the second extract references it as well:
 
@@ -677,13 +676,13 @@ the second extract references it as well:
 | .../region-00002.parquet | parquet     | 2            | 1024               |
 
 The merged entries fall inside the range that `region-00001.parquet` already covered, so `region-00003.parquet` keeps
-the same field bounds and the same `group_max_value` metrics, which produce the clustering upper bound
+the same field bounds and the same `group_max_value` metrics, which produce the ordering key upper bound
 `{ bucket: 88, user_id: 55310 }`. The entry for `region-00002.parquet` is copied from the previous tracking file.
 
 The rows of `region-00003.parquet` interleave the entries of the rewritten region file with the entries added for the
-new data file, keeping the clustering order:
+new data file, keeping the index order:
 
-| user_id | file                            | pos | (clustering key) |
+| user_id | file                            | pos | (ordering key) |
 |---------|---------------------------------|-----|------------------|
 | 84721   | .../data/00000-0-(uuid).parquet | 14  | `{ 3, 84721 }`   |
 | 71004   | .../data/00002-0-(uuid).parquet | 5   | `{ 17, 71004 }`  |
