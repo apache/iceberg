@@ -5495,15 +5495,14 @@ components:
     FieldStatistics:
       type: object
       properties:
-        avg-value-size-in-bytes:
+        total-bytes:
           type: integer
-          format: int32
+          format: int64
           description:
-            Avg value size in memory (uncompressed) in bytes over non-null
-            values to estimate memory consumption
+            Total uncompressed size in memory in bytes of non-null values
       example:
         {
-          "avg-value-size-in-bytes": 8
+          "total-bytes": 8
         }
 
     ValueMap:

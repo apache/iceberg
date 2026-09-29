@@ -189,8 +189,8 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public Map<Integer, Integer> avgValueSizes() {
-      return ContentStatsBackedMap.avgValueSizes(file().contentStats());
+    public Map<Integer, Long> totalBytes() {
+      return ContentStatsBackedMap.totalBytes(file().contentStats());
     }
 
     @Override

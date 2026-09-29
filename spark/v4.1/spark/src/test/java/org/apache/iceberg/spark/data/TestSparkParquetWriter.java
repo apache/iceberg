@@ -193,14 +193,14 @@ public class TestSparkParquetWriter {
   }
 
   @Test
-  public void testGeospatialAvgValueSizeMetrics() throws IOException {
+  public void testGeospatialTotalBytesMetrics() throws IOException {
     Schema geoSchema =
         new Schema(
             required(1, "id", Types.LongType.get()),
             optional(2, "geom", Types.GeometryType.crs84()),
             optional(3, "geog", Types.GeographyType.crs84()));
 
-    // WKB payloads of 3 and 5 bytes for geometry (avg 4), 7 bytes for geography.
+    // WKB payloads of 3 and 5 bytes for geometry (total 8), 7 bytes for geography.
     byte[] geomWkbSmall = new byte[] {0x01, 0x02, 0x03};
     byte[] geomWkbLarge = new byte[] {0x01, 0x02, 0x03, 0x04, 0x05};
     byte[] geogWkb = new byte[] {0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a};
@@ -213,7 +213,7 @@ public class TestSparkParquetWriter {
     InternalRow second = new GenericInternalRow(3);
     second.update(0, 2L);
     second.update(1, STUtils.stGeomFromWKB(geomWkbLarge));
-    // geography left null on the second row, so it must not affect the average.
+    // geography left null on the second row, so it must not contribute to total bytes.
 
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
@@ -237,12 +237,12 @@ public class TestSparkParquetWriter {
     FieldMetrics<?> geomMetrics = metricsById.get(geomId);
     assertThat(geomMetrics.valueCount()).isEqualTo(2);
     assertThat(geomMetrics.nullValueCount()).isZero();
-    assertThat(geomMetrics.avgValueSizeInBytes()).isEqualTo(4);
+    assertThat(geomMetrics.totalBytes()).isEqualTo(8L);
 
     FieldMetrics<?> geogMetrics = metricsById.get(geogId);
     assertThat(geogMetrics.valueCount()).isEqualTo(2);
     assertThat(geogMetrics.nullValueCount()).isEqualTo(1);
-    assertThat(geogMetrics.avgValueSizeInBytes()).isEqualTo(7);
+    assertThat(geogMetrics.totalBytes()).isEqualTo(7L);
   }
 
   private static int fieldId(MessageType parquetSchema, String column) {

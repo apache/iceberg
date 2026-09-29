@@ -149,13 +149,13 @@ public class TestParquetDataWriter {
 
     DataFile dataFile = dataWriter.toDataFile();
     assertThat(dataFile.recordCount()).isEqualTo(geoRecords.size());
-    assertThat(dataFile.avgValueSizes())
-        .containsOnly(Map.entry(2, geom.remaining()), Map.entry(3, geog.remaining()));
-    assertThat(dataFile.copy().avgValueSizes()).isEqualTo(dataFile.avgValueSizes());
-    assertThat(dataFile.copyWithStats(Set.of(2)).avgValueSizes())
-        .containsOnly(Map.entry(2, geom.remaining()));
-    assertThat(dataFile.copyWithStats(Set.of(1)).avgValueSizes()).isNull();
-    assertThat(dataFile.copyWithoutStats().avgValueSizes()).isNull();
+    assertThat(dataFile.totalBytes())
+        .containsOnly(Map.entry(2, 2L * geom.remaining()), Map.entry(3, (long) geog.remaining()));
+    assertThat(dataFile.copy().totalBytes()).isEqualTo(dataFile.totalBytes());
+    assertThat(dataFile.copyWithStats(Set.of(2)).totalBytes())
+        .containsOnly(Map.entry(2, 2L * geom.remaining()));
+    assertThat(dataFile.copyWithStats(Set.of(1)).totalBytes()).isNull();
+    assertThat(dataFile.copyWithoutStats().totalBytes()).isNull();
 
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =

@@ -55,7 +55,7 @@ public class TestContentStatsStruct {
 
   private static final FieldStats<Long> ID_STATS =
       new FieldStatsStruct<>(
-          CONTENT_STATS_STRUCT.field("id").type().asStructType(), 0L, 25L, true, 26L, 0L, 0L, null);
+          CONTENT_STATS_STRUCT.field("id").type().asStructType(), 0L, 25L, true, 26L, 0L, 0L, 0L);
   private static final FieldStats<String> DATA_STATS =
       new FieldStatsStruct<>(
           CONTENT_STATS_STRUCT.field("data").type().asStructType(),
@@ -65,7 +65,7 @@ public class TestContentStatsStruct {
           26L,
           0L,
           0L,
-          null);
+          2L);
 
   @Test
   public void emptyContentStats() {
@@ -103,7 +103,7 @@ public class TestContentStatsStruct {
     ContentStatsStruct stats = new ContentStatsStruct(CONTENT_STATS_STRUCT);
 
     FieldStats<Integer> fieldStats =
-        new FieldStatsStruct<>(UNKNOWN_FIELD_STATS_STRUCT, 0, 10, false, 8, 3, 0, null);
+        new FieldStatsStruct<>(UNKNOWN_FIELD_STATS_STRUCT, 0, 10, false, 8, 3, 0, 23L);
 
     assertThatThrownBy(() -> stats.setStats(4, fieldStats))
         .hasMessage("Cannot set stats for unknown field ID: 4")

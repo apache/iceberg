@@ -86,7 +86,7 @@ class TestTrackedFileAdapters {
           CONTENT_STATS_TYPE.fieldType("score").asStructType(), 2, 1.0f, 100.0f, 100L, 10L, 3L);
   private static final FieldStats<?> GEOM_STATS =
       StatsTestUtil.mockFieldStats(
-          CONTENT_STATS_TYPE.fieldType("geom").asStructType(), 3, null, null, 100L, 20L, null, 12);
+          CONTENT_STATS_TYPE.fieldType("geom").asStructType(), 3, null, null, 100L, 20L, null, 12L);
   private static final ContentStatsStruct CONTENT_STATS =
       new ContentStatsStruct(CONTENT_STATS_TYPE);
 
@@ -185,7 +185,7 @@ class TestTrackedFileAdapters {
     assertThat(dataFile.nullValueCounts())
         .containsOnly(Map.entry(1, 5L), Map.entry(2, 10L), Map.entry(3, 20L));
     assertThat(dataFile.nanValueCounts()).containsOnly(Map.entry(2, 3L));
-    assertThat(dataFile.avgValueSizes()).containsOnly(Map.entry(3, 12));
+    assertThat(dataFile.totalBytes()).containsOnly(Map.entry(3, 12L));
     assertThat(dataFile.lowerBounds())
         .containsOnly(
             Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),
@@ -265,7 +265,7 @@ class TestTrackedFileAdapters {
     assertThat(deleteFile.nullValueCounts())
         .containsOnly(Map.entry(1, 5L), Map.entry(2, 10L), Map.entry(3, 20L));
     assertThat(deleteFile.nanValueCounts()).containsOnly(Map.entry(2, 3L));
-    assertThat(deleteFile.avgValueSizes()).containsOnly(Map.entry(3, 12));
+    assertThat(deleteFile.totalBytes()).containsOnly(Map.entry(3, 12L));
     assertThat(deleteFile.lowerBounds())
         .containsOnly(
             Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),

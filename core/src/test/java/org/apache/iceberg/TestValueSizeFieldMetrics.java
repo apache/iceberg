@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 class TestValueSizeFieldMetrics {
 
   @Test
-  void averageValueSize() {
+  void totalBytes() {
     ValueSizeFieldMetrics.Builder builder = new ValueSizeFieldMetrics.Builder(2);
     builder.addValueSize(21);
     builder.addValueSize(42);
@@ -37,7 +37,7 @@ class TestValueSizeFieldMetrics {
     assertThat(metrics.valueCount()).isEqualTo(2);
     assertThat(metrics.nullValueCount()).isZero();
     assertThat(metrics.nanValueCount()).isEqualTo(-1);
-    assertThat(metrics.avgValueSizeInBytes()).isEqualTo(31);
+    assertThat(metrics.totalBytes()).isEqualTo(63L);
   }
 
   @Test
@@ -45,7 +45,6 @@ class TestValueSizeFieldMetrics {
     FieldMetrics<?> metrics = new ValueSizeFieldMetrics.Builder(2).build();
 
     assertThat(metrics.valueCount()).isZero();
-    assertThat(metrics.avgValueSizeInBytes()).isNull();
   }
 
   @Test

@@ -33,9 +33,9 @@ import org.apache.iceberg.types.Type;
  * existing geometry conversion path. The null value count is left at zero here; it is reconciled by
  * the optional-field writer that owns null accounting.
  *
- * <p>The average WKB size over the non-null values is also tracked, matching the {@code
- * avg_value_size_in_bytes} metric that the counts-only geospatial writer produces, so adding bounds
- * does not drop that metric for generic Parquet geometry writes.
+ * <p>The total bytes of non-null WKB values is also tracked, matching the {@code total_bytes}
+ * metric that the counts-only geospatial writer produces, so adding bounds does not drop that
+ * metric for generic Parquet geometry writes.
  */
 public class GeometryFieldMetrics extends FieldMetrics<GeospatialBound> {
 
@@ -45,8 +45,8 @@ public class GeometryFieldMetrics extends FieldMetrics<GeospatialBound> {
       GeospatialBound lowerBound,
       GeospatialBound upperBound,
       Type type,
-      Integer avgValueSizeInBytes) {
-    super(id, valueCount, 0L, -1L, lowerBound, upperBound, type, avgValueSizeInBytes);
+      long totalBytes) {
+    super(id, valueCount, 0L, -1L, lowerBound, upperBound, type, totalBytes);
   }
 
   public static class Builder {
@@ -69,15 +69,14 @@ public class GeometryFieldMetrics extends FieldMetrics<GeospatialBound> {
 
     public GeometryFieldMetrics build() {
       // build() returns null bounds when a dimension has no value or a value could not be bounded,
-      // which leaves the field with counts but no bounds. The average size is still reported: it
-      // does not depend on whether a box could be formed.
+      // which leaves the field with counts but no bounds. The total bytes are still reported
+      // and do not depend on whether a box could be formed.
       BoundingBox box = boundsBuilder.build();
       GeospatialBound lowerBound = box == null ? null : box.min();
       GeospatialBound upperBound = box == null ? null : box.max();
-      Integer avgValueSizeInBytes =
-          valueCount > 0 ? Math.toIntExact(totalValueSizeInBytes / valueCount) : null;
+      long totalBytes = valueCount > 0 ? totalValueSizeInBytes : -1L;
       return new GeometryFieldMetrics(
-          id, valueCount, lowerBound, upperBound, geometryType, avgValueSizeInBytes);
+          id, valueCount, lowerBound, upperBound, geometryType, totalBytes);
     }
   }
 }

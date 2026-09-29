@@ -61,11 +61,34 @@ public interface FieldStats<T> {
   /** The total NaN value count, defined only when {@link #hasNanValueCount()}. */
   long nanValueCount();
 
+  /** Whether total bytes are tracked for this field. */
+  default boolean hasTotalBytes() {
+    return false;
+  }
+
+  /**
+   * The total uncompressed size in memory in bytes of non-null values, for variable-length types
+   * (string, binary, variant, geometry, geography).
+   */
+  default long totalBytes() {
+    return 0L;
+  }
+
   /**
    * The avg value size in memory (uncompressed) in bytes for variable-length types (string, binary,
    * variant, geometry, geography)
+   *
+   * @deprecated since 1.13.0, will be removed in 1.14.0; use {@link #totalBytes()} instead.
    */
-  Integer avgValueSizeInBytes();
+  @Deprecated
+  default Integer avgValueSizeInBytes() {
+    if (!hasTotalBytes() || !hasValueCount() || !hasNullValueCount()) {
+      return null;
+    }
+
+    long nonNullValueCount = valueCount() - nullValueCount();
+    return nonNullValueCount > 0 ? Math.toIntExact(totalBytes() / nonNullValueCount) : null;
+  }
 
   /** Returns a copy of this {@link FieldStats}. */
   FieldStats<T> copy();

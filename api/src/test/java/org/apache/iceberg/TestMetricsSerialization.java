@@ -93,9 +93,9 @@ public class TestMetricsSerialization {
 
     Map<Integer, Type> originalTypes =
         ImmutableMap.of(1, Types.IntegerType.get(), 2, Types.IntegerType.get());
-    Map<Integer, Integer> avgValueSizes = ImmutableMap.of(9, 10);
+    Map<Integer, Long> totalBytes = ImmutableMap.of(9, 10L);
     return new Metrics(
-        0L, longMap1, longMap2, longMap3, null, byteMap1, byteMap2, avgValueSizes, originalTypes);
+        0L, longMap1, longMap2, longMap3, null, byteMap1, byteMap2, totalBytes, originalTypes);
   }
 
   private static Metrics generateMetricsWithNulls() {
@@ -108,11 +108,11 @@ public class TestMetricsSerialization {
     byteMap.put(4, null);
 
     Map<Integer, Type> originalTypes = ImmutableMap.of(4, Types.IntegerType.get());
-    Map<Integer, Integer> avgValueSizes = Maps.newHashMap();
-    avgValueSizes.put(null, 1);
-    avgValueSizes.put(2, null);
+    Map<Integer, Long> totalBytes = Maps.newHashMap();
+    totalBytes.put(null, 1L);
+    totalBytes.put(2, null);
     return new Metrics(
-        null, null, longMap, longMap, null, null, byteMap, avgValueSizes, originalTypes);
+        null, null, longMap, longMap, null, null, byteMap, totalBytes, originalTypes);
   }
 
   private static void assertEquals(Metrics expected, Metrics actual) {
@@ -120,7 +120,7 @@ public class TestMetricsSerialization {
     assertThat(actual.columnSizes()).isEqualTo(expected.columnSizes());
     assertThat(actual.valueCounts()).isEqualTo(expected.valueCounts());
     assertThat(actual.nullValueCounts()).isEqualTo(expected.nullValueCounts());
-    assertThat(actual.avgValueSizes()).isEqualTo(expected.avgValueSizes());
+    assertThat(actual.totalBytes()).isEqualTo(expected.totalBytes());
 
     assertEquals(expected.lowerBounds(), actual.lowerBounds());
     assertEquals(expected.upperBounds(), actual.upperBounds());
