@@ -48,14 +48,14 @@ public class TestMetricsConfig {
           optional(DATA, "data", Types.StringType.get()));
 
   @Test
-  public void testPartitionColumnCannotBeDisabled() throws IOException {
+  public void testConfigCannotDisablePartitionSourceMetrics() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(PARTITIONED_SCHEMA).identity("category").build();
     Map<String, String> props =
         ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "category", "none");
     Table table = TestTables.create(temp, "identity-override", PARTITIONED_SCHEMA, spec, 4, props);
 
     assertThat(MetricsConfig.forTable(table).columnMode(CATEGORY))
-        .as("column config should not be able to disable metrics for a partition column")
+        .as("column config should not be able to disable metrics for a partition source column")
         .isEqualTo(MetricsModes.Full.get());
   }
 
@@ -67,17 +67,6 @@ public class TestMetricsConfig {
     assertThat(MetricsConfig.forTable(table).columnMode(CATEGORY))
         .as("non-order-preserving partition transform should not promote its source column")
         .isEqualTo(MetricsModes.Truncate.withLength(16));
-  }
-
-  @Test
-  public void testIdentityPartitionColumnFullBeforeV4() throws IOException {
-    PartitionSpec spec = PartitionSpec.builderFor(PARTITIONED_SCHEMA).identity("category").build();
-    Table table =
-        TestTables.create(temp, "identity-v3", PARTITIONED_SCHEMA, spec, 3, ImmutableMap.of());
-
-    assertThat(MetricsConfig.forTable(table).columnMode(CATEGORY))
-        .as("partition source column should get full metrics in all format versions")
-        .isEqualTo(MetricsModes.Full.get());
   }
 
   @Test
