@@ -60,12 +60,12 @@ class CommitState {
 
   void addReady(Envelope envelope) {
     DataComplete dataComplete = (DataComplete) envelope.event().payload();
-    readyBuffer.add(dataComplete);
     if (!isCommitInProgress()) {
       LOG.warn(
           "Received commit ready when no commit in progress, this can happen during recovery. Commit ID: {}",
           dataComplete.commitId());
     } else if (Objects.equals(currentCommitId, dataComplete.commitId())) {
+      readyBuffer.add(dataComplete);
       receivedPartitionCount += dataComplete.assignments().size();
     }
   }
@@ -144,21 +144,16 @@ class CommitState {
   }
 
   OffsetDateTime validThroughTs(boolean partialCommit) {
-    List<DataComplete> currentCommitReady =
-        readyBuffer.stream()
-            .filter(payload -> Objects.equals(currentCommitId, payload.commitId()))
-            .collect(Collectors.toList());
-
     boolean hasValidThroughTs =
         !partialCommit
-            && currentCommitReady.stream()
+            && readyBuffer.stream()
                 .flatMap(event -> event.assignments().stream())
                 .allMatch(offset -> offset.timestamp() != null);
 
     OffsetDateTime result;
     if (hasValidThroughTs) {
       result =
-          currentCommitReady.stream()
+          readyBuffer.stream()
               .flatMap(event -> event.assignments().stream())
               .map(TopicPartitionOffset::timestamp)
               .min(Comparator.naturalOrder())
