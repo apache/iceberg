@@ -26,7 +26,6 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.CatalogUtil;
@@ -203,7 +202,7 @@ public class TestResolveBranch extends TestBase {
   }
 
   private List<LogicalPlan> collectRelations(LogicalPlan plan) {
-    List<LogicalPlan> relations = new ArrayList<>();
+    List<LogicalPlan> relations = Lists.newArrayList();
     plan.foreach(
         new scala.runtime.AbstractFunction1<LogicalPlan, scala.runtime.BoxedUnit>() {
           @Override

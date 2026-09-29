@@ -26,7 +26,6 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.CatalogUtil;
@@ -125,7 +124,8 @@ public class TestResolveBranch extends TestBase {
     Table table = createTable(location);
     createBranch(table, BRANCH);
 
-    // the branch comes from the session WAP conf, so the rule must pin it and rewrite the identifier
+    // the branch comes from the session WAP conf, so the rule must pin it and rewrite the
+    // identifier
     DataSourceV2Relation relation = readRelation(location);
 
     assertPathIdentifier(relation, location + "#branch_" + BRANCH);
@@ -202,7 +202,7 @@ public class TestResolveBranch extends TestBase {
   }
 
   private List<LogicalPlan> collectRelations(LogicalPlan plan) {
-    List<LogicalPlan> relations = new ArrayList<>();
+    List<LogicalPlan> relations = Lists.newArrayList();
     plan.foreach(
         new scala.runtime.AbstractFunction1<LogicalPlan, scala.runtime.BoxedUnit>() {
           @Override
