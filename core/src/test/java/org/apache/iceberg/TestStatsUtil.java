@@ -21,11 +21,11 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -573,8 +573,8 @@ public class TestStatsUtil {
   private static void assertSameStructure(Types.StructType expected, Types.StructType actual) {
     assertThat(actual.fields()).as("Number of fields").hasSameSizeAs(expected.fields());
 
-    List<Types.NestedField> expectedFields = new ArrayList<>(expected.fields());
-    List<Types.NestedField> actualFields = new ArrayList<>(actual.fields());
+    List<Types.NestedField> expectedFields = Lists.newArrayList(expected.fields());
+    List<Types.NestedField> actualFields = Lists.newArrayList(actual.fields());
     expectedFields.sort(Comparator.comparingInt(Types.NestedField::fieldId));
     actualFields.sort(Comparator.comparingInt(Types.NestedField::fieldId));
 
