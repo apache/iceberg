@@ -23,11 +23,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import org.apache.iceberg.ColumnFile;
+import org.apache.iceberg.ColumnFiles;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -72,6 +75,16 @@ class TestInputFilesDecryptor {
           .withFileSizeInBytes(45L)
           .withRecordCount(2L)
           .withFormat(FileFormat.PARQUET)
+          .build();
+
+  private static final ColumnFile COLUMN_FILE =
+      ColumnFiles.builder()
+          .withFormatVersion(4)
+          .withFieldIds(ImmutableList.of(2))
+          .withLocation("/path/to/column.parquet")
+          .withFileFormat(FileFormat.PARQUET)
+          .withFileSizeInBytes(64L)
+          .withKeyMetadata(ByteBuffer.wrap(new byte[] {1, 2, 3}))
           .build();
 
   private EncryptingFileIO encryptingIO;
@@ -139,6 +152,33 @@ class TestInputFilesDecryptor {
     Mockito.verify(encryptingIO).bulkDecrypt(captor.capture());
     assertThat(captor.getValue())
         .containsExactlyInAnyOrder(DATA_FILE, OTHER_DATA_FILE, DELETE_FILE);
+  }
+
+  @Test
+  void resolvesColumnFilesOfDataFiles() {
+    DataFile dataFile = Mockito.mock(DataFile.class);
+    Mockito.when(dataFile.location()).thenReturn(DATA_FILE.location());
+    Mockito.when(dataFile.fileSizeInBytes()).thenReturn(DATA_FILE.fileSizeInBytes());
+    Mockito.when(dataFile.columnFiles()).thenReturn(ImmutableList.of(COLUMN_FILE));
+
+    InputFilesDecryptor decryptor =
+        InputFilesDecryptor.fromTasks(
+            ImmutableList.of(new MockFileScanTask(dataFile)), encryptingIO);
+
+    decryptor.getInputFile(DATA_FILE.location());
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Iterable<ContentFile<?>>> captor = ArgumentCaptor.forClass(Iterable.class);
+    Mockito.verify(encryptingIO).bulkDecrypt(captor.capture());
+    assertThat(captor.getValue())
+        .anySatisfy(
+            file -> {
+              assertThat(file.location()).isEqualTo(COLUMN_FILE.location());
+              assertThat(file.fileSizeInBytes()).isEqualTo(COLUMN_FILE.fileSizeInBytes());
+              assertThat(file.keyMetadata()).isEqualTo(COLUMN_FILE.keyMetadata());
+            })
+        .extracting(ContentFile::location)
+        .containsExactlyInAnyOrder(DATA_FILE.location(), COLUMN_FILE.location());
   }
 
   @Test
