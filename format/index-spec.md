@@ -94,12 +94,20 @@ Writers must write `index-type` in lower case. Readers must match it case-insens
 #### Index Fields
 
 An index field defines one value of an index entry, produced for an indexed row of the source table. An index declares
-three lists of index fields: [identity fields](#identity-fields) and [materialized fields](#materialized-fields), whose
-values are stored in [region files](#region-files), and [non-materialized fields](#non-materialized-fields), which are
-represented only by statistics in [tracking file entries](#tracking-file-entry). Every index field has a field ID that
-must be unique across the three lists.
+three lists of index fields:
 
-#### Identity Fields
+* [Identity fields](#identity-fields) store a source table field in region files as is, so a reader can return the
+  indexed values and distinguish entries that share a clustering key.
+* [Materialized fields](#materialized-fields) store a value computed from an indexed row in region files. A value is
+  materialized when a reader cannot recompute it from the stored fields, such as the file and position, or when
+  recomputing it would cost more than storing it, such as a bucket or Hilbert value.
+* [Non-materialized fields](#non-materialized-fields) keep only statistics in
+  [tracking file entries](#tracking-file-entry), for a value a reader can recompute from the stored fields, so it can
+  take part in clustering and pruning without being stored for every entry.
+
+Every index field has a field ID that must be unique across the three lists.
+
+##### Identity Fields
 
 `identity-fields` is a non-empty list of unique source table field IDs. Each entry must reference a data field.
 [Metadata columns](spec.md#reserved-field-ids) are not allowed. Each listed field is stored in the
@@ -109,7 +117,7 @@ that an index snapshot references.
 Every source table field referenced by an expression field in the [clustering key](#clustering-key) must be an identity
 field.
 
-#### Expression Fields
+##### Expression Fields
 
 Both [materialized fields](#materialized-fields) and [non-materialized fields](#non-materialized-fields) are expression
 fields; they differ only in where their values are kept.
@@ -138,12 +146,12 @@ Expressions are serialized using the [JSON serialization](expressions-spec.md#ap
 the expressions specification. Types are serialized using the [type serialization](spec.md#schemas) defined by the table
 specification.
 
-##### Materialized Fields
+###### Materialized Fields
 
 `materialized-fields` is a list of expression fields whose values are stored in the [region files](#region-files).
 Evaluating the identity fields and the materialized fields for one indexed row produces one region file row.
 
-##### Non-Materialized Fields
+###### Non-Materialized Fields
 
 `non-materialized-fields` is a list of expression fields whose row values are not stored in region files. Only their
 field statistics are stored, in [tracking file entries](#tracking-file-entry).
