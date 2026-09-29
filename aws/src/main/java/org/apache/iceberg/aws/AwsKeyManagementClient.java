@@ -73,7 +73,7 @@ public class AwsKeyManagementClient implements KeyManagementClient {
 
   @Override
   public boolean supportsKeyGeneration() {
-    return false;
+    return true;
   }
 
   @Override

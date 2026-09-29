@@ -90,24 +90,12 @@ public class AliyunProperties implements Serializable {
 
   /**
    * The spec of the key encryption key that Aliyun KMS generates on the {@link
-   * AliyunKeyManagementClient#generateKey(String)} path: AES_256 (the default) or AES_128. Only
-   * used when key generation is enabled ({@link #KMS_KEY_GENERATION_ENABLED}); the actual data keys
-   * are sized by the table's {@code encryption.data-key-length}.
+   * AliyunKeyManagementClient#generateKey(String)} path: AES_256 (the default) or AES_128. The
+   * actual data keys are sized by the table's {@code encryption.data-key-length}.
    */
   public static final String KMS_DATA_KEY_SPEC = "kms.client.aliyun.generation.data-key-spec";
 
   public static final String KMS_DATA_KEY_SPEC_DEFAULT = "AES_256";
-
-  /**
-   * Enables server-side data key generation. When enabled, Iceberg calls {@link
-   * AliyunKeyManagementClient#generateKey(String)}; set to {@code false} (the default) to have
-   * Iceberg generate keys locally and {@link AliyunKeyManagementClient#wrapKey(java.nio.ByteBuffer,
-   * String)} them via KMS.
-   */
-  public static final String KMS_KEY_GENERATION_ENABLED =
-      "kms.client.aliyun.key.generation.enabled";
-
-  public static final boolean KMS_KEY_GENERATION_ENABLED_DEFAULT = false;
 
   /** Maximum number of attempts (including the first) for each KMS call. */
   public static final String KMS_CLIENT_MAX_ATTEMPTS = "kms.client.aliyun.max.attempts";
@@ -132,7 +120,6 @@ public class AliyunProperties implements Serializable {
   private final String region;
   private final String kmsEndpoint;
   private final String kmsDataKeySpec;
-  private final boolean kmsKeyGenerationEnabled;
   private final int kmsClientMaxAttempts;
   private final int kmsClientConnectTimeoutMs;
   private final int kmsClientReadTimeoutMs;
@@ -156,9 +143,6 @@ public class AliyunProperties implements Serializable {
     this.kmsEndpoint = properties.get(CLIENT_KMS_ENDPOINT);
     this.kmsDataKeySpec =
         PropertyUtil.propertyAsString(properties, KMS_DATA_KEY_SPEC, KMS_DATA_KEY_SPEC_DEFAULT);
-    this.kmsKeyGenerationEnabled =
-        PropertyUtil.propertyAsBoolean(
-            properties, KMS_KEY_GENERATION_ENABLED, KMS_KEY_GENERATION_ENABLED_DEFAULT);
     this.kmsClientMaxAttempts =
         PropertyUtil.propertyAsInt(
             properties, KMS_CLIENT_MAX_ATTEMPTS, KMS_CLIENT_MAX_ATTEMPTS_DEFAULT);
@@ -200,10 +184,6 @@ public class AliyunProperties implements Serializable {
 
   public String kmsDataKeySpec() {
     return kmsDataKeySpec;
-  }
-
-  public boolean kmsKeyGenerationEnabled() {
-    return kmsKeyGenerationEnabled;
   }
 
   public int kmsClientMaxAttempts() {

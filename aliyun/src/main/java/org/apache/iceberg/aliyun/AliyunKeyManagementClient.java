@@ -58,7 +58,7 @@ public class AliyunKeyManagementClient implements KeyManagementClient {
 
   @Override
   public boolean supportsKeyGeneration() {
-    return aliyunProperties.kmsKeyGenerationEnabled();
+    return false;
   }
 
   @Override
@@ -80,11 +80,6 @@ public class AliyunKeyManagementClient implements KeyManagementClient {
 
   @Override
   public ByteBuffer wrapKey(ByteBuffer key, String wrappingKeyId) {
-    if (aliyunProperties.kmsKeyGenerationEnabled()) {
-      throw new UnsupportedOperationException(
-          "wrapKey shouldn't be called as key generation is enabled.");
-    }
-
     EncryptRequest request =
         new EncryptRequest()
             .setKeyId(wrappingKeyId)

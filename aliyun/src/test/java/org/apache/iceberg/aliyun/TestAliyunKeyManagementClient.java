@@ -134,23 +134,13 @@ public class TestAliyunKeyManagementClient {
   }
 
   @Test
-  public void testWrapKeyRejectedWhenKeyGenerationEnabled() {
-    KeyManagementClient client =
-        kmsClient(ImmutableMap.of(AliyunProperties.KMS_KEY_GENERATION_ENABLED, "true"));
-    assertThatThrownBy(() -> client.wrapKey(ByteBuffer.wrap(RAW_KEY), WRAPPING_KEY_ID))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("key generation is enabled");
-  }
-
-  @Test
   public void testWrapKey() throws Exception {
     EncryptResponse response =
         new EncryptResponse().setBody(new EncryptResponseBody().setCiphertextBlob(CIPHERTEXT_BLOB));
     when(mockKms().encryptWithOptions(any(EncryptRequest.class), any(RuntimeOptions.class)))
         .thenReturn(response);
 
-    KeyManagementClient client =
-        kmsClient(ImmutableMap.of(AliyunProperties.KMS_KEY_GENERATION_ENABLED, "false"));
+    KeyManagementClient client = kmsClient(ImmutableMap.of());
     assertThat(client.supportsKeyGeneration()).isFalse();
 
     ByteBuffer wrapped = client.wrapKey(ByteBuffer.wrap(RAW_KEY), WRAPPING_KEY_ID);
@@ -231,40 +221,22 @@ public class TestAliyunKeyManagementClient {
             AliyunProperties.KMS_DATA_KEY_SPEC, "AES_256",
             AliyunProperties.KMS_CLIENT_MAX_ATTEMPTS, "5");
 
-    // key generation enabled: generate + unwrap survive serialization
-    Map<String, String> genProps =
-        ImmutableMap.<String, String>builder()
-            .putAll(baseProps)
-            .put(AliyunProperties.KMS_KEY_GENERATION_ENABLED, "true")
-            .build();
-    KeyManagementClient genClient = kmsClient(genProps);
-    assertThat(genClient.supportsKeyGeneration()).isTrue();
-    KeyManagementClient genRoundTripped = roundTripSerializer.apply(genClient);
-    assertThat(genRoundTripped.supportsKeyGeneration()).isTrue();
-    KeyManagementClient.KeyGenerationResult generated =
-        genRoundTripped.generateKey(WRAPPING_KEY_ID);
+    KeyManagementClient client = kmsClient(baseProps);
+    assertThat(client.supportsKeyGeneration()).isFalse();
+    KeyManagementClient roundTripped = roundTripSerializer.apply(client);
+    assertThat(roundTripped.supportsKeyGeneration()).isFalse();
+
+    // generateKey survives serialization
+    KeyManagementClient.KeyGenerationResult generated = roundTripped.generateKey(WRAPPING_KEY_ID);
     assertThat(generated.key()).isEqualTo(ByteBuffer.wrap(RAW_KEY));
     assertThat(generated.wrappedKey()).isEqualTo(WRAPPED_KEY);
-    assertThat(genClient.unwrapKey(WRAPPED_KEY.duplicate(), WRAPPING_KEY_ID))
-        .isEqualTo(ByteBuffer.wrap(RAW_KEY));
-    assertThat(genRoundTripped.unwrapKey(WRAPPED_KEY.duplicate(), WRAPPING_KEY_ID))
-        .isEqualTo(ByteBuffer.wrap(RAW_KEY));
 
-    // key generation disabled: wrap + unwrap survive serialization
-    Map<String, String> wrapProps =
-        ImmutableMap.<String, String>builder()
-            .putAll(baseProps)
-            .put(AliyunProperties.KMS_KEY_GENERATION_ENABLED, "false")
-            .build();
-    KeyManagementClient wrapClient = kmsClient(wrapProps);
-    assertThat(wrapClient.supportsKeyGeneration()).isFalse();
-    KeyManagementClient wrapRoundTripped = roundTripSerializer.apply(wrapClient);
-    assertThat(wrapRoundTripped.supportsKeyGeneration()).isFalse();
-    ByteBuffer wrapped = wrapRoundTripped.wrapKey(ByteBuffer.wrap(RAW_KEY), WRAPPING_KEY_ID);
+    // wrap + unwrap survive serialization
+    ByteBuffer wrapped = roundTripped.wrapKey(ByteBuffer.wrap(RAW_KEY), WRAPPING_KEY_ID);
     assertThat(wrapped).isEqualTo(WRAPPED_KEY);
-    assertThat(wrapClient.unwrapKey(wrapped.duplicate(), WRAPPING_KEY_ID))
+    assertThat(client.unwrapKey(wrapped.duplicate(), WRAPPING_KEY_ID))
         .isEqualTo(ByteBuffer.wrap(RAW_KEY));
-    assertThat(wrapRoundTripped.unwrapKey(wrapped.duplicate(), WRAPPING_KEY_ID))
+    assertThat(roundTripped.unwrapKey(wrapped.duplicate(), WRAPPING_KEY_ID))
         .isEqualTo(ByteBuffer.wrap(RAW_KEY));
   }
 
