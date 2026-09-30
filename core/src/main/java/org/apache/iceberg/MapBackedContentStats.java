@@ -19,8 +19,8 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -29,47 +29,77 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
-/** Reusable {@link ContentStats} view over a legacy {@link ContentFile}'s stat maps. */
-class MapBackedContentStats implements ContentStats, StructLike {
-  private final Types.StructType struct;
-  private final int[] posToId;
-  private final Map<Integer, FieldStats<?>> statsById;
+/** Reusable {@link ContentStats} view over a {@link ContentFile}'s stat maps. */
+class MapBackedContentStats implements ContentStats {
+  private final Types.StructType type;
+  private final Map<Integer, FieldStats<?>> statsById = Maps.newHashMap();
 
   private Map<Integer, Long> valueCounts;
   private Map<Integer, Long> nullValueCounts;
   private Map<Integer, Long> nanValueCounts;
+  private Map<Integer, Integer> avgValueSizes;
   private Map<Integer, ByteBuffer> lowerBounds;
   private Map<Integer, ByteBuffer> upperBounds;
 
-  MapBackedContentStats(Types.StructType contentStatsType) {
-    Preconditions.checkArgument(contentStatsType != null, "Invalid content stats type: null");
-    this.struct = contentStatsType;
-    List<Types.NestedField> fields = struct.fields();
-    this.posToId = new int[fields.size()];
-    this.statsById = Maps.newHashMapWithExpectedSize(fields.size());
-    for (int i = 0; i < fields.size(); i += 1) {
-      Types.NestedField field = fields.get(i);
-      int fieldId = StatsUtil.toFieldId(field.fieldId());
-      Types.StructType fieldStatsType = field.type().asStructType();
-      posToId[i] = fieldId;
-      statsById.put(
-          fieldId, new MapBackedFieldStats<>(fieldStatsType, fieldId, boundType(fieldStatsType)));
-    }
+  MapBackedContentStats(Schema tableSchema, MetricsConfig metricsConfig) {
+    Preconditions.checkArgument(tableSchema != null, "Invalid table schema: null");
+    Preconditions.checkArgument(metricsConfig != null, "Invalid metrics config: null");
+    this.type = StatsUtil.statsWriteSchema(tableSchema, metricsConfig);
   }
 
   MapBackedContentStats wrap(ContentFile<?> file) {
     this.valueCounts = file.valueCounts();
     this.nullValueCounts = file.nullValueCounts();
     this.nanValueCounts = file.nanValueCounts();
+    this.avgValueSizes = file.avgValueSizes();
     this.lowerBounds = file.lowerBounds();
     this.upperBounds = file.upperBounds();
     return this;
+  }
+
+  @Override
+  public Iterable<FieldStats<?>> fieldStats() {
+    return Iterables.filter(
+        Iterables.transform(type.fields(), field -> statsFor(StatsUtil.toFieldId(field.fieldId()))),
+        Objects::nonNull);
+  }
+
+  @Override
+  @SuppressWarnings("unchecked")
+  public <T> FieldStats<T> statsFor(int fieldId) {
+    if (!hasStats(fieldId)) {
+      return null;
+    }
+
+    FieldStats<?> fieldStats = statsById.get(fieldId);
+    if (fieldStats == null) {
+      fieldStats = new MapBackedFieldStats<>(fieldId);
+      statsById.put(fieldId, fieldStats);
+    }
+
+    return (FieldStats<T>) fieldStats;
+  }
+
+  @Override
+  public Types.StructType type() {
+    return type;
+  }
+
+  @Override
+  public ContentStats copy() {
+    throw new UnsupportedOperationException("copy is not implemented");
+  }
+
+  @Override
+  public ContentStats copy(Set<Integer> fieldIds) {
+    throw new UnsupportedOperationException("copy is not implemented");
   }
 
   private boolean hasStats(int id) {
     return containsId(valueCounts, id)
         || containsId(nullValueCounts, id)
         || containsId(nanValueCounts, id)
+        || containsId(avgValueSizes, id)
         || containsId(lowerBounds, id)
         || containsId(upperBounds, id);
   }
@@ -78,75 +108,21 @@ class MapBackedContentStats implements ContentStats, StructLike {
     return map != null && map.containsKey(id);
   }
 
-  @Override
-  public Iterable<FieldStats<?>> fieldStats() {
-    return Iterables.transform(
-        Iterables.filter(statsById.entrySet(), entry -> hasStats(entry.getKey())),
-        Map.Entry::getValue);
-  }
-
-  @Override
-  @SuppressWarnings("unchecked")
-  public <T> FieldStats<T> statsFor(int fieldId) {
-    return hasStats(fieldId) ? (FieldStats<T>) statsById.get(fieldId) : null;
-  }
-
-  @Override
-  public Types.StructType type() {
-    return struct;
-  }
-
-  private static Type boundType(Types.StructType fieldStats) {
-    for (Types.NestedField field : fieldStats.fields()) {
-      if (StatsUtil.statOffset(field.fieldId()) == StatsUtil.LOWER_BOUND_OFFSET) {
-        return field.type();
-      }
-    }
-
-    return null;
-  }
-
-  @Override
-  public int size() {
-    return struct.fields().size();
-  }
-
-  @Override
-  public <T> T get(int pos, Class<T> javaClass) {
-    int id = posToId[pos];
-    return javaClass.cast(hasStats(id) ? statsById.get(id) : null);
-  }
-
-  @Override
-  public <T> void set(int pos, T value) {
-    throw new UnsupportedOperationException(
-        "Reusable content stats wrapper does not support set()");
-  }
-
-  @Override
-  public ContentStats copy() {
-    throw new UnsupportedOperationException(
-        "Reusable content stats wrapper does not support copy(); materialize via a writer instead");
-  }
-
-  @Override
-  public ContentStats copy(Set<Integer> fieldIds) {
-    throw new UnsupportedOperationException(
-        "Reusable content stats wrapper does not support copy(); materialize via a writer instead");
-  }
-
   /** Reusable {@link FieldStats} view over one field's entries in a {@link ContentFile}'s maps. */
-  private class MapBackedFieldStats<T> implements FieldStats<T>, StructLike {
-    private final Types.StructType struct;
+  private class MapBackedFieldStats<T> implements FieldStats<T> {
     private final int fieldId;
+    private final Types.StructType struct;
     private final Type boundType;
-    private final int[] posToOffset;
 
-    MapBackedFieldStats(Types.StructType struct, int fieldId, Type boundType) {
-      this.struct = struct;
+    MapBackedFieldStats(int fieldId) {
+      Types.NestedField field = type.field(StatsUtil.toBaseId(fieldId));
+      Preconditions.checkArgument(
+          field != null,
+          "Cannot convert stats for field ID %s: unknown, not a scalar, or not in metrics config",
+          fieldId);
       this.fieldId = fieldId;
-      this.boundType = boundType;
-      this.posToOffset = posToOffset(struct);
+      this.struct = field.type().asStructType();
+      this.boundType = struct.fieldType(StatsUtil.LOWER_BOUND_NAME);
     }
 
     @Override
@@ -160,25 +136,22 @@ class MapBackedContentStats implements ContentStats, StructLike {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public T lowerBound() {
-      if (boundType == null) {
-        return null;
-      }
-
-      ByteBuffer buf = lowerBounds == null ? null : lowerBounds.get(fieldId);
-      return buf == null ? null : (T) Conversions.fromByteBuffer(boundType, buf);
+      return decodeBound(lowerBounds);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public T upperBound() {
-      if (boundType == null) {
+      return decodeBound(upperBounds);
+    }
+
+    @SuppressWarnings("unchecked")
+    private T decodeBound(Map<Integer, ByteBuffer> bounds) {
+      if (boundType == null || bounds == null) {
         return null;
       }
 
-      ByteBuffer buf = upperBounds == null ? null : upperBounds.get(fieldId);
-      return buf == null ? null : (T) Conversions.fromByteBuffer(boundType, buf);
+      return (T) Conversions.fromByteBuffer(boundType, bounds.get(fieldId));
     }
 
     @Override
@@ -218,56 +191,16 @@ class MapBackedContentStats implements ContentStats, StructLike {
 
     @Override
     public Integer avgValueSizeInBytes() {
-      return null;
-    }
-
-    private Long count(Map<Integer, Long> counts) {
-      return counts == null ? null : counts.get(fieldId);
-    }
-
-    @Override
-    public int size() {
-      return struct.fields().size();
-    }
-
-    @Override
-    public <C> C get(int pos, Class<C> javaClass) {
-      return javaClass.cast(getOffset(posToOffset[pos]));
-    }
-
-    private Object getOffset(int offset) {
-      return switch (offset) {
-        case StatsUtil.LOWER_BOUND_OFFSET -> lowerBound();
-        case StatsUtil.UPPER_BOUND_OFFSET -> upperBound();
-        case StatsUtil.TIGHT_BOUNDS_OFFSET -> tightBounds();
-        case StatsUtil.VALUE_COUNT_OFFSET -> count(valueCounts);
-        case StatsUtil.NULL_VALUE_COUNT_OFFSET -> count(nullValueCounts);
-        case StatsUtil.NAN_VALUE_COUNT_OFFSET -> count(nanValueCounts);
-        case StatsUtil.AVG_VALUE_SIZE_OFFSET -> null;
-        default -> throw new UnsupportedOperationException("Unsupported stats offset: " + offset);
-      };
-    }
-
-    @Override
-    public <C> void set(int pos, C value) {
-      throw new UnsupportedOperationException(
-          "Reusable field stats wrapper does not support set()");
+      return avgValueSizes == null ? null : avgValueSizes.get(fieldId);
     }
 
     @Override
     public FieldStats<T> copy() {
-      throw new UnsupportedOperationException(
-          "Reusable field stats wrapper does not support copy(); materialize via a writer instead");
+      throw new UnsupportedOperationException("copy is not implemented");
     }
 
-    private static int[] posToOffset(Types.StructType struct) {
-      List<Types.NestedField> fields = struct.fields();
-      int[] offsets = new int[fields.size()];
-      for (int i = 0; i < offsets.length; i += 1) {
-        offsets[i] = StatsUtil.statOffset(fields.get(i).fieldId());
-      }
-
-      return offsets;
+    private Long count(Map<Integer, Long> counts) {
+      return counts == null ? null : counts.get(fieldId);
     }
   }
 }

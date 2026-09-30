@@ -22,15 +22,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
-import java.util.Comparator;
 import java.util.Map;
-import java.util.Set;
-import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -38,7 +33,6 @@ import org.junit.jupiter.api.Test;
 
 class TestMapBackedContentStats {
 
-  // field 5 (flag) is intentionally left out of every stat map to exercise the absent-field path.
   private static final Schema SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -47,15 +41,14 @@ class TestMapBackedContentStats {
           Types.NestedField.optional(4, "name", Types.StringType.get()),
           Types.NestedField.optional(5, "flag", Types.BooleanType.get()));
 
-  private static final MetricsConfig METRICS_CONFIG =
-      MetricsConfig.from(ImmutableMap.of(), SCHEMA, SortOrder.unsorted());
+  private static final MetricsConfig METRICS_CONFIG = MetricsTestUtil.from(Map.of(), SCHEMA);
 
   private static final PartitionData EMPTY_PARTITION =
       new PartitionData(PartitionSpec.unpartitioned().partitionType());
 
   /**
-   * A file with stats on fields 1-4 (int, float, long, string) but none on field 5 (boolean). Field
-   * 3 (ts) intentionally has no value_count entry to exercise the absent-count throw path.
+   * Stats on fields 1-4; field 5 is absent. Field 3 has no value_count entry so the absent-count
+   * getter throws.
    */
   private static final DataFile FILE_WITH_STATS =
       dataFile(
@@ -74,10 +67,18 @@ class TestMapBackedContentStats {
               4, buf(Types.StringType.get(), "zzz")));
 
   @Test
+  void contentStatsType() {
+    Types.StructType expected = StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG);
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA, METRICS_CONFIG);
+
+    assertThat(stats.type()).isEqualTo(expected);
+    assertThat(stats.wrap(FILE_WITH_STATS).type()).isEqualTo(expected);
+  }
+
+  @Test
   void boundDecodingPerType() {
     MapBackedContentStats stats =
-        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
-            .wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
 
     FieldStats<?> id = stats.statsFor(1);
     assertThat(id.lowerBound()).isInstanceOf(Integer.class).isEqualTo(1);
@@ -100,7 +101,6 @@ class TestMapBackedContentStats {
 
   @Test
   void missingBoundsDecodeToNull() {
-    // value counts present but no lower/upper bound entries for the field
     DataFile file =
         dataFile(
             ImmutableMap.of(1, 100L),
@@ -108,8 +108,7 @@ class TestMapBackedContentStats {
             ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of());
-    MapBackedContentStats stats =
-        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG)).wrap(file);
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(file);
 
     FieldStats<?> id = stats.statsFor(1);
     assertThat(id.lowerBound()).isNull();
@@ -118,27 +117,24 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void countsAndDefaults() {
+  void countsAndTightBounds() {
     MapBackedContentStats stats =
-        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
-            .wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
 
     FieldStats<?> id = stats.statsFor(1);
     assertThat(id.hasValueCount()).isTrue();
     assertThat(id.valueCount()).isEqualTo(100L);
-    // id tracks no null or nan count; callers must check presence first, since the getters throw
-    // when the count is absent (as with FieldStatsStruct)
     assertThat(id.hasNullValueCount()).isFalse();
     assertThat(id.hasNanValueCount()).isFalse();
-    // primitive unbox of an absent Long count throws the JVM's helpful NPE
     assertThatThrownBy(id::nullValueCount)
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Long.longValue()");
     assertThatThrownBy(id::nanValueCount)
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Long.longValue()");
-    // the wrapper never tracks tight bounds or avg value size on the write path
+    // ContentFile maps have no tight-bounds flag so the view always reports false.
     assertThat(id.tightBounds()).isFalse();
+    // FILE_WITH_STATS has no avg-size map.
     assertThat(id.avgValueSizeInBytes()).isNull();
 
     FieldStats<?> score = stats.statsFor(2);
@@ -147,7 +143,6 @@ class TestMapBackedContentStats {
     assertThat(score.hasNanValueCount()).isTrue();
     assertThat(score.nanValueCount()).isEqualTo(3L);
 
-    // ts has other stats but no value_count entry — statsFor is non-null, valueCount() must throw
     FieldStats<?> ts = stats.statsFor(3);
     assertThat(ts.hasValueCount()).isFalse();
     assertThatThrownBy(ts::valueCount)
@@ -158,55 +153,11 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void countsOnlyColumnOmitsBounds() {
-    // configure the float column (score) as counts-only; its stats sub-struct must drop bounds
-    MetricsConfig countsConfig =
-        MetricsConfig.from(
-            ImmutableMap.of("write.metadata.metrics.column.score", "counts"),
-            SCHEMA,
-            SortOrder.unsorted());
+  void fieldWithoutStatsIsExcluded() {
     MapBackedContentStats stats =
-        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, countsConfig))
-            .wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
 
-    // counts mode drops lower_bound/upper_bound/tight_bounds; only the counts remain
-    FieldStats<?> score = stats.statsFor(2);
-    assertThat(score.type().fields())
-        .extracting(Types.NestedField::name)
-        .containsExactly("value_count", "null_value_count", "nan_value_count");
-
-    // a column left at the default mode still carries bounds
-    assertThat(stats.statsFor(1).type().fields())
-        .extracting(Types.NestedField::name)
-        .contains("lower_bound", "upper_bound");
-  }
-
-  @Test
-  void countsOnlyStructLike() {
-    // the pruned counts-only struct must expose its counts in the right positions via StructLike
-    MetricsConfig countsConfig =
-        MetricsConfig.from(
-            ImmutableMap.of("write.metadata.metrics.column.score", "counts"),
-            SCHEMA,
-            SortOrder.unsorted());
-    MapBackedContentStats stats =
-        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, countsConfig))
-            .wrap(FILE_WITH_STATS);
-
-    FieldStats<?> score = stats.statsFor(2);
-    // struct order: value_count, null_value_count, nan_value_count (bounds pruned in counts mode)
-    Row expected = Row.of(100L, 5L, 3L);
-    Comparator<StructLike> comparator = Comparators.forType(score.type());
-    assertThat(comparator.compare((StructLike) score, expected)).isEqualTo(0);
-  }
-
-  @Test
-  void absentFieldHasNoStats() {
-    MapBackedContentStats stats =
-        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
-            .wrap(FILE_WITH_STATS);
-
-    // field 5 (flag) has no entry in any stat map
+    assertThat(stats.type().field(StatsUtil.toBaseId(5))).isNotNull();
     assertThat(stats.statsFor(5)).isNull();
     assertThat(stats.fieldStats())
         .extracting(FieldStats::fieldId)
@@ -214,106 +165,49 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void typeMatchesStatsReadSchema() {
-    MapBackedContentStats stats =
-        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG));
-    assertThat(stats.type())
-        .isEqualTo(StatsUtil.statsReadSchema(SCHEMA, ImmutableList.of(1, 2, 3, 4, 5)));
-  }
+  void statsForUnknownFieldIdIsRejected() {
+    DataFile file =
+        dataFile(
+            ImmutableMap.of(99, 1L),
+            ImmutableMap.of(),
+            ImmutableMap.of(),
+            ImmutableMap.of(),
+            ImmutableMap.of());
 
-  @Test
-  void defaultStructLike() {
-    // the default (bound-bearing) struct for an optional float exposes all six fields via
-    // StructLike
-    MapBackedContentStats stats =
-        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
-            .wrap(FILE_WITH_STATS);
-
-    FieldStats<?> score = stats.statsFor(2);
-    // struct order: lower_bound, upper_bound, tight_bounds, value_count, null_value_count,
-    // nan_value_count
-    Row expected = Row.of(1.5f, 9.5f, false, 100L, 5L, 3L);
-    Comparator<StructLike> comparator = Comparators.forType(score.type());
-    assertThat(comparator.compare((StructLike) score, expected)).isEqualTo(0);
-  }
-
-  @Test
-  void contentStructLikeGetReturnsChildrenOrNull() {
-    MapBackedContentStats stats =
-        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
-            .wrap(FILE_WITH_STATS);
-
-    Set<Integer> nullFieldIds = Sets.newHashSet();
-    for (int pos = 0; pos < stats.size(); pos += 1) {
-      FieldStats<?> child = stats.get(pos, FieldStats.class);
-      int fieldId = StatsUtil.toFieldId(stats.type().fields().get(pos).fieldId());
-      if (child == null) {
-        nullFieldIds.add(fieldId);
-      } else {
-        assertThat(child.fieldId()).isEqualTo(fieldId);
-        assertThat(stats.statsFor(fieldId)).isSameAs(child);
-      }
-    }
-
-    // only field 5 (flag) lacks stats
-    assertThat(nullFieldIds).containsExactly(5);
+    assertThatThrownBy(
+            () -> new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(file).statsFor(99))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot convert stats for field ID 99: unknown, not a scalar, or not in metrics config");
   }
 
   @Test
   void copyNotSupported() {
     MapBackedContentStats stats =
-        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
-            .wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
 
-    // the reusable wrapper is serialized directly; snapshots must be materialized via a writer
     assertThatThrownBy(stats::copy)
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("does not support copy()");
+        .hasMessage("copy is not implemented");
 
     assertThatThrownBy(() -> stats.copy(ImmutableSet.of(1)))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("does not support copy()");
-  }
-
-  @Test
-  void setNotSupported() {
-    MapBackedContentStats stats =
-        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
-            .wrap(FILE_WITH_STATS);
-
-    assertThatThrownBy(() -> stats.set(0, null))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("does not support set()");
+        .hasMessage("copy is not implemented");
   }
 
   @Test
   void fieldStatsCopyNotSupported() {
-    // the reusable field wrapper is serialized directly; snapshots must be materialized via a
-    // writer
     MapBackedContentStats stats =
-        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
-            .wrap(FILE_WITH_STATS);
+        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
 
     assertThatThrownBy(stats.statsFor(1)::copy)
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("does not support copy()");
-  }
-
-  @Test
-  void fieldStatsSetNotSupported() {
-    MapBackedContentStats stats =
-        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG))
-            .wrap(FILE_WITH_STATS);
-
-    assertThatThrownBy(() -> ((StructLike) stats.statsFor(1)).set(0, 5))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("does not support set()");
+        .hasMessage("copy is not implemented");
   }
 
   @Test
   void reuseRebindsBounds() {
-    MapBackedContentStats stats =
-        new MapBackedContentStats(StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG));
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA, METRICS_CONFIG);
 
     stats.wrap(FILE_WITH_STATS);
     assertThat(stats.statsFor(1).lowerBound()).isEqualTo(1);
@@ -330,7 +224,6 @@ class TestMapBackedContentStats {
     assertThat(stats.statsFor(1).lowerBound()).isEqualTo(500);
     assertThat(stats.statsFor(1).upperBound()).isEqualTo(5000);
     assertThat(stats.statsFor(1).valueCount()).isEqualTo(50L);
-    // fields that had stats in file1 but not file2 are now absent
     assertThat(stats.statsFor(2)).isNull();
   }
 
