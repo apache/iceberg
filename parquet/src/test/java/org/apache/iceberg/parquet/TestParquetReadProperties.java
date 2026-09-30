@@ -46,7 +46,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-class TestParquetReadAllocationSize {
+class TestParquetReadProperties {
 
   private static final Schema SCHEMA =
       new Schema(
