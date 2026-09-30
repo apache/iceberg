@@ -170,6 +170,9 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   @Override
   public void readFully(long position, byte[] buffer, int offset, int length) throws IOException {
     Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
+    if (length == 0) {
+      return;
+    }
 
     String range = String.format("bytes=%s-%s", position, position + length - 1);
 
@@ -185,6 +188,9 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   @Override
   public int readTail(byte[] buffer, int offset, int length) throws IOException {
     Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
+    if (length == 0) {
+      return 0;
+    }
 
     String range = String.format("bytes=-%s", length);
 

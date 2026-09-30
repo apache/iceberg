@@ -21,7 +21,9 @@ package org.apache.iceberg.aws.s3;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
@@ -44,8 +46,6 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 public final class TestS3InputStream {
 
   @Mock private S3Client s3Client;
-  @Mock private InputStream inputStream;
-
   private S3InputStream s3InputStream;
 
   @BeforeEach
@@ -55,20 +55,22 @@ public final class TestS3InputStream {
 
   @Test
   void testReadFullyClosesTheStream() throws IOException {
+    InputStream inputStream = spy(new ByteArrayInputStream(new byte[] {1}));
     when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
         .thenReturn(inputStream);
 
-    s3InputStream.readFully(0, new byte[0]);
+    s3InputStream.readFully(0, new byte[1]);
 
     verify(inputStream).close();
   }
 
   @Test
   void testReadTailClosesTheStream() throws IOException {
+    InputStream inputStream = spy(new ByteArrayInputStream(new byte[] {1}));
     when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
         .thenReturn(inputStream);
 
-    s3InputStream.readTail(new byte[0], 0, 0);
+    assertThat(s3InputStream.readTail(new byte[1], 0, 1)).isEqualTo(1);
 
     verify(inputStream).close();
   }
@@ -94,9 +96,6 @@ public final class TestS3InputStream {
 
   @Test
   void testZeroLengthReadFullyDoesNotCountMetrics() throws IOException {
-    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
-        .thenReturn(new ByteArrayInputStream(new byte[0]));
-
     CachingMetricsContext metrics = new CachingMetricsContext();
     Counter readBytes = metrics.counter(FileIOMetricsContext.READ_BYTES, MetricsContext.Unit.BYTES);
     Counter readOperations = metrics.counter(FileIOMetricsContext.READ_OPERATIONS);
@@ -108,7 +107,15 @@ public final class TestS3InputStream {
       // a zero-length readFully performs no real read; it must count neither bytes nor an operation
       assertThat(readBytes.value()).isEqualTo(0);
       assertThat(readOperations.value()).isEqualTo(0);
+      verifyNoInteractions(s3Client);
     }
+  }
+
+  @Test
+  void zeroLengthReadTailDoesNotRequestS3() throws IOException {
+    assertThat(s3InputStream.readTail(new byte[1], 1, 0)).isZero();
+
+    verifyNoInteractions(s3Client);
   }
 
   @Test
