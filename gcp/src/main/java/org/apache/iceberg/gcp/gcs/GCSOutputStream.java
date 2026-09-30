@@ -37,6 +37,7 @@ import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -95,6 +96,7 @@ class GCSOutputStream extends PositionOutputStream {
 
   @Override
   public void flush() throws IOException {
+    Preconditions.checkState(!closed, "Already closed.");
     if (stream != null) {
       stream.flush();
     }
@@ -102,6 +104,7 @@ class GCSOutputStream extends PositionOutputStream {
 
   @Override
   public void write(int b) throws IOException {
+    Preconditions.checkState(!closed, "Already closed.");
     stream.write(b);
     pos += 1;
     writeBytes.increment();
@@ -114,6 +117,7 @@ class GCSOutputStream extends PositionOutputStream {
 
   @Override
   public void write(byte[] b, int off, int len) throws IOException {
+    Preconditions.checkState(!closed, "Already closed.");
     int remaining = len;
     int offset = off;
 

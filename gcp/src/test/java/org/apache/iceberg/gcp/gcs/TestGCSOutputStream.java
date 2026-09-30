@@ -22,6 +22,7 @@ import static org.apache.iceberg.gcp.GCPProperties.GCS_ENCRYPTION_KEY;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_USER_PROJECT;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_WRITE_THRESHOLD_BYTES;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -47,6 +48,8 @@ import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 
 public class TestGCSOutputStream {
@@ -79,6 +82,34 @@ public class TestGCSOutputStream {
         new GCSOutputStream(storage, randomBlobId(), properties, MetricsContext.nullMetrics());
     stream.close();
     stream.close();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void writeAfterCloseRejected(boolean arrayWrite) throws IOException {
+    BlobId blobId = randomBlobId();
+    GCSOutputStream stream =
+        new GCSOutputStream(storage, blobId, properties, MetricsContext.nullMetrics());
+
+    if (arrayWrite) {
+      stream.write(new byte[] {'A'});
+    } else {
+      stream.write('A');
+    }
+    stream.close();
+
+    assertThatIllegalStateException()
+        .isThrownBy(
+            () -> {
+              if (arrayWrite) {
+                stream.write(new byte[] {'B'});
+              } else {
+                stream.write('B');
+              }
+            })
+        .withMessageContaining("Already closed.");
+
+    assertThat(readGCSData(blobId)).isEqualTo(new byte[] {'A'});
   }
 
   @Test
