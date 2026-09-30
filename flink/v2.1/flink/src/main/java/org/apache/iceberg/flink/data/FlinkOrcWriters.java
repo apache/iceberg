@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.flink.data;
 
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.flink.table.data.ArrayData;
@@ -154,27 +151,27 @@ class FlinkOrcWriters {
     public void nonNullWrite(int rowId, TimestampData data, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;
       cv.setIsUTC(true);
-      // millis
-      OffsetDateTime offsetDateTime = data.toInstant().atOffset(ZoneOffset.UTC);
-      cv.time[rowId] =
-          offsetDateTime.toEpochSecond() * 1_000 + offsetDateTime.getNano() / 1_000_000;
+      long millis = data.getMillisecond();
+      cv.time[rowId] = millis;
+      int nanosOfSecond =
+          (int) Math.floorMod(millis, 1_000L) * 1_000_000 + data.getNanoOfMillisecond();
       // truncate nanos to only keep microsecond precision.
-      cv.nanos[rowId] = (offsetDateTime.getNano() / 1_000) * 1_000;
+      cv.nanos[rowId] = nanosOfSecond / 1_000 * 1_000;
     }
   }
 
   private static class TimestampTzWriter implements OrcValueWriter<TimestampData> {
     private static final TimestampTzWriter INSTANCE = new TimestampTzWriter();
 
-    @SuppressWarnings("JavaInstantGetSecondsGetNano")
     @Override
     public void nonNullWrite(int rowId, TimestampData data, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;
-      // millis
-      Instant instant = data.toInstant();
-      cv.time[rowId] = instant.toEpochMilli();
+      long millis = data.getMillisecond();
+      cv.time[rowId] = millis;
+      int nanosOfSecond =
+          (int) Math.floorMod(millis, 1_000L) * 1_000_000 + data.getNanoOfMillisecond();
       // truncate nanos to only keep microsecond precision.
-      cv.nanos[rowId] = (instant.getNano() / 1_000) * 1_000;
+      cv.nanos[rowId] = nanosOfSecond / 1_000 * 1_000;
     }
   }
 
@@ -185,25 +182,23 @@ class FlinkOrcWriters {
     public void nonNullWrite(int rowId, TimestampData data, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;
       cv.setIsUTC(true);
-      // millis
-      OffsetDateTime offsetDateTime = data.toInstant().atOffset(ZoneOffset.UTC);
-      cv.time[rowId] =
-          offsetDateTime.toEpochSecond() * 1_000 + offsetDateTime.getNano() / 1_000_000;
-      cv.nanos[rowId] = offsetDateTime.getNano();
+      long millis = data.getMillisecond();
+      cv.time[rowId] = millis;
+      cv.nanos[rowId] =
+          (int) Math.floorMod(millis, 1_000L) * 1_000_000 + data.getNanoOfMillisecond();
     }
   }
 
   private static class TimestampNanoTzWriter implements OrcValueWriter<TimestampData> {
     private static final TimestampNanoTzWriter INSTANCE = new TimestampNanoTzWriter();
 
-    @SuppressWarnings("JavaInstantGetSecondsGetNano")
     @Override
     public void nonNullWrite(int rowId, TimestampData data, ColumnVector output) {
       TimestampColumnVector cv = (TimestampColumnVector) output;
-      // millis
-      Instant instant = data.toInstant();
-      cv.time[rowId] = instant.toEpochMilli();
-      cv.nanos[rowId] = instant.getNano();
+      long millis = data.getMillisecond();
+      cv.time[rowId] = millis;
+      cv.nanos[rowId] =
+          (int) Math.floorMod(millis, 1_000L) * 1_000_000 + data.getNanoOfMillisecond();
     }
   }
 
