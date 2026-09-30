@@ -52,7 +52,7 @@ class FilePlanner {
   private final ManifestFile root;
   private final Schema tableSchema;
   private final Map<Integer, PartitionSpec> specsById;
-  private final Map<Integer, TaskContext> taskContextsBySpec = Maps.newConcurrentMap();
+  private final Map<Integer, TaskContext> taskContextsBySpec = Maps.newHashMap();
 
   private String tableLocation = null;
   private Expression dataFilter = Expressions.alwaysTrue();
@@ -147,7 +147,7 @@ class FilePlanner {
 
     CloseableIterable<DataFile> dataFiles =
         CloseableIterable.concat(
-            ImmutableList.of(CloseableIterable.withNoopClose(rootDataFiles), leafDataFiles));
+            ImmutableList.of(CloseableIterable.of(rootDataFiles), leafDataFiles));
 
     return CloseableIterable.transform(dataFiles, this::createTask);
   }
@@ -172,7 +172,7 @@ class FilePlanner {
 
     DeleteFile[] deletes = NO_DELETES;
     if (dataFile.deletionVector() != null) {
-      TrackedFile tracked = ((TrackedFileAdapters.TrackedDataFile) dataFile).file();
+      TrackedFile tracked = TrackedFileAdapters.asTrackedFile(dataFile);
       DeleteFile dv = TrackedFileAdapters.asDVDeleteFile(tracked, specsById);
       scanMetrics.dvs().increment();
       deletes = new DeleteFile[] {dv};

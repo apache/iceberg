@@ -33,7 +33,7 @@ class RootManifestFile implements ManifestFile {
   private final long sequenceNumber;
   private final Long firstRowId;
   private final byte[] keyMetadata;
-  private Long length;
+  private Long length = null;
 
   RootManifestFile(
       InputFile file,
@@ -47,7 +47,6 @@ class RootManifestFile implements ManifestFile {
     this.sequenceNumber = sequenceNumber;
     this.firstRowId = firstRowId;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
-    this.length = null;
   }
 
   @Override
