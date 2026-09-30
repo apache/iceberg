@@ -241,11 +241,9 @@ public class IcebergSink
   public Committer<IcebergCommittable> createCommitter(CommitterInitContext context) {
     IcebergFilesCommitterMetrics metrics =
         new IcebergFilesCommitterMetrics(context.metricGroup(), table.name());
-    // The committer compares the restored checkpoint id against the table's max committed
-    // checkpoint id to detect a stateless restart: after a stateless restart the checkpoint
-    // counter starts over, so the previous run's max committed id must not be reused.
-    long restoredCheckpointId =
-        context.getRestoredCheckpointId().orElse(SinkUtil.INITIAL_CHECKPOINT_ID);
+    // Detect a stateless restart (no checkpoint/savepoint restored) so the committer does not
+    // mistake the previous run's committed checkpoint ids for its own and silently drop commits.
+    boolean isRestored = context.getRestoredCheckpointId().isPresent();
     return new IcebergCommitter(
         tableLoader,
         branch,
@@ -256,7 +254,7 @@ public class IcebergSink
         metrics,
         maintenanceEnabled,
         context.getTaskInfo().getIndexOfThisSubtask(),
-        restoredCheckpointId);
+        isRestored);
   }
 
   @Override
