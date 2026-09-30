@@ -37,28 +37,12 @@ public final class Transactions {
         tableName, ops, TransactionType.CREATE_OR_REPLACE_TABLE, start, reporter);
   }
 
-  /**
-   * Start a create-or-replace transaction that rebuilds its replacement metadata if a concurrent
-   * writer changes the table before the transaction commits.
-   *
-   * @param replacement builds the replacement metadata from the latest table metadata; used to
-   *     rebuild the transaction's metadata on commit retry so concurrent snapshots are preserved
-   */
-  public static Transaction createOrReplaceTableTransaction(
+  static Transaction createOrReplaceTableTransaction(
       String tableName,
       TableOperations ops,
       TableMetadata start,
+      MetricsReporter reporter,
       UnaryOperator<TableMetadata> replacement) {
-    return new BaseTransaction(
-        tableName, ops, TransactionType.CREATE_OR_REPLACE_TABLE, start, replacement);
-  }
-
-  public static Transaction createOrReplaceTableTransaction(
-      String tableName,
-      TableOperations ops,
-      TableMetadata start,
-      UnaryOperator<TableMetadata> replacement,
-      MetricsReporter reporter) {
     return new BaseTransaction(
         tableName, ops, TransactionType.CREATE_OR_REPLACE_TABLE, start, replacement, reporter);
   }
@@ -73,27 +57,12 @@ public final class Transactions {
     return new BaseTransaction(tableName, ops, TransactionType.REPLACE_TABLE, start, reporter);
   }
 
-  /**
-   * Start a replace transaction that rebuilds its replacement metadata if a concurrent writer
-   * changes the table before the transaction commits.
-   *
-   * @param replacement builds the replacement metadata from the latest table metadata; used to
-   *     rebuild the transaction's metadata on commit retry so concurrent snapshots are preserved
-   */
-  public static Transaction replaceTableTransaction(
+  static Transaction replaceTableTransaction(
       String tableName,
       TableOperations ops,
       TableMetadata start,
+      MetricsReporter reporter,
       UnaryOperator<TableMetadata> replacement) {
-    return new BaseTransaction(tableName, ops, TransactionType.REPLACE_TABLE, start, replacement);
-  }
-
-  public static Transaction replaceTableTransaction(
-      String tableName,
-      TableOperations ops,
-      TableMetadata start,
-      UnaryOperator<TableMetadata> replacement,
-      MetricsReporter reporter) {
     return new BaseTransaction(
         tableName, ops, TransactionType.REPLACE_TABLE, start, replacement, reporter);
   }

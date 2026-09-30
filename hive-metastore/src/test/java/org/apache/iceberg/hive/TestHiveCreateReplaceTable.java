@@ -235,9 +235,7 @@ public class TestHiveCreateReplaceTable {
     txn.updateProperties().set("prop", "value").commit();
     txn.commitTransaction();
 
-    // the replace should still succeed, and the property the concurrent writer committed during
-    // the replace transaction must be preserved on retry. this is the same rebuild that preserves
-    // concurrent snapshots and matches REST delta semantics - see #16942
+    // the replace should still succeed
     table = catalog.loadTable(TABLE_IDENTIFIER);
     assertThat(table.properties())
         .as("Replace retry should preserve concurrent property updates")

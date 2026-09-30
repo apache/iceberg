@@ -33,7 +33,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
@@ -316,9 +318,8 @@ public class TestReplaceTransaction extends TestBase {
   }
 
   @TestTemplate
-  public void testReplaceTransactionConcurrentCommitRetainsHistory() {
-    // use random snapshot ids (like real catalogs) so the replace's snapshot and the concurrent
-    // writer's snapshot do not collide on the sequential ids that TestTables assigns by default
+  void replaceTransactionConcurrentCommitRetainsHistory() {
+    // TestTables assigns sequential snapshot ids, which collide between the two writers
     table.updateProperties().set("random-snapshot-ids", "true").commit();
 
     table.newAppend().appendFile(FILE_A).commit();
@@ -326,11 +327,9 @@ public class TestReplaceTransaction extends TestBase {
     validateSnapshot(null, table.currentSnapshot(), FILE_A);
     long firstSnapshotId = table.currentSnapshot().snapshotId();
 
-    // start a replace that will make FILE_B the new current data
     Transaction replace = TestTables.beginReplace(tableDir, "test", table.schema(), table.spec());
     replace.newAppend().appendFile(FILE_B).commit();
 
-    // a concurrent writer commits FILE_C out-of-band, forcing the replace commit to retry
     table.newAppend().appendFile(FILE_C).commit();
     long concurrentSnapshotId = table.currentSnapshot().snapshotId();
 
@@ -338,12 +337,9 @@ public class TestReplaceTransaction extends TestBase {
 
     table.refresh();
 
-    // the replace wins for the current state
     assertThat(table.currentSnapshot()).isNotNull();
     validateSnapshot(null, table.currentSnapshot(), FILE_B);
 
-    // regression for #16942: a concurrent writer's snapshot committed during the replace must
-    // remain in the table history rather than being silently dropped on commit retry
     assertThat(table.snapshot(concurrentSnapshotId))
         .as("Concurrent writer's snapshot should be preserved in history")
         .isNotNull();
@@ -351,6 +347,34 @@ public class TestReplaceTransaction extends TestBase {
         .as("Original snapshot should be preserved in history")
         .isNotNull();
     assertThat(table.snapshots()).hasSize(3);
+  }
+
+  @TestTemplate
+  void replaceTransactionFilesMatchTheirSortOrder() throws IOException {
+    table.newAppend().appendFile(FILE_A).commit();
+
+    SortOrder requested = SortOrder.builderFor(table.schema()).asc("data").build();
+    Transaction replace =
+        TestTables.beginReplace(
+            tableDir, "test", table.schema(), table.spec(), requested, ImmutableMap.of());
+    DataFile sortedFile =
+        DataFiles.builder(table.spec())
+            .copy(FILE_B)
+            .withSortOrder(replace.table().sortOrder())
+            .build();
+    replace.newAppend().appendFile(sortedFile).commit();
+
+    table.replaceSortOrder().asc("id").commit();
+
+    replace.commitTransaction();
+
+    table.refresh();
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      DataFile committed = Iterables.getOnlyElement(tasks).file();
+      assertThat(table.sortOrders().get(committed.sortOrderId()).sameOrder(table.sortOrder()))
+          .as("Data file should reference the replace's sort order")
+          .isTrue();
+    }
   }
 
   @TestTemplate

@@ -33,6 +33,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -208,7 +209,8 @@ public class TestTables {
       UnaryOperator<TableMetadata> replacement =
           base -> base.buildReplacement(schema, spec, sortOrder, base.location(), properties);
       metadata = replacement.apply(current);
-      return Transactions.replaceTableTransaction(name, ops, metadata, replacement);
+      return Transactions.replaceTableTransaction(
+          name, ops, metadata, LoggingMetricsReporter.instance(), replacement);
     } else {
       metadata = newTableMetadata(schema, spec, sortOrder, temp.toURI().toString(), properties);
       return Transactions.createTableTransaction(name, ops, metadata);
