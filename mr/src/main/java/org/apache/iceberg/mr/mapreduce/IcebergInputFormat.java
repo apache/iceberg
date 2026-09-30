@@ -45,6 +45,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.GenericDeleteFilter;
+import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -63,6 +64,7 @@ import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.SerializationUtil;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -328,6 +330,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           (CloseableIterable<T>)
               readBuilder
                   .project(readSchema)
+                  .idToConstant(
+                      PartitionUtil.constantsMap(
+                          currentTask, IdentityPartitionConverters::convertConstant))
                   .split(currentTask.start(), currentTask.length())
                   .caseSensitive(caseSensitive)
                   .filter(currentTask.residual())

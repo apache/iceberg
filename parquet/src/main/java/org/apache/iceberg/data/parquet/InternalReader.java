@@ -21,6 +21,7 @@ package org.apache.iceberg.data.parquet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.data.Record;
@@ -53,6 +54,10 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
   }
 
   public static Parquet.ReadBuilder.ReaderFunction readerFunction() {
+    return readerFunction(null);
+  }
+
+  public static Parquet.ReadBuilder.ReaderFunction readerFunction(String location) {
     InternalReader<?> reader = new InternalReader<>();
 
     return new Parquet.ReadBuilder.ReaderFunction() {
@@ -60,7 +65,13 @@ public class InternalReader<T extends StructLike> extends BaseParquetReaders<T> 
 
       @Override
       public Function<MessageType, ParquetValueReader<?>> apply() {
-        return messageType -> reader.createReader(schema, messageType);
+        return messageType ->
+            reader.createReader(
+                schema,
+                messageType,
+                location != null
+                    ? Map.of(MetadataColumns.FILE_PATH_COLUMN_ID, location)
+                    : Map.of());
       }
 
       @Override

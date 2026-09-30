@@ -1,0 +1,408 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg;
+
+import com.google.errorprone.annotations.FormatMethod;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import org.apache.iceberg.geospatial.BoundingBox;
+import org.apache.iceberg.geospatial.GeospatialBound;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+
+/**
+ * Accumulates geometry bounds from values encoded as Well-Known Binary (WKB).
+ *
+ * <p>The seven OGC geometry types are supported: point, line string, polygon, multi point, multi
+ * line string, multi polygon, and geometry collection.
+ *
+ * <p>Coordinates are tracked independently for the X and Y dimensions. A {@code NaN} ordinate marks
+ * an empty value and does not contribute to its dimension; an infinite ordinate is a real position
+ * and is kept as a bound, since the spec forbids only NaN as a lower or upper bound. No bounds are
+ * produced unless both dimensions are present.
+ *
+ * <p>These bounds apply to {@code geometry} columns, whose edges are always interpolated linearly,
+ * so a box that contains every vertex contains the whole geometry. They are not valid for {@code
+ * geography} columns: geodesic edges can reach beyond their endpoints, longitude is periodic, and a
+ * geography box may cross the antimeridian.
+ *
+ * <p>Only X and Y bounds are produced. The spec also defines optional Z and M bounds, but producing
+ * them is a deliberate non-goal here: any Z and M ordinates in a value are read past rather than
+ * bounded, so an XYZ or XYZM value still parses and contributes its X and Y.
+ *
+ * <p>Every ring of a polygon, including interior rings, contributes to the bounds. In a valid
+ * polygon the holes lie inside the shell, so this is the shell's own box.
+ */
+class GeometryBoundsBuilder {
+
+  private static final int TYPE_POINT = 1;
+  private static final int TYPE_LINE_STRING = 2;
+  private static final int TYPE_POLYGON = 3;
+  private static final int TYPE_MULTI_POINT = 4;
+  private static final int TYPE_MULTI_LINE_STRING = 5;
+  private static final int TYPE_MULTI_POLYGON = 6;
+  private static final int TYPE_GEOMETRY_COLLECTION = 7;
+  private static final int ANY_GEOMETRY = 0;
+
+  // ISO WKB encodes the dimensions of a geometry in the thousands digit of its type code
+  private static final int DIMENSION_DIVISOR = 1000;
+  private static final int XY_GROUP = 0;
+  private static final int XYZ_GROUP = 1;
+  private static final int XYM_GROUP = 2;
+  private static final int XYZM_GROUP = 3;
+  private static final int ANY_DIMENSION = -1;
+
+  private static final int MIN_RING_POINTS = 4;
+
+  private final DimensionBounds xBounds = new DimensionBounds();
+  private final DimensionBounds yBounds = new DimensionBounds();
+  // set when a value could not be fully bounded -- malformed or unsupported WKB, or bytes left
+  // after the declared geometry -- so an object may be missing from the box; build() then
+  // suppresses the bounds
+  private boolean incomplete = false;
+
+  /**
+   * Adds one WKB geometry value to these bounds.
+   *
+   * <p>The input is read through a duplicate, so its position and limit are left unchanged.
+   *
+   * <p>A value the parser cannot bound never fails the caller. Malformed WKB, a valid OGC type this
+   * builder does not support (such as PolyhedralSurface, TIN, or Triangle), and bytes left after
+   * the declared geometry all mean an object may be missing from the box, so {@link #build()}
+   * returns no bounds for the file instead. Suppressing optional metrics is safe where failing the
+   * write is not, since the write cannot skip the value or retry past it.
+   *
+   * @param wkb a buffer containing one WKB geometry
+   * @throws IllegalArgumentException if {@code wkb} is null
+   */
+  public void addValue(ByteBuffer wkb) {
+    Preconditions.checkArgument(wkb != null, "Invalid WKB buffer: null");
+    // once a value cannot be bounded the box can never come back, so skip the walk for every
+    // remaining value in the file rather than parsing bytes whose bounds would be discarded
+    if (incomplete) {
+      return;
+    }
+
+    ByteBuffer buffer = wkb.duplicate();
+    try {
+      parseGeometry(buffer, ANY_GEOMETRY, ANY_DIMENSION);
+    } catch (InvalidWkbException e) {
+      incomplete = true;
+      return;
+    }
+
+    // a complete geometry that leaves bytes behind was not fully parsed (for example a multi
+    // geometry whose declared element count is short), so an object never reached the bounds
+    if (buffer.hasRemaining()) {
+      incomplete = true;
+    }
+  }
+
+  /**
+   * Builds the bounding box covering every geometry added, or {@code null} if either the X or Y
+   * dimension has no value, or if any value could not be bounded (see {@link #addValue}).
+   */
+  public BoundingBox build() {
+    if (incomplete || !xBounds.hasValue() || !yBounds.hasValue()) {
+      return null;
+    }
+
+    GeospatialBound min = GeospatialBound.createXY(xBounds.lower(), yBounds.lower());
+    GeospatialBound max = GeospatialBound.createXY(xBounds.upper(), yBounds.upper());
+    return new BoundingBox(min, max);
+  }
+
+  private void parseGeometry(ByteBuffer buffer, int expectedType, int expectedDimension) {
+    // a geometry header is a one-byte order flag followed by a four-byte type code:
+    //   +-------+-----------------------+
+    //   | order |       type code       |
+    //   | (1 B) |         (4 B)         |
+    //   +-------+-----------------------+
+    checkRemaining(buffer, Byte.BYTES + Integer.BYTES);
+
+    // each geometry carries its own byte order in its header. A nested geometry reads a single
+    // order byte and sets the order from it before any multi-byte read, and no WKB body carries
+    // data after its children, so the order left set here is never read across a sibling and does
+    // not need to be restored.
+    byte order = buffer.get();
+    if (order == 0) {
+      buffer.order(ByteOrder.BIG_ENDIAN);
+    } else if (order == 1) {
+      buffer.order(ByteOrder.LITTLE_ENDIAN);
+    } else {
+      throw new InvalidWkbException("Invalid WKB byte order: " + order);
+    }
+
+    parseGeometryBodyAndUpdateBound(buffer, expectedType, expectedDimension);
+  }
+
+  private void parseGeometryBodyAndUpdateBound(
+      ByteBuffer buffer, int expectedType, int expectedDimension) {
+    long typeCode = Integer.toUnsignedLong(buffer.getInt());
+    int dimensionGroup = (int) (typeCode / DIMENSION_DIVISOR);
+    int geometryType = (int) (typeCode % DIMENSION_DIVISOR);
+    // only the seven OGC types in XY/XYZ/XYM/XYZM are bounded here; other valid OGC types (such as
+    // PolyhedralSurface, TIN, and Triangle) are unsupported and cost the value its bounds
+    checkWkb(
+        geometryType >= TYPE_POINT
+            && geometryType <= TYPE_GEOMETRY_COLLECTION
+            && dimensionGroup <= XYZM_GROUP,
+        "Invalid or unsupported WKB geometry type: %s",
+        typeCode);
+    // an element of a multi geometry or collection must match its parent's member type and
+    // dimensions; if/throw so the message is built only when a value is actually rejected
+    if (expectedType != ANY_GEOMETRY && geometryType != expectedType) {
+      throw new InvalidWkbException(
+          "Invalid WKB: expected geometry type "
+              + typeName(expectedType)
+              + " but found "
+              + typeName(geometryType));
+    }
+    if (expectedDimension != ANY_DIMENSION && dimensionGroup != expectedDimension) {
+      throw new InvalidWkbException(
+          "Invalid WKB: expected dimensions "
+              + dimensionName(expectedDimension)
+              + " but found "
+              + dimensionName(dimensionGroup));
+    }
+
+    int numDimensions = numDimensions(dimensionGroup);
+
+    // checkWkb above already constrained geometryType to the seven OGC types, so no default arm
+    // is reachable here
+    switch (geometryType) {
+      case TYPE_POINT -> readCoordinate(buffer, numDimensions);
+      case TYPE_LINE_STRING -> readCoordinateSequence(buffer, numDimensions);
+      case TYPE_POLYGON -> readPolygon(buffer, numDimensions);
+      case TYPE_MULTI_POINT -> readCollection(buffer, TYPE_POINT, dimensionGroup);
+      case TYPE_MULTI_LINE_STRING -> readCollection(buffer, TYPE_LINE_STRING, dimensionGroup);
+      case TYPE_MULTI_POLYGON -> readCollection(buffer, TYPE_POLYGON, dimensionGroup);
+      case TYPE_GEOMETRY_COLLECTION -> readCollection(buffer, ANY_GEOMETRY, dimensionGroup);
+    }
+  }
+
+  private static int numDimensions(int dimensionGroup) {
+    return switch (dimensionGroup) {
+      case XY_GROUP -> 2;
+      case XYZ_GROUP, XYM_GROUP -> 3;
+        // XYZM_GROUP is the only remaining group the caller accepts
+      default -> 4;
+    };
+  }
+
+  private static String typeName(int geometryType) {
+    return switch (geometryType) {
+      case TYPE_POINT -> "Point";
+      case TYPE_LINE_STRING -> "LineString";
+      case TYPE_POLYGON -> "Polygon";
+      case TYPE_MULTI_POINT -> "MultiPoint";
+      case TYPE_MULTI_LINE_STRING -> "MultiLineString";
+      case TYPE_MULTI_POLYGON -> "MultiPolygon";
+      case TYPE_GEOMETRY_COLLECTION -> "GeometryCollection";
+      default -> String.valueOf(geometryType);
+    };
+  }
+
+  private static String dimensionName(int dimensionGroup) {
+    return switch (dimensionGroup) {
+      case XY_GROUP -> "XY";
+      case XYZ_GROUP -> "XYZ";
+      case XYM_GROUP -> "XYM";
+      default -> "XYZM";
+    };
+  }
+
+  // a ring count, then that many rings, each a coordinate sequence:
+  //   +----------+-----------------------+
+  //   | # rings  | ring 0, ring 1, ...   |
+  //   | (4 B)    | (each a point seq)    |
+  //   +----------+-----------------------+
+  private void readPolygon(ByteBuffer buffer, int numDimensions) {
+    // read every ring, interior rings included: they must be consumed to reach the end of the
+    // polygon anyway, and folding their coordinates in can only widen the box, never under-cover it
+    int numRings = readCount(buffer);
+    for (int i = 0; i < numRings; i += 1) {
+      readRing(buffer, numDimensions);
+    }
+  }
+
+  // a point count, then that many coordinates forming a linear ring; a non-empty ring must be
+  // closed (its first and last vertices share the same X and Y) and hold at least four points:
+  //   +----------+-----------------------+
+  //   | # points | coord 0 .. coord n-1  |
+  //   | (4 B)    | (n coordinates)       |
+  //   +----------+-----------------------+
+  private void readRing(ByteBuffer buffer, int numDimensions) {
+    int numPoints = readCount(buffer);
+    checkRemaining(buffer, (long) numPoints * numDimensions * Double.BYTES);
+    if (numPoints == 0) {
+      return;
+    }
+
+    checkWkb(
+        numPoints >= MIN_RING_POINTS,
+        "Invalid WKB: polygon ring has fewer than %s points: %s",
+        MIN_RING_POINTS,
+        numPoints);
+
+    // a ring is closed on X and Y only: the closing vertex's Z or M may differ from the first (a
+    // measure can increase around the ring), and -0.0 must count as 0.0, so compare the two X/Y
+    // pairs with == rather than the whole coordinate. Every vertex still folds into the bounds.
+    double firstX = buffer.getDouble();
+    double firstY = buffer.getDouble();
+    skipExtraOrdinates(buffer, numDimensions);
+    xBounds.add(firstX);
+    yBounds.add(firstY);
+
+    for (int i = 1; i < numPoints - 1; i += 1) {
+      readCoordinate(buffer, numDimensions);
+    }
+
+    double lastX = buffer.getDouble();
+    double lastY = buffer.getDouble();
+    skipExtraOrdinates(buffer, numDimensions);
+    xBounds.add(lastX);
+    yBounds.add(lastY);
+
+    checkWkb(firstX == lastX && firstY == lastY, "Invalid WKB: polygon ring is not closed");
+  }
+
+  // an element count, then that many complete WKB geometries:
+  //   +----------+-----------------------+
+  //   | # elems  | geometry 0, 1, ...    |
+  //   | (4 B)    | (each a full WKB)     |
+  //   +----------+-----------------------+
+  private void readCollection(ByteBuffer buffer, int expectedChildType, int expectedDimension) {
+    int numElements = readCount(buffer);
+    for (int i = 0; i < numElements; i += 1) {
+      // each child carries its own byte order and type code, and must match the parent's member
+      // type and dimensions
+      parseGeometry(buffer, expectedChildType, expectedDimension);
+    }
+  }
+
+  // a point count, then that many coordinates:
+  //   +----------+-----------------------+
+  //   | # points | coord 0 .. coord n-1  |
+  //   | (4 B)    | (n coordinates)       |
+  //   +----------+-----------------------+
+  private void readCoordinateSequence(ByteBuffer buffer, int numDimensions) {
+    int numPoints = readCount(buffer);
+    long numBytes = (long) numPoints * numDimensions * Double.BYTES;
+    checkRemaining(buffer, numBytes);
+    for (int i = 0; i < numPoints; i += 1) {
+      readCoordinate(buffer, numDimensions);
+    }
+  }
+
+  // one coordinate; only X and Y bound the box, any Z and M are read past:
+  //   +-------+-------+-------+-------+
+  //   |   X   |   Y   |  [Z]  |  [M]  |
+  //   | (8 B) | (8 B) | (8 B) | (8 B) |
+  //   +-------+-------+-------+-------+
+  private void readCoordinate(ByteBuffer buffer, int numDimensions) {
+    checkRemaining(buffer, (long) numDimensions * Double.BYTES);
+    double xCoord = buffer.getDouble();
+    double yCoord = buffer.getDouble();
+    skipExtraOrdinates(buffer, numDimensions);
+    xBounds.add(xCoord);
+    yBounds.add(yCoord);
+  }
+
+  // skip any Z and M ordinates that follow X and Y; only X and Y contribute to the box
+  private static void skipExtraOrdinates(ByteBuffer buffer, int numDimensions) {
+    for (int i = 2; i < numDimensions; i += 1) {
+      buffer.getDouble();
+    }
+  }
+
+  // a 4-byte unsigned count (rings, points, or elements):
+  //   +---------+
+  //   |  count  |
+  //   |  (4 B)  |
+  //   +---------+
+  private static int readCount(ByteBuffer buffer) {
+    checkRemaining(buffer, Integer.BYTES);
+    long count = Integer.toUnsignedLong(buffer.getInt());
+    // every element or point occupies at least one more byte, so a count larger than the bytes left
+    // cannot be valid; catch it here with a precise message instead of looping until the buffer
+    // ends
+    checkWkb(
+        count <= buffer.remaining(),
+        "Invalid WKB element count: %s exceeds %s remaining bytes",
+        count,
+        buffer.remaining());
+    return (int) count;
+  }
+
+  private static void checkRemaining(ByteBuffer buffer, long bytes) {
+    checkWkb(buffer.remaining() >= bytes, "Invalid WKB: unexpected end of buffer");
+  }
+
+  // throws InvalidWkbException (caught in addValue, where it suppresses the file's bounds rather
+  // than failing the write); the message is formatted only when the check fails
+  @FormatMethod
+  private static void checkWkb(boolean valid, String message, Object... args) {
+    if (!valid) {
+      throw new InvalidWkbException(String.format(message, args));
+    }
+  }
+
+  // thrown from the parse paths for any value this builder cannot bound; addValue catches it and
+  // suppresses the bounds. Kept private so the catch stays narrow and never swallows other errors.
+  private static class InvalidWkbException extends RuntimeException {
+    private InvalidWkbException(String message) {
+      super(message);
+    }
+  }
+
+  private static class DimensionBounds {
+    private double lower;
+    private double upper;
+    private boolean hasValue = false;
+
+    private void add(double value) {
+      // NaN marks an empty ordinate and is skipped per the spec; an infinite value is a real
+      // position and is kept, since the spec forbids only NaN as a lower or upper bound
+      if (Double.isNaN(value)) {
+        return;
+      }
+
+      if (hasValue) {
+        lower = Math.min(lower, value);
+        upper = Math.max(upper, value);
+      } else {
+        lower = value;
+        upper = value;
+        hasValue = true;
+      }
+    }
+
+    private boolean hasValue() {
+      return hasValue;
+    }
+
+    private double lower() {
+      return lower;
+    }
+
+    private double upper() {
+      return upper;
+    }
+  }
+}

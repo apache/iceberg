@@ -21,9 +21,11 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -462,7 +464,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_400, "data", dataStats));
 
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(ImmutableMap.of(), schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(ImmutableMap.of(), schema));
 
     assertSameStructure(expected, actual);
   }
@@ -499,7 +501,7 @@ public class TestStatsUtil {
     Map<String, String> properties =
         ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data", "none");
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(properties, schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(properties, schema));
 
     assertSameStructure(expected, actual);
   }
@@ -541,7 +543,7 @@ public class TestStatsUtil {
     Map<String, String> properties =
         ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "none");
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(properties, schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(properties, schema));
 
     assertSameStructure(expected, actual);
   }
@@ -559,20 +561,26 @@ public class TestStatsUtil {
                 Types.MapType.ofOptional(4, 5, Types.StringType.get(), Types.StringType.get())));
 
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(ImmutableMap.of(), schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(ImmutableMap.of(), schema));
 
     assertThat(actual.fields()).isEmpty();
   }
 
   /**
-   * Assert that two struct types match in field IDs, names, optionality, and types, ignoring docs.
+   * Assert that two struct types match in field IDs, names, optionality, and types, ignoring field
+   * order and docs.
    */
   private static void assertSameStructure(Types.StructType expected, Types.StructType actual) {
     assertThat(actual.fields()).as("Number of fields").hasSameSizeAs(expected.fields());
 
-    for (int i = 0; i < expected.fields().size(); i += 1) {
-      Types.NestedField expectedField = expected.fields().get(i);
-      Types.NestedField actualField = actual.fields().get(i);
+    List<Types.NestedField> expectedFields = Lists.newArrayList(expected.fields());
+    List<Types.NestedField> actualFields = Lists.newArrayList(actual.fields());
+    expectedFields.sort(Comparator.comparingInt(Types.NestedField::fieldId));
+    actualFields.sort(Comparator.comparingInt(Types.NestedField::fieldId));
+
+    for (int i = 0; i < expectedFields.size(); i += 1) {
+      Types.NestedField expectedField = expectedFields.get(i);
+      Types.NestedField actualField = actualFields.get(i);
 
       assertThat(actualField.fieldId()).as("Field ID").isEqualTo(expectedField.fieldId());
       assertThat(actualField.name()).as("Field name").isEqualTo(expectedField.name());

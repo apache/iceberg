@@ -87,7 +87,9 @@ public class TestMetricsModes {
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col",
             "troncate(5)");
 
-    MetricsConfig config = MetricsConfig.from(properties, null, null);
+    Schema schema = new Schema(required(1, "col", Types.StringType.get()));
+
+    MetricsConfig config = MetricsTestUtil.from(properties, schema);
     assertThat(config.columnMode("col"))
         .as("Invalid mode should be defaulted to table default (full)")
         .isEqualTo(MetricsModes.Full.get());
@@ -102,14 +104,16 @@ public class TestMetricsModes {
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col",
             "troncate(5)");
 
-    MetricsConfig config = MetricsConfig.from(properties, null, null);
+    Schema schema = new Schema(required(1, "col", Types.StringType.get()));
+
+    MetricsConfig config = MetricsTestUtil.from(properties, schema);
     assertThat(config.columnMode("col"))
         .as("Invalid mode should be defaulted to library default (truncate(16))")
         .isEqualTo(MetricsModes.Truncate.withLength(16));
   }
 
   @TestTemplate
-  public void testMetricsConfigSortedColsDefault() throws Exception {
+  public void testMetricsConfigSortedColsDefault() {
     Schema schema =
         new Schema(
             required(1, "col1", Types.IntegerType.get()),
@@ -166,7 +170,7 @@ public class TestMetricsModes {
         .isEqualTo(Full.get());
     assertThat(config.columnMode("col2"))
         .as("Original default applies as user entered invalid mode for sorted column")
-        .isEqualTo(Counts.get());
+        .isEqualTo(Truncate.withLength(16));
   }
 
   @TestTemplate
