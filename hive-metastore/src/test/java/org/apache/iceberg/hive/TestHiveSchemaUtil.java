@@ -212,6 +212,31 @@ public class TestHiveSchemaUtil {
     assertThat(hiveSchema).containsExactly(new FieldSchema("variant_field", "unknown", null));
   }
 
+  @Test
+  void nestedVariantConvertsToUnknown() {
+    Schema schema =
+        new Schema(
+            optional(
+                1, "struct_col", Types.StructType.of(optional(2, "v", Types.VariantType.get()))),
+            optional(3, "list_col", Types.ListType.ofOptional(4, Types.VariantType.get())),
+            optional(
+                5,
+                "map_col",
+                Types.MapType.ofOptional(6, 7, Types.StringType.get(), Types.VariantType.get())),
+            optional(
+                8,
+                "list_of_struct_col",
+                Types.ListType.ofOptional(
+                    9, Types.StructType.of(optional(10, "v", Types.VariantType.get())))));
+
+    assertThat(HiveSchemaUtil.convert(schema))
+        .containsExactly(
+            new FieldSchema("struct_col", "struct<v:unknown>", null),
+            new FieldSchema("list_col", "array<unknown>", null),
+            new FieldSchema("map_col", "map<string,unknown>", null),
+            new FieldSchema("list_of_struct_col", "array<struct<v:unknown>>", null));
+  }
+
   protected List<FieldSchema> getSupportedFieldSchemas() {
     List<FieldSchema> fields = Lists.newArrayListWithCapacity(10);
     fields.add(new FieldSchema("c_float", serdeConstants.FLOAT_TYPE_NAME, "float comment"));
