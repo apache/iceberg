@@ -109,9 +109,10 @@ Types are based on the [Iceberg Type](https://iceberg.apache.org/spec/#schemas-a
 Primitive and semi-structured type strings are encoded based on [Iceberg Type JSON Representation][iceberg-type-json]
 (e.g., `int`, `string`, `timestamp`, `decimal(9, 2)`, `variant`). Type strings must contain no quote characters.
 
-Writers must use Iceberg's canonical serialized form. Readers should accept optional whitespace around parameters and
-separators. Implementations must compare parsed types, not raw type strings. Canonicalization may normalize syntactic
-whitespace but must preserve whitespace within parameter values (`geometry(srid: 3857)`).
+[Appendix C][iceberg-type-json] permits both `decimal(9,2)` and `decimal(9, 2)`, so readers should accept optional
+whitespace around parameters and separators. Implementations must compare parsed types, not raw type strings.
+Canonicalization may normalize syntactic whitespace but must preserve whitespace within parameter values
+(`geometry(srid: 3857)`).
 
 Nested types (`struct`, `list`, `map`) use the [Iceberg Type JSON Representation][iceberg-type-json] with the
 following fields required. Any other fields must be ignored.
@@ -123,15 +124,15 @@ following fields required. Any other fields must be ignored.
 
 #### Definition ID
 The `definition-id` is a canonical string derived from the parameter types, formatted as a comma-separated list. The
-separators that this format adds must not be followed by a space. Each type uses the following string representation:
+`definition-id` must not insert spaces after its separators (commas or colons). Embedded type strings retain their
+canonical formatting. Each type uses the following string representation:
 
 * Primitives and semi-structured: the type name (e.g., `int`, `variant`)
 * List: `list<element-type>` (e.g., `list<int>`)
 * Map: `map<key-type,value-type>` (e.g., `map<string,int>`)
 * Struct: `struct<name1:type1,name2:type2,...>` with field names and types (e.g., `struct<id:int,name:string>`)
 
-In a struct field name, `\`, `:`, `,`, `<`, and `>` must each be escaped with a preceding `\`. Without escaping, a
-field name that contains a separator would produce the same string as a different set of fields.
+In a struct field name, `\`, `:`, `,`, `<`, and `>` must each be escaped with a preceding `\`.
 
 Examples of complete definition-id signatures:
 
