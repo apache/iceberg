@@ -118,6 +118,27 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+  void testBranchConcurrentlyCreatedByAnotherWriter() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    catalog.createTable(tableIdentifier, SCHEMA);
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    // This writer's cache while the branch genuinely does not exist yet.
+    cache.branch(tableIdentifier, "myBranch");
+
+    // Simulate another writer subtask committing the branch
+    catalog.loadTable(tableIdentifier).manageSnapshots().createBranch("myBranch").commit();
+
+    // Must not throw: a branch concurrently created by another writer must be treated success
+    tableUpdater.update(
+        tableIdentifier, "myBranch", SCHEMA, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
+  }
+
+  @Test
   void testBranchCreationAndCaching() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
