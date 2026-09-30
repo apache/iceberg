@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
 import org.apache.iceberg.DataOperations;
@@ -58,6 +59,12 @@ public class TestChangelogTable extends ExtensionsTestBase {
         SparkCatalogConfig.HIVE.implementation(),
         SparkCatalogConfig.HIVE.properties(),
         2
+      },
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        SparkCatalogConfig.HIVE.properties(),
+        3
       }
     };
   }
@@ -288,6 +295,23 @@ public class TestChangelogTable extends ExtensionsTestBase {
         ImmutableList.of(
             row(1, file1, 0L, false, 0, row("a")), row(2, file2, 0L, false, 0, row("b"))),
         rows);
+  }
+
+  @TestTemplate
+  public void rowLineageMetadataColumnsInV3() {
+    assumeThat(formatVersion).isEqualTo(3);
+    createTable();
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+
+    Snapshot snapshot = validationCatalog.loadTable(tableIdent).currentSnapshot();
+    List<Object[]> rows =
+        sql("SELECT _row_id, _last_updated_sequence_number FROM %s.changes ORDER BY id", tableName);
+
+    assertThat(rows).hasSize(2);
+    assertThat(rows.get(0)[0]).isNotNull().isNotEqualTo(rows.get(1)[0]);
+    assertThat(rows.get(1)[0]).isNotNull();
+    assertThat(rows.get(0)[1]).isEqualTo(snapshot.sequenceNumber());
+    assertThat(rows.get(1)[1]).isEqualTo(snapshot.sequenceNumber());
   }
 
   @TestTemplate
