@@ -61,8 +61,8 @@ hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.12.2"
 jackson-annotations = "2.22"
 jackson-bom = "2.22.2"
-jackson218 = { strictly = "2.18.8"}
-jackson221 = { strictly = "2.21.4"}
+jackson218 = { strictly = "2.18.10"}
+jackson221 = { strictly = "2.21.6"}
 jakarta-el-api = "3.0.3"
 jakarta-servlet-api = "6.1.0"
 jaxb-api = "2.3.1"
