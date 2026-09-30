@@ -228,7 +228,7 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
   shadowJar {
     configurations = [project.configurations.runtimeClasspath]
 
-    zip64 true
+    zip64 = true
 
     // Relocate dependencies to avoid conflicts
     relocate 'org.apache.avro', 'org.apache.iceberg.shaded.org.apache.avro'
