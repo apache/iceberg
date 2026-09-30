@@ -94,6 +94,17 @@ public class TestAggregatePushDown extends CatalogTestBase {
     testDifferentDataTypesAggregatePushDown(false);
   }
 
+  @TestTemplate
+  public void testAggregatePushDownWithRowLineageMetadataColumn() {
+    sql("CREATE TABLE %s (id INT) USING iceberg TBLPROPERTIES ('format-version'='3')", tableName);
+    sql("INSERT INTO %s VALUES (1), (2), (3)", tableName);
+
+    List<Object[]> actual = sql("SELECT max(_row_id) FROM %s", tableName);
+
+    assertThat(actual).hasSize(1);
+    assertThat(actual.get(0)[0]).isInstanceOf(Long.class);
+  }
+
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private void testDifferentDataTypesAggregatePushDown(boolean hasPartitionCol) {
     String createTable;
