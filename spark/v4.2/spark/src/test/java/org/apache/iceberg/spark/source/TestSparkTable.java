@@ -29,6 +29,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.spark.SparkTableProperties;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -145,6 +146,42 @@ public class TestSparkTable extends CatalogTestBase {
                         DataTypes.IntegerType,
                         true)))
         .isTrue();
+  }
+
+  @TestTemplate
+  void typeUpdatesMustRoundTripToSparkType() {
+    sql("ALTER TABLE %s ADD COLUMN int_col int", tableName);
+    SparkTable table = loadSparkTable();
+
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(new String[] {"int_col"}, DataTypes.ShortType)))
+        .isFalse();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(new String[] {"int_col"}, DataTypes.ByteType)))
+        .isFalse();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(new String[] {"int_col"}, DataTypes.LongType)))
+        .isTrue();
+  }
+
+  @TestTemplate
+  void schemaEvolutionWithAcceptAnySchema() {
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA);
+    SparkTable table = loadSparkTable();
+    TableChange.ColumnChange change =
+        (TableChange.ColumnChange)
+            TableChange.addColumn(new String[] {"new_col"}, DataTypes.IntegerType, true);
+
+    assertThat(table.supportsColumnChange(change)).isTrue();
+    assertThat(table.supportsColumnChange(change)).isTrue();
   }
 
   @TestTemplate

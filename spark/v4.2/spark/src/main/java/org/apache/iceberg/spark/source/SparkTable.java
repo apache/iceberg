@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFiles;
 import org.apache.iceberg.FileScanTask;
@@ -112,6 +113,7 @@ public class SparkTable extends BaseSparkTable
   private final String branch; // set if table is loaded for specific branch
   private final TimeTravel timeTravel; // set if table is loaded for time travel
   private final Set<TableCapability> capabilities;
+  private final AtomicBoolean acceptAnySchemaWarningLogged = new AtomicBoolean(false);
 
   public SparkTable(Table table) {
     this(table, null /* main branch */);
@@ -175,6 +177,13 @@ public class SparkTable extends BaseSparkTable
 
   @Override
   public boolean supportsColumnChange(TableChange.ColumnChange change) {
+    if (acceptAnySchema(table()) && acceptAnySchemaWarningLogged.compareAndSet(false, true)) {
+      LOG.warn(
+          "Spark-native schema evolution is being used with write.spark.accept-any-schema=true, "
+              + "which skips Spark's normal schema checks and casts. For native evolution, use "
+              + "accept-any-schema=false.");
+    }
+
     if (isMapKeyChange(change)) {
       return false;
     }
@@ -229,6 +238,7 @@ public class SparkTable extends BaseSparkTable
     Type newType = tryConvert(update.newDataType());
     return newType != null
         && newType.isPrimitiveType()
+        && SparkSchemaUtil.convert(newType).equals(update.newDataType())
         && TypeUtil.isPromotionAllowed(field.type(), newType.asPrimitiveType());
   }
 
