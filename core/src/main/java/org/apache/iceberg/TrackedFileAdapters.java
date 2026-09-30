@@ -38,6 +38,10 @@ class TrackedFileAdapters {
     return new TrackedDataFile(file, resolveSpecId(file, specsById));
   }
 
+  static TrackedFile asTrackedFile(DataFile file) {
+    return ((TrackedDataFile) file).file();
+  }
+
   static DeleteFile asDVDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
     Preconditions.checkArgument(
         file.contentType() == FileContent.DATA,
@@ -205,7 +209,7 @@ class TrackedFileAdapters {
   }
 
   /** Adapts a TrackedFile DATA entry to the {@link DataFile} interface. */
-  static class TrackedDataFile extends TrackedContentFile<DataFile> implements DataFile {
+  private static class TrackedDataFile extends TrackedContentFile<DataFile> implements DataFile {
     private TrackedDataFile(TrackedFile file, int specId) {
       super(file, specId);
     }
