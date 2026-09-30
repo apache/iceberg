@@ -104,11 +104,16 @@ public final class TestS3InputStream {
         new S3InputStream(s3Client, mock(), new S3FileIOProperties(), metrics)) {
       in.readFully(0, new byte[0], 0, 0);
 
-      // a zero-length readFully performs no real read; it must count neither bytes nor an operation
       assertThat(readBytes.value()).isEqualTo(0);
       assertThat(readOperations.value()).isEqualTo(0);
-      verifyNoInteractions(s3Client);
     }
+  }
+
+  @Test
+  void zeroLengthReadFullyDoesNotRequestS3() throws IOException {
+    s3InputStream.readFully(0, new byte[1], 1, 0);
+
+    verifyNoInteractions(s3Client);
   }
 
   @Test
