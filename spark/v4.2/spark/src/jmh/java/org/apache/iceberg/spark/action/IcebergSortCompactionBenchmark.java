@@ -25,7 +25,6 @@ import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 
-import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.Schema;
@@ -40,7 +39,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.types.DataTypes;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -268,8 +267,9 @@ public class IcebergSortCompactionBenchmark extends IcebergCompactionBenchmark {
           (SparkSessionCatalog<?>)
               Spark3Util.catalogAndIdentifier(spark(), "spark_catalog").catalog();
       catalog.dropTable(IDENT);
-      catalog.createTable(
-          IDENT, SparkSchemaUtil.convert(schema), new Transform[0], Collections.emptyMap());
+      TableInfo tableInfo =
+          new TableInfo.Builder().withSchema(SparkSchemaUtil.convert(schema)).build();
+      catalog.createTable(IDENT, tableInfo);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
