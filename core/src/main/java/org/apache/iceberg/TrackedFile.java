@@ -170,8 +170,7 @@ interface TrackedFile {
   Integer specId();
 
   /**
-   * Returns the partition for this file as a {@link StructLike} in the field order of the file's
-   * partition spec, or null.
+   * Returns the partition for this file as a struct with the partition spec's output type, or null.
    */
   StructLike partition();
 

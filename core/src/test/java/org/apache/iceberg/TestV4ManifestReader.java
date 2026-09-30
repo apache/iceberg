@@ -1495,40 +1495,36 @@ class TestV4ManifestReader {
             .build();
     Map<Integer, PartitionSpec> specsById =
         ImmutableMap.of(idSpec.specId(), idSpec, dataSpec.specId(), dataSpec);
-
-    PartitionData dataPartitionX = partition(dataSpec, "x");
-    TrackedFile dataPartitionedFile =
-        dataFileWithoutStats(
-            "s3://bucket/table/data=x/file-c.parquet", dataSpec.specId(), dataPartitionX);
-
-    ManifestFile idPartitionedManifest =
-        writeManifest(format, idSpec.partitionType(), ImmutableList.of(FILE_A, FILE_B));
-    ManifestFile dataPartitionedManifest =
-        writeManifest(format, dataSpec.partitionType(), dataPartitionedFile);
-
-    List<TrackedFile> files = Lists.newArrayList();
-    files.addAll(
-        read(
-            V4ManifestReader.builder(idPartitionedManifest, IO, TABLE_SCHEMA, specsById)
-                .metricsConfig(METRICS_CONFIG)));
-    files.addAll(
-        read(
-            V4ManifestReader.builder(dataPartitionedManifest, IO, TABLE_SCHEMA, specsById)
-                .metricsConfig(METRICS_CONFIG)));
-
     Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
+    int idPos = unionType.fields().indexOf(unionType.field("id"));
+    int dataPos = unionType.fields().indexOf(unionType.field("data"));
 
-    ManifestFile manifest = writeManifest(format, unionType, files);
+    // a mixed-spec manifest stores every file's partition in the union type
+    PartitionData idOne = new PartitionData(unionType);
+    idOne.set(idPos, 1);
+    PartitionData idTwo = new PartitionData(unionType);
+    idTwo.set(idPos, 2);
+    PartitionData dataX = new PartitionData(unionType);
+    dataX.set(dataPos, "x");
+
+    TrackedFile idFileKept =
+        dataFileWithoutStats("s3://bucket/table/id=1/file-a.parquet", idSpec.specId(), idOne);
+    TrackedFile idFilePruned =
+        dataFileWithoutStats("s3://bucket/table/id=2/file-b.parquet", idSpec.specId(), idTwo);
+    TrackedFile dataFile =
+        dataFileWithoutStats("s3://bucket/table/data=x/file-c.parquet", dataSpec.specId(), dataX);
+
+    ManifestFile manifest =
+        writeManifest(format, unionType, ImmutableList.of(idFileKept, idFilePruned, dataFile));
 
     V4ManifestReader.Builder builder =
         V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, specsById)
             .filter(Expressions.equal("id", 1))
             .metricsConfig(METRICS_CONFIG);
 
-    // the comparator is built for ID partitioning, so only check the location
     assertThat(read(builder))
         .extracting(TrackedFile::location)
-        .containsExactlyInAnyOrder(FILE_A.location(), dataPartitionedFile.location());
+        .containsExactlyInAnyOrder(idFileKept.location(), dataFile.location());
   }
 
   @ParameterizedTest

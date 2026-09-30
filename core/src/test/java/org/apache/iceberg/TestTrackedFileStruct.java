@@ -29,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.StructProjection;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -44,7 +45,6 @@ class TestTrackedFileStruct {
   private static final Tracking TRACKING_COPY = Mockito.mock(Tracking.class);
 
   private static final PartitionData PARTITION = Mockito.mock(PartitionData.class);
-  private static final PartitionData PARTITION_COPY = Mockito.mock(PartitionData.class);
 
   private static final ContentStats CONTENT_STATS = Mockito.mock(ContentStats.class);
   private static final ContentStats CONTENT_STATS_COPY = Mockito.mock(ContentStats.class);
@@ -57,7 +57,6 @@ class TestTrackedFileStruct {
 
   static {
     Mockito.when(TRACKING.copy()).thenReturn(TRACKING_COPY);
-    Mockito.when(PARTITION.copy()).thenReturn(PARTITION_COPY);
     Mockito.when(CONTENT_STATS.copy()).thenReturn(CONTENT_STATS_COPY);
     Mockito.when(DELETION_VECTOR.copy()).thenReturn(DELETION_VECTOR_COPY);
     Mockito.when(MANIFEST_INFO.copy()).thenReturn(MANIFEST_INFO_COPY);
@@ -220,7 +219,7 @@ class TestTrackedFileStruct {
     assertThat(copy.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(copy.splitOffsets()).containsExactly(100L, 200L);
     assertThat(copy.equalityIds()).containsExactly(1, 2, 3);
-    assertThat(copy.partition()).isSameAs(PARTITION_COPY);
+    assertThat(copy.partition()).isNotSameAs(PARTITION);
 
     // mutable fields are deep-copied, not shared with the original
     assertThat(copy.keyMetadata()).isNotSameAs(file.keyMetadata());
@@ -269,7 +268,7 @@ class TestTrackedFileStruct {
     assertThat(copy.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(copy.splitOffsets()).containsExactly(100L, 200L);
     assertThat(copy.equalityIds()).containsExactly(1, 2, 3);
-    assertThat(copy.partition()).isSameAs(PARTITION_COPY);
+    assertThat(copy.partition()).isNotSameAs(PARTITION);
 
     // mutable fields are deep-copied, not shared with the original
     assertThat(copy.keyMetadata()).isNotSameAs(file.keyMetadata());
@@ -319,7 +318,7 @@ class TestTrackedFileStruct {
     assertThat(copy.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(copy.splitOffsets()).containsExactly(100L, 200L);
     assertThat(copy.equalityIds()).containsExactly(1, 2, 3);
-    assertThat(copy.partition()).isSameAs(PARTITION_COPY);
+    assertThat(copy.partition()).isNotSameAs(PARTITION);
 
     // mutable fields are deep-copied, not shared with the original
     assertThat(copy.keyMetadata()).isNotSameAs(file.keyMetadata());
@@ -370,7 +369,7 @@ class TestTrackedFileStruct {
     unionPartition.set(categoryUnionPos, "books");
 
     TrackedFileStruct file = trackedFile(categorySpec.specId(), unionPartition);
-    file.setPartitionType(categorySpec.partitionType());
+    file.setPartitionProjection(StructProjection.create(unionType, categorySpec.partitionType()));
 
     // category is at position 1 in the union but position 0 in categorySpec; reading by the spec's
     // ordinal must return category, not id (null)
@@ -382,18 +381,16 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void partitionReturnedAsIsWhenTypeMatchesSpec() {
-    Schema schema = new Schema(Types.NestedField.required(1, "category", Types.StringType.get()));
-    PartitionSpec spec =
-        PartitionSpec.builderFor(schema).add(1, 1000, "category", Transforms.identity()).build();
-
-    PartitionData partition = new PartitionData(spec.partitionType());
+  void partitionReturnedAsIsWhenNoProjection() {
+    PartitionData partition =
+        new PartitionData(
+            Types.StructType.of(
+                Types.NestedField.required(1000, "category", Types.StringType.get())));
     partition.set(0, "music");
 
-    TrackedFileStruct file = trackedFile(spec.specId(), partition);
-    file.setPartitionType(spec.partitionType());
+    TrackedFileStruct file = trackedFile(1, partition);
 
-    // the stored tuple already matches the spec type, so partition() returns it without projecting
+    // no projection is set, so partition() returns the stored tuple unchanged
     assertThat(file.partition()).isSameAs(partition);
   }
 
@@ -490,7 +487,7 @@ class TestTrackedFileStruct {
     unionPartition.set(unionType.fields().indexOf(unionType.field("category")), "books");
 
     TrackedFileStruct file = trackedFile(categorySpec.specId(), unionPartition);
-    file.setPartitionType(categorySpec.partitionType());
+    file.setPartitionProjection(StructProjection.create(unionType, categorySpec.partitionType()));
 
     TrackedFileStruct deserialized = serializer.apply((TrackedFileStruct) file.copy());
     assertThat(deserialized.partition().get(0, CharSequence.class)).hasToString("books");

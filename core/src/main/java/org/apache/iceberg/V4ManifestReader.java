@@ -44,6 +44,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.StructProjection;
 
 /** Reader that reads a v4+ manifest file as {@link TrackedFile}s. */
 class V4ManifestReader extends CloseableGroup implements CloseableIterable<TrackedFile> {
@@ -72,7 +73,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final String tableLocation;
   private final InclusiveStatsEvaluator statsFilter;
   private final Map<Integer, Evaluator> partitionFilters; // by spec ID
-  private final Map<Integer, PartitionSpec> specsById;
+  private final Map<Integer, StructProjection> partitionProjections; // by spec ID
   private final Set<Integer> requestedStatsFieldIds;
   private final boolean isUncommitted;
   private final ScanMetrics scanMetrics;
@@ -86,7 +87,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       String tableLocation,
       InclusiveStatsEvaluator statsFilter,
       Map<Integer, Evaluator> partitionFilters,
-      Map<Integer, PartitionSpec> specsById,
+      Map<Integer, StructProjection> partitionProjections,
       Set<Integer> requestedStatsFieldIds,
       boolean isUncommitted,
       ScanMetrics scanMetrics) {
@@ -97,7 +98,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     this.tableLocation = tableLocation;
     this.statsFilter = statsFilter;
     this.partitionFilters = partitionFilters;
-    this.specsById = specsById;
+    this.partitionProjections = partitionProjections;
     this.requestedStatsFieldIds = requestedStatsFieldIds;
     this.isUncommitted = isUncommitted;
     this.scanMetrics = scanMetrics;
@@ -117,6 +118,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     // removed or filtered
     CloseableIterable<TrackedFile> files =
         CloseableIterable.transform(open(), this::applyInheritance);
+
+    files = CloseableIterable.transform(files, this::projectPartition);
 
     if (dv != null) {
       files =
@@ -159,12 +162,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       }
     }
 
-    Integer specId = file.specId();
-    PartitionSpec spec = specId != null ? specsById.get(specId) : null;
-    if (file instanceof TrackedFileStruct) {
-      ((TrackedFileStruct) file).setPartitionType(spec != null ? spec.partitionType() : null);
-    }
+    return file;
+  }
 
+  private TrackedFile projectPartition(TrackedFile file) {
+    ((TrackedFileStruct) file).setPartitionProjection(partitionProjections.get(file.specId()));
     return file;
   }
 
@@ -422,7 +424,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           tableLocation,
           statsFilter(),
           partitionFilters,
-          specsById,
+          partitionProjections(),
           requestedStatsFieldIds,
           isUncommitted,
           scanMetrics);
@@ -451,6 +453,18 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return evaluators;
     }
 
+    private Map<Integer, StructProjection> partitionProjections() {
+      Map<Integer, StructProjection> projections = Maps.newHashMap();
+      for (PartitionSpec spec : specsById.values()) {
+        Types.StructType specType = spec.partitionType();
+        if (!specType.equals(unionPartitionType)) {
+          projections.put(spec.specId(), StructProjection.create(unionPartitionType, specType));
+        }
+      }
+
+      return projections;
+    }
+
     private Schema readSchema(boolean includePartition) {
       if (scanPlanning) {
         Types.StructType statsProjection = StatsUtil.statsReadSchema(tableSchema, statsFieldIds());
@@ -468,10 +482,10 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
               ImmutableMap.of(TrackedFile.TRACKING.fieldId(), TrackingStruct.BASE_TYPE));
 
       if (requestedProjection != null) {
-        boolean projectsPartition =
-            includePartition || requestedProjection.findField(TrackedFile.PARTITION_ID) != null;
         return RestoreColumns.restore(
-            tableManifestSchema, requestedProjection, idsToRestore(projectsPartition));
+            tableManifestSchema,
+            requestedProjection,
+            idsToRestore(projectsPartition(includePartition, requestedProjection)));
       }
 
       if (requestedColumns != null) {
@@ -480,13 +494,17 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
                 ? tableManifestSchema.select(requestedColumns)
                 : tableManifestSchema.caseInsensitiveSelect(requestedColumns);
 
-        boolean projectsPartition =
-            includePartition || projection.findField(TrackedFile.PARTITION_ID) != null;
         return RestoreColumns.restore(
-            tableManifestSchema, projection, idsToRestore(projectsPartition));
+            tableManifestSchema,
+            projection,
+            idsToRestore(projectsPartition(includePartition, projection)));
       }
 
       return tableManifestSchema;
+    }
+
+    private boolean projectsPartition(boolean includePartition, Schema projection) {
+      return includePartition || projection.findField(TrackedFile.PARTITION_ID) != null;
     }
 
     /** Return a set of manifest field IDs that should be projected. */
