@@ -239,14 +239,18 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
       }
 
       tableProperties.putAll(tableOverrideProperties());
+      PartitionSpec replaceSpec = spec;
+      SortOrder replaceSortOrder = sortOrder;
+      String replaceLocation = location;
+      Map<String, String> replaceProperties = Maps.newHashMap(tableProperties);
       UnaryOperator<TableMetadata> replacement =
           base ->
               base.buildReplacement(
                   schema,
-                  spec,
-                  sortOrder,
-                  location != null ? location : base.location(),
-                  tableProperties);
+                  replaceSpec,
+                  replaceSortOrder,
+                  replaceLocation != null ? replaceLocation : base.location(),
+                  replaceProperties);
 
       TableMetadata metadata;
       if (ops.current() != null) {
@@ -259,10 +263,10 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
 
       if (orCreate) {
         return Transactions.createOrReplaceTableTransaction(
-            identifier.toString(), ops, metadata, replacement, metricsReporter());
+            identifier.toString(), ops, metadata, metricsReporter(), replacement);
       } else {
         return Transactions.replaceTableTransaction(
-            identifier.toString(), ops, metadata, replacement, metricsReporter());
+            identifier.toString(), ops, metadata, metricsReporter(), replacement);
       }
     }
 
