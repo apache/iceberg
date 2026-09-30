@@ -226,6 +226,8 @@ class TestMonitorSource extends OperatorTestBase {
 
     // Make sure that the job with restored source does not read new records from the table
     StreamGraph streamGraph = env.getStreamGraph();
+    // Submitting the graph directly skips the executor, which is what normally assigns the job id
+    streamGraph.setJobId(JobID.generate());
     streamGraph.setSavepointRestoreSettings(SavepointRestoreSettings.forPath(savepointPath));
     CompletableFuture<JobID> jobIDCompletableFuture = clusterClient.submitJob(streamGraph);
     try {
