@@ -311,7 +311,8 @@ public final class MetricsConfig implements Serializable {
     return null;
   }
 
-  private static Map<String, MetricsMode> defaultColumnModes(Schema schema, MetricsMode defaultMode, int maxColumns) {
+  private static Map<String, MetricsMode> defaultColumnModes(
+      Schema schema, MetricsMode defaultMode, int maxColumns) {
     ImmutableMap.Builder<String, MetricsMode> builder = ImmutableMap.builder();
     if (schema != null) {
       for (int id : limitFieldIds(schema, maxColumns)) {
