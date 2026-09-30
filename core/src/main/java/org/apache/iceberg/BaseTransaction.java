@@ -72,8 +72,7 @@ public class BaseTransaction implements Transaction {
       Sets.newHashSet(); // keep track of files deleted in the most recent commit
   private final Consumer<String> enqueueDelete = deletedFiles::add;
   private final TransactionType type;
-  // for replace transactions, rebuilds the replacement metadata from the latest table metadata so a
-  // concurrent writer's snapshots are preserved when the commit is retried; null otherwise
+  // rebuilds replace metadata on the refreshed table; null to commit the replacement as built
   private final UnaryOperator<TableMetadata> replacement;
   private TableMetadata base;
   private TableMetadata current;
@@ -92,15 +91,6 @@ public class BaseTransaction implements Transaction {
       TableMetadata start,
       MetricsReporter reporter) {
     this(tableName, ops, type, start, null, reporter);
-  }
-
-  BaseTransaction(
-      String tableName,
-      TableOperations ops,
-      TransactionType type,
-      TableMetadata start,
-      UnaryOperator<TableMetadata> replacement) {
-    this(tableName, ops, type, start, replacement, LoggingMetricsReporter.instance());
   }
 
   BaseTransaction(
@@ -320,6 +310,10 @@ public class BaseTransaction implements Transaction {
 
   private void commitReplaceTransaction(boolean orCreate) {
     Map<String, String> props = base != null ? base.properties() : current.properties();
+    Set<Long> startingSnapshots =
+        base != null
+            ? base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet())
+            : Sets.newHashSet();
 
     try {
       Tasks.foreach(ops)
@@ -346,24 +340,17 @@ public class BaseTransaction implements Transaction {
       // the commit failed and no files were committed. clean up each update.
       if (!ops.requireStrictCleanup() || e instanceof CleanableFailure) {
         cleanAllUpdates();
+        deleteUncommittedFiles(deletedFiles);
       }
 
       throw e;
+    }
 
-    } finally {
-      // replace table never needs to retry because the table state is completely replaced. because
-      // retries are not
-      // a concern, it is safe to delete all the deleted files from individual operations
-      deleteUncommittedFiles(deletedFiles);
+    if (!deletedFiles.isEmpty()) {
+      cleanUpAfterCommit(startingSnapshots);
     }
   }
 
-  // refreshes the underlying table before a replace commit. if a concurrent writer changed the
-  // table, rebuilds the replacement metadata on top of the refreshed table so the concurrent
-  // writer's snapshots are preserved in history (the replacement still becomes the current state),
-  // then re-applies the pending updates to recreate this transaction's snapshot on top. catalogs
-  // that merge changes server-side (e.g. REST) pass no replacement builder and keep their existing
-  // behavior of completely replacing the table metadata.
   private void refreshReplacement(TableOperations underlyingOps, boolean orCreate) {
     try {
       underlyingOps.refresh();
@@ -382,15 +369,25 @@ public class BaseTransaction implements Transaction {
       return;
     }
 
-    TableMetadata rebuilt = replacement.apply(base);
-    // only rebuild when the concurrent change preserves this replacement's schema and spec.
-    // otherwise rebuilding would reassign field ids and break data this transaction already wrote,
-    // so fall back to replacing the table outright (last writer wins).
-    if (rebuilt.schema().sameSchema(current.schema()) && rebuilt.spec().equals(current.spec())) {
-      this.current = rebuilt;
-      for (PendingUpdate update : updates) {
-        update.commit();
+    TableMetadata replaced = current;
+    try {
+      TableMetadata rebuilt = replacement.apply(base);
+      // the files this transaction already wrote depend on its schema, spec, sort order and format
+      if (rebuilt.schema().sameSchema(current.schema())
+          && rebuilt.spec().equals(current.spec())
+          && rebuilt.sortOrder().equals(current.sortOrder())
+          && rebuilt.formatVersion() == current.formatVersion()) {
+        this.current = rebuilt;
+        for (PendingUpdate update : updates) {
+          update.commit();
+        }
       }
+    } catch (RuntimeException e) {
+      LOG.warn(
+          "Cannot rebuild replace of {} on refreshed metadata, concurrent changes will be dropped",
+          tableName,
+          e);
+      this.current = replaced;
     }
   }
 
@@ -433,7 +430,10 @@ public class BaseTransaction implements Transaction {
     }
 
     // the commit succeeded
+    cleanUpAfterCommit(startingSnapshots);
+  }
 
+  private void cleanUpAfterCommit(Set<Long> startingSnapshots) {
     try {
       // clean up the data files that were deleted by each operation. first, get the list of
       // committed manifests to ensure that no committed manifest is deleted.

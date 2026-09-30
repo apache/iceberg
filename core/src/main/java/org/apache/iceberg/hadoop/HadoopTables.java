@@ -21,7 +21,6 @@ package org.apache.iceberg.hadoop;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
-import java.util.function.UnaryOperator;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -370,19 +369,17 @@ public class HadoopTables implements Tables, Configurable {
       }
 
       Map<String, String> properties = propertiesBuilder.build();
-      UnaryOperator<TableMetadata> replacement =
-          base -> base.buildReplacement(schema, spec, sortOrder, location, properties);
       TableMetadata metadata;
       if (ops.current() != null) {
-        metadata = replacement.apply(ops.current());
+        metadata = ops.current().buildReplacement(schema, spec, sortOrder, location, properties);
       } else {
         metadata = tableMetadata(schema, spec, sortOrder, properties, location);
       }
 
       if (orCreate) {
-        return Transactions.createOrReplaceTableTransaction(location, ops, metadata, replacement);
+        return Transactions.createOrReplaceTableTransaction(location, ops, metadata);
       } else {
-        return Transactions.replaceTableTransaction(location, ops, metadata, replacement);
+        return Transactions.replaceTableTransaction(location, ops, metadata);
       }
     }
   }
