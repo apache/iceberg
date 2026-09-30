@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
@@ -53,5 +54,22 @@ class TestParquetConversions {
           .isInstanceOf(CharSequence.class);
       assertThat(converted.toString()).isEqualTo("hello");
     }
+  }
+
+  @Test
+  void timestampMillisConvertersUseMicros() {
+    PrimitiveType timestampMillis =
+        Types.required(PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("ts");
+
+    assertThat(
+            ParquetConversions.<Long>convertValue(
+                TimestampType.withoutZone(), timestampMillis, 1_577_836_800_000L))
+        .isEqualTo(1_577_836_800_000_000L);
+    assertThat(
+            ParquetConversions.converterFromParquet(timestampMillis, TimestampType.withoutZone())
+                .apply(1_577_836_800_000L))
+        .isEqualTo(1_577_836_800_000_000L);
   }
 }
