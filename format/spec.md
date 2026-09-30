@@ -827,7 +827,7 @@ Each stats struct holds statistics for one table field. It may contain the follo
 | _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
-| _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`, `geometry`, `geography` | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
+| _optional_  | 7      | `total_bytes`             | `long`                    | `string`, `binary`, `variant`, `geometry`, `geography` | Estimated uncompressed bytes in memory of non-null values. The estimate depends on the in-memory representation |
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
@@ -840,7 +840,7 @@ For example, stats for a `required` `int` field named `id` with field-id `2` are
 
   // null_value_count is only used for optional fields
   // nan_value_count is only used for float and double
-  // avg_value_size_in_bytes is only used for variable length types
+  // total_bytes is only used for variable length types
 }
 ```
 
@@ -884,7 +884,7 @@ For example, stats for an optional `geometry` field named `location` with field-
   }
   10_804: optional long value_count;
   10_805: optional long null_value_count;
-  10_807: optional int avg_value_size_in_bytes;
+  10_807: optional long total_bytes;
   // tight_bounds and nan_value_count are omitted for geo types
 }
 ```
@@ -914,7 +914,7 @@ For example, stats for a table with a required int, `id`, and an optional string
     10_603: optional boolean tight_bounds;
     10_604: optional long value_count;
     10_605: optional long null_value_count;
-    10_607: optional int avg_value_size_in_bytes;
+    10_607: optional long total_bytes;
   }
 }
 ```
