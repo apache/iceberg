@@ -83,6 +83,9 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
     - Core, Data, Spark, Flink: Remove position delete files with row data ([\#17706](https://github.com/apache/iceberg/pull/17706))
     - AWS: Remove deprecated S3 signer classes and properties ([\#17627](https://github.com/apache/iceberg/pull/17627))
     - Spark 4.0, 4.1: Remove deprecated `SparkTableUtil` methods ([\#17703](https://github.com/apache/iceberg/pull/17703))
+* Behavior change
+    - `GeometryType` and `GeographyType` `toString()` now always include the resolved CRS, and for geography the edge algorithm: `geometry` prints as `geometry(OGC:CRS84)` and `geography` as `geography(OGC:CRS84, spherical)` ([\#16765](https://github.com/apache/iceberg/pull/16765)).
+    Previously, default instances printed the bare type name (`geometry` / `geography`).
 * Spec
     - Add spec for expressions ([\#16652](https://github.com/apache/iceberg/pull/16652))
     - Add finer grained read restrictions as part of loadTable ([\#13879](https://github.com/apache/iceberg/pull/13879))
@@ -94,7 +97,6 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
     - Clarify content file uniqueness within a snapshot ([\#17198](https://github.com/apache/iceberg/pull/17198))
 * API
     - Single-value binary serialization for geometry and geography ([\#16607](https://github.com/apache/iceberg/pull/16607))
-    - Map geometry and geography to Parquet logical types ([\#16765](https://github.com/apache/iceberg/pull/16765))
     - Define `RepairTable` action interface ([\#17399](https://github.com/apache/iceberg/pull/17399))
     - Make variant classes serializable ([\#17260](https://github.com/apache/iceberg/pull/17260))
     - Harden variant binary parsing against malformed input ([\#16568](https://github.com/apache/iceberg/pull/16568))
