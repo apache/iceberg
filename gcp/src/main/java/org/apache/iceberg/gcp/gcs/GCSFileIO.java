@@ -327,11 +327,7 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
   @SuppressWarnings("resource")
   private void internalDeleteFiles(Stream<BlobId> blobIdsToDelete) {
-    // Group blobs by their per-prefix client so each GCS API call uses the credentials configured
-    // for the prefix that owns the blob, instead of reusing the first object's client for the
-    // whole batch. Each batch is issued as soon as it is full, so memory stays bounded by
-    // (number of prefixes x delete batch size) rather than by the total number of blobs, which
-    // matters for deletePrefix over a large table.
+    // flush each client's batch as soon as it fills so deletePrefix never holds the whole listing
     Map<PrefixedStorage, List<BlobId>> pendingByClient = new LinkedHashMap<>();
     blobIdsToDelete.forEach(
         blobId -> {
