@@ -417,7 +417,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     // Adding an existing field should fail due to Flink's internal validation.
     assertThatThrownBy(() -> sql("ALTER TABLE tl ADD (id STRING)"))
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining("Try to add a column `id` which already exists in the table.");
+        .hasMessageContaining("Column `id` already exists in the table.");
   }
 
   @TestTemplate
@@ -585,8 +585,7 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
     // validation.
     assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (non_existing STRING FIRST)"))
         .isInstanceOf(ValidationException.class)
-        .hasMessageContaining(
-            "Try to modify a column `non_existing` which does not exist in the table.");
+        .hasMessageContaining("Column `non_existing` does not exist in the table.");
 
     // Moving a column after a non-existing column should fail due to Flink's internal validation.
     assertThatThrownBy(() -> sql("ALTER TABLE tl MODIFY (dt STRING AFTER non_existing)"))
@@ -755,7 +754,8 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                 org.apache.flink.table.api.Schema.newBuilder()
                     .column("id", DataTypes.BIGINT())
                     .build())
-            .definitionQuery("SELECT id FROM tl")
+            .originalQuery("SELECT id FROM tl")
+            .expandedQuery("SELECT id FROM tl")
             .freshness(IntervalFreshness.ofMinute("5"))
             .logicalRefreshMode(CatalogMaterializedTable.LogicalRefreshMode.AUTOMATIC)
             .refreshMode(CatalogMaterializedTable.RefreshMode.CONTINUOUS)
