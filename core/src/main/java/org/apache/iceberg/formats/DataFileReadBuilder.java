@@ -36,6 +36,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
@@ -54,6 +55,7 @@ import org.apache.iceberg.util.Pair;
 public class DataFileReadBuilder<D, S> implements ReadBuilder<D, S> {
   private final DataFile file;
   private final Map<String, ReadBuilder<D, S>> builders;
+  private final StitcherBuilder<D> stitcherBuilder;
   private Schema projection;
   private Expression filter = Expressions.alwaysTrue();
   private boolean caseSensitive = true;
@@ -62,7 +64,6 @@ public class DataFileReadBuilder<D, S> implements ReadBuilder<D, S> {
   private DataFileReadBuilder(
       DataFile file, Class<? extends D> type, Function<String, InputFile> inputFiles) {
     this.file = file;
-
     this.builders = Maps.newLinkedHashMap();
     builders.put(file.location(), newReadBuilder(file.location(), file.format(), type, inputFiles));
 
@@ -74,6 +75,8 @@ public class DataFileReadBuilder<D, S> implements ReadBuilder<D, S> {
             newReadBuilder(columnFile.location(), columnFile.fileFormat(), type, inputFiles));
       }
     }
+
+    this.stitcherBuilder = builders.size() > 1 ? StitcherRegistry.stitcherBuilder(type) : null;
   }
 
   /**
@@ -168,14 +171,19 @@ public class DataFileReadBuilder<D, S> implements ReadBuilder<D, S> {
     projectReadBuilders(readers, plan);
     pushDownProjectedFilters(readers, plan);
 
-    if (readers.size() > 1) {
-      throw new UnsupportedOperationException(
-          String.format(
-              "Cannot read the projected fields of %s: reading column files is not supported",
-              file.location()));
+    if (readers.size() == 1) {
+      return Iterables.getOnlyElement(readers.values()).build();
     }
 
-    return baseFileBuilder().build();
+    List<Schema> parts = Lists.newArrayListWithCapacity(readers.size());
+    List<CloseableIterable<D>> partReaders = Lists.newArrayListWithCapacity(readers.size());
+    readers.forEach(
+        (location, builder) -> {
+          parts.add(plan.get(location));
+          partReaders.add(builder.build());
+        });
+
+    return new RowAlignedStitchingIterable<>(partReaders, stitcherBuilder.build(projection, parts));
   }
 
   private void projectReadBuilders(

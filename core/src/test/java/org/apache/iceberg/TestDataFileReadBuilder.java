@@ -37,6 +37,10 @@ import org.apache.iceberg.formats.DataFileReadBuilder;
 import org.apache.iceberg.formats.FormatModel;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.formats.ReadBuilder;
+import org.apache.iceberg.formats.Stitcher;
+import org.apache.iceberg.formats.StitcherBuilder;
+import org.apache.iceberg.formats.StitcherRegistry;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.TypeUtil;
@@ -49,10 +53,6 @@ import org.mockito.ArgumentCaptor;
 class TestDataFileReadBuilder {
   private static final String DATA_FILE_LOCATION = "s3://bucket/data/file.parquet";
   private static final String COLUMN_FILE_LOCATION = "s3://bucket/data/column-file.parquet";
-  private static final String STITCHING_UNSUPPORTED =
-      "Cannot read the projected fields of "
-          + DATA_FILE_LOCATION
-          + ": reading column files is not supported";
   private static final Map<Integer, PartitionSpec> UNPARTITIONED =
       ImmutableMap.of(PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned());
   private static final Schema SCHEMA =
@@ -84,6 +84,17 @@ class TestDataFileReadBuilder {
     when(model.format()).thenReturn(FileFormat.PARQUET);
     doReturn(Row.class).when(model).type();
     FormatModelRegistry.register(model);
+
+    StitcherBuilder<Row> stitcherBuilder = mock(StitcherBuilder.class);
+    doReturn(Row.class).when(stitcherBuilder).type();
+    when(stitcherBuilder.build(any(), any())).thenReturn(mock(Stitcher.class));
+    StitcherRegistry.register(stitcherBuilder);
+
+    FormatModel<Unstitchable, Schema> unstitchableModel = mock(FormatModel.class);
+    when(unstitchableModel.format()).thenReturn(FileFormat.PARQUET);
+    doReturn(Unstitchable.class).when(unstitchableModel).type();
+    when(unstitchableModel.readBuilder(any())).thenReturn(mock(ReadBuilder.class));
+    FormatModelRegistry.register(unstitchableModel);
   }
 
   @BeforeEach
@@ -91,29 +102,27 @@ class TestDataFileReadBuilder {
   void stubReaders() {
     this.dataFileReader = mock(ReadBuilder.class);
     this.columnFileReader = mock(ReadBuilder.class);
+    when(dataFileReader.build()).thenReturn(CloseableIterable.empty());
+    when(columnFileReader.build()).thenReturn(CloseableIterable.empty());
     when(model.readBuilder(any())).thenReturn(dataFileReader, columnFileReader);
   }
 
   @Test
-  void rejectsStitchingColumnFiles() {
-    DataFileReadBuilder<Row, Schema> builder =
-        DataFileReadBuilder.<Row, Schema>read(
-                dataFile(List.of(COLUMN_FILE)), Row.class, INPUT_FILES)
-            .project(SCHEMA);
+  void rejectsColumnFilesWithoutStitcher() {
+    DataFile file = dataFile(List.of(COLUMN_FILE));
 
-    assertThatThrownBy(builder::build)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(STITCHING_UNSUPPORTED);
+    assertThatThrownBy(() -> DataFileReadBuilder.read(file, Unstitchable.class, INPUT_FILES))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot read a data file with column files: no stitcher is registered for type "
+                + Unstitchable.class);
   }
 
   @Test
   void projectsFromEachFileTheFieldsItProvides() {
-    DataFileReadBuilder<Row, Schema> builder =
-        DataFileReadBuilder.read(dataFile(List.of(COLUMN_FILE)), Row.class, INPUT_FILES);
-
-    assertThatThrownBy(() -> builder.project(SCHEMA).build())
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(STITCHING_UNSUPPORTED);
+    DataFileReadBuilder.read(dataFile(List.of(COLUMN_FILE)), Row.class, INPUT_FILES)
+        .project(SCHEMA)
+        .build();
 
     assertThat(projectedIds(dataFileReader)).containsExactly(1);
     assertThat(projectedIds(columnFileReader)).containsExactly(2, 3);
@@ -131,13 +140,9 @@ class TestDataFileReadBuilder {
 
   @Test
   void readsPositionsFromTheDataFileWhenItProvidesNoProjectedField() {
-    DataFileReadBuilder<Row, Schema> builder =
-        DataFileReadBuilder.read(dataFile(List.of(COLUMN_FILE)), Row.class, INPUT_FILES);
-    builder.project(TypeUtil.select(SCHEMA, Set.of(2, 3)));
-
-    assertThatThrownBy(builder::build)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(STITCHING_UNSUPPORTED);
+    DataFileReadBuilder.read(dataFile(List.of(COLUMN_FILE)), Row.class, INPUT_FILES)
+        .project(TypeUtil.select(SCHEMA, Set.of(2, 3)))
+        .build();
 
     assertThat(projectedIds(dataFileReader)).containsExactly(POSITION_ID);
     assertThat(projectedIds(columnFileReader)).containsExactly(2, 3);
@@ -171,19 +176,13 @@ class TestDataFileReadBuilder {
 
   @Test
   void pushesToEachFileTheConjunctsItCanEvaluate() {
-    DataFileReadBuilder<Row, Schema> builder =
-        DataFileReadBuilder.read(dataFile(List.of(COLUMN_FILE)), Row.class, INPUT_FILES);
     Expression dataFileConjunct = Expressions.equal("id", 1L);
     Expression columnFileConjunct = Expressions.equal("data", "a");
 
-    assertThatThrownBy(
-            () ->
-                builder
-                    .project(SCHEMA)
-                    .filter(Expressions.and(dataFileConjunct, columnFileConjunct))
-                    .build())
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(STITCHING_UNSUPPORTED);
+    DataFileReadBuilder.read(dataFile(List.of(COLUMN_FILE)), Row.class, INPUT_FILES)
+        .project(SCHEMA)
+        .filter(Expressions.and(dataFileConjunct, columnFileConjunct))
+        .build();
 
     verify(dataFileReader).filter(dataFileConjunct);
     verify(columnFileReader).filter(columnFileConjunct);
@@ -191,22 +190,15 @@ class TestDataFileReadBuilder {
 
   @Test
   void skipsConjunctsSpanningSeveralFiles() {
-    DataFileReadBuilder<Row, Schema> builder =
-        DataFileReadBuilder.read(dataFile(List.of(COLUMN_FILE)), Row.class, INPUT_FILES);
     Expression dataFileConjunct = Expressions.equal("id", 1L);
 
-    assertThatThrownBy(
-            () ->
-                builder
-                    .project(SCHEMA)
-                    .filter(
-                        Expressions.and(
-                            dataFileConjunct,
-                            Expressions.or(
-                                Expressions.equal("id", 2L), Expressions.equal("data", "a"))))
-                    .build())
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(STITCHING_UNSUPPORTED);
+    DataFileReadBuilder.read(dataFile(List.of(COLUMN_FILE)), Row.class, INPUT_FILES)
+        .project(SCHEMA)
+        .filter(
+            Expressions.and(
+                dataFileConjunct,
+                Expressions.or(Expressions.equal("id", 2L), Expressions.equal("data", "a"))))
+        .build();
 
     verify(dataFileReader).filter(dataFileConjunct);
     verify(columnFileReader, never()).filter(any());
@@ -267,4 +259,7 @@ class TestDataFileReadBuilder {
 
   /** Row type of the format model registered by this test. */
   private static class Row {}
+
+  /** Row type that has no stitcher registered. */
+  private static class Unstitchable {}
 }
