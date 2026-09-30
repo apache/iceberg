@@ -52,6 +52,7 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.RepairTable;
@@ -90,12 +91,19 @@ public class TestRepairTableAction extends TestBase {
           optional(2, "c2", Types.StringType.get()),
           optional(3, "c3", Types.StringType.get()));
 
-  @Parameters(name = "formatVersion = {0}")
+  @Parameters(name = "formatVersion = {0}, fileFormat = {1}")
   public static Object[] parameters() {
-    return new Object[][] {new Object[] {1}, new Object[] {2}, new Object[] {3}};
+    return new Object[][] {
+      {1, FileFormat.PARQUET}, {1, FileFormat.ORC}, {1, FileFormat.AVRO},
+      {2, FileFormat.PARQUET}, {2, FileFormat.ORC}, {2, FileFormat.AVRO},
+      {3, FileFormat.PARQUET}, {3, FileFormat.ORC}, {3, FileFormat.AVRO}
+    };
   }
 
   @Parameter private int formatVersion;
+
+  @Parameter(index = 1)
+  private FileFormat fileFormat;
 
   private String tableLocation = null;
 
@@ -122,17 +130,7 @@ public class TestRepairTableAction extends TestBase {
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
 
-    Snapshot before = table.currentSnapshot();
-
-    RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
-
-    assertThat(result.repairedManifests()).isEmpty();
-    assertThat(result.repairedEntryCount()).isEqualTo(0);
-
-    table.refresh();
-    assertThat(table.currentSnapshot().snapshotId())
-        .as("should not commit a snapshot when nothing is repaired")
-        .isEqualTo(before.snapshotId());
+    assertNoRepair(table, true);
   }
 
   @TestTemplate
@@ -183,27 +181,38 @@ public class TestRepairTableAction extends TestBase {
     assertThat(repaired.recordCount()).isEqualTo(original.recordCount());
     assertThat(repaired.fileSizeInBytes()).isEqualTo(original.fileSizeInBytes());
     assertThat(repaired.location()).isEqualTo(original.location());
+    assertThat(repaired.format()).isEqualTo(fileFormat);
 
     assertThat(currentRows())
         .as("table contents must be unchanged by the repair")
         .containsExactlyInAnyOrderElementsOf(expectedRows);
+    assertNoRepair(table, false);
   }
 
   @TestTemplate
   public void testRepairPreservesEntryLineage() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
+    appendRecords(table, records(2));
+    table.rewriteManifests().clusterBy(file -> "").commit();
 
-    DataFile original = onlyDataFile(table);
+    List<DataFile> originals = dataFiles(table);
+    assertThat(originals).hasSize(2);
+    if (formatVersion >= 3) {
+      assertThat(originals).allSatisfy(file -> assertThat(file.firstRowId()).isNotNull());
+      assertThat(originals).extracting(DataFile::firstRowId).doesNotHaveDuplicates();
+    }
+
     List<Row> lineageBefore = entryLineage();
 
-    replaceManifestWithCorruptStats(table, original);
+    replaceManifestWithCorruptStats(table, originals.get(0));
 
-    SparkActions.get().repairTable(table).repairFileMetrics().execute();
+    RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
+    assertThat(result.repairedEntryCount()).isEqualTo(1);
     table.refresh();
     assertThat(entryLineage())
-        .as("snapshot id and sequence numbers must be carried through the repair")
+        .as("snapshot id, sequence numbers and first row IDs must survive the repair")
         .containsExactlyInAnyOrderElementsOf(lineageBefore);
   }
 
@@ -289,6 +298,7 @@ public class TestRepairTableAction extends TestBase {
 
   @TestTemplate
   public void testRepairSkipsColumnMetricsByDefault() throws IOException {
+    assumeThat(fileFormat).isNotEqualTo(FileFormat.AVRO);
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
 
@@ -315,10 +325,12 @@ public class TestRepairTableAction extends TestBase {
     assertThat(repaired.repairedEntryCount())
         .as("column metrics are compared when enabled")
         .isEqualTo(1);
+    assertNoRepair(table, true);
   }
 
   @TestTemplate
   void repairWithCustomColumnMetrics() throws IOException {
+    assumeThat(fileFormat).isNotEqualTo(FileFormat.AVRO);
     Table table = createTable(PartitionSpec.unpartitioned());
     table
         .updateProperties()
@@ -354,6 +366,7 @@ public class TestRepairTableAction extends TestBase {
     assertThat(repaired.lowerBounds()).isEqualTo(original.lowerBounds());
     assertThat(repaired.upperBounds()).isEqualTo(original.upperBounds());
     assertThat(currentRows()).containsExactlyInAnyOrderElementsOf(expectedRows);
+    assertNoRepair(table, true);
   }
 
   @TestTemplate
@@ -391,6 +404,197 @@ public class TestRepairTableAction extends TestBase {
     assertThat(repaired.columnSizes())
         .as("column sizes must be kept, not replaced with recomputed ones")
         .isEqualTo(corrupt.columnSizes());
+    assertThat(repaired.nanValueCounts()).isEqualTo(corrupt.nanValueCounts());
+    assertThat(repaired.lowerBounds()).isEqualTo(corrupt.lowerBounds());
+    assertThat(repaired.upperBounds()).isEqualTo(corrupt.upperBounds());
+    assertThat(repaired.avgValueSizes()).isEqualTo(corrupt.avgValueSizes());
+    assertNoRepair(table, false);
+  }
+
+  @TestTemplate
+  void renamedColumnMetricsAreUnchanged() throws IOException {
+    assumeThat(fileFormat).isNotEqualTo(FileFormat.AVRO);
+    Table table = createTable(PartitionSpec.unpartitioned());
+    table
+        .updateProperties()
+        .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none")
+        .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "c2", "full")
+        .commit();
+    appendRecords(table, records(4));
+    DataFile original = onlyDataFile(table);
+    int columnId = table.schema().findField("c2").fieldId();
+    assertThat(original.valueCounts()).containsOnlyKeys(columnId);
+
+    table.updateSchema().renameColumn("c2", "renamed").commit();
+    assertThat(table.properties())
+        .containsEntry(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "renamed", "full")
+        .doesNotContainKey(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "c2");
+
+    assertNoRepair(table, true);
+    assertThat(onlyDataFile(table).lowerBounds()).isEqualTo(original.lowerBounds());
+  }
+
+  @TestTemplate
+  void repairWithCustomInferredMetricsLimit() throws IOException {
+    assumeThat(fileFormat).isNotEqualTo(FileFormat.AVRO);
+    Table table = createTable(PartitionSpec.unpartitioned());
+    table
+        .updateProperties()
+        .set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "1")
+        .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "c3", "full")
+        .commit();
+    appendRecords(table, records(4));
+    DataFile original = onlyDataFile(table);
+    int inferredId = table.schema().findField("c1").fieldId();
+    int explicitId = table.schema().findField("c3").fieldId();
+    assertThat(original.valueCounts()).containsOnlyKeys(inferredId, explicitId);
+    assertThat(original.lowerBounds()).containsOnlyKeys(inferredId, explicitId);
+    assertNoRepair(table, true);
+
+    replaceManifestWithCorruptStats(table, original);
+    RepairTable.Result result =
+        SparkActions.get()
+            .repairTable(table)
+            .repairFileMetrics()
+            .option(RepairTableSparkAction.REPAIR_COLUMN_METRICS, "true")
+            .execute();
+
+    assertThat(result.repairedEntryCount()).isEqualTo(1L);
+    DataFile repaired = onlyDataFile(table);
+    assertThat(repaired.valueCounts()).isEqualTo(original.valueCounts());
+    assertThat(repaired.nullValueCounts()).isEqualTo(original.nullValueCounts());
+    assertThat(repaired.columnSizes()).isEqualTo(original.columnSizes());
+    assertThat(repaired.lowerBounds()).isEqualTo(original.lowerBounds());
+    assertThat(repaired.upperBounds()).isEqualTo(original.upperBounds());
+    assertNoRepair(table, true);
+  }
+
+  @TestTemplate
+  void nanMetricsArePreserved() throws IOException {
+    assumeThat(fileFormat).isNotEqualTo(FileFormat.AVRO);
+    Table table = createTable(PartitionSpec.unpartitioned());
+    table
+        .updateSchema()
+        .addColumn("float_col", Types.FloatType.get())
+        .addColumn("double_col", Types.DoubleType.get())
+        .commit();
+    spark
+        .sql(
+            "SELECT 1 AS c1, 'a' AS c2, 'b' AS c3, "
+                + "CAST(value AS FLOAT) AS float_col, CAST(value AS DOUBLE) AS double_col "
+                + "FROM VALUES ('NaN'), ('1.0'), ('2.0'), (NULL) AS input(value)")
+        .coalesce(1)
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(tableLocation);
+    DataFile original = onlyDataFile(table);
+    assertThat(original.nanValueCounts())
+        .containsEntry(table.schema().findField("float_col").fieldId(), 1L)
+        .containsEntry(table.schema().findField("double_col").fieldId(), 1L);
+    assertNoRepair(table, true);
+
+    // Retain writer-tracked metrics while making the file-level metrics incorrect.
+    DataFile corrupt =
+        DataFiles.builder(table.spec())
+            .copy(original)
+            .withRecordCount(original.recordCount() + 100)
+            .withFileSizeInBytes(original.fileSizeInBytes() + 4096)
+            .build();
+    table.newOverwrite().deleteFile(original).addFile(corrupt).commit();
+    RepairTable.Result result =
+        SparkActions.get()
+            .repairTable(table)
+            .repairFileMetrics()
+            .option(RepairTableSparkAction.REPAIR_COLUMN_METRICS, "true")
+            .execute();
+
+    assertThat(result.repairedEntryCount()).isEqualTo(1L);
+    DataFile repaired = onlyDataFile(table);
+    assertThat(repaired.recordCount()).isEqualTo(original.recordCount());
+    assertThat(repaired.fileSizeInBytes()).isEqualTo(original.fileSizeInBytes());
+    assertThat(repaired.nanValueCounts()).isEqualTo(original.nanValueCounts());
+    assertThat(repaired.lowerBounds()).isEqualTo(original.lowerBounds());
+    assertThat(repaired.upperBounds()).isEqualTo(original.upperBounds());
+    assertNoRepair(table, true);
+  }
+
+  @TestTemplate
+  void repairOverstatedSnapshotTotals() throws IOException {
+    repairSnapshotTotals(true);
+  }
+
+  @TestTemplate
+  void repairUnderstatedSnapshotTotals() throws IOException {
+    repairSnapshotTotals(false);
+  }
+
+  private void repairSnapshotTotals(boolean overstated) throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned());
+    Record template = GenericRecord.create(table.schema());
+    List<Record> rows = Lists.newArrayList();
+    for (ThreeColumnRecord record : records(4)) {
+      rows.add(template.copy("c1", record.getC1(), "c2", record.getC2(), "c3", record.getC3()));
+    }
+
+    DataFile original =
+        FileHelpers.writeDataFile(
+            table,
+            table.io().newOutputFile(temp.resolve(fileFormat.addExtension("data")).toString()),
+            rows);
+    DataFile corrupt =
+        DataFiles.builder(table.spec())
+            .copy(original)
+            .withRecordCount(overstated ? original.recordCount() + 100 : original.recordCount() - 1)
+            .withFileSizeInBytes(
+                overstated ? original.fileSizeInBytes() + 4096 : original.fileSizeInBytes() - 1)
+            .build();
+    table.newFastAppend().appendFile(corrupt).commit();
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, Long.toString(corrupt.recordCount()))
+        .containsEntry(
+            SnapshotSummary.TOTAL_FILE_SIZE_PROP, Long.toString(corrupt.fileSizeInBytes()));
+
+    RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
+
+    assertThat(result.repairedEntryCount()).isEqualTo(1L);
+    table.refresh();
+    assertDeleteTotals(table, original, 0L, 0L, 0L, 0L);
+    assertNoRepair(table, false);
+  }
+
+  private void assertNoRepair(Table table, boolean repairColumnMetrics) {
+    long snapshotId = table.currentSnapshot().snapshotId();
+    RepairTable.Result result =
+        SparkActions.get()
+            .repairTable(table)
+            .repairFileMetrics()
+            .option(
+                RepairTableSparkAction.REPAIR_COLUMN_METRICS, Boolean.toString(repairColumnMetrics))
+            .execute();
+
+    assertThat(result.repairedEntryCount()).isZero();
+    assertThat(result.repairedManifests()).isEmpty();
+    table.refresh();
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(snapshotId);
+  }
+
+  private void assertDeleteTotals(
+      Table table,
+      DataFile dataFile,
+      long positionDeletes,
+      long equalityDeletes,
+      long deleteFiles,
+      long deleteSize) {
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, Long.toString(dataFile.recordCount()))
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "1")
+        .containsEntry(SnapshotSummary.TOTAL_DELETE_FILES_PROP, Long.toString(deleteFiles))
+        .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, Long.toString(positionDeletes))
+        .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, Long.toString(equalityDeletes))
+        .containsEntry(
+            SnapshotSummary.TOTAL_FILE_SIZE_PROP,
+            Long.toString(dataFile.fileSizeInBytes() + deleteSize));
   }
 
   @TestTemplate
@@ -454,12 +658,15 @@ public class TestRepairTableAction extends TestBase {
     assertThat(repaired.equalityFieldIds())
         .as("equality field ids must survive the repair")
         .isEqualTo(delete.equalityFieldIds());
+    assertDeleteTotals(
+        table, onlyDataFile(table), 0L, delete.recordCount(), 1L, delete.fileSizeInBytes());
+    assertNoRepair(table, false);
   }
 
   @TestTemplate
   public void testRepairPositionDeleteStats() throws IOException {
     assumeThat(formatVersion)
-        .as("position deletes are written as parquet files in format version 2")
+        .as("position delete files are written in format version 2")
         .isEqualTo(2);
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
@@ -489,12 +696,41 @@ public class TestRepairTableAction extends TestBase {
         .as("the file size must be repaired")
         .isEqualTo(delete.fileSizeInBytes());
     assertThat(repaired.content()).isEqualTo(FileContent.POSITION_DELETES);
+    assertDeleteTotals(table, dataFile, delete.recordCount(), 0L, 1L, delete.fileSizeInBytes());
+    assertNoRepair(table, false);
+  }
+
+  @TestTemplate
+  void correctPositionDeleteMetricsAreUnchanged() throws IOException {
+    positionDeleteMetricsAreUnchanged(false);
+  }
+
+  @TestTemplate
+  void correctMultiFilePositionDeleteMetricsAreUnchanged() throws IOException {
+    positionDeleteMetricsAreUnchanged(true);
+  }
+
+  private void positionDeleteMetricsAreUnchanged(boolean multipleDataFiles) throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+    if (multipleDataFiles) {
+      appendRecords(table, records(2));
+    }
+
+    List<Pair<CharSequence, Long>> positions = Lists.newArrayList();
+    for (DataFile file : dataFiles(table)) {
+      positions.add(Pair.of(file.location(), 0L));
+    }
+
+    table.newRowDelta().addDeletes(writePosDeletes(table, positions)).commit();
+    assertNoRepair(table, true);
   }
 
   @TestTemplate
   public void testRepairDeleteManifestHoldingBothDeleteTypes() throws IOException {
     assumeThat(formatVersion)
-        .as("position deletes are written as parquet files in format version 2")
+        .as("position delete files are written in format version 2")
         .isEqualTo(2);
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
@@ -537,6 +773,7 @@ public class TestRepairTableAction extends TestBase {
             .execute();
 
     assertThat(result.repairedEntryCount()).isEqualTo(2);
+    assertThat(result.repairedManifests()).hasSize(1);
 
     table.refresh();
     Map<String, DeleteFile> repairedByPath = Maps.newHashMap();
@@ -562,6 +799,17 @@ public class TestRepairTableAction extends TestBase {
     assertThat(repairedEq.valueCounts())
         .as("equality delete column stats must be recomputed under its own metrics config")
         .isEqualTo(eqDelete.valueCounts());
+    assertThat(repairedPos.valueCounts()).isEqualTo(posDelete.valueCounts());
+    assertThat(repairedPos.lowerBounds()).isEqualTo(posDelete.lowerBounds());
+    assertThat(repairedPos.upperBounds()).isEqualTo(posDelete.upperBounds());
+    assertDeleteTotals(
+        table,
+        dataFile,
+        posDelete.recordCount(),
+        eqDelete.recordCount(),
+        2L,
+        posDelete.fileSizeInBytes() + eqDelete.fileSizeInBytes());
+    assertNoRepair(table, true);
   }
 
   @TestTemplate
@@ -621,6 +869,15 @@ public class TestRepairTableAction extends TestBase {
     assertThat(repairedDv.contentSizeInBytes())
         .as("the content size of the deletion vector must survive the repair")
         .isEqualTo(dv.contentSizeInBytes());
+    assertThat(repairedDv.recordCount()).isEqualTo(dv.recordCount());
+    assertDeleteTotals(
+        table,
+        dataFile,
+        dv.recordCount(),
+        eqDelete.recordCount(),
+        2L,
+        dv.contentSizeInBytes() + eqDelete.fileSizeInBytes());
+    assertNoRepair(table, false);
   }
 
   @TestTemplate
@@ -649,6 +906,12 @@ public class TestRepairTableAction extends TestBase {
               assertThat(file.recordCount()).isEqualTo(original.recordCount());
               assertThat(file.fileSizeInBytes()).isEqualTo(original.fileSizeInBytes());
             });
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "6")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "2")
+        .containsEntry(
+            SnapshotSummary.TOTAL_FILE_SIZE_PROP,
+            Long.toString(dataFiles(table).stream().mapToLong(DataFile::fileSizeInBytes).sum()));
   }
 
   @TestTemplate
@@ -868,6 +1131,7 @@ public class TestRepairTableAction extends TestBase {
   private Table createTable(PartitionSpec spec) {
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name());
     return TABLES.create(SCHEMA, spec, options, tableLocation);
   }
 
@@ -891,14 +1155,19 @@ public class TestRepairTableAction extends TestBase {
         spark.read().format("iceberg").load(tableLocation).sort("c1", "c2", "c3").collectAsList());
   }
 
-  /** Returns the snapshot id and sequence numbers of every live entry. */
+  /** Returns the snapshot id, sequence numbers and first row ID of every live entry. */
   private List<Row> entryLineage() {
     return spark
         .read()
         .format("iceberg")
         .load(tableLocation + "#entries")
         .filter("status < 2")
-        .selectExpr("snapshot_id", "sequence_number", "file_sequence_number", "data_file.file_path")
+        .selectExpr(
+            "snapshot_id",
+            "sequence_number",
+            "file_sequence_number",
+            "data_file.file_path",
+            "data_file.first_row_id")
         .collectAsList();
   }
 
@@ -948,14 +1217,16 @@ public class TestRepairTableAction extends TestBase {
     }
 
     OutputFile output =
-        Files.localOutput(File.createTempFile("eq-deletes", ".parquet", temp.toFile()));
+        Files.localOutput(
+            File.createTempFile("eq-deletes", fileFormat.addExtension(""), temp.toFile()));
     return FileHelpers.writeDeleteFile(table, output, null, deletes, deleteSchema);
   }
 
   private DeleteFile writePosDeletes(Table table, List<Pair<CharSequence, Long>> deletes)
       throws IOException {
     OutputFile output =
-        Files.localOutput(File.createTempFile("pos-deletes", ".parquet", temp.toFile()));
+        Files.localOutput(
+            File.createTempFile("pos-deletes", fileFormat.addExtension(""), temp.toFile()));
     return FileHelpers.writeDeleteFile(table, output, null, deletes, formatVersion).first();
   }
 

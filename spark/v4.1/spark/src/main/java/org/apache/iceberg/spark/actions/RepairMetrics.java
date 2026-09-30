@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -31,9 +32,12 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.io.InputFile;
@@ -42,6 +46,11 @@ import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.orc.OrcMetrics;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 
 /**
  * Reads the statistics of data and delete files and compares them against the statistics recorded
@@ -51,6 +60,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  * comparable with the stored statistics.
  */
 class RepairMetrics {
+
+  private static final Set<Integer> POSITION_DELETE_FIELD_IDS =
+      ImmutableSet.of(
+          MetadataColumns.DELETE_FILE_PATH.fieldId(), MetadataColumns.DELETE_FILE_POS.fieldId());
 
   private RepairMetrics() {}
 
@@ -83,20 +96,59 @@ class RepairMetrics {
     return format == FileFormat.PARQUET || format == FileFormat.ORC || format == FileFormat.AVRO;
   }
 
-  /** Recomputes the statistics of a file by reading it. */
+  /** Recomputes recoverable statistics, preserving metrics that require writer-side tracking. */
   static Metrics readMetrics(
-      InputFile input, ContentFile<?> file, MetricsConfig config, NameMapping mapping) {
-    switch (file.format()) {
-      case PARQUET:
-        return ParquetUtil.fileMetrics(input, config, mapping);
-      case ORC:
-        return OrcMetrics.fromInputFile(input, config, mapping);
-      case AVRO:
-        // Avro does not record column statistics, only the number of records is recoverable
-        return new Metrics(Avro.rowCount(input), null, null, null, null);
-      default:
-        throw new UnsupportedOperationException("Cannot read metrics of format: " + file.format());
+      InputFile input,
+      ContentFile<?> file,
+      MetricsConfig config,
+      NameMapping mapping,
+      Schema schema) {
+    Metrics metrics =
+        switch (file.format()) {
+          case PARQUET -> ParquetUtil.fileMetrics(input, config, mapping);
+          case ORC -> OrcMetrics.fromInputFile(input, config, mapping);
+          case AVRO -> new Metrics(Avro.rowCount(input));
+          default ->
+              throw new UnsupportedOperationException(
+                  "Cannot read metrics of format: " + file.format());
+        };
+    if (file.format() == FileFormat.AVRO) {
+      return recordCountOnly(file, metrics);
     }
+
+    if (file.content() == FileContent.POSITION_DELETES) {
+      // Match PositionDeleteWriter: counts are omitted, and bounds are kept only for a single path.
+      int pathId = MetadataColumns.DELETE_FILE_PATH.fieldId();
+      ByteBuffer lowerPath = normalize(metrics.lowerBounds()).get(pathId);
+      ByteBuffer upperPath = normalize(metrics.upperBounds()).get(pathId);
+      metrics =
+          lowerPath != null && lowerPath.equals(upperPath)
+              ? MetricsUtil.copyWithoutFieldCounts(metrics, POSITION_DELETE_FIELD_IDS)
+              : MetricsUtil.copyWithoutFieldCountsAndBounds(metrics, POSITION_DELETE_FIELD_IDS);
+    }
+
+    // Footers cannot recover NaN counts or the NaN-safe bounds tracked by writers. Include
+    // stored NaN-count IDs so that bounds for dropped columns are preserved as well.
+    Set<Integer> floatingPointIds = Sets.newHashSet(normalize(file.nanValueCounts()).keySet());
+    TypeUtil.indexById(schema.asStruct())
+        .forEach(
+            (id, field) -> {
+              Type.TypeID typeId = field.type().typeId();
+              if (typeId == Type.TypeID.FLOAT || typeId == Type.TypeID.DOUBLE) {
+                floatingPointIds.add(id);
+              }
+            });
+
+    return new Metrics(
+        metrics.recordCount(),
+        metrics.columnSizes(),
+        metrics.valueCounts(),
+        metrics.nullValueCounts(),
+        file.nanValueCounts(),
+        preserveBounds(file.lowerBounds(), metrics.lowerBounds(), floatingPointIds),
+        preserveBounds(file.upperBounds(), metrics.upperBounds(), floatingPointIds),
+        file.avgValueSizes(),
+        null);
   }
 
   /**
@@ -124,7 +176,6 @@ class RepairMetrics {
     return !countsMatch(file.columnSizes(), metrics.columnSizes())
         || !countsMatch(file.valueCounts(), metrics.valueCounts())
         || !countsMatch(file.nullValueCounts(), metrics.nullValueCounts())
-        || !countsMatch(file.nanValueCounts(), metrics.nanValueCounts())
         || !boundsMatch(file.lowerBounds(), metrics.lowerBounds())
         || !boundsMatch(file.upperBounds(), metrics.upperBounds());
   }
@@ -176,7 +227,23 @@ class RepairMetrics {
         file.nullValueCounts(),
         file.nanValueCounts(),
         file.lowerBounds(),
-        file.upperBounds());
+        file.upperBounds(),
+        file.avgValueSizes(),
+        null);
+  }
+
+  private static Map<Integer, ByteBuffer> preserveBounds(
+      Map<Integer, ByteBuffer> stored, Map<Integer, ByteBuffer> actual, Set<Integer> ids) {
+    Map<Integer, ByteBuffer> bounds = Maps.newHashMap(normalize(actual));
+    for (int id : ids) {
+      if (stored != null && stored.containsKey(id)) {
+        bounds.put(id, stored.get(id));
+      } else {
+        bounds.remove(id);
+      }
+    }
+
+    return bounds;
   }
 
   private static boolean countsMatch(Map<Integer, Long> stored, Map<Integer, Long> actual) {
