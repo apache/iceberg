@@ -40,7 +40,7 @@ info:
 
     Client identification is advisory:
 
-    - Servers MUST NOT reject a request only because the header is absent,
+    - Servers SHOULD NOT reject a request only because the header is absent,
       incomplete, or malformed. Clients that do not send it remain fully
       functional.
     - The value is client-asserted and can be spoofed, so servers MUST NOT use
@@ -2244,7 +2244,7 @@ components:
         an engine with a connector layer on top of the library.
 
 
-        The header is advisory: a server MUST NOT reject a request only because
+        The header is advisory: a server SHOULD NOT reject a request only because
         it is absent, incomplete, or malformed. See "Client Identification" in
         the API description for the full rules that apply to client-identity
         headers.
