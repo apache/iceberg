@@ -196,6 +196,16 @@ public interface ManifestFile {
     return 0L;
   }
 
+  /** Returns the number of files with status MODIFIED in the manifest file. */
+  default Integer modifiedFilesCount() {
+    return 0;
+  }
+
+  /** Returns the total number of rows in all files with status MODIFIED in the manifest file. */
+  default Long modifiedRowsCount() {
+    return 0L;
+  }
+
   /**
    * Returns a list of {@link PartitionFieldSummary partition field summaries}.
    *
