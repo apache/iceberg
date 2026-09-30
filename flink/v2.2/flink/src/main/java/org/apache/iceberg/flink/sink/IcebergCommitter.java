@@ -80,7 +80,6 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
   private int continuousEmptyCheckpoints = 0;
   private final boolean tableMaintenanceEnabled;
   private final int subtaskId;
-  private final boolean isRestored;
 
   IcebergCommitter(
       TableLoader tableLoader,
@@ -91,8 +90,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       String sinkId,
       IcebergFilesCommitterMetrics committerMetrics,
       boolean tableMaintenanceEnabled,
-      int subtaskId,
-      boolean isRestored) {
+      int subtaskId) {
     this.branch = branch;
     this.snapshotProperties = snapshotProperties;
     this.replacePartitions = replacePartitions;
@@ -100,7 +98,6 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     this.tableLoader = tableLoader;
     this.tableMaintenanceEnabled = tableMaintenanceEnabled;
     this.subtaskId = subtaskId;
-    this.isRestored = isRestored;
 
     // IcebergSink#addPreCommitTopology routes all committables to subtask 0 via a .global()
     // shuffle, so only subtask 0 needs to load the table and create the worker pool.
@@ -141,13 +138,8 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     }
 
     IcebergCommittable last = commitRequestMap.lastEntry().getValue().getCommittable();
-    // Only consult the table's commit history when the job was restored from a checkpoint or
-    // savepoint. After a stateless restart the checkpoint counter starts over, so reusing the
-    // previous run's max committed checkpoint id would silently discard every new commit.
     long maxCommittedCheckpointId =
-        isRestored
-            ? SinkUtil.getMaxCommittedCheckpointId(table, last.jobId(), last.operatorId(), branch)
-            : SinkUtil.INITIAL_CHECKPOINT_ID;
+        SinkUtil.getMaxCommittedCheckpointId(table, last.jobId(), last.operatorId(), branch);
     // Mark the already committed FilesCommittable(s) as finished
     commitRequestMap
         .headMap(maxCommittedCheckpointId, true)

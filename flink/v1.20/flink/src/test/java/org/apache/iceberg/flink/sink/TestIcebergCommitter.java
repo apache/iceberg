@@ -27,9 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 
 import java.io.File;
 import java.io.IOException;
@@ -187,7 +185,7 @@ class TestIcebergCommitter extends TestBase {
 
   @TestTemplate
   public void testCommitTxnWithoutDataFiles() throws Exception {
-    IcebergCommitter committer = getCommitter(true);
+    IcebergCommitter committer = getCommitter();
     SimpleDataUtil.assertTableRows(table, Lists.newArrayList(), branch);
     assertSnapshotSize(0);
     assertMaxCommittedCheckpointId(jobId, -1);
@@ -204,7 +202,7 @@ class TestIcebergCommitter extends TestBase {
   @TestTemplate
   public void testMxContinuousEmptyCommits() throws Exception {
     table.updateProperties().set(IcebergCommitter.MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
-    IcebergCommitter committer = getCommitter(true);
+    IcebergCommitter committer = getCommitter();
     for (int i = 1; i <= 9; i++) {
       Committer.CommitRequest<IcebergCommittable> commitRequest =
           buildCommitRequestFor(jobId, i, Lists.newArrayList());
@@ -216,7 +214,7 @@ class TestIcebergCommitter extends TestBase {
 
   @TestTemplate
   public void testCommitTxn() throws Exception {
-    IcebergCommitter committer = getCommitter(true);
+    IcebergCommitter committer = getCommitter();
     assertSnapshotSize(0);
     List<RowData> rows = Lists.newArrayListWithExpectedSize(3);
     for (int i = 1; i <= 3; i++) {
@@ -238,44 +236,6 @@ class TestIcebergCommitter extends TestBase {
           .containsEntry("flink.operator-id", OPERATOR_ID)
           .containsEntry("flink.job-id", "jobId");
     }
-  }
-
-  @TestTemplate
-  public void testStatelessRestartCommitsNewCheckpoints() throws Exception {
-    // Simulate a previous run that committed checkpoints 1..5 with the same job/operator id.
-    IcebergCommitter previousRunCommitter = getCommitter(true);
-    List<RowData> previousRows = Lists.newArrayList();
-    for (int i = 1; i <= 5; i++) {
-      RowData rowData = SimpleDataUtil.createRowData(i, "prev" + i);
-      previousRows.add(rowData);
-      DataFile dataFile = writeDataFile("prev-data-" + i, ImmutableList.of(rowData));
-      Committer.CommitRequest<IcebergCommittable> commitRequest =
-          buildCommitRequestFor(jobId, i, Lists.newArrayList(of(dataFile)));
-      previousRunCommitter.commit(Lists.newArrayList(commitRequest));
-    }
-    assertSnapshotSize(5);
-    assertMaxCommittedCheckpointId(jobId, 5L);
-
-    // Stateless restart: the job starts fresh (not restored) with the same job/operator ids, so
-    // its checkpoint counter starts over from 1. Those commits must be committed, not silently
-    // discarded as already committed. See https://github.com/apache/iceberg/issues/18098
-    IcebergCommitter restartedCommitter = getCommitter(false);
-    List<RowData> newRows = Lists.newArrayList();
-    for (int i = 1; i <= 3; i++) {
-      RowData rowData = SimpleDataUtil.createRowData(100 + i, "new" + i);
-      newRows.add(rowData);
-      DataFile dataFile = writeDataFile("new-data-" + i, ImmutableList.of(rowData));
-      Committer.CommitRequest<IcebergCommittable> commitRequest =
-          buildCommitRequestFor(jobId, i, Lists.newArrayList(of(dataFile)));
-      restartedCommitter.commit(Lists.newArrayList(commitRequest));
-      verify(commitRequest, never()).signalAlreadyCommitted();
-    }
-
-    assertSnapshotSize(8);
-    assertMaxCommittedCheckpointId(jobId, 3L);
-    List<RowData> expectedRows = Lists.newArrayList(previousRows);
-    expectedRows.addAll(newRows);
-    SimpleDataUtil.assertTableRows(table, expectedRows, branch);
   }
 
   @TestTemplate
@@ -1396,7 +1356,7 @@ class TestIcebergCommitter extends TestBase {
 
   // ------------------------------- Utility Methods --------------------------------
 
-  private IcebergCommitter getCommitter(boolean isRestored) {
+  private IcebergCommitter getCommitter() {
     IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
     return new IcebergCommitter(
         tableLoader,
@@ -1407,8 +1367,7 @@ class TestIcebergCommitter extends TestBase {
         "sinkId",
         metric,
         false,
-        0,
-        isRestored);
+        0);
   }
 
   private Committer.CommitRequest<IcebergCommittable> buildCommitRequestFor(

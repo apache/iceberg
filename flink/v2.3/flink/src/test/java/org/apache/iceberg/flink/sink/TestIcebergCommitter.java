@@ -187,7 +187,7 @@ class TestIcebergCommitter extends TestBase {
 
   @TestTemplate
   public void testCommitTxnWithoutDataFiles() throws Exception {
-    IcebergCommitter committer = getCommitter(true);
+    IcebergCommitter committer = getCommitter(Long.MAX_VALUE);
     SimpleDataUtil.assertTableRows(table, Lists.newArrayList(), branch);
     assertSnapshotSize(0);
     assertMaxCommittedCheckpointId(jobId, -1);
@@ -204,7 +204,7 @@ class TestIcebergCommitter extends TestBase {
   @TestTemplate
   public void testMxContinuousEmptyCommits() throws Exception {
     table.updateProperties().set(IcebergCommitter.MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
-    IcebergCommitter committer = getCommitter(true);
+    IcebergCommitter committer = getCommitter(Long.MAX_VALUE);
     for (int i = 1; i <= 9; i++) {
       Committer.CommitRequest<IcebergCommittable> commitRequest =
           buildCommitRequestFor(jobId, i, Lists.newArrayList());
@@ -216,7 +216,7 @@ class TestIcebergCommitter extends TestBase {
 
   @TestTemplate
   public void testCommitTxn() throws Exception {
-    IcebergCommitter committer = getCommitter(true);
+    IcebergCommitter committer = getCommitter(Long.MAX_VALUE);
     assertSnapshotSize(0);
     List<RowData> rows = Lists.newArrayListWithExpectedSize(3);
     for (int i = 1; i <= 3; i++) {
@@ -243,7 +243,7 @@ class TestIcebergCommitter extends TestBase {
   @TestTemplate
   public void testStatelessRestartCommitsNewCheckpoints() throws Exception {
     // Simulate a previous run that committed checkpoints 1..5 with the same job/operator id.
-    IcebergCommitter previousRunCommitter = getCommitter(true);
+    IcebergCommitter previousRunCommitter = getCommitter(Long.MAX_VALUE);
     List<RowData> previousRows = Lists.newArrayList();
     for (int i = 1; i <= 5; i++) {
       RowData rowData = SimpleDataUtil.createRowData(i, "prev" + i);
@@ -259,7 +259,7 @@ class TestIcebergCommitter extends TestBase {
     // Stateless restart: the job starts fresh (not restored) with the same job/operator ids, so
     // its checkpoint counter starts over from 1. Those commits must be committed, not silently
     // discarded as already committed. See https://github.com/apache/iceberg/issues/18098
-    IcebergCommitter restartedCommitter = getCommitter(false);
+    IcebergCommitter restartedCommitter = getCommitter(SinkUtil.INITIAL_CHECKPOINT_ID);
     List<RowData> newRows = Lists.newArrayList();
     for (int i = 1; i <= 3; i++) {
       RowData rowData = SimpleDataUtil.createRowData(100 + i, "new" + i);
@@ -1386,7 +1386,7 @@ class TestIcebergCommitter extends TestBase {
 
   // ------------------------------- Utility Methods --------------------------------
 
-  private IcebergCommitter getCommitter(boolean isRestored) {
+  private IcebergCommitter getCommitter(long restoredCheckpointId) {
     IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
     return new IcebergCommitter(
         tableLoader,
@@ -1398,7 +1398,7 @@ class TestIcebergCommitter extends TestBase {
         metric,
         false,
         0,
-        isRestored);
+        restoredCheckpointId);
   }
 
   private Committer.CommitRequest<IcebergCommittable> buildCommitRequestFor(
