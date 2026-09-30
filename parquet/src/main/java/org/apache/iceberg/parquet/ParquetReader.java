@@ -19,6 +19,8 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -28,10 +30,13 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.SkippingCloseableIterator;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.schema.MessageType;
 import org.slf4j.Logger;
@@ -96,10 +101,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     return iter;
   }
 
-  private static class FileIterator<T> implements CloseableIterator<T> {
+  private static class FileIterator<T> implements SkippingCloseableIterator<T> {
     private static final Logger LOG = LoggerFactory.getLogger(FileIterator.class);
 
     private final ParquetFileReader reader;
+    private final List<BlockMetaData> rowGroups;
     private final boolean[] shouldSkip;
     private final ParquetValueReader<T> model;
     private final long totalValues;
@@ -108,10 +114,12 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
+    private long nextPosition = 0;
     private T last = null;
 
     FileIterator(ReadConf<T> conf) {
       this.reader = conf.reader();
+      this.rowGroups = conf.rowGroups();
       this.shouldSkip = conf.shouldSkip();
       this.model = conf.model();
       this.totalValues = conf.totalValues();
@@ -130,15 +138,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
           advance();
         }
 
-        if (reuseContainers) {
-          this.last = model.read(last);
-        } else {
-          this.last = model.read(null);
-        }
-
-        valuesRead += 1;
-
-        return last;
+        return read();
       } catch (ParquetDecodingException e) {
         if (reader != null) {
           // Knowing the exact parquet file is essential for tracing bad nodes
@@ -150,11 +150,78 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       }
     }
 
-    private void advance() {
+    @Override
+    public long position() {
+      if (!hasNext()) {
+        throw new NoSuchElementException("No more rows");
+      }
+
+      if (valuesRead >= nextRowGroupStart) {
+        return rowIndexOffset(rowGroups.get(nextReadableRowGroup()));
+      }
+
+      rowIndexOffset(rowGroups.get(nextRowGroup - 1));
+      return nextPosition;
+    }
+
+    @Override
+    public void advanceTo(long target) {
+      while (hasNext() && position() < target) {
+        if (valuesRead >= nextRowGroupStart) {
+          skipFilteredRowGroups();
+          BlockMetaData rowGroup = rowGroups.get(nextRowGroup);
+          if (rowGroup.getRowIndexOffset() + rowGroup.getRowCount() <= target) {
+            discardRowGroup();
+            continue;
+          }
+
+          advance();
+        }
+
+        read();
+      }
+    }
+
+    private T read() {
+      if (reuseContainers) {
+        this.last = model.read(last);
+      } else {
+        this.last = model.read(null);
+      }
+
+      valuesRead += 1;
+      nextPosition += 1;
+
+      return last;
+    }
+
+    private int nextReadableRowGroup() {
+      int rowGroup = nextRowGroup;
+      while (shouldSkip[rowGroup]) {
+        rowGroup += 1;
+      }
+
+      return rowGroup;
+    }
+
+    private void skipFilteredRowGroups() {
       while (shouldSkip[nextRowGroup]) {
         nextRowGroup += 1;
         reader.skipNextRowGroup();
       }
+    }
+
+    private void discardRowGroup() {
+      long rowCount = rowGroups.get(nextRowGroup).getRowCount();
+      reader.skipNextRowGroup();
+      nextRowGroup += 1;
+      nextRowGroupStart += rowCount;
+      // discarded rows count as consumed so hasNext() reaches totalValues
+      valuesRead += rowCount;
+    }
+
+    private void advance() {
+      skipFilteredRowGroups();
 
       PageReadStore pages;
       try {
@@ -163,10 +230,20 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         throw new RuntimeIOException(e);
       }
 
+      nextPosition = rowGroups.get(nextRowGroup).getRowIndexOffset();
       nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;
 
       model.setPageSource(pages);
+    }
+
+    private long rowIndexOffset(BlockMetaData rowGroup) {
+      long offset = rowGroup.getRowIndexOffset();
+      Preconditions.checkState(
+          offset >= 0,
+          "Cannot find row positions: missing row index offsets in %s",
+          reader.getFile());
+      return offset;
     }
 
     @Override

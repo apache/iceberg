@@ -169,6 +169,10 @@ class ReadConf<T> {
     return shouldSkip;
   }
 
+  List<BlockMetaData> rowGroups() {
+    return rowGroups;
+  }
+
   long totalValues() {
     return totalValues;
   }
