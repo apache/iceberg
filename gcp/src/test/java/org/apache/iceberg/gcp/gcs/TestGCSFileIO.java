@@ -28,7 +28,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
@@ -210,15 +209,13 @@ public class TestGCSFileIO {
   }
 
   @Test
-  public void deleteFilesRoutesToCorrectClientPerPrefix() {
-    String bucket1 = "bucket1";
-    String bucket2 = "bucket2";
+  void deleteFilesRoutesToCorrectClientPerPrefix() {
     Storage backing = LocalStorageHelper.getOptions().getService();
-    BlobId blob1a = BlobId.of(bucket1, "table/a.dat");
-    BlobId blob1b = BlobId.of(bucket1, "table/b.dat");
-    BlobId blob2a = BlobId.of(bucket2, "table/a.dat");
-    BlobId blob2b = BlobId.of(bucket2, "table/b.dat");
-    for (BlobId blobId : ImmutableList.of(blob1a, blob1b, blob2a, blob2b)) {
+    BlobId tableA1 = BlobId.of("bucket", "warehouse/a/1.dat");
+    BlobId tableA2 = BlobId.of("bucket", "warehouse/a/2.dat");
+    BlobId tableB1 = BlobId.of("bucket", "warehouse/b/1.dat");
+    BlobId unscoped = BlobId.of("bucket", "other/1.dat");
+    for (BlobId blobId : ImmutableList.of(tableA1, tableA2, tableB1, unscoped)) {
       backing.create(BlobInfo.newBuilder(blobId).build());
     }
 
@@ -226,47 +223,42 @@ public class TestGCSFileIO {
       fileIO.setCredentials(
           ImmutableList.of(
               StorageCredential.create(
-                  "gs://" + bucket1,
-                  ImmutableMap.of(GCS_OAUTH2_TOKEN, "token1", GCS_OAUTH2_TOKEN_EXPIRES_AT, "2000")),
+                  "gs://bucket/warehouse/a",
+                  ImmutableMap.of(GCS_OAUTH2_TOKEN, "tokenA", GCS_OAUTH2_TOKEN_EXPIRES_AT, "2000")),
               StorageCredential.create(
-                  "gs://" + bucket2,
+                  "gs://bucket/warehouse/b",
                   ImmutableMap.of(
-                      GCS_OAUTH2_TOKEN, "token2", GCS_OAUTH2_TOKEN_EXPIRES_AT, "3000"))));
+                      GCS_OAUTH2_TOKEN, "tokenB", GCS_OAUTH2_TOKEN_EXPIRES_AT, "3000"))));
       fileIO.initialize(
-          ImmutableMap.of(GCS_OAUTH2_TOKEN, "rootToken", GCS_OAUTH2_TOKEN_EXPIRES_AT, "1000"));
+          ImmutableMap.of(
+              GCS_OAUTH2_TOKEN,
+              "rootToken",
+              GCS_OAUTH2_TOKEN_EXPIRES_AT,
+              "1000",
+              GCS_DELETE_BATCH_SIZE,
+              "2"));
 
-      // Interleave so the first object in the batch is in bucket1 but later objects are in
-      // bucket2. With the bug, the bucket1 client would be reused for the whole batch.
-      Iterable<String> deletes =
+      fileIO.deleteFiles(
           ImmutableList.of(
-              "gs://" + bucket1 + "/table/a.dat",
-              "gs://" + bucket2 + "/table/a.dat",
-              "gs://" + bucket1 + "/table/b.dat",
-              "gs://" + bucket2 + "/table/b.dat");
-      fileIO.deleteFiles(deletes);
+              "gs://bucket/warehouse/a/1.dat",
+              "gs://bucket/warehouse/b/1.dat",
+              "gs://bucket/other/1.dat",
+              "gs://bucket/warehouse/a/2.dat"));
 
-      assertThat(backing.list(bucket1).iterateAll()).isEmpty();
-      assertThat(backing.list(bucket2).iterateAll()).isEmpty();
+      assertThat(backing.list("bucket").iterateAll()).isEmpty();
 
-      Storage client1 = fileIO.client("gs://" + bucket1 + "/anything");
-      Storage client2 = fileIO.client("gs://" + bucket2 + "/anything");
-      Storage rootClient = fileIO.client("gs://random-bucket/anything");
-      assertThat(client1).isNotSameAs(client2).isNotSameAs(rootClient);
-
-      ArgumentCaptor<Iterable<BlobId>> client1Batches = captorForBlobBatches();
-      verify(client1).delete(client1Batches.capture());
-      assertThat(ImmutableList.copyOf(client1Batches.getValue())).containsExactly(blob1a, blob1b);
-
-      ArgumentCaptor<Iterable<BlobId>> client2Batches = captorForBlobBatches();
-      verify(client2).delete(client2Batches.capture());
-      assertThat(ImmutableList.copyOf(client2Batches.getValue())).containsExactly(blob2a, blob2b);
-
-      verify(rootClient, never()).delete(any(Iterable.class));
+      Storage clientA = fileIO.client("gs://bucket/warehouse/a/anything");
+      Storage clientB = fileIO.client("gs://bucket/warehouse/b/anything");
+      Storage rootClient = fileIO.client("gs://bucket/other/anything");
+      assertThat(clientA).isNotSameAs(clientB).isNotSameAs(rootClient);
+      assertSingleBatch(clientA, tableA1, tableA2);
+      assertSingleBatch(clientB, tableB1);
+      assertSingleBatch(rootClient, unscoped);
     }
   }
 
   @Test
-  public void deleteFilesBatchesPerClient() {
+  void deleteFilesBatchesPerClient() {
     String bucket1 = "bucket1";
     String bucket2 = "bucket2";
     Storage backing = LocalStorageHelper.getOptions().getService();
@@ -318,7 +310,14 @@ public class TestGCSFileIO {
     }
   }
 
-  private void assertPerClientBatches(Storage client, String bucket, List<BlobId> expectedBlobs) {
+  private static void assertSingleBatch(Storage client, BlobId... expected) {
+    ArgumentCaptor<Iterable<BlobId>> batches = captorForBlobBatches();
+    verify(client).delete(batches.capture());
+    assertThat(ImmutableList.copyOf(batches.getValue())).containsExactly(expected);
+  }
+
+  private static void assertPerClientBatches(
+      Storage client, String bucket, List<BlobId> expectedBlobs) {
     ArgumentCaptor<Iterable<BlobId>> batches = captorForBlobBatches();
     verify(client, atLeastOnce()).delete(batches.capture());
     List<BlobId> seen = Lists.newArrayList();
