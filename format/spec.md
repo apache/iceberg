@@ -436,6 +436,8 @@ Two rows are the "same"---that is, the rows represent the same entity---if the i
 
 Identifier fields may be nested in structs but cannot be nested within maps or lists. Float, double, and optional fields cannot be used as identifier fields and a nested field cannot be used as an identifier field if it is nested in an optional struct, to avoid null values in identifiers.
 
+Identifier field IDs are not used in v4, where a [`primary-key` constraint](#constraints) expresses the same concept.
+
 #### Reserved Field IDs
 
 Iceberg tables must not use field ids greater than 2147483447 (`Integer.MAX_VALUE - 200`). This id range is reserved for metadata columns that can be used in user data schemas, like the `_file` column that holds the file path in which a row was stored.
@@ -659,17 +661,15 @@ A data or delete file is associated with a sort order by the sort order's id wit
 
 Constraints are added in v4 and are not supported in v3 or earlier.
 
-A **constraint** declares a property that a table's rows are expected to satisfy. A constraint's definition is stored in table metadata. Whether a constraint holds is recorded for each snapshot, see [Constraint Validation](#constraint-validation).
-
-Iceberg does not evaluate constraints. Enforcement and validation are performed by engines that write to a table. Iceberg stores constraint definitions and records the status that a writer reports for a commit without verifying it.
+A **constraint** declares a condition that a table's rows are expected to satisfy. Its definition is stored in table metadata. Each snapshot contains the writer-reported status of each constraint that existed when the snapshot was created; see [Constraint Validation](#constraint-validation).
 
 Three constraint types are defined:
 
 * `check` -- every row must satisfy a predicate
-* `unique` -- the non-null values of a set of fields must be distinct across all rows; more than one row may have a null value
+* `unique` -- the values of a set of fields must be distinct across the rows in which every field in the set is non-null; a row in which any field in the set is null is not compared, so more than one such row may exist
 * `primary-key` -- the values of a set of fields must be distinct across all rows and must not be null
 
-Constraints are stored separately from schemas because they span multiple fields and evolve independently. Every constraint references the fields that it applies to by field ID, so a constraint continues to apply to the same columns after a column is renamed or reordered.
+A constraint is stored separately from the table schema and must refer to fields by field ID. Constraints may evolve independently from the schema, being added, modified, or removed.
 
 #### Constraint Fields
 
@@ -680,24 +680,26 @@ A constraint consists of the following fields:
 | _required_ | **`constraint-id`**       | `int`     | ID of the constraint; unique within the table |
 | _required_ | **`type`**                | `string`  | The constraint type: `check`, `unique`, or `primary-key` |
 | _required_ | **`name`**                | `string`  | A name for the constraint that is unique within the table. Names are for human consumption and must not be used to identify a constraint in metadata |
-| _required_ | **`enforced`**            | `boolean` | Whether writers must verify that the rows they add satisfy the constraint |
+| _required_ | **`enforced`**            | `boolean` | Whether writers must only add rows that satisfy the constraint |
 | _required_ | **`timestamp-ms`**        | `long`    | Timestamp in milliseconds from the unix epoch when the constraint was created or last modified. The timestamp is informational and must not be used to determine whether a constraint applies to a snapshot or whether it holds |
 | _optional_ | **`expression`**          | `expression` | The predicate that every row must satisfy, see [Check Constraint Expressions](#check-constraint-expressions). Required for a `check` constraint and must not be set for other types |
 | _optional_ | **`field-ids`**           | `list<int>`  | The list of field IDs that the constraint applies to. Required for a `unique` or `primary-key` constraint and must not be set for a `check` constraint |
 
 The fields that define what a constraint requires are embedded directly in the constraint based on its `type`. Each type carries only the metadata that it requires: a `check` constraint has an `expression` and must not declare `field-ids`, and a `unique` or `primary-key` constraint has `field-ids` and must not declare an `expression`. This keeps a single source of truth for the fields that a constraint references.
 
-The `field-ids` of a `unique` or `primary-key` constraint must reference primitive fields that are either top-level fields or nested in required structs, and must not reference fields within a `list` or a `map`. These are the same restrictions that apply to [identifier fields](#identifier-field-ids).
+The `field-ids` of a `unique` or `primary-key` constraint must reference primitive fields and must not reference fields within a `list` or a `map`. Fields of type `float`, `double`, `geometry`, or `geography` must not be used because Iceberg does not define equality for them. Fields of type `unknown` must not be used because their values are always null.
 
-When a constraint is `enforced`, writers must verify that the rows they add satisfy the constraint and must fail the write if they do not. A writer that cannot verify an enforced constraint must reject writes to the table. When a constraint is not enforced, writers are not required to verify the rows they add.
+The fields of a `primary-key` constraint must be `required` and must not be nested in an optional struct, so that the schema rules out null keys even when the constraint is not enforced. These are the same restrictions that apply to [identifier fields](#identifier-field-ids). The fields of a `unique` constraint may be optional or nested in optional structs, because a row in which any field is null is not compared.
+
+When a constraint is `enforced`, writers must only add rows they can prove follow the constraint. A constraint that is not enforced can be written to by any writer, regardless of their ability to prove that the constraint is followed by new rows.
+
+When a commit is retried against a new parent snapshot, the rows that a writer adds must still satisfy the table's enforced constraints. A `check` constraint is evaluated for each row on its own, so a retry cannot change its result. A `unique` or `primary-key` constraint compares rows to each other, so a writer must verify the rows that it adds against the new parent; verifying them against the original parent is not sufficient. A writer must also verify the rows that it adds against any constraint that a concurrent commit added or changed to enforced, and must recompute `constraint-statuses` from the new parent.
 
 Whether to trust a constraint that is not enforced is left to engines and is not tracked in table metadata.
 
-A table may have at most one `primary-key` constraint. A key that spans several fields is expressed as a single `primary-key` constraint over multiple `field-ids`.
+A table may have at most one `primary-key` constraint. A `primary-key` constraint replaces [identifier field IDs](#identifier-field-ids), which express the same concept: a set of fields that identifies a row, without a uniqueness guarantee. Identifier field IDs are not used in v4.
 
-A `primary-key` constraint replaces [identifier field IDs](#identifier-field-ids), which express the same concept: a set of fields that identifies a row, without a uniqueness guarantee. When a table is upgraded to v4, its `identifier-field-ids` are rewritten as a `primary-key` constraint that is not enforced. Identifier field IDs are not used in v4.
-
-Only a constraint's `name` and `enforced` fields may be changed in place. Changing the `expression` of a `check` constraint or the `field-ids` of a `unique` or `primary-key` constraint changes what the constraint requires, so it must be done by removing the constraint and adding a new one with a new `constraint-id`, so that statuses recorded for the old definition are not read as applying to the new one.
+When a table is upgraded to v4, the `identifier-field-ids` of the table's current schema are rewritten as a single `primary-key` constraint that is not enforced. The constraint is assigned a `constraint-id` from `last-constraint-id` in the same way as any other constraint, its `name` is `pk`, and its `timestamp-ms` is the time of the upgrade. A table whose current schema has no identifier fields has no constraints until they are added. Writers must not set `identifier-field-ids` in a schema that is added to a v4 table, and readers must ignore `identifier-field-ids` in a v4 table.
 
 Constraint IDs are assigned from the table's `last-constraint-id`, which is treated as 0 when it is not present. Writers must assign a new constraint an ID that is higher than the table's current `last-constraint-id` and must update `last-constraint-id` to the highest assigned ID. Constraint IDs must not be reused after the constraint that used an ID is removed, because retained snapshots may still reference the removed ID. Readers must not assume that every `constraint-id` referenced by a snapshot is present in `constraints`.
 
@@ -707,7 +709,11 @@ The `expression` of a `check` constraint is serialized as described in the [Iceb
 
 A check expression is evaluated for each row over the values of that row. An expression may reference more than one field of the row, such as `start_date <= end_date`. Expressions that depend on more than one row, such as aggregates and window functions, and expressions that depend on another table, such as subqueries, must not be used.
 
-Iceberg predicates use two-valued logic: a predicate always produces true or false and never produces null, so a comparison with a null operand produces false. This differs from SQL `CHECK`, where a row satisfies a constraint unless the predicate produces false and a null value therefore satisfies the constraint.
+A check expression must produce the same result every time it is evaluated for the same row. A function that depends on anything other than its arguments, such as the current time or a random value, must not be called, because the status recorded for a snapshot describes the table's data and an expression whose result can change on its own would make a recorded status wrong without any write. A [user-defined function](udf-spec.md) records whether it is deterministic.
+
+Changing the definition of a function that a check expression calls changes what the constraint requires even though the constraint itself is unchanged. Statuses recorded before the change do not describe the new definition, so a writer that changes such a function should validate the constraint again.
+
+Iceberg predicates use two-valued logic and null-safe comparisons, as defined in the [expressions spec](expressions-spec.md#boolean-logic). This differs from SQL `CHECK`, where a row satisfies a constraint unless the predicate produces false.
 
 To express SQL `CHECK` semantics for an optional field, the stored expression must make the null case explicit. For example, SQL `CHECK (price >= 0)` for an optional `price` field is stored as the expression for `price >= 0 OR price IS NULL`. This is unnecessary for required fields, which can never be null.
 
@@ -716,10 +722,11 @@ To express SQL `CHECK` semantics for an optional field, the stored expression mu
 A constraint references fields by ID, so schema changes interact with constraints as follows. The referenced fields of a `check` constraint are the field IDs in its `expression`; the referenced fields of a `unique` or `primary-key` constraint are its `field-ids`.
 
 * Renaming or reordering a referenced field is allowed; the constraint continues to apply to the same fields.
-* If a dropped field is referenced only by single-column constraints, the drop is allowed and those constraints are removed automatically. If a dropped field is referenced by a multi-column constraint, the writer must reject the drop unless that constraint is removed in the same change.
-* The type of a referenced field must not be changed, even for type promotions that are otherwise allowed. This restriction may be relaxed in a later version.
+* Every field referenced by a constraint must exist in the table's current schema. A schema change that removes a referenced field must be rejected unless the constraint is removed in the same change.
+* The type of a field referenced by a `check` constraint must not be changed, even for type promotions that are otherwise allowed, because the constraint's `expression` contains literals that are bound to the field's type. The type of a field referenced by a `unique` or `primary-key` constraint may be changed by a type promotion, which preserves values and therefore preserves distinctness.
+* A field referenced by a `primary-key` constraint must not be made optional, and a struct that contains such a field must not be made optional, because a `primary-key` requires its fields to be non-null.
 
-Changing a constraint's own definition is governed by the mutability rule above: only `name` and `enforced` may be changed in place; changing an `expression` or `field-ids` requires a new constraint.
+Only a constraint's `name` and `enforced` fields may be changed in place, and a writer that changes either must update `timestamp-ms`. Changing the `expression` of a `check` constraint or the `field-ids` of a `unique` or `primary-key` constraint changes what the constraint requires, so it must be done by removing the constraint and adding a new one with a new `constraint-id`, so that statuses recorded for the old definition are not read as applying to the new one.
 
 #### Constraint Validation
 
@@ -730,8 +737,8 @@ The status of a constraint for a snapshot is one of:
 | Status        | Description |
 |---------------|-------------|
 | `validated`   | The constraint was checked and holds for all rows in the snapshot |
-| `valid`       | The constraint holds for all rows in the snapshot because it was enforced for the commit that produced the snapshot and the parent snapshot's status is `validated` or `valid` |
-| `invalid`     | The constraint was checked and at least one row in the snapshot violates it |
+| `valid`       | This write has maintained the constraint for all added rows and the previous snapshot was either `valid` or `validated`. By induction, the constraint holds for all rows in the table. |
+| `invalid`     | Either the constraint was checked and at least one row in the snapshot violates it, or the snapshot was built on a parent snapshot whose status is `invalid` |
 | `unvalidated` | Whether the constraint holds for all rows in the snapshot is not known |
 
 A snapshot's `constraint-statuses` records, for each status, the IDs of the constraints that have that status for the snapshot:
@@ -743,15 +750,12 @@ A snapshot's `constraint-statuses` records, for each status, the IDs of the cons
 | _optional_ | **`invalid`**     | `list<int>` | IDs of constraints that are `invalid` for the snapshot |
 | _optional_ | **`unvalidated`** | `list<int>` | IDs of constraints that are `unvalidated` for the snapshot |
 
-Each list contains the `constraint-id` of every constraint that has that status for the snapshot. Every constraint that exists when the snapshot is created must be listed in exactly one of the four lists, and a `constraint-id` must not appear in more than one list. A list with no constraints may be omitted. A constraint whose ID is not present in any list did not exist when the snapshot was created, so the snapshot makes no claim about it.
-
-This is an explicit representation: each constraint's status is recorded independently, so the size of `constraint-statuses` grows with the number of constraints in a table. This keeps the encoding simple; more compact representations may be added in a later version if it becomes a problem.
+Each list contains the `constraint-id` of every constraint that has that status for the snapshot. Every constraint that exists when the snapshot is created must be listed in exactly one of the four lists, and a `constraint-id` must not appear in more than one list. A list with no constraints may be omitted. A constraint whose ID is not present in any list did not exist when the snapshot was created, so it is `unvalidated` for the snapshot.
 
 Readers must determine the status of a constraint for a snapshot as follows:
 
-1. If the snapshot has no `constraint-statuses`, the snapshot makes no claim about any constraint
-2. If the constraint's `constraint-id` is listed in `validated`, `valid`, `invalid`, or `unvalidated`, that is its status
-3. Otherwise, the constraint did not exist when the snapshot was created and the snapshot makes no claim about it
+1. If the constraint's `constraint-id` is listed in `validated`, `valid`, `invalid`, or `unvalidated`, that is its status
+2. Otherwise, the constraint is `unvalidated` for the snapshot
 
 Writers must record `constraint-statuses` in every snapshot of a table that has constraints, and must place every constraint that exists when the snapshot is created into exactly one status list, following these rules:
 
@@ -762,17 +766,13 @@ Writers must record `constraint-statuses` in every snapshot of a table that has 
 
 Enforcing a constraint for a commit is not sufficient to list it as `valid`. When the parent snapshot's status is not `validated` or `valid`, rows added by earlier commits were never checked, so the status is `unvalidated` even though the writer verified the rows that it added.
 
+A commit that does not add rows cannot introduce a violation. A `check` expression is evaluated for each row, and `unique` and `primary-key` require values to be distinct, so removing rows or rewriting files without changing rows preserves all three. Such a commit, for example a delete or a compaction, may record the parent snapshot's `validated` or `valid` status for a constraint without checking rows again.
+
 When a constraint becomes enforced, either by being added with `enforced` set to true or by `enforced` changing from false to true, writers should validate the table and record `validated`. A writer that does not validate records `unvalidated`, and the constraint remains `unvalidated` until a later validation records `validated`.
 
 A writer does not have to check every row in a single scan. After checking every row in an ancestor snapshot, a writer may check only the rows added between that ancestor and the current snapshot and record `validated` for the current snapshot. This allows a validation to finish on a table that is written concurrently, without blocking writes or restarting the scan.
 
-A snapshot's `constraint-statuses` must not be modified after the snapshot is created. Recording a different status for a constraint requires a new snapshot. A snapshot that changes only constraint statuses may reuse its parent's manifest list.
-
-A constraint that a snapshot reports as `valid` may later be found not to hold for that snapshot. A `valid` status depends on every commit in the snapshot's history having correctly enforced the constraint, and Iceberg records the status a writer reports without re-checking the data. So if any of those writers was buggy or non-compliant, the `valid` status can be wrong even though nothing detected it at commit time. A `validated` status, which reflects an actual scan of all rows, does not depend on that chain. Writers should then commit a snapshot that records `invalid` and should expire the snapshots that state that the constraint holds, because queries against those snapshots would otherwise continue to rely on a constraint that does not hold.
-
-Iceberg does not detect violations on its own. A constraint is only found to be `invalid` when an engine scans the data and checks the constraint, for example during an explicit validation or when validating a newly enforced constraint, and then records `invalid`. Until such a scan runs, a `valid` status that does not actually hold is not detected.
-
-Only `validated` and `valid` state that a constraint holds. They are distinguished so that readers can tell whether that conclusion was reached by checking data or by relying on writers to enforce the constraint, and so that the most recent `validated` snapshot can be found if a constraint is later found to be `invalid`.
+A snapshot's `constraint-statuses` must not be modified after the snapshot is created. Recording a different status for a constraint requires a new snapshot.
 
 Writers may commit to a table where a constraint is `invalid`. An enforced constraint requires that a writer not add rows that violate the constraint; it does not require a writer to repair existing violations.
 
@@ -1448,7 +1448,7 @@ Notes:
 
 When two commits happen at the same time and are based on the same version, only one commit will succeed. In most cases, the failed commit can be applied to the new current version of table metadata and retried. Updates verify the conditions under which they can be applied to a new version and retry if those conditions are met.
 
-* Append operations have no requirements and can always be applied.
+* Append operations have no requirements and can always be applied, unless the table has an enforced `unique` or `primary-key` constraint, which requires verifying the added rows against the new version. See [Constraints](#constraints).
 * Replace operations must verify that the files that will be deleted are still in the table. Examples of replace operations include format changes (replace an Avro file with a Parquet file) and compactions (several files are replaced with a single file that contains the same rows).
 * Delete operations must verify that specific files to delete are still in the table. Delete operations based on expressions can always be applied (e.g., where timestamp < X).
 * Table schema updates and partition spec changes must validate that the schema has not changed between the base version and the current version.
@@ -1799,6 +1799,8 @@ Schemas are serialized as a JSON object with the same fields as a struct in the 
 | ---------- | ---------- |--- |--- |--- |
 | _optional_ | _required_ |**`schema-id`**|`JSON int`|`0`|
 | _optional_ | _optional_ |**`identifier-field-ids`**|`JSON list of ints`|`[1, 2]`|
+
+`identifier-field-ids` is not used in v4, where a [`primary-key` constraint](#constraints) expresses the same concept.
 
 Types are serialized according to this table:
 
