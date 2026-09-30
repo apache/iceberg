@@ -142,7 +142,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.11.0"
+      oldVersion = "1.12.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -573,7 +573,6 @@ project(':iceberg-aws') {
     testImplementation libs.sqlite.jdbc
     testImplementation libs.testcontainers
     testImplementation libs.testcontainers.junit.jupiter
-    testImplementation libs.testcontainers.minio
     testImplementation libs.httpcomponents.httpclient5
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java

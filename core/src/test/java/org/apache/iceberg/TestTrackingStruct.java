@@ -135,6 +135,17 @@ class TestTrackingStruct {
 
   @ParameterizedTest
   @EnumSource(EntryStatus.class)
+  void inheritSnapshotIdOnly(EntryStatus status) {
+    TrackingStruct tracking = new TrackingStruct(status, null, null, null, null, null, null, null);
+
+    tracking.inherit(100L);
+
+    assertThat(tracking.snapshotId()).isEqualTo(100L);
+    assertThat(tracking.dataSequenceNumber()).isNull();
+  }
+
+  @ParameterizedTest
+  @EnumSource(EntryStatus.class)
   void inheritSnapshotId(EntryStatus status) {
     TrackingStruct tracking = new TrackingStruct(status, null, null, null, null, null, null, null);
 
@@ -191,6 +202,60 @@ class TestTrackingStruct {
 
     assertThat(tracking.dataSequenceNumber()).isNull();
     assertThat(tracking.fileSequenceNumber()).isNull();
+  }
+
+  private static final List<EntryStatus> ASSIGNING_STATUSES =
+      List.of(EntryStatus.ADDED, EntryStatus.EXISTING, EntryStatus.MODIFIED);
+  private static final List<EntryStatus> NON_ASSIGNING_STATUSES =
+      List.of(EntryStatus.DELETED, EntryStatus.REPLACED);
+
+  @ParameterizedTest
+  @FieldSource("ASSIGNING_STATUSES")
+  void assignmentFirstRowIdAssigned(EntryStatus status) {
+    TrackingStruct tracking = new TrackingStruct(status, 42L, null, null, null, null, null, null);
+
+    assertThat(tracking.assignFirstRowId(10_000L)).as("Should return true when assigned").isTrue();
+
+    assertThat(tracking.firstRowId()).isEqualTo(10_000L);
+  }
+
+  @ParameterizedTest
+  @FieldSource("NON_ASSIGNING_STATUSES")
+  void assignmentFirstRowIdNotAssigned(EntryStatus status) {
+    TrackingStruct tracking = new TrackingStruct(status, 42L, null, null, null, null, null, null);
+
+    assertThat(tracking.assignFirstRowId(10_000L))
+        .as("Should return false when not assigned")
+        .isFalse();
+
+    assertThat(tracking.firstRowId()).isNull();
+  }
+
+  @ParameterizedTest
+  @EnumSource(EntryStatus.class)
+  void assignmentFirstRowIdAlreadyAssigned(EntryStatus status) {
+    TrackingStruct tracking = new TrackingStruct(status, 42L, null, null, null, 5_000L, null, null);
+
+    assertThat(tracking.assignFirstRowId(10_000L))
+        .as("Should return false when not assigned")
+        .isFalse();
+
+    assertThat(tracking.firstRowId())
+        .as("Should use existing value when already assigned")
+        .isEqualTo(5_000L);
+  }
+
+  @ParameterizedTest
+  @EnumSource(EntryStatus.class)
+  void assignmentNullFirstRowId(EntryStatus status) {
+    TrackingStruct tracking =
+        new TrackingStruct(status, 42L, null, null, null, 10_000L, null, null);
+
+    assertThat(tracking.assignFirstRowId(null))
+        .as("Should return false when not assigned")
+        .isFalse();
+
+    assertThat(tracking.firstRowId()).as("Should override a value with null").isNull();
   }
 
   @ParameterizedTest

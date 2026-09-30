@@ -209,6 +209,7 @@ CloseableIterable<FileScanTask> planFiles();
 - **Spark-versioned module:** `./gradlew :iceberg-spark:iceberg-spark-4.1_2.13:test --tests "org.apache.iceberg.spark.source.TestSparkReaderDeletes"`
 - **Format code:** `./gradlew spotlessApply`
 - **Check formatting:** `./gradlew spotlessCheck`
+- **Checkstyle (core module):** `./gradlew :iceberg-core:checkstyleMain :iceberg-core:checkstyleTest` (replace the module path for other modules).
 - **API compatibility:** `./gradlew revApiCheck`
 
 ## PR & Commit Conventions
@@ -218,7 +219,7 @@ CloseableIterable<FileScanTask> planFiles();
 - PR titles follow `Module: Description` format (e.g., `Core: Fix ...`, `Spark: Add ...`, `Docs: Update ...`).
 - One concern per PR. Unrelated whitespace, import, or formatting changes go in separate PRs.
 - Keep first version of a PR minimal — defer recovery, optimization, and edge cases to follow-ups.
-- Before opening a PR, run `./gradlew spotlessApply` and build and test the modules you changed (see Commands). Never submit code you have not compiled and run.
+- Before opening a PR, run `./gradlew spotlessApply`, run `checkstyleMain` and `checkstyleTest` for the modules you changed, and build and test those modules (see Commands). Never submit code you have not compiled and run.
 - PR description is one paragraph, under 120 words: the problem, the approach, and anything a reviewer would not guess from the diff. Plus the issue link, the test plan, and the AI Disclosure block. Nothing else.
 - Never restate the diff: no file-by-file walkthrough, no per-method summaries, no "Changes made" checklist, no "Summary", "Background", "Motivation", or "Testing" headings, no emoji.
 - Commit messages describe the *what* and *why*, not implementation details.

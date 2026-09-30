@@ -56,6 +56,7 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.MetricsTestUtil;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -926,10 +927,15 @@ public class TestParquet {
 
   @Test
   public void missingNullCountWithCountsMode() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
     Metrics metrics =
         missingNullCountMetrics(
-            MetricsConfig.fromProperties(
-                Collections.singletonMap("write.metadata.metrics.default", "counts")),
+            MetricsTestUtil.from(
+                Collections.singletonMap("write.metadata.metrics.default", "counts"), schema),
             block(statsWithoutNullCount(1, 10), 10),
             block(statsWithNullCount(20, 30, 1), 10));
 
