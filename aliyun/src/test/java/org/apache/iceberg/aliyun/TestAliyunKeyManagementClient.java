@@ -218,7 +218,7 @@ public class TestAliyunKeyManagementClient {
     Map<String, String> baseProps =
         ImmutableMap.of(
             AliyunProperties.CLIENT_REGION, "cn-hangzhou",
-            AliyunProperties.KMS_DATA_KEY_SPEC, "AES_256",
+            AliyunProperties.KMS_DATA_KEY_SPEC, "AES_128",
             AliyunProperties.KMS_CLIENT_MAX_ATTEMPTS, "5");
 
     KeyManagementClient client = kmsClient(baseProps);
@@ -226,10 +226,15 @@ public class TestAliyunKeyManagementClient {
     KeyManagementClient roundTripped = roundTripSerializer.apply(client);
     assertThat(roundTripped.supportsKeyGeneration()).isFalse();
 
-    // generateKey survives serialization
+    // generateKey survives serialization, preserving the non-default data key spec
     KeyManagementClient.KeyGenerationResult generated = roundTripped.generateKey(WRAPPING_KEY_ID);
     assertThat(generated.key()).isEqualTo(ByteBuffer.wrap(RAW_KEY));
     assertThat(generated.wrappedKey()).isEqualTo(WRAPPED_KEY);
+
+    ArgumentCaptor<GenerateDataKeyRequest> captor =
+        ArgumentCaptor.forClass(GenerateDataKeyRequest.class);
+    verify(mockKms()).generateDataKeyWithOptions(captor.capture(), any(RuntimeOptions.class));
+    assertThat(captor.getValue().getKeySpec()).isEqualTo("AES_128");
 
     // wrap + unwrap survive serialization
     ByteBuffer wrapped = roundTripped.wrapKey(ByteBuffer.wrap(RAW_KEY), WRAPPING_KEY_ID);
