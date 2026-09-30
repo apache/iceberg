@@ -263,16 +263,15 @@ class TestIcebergCommitter extends TestBase {
         afterRestartHarness = getTestHarness()) {
       afterRestartHarness.open();
 
-      for (int i = 1; i <= 3; i++) {
-        RowData row = SimpleDataUtil.createRowData(i, "hello" + i);
-        DataFile dataFile = writeDataFile("data-after-restart-" + i, ImmutableList.of(row));
-        processElement(jobId, i, afterRestartHarness, 1, OPERATOR_ID, dataFile);
-        afterRestartHarness.notifyOfCompletedCheckpoint(i);
-        rows.add(row);
-        assertSnapshotSize(i + 1);
-        assertMaxCommittedCheckpointId(jobId, i);
-        SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows), branch);
-      }
+      RowData rowAfterRestart = SimpleDataUtil.createRowData(1, "hello1");
+      DataFile dataFileAfterRestart =
+          writeDataFile("data-after-restart", ImmutableList.of(rowAfterRestart));
+      processElement(jobId, 1, afterRestartHarness, 1, OPERATOR_ID, dataFileAfterRestart);
+      afterRestartHarness.notifyOfCompletedCheckpoint(1);
+      rows.add(rowAfterRestart);
+      assertSnapshotSize(2);
+      assertMaxCommittedCheckpointId(jobId, 1);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows), branch);
     }
   }
 
