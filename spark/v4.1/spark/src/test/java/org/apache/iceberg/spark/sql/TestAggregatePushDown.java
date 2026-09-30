@@ -99,10 +99,15 @@ public class TestAggregatePushDown extends CatalogTestBase {
     sql("CREATE TABLE %s (id INT) USING iceberg TBLPROPERTIES ('format-version'='3')", tableName);
     sql("INSERT INTO %s VALUES (1), (2), (3)", tableName);
 
-    List<Object[]> actual = sql("SELECT max(_row_id) FROM %s", tableName);
+    String select = "SELECT max(_row_id) FROM %s";
+    String explainString = sql("EXPLAIN " + select, tableName).get(0)[0].toString();
+    assertThat(explainString)
+        .as("explain should not contain the pushed down aggregate")
+        .doesNotContain("max(_row_id)");
 
+    List<Object[]> actual = sql(select, tableName);
     assertThat(actual).hasSize(1);
-    assertThat(actual.get(0)[0]).isInstanceOf(Long.class);
+    assertThat(actual.get(0)[0]).isEqualTo(2L);
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
