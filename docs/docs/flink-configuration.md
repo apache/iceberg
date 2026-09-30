@@ -69,6 +69,34 @@ The following properties can be set if using the REST catalog:
 
 ## Runtime configuration
 
+### SQL lineage
+
+The Flink 2.1 connector supports Iceberg lineage through FLIP-314 for SQL and Table API jobs.
+`table.exec.iceberg.emit-lineage` defaults to `false`, preserving the existing DataStream-based
+runtime providers and their operator construction. To opt in to source and sink lineage:
+
+```sql
+SET 'table.exec.iceberg.emit-lineage' = 'true';
+SET 'table.exec.iceberg.use-flip27-source' = 'true';
+SET 'table.exec.iceberg.use-v2-sink' = 'true';
+SET 'table.exec.uid.generation' = 'ALWAYS';
+```
+
+With lineage enabled, if `table.exec.uid.generation` is not `ALWAYS` (including the default
+`PLAN_ONLY`), the V2 sink logs a warning and uses the DataStream sink provider without Iceberg sink
+lineage. The unsupported UID setting does not fail the job. Source lineage is unaffected.
+
+Enabling lineage uses declarative source and sink providers and can change operator UIDs and
+names. Validate savepoint compatibility before enabling it for an existing stateful job.
+This option does not affect sources and sinks constructed directly through the DataStream API.
+
+Lineage datasets use the connector namespace `iceberg`, not a catalog endpoint. The `iceberg`
+config facet carries the local catalog alias (`catalog`), the effective REST routing prefix when
+available (`catalog.prefix`), and the native table `namespace` and `table`. Catalog URI and warehouse
+values are omitted because they may contain credentials. Consumers should use these facet coordinates
+rather than the dataset name, which the SQL planner can replace with an alias. The connector namespace
+alone does not distinguish storage systems.
+
 ### Read options
 
 Flink read options are passed when configuring the Flink IcebergSource:
