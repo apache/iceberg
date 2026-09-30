@@ -203,11 +203,18 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     List<ManifestFile> newManifests = Lists.newArrayList();
     long repairedCount = 0L;
 
-    for (ManifestContent content : ManifestContent.values()) {
-      RepairedManifests repaired = repairTable(content, currentSnapshot);
-      repairedManifests.addAll(repaired.repairedManifests());
-      newManifests.addAll(repaired.newManifests());
-      repairedCount += repaired.repairedCount();
+    try {
+      for (ManifestContent content : ManifestContent.values()) {
+        RepairedManifests repaired = repairTable(content, currentSnapshot);
+        repairedManifests.addAll(repaired.repairedManifests());
+        newManifests.addAll(repaired.newManifests());
+        repairedCount += repaired.repairedCount();
+      }
+    } catch (Exception e) {
+      // If a later content group fails before the commit, delete the manifests already written by
+      // earlier groups so a partial repair does not leave orphan files in the metadata directory.
+      deleteFiles(Iterables.transform(newManifests, ManifestFile::path));
+      throw e;
     }
 
     if (repairedManifests.isEmpty()) {
@@ -248,11 +255,18 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     List<ManifestFile> newManifests = Lists.newArrayList();
     long repairedCount = 0L;
 
-    for (Map.Entry<Integer, List<ManifestFile>> group : manifestsBySpecId.entrySet()) {
-      RepairedManifests repaired = repairManifests(content, group.getKey(), group.getValue());
-      repairedManifests.addAll(repaired.repairedManifests());
-      newManifests.addAll(repaired.newManifests());
-      repairedCount += repaired.repairedCount();
+    try {
+      for (Map.Entry<Integer, List<ManifestFile>> group : manifestsBySpecId.entrySet()) {
+        RepairedManifests repaired = repairManifests(content, group.getKey(), group.getValue());
+        repairedManifests.addAll(repaired.repairedManifests());
+        newManifests.addAll(repaired.newManifests());
+        repairedCount += repaired.repairedCount();
+      }
+    } catch (Exception e) {
+      // If a later spec group fails before the commit, delete the manifests already written by
+      // earlier groups so a partial repair does not leave orphan files behind.
+      deleteFiles(Iterables.transform(newManifests, ManifestFile::path));
+      throw e;
     }
 
     return RepairedManifests.of(repairedManifests, newManifests, repairedCount);
