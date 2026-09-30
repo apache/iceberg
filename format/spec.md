@@ -771,8 +771,6 @@ A commit that does not add rows cannot introduce a violation. A `check` expressi
 
 When a constraint becomes enforced, either by being added with `enforced` set to true or by `enforced` changing from false to true, writers should validate the table and record `validated`. A writer that does not validate records `unvalidated`, and the constraint remains `unvalidated` until a later validation records `validated`.
 
-A writer does not have to check every row in a single scan. After checking every row in an ancestor snapshot, a writer may check only the rows added between that ancestor and the current snapshot and record `validated` for the current snapshot. This allows a validation to finish on a table that is written concurrently, without blocking writes or restarting the scan.
-
 A snapshot's `constraint-statuses` must not be modified after the snapshot is created. Recording a different status for a constraint requires a new snapshot.
 
 Writers may commit to a table where a constraint is `invalid`. An enforced constraint requires that a writer not add rows that violate the constraint; it does not require a writer to repair existing violations.
