@@ -254,14 +254,14 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
           "Default value expressions are not supported in Iceberg");
     }
 
-    // the value is equivalent to the initial value in Iceberg
+    // ColumnDefaultValue.getValue is equivalent to initial-default in Iceberg
     Literal<?> initialDefault = columnDefaultValue.getValue();
     if (initialDefault != null && initialDefault.value() != null) {
       icebergField.withInitialDefault(
           Expressions.lit(SparkV2Filters.convertLiteral(initialDefault)));
     }
 
-    // the expression is evaluated for future writes
+    // ColumnDefaultValue.getExpression() is equivalent to write-default in Iceberg
     Literal<?> writeDefault = (Literal<?>) columnDefaultValue.getExpression();
     if (writeDefault != null && writeDefault.value() != null) {
       icebergField.withWriteDefault(Expressions.lit(SparkV2Filters.convertLiteral(writeDefault)));
