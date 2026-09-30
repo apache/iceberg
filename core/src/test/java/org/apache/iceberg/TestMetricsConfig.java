@@ -288,4 +288,62 @@ public class TestMetricsConfig {
         .isEqualTo(MetricsModes.Truncate.withLength(16));
     assertThat(wider.columnMode(4)).isEqualTo(MetricsModes.None.get());
   }
+
+  @Test
+  public void testMetricsConfigKryoSerialization() throws Exception {
+    Map<String, String> metricsConfig =
+        ImmutableMap.of(
+            TableProperties.DEFAULT_WRITE_METRICS_MODE,
+            "counts",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1",
+            "full",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2",
+            "truncate(16)");
+
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "col1", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "col2", Types.StringType.get()),
+            Types.NestedField.optional(3, "col3", Types.StringType.get()));
+
+    MetricsConfig config = MetricsTestUtil.from(metricsConfig, schema);
+    MetricsConfig deserialized = TestHelpers.KryoHelpers.roundTripSerialize(config);
+
+    assertThat(deserialized.columnMode(1)).asString().isEqualTo(MetricsModes.Full.get().toString());
+    assertThat(deserialized.columnMode(2))
+        .asString()
+        .isEqualTo(MetricsModes.Truncate.withLength(16).toString());
+    assertThat(deserialized.columnMode(3))
+        .asString()
+        .isEqualTo(MetricsModes.Counts.get().toString());
+  }
+
+  @Test
+  public void testMetricsConfigJavaSerialization() throws Exception {
+    Map<String, String> metricsConfig =
+        ImmutableMap.of(
+            TableProperties.DEFAULT_WRITE_METRICS_MODE,
+            "counts",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1",
+            "full",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2",
+            "truncate(16)");
+
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "col1", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "col2", Types.StringType.get()),
+            Types.NestedField.optional(3, "col3", Types.StringType.get()));
+
+    MetricsConfig config = MetricsTestUtil.from(metricsConfig, schema);
+    MetricsConfig deserialized = TestHelpers.roundTripSerialize(config);
+
+    assertThat(deserialized.columnMode(1)).asString().isEqualTo(MetricsModes.Full.get().toString());
+    assertThat(deserialized.columnMode(2))
+        .asString()
+        .isEqualTo(MetricsModes.Truncate.withLength(16).toString());
+    assertThat(deserialized.columnMode(3))
+        .asString()
+        .isEqualTo(MetricsModes.Counts.get().toString());
+  }
 }

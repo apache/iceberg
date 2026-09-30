@@ -77,9 +77,9 @@ public final class MetricsConfig implements Serializable {
       Map<String, MetricsMode> columnModes,
       MetricsMode defaultMode,
       Map<Integer, String> idToName) {
-    this.columnModes = SerializableMap.copyOf(columnModes).immutableMap();
+    this.columnModes = SerializableMap.copyOf(columnModes);
     this.defaultMode = defaultMode;
-    this.idToName = idToName != null ? SerializableMap.copyOf(idToName).immutableMap() : null;
+    this.idToName = idToName != null ? SerializableMap.copyOf(idToName) : null;
   }
 
   public static MetricsConfig getDefault() {
@@ -367,15 +367,15 @@ public final class MetricsConfig implements Serializable {
   private static Map<Integer, String> idToName(
       Schema schema, Map<String, MetricsMode> columnModes) {
     if (schema != null) {
-      ImmutableMap.Builder<Integer, String> builder = ImmutableMap.builder();
-      for (String name : columnModes.keySet()) {
-        Types.NestedField field = schema.findField(name);
-        if (field != null) {
-          builder.put(field.fieldId(), name);
+      Map<Integer, String> idToName = Maps.newLinkedHashMap();
+      for (Integer fieldId : SchemaOrder.allFieldIds(schema)) {
+        String name = schema.findColumnName(fieldId);
+        if (columnModes.containsKey(name)) {
+          idToName.put(fieldId, name);
         }
       }
 
-      return builder.buildKeepingLast();
+      return idToName;
     }
 
     return null;
