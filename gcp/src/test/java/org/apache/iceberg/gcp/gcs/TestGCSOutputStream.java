@@ -23,6 +23,7 @@ import static org.apache.iceberg.gcp.GCPProperties.GCS_USER_PROJECT;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_WRITE_THRESHOLD_BYTES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -229,6 +230,25 @@ public class TestGCSOutputStream {
     }
 
     verify(mockStorage).writer(any(BlobInfo.class), any(BlobWriteOption[].class));
+    verify(mockStorage, never())
+        .create(any(BlobInfo.class), any(byte[].class), any(BlobTargetOption[].class));
+  }
+
+  @Test
+  void writerFailureDoesNotFallThroughToCreate() throws IOException {
+    Storage mockStorage = mock(Storage.class);
+    when(mockStorage.writer(any(BlobInfo.class), any(BlobWriteOption[].class)))
+        .thenThrow(new RuntimeException("writer failed"));
+
+    GCPProperties props = new GCPProperties(ImmutableMap.of(GCS_WRITE_THRESHOLD_BYTES, "1024"));
+    GCSOutputStream stream =
+        new GCSOutputStream(mockStorage, randomBlobId(), props, MetricsContext.nullMetrics());
+
+    assertThatThrownBy(() -> stream.write(randomData(1024)))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("writer failed");
+
+    stream.close();
     verify(mockStorage, never())
         .create(any(BlobInfo.class), any(byte[].class), any(BlobTargetOption[].class));
   }

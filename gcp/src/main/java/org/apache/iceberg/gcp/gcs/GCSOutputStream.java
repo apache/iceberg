@@ -74,7 +74,7 @@ class GCSOutputStream extends PositionOutputStream {
     this.storage = storage;
     this.blobId = blobId;
     this.gcpProperties = gcpProperties;
-    this.writeThreshold = (int) gcpProperties.writeThresholdBytes();
+    this.writeThreshold = gcpProperties.writeThresholdBytes();
 
     createStack = Thread.currentThread().getStackTrace();
 
@@ -142,8 +142,8 @@ class GCSOutputStream extends PositionOutputStream {
   }
 
   /**
-   * Open the existing WriteChannel streaming path. Once {@link Storage#writer} succeeds, close()
-   * must not fall through to {@link Storage#create}.
+   * Open the existing WriteChannel streaming path. Commit to this path before calling {@link
+   * Storage#writer} so a failed open cannot fall through to {@link Storage#create} on close.
    */
   private void switchToWriteChannel() throws IOException {
     OutputStream channelStream = openWriteChannel();
@@ -164,9 +164,10 @@ class GCSOutputStream extends PositionOutputStream {
   }
 
   private OutputStream openWriteChannel() {
+    // Commit before Storage.writer, which may throw StorageException.
+    this.useWriteChannel = true;
     OutputStream channelStream = newWriteChannelStream();
     this.stream = channelStream;
-    this.useWriteChannel = true;
     return channelStream;
   }
 

@@ -48,16 +48,12 @@ public class GCPProperties implements Serializable {
   public static final String GCS_CHANNEL_WRITE_CHUNK_SIZE = "gcs.channel.write.chunk-size-bytes";
 
   /**
-   * Max size for a single-shot GCS upload. Larger objects stream through a WriteChannel.
-   *
-   * <p>Default: 8 MiB so typical Iceberg metadata, manifests, and delete files use one insert. Data
-   * files are larger and stream after this prefix. GCS recommends simple upload under about 5 MiB;
-   * 8 MiB is a coverage tradeoff and should not be raised without evidence. Set to 0 to always use
-   * WriteChannel.
+   * Max size in bytes for a single-shot GCS upload. Larger objects stream through a WriteChannel.
+   * Default: 8 MiB. Set to 0 to always use WriteChannel.
    */
   public static final String GCS_WRITE_THRESHOLD_BYTES = "gcs.write.threshold-bytes";
 
-  public static final long GCS_WRITE_THRESHOLD_BYTES_DEFAULT = 8L * 1024 * 1024;
+  public static final int GCS_WRITE_THRESHOLD_BYTES_DEFAULT = 8 * 1024 * 1024;
 
   public static final String GCS_OAUTH2_TOKEN = "gcs.oauth2.token";
   public static final String GCS_OAUTH2_TOKEN_EXPIRES_AT = "gcs.oauth2.token-expires-at";
@@ -103,7 +99,7 @@ public class GCPProperties implements Serializable {
 
   private Integer gcsChannelReadChunkSize;
   private Integer gcsChannelWriteChunkSize;
-  private long gcsWriteThresholdBytes = GCS_WRITE_THRESHOLD_BYTES_DEFAULT;
+  private int gcsWriteThresholdBytes = GCS_WRITE_THRESHOLD_BYTES_DEFAULT;
 
   private boolean gcsNoAuth;
   private String gcsOAuth2Token;
@@ -175,18 +171,12 @@ public class GCPProperties implements Serializable {
     }
 
     gcsWriteThresholdBytes =
-        PropertyUtil.propertyAsLong(
+        PropertyUtil.propertyAsInt(
             properties, GCS_WRITE_THRESHOLD_BYTES, GCS_WRITE_THRESHOLD_BYTES_DEFAULT);
     Preconditions.checkArgument(
         gcsWriteThresholdBytes >= 0,
         "Property %s must be >= 0: %s",
         GCS_WRITE_THRESHOLD_BYTES,
-        gcsWriteThresholdBytes);
-    Preconditions.checkArgument(
-        gcsWriteThresholdBytes <= Integer.MAX_VALUE,
-        "Property %s must be <= %s: %s",
-        GCS_WRITE_THRESHOLD_BYTES,
-        Integer.MAX_VALUE,
         gcsWriteThresholdBytes);
 
     gcsOAuth2Token = properties.get(GCS_OAUTH2_TOKEN);
@@ -238,7 +228,7 @@ public class GCPProperties implements Serializable {
   /**
    * Returns the max size in bytes for single-shot uploads. See {@link #GCS_WRITE_THRESHOLD_BYTES}.
    */
-  public long writeThresholdBytes() {
+  public int writeThresholdBytes() {
     return gcsWriteThresholdBytes;
   }
 

@@ -27,6 +27,7 @@ import static org.apache.iceberg.gcp.GCPProperties.GCS_WRITE_THRESHOLD_BYTES_DEF
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -42,7 +43,7 @@ public class TestGCPProperties {
   @Test
   public void testWriteThresholdOverride() {
     GCPProperties props = new GCPProperties(ImmutableMap.of(GCS_WRITE_THRESHOLD_BYTES, "1048576"));
-    assertThat(props.writeThresholdBytes()).isEqualTo(1_048_576L);
+    assertThat(props.writeThresholdBytes()).isEqualTo(1_048_576);
   }
 
   @Test
@@ -54,13 +55,12 @@ public class TestGCPProperties {
 
   @Test
   public void testWriteThresholdAboveIntegerMaxRejected() {
-    assertThatIllegalArgumentException()
-        .isThrownBy(
+    assertThatThrownBy(
             () ->
                 new GCPProperties(
                     ImmutableMap.of(
                         GCS_WRITE_THRESHOLD_BYTES, String.valueOf(Integer.MAX_VALUE + 1L))))
-        .withMessageContaining(GCS_WRITE_THRESHOLD_BYTES);
+        .isInstanceOf(NumberFormatException.class);
   }
 
   @Test
