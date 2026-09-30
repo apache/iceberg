@@ -52,7 +52,6 @@ import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.index.HashTransform;
 import org.apache.iceberg.index.IndexCatalog;
-import org.apache.iceberg.index.IndexIdentifier;
 import org.apache.iceberg.index.IndexMetadata;
 import org.apache.iceberg.index.IndexSnapshot;
 import org.apache.iceberg.index.LeafFileEntry;
@@ -301,9 +300,28 @@ public class SparkScanBuilder
       return;
     }
 
-    IndexCatalog indexCatalog = SparkIndexCatalogs.get().catalogFor(table);
+    // Derived the same way BuildScalarIndexProcedure derives it (TableIdentifier.parse of the
+    // core Table's own name), not from the Spark catalog Identifier -- the two must produce an
+    // identical TableIdentifier or listIndexes below would silently see a disjoint set.
+    org.apache.iceberg.catalog.TableIdentifier tableIdentifier =
+        org.apache.iceberg.catalog.TableIdentifier.parse(table.name());
+    List<IndexMetadata> availableIndexes;
+    try {
+      availableIndexes = SparkIndexCatalogs.get().catalogFor(table).listIndexes(tableIdentifier);
+    } catch (Exception e) {
+      LOG.warn(
+          "Failed to list SCALAR indexes for table {}, falling back to normal planning: {}",
+          tableIdentifier,
+          e.getMessage());
+      return;
+    }
+
+    if (availableIndexes.isEmpty()) {
+      return;
+    }
+
     for (Map.Entry<String, List<UnboundPredicate<?>>> entry : candidatesByColumn.entrySet()) {
-      if (tryPruneUsingScalarIndex(indexCatalog, entry.getKey(), entry.getValue())) {
+      if (tryPruneUsingScalarIndex(availableIndexes, entry.getKey(), entry.getValue())) {
         return;
       }
     }
@@ -311,35 +329,33 @@ public class SparkScanBuilder
 
   /**
    * Attempts to resolve {@code predicates} (all on {@code columnName}, each {@code EQ}, {@code
-   * IN}, or a range comparison) against a SCALAR index on that column, if one exists. Returns
-   * {@code true} if it resolved and set {@link #scalarIndexResolvedFilePaths}, {@code false} to
-   * let {@link #tryPruneUsingScalarIndex()} try the next column's predicates instead.
+   * IN}, or a range comparison) against a SCALAR index covering that column, discovered from
+   * {@code availableIndexes} (as returned by {@link IndexCatalog#listIndexes}) by matching the
+   * column's field ID against {@link IndexMetadata#keyColumnIds()} -- not by any naming
+   * convention. Returns {@code true} if it resolved and set {@link
+   * #scalarIndexResolvedFilePaths}, {@code false} to let {@link #tryPruneUsingScalarIndex()} try
+   * the next column's predicates instead.
    */
   private boolean tryPruneUsingScalarIndex(
-      IndexCatalog indexCatalog, String columnName, List<UnboundPredicate<?>> predicates) {
+      List<IndexMetadata> availableIndexes,
+      String columnName,
+      List<UnboundPredicate<?>> predicates) {
     Types.NestedField keyField = schema.findField(columnName);
     if (keyField == null) {
       return false;
     }
 
-    // Derived the same way BuildScalarIndexProcedure derives it (TableIdentifier.parse of the
-    // core Table's own name), not from the Spark catalog Identifier -- the two must produce an
-    // identical TableIdentifier or indexExists() below silently and permanently returns false.
-    IndexIdentifier indexIdent =
-        IndexIdentifier.of(
-            org.apache.iceberg.catalog.TableIdentifier.parse(table.name()), columnName + "_idx");
+    IndexMetadata metadata =
+        availableIndexes.stream()
+            .filter(m -> "SCALAR".equals(m.type()))
+            .filter(m -> m.keyColumnIds().contains(keyField.fieldId()))
+            .findFirst()
+            .orElse(null);
+    if (metadata == null || table.currentSnapshot() == null) {
+      return false;
+    }
 
     try {
-      if (!indexCatalog.indexExists(indexIdent)) {
-        return false;
-      }
-
-      IndexMetadata metadata = indexCatalog.loadIndex(indexIdent);
-      if (!metadata.keyColumnIds().contains(keyField.fieldId())
-          || table.currentSnapshot() == null) {
-        return false;
-      }
-
       IndexSnapshot indexSnapshot = metadata.currentSnapshot();
       if (indexSnapshot == null) {
         return false;
