@@ -86,6 +86,8 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
 * Behavior change
     - `GeometryType` and `GeographyType` `toString()` now always include the resolved CRS, and for geography the edge algorithm: `geometry` prints as `geometry(OGC:CRS84)` and `geography` as `geography(OGC:CRS84, spherical)` ([\#16765](https://github.com/apache/iceberg/pull/16765)).
     Previously, default instances printed the bare type name (`geometry` / `geography`).
+    - The default AWS SDK HTTP client migrated to Apache HttpClient 5. Users who provide AWS dependencies separately must switch from `software.amazon.awssdk:apache-client` to `software.amazon.awssdk:apache5-client` ([\#18195](https://github.com/apache/iceberg/pull/18195)).
+    - The REST client now retries POST requests carrying an `Idempotency-Key` on retriable errors (408, 500, 502, 503, 504) ([\#17947](https://github.com/apache/iceberg/pull/17947)).
 * Spec
     - Add spec for expressions ([\#16652](https://github.com/apache/iceberg/pull/16652))
     - Add finer grained read restrictions as part of loadTable ([\#13879](https://github.com/apache/iceberg/pull/13879))
@@ -112,7 +114,7 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
     - Add V4 location relativization utilities ([\#16174](https://github.com/apache/iceberg/pull/16174))
     - Add builder for TrackedFile ([\#16769](https://github.com/apache/iceberg/pull/16769))
     - Add v4 TrackedFileAdapters to bridge Data and Delete Files ([\#16100](https://github.com/apache/iceberg/pull/16100))
-    - Add writer_format_version field to TrackedFile ([\#16688](https://github.com/apache/iceberg/pull/16688))
+    - Add `format_version` field to TrackedFile ([\#16952](https://github.com/apache/iceberg/pull/16952))
     - Extend V4 DeletionVector with key_metadata field ([\#17438](https://github.com/apache/iceberg/pull/17438))
     - Expose co-located deletion vector through `DataFile` ([\#17928](https://github.com/apache/iceberg/pull/17928))
     - Allow writing Parquet and Avro manifests in the V4 layout ([\#15634](https://github.com/apache/iceberg/pull/15634))
@@ -124,8 +126,7 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
     - Encrypting IO as a `DelegateFileIO` ([\#14876](https://github.com/apache/iceberg/pull/14876))
     - Preserve DV encryption metadata in merges ([\#15911](https://github.com/apache/iceberg/pull/15911))
     - Commit manifest list encryption keys with the snapshot that uses them ([\#17984](https://github.com/apache/iceberg/pull/17984))
-    - Encrypt manifests written by `rewrite_manifests` ([\#17987](https://github.com/apache/iceberg/pull/17987))
-    - Add `dv_count` column to the `partitions` metadata table ([\#16125](https://github.com/apache/iceberg/pull/16125))
+    - Add a scan-based action to remove dangling delete files ([\#15727](https://github.com/apache/iceberg/pull/15727))
     - Fix thread conflict when deleting duplicate files in manifest ([\#16686](https://github.com/apache/iceberg/pull/16686))
     - Fix row lineage last updated sequence inheritance ([\#17039](https://github.com/apache/iceberg/pull/17039))
     - Fix time-travel snapshot lookup to not assume snapshot-log order ([\#17360](https://github.com/apache/iceberg/pull/17360))
@@ -139,6 +140,9 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
     - Preserve manifest content pruning when ignoring residuals ([\#17443](https://github.com/apache/iceberg/pull/17443))
     - Fix `SerializableTable.sortOrders()` throwing on historical sort orders with dropped fields ([\#16521](https://github.com/apache/iceberg/pull/16521))
     - Fix `RESTMetricsReporter.report()` blocking the calling thread ([\#16695](https://github.com/apache/iceberg/pull/16695))
+    - Read catalog labels on the load table and view responses ([\#18045](https://github.com/apache/iceberg/pull/18045))
+    - Expose catalog labels on the loaded table via `SupportsLabels` ([\#18046](https://github.com/apache/iceberg/pull/18046))
+    - Add `max-file-group-input-files` to valid rewrite options ([\#17544](https://github.com/apache/iceberg/pull/17544))
 * Arrow
     - Fix dict-encoded VARCHAR/VARBINARY read for direct ByteBuffers ([\#17055](https://github.com/apache/iceberg/pull/17055))
     - Fix direct memory leak in row lineage vectorized readers ([\#17296](https://github.com/apache/iceberg/pull/17296))
@@ -168,20 +172,23 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
     - Fix timestamp nano predicate pushdown ([\#17750](https://github.com/apache/iceberg/pull/17750))
     - Fix filter pushdown on tables with a variant column ([\#17998](https://github.com/apache/iceberg/pull/17998))
 * Spark
-    - Add vectorized Parquet reads for unshredded variant columns ([\#16292](https://github.com/apache/iceberg/pull/16292))
-    - Add Hilbert-curve clustering strategy for `rewrite_data_files` ([\#16827](https://github.com/apache/iceberg/pull/16827))
+    - Spark 4.0, 4.1: Add vectorized Parquet reads for unshredded variant columns ([\#16292](https://github.com/apache/iceberg/pull/16292))
+    - Spark 4.1: Add Hilbert-curve clustering strategy for `rewrite_data_files` ([\#16827](https://github.com/apache/iceberg/pull/16827))
     - Spark 4.1: Read and write geometry and geography values in Parquet ([\#17073](https://github.com/apache/iceberg/pull/17073))
     - Spark 4.1: Map geometry and geography Spark types ([\#16851](https://github.com/apache/iceberg/pull/16851))
-    - Add `rest.catalog-purge` property to delegate DROP TABLE PURGE to REST catalogs ([\#15614](https://github.com/apache/iceberg/pull/15614))
+    - Add `rest-catalog-purge` property to delegate DROP TABLE PURGE to REST catalogs ([\#15614](https://github.com/apache/iceberg/pull/15614))
     - Add session-level split size override ([\#16154](https://github.com/apache/iceberg/pull/16154))
     - Add ignore_missing_files to migrate procedure ([\#16643](https://github.com/apache/iceberg/pull/16643))
     - Add ignore_missing_files to snapshot procedure ([\#16710](https://github.com/apache/iceberg/pull/16710))
     - Return session catalog views ([\#16845](https://github.com/apache/iceberg/pull/16845))
     - Spark 4.1: Implement listTableSummaries ([\#16891](https://github.com/apache/iceberg/pull/16891))
-    - Add streaming merge-append write config ([\#17347](https://github.com/apache/iceberg/pull/17347))
+    - Spark 3.5, 4.0, 4.1: Add streaming merge-append write config ([\#17347](https://github.com/apache/iceberg/pull/17347), [\#17403](https://github.com/apache/iceberg/pull/17403))
     - Spark 4.1: Add rewrite option to enable executor cache for delete files ([\#17868](https://github.com/apache/iceberg/pull/17868))
     - Fix Z-order NPE on null booleans and case-insensitive column resolution ([\#17669](https://github.com/apache/iceberg/pull/17669))
     - Fix time-travel filter on renamed columns in distributed planning mode ([\#16523](https://github.com/apache/iceberg/pull/16523))
+    - Fix first row ID carry-over for manifest rewrite ([\#16699](https://github.com/apache/iceberg/pull/16699))
+    - Spark 3.5, 4.0: Add `sort_by` parameter to the `rewrite_manifests` procedure ([\#18065](https://github.com/apache/iceberg/pull/18065))
+    - Encrypt manifests written by `rewrite_manifests` ([\#17987](https://github.com/apache/iceberg/pull/17987))
 * Flink
     - Add data model and key serialization for equality delete conversion ([\#16831](https://github.com/apache/iceberg/pull/16831))
     - Add equality delete conversion operators ([\#16844](https://github.com/apache/iceberg/pull/16844))
@@ -236,6 +243,7 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
     - Fix path segment encoding to use RFC 3986 percent-encoding ([\#15989](https://github.com/apache/iceberg/pull/15989))
     - Fix schema of data-access object in REST spec ([\#16594](https://github.com/apache/iceberg/pull/16594))
     - Add specific-name to UDF definition ([\#17364](https://github.com/apache/iceberg/pull/17364))
+    - Add a `labels` field for catalog metadata enrichment ([\#15750](https://github.com/apache/iceberg/pull/15750))
 * Vendor integrations
     - AWS: Use assumed-role credentials for REST SigV4 signing ([\#16794](https://github.com/apache/iceberg/pull/16794))
     - AWS: Handle duplicate column names in IcebergToGlueConverter comment map ([\#16853](https://github.com/apache/iceberg/pull/16853))
