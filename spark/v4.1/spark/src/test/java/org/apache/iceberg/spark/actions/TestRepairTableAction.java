@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -29,11 +30,14 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -42,6 +46,7 @@ import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
@@ -64,7 +69,10 @@ import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -517,6 +525,37 @@ public class TestRepairTableAction extends TestBase {
     assertThat(repaired.lowerBounds()).isEqualTo(original.lowerBounds());
     assertThat(repaired.upperBounds()).isEqualTo(original.upperBounds());
     assertNoRepair(table, true);
+  }
+
+  @TestTemplate
+  void correctGeometryMetricsAreUnchanged() throws IOException {
+    assumeThat(formatVersion).isEqualTo(3);
+    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
+    Table table = createTable(PartitionSpec.unpartitioned());
+    table.updateSchema().addColumn("geom", Types.GeometryType.crs84()).commit();
+    Record template = GenericRecord.create(table.schema());
+    List<Record> rows =
+        Lists.newArrayList(
+            template.copy("geom", wkbPoint(30, 10)), template.copy("geom", wkbPoint(-5, 40)));
+    DataFile file =
+        FileHelpers.writeDataFile(
+            table,
+            table.io().newOutputFile(temp.resolve(fileFormat.addExtension("data")).toString()),
+            rows);
+    table.newFastAppend().appendFile(file).commit();
+
+    DataFile original = onlyDataFile(table);
+    int geometryId = table.schema().findField("geom").fieldId();
+    ByteBuffer lowerBound = original.lowerBounds().get(geometryId);
+    ByteBuffer upperBound = original.upperBounds().get(geometryId);
+    assertThat(lowerBound).isNotNull();
+    assertThat(upperBound).isNotNull();
+
+    assertNoRepair(table, true);
+
+    DataFile unchanged = onlyDataFile(table);
+    assertThat(unchanged.lowerBounds().get(geometryId)).isEqualTo(lowerBound);
+    assertThat(unchanged.upperBounds().get(geometryId)).isEqualTo(upperBound);
   }
 
   @TestTemplate
@@ -985,6 +1024,39 @@ public class TestRepairTableAction extends TestBase {
   }
 
   @TestTemplate
+  void repairCleansUpManifestsOnSnapshotTotalsFailure() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+    DataFile original = onlyDataFile(table);
+    replaceManifestWithCorruptRecordCount(table, original);
+    table.refresh();
+
+    long snapshotId = table.currentSnapshot().snapshotId();
+    Set<String> manifestsBefore = repairedManifestPaths();
+    assertThat(manifestsBefore).isEmpty();
+    FileIO failingIO = new FailingManifestReadFileIO();
+    // Format v1 staging must still be able to read replacement manifests on the driver.
+    Table repairTable =
+        new BaseTable(((HasTableOperations) table).operations(), table.name()) {
+          @Override
+          public FileIO io() {
+            return failingIO;
+          }
+        };
+
+    Throwable failure =
+        catchThrowable(
+            () -> SparkActions.get().repairTable(repairTable).repairFileMetrics().execute());
+
+    assertThat(failure).hasRootCauseInstanceOf(SnapshotTotalsReadFailure.class);
+    table.refresh();
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(snapshotId);
+    assertThat(repairedManifestPaths())
+        .as("the manifests written before the snapshot totals job failed must be deleted")
+        .isEqualTo(manifestsBefore);
+  }
+
+  @TestTemplate
   public void testRepairKeepsManifestsOnCommitStateUnknown() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
@@ -1352,5 +1424,33 @@ public class TestRepairTableAction extends TestBase {
     return builder
         .withFileSizeInBytes(corruptSize ? file.fileSizeInBytes() + 4096 : file.fileSizeInBytes())
         .build();
+  }
+
+  private static ByteBuffer wkbPoint(double xCoord, double yCoord) {
+    return ByteBuffer.allocate(21)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .put((byte) 1) // little-endian
+        .putInt(1) // WKB geometry type: Point
+        .putDouble(xCoord)
+        .putDouble(yCoord)
+        .flip();
+  }
+
+  private static class FailingManifestReadFileIO extends HadoopFileIO {
+    @Override
+    public InputFile newInputFile(ManifestFile manifest) {
+      InputFile input = super.newInputFile(manifest);
+      if (manifest.path().contains("/repaired-m-") && input.exists()) {
+        throw new SnapshotTotalsReadFailure(manifest.path());
+      }
+
+      return input;
+    }
+  }
+
+  private static class SnapshotTotalsReadFailure extends RuntimeException {
+    SnapshotTotalsReadFailure(String path) {
+      super("Injected snapshot totals failure reading " + path);
+    }
   }
 }

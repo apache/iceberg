@@ -127,15 +127,21 @@ class RepairMetrics {
               : MetricsUtil.copyWithoutFieldCountsAndBounds(metrics, POSITION_DELETE_FIELD_IDS);
     }
 
-    // Footers cannot recover NaN counts or the NaN-safe bounds tracked by writers. Include
-    // stored NaN-count IDs so that bounds for dropped columns are preserved as well.
-    Set<Integer> floatingPointIds = Sets.newHashSet(normalize(file.nanValueCounts()).keySet());
+    // Footers cannot recover the writer-tracked statistics of some columns: the NaN counts and
+    // NaN-safe bounds of floating-point columns, and the bounding boxes of geometry and geography
+    // columns. Preserve the stored bounds of those columns so a correct file is not flagged as
+    // corrupt and rewritten with weaker statistics. Include stored NaN-count IDs so that bounds for
+    // dropped columns are preserved as well.
+    Set<Integer> preservedBoundIds = Sets.newHashSet(normalize(file.nanValueCounts()).keySet());
     TypeUtil.indexById(schema.asStruct())
         .forEach(
             (id, field) -> {
               Type.TypeID typeId = field.type().typeId();
-              if (typeId == Type.TypeID.FLOAT || typeId == Type.TypeID.DOUBLE) {
-                floatingPointIds.add(id);
+              if (typeId == Type.TypeID.FLOAT
+                  || typeId == Type.TypeID.DOUBLE
+                  || typeId == Type.TypeID.GEOMETRY
+                  || typeId == Type.TypeID.GEOGRAPHY) {
+                preservedBoundIds.add(id);
               }
             });
 
@@ -145,8 +151,8 @@ class RepairMetrics {
         metrics.valueCounts(),
         metrics.nullValueCounts(),
         file.nanValueCounts(),
-        preserveBounds(file.lowerBounds(), metrics.lowerBounds(), floatingPointIds),
-        preserveBounds(file.upperBounds(), metrics.upperBounds(), floatingPointIds),
+        preserveBounds(file.lowerBounds(), metrics.lowerBounds(), preservedBoundIds),
+        preserveBounds(file.upperBounds(), metrics.upperBounds(), preservedBoundIds),
         file.avgValueSizes(),
         null);
   }

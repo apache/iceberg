@@ -441,7 +441,18 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
                     .filter(manifest -> !deletedPaths.contains(manifest.path()))
                     .collect(Collectors.toList());
             manifests.addAll(addedManifests);
-            updateSnapshotTotals(rewriteManifests, manifests);
+            try {
+              updateSnapshotTotals(rewriteManifests, manifests);
+            } catch (Exception e) {
+              // The totals Spark job runs during validation, before the metadata commit, so a
+              // failure here (for example a SparkException) is not a CleanableFailure and would
+              // bypass the cleanup below. BaseRewriteManifests also leaves caller-supplied
+              // manifests untouched, so delete the manifests already written for this repair before
+              // propagating, otherwise they are left as orphans in the metadata directory.
+              deleteFiles(Iterables.transform(addedManifests, ManifestFile::path));
+              throw e;
+            }
+
             return true;
           });
       commit(rewriteManifests);
