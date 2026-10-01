@@ -23,9 +23,6 @@ import com.aliyun.kms20160120.models.DecryptRequest;
 import com.aliyun.kms20160120.models.DecryptResponse;
 import com.aliyun.kms20160120.models.EncryptRequest;
 import com.aliyun.kms20160120.models.EncryptResponse;
-import com.aliyun.kms20160120.models.GenerateDataKeyRequest;
-import com.aliyun.kms20160120.models.GenerateDataKeyResponse;
-import com.aliyun.kms20160120.models.GenerateDataKeyResponseBody;
 import com.aliyun.teautil.models.RuntimeOptions;
 import java.nio.ByteBuffer;
 import java.util.Base64;
@@ -36,8 +33,8 @@ import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.SerializableMap;
 
 /**
- * Key management client implementation that uses Alibaba Cloud KMS. Encrypts/decrypts keys with a
- * KMS-managed master key (referenced by its key id) and generates new data keys.
+ * Key management client implementation that uses Alibaba Cloud KMS. Wraps (encrypts) and unwraps
+ * (decrypts) data keys with a KMS-managed master key referenced by its key id.
  */
 public class AliyunKeyManagementClient implements KeyManagementClient {
 
@@ -54,28 +51,6 @@ public class AliyunKeyManagementClient implements KeyManagementClient {
   public void initialize(Map<String, String> properties) {
     this.allProperties = SerializableMap.copyOf(properties);
     this.aliyunProperties = new AliyunProperties(properties);
-  }
-
-  @Override
-  public boolean supportsKeyGeneration() {
-    return false;
-  }
-
-  @Override
-  public KeyGenerationResult generateKey(String wrappingKeyId) {
-    GenerateDataKeyRequest request =
-        new GenerateDataKeyRequest()
-            .setKeyId(wrappingKeyId)
-            .setKeySpec(aliyunProperties.kmsDataKeySpec());
-    try {
-      GenerateDataKeyResponse response =
-          client().generateDataKeyWithOptions(request, runtimeOptions());
-      GenerateDataKeyResponseBody body = response.getBody();
-      return new KeyGenerationResult(
-          base64ToBuffer(body.getPlaintext()), base64ToBuffer(body.getCiphertextBlob()));
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to generate data key with Aliyun KMS", e);
-    }
   }
 
   @Override

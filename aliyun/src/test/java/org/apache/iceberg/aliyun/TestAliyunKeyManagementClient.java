@@ -32,9 +32,6 @@ import com.aliyun.kms20160120.models.DecryptResponseBody;
 import com.aliyun.kms20160120.models.EncryptRequest;
 import com.aliyun.kms20160120.models.EncryptResponse;
 import com.aliyun.kms20160120.models.EncryptResponseBody;
-import com.aliyun.kms20160120.models.GenerateDataKeyRequest;
-import com.aliyun.kms20160120.models.GenerateDataKeyResponse;
-import com.aliyun.kms20160120.models.GenerateDataKeyResponseBody;
 import com.aliyun.oss.OSS;
 import com.aliyun.teautil.models.RuntimeOptions;
 import java.nio.ByteBuffer;
@@ -94,11 +91,6 @@ public class TestAliyunKeyManagementClient {
   }
 
   @Test
-  public void testKeyGenerationDisabledByDefault() {
-    assertThat(kmsClient(ImmutableMap.of()).supportsKeyGeneration()).isFalse();
-  }
-
-  @Test
   public void testCreateFromKmsType() {
     KeyManagementClient client =
         EncryptionUtil.createKmsClient(
@@ -109,31 +101,6 @@ public class TestAliyunKeyManagementClient {
   }
 
   @Test
-  public void testGenerateKey() throws Exception {
-    GenerateDataKeyResponse response =
-        new GenerateDataKeyResponse()
-            .setBody(
-                new GenerateDataKeyResponseBody()
-                    .setPlaintext(RAW_KEY_B64)
-                    .setCiphertextBlob(CIPHERTEXT_BLOB));
-    when(mockKms()
-            .generateDataKeyWithOptions(
-                any(GenerateDataKeyRequest.class), any(RuntimeOptions.class)))
-        .thenReturn(response);
-
-    KeyManagementClient.KeyGenerationResult result =
-        kmsClient(ImmutableMap.of()).generateKey(WRAPPING_KEY_ID);
-    assertThat(result.key()).isEqualTo(ByteBuffer.wrap(RAW_KEY));
-    assertThat(result.wrappedKey()).isEqualTo(WRAPPED_KEY);
-
-    ArgumentCaptor<GenerateDataKeyRequest> captor =
-        ArgumentCaptor.forClass(GenerateDataKeyRequest.class);
-    verify(mockKms()).generateDataKeyWithOptions(captor.capture(), any(RuntimeOptions.class));
-    assertThat(captor.getValue().getKeyId()).isEqualTo(WRAPPING_KEY_ID);
-    assertThat(captor.getValue().getKeySpec()).isEqualTo("AES_256");
-  }
-
-  @Test
   public void testWrapKey() throws Exception {
     EncryptResponse response =
         new EncryptResponse().setBody(new EncryptResponseBody().setCiphertextBlob(CIPHERTEXT_BLOB));
@@ -141,7 +108,6 @@ public class TestAliyunKeyManagementClient {
         .thenReturn(response);
 
     KeyManagementClient client = kmsClient(ImmutableMap.of());
-    assertThat(client.supportsKeyGeneration()).isFalse();
 
     ByteBuffer wrapped = client.wrapKey(ByteBuffer.wrap(RAW_KEY), WRAPPING_KEY_ID);
     assertThat(wrapped).isEqualTo(WRAPPED_KEY);
@@ -200,15 +166,6 @@ public class TestAliyunKeyManagementClient {
   @MethodSource("org.apache.iceberg.TestHelpers#serializers")
   public void testKmsClientSerialization(
       TestHelpers.RoundTripSerializer<KeyManagementClient> roundTripSerializer) throws Exception {
-    when(mockKms()
-            .generateDataKeyWithOptions(
-                any(GenerateDataKeyRequest.class), any(RuntimeOptions.class)))
-        .thenReturn(
-            new GenerateDataKeyResponse()
-                .setBody(
-                    new GenerateDataKeyResponseBody()
-                        .setPlaintext(RAW_KEY_B64)
-                        .setCiphertextBlob(CIPHERTEXT_BLOB)));
     when(mockKms().encryptWithOptions(any(EncryptRequest.class), any(RuntimeOptions.class)))
         .thenReturn(
             new EncryptResponse()
@@ -218,23 +175,10 @@ public class TestAliyunKeyManagementClient {
     Map<String, String> baseProps =
         ImmutableMap.of(
             AliyunProperties.CLIENT_REGION, "cn-hangzhou",
-            AliyunProperties.KMS_DATA_KEY_SPEC, "AES_128",
             AliyunProperties.KMS_CLIENT_MAX_ATTEMPTS, "5");
 
     KeyManagementClient client = kmsClient(baseProps);
-    assertThat(client.supportsKeyGeneration()).isFalse();
     KeyManagementClient roundTripped = roundTripSerializer.apply(client);
-    assertThat(roundTripped.supportsKeyGeneration()).isFalse();
-
-    // generateKey survives serialization, preserving the non-default data key spec
-    KeyManagementClient.KeyGenerationResult generated = roundTripped.generateKey(WRAPPING_KEY_ID);
-    assertThat(generated.key()).isEqualTo(ByteBuffer.wrap(RAW_KEY));
-    assertThat(generated.wrappedKey()).isEqualTo(WRAPPED_KEY);
-
-    ArgumentCaptor<GenerateDataKeyRequest> captor =
-        ArgumentCaptor.forClass(GenerateDataKeyRequest.class);
-    verify(mockKms()).generateDataKeyWithOptions(captor.capture(), any(RuntimeOptions.class));
-    assertThat(captor.getValue().getKeySpec()).isEqualTo("AES_128");
 
     // wrap + unwrap survive serialization
     ByteBuffer wrapped = roundTripped.wrapKey(ByteBuffer.wrap(RAW_KEY), WRAPPING_KEY_ID);

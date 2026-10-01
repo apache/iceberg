@@ -88,15 +88,6 @@ public class AliyunProperties implements Serializable {
    */
   public static final String CLIENT_KMS_ENDPOINT = "client.kms-endpoint";
 
-  /**
-   * The spec of the key encryption key that Aliyun KMS generates on the {@link
-   * AliyunKeyManagementClient#generateKey(String)} path: AES_256 (the default) or AES_128. The
-   * actual data keys are sized by the table's {@code encryption.data-key-length}.
-   */
-  public static final String KMS_DATA_KEY_SPEC = "kms.client.aliyun.generation.data-key-spec";
-
-  public static final String KMS_DATA_KEY_SPEC_DEFAULT = "AES_256";
-
   /** Maximum number of attempts (including the first) for each KMS call. */
   public static final String KMS_CLIENT_MAX_ATTEMPTS = "kms.client.aliyun.max.attempts";
 
@@ -119,7 +110,6 @@ public class AliyunProperties implements Serializable {
   private final String ossStagingDirectory;
   private final String region;
   private final String kmsEndpoint;
-  private final String kmsDataKeySpec;
   private final int kmsClientMaxAttempts;
   private final int kmsClientConnectTimeoutMs;
   private final int kmsClientReadTimeoutMs;
@@ -141,8 +131,6 @@ public class AliyunProperties implements Serializable {
 
     this.region = properties.get(CLIENT_REGION);
     this.kmsEndpoint = properties.get(CLIENT_KMS_ENDPOINT);
-    this.kmsDataKeySpec =
-        PropertyUtil.propertyAsString(properties, KMS_DATA_KEY_SPEC, KMS_DATA_KEY_SPEC_DEFAULT);
     this.kmsClientMaxAttempts =
         PropertyUtil.propertyAsInt(
             properties, KMS_CLIENT_MAX_ATTEMPTS, KMS_CLIENT_MAX_ATTEMPTS_DEFAULT);
@@ -180,10 +168,6 @@ public class AliyunProperties implements Serializable {
 
   public String kmsEndpoint() {
     return kmsEndpoint;
-  }
-
-  public String kmsDataKeySpec() {
-    return kmsDataKeySpec;
   }
 
   public int kmsClientMaxAttempts() {
