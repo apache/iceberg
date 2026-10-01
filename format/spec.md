@@ -1068,7 +1068,7 @@ When adding a new data file, its `first_row_id` field is set to `null` because i
 
 When reading, the `first_row_id` is assigned by replacing `null` with the manifest's `first_row_id` plus the sum of `record_count` for all data files that preceded the file in the manifest that also had a null `first_row_id`.
 
-The inherited value of `first_row_id` must be written into data file metadata when creating existing and deleted entries. In v4, this also applies to MODIFIED and REPLACED entries. The value of `first_row_id` for delete files is always `null`.
+The inherited value of `first_row_id` must be written into data file metadata for all entries with a status other than `ADDED`. The value of `first_row_id` for delete files is always `null`.
 
 Any null (unassigned) `first_row_id` must be assigned via inheritance, even if the data file is existing. This ensures that row IDs are assigned to existing data files in upgraded tables in the first commit after upgrading to v3.
 
