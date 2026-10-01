@@ -20,6 +20,9 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -672,6 +675,58 @@ public abstract class DeleteFileIndexTestBase<
         .containsExactly(Map.entry(fieldId, ByteBuffer.wrap(new byte[20])));
     assertThat(deleteFile.upperBounds())
         .containsExactly(Map.entry(fieldId, ByteBuffer.wrap(new byte[20])));
+  }
+
+  @TestTemplate
+  public void testEqualityDeleteNotPrunedByNonKeyColumnStats() {
+    // v4 tables can still inherit an equality delete written before an upgrade to v4
+    int createFormatVersion = Math.min(formatVersion, 3);
+
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            required(2, "data", Types.StringType.get()),
+            optional(3, "extra", Types.IntegerType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).withSpecId(0).build();
+    Table table =
+        TestTables.create(tableDir, "eq-delete-full-row", schema, spec, createFormatVersion);
+
+    DataFile dataFile =
+        DataFiles.builder(spec)
+            .withPath("/path/to/data-a.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    table.newAppend().appendFile(dataFile).commit();
+
+    // equality field is "id" (1); "extra" (3) is also in the file but is not part of the match
+    // condition, so its stats must not be used to prune the delete against the scan's filter
+    DeleteFile eqDeletes =
+        FileMetadata.deleteFileBuilder(spec)
+            .ofEqualityDeletes(1)
+            .withPath(UUID.randomUUID() + "/path/to/eq-delete-full-row.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withMetrics(
+                new Metrics(
+                    1L, null, ImmutableMap.of(1, 1L, 3, 1L), ImmutableMap.of(1, 0L, 3, 1L), null))
+            .build();
+    table.newRowDelta().addDeletes(eqDeletes).commit();
+
+    if (formatVersion > createFormatVersion) {
+      table
+          .updateProperties()
+          .set(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
+          .commit();
+    }
+
+    List<T> tasks =
+        Lists.newArrayList(
+            newScan(table).filter(greaterThanOrEqual("extra", 10)).planFiles().iterator());
+    assertThat(tasks).as("Should have one task").hasSize(1);
+
+    FileScanTask task = (FileScanTask) tasks.get(0);
+    assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
   }
 
   @TestTemplate
