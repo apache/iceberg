@@ -391,6 +391,16 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
               });
         }
 
+      case UNREGISTER_TABLE:
+        {
+          return CatalogHandlers.withIdempotency(
+              httpRequest,
+              () ->
+                  castResponse(
+                      responseType,
+                      CatalogHandlers.unregisterTable(catalog, tableIdentFromPathVars(vars))));
+        }
+
       case UPDATE_TABLE:
         {
           return CatalogHandlers.withIdempotency(
