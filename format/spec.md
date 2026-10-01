@@ -148,7 +148,7 @@ Version 4 of the Iceberg spec adds support for relative locations in metadata, e
 * **Snapshot** -- The state of a table at some point in time, including the set of all data files.
 * **Snapshot root** -- The per-snapshot file that tracks a snapshot's manifests; a manifest list (v1-v3) or a root manifest (v4).
 * **Manifest list** -- (v1-v3 only) A file that lists manifest files; one per snapshot.
-* **Root manifest** -- (v4+) A manifest that can reference data files, data manifests, and delete manifests; one per snapshot.
+* **Root manifest** -- (v4+) A manifest that can reference leaf manifests, data files, or v1-v3 manifests; one per snapshot.
 * **Data manifest** -- A file that lists data files and, in v4, their deletion vectors and column files; a subset of a snapshot.
 * **Delete manifest** -- A file that lists delete files to be associated with data files at planning time.
 * **Data file** -- A file that contains rows of a table.
