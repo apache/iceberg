@@ -64,5 +64,19 @@ public class StructLikeUtil {
     public <T> void set(int pos, T value) {
       throw new UnsupportedOperationException("Struct copy cannot be modified");
     }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder();
+      sb.append("[");
+      for (int i = 0; i < values.length; i += 1) {
+        if (i > 0) {
+          sb.append(", ");
+        }
+        sb.append(values[i]);
+      }
+      sb.append("]");
+      return sb.toString();
+    }
   }
 }

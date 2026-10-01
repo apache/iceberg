@@ -223,4 +223,19 @@ public class StructProjection implements StructLike {
   public <T> void set(int pos, T value) {
     throw new UnsupportedOperationException("Cannot set fields in a TypeProjection");
   }
+
+  @Override
+  public String toString() {
+    StringBuilder sb = new StringBuilder();
+    sb.append("StructProjection{");
+    List<Types.NestedField> fields = type.fields();
+    for (int i = 0; i < fields.size(); i += 1) {
+      if (i > 0) {
+        sb.append(", ");
+      }
+      sb.append(fields.get(i).name()).append("=").append(get(i, Object.class));
+    }
+    sb.append("}");
+    return sb.toString();
+  }
 }
