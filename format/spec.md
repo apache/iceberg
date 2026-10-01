@@ -844,7 +844,8 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
 
     - `deletion_vector.offset` and `deletion_vector.size_in_bytes` must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
     - A leaf manifest written in v4 may only contain data files.
-    - A v1-v3 delete manifest referenced by a root manifest may contain v2-v3 delete files.
+    - Row-level deletes may only be written in v4 as deletion vectors in the data file's `deletion_vector`.
+    - Delete files from pre-v4 tables are valid in upgraded tables and are tracked in delete manifests written before the upgrade.
     - A root manifest may reference v1-v3 manifests; a referenced v1-v3 leaf manifest must have `format_version` PRE-V4.
     - Other v4 tracked files must have `format_version` V4.
     - `manifest_info` must be set if and only if the tracked file is a manifest.
