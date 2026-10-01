@@ -46,6 +46,7 @@ public class StandardEncryptionManager implements EncryptionManager {
   private final int dataKeyLength;
   private final Map<String, EncryptedKey> encryptionKeys;
   private final KeyManagementClient kmsClient;
+  private final boolean kekGenerationEnabled;
 
   // used in key encryption key rotation unitests
   private long testTimeShift;
@@ -64,6 +65,15 @@ public class StandardEncryptionManager implements EncryptionManager {
       String tableKeyId,
       int dataKeyLength,
       KeyManagementClient kmsClient) {
+    this(keys, tableKeyId, dataKeyLength, kmsClient, false);
+  }
+
+  public StandardEncryptionManager(
+      List<EncryptedKey> keys,
+      String tableKeyId,
+      int dataKeyLength,
+      KeyManagementClient kmsClient,
+      boolean kekGenerationEnabled) {
     Preconditions.checkNotNull(tableKeyId, "Invalid encryption key ID: null");
     Preconditions.checkArgument(
         dataKeyLength == 16 || dataKeyLength == 24 || dataKeyLength == 32,
@@ -72,6 +82,7 @@ public class StandardEncryptionManager implements EncryptionManager {
     Preconditions.checkNotNull(kmsClient, "Invalid KMS client: null");
     this.tableKeyId = tableKeyId;
     this.kmsClient = kmsClient;
+    this.kekGenerationEnabled = kekGenerationEnabled;
     this.dataKeyLength = dataKeyLength;
     this.testTimeShift = 0;
 
@@ -146,8 +157,17 @@ public class StandardEncryptionManager implements EncryptionManager {
     }
 
     // No unexpired key encryption keys; create one
-    ByteBuffer unwrapped = newKey();
-    ByteBuffer wrapped = kmsClient.wrapKey(unwrapped, tableKeyId);
+    ByteBuffer unwrapped;
+    ByteBuffer wrapped;
+    if (kekGenerationEnabled && kmsClient.supportsKeyGeneration()) {
+      KeyManagementClient.KeyGenerationResult result = kmsClient.generateKey(tableKeyId);
+      unwrapped = result.key();
+      wrapped = result.wrappedKey();
+    } else {
+      unwrapped = newKey();
+      wrapped = kmsClient.wrapKey(unwrapped, tableKeyId);
+    }
+
     Map<String, String> properties = Maps.newHashMap();
     properties.put(KEY_TIMESTAMP, "" + currentTimeMillis());
     EncryptedKey key = new BaseEncryptedKey(generateKeyId(), wrapped, tableKeyId, properties);
