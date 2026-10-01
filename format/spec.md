@@ -703,8 +703,8 @@ A manifest file must store metadata as properties in the file’s key-value meta
 === "v4"
     | Requirement | Key                 | Value                                                                                                                                       |
     |-------------|---------------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-    | _optional_  | `schema-id`         | ID of the schema used to write the manifest as a string                                                                                     |
-    | _optional_  | `format-version`    | Table format version number of the manifest as a string                                                                                     |
+    | _required_  | `schema-id`         | ID of the schema used to write the manifest as a string                                                                                     |
+    | _required_  | `format-version`    | Table format version number of the manifest as a string                                                                                     |
 
 #### Content file uniqueness
 
