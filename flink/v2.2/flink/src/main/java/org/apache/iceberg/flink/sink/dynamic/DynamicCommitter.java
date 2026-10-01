@@ -284,6 +284,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
 
     CommitSummary summary = new CommitSummary();
     summary.addAll(pendingResults);
+    Preconditions.checkState(
+        summary.deleteFilesCount() == 0, "Cannot overwrite partitions with delete files.");
 
     commitOperation(
         table,

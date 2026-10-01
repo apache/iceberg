@@ -982,7 +982,7 @@ class TestDynamicCommitter {
   }
 
   @Test
-  void testReplacePartitionsRejectsDeleteFiles() throws Exception {
+  void replacePartitionsRejectsDeleteFiles() throws Exception {
     Table table1 = catalog.loadTable(TableIdentifier.of(TABLE1));
     assertThat(table1.snapshots()).isEmpty();
 
