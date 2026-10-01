@@ -231,7 +231,16 @@ public class StructProjection implements StructLike {
     StringJoiner joiner = new StringJoiner(", ", "StructProjection{", "}");
     for (int pos = 0; pos < fields.size(); pos += 1) {
       int structPos = positionMap[pos];
-      Object value = struct == null || structPos == -1 ? null : struct.get(structPos, Object.class);
+      Object value;
+      if (struct == null || structPos == -1) {
+        value = null;
+      } else if (nestedProjections[pos] != null) {
+        StructLike nestedStruct = struct.get(structPos, StructLike.class);
+        value = nestedStruct == null ? null : nestedProjections[pos].copyFor(nestedStruct);
+      } else {
+        value = struct.get(structPos, Object.class);
+      }
+
       joiner.add(fields.get(pos).name() + "=" + value);
     }
 
