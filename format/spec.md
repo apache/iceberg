@@ -816,18 +816,18 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
 
     | On write   | Field id | Name                       | Type     | Description |
     |------------|----------|----------------------------|----------|-------------|
+    | _optional_ | 522      | **`dv`**                   | `binary` | Positions in the referenced leaf manifest that are not live. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
     | _required_ | 504      | **`added_files_count`**    | `int`    | Count of entries with status ADDED in the manifest. |
     | _required_ | 505      | **`existing_files_count`** | `int`    | Count of entries with status EXISTING in the manifest. |
+    | _required_ | 525      | **`modified_files_count`** | `int`    | Count of entries with status MODIFIED in the manifest. |
     | _required_ | 506      | **`deleted_files_count`**  | `int`    | Count of entries with status DELETED in the manifest. |
     | _required_ | 523      | **`replaced_files_count`** | `int`    | Count of entries with status REPLACED in the manifest. |
-    | _required_ | 525      | **`modified_files_count`** | `int`    | Count of entries with status MODIFIED in the manifest. |
     | _required_ | 512      | **`added_rows_count`**     | `long`   | Total number of rows in ADDED entries. |
     | _required_ | 513      | **`existing_rows_count`**  | `long`   | Total number of rows in EXISTING entries. |
+    | _required_ | 526      | **`modified_rows_count`**  | `long`   | Total number of rows in MODIFIED entries. |
     | _required_ | 514      | **`deleted_rows_count`**   | `long`   | Total number of rows in DELETED entries. |
     | _required_ | 524      | **`replaced_rows_count`**  | `long`   | Total number of rows in REPLACED entries. |
-    | _required_ | 526      | **`modified_rows_count`**  | `long`   | Total number of rows in MODIFIED entries. |
     | _required_ | 516      | **`min_sequence_number`**  | `long`   | Minimum data sequence number of all live entries in the manifest. |
-    | _optional_ | 522      | **`dv`**                   | `binary` | Positions in the referenced leaf manifest that are not live. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
 
     The `column_file` struct has the following fields:
 
