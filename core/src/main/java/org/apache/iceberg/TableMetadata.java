@@ -63,6 +63,8 @@ public class TableMetadata implements Serializable {
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;
   static final int INITIAL_ROW_ID = 0;
+  // field IDs above this are reserved by the spec for metadata columns
+  static final int MAX_FIELD_ID = 2147483447;
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
@@ -1619,6 +1621,14 @@ public class TableMetadata implements Serializable {
           lastColumnId);
 
       Schema.checkCompatibility(schema, formatVersion);
+
+      int highestFieldId = schema.highestFieldId();
+      ValidationException.check(
+          highestFieldId <= MAX_FIELD_ID,
+          "Invalid schema: field %s uses reserved field ID %s (field IDs must be <= %s)",
+          schema.findColumnName(highestFieldId),
+          highestFieldId,
+          MAX_FIELD_ID);
 
       int newSchemaId = reuseOrCreateNewSchemaId(schema);
       boolean schemaFound = schemasById.containsKey(newSchemaId);
