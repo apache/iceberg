@@ -855,6 +855,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     - `tracking.snapshot_id` and `tracking.sequence_number` are required for the tracked file in the root manifest.
     - Writers should not write a null `tracking.snapshot_id`.
     - For manifests, `tracking.sequence_number` must equal `tracking.file_sequence_number`.
+    - For manifests, `spec_id` must be set to the `spec_id` of the manifest's entries if all entries have the same `spec_id`, and must be null otherwise.
     - `tracking.dv_snapshot_id` may only be set if `deletion_vector` or `manifest_info.dv` is set.
     - `tracking.latest_column_file_snapshot_id` may only be set if `column_files` is set.
 
