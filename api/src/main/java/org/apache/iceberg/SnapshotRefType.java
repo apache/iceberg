@@ -28,7 +28,7 @@ public enum SnapshotRefType {
   public static SnapshotRefType fromString(String snapshotRefType) {
     Preconditions.checkArgument(null != snapshotRefType, "Invalid snapshot ref type: null");
     try {
-      return SnapshotRefType.valueOf(snapshotRefType.toUpperCase(Locale.ENGLISH));
+      return SnapshotRefType.valueOf(snapshotRefType.toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
           String.format("Invalid snapshot ref type: %s", snapshotRefType), e);

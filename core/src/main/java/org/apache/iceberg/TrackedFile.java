@@ -22,6 +22,8 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 /** A file tracked by a manifest. */
@@ -95,9 +97,9 @@ interface TrackedFile {
           Types.ListType.ofRequired(136, Types.IntegerType.get()),
           "Field ids used to determine row equality in equality delete files");
 
-  static Types.StructType schemaWithContentStats(
+  private static List<Types.NestedField> fields(
       Types.StructType partitionType, Types.StructType contentStatsType) {
-    return Types.StructType.of(
+    return ImmutableList.of(
         TRACKING,
         CONTENT_TYPE,
         FORMAT_VERSION,
@@ -106,15 +108,41 @@ interface TrackedFile {
         RECORD_COUNT,
         FILE_SIZE_IN_BYTES,
         SPEC_ID,
-        Types.NestedField.optional(PARTITION_ID, PARTITION_NAME, partitionType, PARTITION_DOC),
         Types.NestedField.optional(
-            CONTENT_STATS_ID, CONTENT_STATS_NAME, contentStatsType, CONTENT_STATS_DOC),
+            PARTITION_ID, PARTITION_NAME, typeOrUnknown(partitionType), PARTITION_DOC),
+        Types.NestedField.optional(
+            CONTENT_STATS_ID,
+            CONTENT_STATS_NAME,
+            typeOrUnknown(contentStatsType),
+            CONTENT_STATS_DOC),
         SORT_ORDER_ID,
         DELETION_VECTOR,
         MANIFEST_INFO,
         KEY_METADATA,
         SPLIT_OFFSETS,
         EQUALITY_IDS);
+  }
+
+  private static Type typeOrUnknown(Types.StructType structType) {
+    return structType.fields().isEmpty() ? Types.UnknownType.get() : structType;
+  }
+
+  /**
+   * Returns the schema for the given partition and content stats types.
+   *
+   * <p>The partition and content stats fields use {@link Types.UnknownType} when their types have
+   * no fields, so that they are not stored in manifest files.
+   */
+  static Schema schema(Types.StructType partitionType, Types.StructType contentStatsType) {
+    return new Schema(fields(partitionType, contentStatsType));
+  }
+
+  static Schema readSchema(Types.StructType partitionType, Types.StructType contentStatsType) {
+    List<Types.NestedField> nonEmptyFields =
+        fields(partitionType, contentStatsType).stream()
+            .filter(field -> field.type().typeId() != Type.TypeID.UNKNOWN)
+            .toList();
+    return new Schema(nonEmptyFields);
   }
 
   /** Returns the tracking information for this entry. */
@@ -172,6 +200,7 @@ interface TrackedFile {
    * Copies this tracked file with stats only for specific columns.
    *
    * @param requestedColumnIds table field IDs for which to keep stats
+   * @return a copy of this tracked file retaining stats only for the requested columns
    */
   TrackedFile copyWithStats(Set<Integer> requestedColumnIds);
 

@@ -55,6 +55,9 @@ class StatsUtil {
   static final int NAN_VALUE_COUNT_OFFSET = 6;
   static final int AVG_VALUE_SIZE_OFFSET = 7;
 
+  static final String LOWER_BOUND_NAME = "lower_bound";
+  static final String UPPER_BOUND_NAME = "upper_bound";
+
   // Offsets used within geo_lower struct
   private static final int GEO_LOWER_X_OFFSET = 10;
   private static final int GEO_LOWER_Y_OFFSET = 11;
@@ -126,7 +129,7 @@ class StatsUtil {
   }
 
   public static Types.NestedField contentStatsField(Types.StructType contentStats) {
-    return optional(146, "content_stats", contentStats);
+    return optional(TrackedFile.CONTENT_STATS_ID, TrackedFile.CONTENT_STATS_NAME, contentStats);
   }
 
   public static Types.StructType statsWriteSchema(Schema tableSchema, MetricsConfig metricsConfig) {
@@ -143,8 +146,7 @@ class StatsUtil {
       if (isScalar(tableSchema, parentIndex, id)) {
         int baseId = toBaseId(id);
         Types.StructType fieldStruct =
-            fieldStatsStruct(
-                field.isOptional(), field.type(), baseId, metricsConfig.columnMode(id));
+            fieldStatsStruct(field.type(), baseId, metricsConfig.columnMode(id));
 
         if (fieldStruct != null) {
           fieldStructs.add(optional(baseId, fieldName, fieldStruct));
@@ -175,7 +177,7 @@ class StatsUtil {
       if (field != null && isScalar(tableSchema, parentIndex, id)) {
         int baseId = toBaseId(id);
         Types.StructType fieldStruct =
-            fieldStatsStruct(field.isOptional(), field.type(), baseId, MetricsModes.Full.get());
+            fieldStatsStruct(field.type(), baseId, MetricsModes.Full.get());
 
         if (fieldStruct != null) {
           fieldStructs.add(optional(baseId, fieldName, fieldStruct));
@@ -249,17 +251,16 @@ class StatsUtil {
 
   private static Types.NestedField lowerBoundField(Type type, int baseId) {
     Type boundType = isGeoType(type) ? geoLowerBound(baseId) : type;
-    return optional(baseId + LOWER_BOUND_OFFSET, "lower_bound", boundType);
+    return optional(baseId + LOWER_BOUND_OFFSET, LOWER_BOUND_NAME, boundType);
   }
 
   private static Types.NestedField upperBoundField(Type type, int baseId) {
     Type boundType = isGeoType(type) ? geoUpperBound(baseId) : type;
-    return optional(baseId + UPPER_BOUND_OFFSET, "upper_bound", boundType);
+    return optional(baseId + UPPER_BOUND_OFFSET, UPPER_BOUND_NAME, boundType);
   }
 
   @VisibleForTesting
-  static Types.StructType fieldStatsStruct(
-      boolean isOptional, Type type, int baseId, MetricsModes.MetricsMode mode) {
+  static Types.StructType fieldStatsStruct(Type type, int baseId, MetricsModes.MetricsMode mode) {
     if (null == mode || mode == MetricsModes.None.get() || type.isNestedType() || baseId < 0) {
       return null;
     }
@@ -287,14 +288,12 @@ class StatsUtil {
             Types.LongType.get(),
             "Number of values (including null and NaN)"));
 
-    if (isOptional) {
-      fields.add(
-          optional(
-              baseId + NULL_VALUE_COUNT_OFFSET,
-              "null_value_count",
-              Types.LongType.get(),
-              "Number of null values"));
-    }
+    fields.add(
+        optional(
+            baseId + NULL_VALUE_COUNT_OFFSET,
+            "null_value_count",
+            Types.LongType.get(),
+            "Number of null values"));
 
     if (isFloatingPoint(type)) {
       fields.add(

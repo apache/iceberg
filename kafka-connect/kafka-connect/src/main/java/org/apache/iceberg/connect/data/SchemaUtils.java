@@ -72,6 +72,8 @@ class SchemaUtils {
 
   private static final Pattern TRANSFORM_REGEX = Pattern.compile("(\\w+)\\((.+)\\)");
 
+  private static final int MAX_DECIMAL_PRECISION = 38;
+
   static PrimitiveType needsDataTypeUpdate(Type currentIcebergType, Schema valueSchema) {
     if (currentIcebergType.typeId() == TypeID.FLOAT && valueSchema.type() == Schema.Type.FLOAT64) {
       return DoubleType.get();
@@ -305,8 +307,7 @@ class SchemaUtils {
       } else if (value instanceof Boolean) {
         return BooleanType.get();
       } else if (value instanceof BigDecimal) {
-        BigDecimal bigDecimal = (BigDecimal) value;
-        return DecimalType.of(bigDecimal.precision(), bigDecimal.scale());
+        return inferDecimalType((BigDecimal) value);
       } else if (value instanceof Integer || value instanceof Long) {
         return LongType.get();
       } else if (value instanceof Float || value instanceof Double) {
@@ -347,6 +348,31 @@ class SchemaUtils {
       } else {
         return null;
       }
+    }
+
+    /**
+     * BigDecimal does not satisfy Iceberg's 0 &lt;= scale &lt;= precision &lt;= 38 invariant: a
+     * value &lt; 1 has a precision smaller than its scale ("0.001" is precision 1, scale 3), and an
+     * exponential value has a negative scale ("1E+2" is scale -2). Both are normalized here, the
+     * same way Spark normalizes a BigDecimal in Decimal.set. A value that needs more than 38 digits
+     * cannot be represented, so its type is reported as unknown.
+     */
+    private static Type inferDecimalType(BigDecimal value) {
+      // widened to long because the subtraction below overflows int for a pathological scale,
+      // e.g. new BigDecimal(BigInteger.ONE, Integer.MIN_VALUE)
+      long scale = value.scale();
+      long precision = value.precision();
+      if (scale < 0) {
+        precision -= scale;
+        scale = 0;
+      }
+
+      precision = Math.max(precision, scale);
+      if (precision > MAX_DECIMAL_PRECISION) {
+        return null;
+      }
+
+      return DecimalType.of((int) precision, (int) scale);
     }
 
     private int nextId() {

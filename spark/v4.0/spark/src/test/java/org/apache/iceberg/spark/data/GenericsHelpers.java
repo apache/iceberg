@@ -309,7 +309,7 @@ public class GenericsHelpers {
     for (int i = 0; i < expectedElements.size(); i += 1) {
       Map.Entry<?, ?> expectedPair = expectedElements.get(i);
       Object actualKey = actualKeys.get(i, convert(keyType));
-      Object actualValue = actualValues.get(i, convert(keyType));
+      Object actualValue = actualValues.get(i, convert(valueType));
 
       assertEqualsUnsafe(keyType, expectedPair.getKey(), actualKey);
       assertEqualsUnsafe(valueType, expectedPair.getValue(), actualValue);

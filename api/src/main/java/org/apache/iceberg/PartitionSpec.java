@@ -49,6 +49,15 @@ import org.apache.iceberg.types.Types.StructType;
  *
  * <p>Partition data is produced by transforming columns in a table. Each column transform is
  * represented by a named {@link PartitionField}.
+ *
+ * <p>Partition specs are created using a builder obtained from {@link #builderFor(Schema)}:
+ *
+ * <pre>{@code
+ * PartitionSpec spec = PartitionSpec.builderFor(schema)
+ *     .hour("ts")
+ *     .bucket("id", 10)
+ *     .build();
+ * }</pre>
  */
 public class PartitionSpec implements Serializable {
   // IDs for partition fields start at 1000
@@ -191,9 +200,8 @@ public class PartitionSpec implements Serializable {
   private Type resultType(PartitionField field) {
     Type sourceType = schema.findType(field.sourceId());
     if (sourceType == null) {
-      // when the source field has been dropped, substitute unknown and let the transform derive
-      // its result type; transforms that return the source type (identity, truncate, void) yield
-      // unknown, while transforms with a fixed result type still resolve
+      // When the source field has been dropped, the source type has been lost
+      // Transforms with a fixed result type still work, so use unknown for source
       sourceType = Types.UnknownType.get();
     }
 

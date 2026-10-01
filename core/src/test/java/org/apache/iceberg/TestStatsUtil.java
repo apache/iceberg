@@ -21,9 +21,11 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -146,8 +148,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(30_004, "value_count", Types.LongType.get()),
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()));
 
-    Types.StructType actual =
-        StatsUtil.fieldStatsStruct(true, type, 30_000, MetricsModes.Full.get());
+    Types.StructType actual = StatsUtil.fieldStatsStruct(type, 30_000, MetricsModes.Full.get());
 
     assertSameStructure(expected, actual);
   }
@@ -169,8 +170,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()),
             Types.NestedField.optional(30_007, "avg_value_size_in_bytes", Types.IntegerType.get()));
 
-    Types.StructType actual =
-        StatsUtil.fieldStatsStruct(true, type, 30_000, MetricsModes.Full.get());
+    Types.StructType actual = StatsUtil.fieldStatsStruct(type, 30_000, MetricsModes.Full.get());
 
     assertSameStructure(expected, actual);
   }
@@ -207,8 +207,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()),
             Types.NestedField.optional(30_007, "avg_value_size_in_bytes", Types.IntegerType.get()));
 
-    Types.StructType actual =
-        StatsUtil.fieldStatsStruct(true, type, 30_000, MetricsModes.Full.get());
+    Types.StructType actual = StatsUtil.fieldStatsStruct(type, 30_000, MetricsModes.Full.get());
 
     assertSameStructure(expected, actual);
   }
@@ -230,8 +229,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()),
             Types.NestedField.optional(30_006, "nan_value_count", Types.LongType.get()));
 
-    Types.StructType actual =
-        StatsUtil.fieldStatsStruct(true, type, 30_000, MetricsModes.Full.get());
+    Types.StructType actual = StatsUtil.fieldStatsStruct(type, 30_000, MetricsModes.Full.get());
 
     assertSameStructure(expected, actual);
   }
@@ -252,22 +250,22 @@ public class TestStatsUtil {
   @FieldSource("NESTED_TYPES")
   public void testNestedTypesHaveNoStats(Type type) {
     // list and map types are not tracked and produce no stats struct
-    assertThat(StatsUtil.fieldStatsStruct(true, type, 30_000, MetricsModes.Full.get())).isNull();
+    assertThat(StatsUtil.fieldStatsStruct(type, 30_000, MetricsModes.Full.get())).isNull();
   }
 
   @Test
   public void testRequiredField() {
-    // a required column does not produce a null_value_count field
+    // a required column produces a null_value_count field like any other column
     Type type = Types.IntegerType.get();
     Types.StructType expected =
         Types.StructType.of(
             Types.NestedField.optional(30_001, "lower_bound", type),
             Types.NestedField.optional(30_002, "upper_bound", type),
             Types.NestedField.optional(30_003, "tight_bounds", Types.BooleanType.get()),
-            Types.NestedField.optional(30_004, "value_count", Types.LongType.get()));
+            Types.NestedField.optional(30_004, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()));
 
-    Types.StructType actual =
-        StatsUtil.fieldStatsStruct(false, type, 30_000, MetricsModes.Full.get());
+    Types.StructType actual = StatsUtil.fieldStatsStruct(type, 30_000, MetricsModes.Full.get());
 
     assertSameStructure(expected, actual);
   }
@@ -275,9 +273,7 @@ public class TestStatsUtil {
   @Test
   public void testStringNoneMode() {
     // none mode produces no stats struct
-    assertThat(
-            StatsUtil.fieldStatsStruct(
-                true, Types.StringType.get(), 30_000, MetricsModes.None.get()))
+    assertThat(StatsUtil.fieldStatsStruct(Types.StringType.get(), 30_000, MetricsModes.None.get()))
         .isNull();
   }
 
@@ -291,7 +287,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(30_007, "avg_value_size_in_bytes", Types.IntegerType.get()));
 
     Types.StructType actual =
-        StatsUtil.fieldStatsStruct(true, Types.StringType.get(), 30_000, MetricsModes.Counts.get());
+        StatsUtil.fieldStatsStruct(Types.StringType.get(), 30_000, MetricsModes.Counts.get());
 
     assertSameStructure(expected, actual);
   }
@@ -313,7 +309,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()),
             Types.NestedField.optional(30_007, "avg_value_size_in_bytes", Types.IntegerType.get()));
 
-    Types.StructType actual = StatsUtil.fieldStatsStruct(true, string, 30_000, mode);
+    Types.StructType actual = StatsUtil.fieldStatsStruct(string, 30_000, mode);
 
     assertSameStructure(expected, actual);
   }
@@ -330,7 +326,8 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_201, "lower_bound", Types.LongType.get()),
             Types.NestedField.optional(10_202, "upper_bound", Types.LongType.get()),
             Types.NestedField.optional(10_203, "tight_bounds", Types.BooleanType.get()),
-            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()));
+            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(10_205, "null_value_count", Types.LongType.get()));
     Types.StructType dataStats =
         Types.StructType.of(
             Types.NestedField.optional(10_401, "lower_bound", Types.StringType.get()),
@@ -363,7 +360,8 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_201, "lower_bound", Types.LongType.get()),
             Types.NestedField.optional(10_202, "upper_bound", Types.LongType.get()),
             Types.NestedField.optional(10_203, "tight_bounds", Types.BooleanType.get()),
-            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()));
+            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(10_205, "null_value_count", Types.LongType.get()));
     Types.StructType categoryStats =
         Types.StructType.of(
             Types.NestedField.optional(10_601, "lower_bound", Types.StringType.get()),
@@ -401,6 +399,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_602, "upper_bound", Types.DoubleType.get()),
             Types.NestedField.optional(10_603, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(10_604, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(10_605, "null_value_count", Types.LongType.get()),
             Types.NestedField.optional(10_606, "nan_value_count", Types.LongType.get()));
     Types.StructType lonStats =
         Types.StructType.of(
@@ -449,7 +448,8 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_201, "lower_bound", Types.LongType.get()),
             Types.NestedField.optional(10_202, "upper_bound", Types.LongType.get()),
             Types.NestedField.optional(10_203, "tight_bounds", Types.BooleanType.get()),
-            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()));
+            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(10_205, "null_value_count", Types.LongType.get()));
     Types.StructType dataStats =
         Types.StructType.of(
             Types.NestedField.optional(10_401, "lower_bound", Types.StringType.get()),
@@ -464,7 +464,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_400, "data", dataStats));
 
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(ImmutableMap.of(), schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(ImmutableMap.of(), schema));
 
     assertSameStructure(expected, actual);
   }
@@ -483,7 +483,8 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_201, "lower_bound", Types.LongType.get()),
             Types.NestedField.optional(10_202, "upper_bound", Types.LongType.get()),
             Types.NestedField.optional(10_203, "tight_bounds", Types.BooleanType.get()),
-            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()));
+            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(10_205, "null_value_count", Types.LongType.get()));
     Types.StructType categoryStats =
         Types.StructType.of(
             Types.NestedField.optional(10_601, "lower_bound", Types.StringType.get()),
@@ -500,7 +501,7 @@ public class TestStatsUtil {
     Map<String, String> properties =
         ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data", "none");
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(properties, schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(properties, schema));
 
     assertSameStructure(expected, actual);
   }
@@ -524,6 +525,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_602, "upper_bound", Types.DoubleType.get()),
             Types.NestedField.optional(10_603, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(10_604, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(10_605, "null_value_count", Types.LongType.get()),
             Types.NestedField.optional(10_606, "nan_value_count", Types.LongType.get()));
     Types.StructType lonStats =
         Types.StructType.of(
@@ -541,7 +543,7 @@ public class TestStatsUtil {
     Map<String, String> properties =
         ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "none");
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(properties, schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(properties, schema));
 
     assertSameStructure(expected, actual);
   }
@@ -559,20 +561,26 @@ public class TestStatsUtil {
                 Types.MapType.ofOptional(4, 5, Types.StringType.get(), Types.StringType.get())));
 
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(ImmutableMap.of(), schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(ImmutableMap.of(), schema));
 
     assertThat(actual.fields()).isEmpty();
   }
 
   /**
-   * Assert that two struct types match in field IDs, names, optionality, and types, ignoring docs.
+   * Assert that two struct types match in field IDs, names, optionality, and types, ignoring field
+   * order and docs.
    */
   private static void assertSameStructure(Types.StructType expected, Types.StructType actual) {
     assertThat(actual.fields()).as("Number of fields").hasSameSizeAs(expected.fields());
 
-    for (int i = 0; i < expected.fields().size(); i += 1) {
-      Types.NestedField expectedField = expected.fields().get(i);
-      Types.NestedField actualField = actual.fields().get(i);
+    List<Types.NestedField> expectedFields = Lists.newArrayList(expected.fields());
+    List<Types.NestedField> actualFields = Lists.newArrayList(actual.fields());
+    expectedFields.sort(Comparator.comparingInt(Types.NestedField::fieldId));
+    actualFields.sort(Comparator.comparingInt(Types.NestedField::fieldId));
+
+    for (int i = 0; i < expectedFields.size(); i += 1) {
+      Types.NestedField expectedField = expectedFields.get(i);
+      Types.NestedField actualField = actualFields.get(i);
 
       assertThat(actualField.fieldId()).as("Field ID").isEqualTo(expectedField.fieldId());
       assertThat(actualField.name()).as("Field name").isEqualTo(expectedField.name());

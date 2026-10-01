@@ -26,6 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.StructLikeUtil;
 
 class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
   private final Types.StructType struct;
@@ -45,7 +46,7 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     this.struct = struct;
     this.posToOffset = posToOffset(struct);
     this.fieldId = StatsUtil.toFieldId(struct.fields().get(0).fieldId());
-    this.boundType = struct.fieldType("lower_bound");
+    this.boundType = struct.fieldType(StatsUtil.LOWER_BOUND_NAME);
   }
 
   FieldStatsStruct(
@@ -69,15 +70,8 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
 
   private FieldStatsStruct(FieldStatsStruct<T> toCopy) {
     this(toCopy.struct);
-    // bounds are stored using the internal representation, which is a byte array for binary types
-    this.lowerBound =
-        toCopy.lowerBound instanceof byte[]
-            ? copyOf((byte[]) toCopy.lowerBound)
-            : toCopy.lowerBound;
-    this.upperBound =
-        toCopy.upperBound instanceof byte[]
-            ? copyOf((byte[]) toCopy.upperBound)
-            : toCopy.upperBound;
+    this.lowerBound = copyBound(toCopy.lowerBound);
+    this.upperBound = copyBound(toCopy.upperBound);
     this.tightBounds = toCopy.tightBounds;
     this.valueCount = toCopy.valueCount;
     this.nullValueCount = toCopy.nullValueCount;
@@ -98,7 +92,7 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     this.valueCount = fieldMetrics.valueCount();
     this.nullValueCount = fieldMetrics.nullValueCount() < 0 ? null : fieldMetrics.nullValueCount();
     this.nanValueCount = fieldMetrics.nanValueCount() < 0 ? null : fieldMetrics.nanValueCount();
-    this.avgValueSize = null;
+    this.avgValueSize = fieldMetrics.avgValueSizeInBytes();
   }
 
   private boolean isBinary() {
@@ -144,13 +138,28 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
   }
 
   @Override
+  public boolean hasValueCount() {
+    return valueCount != null;
+  }
+
+  @Override
   public long valueCount() {
     return valueCount;
   }
 
   @Override
+  public boolean hasNullValueCount() {
+    return nullValueCount != null;
+  }
+
+  @Override
   public long nullValueCount() {
     return nullValueCount;
+  }
+
+  @Override
+  public boolean hasNanValueCount() {
+    return nanValueCount != null;
   }
 
   @Override
@@ -217,6 +226,16 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     }
 
     return posToOffset;
+  }
+
+  private static Object copyBound(Object bound) {
+    if (bound instanceof byte[] bytes) {
+      return copyOf(bytes);
+    } else if (bound instanceof StructLike struct) {
+      return StructLikeUtil.copy(struct);
+    }
+
+    return bound;
   }
 
   private static byte[] copyOf(byte[] array) {

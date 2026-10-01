@@ -289,7 +289,7 @@ public class TableProperties {
   public static final String OBJECT_STORE_ENABLED = "write.object-storage.enabled";
   public static final boolean OBJECT_STORE_ENABLED_DEFAULT = false;
 
-  // Excludes the partition values in the path when set to true and object store is enabled
+  // Includes the partition values in the path when set to true and object store is enabled
   public static final String WRITE_OBJECT_STORE_PARTITIONED_PATHS =
       "write.object-storage.partitioned-paths";
   public static final boolean WRITE_OBJECT_STORE_PARTITIONED_PATHS_DEFAULT = true;
@@ -319,16 +319,6 @@ public class TableProperties {
 
   public static final String WRITE_PARTITION_SUMMARY_LIMIT = "write.summary.partition-limit";
   public static final int WRITE_PARTITION_SUMMARY_LIMIT_DEFAULT = 0;
-
-  /**
-   * @deprecated will be removed in 1.12.0, writing manifest lists is always enabled
-   */
-  @Deprecated public static final String MANIFEST_LISTS_ENABLED = "write.manifest-lists.enabled";
-
-  /**
-   * @deprecated will be removed in 1.12.0, writing manifest lists is always enabled
-   */
-  @Deprecated public static final boolean MANIFEST_LISTS_ENABLED_DEFAULT = true;
 
   public static final String METADATA_COMPRESSION = "write.metadata.compression-codec";
   public static final String METADATA_COMPRESSION_DEFAULT = "none";

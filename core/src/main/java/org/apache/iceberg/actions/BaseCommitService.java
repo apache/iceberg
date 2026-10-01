@@ -31,7 +31,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.slf4j.Logger;
@@ -91,9 +90,9 @@ abstract class BaseCommitService<T> implements Closeable {
         Executors.newSingleThreadExecutor(
             new ThreadFactoryBuilder().setNameFormat("Committer-Service").build());
 
-    completedRewrites = Queues.newConcurrentLinkedQueue();
-    committedRewrites = Queues.newConcurrentLinkedQueue();
-    inProgressCommits = Queues.newConcurrentLinkedQueue();
+    completedRewrites = new ConcurrentLinkedQueue<>();
+    committedRewrites = new ConcurrentLinkedQueue<>();
+    inProgressCommits = new ConcurrentLinkedQueue<>();
   }
 
   /**
@@ -199,7 +198,7 @@ abstract class BaseCommitService<T> implements Closeable {
     Preconditions.checkArgument(
         !timeout && completedRewrites.isEmpty(),
         "Timeout occurred when waiting for commits to complete. "
-            + "{} file groups committed. {} file groups remain uncommitted. "
+            + "%s file groups committed. %s file groups remain uncommitted. "
             + "Retry this operation to attempt rewriting the failed groups.",
         committedRewrites.size(),
         completedRewrites.size());
