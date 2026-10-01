@@ -851,7 +851,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     - `manifest_info` must be set if and only if the tracked file is a manifest.
     - For manifests, `manifest_info.added_files_count`, `existing_files_count`, `deleted_files_count`, `replaced_files_count`, and `modified_files_count` must sum to `record_count`.
     - `deletion_vector` may only be set if the tracked file is a data file.
-    - `column_files` may only be set if the tracked file is a data file or a data manifest.
+    - `column_files` may only be set if the tracked file is a data file or a v4 leaf manifest.
     - `tracking.deleted_positions` and `tracking.replaced_positions` may only be set if the tracked file is a manifest.
     - `tracking.snapshot_id` and `tracking.sequence_number` are required for the tracked file in the root manifest.
     - Writers should not write a null `tracking.snapshot_id`.
