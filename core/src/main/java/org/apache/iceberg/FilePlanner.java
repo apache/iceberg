@@ -102,7 +102,6 @@ class FilePlanner {
   }
 
   FilePlanner planWith(ExecutorService newExecutorService) {
-    Preconditions.checkArgument(newExecutorService != null, "Invalid executor service: null");
     this.executorService = newExecutorService;
     return this;
   }
@@ -137,7 +136,7 @@ class FilePlanner {
     }
 
     CloseableIterable<TrackedFile> leafFiles =
-        leafManifests.size() > 1
+        executorService != null && leafManifests.size() > 1
             ? new ParallelIterable<>(leafPlanTasks, executorService)
             : CloseableIterable.concat(leafPlanTasks);
 
