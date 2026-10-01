@@ -25,6 +25,7 @@ import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFA
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -659,13 +660,25 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                     ManifestFile::snapshotId, LinkedHashMap::new, Collectors.toList()));
 
     long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
-    List<DeleteFileIndex> deleteIndexes = Lists.newArrayList();
-    for (List<ManifestFile> deleteManifests : deleteManifestsBySnapshot.values()) {
-      deleteIndexes.add(
-          buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter, partitionSet));
-    }
+    Map<Integer, PartitionSpec> specsById = ops().current().specsById();
+    List<List<ManifestFile>> manifestGroups =
+        Lists.newArrayList(deleteManifestsBySnapshot.values());
+    DeleteFileIndex[] deleteIndexes = new DeleteFileIndex[manifestGroups.size()];
+    Tasks.range(deleteIndexes.length)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(workerPool())
+        .run(
+            index ->
+                deleteIndexes[index] =
+                    buildDeleteFileIndex(
+                        manifestGroups.get(index),
+                        specsById,
+                        startingSequenceNumber,
+                        dataFilter,
+                        partitionSet));
 
-    return deleteIndexes;
+    return Arrays.asList(deleteIndexes);
   }
 
   /**
@@ -793,6 +806,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   private DeleteFileIndex buildDeleteFileIndex(
       List<ManifestFile> deleteManifests,
+      Map<Integer, PartitionSpec> specsById,
       long startingSequenceNumber,
       Expression dataFilter,
       PartitionSet partitionSet) {
@@ -800,7 +814,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         DeleteFileIndex.builderFor(ops().io(), deleteManifests)
             .afterSequenceNumber(startingSequenceNumber)
             .caseSensitive(caseSensitive)
-            .specsById(ops().current().specsById());
+            .specsById(specsById);
 
     if (dataFilter != null) {
       builder.filterData(dataFilter);
