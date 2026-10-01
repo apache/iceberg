@@ -33,7 +33,7 @@ import org.apache.iceberg.types.Types;
  * id bigint, data string, point struct&lt;x float, y float&gt;</code> produces fields in schema
  * order: [ id, data, point, point.x, point.y ]
  */
-public class SchemaOrder {
+class SchemaOrder {
   private SchemaOrder() {}
 
   /**

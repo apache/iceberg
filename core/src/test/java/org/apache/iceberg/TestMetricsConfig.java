@@ -492,6 +492,8 @@ public class TestMetricsConfig {
     assertThat(deserialized.columnMode(3))
         .asString()
         .isEqualTo(MetricsModes.Counts.get().toString());
+
+    assertThat(deserialized.metricsFieldIds()).containsExactlyElementsOf(config.metricsFieldIds());
   }
 
   @Test
@@ -521,5 +523,7 @@ public class TestMetricsConfig {
     assertThat(deserialized.columnMode(3))
         .asString()
         .isEqualTo(MetricsModes.Counts.get().toString());
+
+    assertThat(deserialized.metricsFieldIds()).containsExactlyElementsOf(config.metricsFieldIds());
   }
 }

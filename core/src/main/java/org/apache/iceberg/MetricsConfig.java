@@ -371,7 +371,7 @@ public final class MetricsConfig implements Serializable {
       Schema schema, Map<String, MetricsMode> columnModes) {
     if (schema != null) {
       Map<Integer, String> idToName = Maps.newLinkedHashMap();
-      for (Integer fieldId : SchemaOrder.allFieldIds(schema)) {
+      for (int fieldId : SchemaOrder.allFieldIds(schema)) {
         String name = schema.findColumnName(fieldId);
         if (columnModes.containsKey(name)) {
           idToName.put(fieldId, name);
