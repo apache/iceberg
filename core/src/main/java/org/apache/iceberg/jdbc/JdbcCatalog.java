@@ -312,7 +312,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       throw new NoSuchTableException("Table does not exist: %s", identifier);
     }
 
-    if (dropTableIfMetadataMatches(identifier, metadata.metadataFileLocation()) == 0) {
+    if (!dropTableIfMetadataMatches(identifier, metadata.metadataFileLocation())) {
       throw new CommitFailedException(
           "Cannot unregister table %s: metadata location has changed or table was dropped",
           identifier);
@@ -323,15 +323,16 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     return new BaseTable(staticOps, identifier.name(), metricsReporter());
   }
 
-  int dropTableIfMetadataMatches(TableIdentifier identifier, String metadataLocation) {
+  private boolean dropTableIfMetadataMatches(TableIdentifier identifier, String metadataLocation) {
     return execute(
-        (schemaVersion == JdbcUtil.SchemaVersion.V1)
-            ? JdbcUtil.V1_UNREGISTER_TABLE_SQL
-            : JdbcUtil.V0_UNREGISTER_TABLE_SQL,
-        catalogName,
-        JdbcUtil.namespaceToString(identifier.namespace()),
-        identifier.name(),
-        metadataLocation);
+            (schemaVersion == JdbcUtil.SchemaVersion.V1)
+                ? JdbcUtil.V1_UNREGISTER_TABLE_SQL
+                : JdbcUtil.V0_UNREGISTER_TABLE_SQL,
+            catalogName,
+            JdbcUtil.namespaceToString(identifier.namespace()),
+            identifier.name(),
+            metadataLocation)
+        == 1;
   }
 
   @Override
