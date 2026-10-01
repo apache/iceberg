@@ -707,7 +707,7 @@ A manifest file must store metadata as properties in the file’s key-value meta
 
 Within a snapshot, each content file must be referenced by at most one live manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers should not produce multiple manifest entries for the same content file in a snapshot (for example, both ADDED and DELETED entries for the same file). Writers are not required to validate uniqueness at commit time.
 
-#### Entries in Manifests
+#### Manifest Schema
 
 In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, entries are called tracked files and are described by the `tracked_file` struct. In v4, `data_file` struct fields are flattened directly into the tracked file, and tracking fields are grouped into a nested `tracking` struct. An entry is **live** in a snapshot if its `status` is ADDED, EXISTING, or MODIFIED and its position is not set in the containing manifest's [`manifest_info.dv`](#manifest-deletion-vectors).
 
@@ -1189,7 +1189,7 @@ A simple and valid approach is to estimate the number of rows in data files that
 
 Scans are planned by reading the manifests referenced by the snapshot root for the current snapshot; starting in v4, the snapshot root may also contain data files.
 
-A scan uses only [live](#entries-in-manifests) entries.
+A scan uses only [live](#manifest-schema) entries.
 
 Manifests that contain no matching files, determined using file counts, partition summaries (v1-v3), or column stats (v4), may be skipped.
 
