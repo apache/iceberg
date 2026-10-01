@@ -58,9 +58,9 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
   public boolean test(T value) {
     switch (op()) {
       case IN:
-        return literalSet.contains(value);
+        return value != null && literalSet.contains(value);
       case NOT_IN:
-        return !literalSet.contains(value);
+        return value == null || !literalSet.contains(value);
       default:
         throw new IllegalStateException("Invalid operation for BoundSetPredicate: " + op());
     }

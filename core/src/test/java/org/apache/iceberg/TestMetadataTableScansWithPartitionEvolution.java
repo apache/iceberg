@@ -68,7 +68,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @TestTemplate
-  public void testManifestsTableWithAddPartitionOnNestedField() throws IOException {
+  public void manifestsTableWithAddPartitionOnNestedField() throws IOException {
     Table manifestsTable = new ManifestsTable(table);
     TableScan scan = manifestsTable.newScan();
 
@@ -79,7 +79,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @TestTemplate
-  public void testDataFilesTableWithAddPartitionOnNestedField() throws IOException {
+  public void dataFilesTableWithAddPartitionOnNestedField() throws IOException {
     Table dataFilesTable = new DataFilesTable(table);
     TableScan scan = dataFilesTable.newScan();
 
@@ -90,7 +90,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @TestTemplate
-  public void testManifestEntriesWithAddPartitionOnNestedField() throws IOException {
+  public void manifestEntriesWithAddPartitionOnNestedField() throws IOException {
     Table manifestEntriesTable = new ManifestEntriesTable(table);
     TableScan scan = manifestEntriesTable.newScan();
 
@@ -101,7 +101,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @TestTemplate
-  public void testAllDataFilesTableWithAddPartitionOnNestedField() throws IOException {
+  public void allDataFilesTableWithAddPartitionOnNestedField() throws IOException {
     Table allDataFilesTable = new AllDataFilesTable(table);
     TableScan scan = allDataFilesTable.newScan();
 
@@ -112,7 +112,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @TestTemplate
-  public void testAllEntriesTableWithAddPartitionOnNestedField() throws IOException {
+  public void allEntriesTableWithAddPartitionOnNestedField() throws IOException {
     Table allEntriesTable = new AllEntriesTable(table);
     TableScan scan = allEntriesTable.newScan();
 
@@ -123,7 +123,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @TestTemplate
-  public void testAllManifestsTableWithAddPartitionOnNestedField() throws IOException {
+  public void allManifestsTableWithAddPartitionOnNestedField() throws IOException {
     Table allManifestsTable = new AllManifestsTable(table);
     TableScan scan = allManifestsTable.newScan();
 
@@ -134,7 +134,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @TestTemplate
-  public void testPartitionsTableScanWithAddPartitionOnNestedField() {
+  public void partitionsTableScanWithAddPartitionOnNestedField() {
     Table partitionsTable = new PartitionsTable(table);
     Types.StructType idPartition =
         new Schema(
@@ -160,7 +160,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @TestTemplate
-  public void testPositionDeletesPartitionSpecRemoval() {
+  public void positionDeletesPartitionSpecRemoval() {
     assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isEqualTo(2);
     table.updateSpec().removeField("id").commit();
 
@@ -214,7 +214,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @TestTemplate
-  public void testPartitionSpecEvolutionSourceFieldMissing() throws IOException {
+  public void partitionSpecEvolutionSourceFieldMissing() throws IOException {
     // Drop partition field
     table.updateSpec().removeField("id").commit();
 
@@ -230,7 +230,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @TestTemplate
-  public void testPartitionSpecEvolutionToUnpartitioned() throws IOException {
+  public void partitionSpecEvolutionToUnpartitioned() throws IOException {
     // Remove all the partition fields
     table.updateSpec().removeField("id").removeField("nested.id").commit();
 
@@ -262,7 +262,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @TestTemplate
-  public void testPartitionSpecEvolutionNullValues() throws IOException {
+  public void partitionSpecEvolutionNullValues() throws IOException {
     Schema schema =
         new Schema(
             required(1, "company_id", Types.IntegerType.get()),
@@ -293,7 +293,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   }
 
   @TestTemplate
-  public void testPartitionSpecRenameFields() throws IOException {
+  public void partitionSpecRenameFields() throws IOException {
     Schema schema =
         new Schema(
             required(1, "data", Types.StringType.get()),

@@ -53,6 +53,7 @@ import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -63,8 +64,10 @@ import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.GeometryType$;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.GeographyVal;
 import org.apache.spark.unsafe.types.GeometryVal;
@@ -158,34 +161,14 @@ public class SparkParquetReaders {
         }
       }
 
-      int constantDefinitionLevel = type.getMaxDefinitionLevel(currentPath());
-      List<Types.NestedField> expectedFields = expected.fields();
-      List<ParquetValueReader<?>> reorderedFields =
-          Lists.newArrayListWithExpectedSize(expectedFields.size());
-
-      for (Types.NestedField field : expectedFields) {
-        int id = field.fieldId();
-        ParquetValueReader<?> reader =
-            ParquetValueReaders.replaceWithMetadataReader(
-                id, readersById.get(id), idToConstant, constantDefinitionLevel);
-        reorderedFields.add(defaultReader(field, reader, constantDefinitionLevel));
-      }
-
-      return new InternalRowReader(reorderedFields);
-    }
-
-    private ParquetValueReader<?> defaultReader(
-        Types.NestedField field, ParquetValueReader<?> reader, int constantDL) {
-      if (reader != null) {
-        return reader;
-      } else if (field.initialDefault() != null) {
-        return ParquetValueReaders.constant(
-            SparkUtil.internalToSpark(field.type(), field.initialDefault()), constantDL);
-      } else if (field.isOptional()) {
-        return ParquetValueReaders.nulls();
-      }
-
-      throw new IllegalArgumentException(String.format("Missing required field: %s", field.name()));
+      return ParquetValueReaders.structReader(
+          type,
+          currentPath(),
+          expected.fields(),
+          readersById,
+          idToConstant,
+          SparkUtil::internalToSpark,
+          InternalRowReader::new);
     }
 
     @Override
@@ -243,6 +226,14 @@ public class SparkParquetReaders {
     public ParquetValueReader<?> primitive(
         org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
+
+      LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
+      if (logicalType instanceof LogicalTypeAnnotation.GeometryLogicalTypeAnnotation) {
+        String crs = ((LogicalTypeAnnotation.GeometryLogicalTypeAnnotation) logicalType).getCrs();
+        return new GeometryReader(desc, sridFromCrs(crs));
+      } else if (logicalType instanceof LogicalTypeAnnotation.GeographyLogicalTypeAnnotation) {
+        return new GeographyReader(desc);
+      }
 
       if (primitive.getOriginalType() != null) {
         switch (primitive.getOriginalType()) {
@@ -534,6 +525,44 @@ public class SparkParquetReaders {
       variant.value().writeTo(valueBuffer, 0);
 
       return new VariantVal(valueBytes, metadataBytes);
+    }
+  }
+
+  /** Resolves the Spark SRID for a geometry column's CRS (absent CRS defaults to OGC:CRS84). */
+  private static int sridFromCrs(String crs) {
+    if (crs == null) {
+      return GeometryType$.MODULE$.GEOMETRY_DEFAULT_SRID();
+    }
+    return GeometryType$.MODULE$.apply(crs).srid();
+  }
+
+  /** Reads a WKB BINARY column into a Spark {@link GeometryVal}. */
+  private static class GeometryReader extends PrimitiveReader<GeometryVal> {
+    private final int srid;
+
+    GeometryReader(ColumnDescriptor desc, int srid) {
+      super(desc);
+      this.srid = srid;
+    }
+
+    @Override
+    public GeometryVal read(GeometryVal ignored) {
+      // Iceberg stores pure WKB; Spark's GeometryVal is [SRID | WKB], so attach the column's SRID.
+      return STUtils.stGeomFromWKB(column.nextBinary().getBytes(), srid);
+    }
+  }
+
+  /** Reads a WKB BINARY column into a Spark {@link GeographyVal}. */
+  private static class GeographyReader extends PrimitiveReader<GeographyVal> {
+    GeographyReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public GeographyVal read(GeographyVal ignored) {
+      // Iceberg stores pure WKB; Spark's GeographyVal is [SRID | WKB]. Geography supports only
+      // OGC:CRS84, so the default SRID applies.
+      return STUtils.stGeogFromWKB(column.nextBinary().getBytes());
     }
   }
 

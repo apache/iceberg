@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data.vectorized;
 
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.VariantType;
 import org.apache.spark.sql.vectorized.ColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.sql.vectorized.ColumnarMap;
@@ -143,6 +144,12 @@ public class ColumnVectorWithFilter extends ColumnVector {
             for (int index = 0; index < structType.length(); index++) {
               children[index] = new ColumnVectorWithFilter(delegate.getChild(index), rowIdMapping);
             }
+          } else if (dataType() instanceof VariantType) {
+            this.children =
+                new ColumnVectorWithFilter[] {
+                  new ColumnVectorWithFilter(delegate.getChild(0), rowIdMapping),
+                  new ColumnVectorWithFilter(delegate.getChild(1), rowIdMapping)
+                };
           } else {
             throw new UnsupportedOperationException("Unsupported nested type: " + dataType());
           }

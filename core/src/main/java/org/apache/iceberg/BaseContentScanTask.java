@@ -104,6 +104,8 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
         return () ->
             new OffsetsAwareSplitScanTaskIterator<>(
                 self(), length(), splitOffsets, this::newSplitTask);
+      } else if (length() <= targetSplitSize && length() > 0) {
+        return ImmutableList.of(self());
       } else {
         return () ->
             new FixedSizeSplitScanTaskIterator<>(

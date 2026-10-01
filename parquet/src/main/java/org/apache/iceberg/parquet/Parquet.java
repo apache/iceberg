@@ -27,6 +27,8 @@ import static org.apache.iceberg.TableProperties.DELETE_PARQUET_PAGE_VERSION;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED;
+import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX;
@@ -90,11 +92,12 @@ import org.apache.iceberg.encryption.NativeEncryptionInputFile;
 import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.hadoop.HadoopInputFile;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
+import org.apache.iceberg.io.EagerInputFile;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -141,6 +144,9 @@ public class Parquet {
           "parquet.private.read.filter.predicate",
           "parquet.read.support.class",
           "parquet.crypto.factory.class");
+
+  // Size threshold (bytes) at or below which a Parquet file is fetched eagerly on the first read.
+  private static final long EAGER_FETCH_THRESHOLD_BYTES = 1024 * 1024;
 
   public static WriteBuilder write(OutputFile file) {
     if (file instanceof EncryptedOutputFile) {
@@ -394,7 +400,7 @@ public class Parquet {
       // Map Iceberg properties to pass down to the Parquet writer
       Context context = createContextFunc.apply(config);
 
-      int rowGroupSize = context.rowGroupSize();
+      long rowGroupSize = context.rowGroupSize();
       int pageSize = context.pageSize();
       int pageRowLimit = context.pageRowLimit();
       int dictionaryPageSize = context.dictionaryPageSize();
@@ -470,7 +476,8 @@ public class Parquet {
                 .withDictionaryPageSize(dictionaryPageSize)
                 .withMinRowCountForPageSizeCheck(rowGroupCheckMinRecordCount)
                 .withMaxRowCountForPageSizeCheck(rowGroupCheckMaxRecordCount)
-                .withMaxBloomFilterBytes(bloomFilterMaxBytes);
+                .withMaxBloomFilterBytes(bloomFilterMaxBytes)
+                .withAdaptiveBloomFilterEnabled(context.adaptiveBloomFilterEnabled());
 
         setBloomFilterConfig(
             context,
@@ -510,7 +517,7 @@ public class Parquet {
                 .setWriteSupport(getWriteSupport(type))
                 .withCompressionCodec(codec)
                 .withWriteMode(writeMode)
-                .withRowGroupSize((long) rowGroupSize)
+                .withRowGroupSize(rowGroupSize)
                 .withPageSize(pageSize)
                 .withPageRowCountLimit(pageRowLimit)
                 .withDictionaryEncoding(dictionaryEnabled)
@@ -535,7 +542,7 @@ public class Parquet {
     }
 
     static class Context {
-      private final int rowGroupSize;
+      private final long rowGroupSize;
       private final int pageSize;
       private final int pageRowLimit;
       private final int dictionaryPageSize;
@@ -545,6 +552,7 @@ public class Parquet {
       private final int rowGroupCheckMinRecordCount;
       private final int rowGroupCheckMaxRecordCount;
       private final int bloomFilterMaxBytes;
+      private final boolean adaptiveBloomFilterEnabled;
       private final Map<String, String> columnBloomFilterFpp;
       private final Map<String, String> columnBloomFilterNdv;
       private final Map<String, String> columnBloomFilterEnabled;
@@ -554,7 +562,7 @@ public class Parquet {
       private final boolean trackUncompressedRowGroupSize;
 
       private Context(
-          int rowGroupSize,
+          long rowGroupSize,
           int pageSize,
           int pageRowLimit,
           int dictionaryPageSize,
@@ -564,6 +572,7 @@ public class Parquet {
           int rowGroupCheckMinRecordCount,
           int rowGroupCheckMaxRecordCount,
           int bloomFilterMaxBytes,
+          boolean adaptiveBloomFilterEnabled,
           Map<String, String> columnBloomFilterFpp,
           Map<String, String> columnBloomFilterNdv,
           Map<String, String> columnBloomFilterEnabled,
@@ -581,6 +590,7 @@ public class Parquet {
         this.rowGroupCheckMinRecordCount = rowGroupCheckMinRecordCount;
         this.rowGroupCheckMaxRecordCount = rowGroupCheckMaxRecordCount;
         this.bloomFilterMaxBytes = bloomFilterMaxBytes;
+        this.adaptiveBloomFilterEnabled = adaptiveBloomFilterEnabled;
         this.columnBloomFilterFpp = columnBloomFilterFpp;
         this.columnBloomFilterNdv = columnBloomFilterNdv;
         this.columnBloomFilterEnabled = columnBloomFilterEnabled;
@@ -591,8 +601,8 @@ public class Parquet {
       }
 
       static Context dataContext(Map<String, String> config) {
-        int rowGroupSize =
-            PropertyUtil.propertyAsInt(
+        long rowGroupSize =
+            PropertyUtil.propertyAsLong(
                 config, PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
         Preconditions.checkArgument(rowGroupSize > 0, "Row group size must be > 0");
 
@@ -646,6 +656,12 @@ public class Parquet {
                 config, PARQUET_BLOOM_FILTER_MAX_BYTES, PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT);
         Preconditions.checkArgument(bloomFilterMaxBytes > 0, "bloom Filter Max Bytes must be > 0");
 
+        boolean adaptiveBloomFilterEnabled =
+            PropertyUtil.propertyAsBoolean(
+                config,
+                PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED,
+                PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED_DEFAULT);
+
         Map<String, String> columnBloomFilterFpp =
             PropertyUtil.propertiesWithPrefix(config, PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX);
 
@@ -681,6 +697,7 @@ public class Parquet {
             rowGroupCheckMinRecordCount,
             rowGroupCheckMaxRecordCount,
             bloomFilterMaxBytes,
+            adaptiveBloomFilterEnabled,
             columnBloomFilterFpp,
             columnBloomFilterNdv,
             columnBloomFilterEnabled,
@@ -694,8 +711,8 @@ public class Parquet {
         // default delete config using data config
         Context dataContext = dataContext(config);
 
-        int rowGroupSize =
-            PropertyUtil.propertyAsInt(
+        long rowGroupSize =
+            PropertyUtil.propertyAsLong(
                 config, DELETE_PARQUET_ROW_GROUP_SIZE_BYTES, dataContext.rowGroupSize());
         Preconditions.checkArgument(rowGroupSize > 0, "Row group size must be > 0");
 
@@ -760,6 +777,7 @@ public class Parquet {
             rowGroupCheckMinRecordCount,
             rowGroupCheckMaxRecordCount,
             PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT,
+            PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED_DEFAULT,
             ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of(),
@@ -771,7 +789,7 @@ public class Parquet {
 
       private static CompressionCodecName toCodec(String codecAsString) {
         try {
-          return CompressionCodecName.valueOf(codecAsString.toUpperCase(Locale.ENGLISH));
+          return CompressionCodecName.valueOf(codecAsString.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
           throw new IllegalArgumentException("Unsupported compression codec: " + codecAsString);
         }
@@ -786,7 +804,7 @@ public class Parquet {
         }
       }
 
-      int rowGroupSize() {
+      long rowGroupSize() {
         return rowGroupSize;
       }
 
@@ -824,6 +842,10 @@ public class Parquet {
 
       int bloomFilterMaxBytes() {
         return bloomFilterMaxBytes;
+      }
+
+      boolean adaptiveBloomFilterEnabled() {
+        return adaptiveBloomFilterEnabled;
       }
 
       Map<String, String> columnBloomFilterFpp() {
@@ -1010,7 +1032,6 @@ public class Parquet {
     private EncryptionKeyMetadata keyMetadata = null;
     private int[] equalityFieldIds = null;
     private SortOrder sortOrder;
-    private Function<CharSequence, ?> pathTransformFunc = Function.identity();
 
     private DeleteWriteBuilder(OutputFile file) {
       this.appenderBuilder = write(file);
@@ -1106,11 +1127,6 @@ public class Parquet {
       return this;
     }
 
-    public DeleteWriteBuilder transformPaths(Function<CharSequence, ?> newPathTransformFunc) {
-      this.pathTransformFunc = newPathTransformFunc;
-      return this;
-    }
-
     public DeleteWriteBuilder withSortOrder(SortOrder newSortOrder) {
       this.sortOrder = newSortOrder;
       return this;
@@ -1161,39 +1177,20 @@ public class Parquet {
       Preconditions.checkArgument(
           spec.isUnpartitioned() || partition != null,
           "Partition must not be null for partitioned writes");
-      Preconditions.checkArgument(
-          rowSchema == null || createWriterFunc != null,
-          "Create function should be provided if we write row data");
+      if (rowSchema != null) {
+        throw new UnsupportedOperationException("Position delete writer does not support row data");
+      }
 
       meta("delete-type", "position");
 
-      if (rowSchema != null && createWriterFunc != null) {
-        // the appender uses the row schema wrapped with position fields
-        appenderBuilder.schema(DeleteSchemaUtil.posDeleteSchema(rowSchema));
+      appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 
-        appenderBuilder.createWriterFunc(
-            (schema, parquetSchema) -> {
-              ParquetValueWriter<?> writer = createWriterFunc.apply(schema, parquetSchema);
-              if (writer instanceof StructWriter) {
-                return new PositionDeleteStructWriter<T>(
-                    (StructWriter<?>) writer, pathTransformFunc);
-              } else {
-                throw new UnsupportedOperationException(
-                    "Cannot wrap writer for position deletes: " + writer.getClass());
-              }
-            });
-
-      } else {
-        appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
-
-        // We ignore the 'createWriterFunc' and 'rowSchema' even if is provided, since we do not
-        // write row data itself
-        appenderBuilder.createWriterFunc(
-            (schema, parquetSchema) ->
-                new PositionDeleteStructWriter<T>(
-                    (StructWriter<?>) GenericParquetWriter.create(schema, parquetSchema),
-                    Function.identity()));
-      }
+      // the createWriterFunc is ignored, since only the path and position are written
+      appenderBuilder.createWriterFunc(
+          (schema, parquetSchema) ->
+              new PositionDeleteStructWriter<T>(
+                  (StructWriter<?>) GenericParquetWriter.create(schema, parquetSchema),
+                  Function.identity()));
 
       appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
 
@@ -1334,7 +1331,12 @@ public class Parquet {
     }
 
     private ReadBuilder(InputFile file) {
-      this.file = file;
+      long fileLength = file.getLength();
+      this.file = canEagerFetch(fileLength) ? EagerInputFile.of(file, fileLength) : file;
+    }
+
+    private static boolean canEagerFetch(long fileLength) {
+      return fileLength > 0 && fileLength <= EAGER_FETCH_THRESHOLD_BYTES;
     }
 
     /**
@@ -1527,9 +1529,9 @@ public class Parquet {
           || batchedReaderFuncWithSchema != null
           || readerFunction != null) {
         ParquetReadOptions.Builder optionsBuilder;
-        if (file instanceof HadoopInputFile) {
+        if (file instanceof HadoopConfigurable) {
           // remove read properties already set that may conflict with this read
-          Configuration conf = new Configuration(((HadoopInputFile) file).getConf());
+          Configuration conf = new Configuration(((HadoopConfigurable) file).getConf());
           for (String property : READ_PROPERTIES_TO_REMOVE) {
             conf.unset(property);
           }

@@ -419,7 +419,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     if (usePrefixListing) {
       Preconditions.checkArgument(
           table.io() instanceof SupportsPrefixOperations,
-          "Cannot use prefix listing with FileIO {} which does not support prefix operations.",
+          "Cannot use prefix listing with FileIO %s which does not support prefix operations.",
           table.io());
 
       Predicate<org.apache.iceberg.io.FileInfo> predicate =

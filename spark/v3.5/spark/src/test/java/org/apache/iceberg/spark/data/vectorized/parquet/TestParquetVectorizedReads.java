@@ -65,6 +65,7 @@ import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
@@ -254,6 +255,17 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
         .build();
   }
 
+  FileAppender<Record> parquetV2WriterWithoutDictionary(Schema schema, File testFile)
+      throws IOException {
+    return Parquet.write(Files.localOutput(testFile))
+        .schema(schema)
+        .createWriterFunc(GenericParquetWriter::create)
+        .named("test")
+        .writerVersion(ParquetProperties.WriterVersion.PARQUET_2_0)
+        .set(ParquetOutputFormat.ENABLE_DICTIONARY, "false")
+        .build();
+  }
+
   void assertRecordsMatch(
       Schema schema,
       int expectedSize,
@@ -428,6 +440,37 @@ public class TestParquetVectorizedReads extends AvroDataTestBase {
       writer.addAll(data);
     }
     assertRecordsMatch(schema, 30000, data, dataFile, false, BATCH_SIZE);
+  }
+
+  @Test
+  public void testAllNullStringAndBinaryColumnsParquetV2() throws Exception {
+    // V2 string/binary uses DELTA_BYTE_ARRAY; an all-null page decodes to a delta length stream
+    // with totalValueCount == 0.
+    Schema schema =
+        new Schema(
+            required(100, "id", Types.LongType.get()),
+            optional(101, "string_data", Types.StringType.get()),
+            optional(102, "binary_data", Types.BinaryType.get()));
+
+    int stringOrdinal = 1;
+    int binaryOrdinal = 2;
+    File dataFile = temp.resolve("all-null-v2.parquet").toFile();
+    Iterable<Record> data =
+        generateData(
+            schema,
+            100,
+            0L,
+            RandomData.DEFAULT_NULL_PERCENTAGE,
+            record -> {
+              record.set(stringOrdinal, null);
+              record.set(binaryOrdinal, null);
+              return record;
+            });
+    try (FileAppender<Record> writer = parquetV2WriterWithoutDictionary(schema, dataFile)) {
+      writer.addAll(data);
+    }
+
+    assertRecordsMatch(schema, 100, data, dataFile, false, BATCH_SIZE);
   }
 
   @Test

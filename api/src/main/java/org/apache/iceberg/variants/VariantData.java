@@ -18,9 +18,10 @@
  */
 package org.apache.iceberg.variants;
 
+import java.io.Serializable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-class VariantData implements Variant {
+class VariantData implements Variant, Serializable {
   private final VariantMetadata metadata;
   private final VariantValue value;
 

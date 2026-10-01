@@ -340,7 +340,10 @@ class BaseSnapshot implements Snapshot {
           && Objects.equal(this.parentId, other.parentId())
           && this.sequenceNumber == other.sequenceNumber()
           && this.timestampMillis == other.timestampMillis()
-          && Objects.equal(this.schemaId, other.schemaId());
+          && Objects.equal(this.schemaId, other.schemaId())
+          && Objects.equal(this.firstRowId, other.firstRowId())
+          && Objects.equal(this.addedRows, other.addedRows())
+          && Objects.equal(this.keyId, other.keyId());
     }
 
     return false;
@@ -349,7 +352,14 @@ class BaseSnapshot implements Snapshot {
   @Override
   public int hashCode() {
     return Objects.hashCode(
-        this.snapshotId, this.parentId, this.sequenceNumber, this.timestampMillis, this.schemaId);
+        this.snapshotId,
+        this.parentId,
+        this.sequenceNumber,
+        this.timestampMillis,
+        this.schemaId,
+        this.firstRowId,
+        this.addedRows,
+        this.keyId);
   }
 
   @Override
@@ -361,6 +371,9 @@ class BaseSnapshot implements Snapshot {
         .add("summary", summary)
         .add("manifest-list", manifestListLocation)
         .add("schema-id", schemaId)
+        .add("first-row-id", firstRowId)
+        .add("added-rows", addedRows)
+        .add("key-id", keyId)
         .toString();
   }
 }

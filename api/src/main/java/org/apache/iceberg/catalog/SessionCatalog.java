@@ -197,6 +197,21 @@ public interface SessionCatalog {
   }
 
   /**
+   * Unregister a table without deleting its data or metadata files.
+   *
+   * <p>The returned table is fixed at the last metadata file registered with the catalog and cannot
+   * be modified.
+   *
+   * @param context session context
+   * @param ident a table identifier
+   * @return a read-only table fixed at the metadata current when it was unregistered
+   * @throws NoSuchTableException if the table does not exist
+   */
+  default Table unregisterTable(SessionContext context, TableIdentifier ident) {
+    throw new UnsupportedOperationException("Unregistering tables is not supported");
+  }
+
+  /**
    * Check whether table exists.
    *
    * @param context session context
@@ -221,6 +236,21 @@ public interface SessionCatalog {
    * @throws NoSuchTableException if the table does not exist
    */
   Table loadTable(SessionContext context, TableIdentifier ident);
+
+  /**
+   * Load a table, passing the context it is being loaded with.
+   *
+   * <p>The default implementation ignores the context.
+   *
+   * @param context session context
+   * @param ident a table identifier
+   * @param loadContext context for this load
+   * @return instance of {@link Table} implementation referred by {@code ident}
+   * @throws NoSuchTableException if the table does not exist
+   */
+  default Table loadTable(SessionContext context, TableIdentifier ident, LoadContext loadContext) {
+    return loadTable(context, ident);
+  }
 
   /**
    * Drop a table, without requesting that files are immediately deleted.
@@ -363,6 +393,7 @@ public interface SessionCatalog {
    * @param namespace a {@link Namespace namespace}
    * @param updates properties to set for the namespace
    * @param removals properties to remove from the namespace
+   * @return true if the namespace metadata was successfully updated, false otherwise
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    * @throws UnsupportedOperationException If namespace properties are not supported
    */
