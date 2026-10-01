@@ -779,7 +779,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | 100 | **`location`** | `string` | *required* | Location of the file. |
     | 101 | **`file_format`** | `string` | *required* | String file format name: `avro`, `orc`, or `parquet` |
     | 147 | **`tracking`** | `tracking` struct | *required* | Groups status, snapshot, and sequence number. See tracking struct below. |
-    | 141 | **`spec_id`** | `int` | *optional* | ID of the partition spec used to write this manifest or data file. |
+    | 141 | **`spec_id`** | `int` | *optional* | ID of the partition spec used to partition the file; null if unpartitioned |
     | 102 | **`partition`** | `struct<...>` | *optional* | Partition data tuple for the file; null if unpartitioned. |
     | 140 | **`sort_order_id`** | `int` | *optional* | ID representing sort order for this file. If missing or unknown, the order is assumed to be unsorted. |
     | 103 | **`record_count`** | `long` | *required* | Number of records in this file. |
