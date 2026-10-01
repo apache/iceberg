@@ -867,7 +867,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
 
     A leaf manifest whose `manifest_info.dv` changed must have status MODIFIED. `tracking.deleted_positions` and `tracking.replaced_positions` should only be set in the snapshot that changes `manifest_info.dv`.
 
-The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
+A file that is no longer live may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
 
 Iceberg v2 adds data and file sequence numbers to the entry and makes the snapshot ID optional. Values for these fields are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the snapshot root.
 The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
