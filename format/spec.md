@@ -798,7 +798,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | _optional_ | 4        | **`file_sequence_number`**           | `long`                                                              | File sequence number indicating when the file was added. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
     | _optional_ | 142      | **`first_row_id`**                   | `long`                                                              | Base row ID for assigning `_row_id` values. See [First Row ID Inheritance](#first-row-id-inheritance). |
     | _optional_ | 6        | **`deleted_positions`**              | `binary`                                                            | Positions deleted via manifest DV in the `dv_snapshot_id` snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
-    | _optional_ | 7        | **`replaced_positions`**             | `binary`                                                            | Positions replaced in the referenced leaf manifest this snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
+    | _optional_ | 7        | **`replaced_positions`**             | `binary`                                                            | Positions replaced via manifest DV in the `dv_snapshot_id` snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
 
     The `deletion_vector` struct has the following fields:
 
