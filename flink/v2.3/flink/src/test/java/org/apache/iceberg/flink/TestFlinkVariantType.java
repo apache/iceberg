@@ -55,12 +55,12 @@ class TestFlinkVariantType extends CatalogTestBase {
   private Table icebergTable;
   @TempDir private Path warehouseDir;
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}")
+  @Parameters(name = "catalogType={0}, baseNamespace={1}")
   protected static List<Object[]> parameters() {
     return Arrays.asList(
         // For now hive metadata is not supported variant, so we only test hadoop catalog
-        new Object[] {"testhadoop", Namespace.empty()},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1")});
+        new Object[] {CatalogType.HADOOP, Namespace.empty()},
+        new Object[] {CatalogType.HADOOP, Namespace.of("l0", "l1")});
   }
 
   @Override

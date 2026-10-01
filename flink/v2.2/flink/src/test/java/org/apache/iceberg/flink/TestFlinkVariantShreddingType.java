@@ -57,11 +57,11 @@ class TestFlinkVariantShreddingType extends CatalogTestBase {
   private static final String TABLE_NAME = "test_table";
   private Table icebergTable;
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}")
+  @Parameters(name = "catalogType={0}, baseNamespace={1}")
   protected static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
-    parameters.add(new Object[] {"testhadoop", Namespace.empty()});
-    parameters.add(new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1")});
+    parameters.add(new Object[] {CatalogType.HADOOP, Namespace.empty()});
+    parameters.add(new Object[] {CatalogType.HADOOP, Namespace.of("l0", "l1")});
     return parameters;
   }
 

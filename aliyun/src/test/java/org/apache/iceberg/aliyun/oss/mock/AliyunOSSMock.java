@@ -43,7 +43,7 @@ public class AliyunOSSMock {
   static final String ROOT_DIR_DEFAULT = "/tmp";
 
   static final String PROP_HTTP_PORT = "server.port";
-  static final int PORT_HTTP_PORT_DEFAULT = 9393;
+  static final int PORT_HTTP_PORT_DEFAULT = 0;
 
   private final AliyunOSSMockLocalStore localStore;
   private final HttpServer httpServer;
@@ -61,6 +61,10 @@ public class AliyunOSSMock {
   private AliyunOSSMock(String rootDir, int serverPort) throws IOException {
     localStore = new AliyunOSSMockLocalStore(rootDir);
     httpServer = HttpServer.create(new InetSocketAddress("localhost", serverPort), 0);
+  }
+
+  int port() {
+    return httpServer.getAddress().getPort();
   }
 
   private void start() {

@@ -25,7 +25,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.credentials.Credential;
 
@@ -110,7 +109,7 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
 
     private PlanStatus planStatus;
     private ErrorResponse errorResponse;
-    private final List<Credential> credentials = Lists.newArrayList();
+    private List<Credential> credentials = ImmutableList.of();
 
     public Builder withPlanStatus(PlanStatus status) {
       this.planStatus = status;
@@ -122,8 +121,10 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
       return this;
     }
 
-    public Builder withCredentials(List<Credential> credentialsToAdd) {
-      credentials.addAll(credentialsToAdd);
+    public Builder withCredentials(List<Credential> newCredentials) {
+      Preconditions.checkArgument(null != newCredentials, "Invalid credentials: null");
+      Preconditions.checkArgument(!newCredentials.contains(null), "Invalid credential: null");
+      this.credentials = ImmutableList.copyOf(newCredentials);
       return this;
     }
 

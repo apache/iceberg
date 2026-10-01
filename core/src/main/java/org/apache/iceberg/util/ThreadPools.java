@@ -34,14 +34,6 @@ public class ThreadPools {
 
   private ThreadPools() {}
 
-  /**
-   * @deprecated Use {@link SystemConfigs#WORKER_THREAD_POOL_SIZE} instead. will be removed in
-   *     1.12.0
-   */
-  @Deprecated
-  public static final String WORKER_THREAD_POOL_SIZE_PROP =
-      SystemConfigs.WORKER_THREAD_POOL_SIZE.propertyKey();
-
   public static final int WORKER_THREAD_POOL_SIZE = SystemConfigs.WORKER_THREAD_POOL_SIZE.value();
 
   private static final ExecutorService WORKER_POOL =

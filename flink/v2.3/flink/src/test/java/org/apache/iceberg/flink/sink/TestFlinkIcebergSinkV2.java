@@ -35,6 +35,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
@@ -46,6 +47,7 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.BoundedTestSource;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
@@ -245,12 +247,14 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         expectedRecords,
         SnapshotRef.MAIN_BRANCH);
 
-    SnapshotChanges changes = SnapshotChanges.builderFor(table).build();
+    // The committer may append an empty snapshot after the change log commit
+    Snapshot snapshot = Iterables.getOnlyElement(findValidSnapshots());
+    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
     DeleteFile deleteFile = changes.addedDeleteFiles().iterator().next();
     String fromStat =
         new String(
             deleteFile.lowerBounds().get(MetadataColumns.DELETE_FILE_PATH.fieldId()).array());
     DataFile dataFile = changes.addedDataFiles().iterator().next();
-    assumeThat(fromStat).isEqualTo(dataFile.location());
+    assertThat(fromStat).isEqualTo(dataFile.location());
   }
 }

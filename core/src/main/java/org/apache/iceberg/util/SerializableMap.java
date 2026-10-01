@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -36,12 +37,15 @@ public class SerializableMap<K, V> implements Map<K, V>, Serializable {
   }
 
   private SerializableMap(Map<K, V> map) {
-    this.copiedMap = Maps.newHashMap();
+    this.copiedMap = map instanceof LinkedHashMap ? Maps.newLinkedHashMap() : Maps.newHashMap();
     this.copiedMap.putAll(map);
   }
 
   private SerializableMap(Map<K, V> map, Set<K> keys) {
-    Map<K, V> filteredMap = Maps.newHashMapWithExpectedSize(keys.size());
+    Map<K, V> filteredMap =
+        map instanceof LinkedHashMap
+            ? Maps.newLinkedHashMapWithExpectedSize(keys.size())
+            : Maps.newHashMapWithExpectedSize(keys.size());
 
     for (K key : keys) {
       if (map.containsKey(key)) {

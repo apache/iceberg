@@ -115,17 +115,13 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
         processDataFile(
             dataTask,
             cmd.mainSnapshotId(),
-            cmd.mainSequenceNumber(),
+            cmd.indexGeneration(),
             cmd.dataSequenceNumber(),
             cmd.staging(),
             out);
       } else if (task instanceof EqualityDeleteFileScanTask deleteTask) {
         processDeleteFile(
-            deleteTask,
-            cmd.mainSnapshotId(),
-            cmd.mainSequenceNumber(),
-            cmd.dataSequenceNumber(),
-            out);
+            deleteTask, cmd.mainSnapshotId(), cmd.indexGeneration(), cmd.dataSequenceNumber(), out);
       } else {
         throw new IllegalStateException(
             "Unexpected ContentScanTask type: " + task.getClass().getName());
@@ -140,7 +136,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
   private void processDataFile(
       FileScanTask task,
       Long mainSnapshotId,
-      Long mainSequenceNumber,
+      Long indexGeneration,
       long dataSequenceNumber,
       boolean staging,
       Collector<IndexCommand> out)
@@ -173,7 +169,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
         out.collect(
             IndexCommand.addDataRow(
                 mainSnapshotId,
-                mainSequenceNumber,
+                indexGeneration,
                 key,
                 file.location(),
                 position,
@@ -188,7 +184,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
   private void processDeleteFile(
       EqualityDeleteFileScanTask task,
       Long mainSnapshotId,
-      Long mainSequenceNumber,
+      Long indexGeneration,
       long dataSequenceNumber,
       Collector<IndexCommand> out)
       throws IOException {
@@ -208,7 +204,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
         SerializedEqualityValues key = fieldSerializer.serializeKey(record, keySchema.asStruct());
         out.collect(
             IndexCommand.resolveDelete(
-                mainSnapshotId, mainSequenceNumber, key, dataSequenceNumber, deleteSpecId));
+                mainSnapshotId, indexGeneration, key, dataSequenceNumber, deleteSpecId));
       }
     }
   }
