@@ -853,6 +853,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     - `column_files` may only be set if the tracked file is a data file or a data manifest.
     - `tracking.deleted_positions` and `tracking.replaced_positions` may only be set if the tracked file is a manifest.
     - `tracking.snapshot_id` and `tracking.sequence_number` are required for the tracked file in the root manifest.
+    - Writers should not write a null `tracking.snapshot_id`.
     - For manifests, `tracking.sequence_number` must equal `tracking.file_sequence_number`.
     - `tracking.dv_snapshot_id` may only be set if `deletion_vector` or `manifest_info.dv` is set.
     - `tracking.latest_column_file_snapshot_id` may only be set if `column_files` is set.
