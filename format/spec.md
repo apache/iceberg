@@ -667,14 +667,14 @@ A manifest is a valid Iceberg data file: files must use valid Iceberg formats, s
 
 Each manifest type contains the following content:
 
-| Manifest type | Contents |
-|----------------|----------|
-| v1-v3 data manifest | Data files |
-| v2-v3 delete manifest | Delete files |
-| v4 root manifest | Leaf manifests, data files, or v1-v3 manifests |
-| v4 leaf manifest | Data files and their colocated deletion vectors |
+| Version | Manifest type   | Contents                                        | File format |
+|---------|-----------------|-------------------------------------------------|-------------|
+| v1-v3   | Data manifest   | Data files                                      | Avro        |
+| v2-v3   | Delete manifest | Delete files                                    | Avro        |
+| v4      | Root manifest   | Leaf manifests, data files, or v1-v3 manifests  | Parquet     |
+| v4      | Leaf manifest   | Data files and their colocated deletion vectors | Parquet     |
 
-In v2-v3, a manifest may store either data files or delete files, but not both; whether a manifest is a data manifest or a delete manifest is stored in manifest metadata.
+In v2-v3, whether a manifest is a data manifest or a delete manifest is stored in manifest metadata.
 
 - v1-v3: A manifest stores files for a single partition spec. When a table’s partition spec changes, old files remain in the older manifest and newer files are written to a new manifest. This is required because a manifest file’s schema is based on its partition spec.
 - v4: A manifest may store files written with different partition specs.
@@ -682,8 +682,6 @@ In v2-v3, a manifest may store either data files or delete files, but not both; 
 The partition spec used when writing each data file is used to transform predicates on the table’s data rows into predicates on partition values during job planning. In v1-v3, the same partition spec is used for all data files in a manifest.
 
 #### Manifest File Format
-
-Manifests are Avro files in v1-v3. Starting in v4, writers must produce manifests in Parquet.
 
 A manifest file must store metadata as properties in the file’s key-value metadata:
 
