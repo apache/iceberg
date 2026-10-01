@@ -59,9 +59,9 @@ httpcomponents-httpclient5 = "5.6.4"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.12.2"
 jackson-annotations = "2.22"
-jackson-bom = "2.22.2"
-jackson218 = { strictly = "2.18.10"}
-jackson221 = { strictly = "2.21.6"}
+jackson-bom = "2.22.3"
+jackson218 = { strictly = "2.18.11"}
+jackson221 = { strictly = "2.21.7"}
 jakarta-el-api = "3.0.3"
 jakarta-servlet-api = "6.1.0"
 jaxb-api = "2.3.1"
