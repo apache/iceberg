@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.Set;
 import org.apache.iceberg.spark.procedures.SparkProcedures;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
@@ -30,6 +31,7 @@ import org.apache.spark.sql.connector.catalog.Relation;
 import org.apache.spark.sql.connector.catalog.RelationCatalog;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
+import org.apache.spark.sql.connector.catalog.TableCatalogCapability;
 import org.apache.spark.sql.connector.catalog.procedures.UnboundProcedure;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
@@ -117,5 +119,10 @@ abstract class BaseCatalog
 
   private static boolean isSystemNamespace(String[] namespace) {
     return namespace.length == 1 && namespace[0].equalsIgnoreCase("system");
+  }
+
+  @Override
+  public Set<TableCatalogCapability> capabilities() {
+    return Set.of(TableCatalogCapability.SUPPORT_COLUMN_DEFAULT_VALUE);
   }
 }

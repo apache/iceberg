@@ -45,6 +45,7 @@ import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.catalog.V1Table;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
@@ -158,8 +159,13 @@ abstract class BaseTableCreationSparkAction<ThisT> extends BaseSparkAction<ThisT
       Map<String, String> props = destTableProps();
       StructType schema = sourceTable.schema();
       Transform[] partitioning = sourceTable.partitioning();
-      return (StagedSparkTable)
-          destCatalog().stageCreate(destTableIdent(), schema, partitioning, props);
+      TableInfo tableInfo =
+          new TableInfo.Builder()
+              .withSchema(schema)
+              .withPartitions(partitioning)
+              .withProperties(props)
+              .build();
+      return (StagedSparkTable) destCatalog().stageCreate(destTableIdent(), tableInfo);
     } catch (org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException e) {
       throw new NoSuchNamespaceException(
           "Cannot create table %s as the namespace does not exist", destTableIdent());
