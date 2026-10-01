@@ -80,6 +80,10 @@ public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback 
       }
 
       this.client = RCKUtils.initCatalogClient(config);
+    } else if (findFreePort) {
+      // no local server was started, so there is no port to resolve the placeholder to; drop it so
+      // that callers merging config() into client properties do not point a client at port 0
+      config.remove(RESTCatalogServer.REST_PORT);
     }
   }
 
