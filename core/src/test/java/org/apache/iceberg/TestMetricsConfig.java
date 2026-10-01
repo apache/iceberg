@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,181 @@ public class TestMetricsConfig {
           optional(EVENT_TIME, "event_time", Types.TimestampType.withoutZone()),
           optional(CATEGORY, "category", Types.StringType.get()),
           optional(DATA, "data", Types.StringType.get()));
+
+  @Test
+  public void testInvalidColumnModeValue() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            TableProperties.DEFAULT_WRITE_METRICS_MODE,
+            "full",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col",
+            "troncate(5)");
+
+    Schema schema = new Schema(required(1, "col", Types.StringType.get()));
+
+    MetricsConfig config = MetricsTestUtil.from(properties, schema);
+    assertThat(config.columnMode(1))
+        .as("Invalid mode should be defaulted to table default (full)")
+        .isEqualTo(MetricsModes.Full.get());
+
+    assertThat(config.metricsFieldIds()).containsExactly(1);
+  }
+
+  @Test
+  public void testInvalidDefaultColumnModeValue() {
+    Map<String, String> properties =
+        ImmutableMap.of(
+            TableProperties.DEFAULT_WRITE_METRICS_MODE,
+            "fuull",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col",
+            "troncate(5)");
+
+    Schema schema = new Schema(required(1, "col", Types.StringType.get()));
+
+    MetricsConfig config = MetricsTestUtil.from(properties, schema);
+    assertThat(config.columnMode(1))
+        .as("Invalid mode should be defaulted to library default (truncate(16))")
+        .isEqualTo(MetricsModes.Truncate.withLength(16));
+
+    assertThat(config.metricsFieldIds()).containsExactly(1);
+  }
+
+  @Test
+  public void testMetricsConfigSortedColsDefault() {
+    Schema schema =
+        new Schema(
+            required(1, "col1", Types.IntegerType.get()),
+            required(2, "col2", Types.IntegerType.get()),
+            required(3, "col3", Types.IntegerType.get()),
+            required(4, "col4", Types.IntegerType.get()));
+    SortOrder sortOrder = SortOrder.builderFor(schema).asc("col2").asc("col3").build();
+    Map<String, String> properties =
+        Map.of(
+            TableProperties.DEFAULT_WRITE_METRICS_MODE,
+            "counts",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1",
+            "counts",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2",
+            "none");
+
+    MetricsConfig config = MetricsTestUtil.from(properties, schema, sortOrder);
+    assertThat(config.columnMode(1))
+        .as("Non-sorted existing column should not be overridden")
+        .isEqualTo(MetricsModes.Counts.get());
+    assertThat(config.columnMode(2))
+        .as("Sorted column defaults should not override user specified config")
+        .isEqualTo(MetricsModes.None.get());
+    assertThat(config.columnMode(3))
+        .as("Unspecified sorted column should use default")
+        .isEqualTo(MetricsModes.Truncate.withLength(16));
+    assertThat(config.columnMode(4))
+        .as("Unspecified normal column should use default")
+        .isEqualTo(MetricsModes.Counts.get());
+
+    assertThat(config.metricsFieldIds()).containsExactly(1, 2, 3, 4);
+  }
+
+  @Test
+  public void testMetricsConfigSortedColsDefaultByInvalid() {
+    Schema schema =
+        new Schema(
+            required(1, "col1", Types.IntegerType.get()),
+            required(2, "col2", Types.IntegerType.get()),
+            required(3, "col3", Types.IntegerType.get()));
+    SortOrder sortOrder = SortOrder.builderFor(schema).asc("col2").asc("col3").build();
+    Map<String, String> properties =
+        Map.of(
+            TableProperties.DEFAULT_WRITE_METRICS_MODE,
+            "counts",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1",
+            "full",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2",
+            "invalid");
+
+    MetricsConfig config = MetricsTestUtil.from(properties, schema, sortOrder);
+    assertThat(config.columnMode(1))
+        .as("Non-sorted existing column should not be overridden by sorted column")
+        .isEqualTo(MetricsModes.Full.get());
+    assertThat(config.columnMode(2))
+        .as("Original default applies as user entered invalid mode for sorted column")
+        .isEqualTo(MetricsModes.Truncate.withLength(16));
+
+    assertThat(config.metricsFieldIds()).containsExactly(1, 2, 3);
+  }
+
+  @Test
+  public void testMetricsConfigInferredDefaultModeLimit() {
+    Schema schema =
+        new Schema(
+            required(1, "col1", Types.IntegerType.get()),
+            required(2, "col2", Types.IntegerType.get()),
+            required(3, "col3", Types.IntegerType.get()));
+
+    // only infer a default for the first two columns
+    Map<String, String> properties =
+        Map.of(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "2");
+
+    MetricsConfig config = MetricsTestUtil.from(properties, schema);
+
+    assertThat(config.columnMode(1)).isEqualTo(MetricsModes.Truncate.withLength(16));
+    assertThat(config.columnMode(2)).isEqualTo(MetricsModes.Truncate.withLength(16));
+    assertThat(config.columnMode(3)).isEqualTo(MetricsModes.None.get());
+
+    assertThat(config.metricsFieldIds()).containsExactly(1, 2);
+  }
+
+  @Test
+  public void testMetricsVariantSupported() {
+    Schema schema =
+        new Schema(
+            required(1, "variant", Types.VariantType.get()),
+            required(2, "int", Types.IntegerType.get()));
+
+    // only infer a default for the first column
+    Map<String, String> properties =
+        Map.of(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "1");
+
+    MetricsConfig config = MetricsTestUtil.from(properties, schema);
+
+    Map<Integer, MetricsModes.MetricsMode> metricModes =
+        schema.idToName().keySet().stream().collect(Collectors.toMap(id -> id, config::columnMode));
+
+    assertThat(metricModes)
+        .containsOnly(
+            Map.entry(1, MetricsModes.Truncate.withLength(16)),
+            Map.entry(2, MetricsModes.None.get()));
+
+    assertThat(config.metricsFieldIds()).containsExactly(1);
+  }
+
+  @Test
+  public void testMetricsConfigNestedTypesStructs() {
+    Schema schema =
+        new Schema(
+            required(
+                5,
+                "col_struct",
+                Types.StructType.of(
+                    required(33, "a", Types.IntegerType.get()),
+                    required(1, "b", Types.IntegerType.get()))),
+            required(4, "top", Types.IntegerType.get()));
+
+    Map<String, String> properties =
+        Map.of(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "2");
+
+    MetricsConfig config = MetricsTestUtil.from(properties, schema);
+
+    Map<Integer, MetricsModes.MetricsMode> metricModes =
+        schema.idToName().keySet().stream().collect(Collectors.toMap(id -> id, config::columnMode));
+
+    assertThat(metricModes).containsOnlyKeys(33, 5, 1, 4);
+
+    assertThat(metricModes).containsEntry(33, MetricsModes.Truncate.withLength(16));
+    assertThat(metricModes).containsEntry(1, MetricsModes.None.get());
+    assertThat(metricModes).containsEntry(4, MetricsModes.Truncate.withLength(16));
+
+    assertThat(config.metricsFieldIds()).containsExactly(33, 4);
+  }
 
   @Test
   void configCannotDisablePartitionSourceMetrics() {
@@ -287,5 +463,67 @@ public class TestMetricsConfig {
         .as("Raising the limit should give the field metrics at the default mode")
         .isEqualTo(MetricsModes.Truncate.withLength(16));
     assertThat(wider.columnMode(4)).isEqualTo(MetricsModes.None.get());
+  }
+
+  @Test
+  public void testMetricsConfigKryoSerialization() throws Exception {
+    Map<String, String> metricsConfig =
+        ImmutableMap.of(
+            TableProperties.DEFAULT_WRITE_METRICS_MODE,
+            "counts",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1",
+            "full",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2",
+            "truncate(16)");
+
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "col1", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "col2", Types.StringType.get()),
+            Types.NestedField.optional(3, "col3", Types.StringType.get()));
+
+    MetricsConfig config = MetricsTestUtil.from(metricsConfig, schema);
+    MetricsConfig deserialized = TestHelpers.KryoHelpers.roundTripSerialize(config);
+
+    assertThat(deserialized.columnMode(1)).asString().isEqualTo(MetricsModes.Full.get().toString());
+    assertThat(deserialized.columnMode(2))
+        .asString()
+        .isEqualTo(MetricsModes.Truncate.withLength(16).toString());
+    assertThat(deserialized.columnMode(3))
+        .asString()
+        .isEqualTo(MetricsModes.Counts.get().toString());
+
+    assertThat(deserialized.metricsFieldIds()).containsExactlyElementsOf(config.metricsFieldIds());
+  }
+
+  @Test
+  public void testMetricsConfigJavaSerialization() throws Exception {
+    Map<String, String> metricsConfig =
+        ImmutableMap.of(
+            TableProperties.DEFAULT_WRITE_METRICS_MODE,
+            "counts",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col1",
+            "full",
+            TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "col2",
+            "truncate(16)");
+
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "col1", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "col2", Types.StringType.get()),
+            Types.NestedField.optional(3, "col3", Types.StringType.get()));
+
+    MetricsConfig config = MetricsTestUtil.from(metricsConfig, schema);
+    MetricsConfig deserialized = TestHelpers.roundTripSerialize(config);
+
+    assertThat(deserialized.columnMode(1)).asString().isEqualTo(MetricsModes.Full.get().toString());
+    assertThat(deserialized.columnMode(2))
+        .asString()
+        .isEqualTo(MetricsModes.Truncate.withLength(16).toString());
+    assertThat(deserialized.columnMode(3))
+        .asString()
+        .isEqualTo(MetricsModes.Counts.get().toString());
+
+    assertThat(deserialized.metricsFieldIds()).containsExactlyElementsOf(config.metricsFieldIds());
   }
 }
