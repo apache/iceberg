@@ -511,10 +511,7 @@ public class TestPruneColumns {
 
   @Test
   public void testDeeplyNestedStructPartiallyProjectedBeforeFullyProjected() {
-    // event struct<contact struct<email, phone>, name struct<first, last>>:
-    // contact is partially projected (email only) and declared BEFORE name, which is fully
-    // projected. The partially-projected sibling's inner pruning must survive the later
-    // fully-projected sibling (its visit returns the original field object).
+    // a fully projected sibling (name) must not undo pruning of an earlier sibling (contact)
     MessageType fileSchema =
         Types.buildMessage()
             .addField(
