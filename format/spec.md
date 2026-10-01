@@ -788,17 +788,17 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
 
     The `tracking` struct has the following fields:
 
-    | On write   | Field id | Name                                 | Type                                                                | Description |
-    |------------|----------|--------------------------------------|---------------------------------------------------------------------|-------------|
-    | _required_ | 0        | **`status`**                         | `int` (0: EXISTING, 1: ADDED, 2: DELETED, 3: REPLACED, 4: MODIFIED) | Used to track additions, deletions, replacements, and modifications. |
-    | _optional_ | 1        | **`snapshot_id`**                    | `long`                                                              | Snapshot ID where the file was added or deleted. Inherited when null. |
-    | _optional_ | 5        | **`dv_snapshot_id`**                 | `long`                                                              | Snapshot ID where the deletion vector or manifest DV last changed. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
-    | _optional_ | 8        | **`latest_column_file_snapshot_id`** | `long`                                                              | Snapshot ID where the latest column file was added. |
-    | _optional_ | 3        | **`sequence_number`**                | `long`                                                              | Data sequence number of the file. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
-    | _optional_ | 4        | **`file_sequence_number`**           | `long`                                                              | File sequence number indicating when the file was added. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
-    | _optional_ | 142      | **`first_row_id`**                   | `long`                                                              | Base row ID for assigning `_row_id` values. See [First Row ID Inheritance](#first-row-id-inheritance). |
-    | _optional_ | 6        | **`deleted_positions`**              | `binary`                                                            | Positions deleted via manifest DV in the `dv_snapshot_id` snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
-    | _optional_ | 7        | **`replaced_positions`**             | `binary`                                                            | Positions replaced via manifest DV in the `dv_snapshot_id` snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
+    | On write   | Field id | Name                          | Type                                                                | Description |
+    |------------|----------|-------------------------------|---------------------------------------------------------------------|-------------|
+    | _required_ | 0        | **`status`**                  | `int` (0: EXISTING, 1: ADDED, 2: DELETED, 3: REPLACED, 4: MODIFIED) | Used to track additions, deletions, replacements, and modifications. |
+    | _optional_ | 1        | **`snapshot_id`**             | `long`                                                              | Snapshot ID where the file was added or deleted. Inherited when null. |
+    | _optional_ | 5        | **`dv_snapshot_id`**          | `long`                                                              | Snapshot ID where the deletion vector or manifest DV last changed. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
+    | _optional_ | 8        | **`column_file_snapshot_id`** | `long`                                                              | Snapshot ID where the latest column file was added. |
+    | _optional_ | 3        | **`sequence_number`**         | `long`                                                              | Data sequence number of the file. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
+    | _optional_ | 4        | **`file_sequence_number`**    | `long`                                                              | File sequence number indicating when the file was added. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
+    | _optional_ | 142      | **`first_row_id`**            | `long`                                                              | Base row ID for assigning `_row_id` values. See [First Row ID Inheritance](#first-row-id-inheritance). |
+    | _optional_ | 6        | **`deleted_positions`**       | `binary`                                                            | Positions deleted via manifest DV in the `dv_snapshot_id` snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
+    | _optional_ | 7        | **`replaced_positions`**      | `binary`                                                            | Positions replaced via manifest DV in the `dv_snapshot_id` snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
 
     The `deletion_vector` struct has the following fields:
 
@@ -858,11 +858,11 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     - For manifests, `tracking.sequence_number` must equal `tracking.file_sequence_number`.
     - For manifests, `spec_id` must be set to the `spec_id` of the manifest's entries if all entries have the same `spec_id`, and must be null otherwise.
     - `tracking.dv_snapshot_id` may only be set if `deletion_vector` or `manifest_info.dv` is set.
-    - `tracking.latest_column_file_snapshot_id` may only be set if `column_files` is set.
+    - `tracking.column_file_snapshot_id` may only be set if `column_files` is set.
 
     When a file is added to the dataset, its tracked file must set status to ADDED and store the snapshot ID in which the file was added.
 
-    When a data file's deletion vector or column files are updated, the writer must record a MODIFIED entry for the live version and must mark the prior version as replaced with a REPLACED entry or in a [manifest deletion vector](#manifest-deletion-vectors). When using a manifest deletion vector, the writer must set the position in the leaf manifest's `tracking.replaced_positions` and `manifest_info.dv`. The resulting entries' `dv_snapshot_id` or `latest_column_file_snapshot_id` must record the snapshot in which their deletion vector, manifest deletion vector, or column files last changed.
+    When a data file's deletion vector or column files are updated, the writer must record a MODIFIED entry for the live version and must mark the prior version as replaced with a REPLACED entry or in a [manifest deletion vector](#manifest-deletion-vectors). When using a manifest deletion vector, the writer must set the position in the leaf manifest's `tracking.replaced_positions` and `manifest_info.dv`. The resulting entries' `dv_snapshot_id` or `column_file_snapshot_id` must record the snapshot in which their deletion vector, manifest deletion vector, or column files last changed.
 
     When a file is deleted from the dataset, the deletion must be recorded in the snapshot that deletes the file with a DELETED entry that stores the snapshot ID in which the file was deleted or, for an entry in a leaf manifest, alternatively by setting its position in the leaf manifest's `tracking.deleted_positions` and `manifest_info.dv` and updating `tracking.dv_snapshot_id` to the new snapshot ID.
 
