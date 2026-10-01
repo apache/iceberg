@@ -29,6 +29,7 @@ import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.types.Types.VariantType;
 import org.junit.jupiter.api.Test;
 
 class TestCompareSchemasVisitor {
@@ -54,6 +55,50 @@ class TestCompareSchemasVisitor {
                 CASE_SENSITIVE,
                 PRESERVE_COLUMNS))
         .isEqualTo(CompareSchemasVisitor.Result.SAME);
+  }
+
+  @Test
+  void testSchemaWithVariantSame() {
+    assertThat(
+            CompareSchemasVisitor.visit(
+                new Schema(
+                    optional(1, "id", IntegerType.get()),
+                    optional(2, "data", StringType.get()),
+                    optional(3, "payload", VariantType.get())),
+                new Schema(
+                    optional(1, "id", IntegerType.get()),
+                    optional(2, "data", StringType.get()),
+                    optional(3, "payload", VariantType.get())),
+                CASE_SENSITIVE,
+                PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SAME);
+  }
+
+  @Test
+  void testVariantAgainstNonVariantTableField() {
+    assertThat(
+            CompareSchemasVisitor.visit(
+                new Schema(
+                    optional(1, "id", IntegerType.get()),
+                    optional(2, "payload", VariantType.get())),
+                new Schema(
+                    optional(1, "id", IntegerType.get()), optional(2, "payload", StringType.get())),
+                CASE_SENSITIVE,
+                PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
+  }
+
+  @Test
+  void testVariantFieldMissingFromTable() {
+    assertThat(
+            CompareSchemasVisitor.visit(
+                new Schema(
+                    optional(1, "id", IntegerType.get()),
+                    optional(2, "payload", VariantType.get())),
+                new Schema(optional(1, "id", IntegerType.get())),
+                CASE_SENSITIVE,
+                PRESERVE_COLUMNS))
+        .isEqualTo(CompareSchemasVisitor.Result.SCHEMA_UPDATE_NEEDED);
   }
 
   @Test
