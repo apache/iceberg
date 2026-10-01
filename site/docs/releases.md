@@ -75,21 +75,21 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
 
 * Deprecation / End of Support
     - Spark: Remove Spark 3.4 support ([\#14122](https://github.com/apache/iceberg/pull/14122))
-    - Flink: Remove support for Flink 2.0
-    - Remove deprecated methods and fields scheduled for 1.12.0 removal ([\#17700](https://github.com/apache/iceberg/pull/17700))
-    - Remove deprecated `DataReader` in favor of `PlannedDataReader` ([\#17699](https://github.com/apache/iceberg/pull/17699))
-    - Data: Remove deprecated `GenericAppenderFactory` and `BaseFileWriterFactory` ([\#17696](https://github.com/apache/iceberg/pull/17696))
     - Spark: Remove deprecated `SparkFilters` ([\#17702](https://github.com/apache/iceberg/pull/17702))
-    - Flink: Remove deprecated `RewriteDataFiles.Builder.filter(Expression)` ([\#17624](https://github.com/apache/iceberg/pull/17624))
-    - Core, Data, Spark, Flink: Remove position delete files with row data ([\#17706](https://github.com/apache/iceberg/pull/17706))
-    - AWS: Remove deprecated S3 signer classes and properties ([\#17627](https://github.com/apache/iceberg/pull/17627))
     - Spark 4.0, 4.1: Remove deprecated `SparkTableUtil` methods ([\#17703](https://github.com/apache/iceberg/pull/17703))
     - Spark: Remove deprecated `SparkReadConf`, `SparkWriteConf`, and `SparkSchemaUtil` methods ([\#17626](https://github.com/apache/iceberg/pull/17626))
+    - Flink: Remove support for Flink 2.0
+    - Flink: Remove deprecated `RewriteDataFiles.Builder.filter(Expression)` ([\#17624](https://github.com/apache/iceberg/pull/17624))
     - Core: Remove deprecated REST namespace encoding helpers ([\#17697](https://github.com/apache/iceberg/pull/17697))
     - Core: Remove deprecated `HadoopFileIO(SerializableSupplier)` constructor ([\#17704](https://github.com/apache/iceberg/pull/17704))
     - Core, ORC: Remove deprecated partition stats read functionality ([\#14998](https://github.com/apache/iceberg/pull/14998))
+    - Remove deprecated `DataReader` in favor of `PlannedDataReader` ([\#17699](https://github.com/apache/iceberg/pull/17699))
+    - Remove deprecated methods and fields scheduled for 1.12.0 removal ([\#17700](https://github.com/apache/iceberg/pull/17700))
+    - Data: Remove deprecated `GenericAppenderFactory` and `BaseFileWriterFactory` ([\#17696](https://github.com/apache/iceberg/pull/17696))
+    - AWS: Remove deprecated S3 signer classes and properties ([\#17627](https://github.com/apache/iceberg/pull/17627))
     - Kafka Connect: Remove deprecated `TableReference` and `IcebergWriterResult` members ([\#17623](https://github.com/apache/iceberg/pull/17623))
     - BigQuery: Remove deprecated catalog property constants ([\#17625](https://github.com/apache/iceberg/pull/17625))
+    - Core, Data, Spark, Flink: Remove position delete files with row data ([\#17706](https://github.com/apache/iceberg/pull/17706))
 * Behavior change
     - `GeometryType` and `GeographyType` `toString()` now always include the resolved CRS, and for geography the edge algorithm: `geometry` prints as `geometry(OGC:CRS84)` and `geography` as `geography(OGC:CRS84, spherical)` ([\#16765](https://github.com/apache/iceberg/pull/16765)).
     Previously, default instances printed the bare type name (`geometry` / `geography`).
