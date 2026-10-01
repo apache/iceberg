@@ -315,6 +315,35 @@ public class TestChangelogTable extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  void rowLineageMetadataColumnsOnDeleteInV3() {
+    assumeThat(formatVersion).isEqualTo(3);
+    createTable();
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+
+    Snapshot snapshot = validationCatalog.loadTable(tableIdent).currentSnapshot();
+    List<Object[]> insertedRows = sql("SELECT _row_id FROM %s ORDER BY id", tableName);
+
+    sql("DELETE FROM %s", tableName);
+
+    List<Object[]> deletedRows =
+        rowsToJava(
+            spark
+                .read()
+                .option(SparkReadOptions.START_SNAPSHOT_ID, snapshot.snapshotId())
+                .table(tableName + ".changes")
+                .orderBy("id")
+                .select("_change_type", "_row_id", "_last_updated_sequence_number")
+                .collectAsList());
+
+    assertEquals(
+        "Deleted rows should preserve row lineage metadata",
+        ImmutableList.of(
+            row("DELETE", insertedRows.get(0)[0], snapshot.sequenceNumber()),
+            row("DELETE", insertedRows.get(1)[0], snapshot.sequenceNumber())),
+        deletedRows);
+  }
+
+  @TestTemplate
   public void testQueryWithRollback() {
     createTable();
 
