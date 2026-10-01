@@ -765,79 +765,81 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     4. The following field ids are reserved on `data_file`: 141.
 
 === "v4"
-    **Tracked Files**
+    The `tracked_file` struct has the following fields:
 
-    | Field id | Name | Type | Required | Description |
-    |----------|------|------|----------|-------------|
-    | 134 | **`content_type`** | `int` (0: DATA, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | *required* | Type of content stored in the entry. |
-    | 157 | **`format_version`** | `int` (0: PRE-V4, 4: V4) | *required* | Writer format version. |
-    | 100 | **`location`** | `string` | *required* | Location of the file. |
-    | 101 | **`file_format`** | `string` | *required* | String file format name: `avro`, `orc`, or `parquet` |
-    | 147 | **`tracking`** | `tracking` struct | *required* | Tracking metadata like status, snapshot ID, and sequence number. See tracking struct below. |
-    | 141 | **`spec_id`** | `int` | *optional* | ID of the partition spec used to partition the file; null if unpartitioned |
-    | 102 | **`partition`** | `struct<...>` | *optional* | Partition data tuple for the file; null if unpartitioned. |
-    | 140 | **`sort_order_id`** | `int` | *optional* | ID representing sort order for this file. If missing or unknown, the order is assumed to be unsorted. |
-    | 103 | **`record_count`** | `long` | *required* | Number of records in this file. |
-    | 104 | **`file_size_in_bytes`** | `long` | *required* | Total file size in bytes. |
-    | 146 | **`content_stats`** | `content_stats` struct | *optional* | Field-level stats. See [Content Stats](#content-stats). |
-    | 150 | **`manifest_info`** | `manifest_info` struct | *optional* | Manifest-specific stats. See [Manifest Info](#manifest-info) |
-    | 131 | **`key_metadata`** | `binary` | *optional* | Implementation-specific key metadata for encryption. |
-    | 132 | **`split_offsets`** | `list<133: long>` | *optional* | Split offsets for the data file. Must be sorted ascending. |
-    | 148 | **`deletion_vector`** | `deletion_vector` struct | *optional* | Row-level deletion vector for a data file. |
-    | 158 | **`column_files`** | `list<159: column_file>` | *optional* | Column files associated with this file. |
+    | On write   | Field id | Name                     | Type                                                  | Description |
+    |------------|----------|--------------------------|-------------------------------------------------------|-------------|
+    | _required_ | 134      | **`content_type`**       | `int` (0: DATA, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | Type of content stored in the entry. |
+    | _required_ | 157      | **`format_version`**     | `int` (0: PRE-V4, 4: V4)                              | Writer format version. |
+    | _required_ | 100      | **`location`**           | `string`                                              | Location of the file. |
+    | _required_ | 101      | **`file_format`**        | `string`                                              | String file format name: `avro`, `orc`, or `parquet` |
+    | _required_ | 147      | **`tracking`**           | `tracking` struct                                     | Tracking metadata like status, snapshot ID, and sequence number. See tracking struct below. |
+    | _optional_ | 141      | **`spec_id`**            | `int`                                                 | ID of the partition spec used to partition the file; null if unpartitioned |
+    | _optional_ | 102      | **`partition`**          | `struct<...>`                                         | Partition data tuple for the file; null if unpartitioned. |
+    | _optional_ | 140      | **`sort_order_id`**      | `int`                                                 | ID representing sort order for this file. If missing or unknown, the order is assumed to be unsorted. |
+    | _required_ | 103      | **`record_count`**       | `long`                                                | Number of records in this file. |
+    | _required_ | 104      | **`file_size_in_bytes`** | `long`                                                | Total file size in bytes. |
+    | _optional_ | 146      | **`content_stats`**      | `content_stats` struct                                | Field-level stats. See [Content Stats](#content-stats). |
+    | _optional_ | 150      | **`manifest_info`**      | `manifest_info` struct                                | Manifest-specific stats. See [Manifest Info](#manifest-info) |
+    | _optional_ | 131      | **`key_metadata`**       | `binary`                                              | Implementation-specific key metadata for encryption. |
+    | _optional_ | 132      | **`split_offsets`**      | `list<133: long>`                                     | Split offsets for the data file. Must be sorted ascending. |
+    | _optional_ | 148      | **`deletion_vector`**    | `deletion_vector` struct                              | Row-level deletion vector for a data file. |
+    | _optional_ | 158      | **`column_files`**       | `list<159: column_file>`                              | Column files associated with this file. |
 
-    **`tracking` struct (field 147)**
+    The `tracking` struct has the following fields:
 
-    | Field id | Name | Type | Required | Description |
-    |----------|------|------|----------|-------------|
-    | 0 | **`status`** | `int` (0: EXISTING, 1: ADDED, 2: DELETED, 3: REPLACED, 4: MODIFIED) | *required* | Used to track additions, deletions, replacements, and modifications. |
-    | 1 | **`snapshot_id`** | `long` | *optional* | Snapshot ID where the file was added or deleted. Inherited when null. |
-    | 5 | **`dv_snapshot_id`** | `long` | *optional* | Snapshot ID where the deletion vector was added. |
-    | 160 | **`latest_column_file_snapshot_id`** | `long` | *optional* | Snapshot ID where the latest column file was added. |
-    | 3 | **`sequence_number`** | `long` | *optional* | Data sequence number of the file. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
-    | 4 | **`file_sequence_number`** | `long` | *optional* | File sequence number indicating when the file was added. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
-    | 142 | **`first_row_id`** | `long` | *optional* | Base row ID for assigning `_row_id` values. See [First Row ID Inheritance](#first-row-id-inheritance). |
-    | 6 | **`deleted_positions`** | `binary` | *optional* | Positions deleted in the referenced leaf manifest this snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
-    | 7 | **`replaced_positions`** | `binary` | *optional* | Positions replaced in the referenced leaf manifest this snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
+    | On write   | Field id | Name                                 | Type                                                                | Description |
+    |------------|----------|--------------------------------------|---------------------------------------------------------------------|-------------|
+    | _required_ | 0        | **`status`**                         | `int` (0: EXISTING, 1: ADDED, 2: DELETED, 3: REPLACED, 4: MODIFIED) | Used to track additions, deletions, replacements, and modifications. |
+    | _optional_ | 1        | **`snapshot_id`**                    | `long`                                                              | Snapshot ID where the file was added or deleted. Inherited when null. |
+    | _optional_ | 5        | **`dv_snapshot_id`**                 | `long`                                                              | Snapshot ID where the deletion vector was added. |
+    | _optional_ | 160      | **`latest_column_file_snapshot_id`** | `long`                                                              | Snapshot ID where the latest column file was added. |
+    | _optional_ | 3        | **`sequence_number`**                | `long`                                                              | Data sequence number of the file. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
+    | _optional_ | 4        | **`file_sequence_number`**           | `long`                                                              | File sequence number indicating when the file was added. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
+    | _optional_ | 142      | **`first_row_id`**                   | `long`                                                              | Base row ID for assigning `_row_id` values. See [First Row ID Inheritance](#first-row-id-inheritance). |
+    | _optional_ | 6        | **`deleted_positions`**              | `binary`                                                            | Positions deleted in the referenced leaf manifest this snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
+    | _optional_ | 7        | **`replaced_positions`**             | `binary`                                                            | Positions replaced in the referenced leaf manifest this snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
 
-    **`deletion_vector` struct (field 148)**
+    The `deletion_vector` struct has the following fields:
 
-    | Field id | Name | Type | Required | Description |
-    |----------|------|------|----------|-------------|
-    | 155 | **`location`** | `string` | *required* | Location of the Puffin file. |
-    | 144 | **`offset`** | `long` | *required* | Offset in the file where the content starts. |
-    | 145 | **`size_in_bytes`** | `long` | *required* | Length of the referenced content stored in the file. |
-    | 156 | **`cardinality`** | `long` | *required* | Cardinality of the deletion vector. |
-    | 149 | **`key_metadata`** | `binary` | *optional* | Implementation-specific key metadata for encryption. |
+    | On write   | Field id | Name                | Type     | Description |
+    |------------|----------|---------------------|----------|-------------|
+    | _required_ | 155      | **`location`**      | `string` | Location of the Puffin file. |
+    | _required_ | 144      | **`offset`**        | `long`   | Offset in the file where the content starts. |
+    | _required_ | 145      | **`size_in_bytes`** | `long`   | Length of the referenced content stored in the file. |
+    | _required_ | 156      | **`cardinality`**   | `long`   | Cardinality of the deletion vector. |
+    | _optional_ | 149      | **`key_metadata`**  | `binary` | Implementation-specific key metadata for encryption. |
 
     ##### Manifest Info
 
-    | Field id | Name | Type | Required | Description |
-    |----------|------|------|----------|-------------|
-    | 504 | **`added_files_count`** | `int` | *required* | Count of entries with status ADDED in the manifest. |
-    | 505 | **`existing_files_count`** | `int` | *required* | Count of entries with status EXISTING in the manifest. |
-    | 506 | **`deleted_files_count`** | `int` | *required* | Count of entries with status DELETED in the manifest. |
-    | 523 | **`replaced_files_count`** | `int` | *required* | Count of entries with status REPLACED in the manifest. |
-    | 525 | **`modified_files_count`** | `int` | *required* | Count of entries with status MODIFIED in the manifest. |
-    | 512 | **`added_rows_count`** | `long` | *required* | Total number of rows in ADDED entries. |
-    | 513 | **`existing_rows_count`** | `long` | *required* | Total number of rows in EXISTING entries. |
-    | 514 | **`deleted_rows_count`** | `long` | *required* | Total number of rows in DELETED entries. |
-    | 524 | **`replaced_rows_count`** | `long` | *required* | Total number of rows in REPLACED entries. |
-    | 526 | **`modified_rows_count`** | `long` | *required* | Total number of rows in MODIFIED entries. |
-    | 516 | **`min_sequence_number`** | `long` | *required* | Minimum data sequence number of all live entries in the manifest. |
-    | 522 | **`dv`** | `binary` | *optional* | Positions in the referenced leaf manifest that are not live. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
+    The `manifest_info` struct has the following fields:
 
-    **`column_file` struct (element 159 of `column_files`, field 158)**
+    | On write   | Field id | Name                       | Type     | Description |
+    |------------|----------|----------------------------|----------|-------------|
+    | _required_ | 504      | **`added_files_count`**    | `int`    | Count of entries with status ADDED in the manifest. |
+    | _required_ | 505      | **`existing_files_count`** | `int`    | Count of entries with status EXISTING in the manifest. |
+    | _required_ | 506      | **`deleted_files_count`**  | `int`    | Count of entries with status DELETED in the manifest. |
+    | _required_ | 523      | **`replaced_files_count`** | `int`    | Count of entries with status REPLACED in the manifest. |
+    | _required_ | 525      | **`modified_files_count`** | `int`    | Count of entries with status MODIFIED in the manifest. |
+    | _required_ | 512      | **`added_rows_count`**     | `long`   | Total number of rows in ADDED entries. |
+    | _required_ | 513      | **`existing_rows_count`**  | `long`   | Total number of rows in EXISTING entries. |
+    | _required_ | 514      | **`deleted_rows_count`**   | `long`   | Total number of rows in DELETED entries. |
+    | _required_ | 524      | **`replaced_rows_count`**  | `long`   | Total number of rows in REPLACED entries. |
+    | _required_ | 526      | **`modified_rows_count`**  | `long`   | Total number of rows in MODIFIED entries. |
+    | _required_ | 516      | **`min_sequence_number`**  | `long`   | Minimum data sequence number of all live entries in the manifest. |
+    | _optional_ | 522      | **`dv`**                   | `binary` | Positions in the referenced leaf manifest that are not live. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
 
-    | Field id | Name | Type | Required | Description |
-    |----------|------|------|----------|-------------|
-    | 161 | **`format_version`** | `int` (4: V4) | *required* | Format version of this column file. |
-    | 162 | **`field_ids`** | `list<163: int>` | *required* | Live field IDs stored in this column file. |
-    | 164 | **`location`** | `string` | *required* | Location of the column file. |
-    | 165 | **`file_format`** | `string` | *required* | String file format name: `avro`, `orc`, or `parquet`. |
-    | 166 | **`file_size_in_bytes`** | `long` | *required* | Total column file size in bytes. |
-    | 167 | **`key_metadata`** | `binary` | *optional* | Implementation-specific key metadata for encryption. |
-    | 168 | **`split_offsets`** | `list<169: long>` | *optional* | Split offsets for the column file. Must be sorted ascending. |
+    The `column_file` struct has the following fields:
+
+    | On write   | Field id | Name                     | Type              | Description |
+    |------------|----------|--------------------------|-------------------|-------------|
+    | _required_ | 161      | **`format_version`**     | `int` (4: V4)     | Format version of this column file. |
+    | _required_ | 162      | **`field_ids`**          | `list<163: int>`  | Live field IDs stored in this column file. |
+    | _required_ | 164      | **`location`**           | `string`          | Location of the column file. |
+    | _required_ | 165      | **`file_format`**        | `string`          | String file format name: `avro`, `orc`, or `parquet`. |
+    | _required_ | 166      | **`file_size_in_bytes`** | `long`            | Total column file size in bytes. |
+    | _optional_ | 167      | **`key_metadata`**       | `binary`          | Implementation-specific key metadata for encryption. |
+    | _optional_ | 168      | **`split_offsets`**      | `list<169: long>` | Split offsets for the column file. Must be sorted ascending. |
 
     **Tracked File Requirements**
 
