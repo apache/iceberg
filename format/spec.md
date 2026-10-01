@@ -679,7 +679,7 @@ In v2-v3, whether a manifest is a data manifest or a delete manifest is stored i
 - v1-v3: A manifest stores files for a single partition spec. When a table’s partition spec changes, old files remain in the older manifest and newer files are written to a new manifest. This is required because a manifest file’s schema is based on its partition spec.
 - v4: A manifest may store files written with different partition specs.
 
-The partition spec used when writing each data file is used to transform predicates on the table’s data rows into predicates on partition values during job planning. In v1-v3, the same partition spec is used for all data files in a manifest.
+The partition spec used when writing each data file is used to transform predicates on the table’s data rows into predicates on partition values during job planning.
 
 #### Manifest File Format
 
