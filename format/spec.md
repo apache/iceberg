@@ -784,7 +784,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | 140 | **`sort_order_id`** | `int` | *optional* | ID representing sort order for this file. If missing or unknown, the order is assumed to be unsorted. |
     | 103 | **`record_count`** | `long` | *required* | Number of records in this file. |
     | 104 | **`file_size_in_bytes`** | `long` | *required* | Total file size in bytes. |
-    | 146 | **`content_stats`** | `content_stats` struct | *optional* | Column stats. See [Content Stats](#content-stats). |
+    | 146 | **`content_stats`** | `content_stats` struct | *optional* | Field-level stats. See [Content Stats](#content-stats). |
     | 150 | **`manifest_info`** | `manifest_info` struct | *optional* | See manifest_info struct below. |
     | 131 | **`key_metadata`** | `binary` | *optional* | Implementation-specific key metadata for encryption. |
     | 132 | **`split_offsets`** | `list<133: long>` | *optional* | Split offsets for the data file. Must be sorted ascending. |
