@@ -621,7 +621,7 @@ public class TestPruneColumns {
                                 NestedField.optional(6, "b", StringType.get())))))));
     MessageType fileSchema = ParquetSchemaUtil.convert(schema, "table");
 
-    // project payload.a inside the list element: element id and payload.b must be dropped
+    // project events.payload.a: the element's id and payload.b are dropped
     Schema projection =
         new Schema(
             NestedField.optional(
