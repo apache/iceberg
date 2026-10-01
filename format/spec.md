@@ -662,7 +662,7 @@ A data or delete file is associated with a sort order by the sort order's id wit
 
 ### Manifests
 
-A manifest is an immutable file that lists data files or delete files, along with each file’s partition data, metrics, and tracking information. One or more manifest files are used to store a [snapshot](#snapshots), which tracks all of the files in a table at some point in time. Manifests are tracked by a snapshot root for each table snapshot.
+A table's metadata tree is composed of manifests. A manifest is an immutable file that tracks a subset of a table metadata for a given [snapshot](#snapshots). Leaf manifests are the lowest level of the metadata tree and track data or delete files, along with each file's partition data, metrics, and tracking information. The root level of the metadata tree tracks leaf manifests; in v4 and later the root is also a manifest and can also track data files.
 
 A manifest is a valid Iceberg data file: files must use valid Iceberg formats, schemas, and column projection.
 
