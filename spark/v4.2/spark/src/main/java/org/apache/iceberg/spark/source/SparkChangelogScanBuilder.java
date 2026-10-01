@@ -56,21 +56,20 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
 
   @Override
   public Predicate[] pushPredicates(Predicate[] predicates) {
-    List<Predicate> unpushableChangelogPredicates = Lists.newArrayList();
-    List<Predicate> pushableCandidates = Lists.newArrayList();
+    List<Predicate> changelogPredicates = Lists.newArrayList();
+    List<Predicate> pushable = Lists.newArrayList();
 
     for (Predicate predicate : predicates) {
       if (isChangelogColumnPredicate(predicate)) {
-        unpushableChangelogPredicates.add(predicate);
+        changelogPredicates.add(predicate);
       } else {
-        pushableCandidates.add(predicate);
+        pushable.add(predicate);
       }
     }
 
-    Predicate[] remainingPredicates =
-        super.pushPredicates(pushableCandidates.toArray(new Predicate[0]));
+    Predicate[] remainingPredicates = super.pushPredicates(pushable.toArray(new Predicate[0]));
 
-    return Stream.concat(Arrays.stream(remainingPredicates), unpushableChangelogPredicates.stream())
+    return Stream.concat(Arrays.stream(remainingPredicates), changelogPredicates.stream())
         .toArray(Predicate[]::new);
   }
 
