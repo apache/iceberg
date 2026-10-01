@@ -1536,9 +1536,9 @@ A manifest deletion vector marks entries in a leaf manifest as deleted or replac
 
 Manifest deletion vectors are encoded using the [Mumbling bitmap spec][mumbling-spec] and stored inline on the root manifest entry that references the leaf manifest. The snapshot in which the vector last changed is recorded in `tracking.dv_snapshot_id`; the three bitmaps are:
 
-* `manifest_info.dv`: every position not live as of that snapshot.
-* `tracking.deleted_positions`: the positions deleted in that snapshot.
-* `tracking.replaced_positions`: the positions replaced in that snapshot.
+* `manifest_info.dv`: every position in the leaf manifest that is not live.
+* `tracking.deleted_positions`: the positions deleted in the `dv_snapshot_id` snapshot.
+* `tracking.replaced_positions`: the positions replaced in the `dv_snapshot_id` snapshot.
 
 `deleted_positions` and `replaced_positions` are disjoint.
 
