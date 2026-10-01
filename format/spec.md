@@ -849,6 +849,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     - A root manifest may reference v1-v3 manifests; a referenced v1-v3 leaf manifest must have `format_version` PRE-V4.
     - Other v4 tracked files must have `format_version` V4.
     - `manifest_info` must be set if and only if the tracked file is a manifest.
+    - For manifests, `manifest_info.added_files_count`, `existing_files_count`, `deleted_files_count`, `replaced_files_count`, and `modified_files_count` must sum to `record_count`.
     - `deletion_vector` may only be set if the tracked file is a data file.
     - `column_files` may only be set if the tracked file is a data file or a data manifest.
     - `tracking.deleted_positions` and `tracking.replaced_positions` may only be set if the tracked file is a manifest.
