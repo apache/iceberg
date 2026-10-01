@@ -447,7 +447,7 @@ class BaseSnapshotDeltaLakeTableAction implements SnapshotDeltaLakeTable {
    *     (either absolute or relative)
    * @param tableRoot the root path of the delta table
    */
-  static String getFullFilePath(String path, String tableRoot) {
+  private static String getFullFilePath(String path, String tableRoot) {
     URI dataFileUri = URI.create(path);
     String decodedPath = URLDecoder.decode(path, StandardCharsets.UTF_8);
     if (dataFileUri.isAbsolute()) {

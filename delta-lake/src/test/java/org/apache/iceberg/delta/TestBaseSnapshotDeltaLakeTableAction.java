@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.delta;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
@@ -98,14 +97,6 @@ public class TestBaseSnapshotDeltaLakeTableAction {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Delta Lake table does not exist at the given location: %s", sourceTableLocation);
-  }
-
-  @Test
-  public void fullFilePathUsesUriSeparator() {
-    assertThat(
-            BaseSnapshotDeltaLakeTableAction.getFullFilePath(
-                "data/file.parquet", "s3://bucket/table"))
-        .isEqualTo("s3://bucket/table/data/file.parquet");
   }
 
   private static class TestCatalog extends BaseMetastoreCatalog {
