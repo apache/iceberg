@@ -1561,7 +1561,7 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  public void unknownSpecPartitionIsNotProjected(FileFormat format) throws IOException {
+  public void unknownSpecPartitionIsNull(FileFormat format) throws IOException {
     PartitionSpec idSpec =
         PartitionSpec.builderFor(TABLE_SCHEMA)
             .withSpecId(1)
@@ -1597,7 +1597,9 @@ class TestV4ManifestReader {
 
     TrackedFile actual =
         files.stream().filter(f -> Integer.valueOf(5).equals(f.specId())).findFirst().orElseThrow();
-    assertThat(actual.partition().get(dataPos, CharSequence.class)).hasToString("x");
+    assertThat(actual.partition())
+        .as("partition cannot be projected to an unknown spec's output type")
+        .isNull();
   }
 
   @ParameterizedTest
@@ -1617,7 +1619,10 @@ class TestV4ManifestReader {
 
     TrackedFile actual = readOne(builder);
 
-    assertThat(actual).usingComparator(FILE_COMPARATOR).isEqualTo(file);
+    assertThat(actual.location()).isEqualTo(file.location());
+    assertThat(actual.partition())
+        .as("unknown spec's partition cannot be projected to its output type")
+        .isNull();
   }
 
   @ParameterizedTest

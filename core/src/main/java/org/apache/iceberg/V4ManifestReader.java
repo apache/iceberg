@@ -166,7 +166,15 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   }
 
   private TrackedFile projectPartition(TrackedFile file) {
-    ((TrackedFileStruct) file).setPartitionProjection(partitionProjections.get(file.specId()));
+    Integer specId = file.specId();
+    StructProjection projection = specId != null ? partitionProjections.get(specId) : null;
+    TrackedFileStruct struct = (TrackedFileStruct) file;
+    if (specId != null && projection == null) {
+      struct.clearPartition();
+    } else {
+      struct.setPartitionProjection(projection);
+    }
+
     return file;
   }
 
@@ -456,10 +464,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     private Map<Integer, StructProjection> partitionProjections() {
       Map<Integer, StructProjection> projections = Maps.newHashMap();
       for (PartitionSpec spec : specsById.values()) {
-        Types.StructType specType = spec.partitionType();
-        if (!specType.equals(unionPartitionType)) {
-          projections.put(spec.specId(), StructProjection.create(unionPartitionType, specType));
-        }
+        projections.put(
+            spec.specId(), StructProjection.create(unionPartitionType, spec.partitionType()));
       }
 
       return projections;

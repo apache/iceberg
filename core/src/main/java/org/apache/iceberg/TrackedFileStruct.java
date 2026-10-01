@@ -211,6 +211,11 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.partitionProjection = projection;
   }
 
+  void clearPartition() {
+    this.partition = null;
+    this.partitionProjection = null;
+  }
+
   @Override
   public Integer specId() {
     return specId;
