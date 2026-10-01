@@ -771,18 +771,18 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     |------------|----------|--------------------------|-------------------------------------------------------|-------------|
     | _required_ | 134      | **`content_type`**       | `int` (0: DATA, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | Type of content stored in the entry. |
     | _required_ | 157      | **`format_version`**     | `int` (0: PRE-V4, 4: V4)                              | Writer format version. |
+    | _required_ | 147      | **`tracking`**           | `tracking` struct                                     | Tracking metadata like status, snapshot ID, and sequence number. See tracking struct below. |
     | _required_ | 100      | **`location`**           | `string`                                              | Location of the file. |
     | _required_ | 101      | **`file_format`**        | `string`                                              | String file format name: `avro`, `orc`, or `parquet` |
-    | _required_ | 147      | **`tracking`**           | `tracking` struct                                     | Tracking metadata like status, snapshot ID, and sequence number. See tracking struct below. |
+    | _required_ | 104      | **`file_size_in_bytes`** | `long`                                                | Total file size in bytes. |
+    | _required_ | 103      | **`record_count`**       | `long`                                                | Number of records in this file. |
+    | _optional_ | 131      | **`key_metadata`**       | `binary`                                              | Implementation-specific key metadata for encryption. |
+    | _optional_ | 132      | **`split_offsets`**      | `list<133: long>`                                     | Split offsets for the data file. Must be sorted ascending. |
     | _optional_ | 141      | **`spec_id`**            | `int`                                                 | ID of the partition spec used to partition the file; null if unpartitioned |
     | _optional_ | 102      | **`partition`**          | `struct<...>`                                         | Partition data tuple for the file; null if unpartitioned. |
     | _optional_ | 140      | **`sort_order_id`**      | `int`                                                 | ID representing sort order for this file. If missing or unknown, the order is assumed to be unsorted. |
-    | _required_ | 103      | **`record_count`**       | `long`                                                | Number of records in this file. |
-    | _required_ | 104      | **`file_size_in_bytes`** | `long`                                                | Total file size in bytes. |
     | _optional_ | 146      | **`content_stats`**      | `content_stats` struct                                | Field-level stats. See [Content Stats](#content-stats). |
     | _optional_ | 150      | **`manifest_info`**      | `manifest_info` struct                                | Manifest-specific stats. See [Manifest Info](#manifest-info) |
-    | _optional_ | 131      | **`key_metadata`**       | `binary`                                              | Implementation-specific key metadata for encryption. |
-    | _optional_ | 132      | **`split_offsets`**      | `list<133: long>`                                     | Split offsets for the data file. Must be sorted ascending. |
     | _optional_ | 148      | **`deletion_vector`**    | `deletion_vector` struct                              | Row-level deletion vector for a data file. |
     | _optional_ | 158      | **`column_files`**       | `list<159: column_file>`                              | Column files associated with this file. |
 
