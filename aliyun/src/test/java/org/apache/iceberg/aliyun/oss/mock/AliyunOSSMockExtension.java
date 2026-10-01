@@ -66,7 +66,7 @@ public class AliyunOSSMockExtension implements AliyunOSSExtension {
 
   @Override
   public OSS createOSSClient() {
-    Preconditions.checkNotNull(ossMock, "OSS Mock must be started before creating a client");
+    Preconditions.checkState(null != ossMock, "OSS Mock must be started before creating a client");
     String endpoint = String.format("http://localhost:%d", ossMock.port());
     return new OSSClientBuilder().build(endpoint, "foo", "bar");
   }
