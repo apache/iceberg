@@ -803,7 +803,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     assumeThat(catalogName).isEqualTo(SparkCatalogConfig.HADOOP.catalogName());
 
     TableIdentifier identifier =
-        TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replaceAll("`", ""));
+        TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replace("`", ""));
     sql(
         "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg",
         tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
@@ -838,7 +838,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     assumeThat(catalogName).isEqualTo(SparkCatalogConfig.HADOOP.catalogName());
 
     TableIdentifier identifier =
-        TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replaceAll("`", ""));
+        TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replace("`", ""));
     sql(
         "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg",
         tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
@@ -878,7 +878,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     assumeThat(catalogName).isEqualTo(SparkCatalogConfig.HADOOP.catalogName());
 
     TableIdentifier identifier =
-        TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replaceAll("`", ""));
+        TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replace("`", ""));
     sql(
         "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg",
         tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));

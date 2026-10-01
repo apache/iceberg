@@ -86,6 +86,11 @@ public class Binder {
   }
 
   public static Set<Integer> boundReferences(
+      StructType struct, Expression expr, boolean caseSensitive) {
+    return boundReferences(struct, List.of(expr), caseSensitive);
+  }
+
+  public static Set<Integer> boundReferences(
       StructType struct, List<Expression> exprs, boolean caseSensitive) {
     if (exprs == null) {
       return ImmutableSet.of();

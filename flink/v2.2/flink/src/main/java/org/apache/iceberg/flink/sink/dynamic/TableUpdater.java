@@ -142,7 +142,9 @@ class TableUpdater {
               tableSchema,
               result,
               DataConverter.get(
-                  FlinkSchemaUtil.convert(schema), FlinkSchemaUtil.convert(tableSchema)));
+                  FlinkSchemaUtil.convert(schema),
+                  FlinkSchemaUtil.convert(tableSchema),
+                  caseSensitive));
         case SCHEMA_UPDATE_NEEDED:
           LOG.info(
               "Triggering schema update for table {} {} to {}", identifier, tableSchema, schema);
