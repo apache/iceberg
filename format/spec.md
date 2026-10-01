@@ -482,7 +482,7 @@ A data file with only new rows for the table may omit the `_last_updated_sequenc
 
 On read, if `_last_updated_sequence_number` is `null` it is assigned the `sequence_number` of the data file's manifest entry. The data sequence number of a data file is documented in [Sequence Number Inheritance](#sequence-number-inheritance).
 
-When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the snapshot root for a snapshot and is documented in [First Row ID Assignment](#first-row-id-assignment). In v4, a data file in the root manifest is assigned a `first_row_id` in the same way. A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
+When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the snapshot root file and is documented in [First Row ID Assignment](#first-row-id-assignment). In v4, a data file in the root manifest is assigned a `first_row_id` in the same way. A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
 
 When an existing row is moved to a different data file for any reason, writers should write `_row_id` and `_last_updated_sequence_number` according to the following rules:
 
@@ -672,8 +672,8 @@ Each manifest type contains the following content:
 |----------------|----------|
 | v1-v3 data manifest | Data files |
 | v2-v3 delete manifest | Delete files |
-| v4 root manifest | Data files, data manifests, delete manifests |
-| v4 data manifest | Data files and their colocated deletion vectors |
+| v4 root manifest | Leaf manifests, data files, or v1-v3 manifests |
+| v4 leaf manifest | Data files and their colocated deletion vectors |
 
 In v2-v3, a manifest may store either data files or delete files, but not both; whether a manifest is a data manifest or a delete manifest is stored in manifest metadata.
 
@@ -715,6 +715,8 @@ Within a snapshot, each content file must be referenced by at most one live mani
 In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, entries are called tracked files and are described by the `tracked_file` struct. In v4, `data_file` struct fields are flattened directly into the tracked file, and tracking fields are grouped into a nested `tracking` struct. An entry is **live** in a snapshot if its `status` is ADDED, EXISTING, or MODIFIED and its position is not set in the containing manifest's [`manifest_info.dv`](#manifest-deletion-vectors).
 
 === "v1 - v3"
+    The v1-v3 `manifest_entry` struct has the following fields:
+
     | v1         | v2 and v3  | Field id, name                | Type                                                      | Description |
     | ---------- | ---------- |-------------------------------|-----------------------------------------------------------|-------------|
     | _required_ | _required_ | **`0  status`**               | `int` with meaning: `0: EXISTING` `1: ADDED` `2: DELETED` | Used to track additions and deletions. Deletes are informational only and not used in scans. |
@@ -729,7 +731,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
 
     When a file is replaced or deleted from the dataset, its manifest entry fields store the snapshot ID in which the file was deleted and status 2 (deleted).
 
-    **`data_file` struct (field 2)**
+    The `data_file` struct consists of the following fields:
 
     | v1         | v2         | v3         | Field id, name                    | Type                                                                        | Description |
     | ---------- |------------|------------|-----------------------------------|-----------------------------------------------------------------------------|-------------|
@@ -785,7 +787,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | 103 | **`record_count`** | `long` | *required* | Number of records in this file. |
     | 104 | **`file_size_in_bytes`** | `long` | *required* | Total file size in bytes. |
     | 146 | **`content_stats`** | `content_stats` struct | *optional* | Field-level stats. See [Content Stats](#content-stats). |
-    | 150 | **`manifest_info`** | `manifest_info` struct | *optional* | See manifest_info struct below. |
+    | 150 | **`manifest_info`** | `manifest_info` struct | *optional* | Manifest-specific stats. See [Manifest Info](#manifest-info) |
     | 131 | **`key_metadata`** | `binary` | *optional* | Implementation-specific key metadata for encryption. |
     | 132 | **`split_offsets`** | `list<133: long>` | *optional* | Split offsets for the data file. Must be sorted ascending. |
     | 148 | **`deletion_vector`** | `deletion_vector` struct | *optional* | Row-level deletion vector for a data file. |
@@ -815,7 +817,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | 156 | **`cardinality`** | `long` | *required* | Cardinality of the deletion vector. |
     | 149 | **`key_metadata`** | `binary` | *optional* | Implementation-specific key metadata for encryption. |
 
-    **`manifest_info` struct (field 150)**
+    ##### Manifest Info
 
     | Field id | Name | Type | Required | Description |
     |----------|------|------|----------|-------------|
