@@ -75,6 +75,7 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
 
 * Deprecation / End of Support
     - Spark: Remove Spark 3.4 support ([\#14122](https://github.com/apache/iceberg/pull/14122))
+    - Flink: Remove support for Flink 2.0
     - Remove deprecated methods and fields scheduled for 1.12.0 removal ([\#17700](https://github.com/apache/iceberg/pull/17700))
     - Remove deprecated `DataReader` in favor of `PlannedDataReader` ([\#17699](https://github.com/apache/iceberg/pull/17699))
     - Data: Remove deprecated `GenericAppenderFactory` and `BaseFileWriterFactory` ([\#17696](https://github.com/apache/iceberg/pull/17696))
@@ -89,7 +90,6 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
     - Core, ORC: Remove deprecated partition stats read functionality ([\#14998](https://github.com/apache/iceberg/pull/14998))
     - Kafka Connect: Remove deprecated `TableReference` and `IcebergWriterResult` members ([\#17623](https://github.com/apache/iceberg/pull/17623))
     - BigQuery: Remove deprecated catalog property constants ([\#17625](https://github.com/apache/iceberg/pull/17625))
-    - Spark: Deprecate `SparkFilters` in favor of `SparkV2Filters` ([\#16616](https://github.com/apache/iceberg/pull/16616))
 * Behavior change
     - `GeometryType` and `GeographyType` `toString()` now always include the resolved CRS, and for geography the edge algorithm: `geometry` prints as `geometry(OGC:CRS84)` and `geography` as `geography(OGC:CRS84, spherical)` ([\#16765](https://github.com/apache/iceberg/pull/16765)).
     Previously, default instances printed the bare type name (`geometry` / `geography`).
@@ -197,12 +197,8 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
     - Spark 3.5, 4.0: Add `sort_by` parameter to the `rewrite_manifests` procedure ([\#18065](https://github.com/apache/iceberg/pull/18065))
     - Encrypt manifests written by `rewrite_manifests` ([\#17987](https://github.com/apache/iceberg/pull/17987))
 * Flink
-    - Add data model and key serialization for equality delete conversion ([\#16831](https://github.com/apache/iceberg/pull/16831))
-    - Add equality delete conversion operators ([\#16844](https://github.com/apache/iceberg/pull/16844))
-    - Add equality delete conversion DV resolution and writing ([\#16858](https://github.com/apache/iceberg/pull/16858))
-    - Add equality delete conversion committer ([\#16874](https://github.com/apache/iceberg/pull/16874))
-    - Add equality delete conversion planner ([\#16889](https://github.com/apache/iceberg/pull/16889))
-    - Add equality delete conversion API and integration tests ([\#16948](https://github.com/apache/iceberg/pull/16948))
+    - Add Flink 2.2 and 2.3 support ([\#17849](https://github.com/apache/iceberg/pull/17849))
+    - Add a Flink maintenance task to convert equality deletes into deletion vectors (`ConvertEqualityDeletes`) ([\#16831](https://github.com/apache/iceberg/pull/16831), [\#16844](https://github.com/apache/iceberg/pull/16844), [\#16858](https://github.com/apache/iceberg/pull/16858), [\#16874](https://github.com/apache/iceberg/pull/16874), [\#16889](https://github.com/apache/iceberg/pull/16889), [\#16948](https://github.com/apache/iceberg/pull/16948))
     - Integrate ConvertEqualityDeletes with IcebergSink ([\#17142](https://github.com/apache/iceberg/pull/17142))
     - Fix deleted rows reappearing after a failed equality-delete conversion cycle ([\#17630](https://github.com/apache/iceberg/pull/17630))
     - Resolve unpartitioned equality deletes across all partitions ([\#17018](https://github.com/apache/iceberg/pull/17018))
