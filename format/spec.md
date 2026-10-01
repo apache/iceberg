@@ -801,7 +801,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | 160 | **`latest_column_file_snapshot_id`** | `long` | *optional* | Snapshot ID where the latest column file was added. |
     | 3 | **`sequence_number`** | `long` | *optional* | Data sequence number of the file. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
     | 4 | **`file_sequence_number`** | `long` | *optional* | File sequence number indicating when the file was added. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
-    | 142 | **`first_row_id`** | `long` | *optional* | For a data file, the `_row_id` for its first row. For a data manifest, the starting `_row_id` to assign to rows added by ADDED data files. See [First Row ID Inheritance](#first-row-id-inheritance). |
+    | 142 | **`first_row_id`** | `long` | *optional* | Base row ID for assigning `_row_id` values. See [First Row ID Inheritance](#first-row-id-inheritance). |
     | 6 | **`deleted_positions`** | `binary` | *optional* | Positions deleted in the referenced leaf manifest this snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
     | 7 | **`replaced_positions`** | `binary` | *optional* | Positions replaced in the referenced leaf manifest this snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
 
