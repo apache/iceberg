@@ -64,7 +64,6 @@ Version 4 of the Iceberg spec restructures metadata for improved performance and
 * Support for an [adaptive metadata tree](#manifests), enabling efficient small commits, column updates, and columnar statistics representation
 * Data files and deletion vectors are stored in a combined entry representation, removing the need for two phase planning
 * Support for [relative locations](#file-locations-in-metadata) in metadata fields
-* New equality deletes must not be produced
 
 The full set of changes are listed in [Appendix E](#version-4).
 
