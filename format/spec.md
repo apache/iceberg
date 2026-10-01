@@ -831,15 +831,14 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
 
     The `column_file` struct has the following fields:
 
-    | On write   | Field id | Name                     | Type              | Description |
-    |------------|----------|--------------------------|-------------------|-------------|
-    | _required_ | 161      | **`format_version`**     | `int` (4: V4)     | Format version of this column file. |
-    | _required_ | 162      | **`field_ids`**          | `list<163: int>`  | Live field IDs stored in this column file. |
-    | _required_ | 164      | **`location`**           | `string`          | Location of the column file. |
-    | _required_ | 165      | **`file_format`**        | `string`          | String file format name: `avro`, `orc`, or `parquet`. |
-    | _required_ | 166      | **`file_size_in_bytes`** | `long`            | Total column file size in bytes. |
-    | _optional_ | 167      | **`key_metadata`**       | `binary`          | Implementation-specific key metadata for encryption. |
-    | _optional_ | 168      | **`split_offsets`**      | `list<169: long>` | Split offsets for the column file. Must be sorted ascending. |
+    | On write   | Field id | Name                     | Type             | Description |
+    |------------|----------|--------------------------|------------------|-------------|
+    | _required_ | 161      | **`format_version`**     | `int` (4: V4)    | Format version of this column file. |
+    | _required_ | 162      | **`field_ids`**          | `list<163: int>` | Live field IDs stored in this column file. |
+    | _required_ | 164      | **`location`**           | `string`         | Location of the column file. |
+    | _required_ | 165      | **`file_format`**        | `string`         | String file format name: `avro`, `orc`, or `parquet`. |
+    | _required_ | 166      | **`file_size_in_bytes`** | `long`           | Total column file size in bytes. |
+    | _optional_ | 167      | **`key_metadata`**       | `binary`         | Implementation-specific key metadata for encryption. |
 
     **Tracked File Requirements**
 
