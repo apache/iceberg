@@ -676,8 +676,6 @@ Each manifest type contains the following content:
 
 In v2-v3, a manifest may store either data files or delete files, but not both; whether a manifest is a data manifest or a delete manifest is stored in manifest metadata.
 
-**Partition Spec Binding:**
-
 - v1-v3: A manifest stores files for a single partition spec. When a table’s partition spec changes, old files remain in the older manifest and newer files are written to a new manifest. This is required because a manifest file’s schema is based on its partition spec.
 - v4: A manifest may store files written with different partition specs.
 
