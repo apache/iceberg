@@ -19,12 +19,14 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.TestHelpers.RoundTripSerializer;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -401,6 +403,22 @@ class TestTrackedFileStruct {
   }
 
   @Test
+  void partitionFailsWhenSpecIsSetButPartitionIsMissing() {
+    TrackedFileStruct file = trackedFile(1, null);
+
+    assertThatThrownBy(file::partition)
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing partition for spec 1");
+  }
+
+  @Test
+  void partitionIsNullWhenThereIsNoSpec() {
+    TrackedFileStruct file = trackedFile(null, null);
+
+    assertThat(file.partition()).isNull();
+  }
+
+  @Test
   void structLikeSize() {
     TrackedFileStruct file = new TrackedFileStruct();
     assertThat(file.size()).isEqualTo(DEFAULT_FIELDS.size());
@@ -409,6 +427,11 @@ class TestTrackedFileStruct {
   @ParameterizedTest
   @MethodSource("org.apache.iceberg.TestHelpers#serializers")
   void serializationRoundTrip(RoundTripSerializer<TrackedFileStruct> serializer) throws Exception {
+    Types.StructType partitionType =
+        Types.StructType.of(Types.NestedField.required(1000, "id", Types.IntegerType.get()));
+    PartitionData partition = new PartitionData(partitionType);
+    partition.set(0, 7);
+
     TrackedFileStruct file =
         new TrackedFileStruct(
             null, // TrackingStruct has its own serialization tests
@@ -419,7 +442,7 @@ class TestTrackedFileStruct {
             100L,
             1024L,
             7,
-            null, // PartitionData has its own serialization tests
+            partition,
             null,
             1,
             null, // DeletionVector has its own serialization tests
@@ -435,7 +458,9 @@ class TestTrackedFileStruct {
     assertThat(deserialized.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(deserialized.location()).isEqualTo("s3://bucket/data/file.parquet");
     assertThat(deserialized.fileFormat()).isEqualTo(FileFormat.PARQUET);
-    assertThat(deserialized.partition()).isNull();
+    assertThat(deserialized.partition())
+        .usingComparator(Comparators.forType(partitionType))
+        .isEqualTo(partition);
     assertThat(deserialized.recordCount()).isEqualTo(100L);
     assertThat(deserialized.fileSizeInBytes()).isEqualTo(1024L);
     assertThat(deserialized.specId()).isEqualTo(7);
@@ -484,7 +509,7 @@ class TestTrackedFileStruct {
         .isEqualTo(expected);
   }
 
-  private static TrackedFileStruct trackedFile(int specId, PartitionData partition) {
+  private static TrackedFileStruct trackedFile(Integer specId, PartitionData partition) {
     return new TrackedFileStruct(
         null, // tracking
         FileContent.DATA,

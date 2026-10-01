@@ -1561,7 +1561,7 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  public void unknownSpecPartitionIsNull(FileFormat format) throws IOException {
+  public void unknownSpecPartitionFails(FileFormat format) throws IOException {
     PartitionSpec idSpec =
         PartitionSpec.builderFor(TABLE_SCHEMA)
             .withSpecId(1)
@@ -1595,11 +1595,18 @@ class TestV4ManifestReader {
             V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, specsById)
                 .metricsConfig(METRICS_CONFIG));
 
-    TrackedFile actual =
+    TrackedFile knownActual =
+        files.stream().filter(f -> Integer.valueOf(1).equals(f.specId())).findFirst().orElseThrow();
+    assertThat(knownActual.partition().get(0, Integer.class))
+        .as("known spec's partition is projected to its output type")
+        .isEqualTo(7);
+
+    TrackedFile unknownActual =
         files.stream().filter(f -> Integer.valueOf(5).equals(f.specId())).findFirst().orElseThrow();
-    assertThat(actual.partition())
+    assertThatThrownBy(unknownActual::partition)
         .as("partition cannot be projected to an unknown spec's output type")
-        .isNull();
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing partition for spec 5");
   }
 
   @ParameterizedTest
@@ -1620,9 +1627,10 @@ class TestV4ManifestReader {
     TrackedFile actual = readOne(builder);
 
     assertThat(actual.location()).isEqualTo(file.location());
-    assertThat(actual.partition())
+    assertThatThrownBy(actual::partition)
         .as("unknown spec's partition cannot be projected to its output type")
-        .isNull();
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing partition for spec 5");
   }
 
   @ParameterizedTest

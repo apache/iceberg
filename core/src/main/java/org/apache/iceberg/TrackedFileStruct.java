@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -139,7 +140,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.recordCount = toCopy.recordCount;
     this.fileSizeInBytes = toCopy.fileSizeInBytes;
     this.specId = toCopy.specId;
-    this.partition = StructLikeUtil.copy(toCopy.partition());
+    this.partition = toCopy.partition == null ? null : StructLikeUtil.copy(toCopy.partition());
     this.tracking = toCopy.tracking != null ? toCopy.tracking.copy() : null;
     this.sortOrderId = toCopy.sortOrderId;
     this.deletionVector = toCopy.deletionVector != null ? toCopy.deletionVector.copy() : null;
@@ -223,11 +224,12 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
 
   @Override
   public StructLike partition() {
-    if (partition == null || partitionProjection == null) {
-      return partition;
+    if (partition == null) {
+      ValidationException.check(specId == null, "Missing partition for spec %s", specId);
+      return null;
     }
 
-    return partitionProjection.wrap(partition);
+    return partitionProjection != null ? partitionProjection.wrap(partition) : partition;
   }
 
   @Override

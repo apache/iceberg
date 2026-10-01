@@ -101,8 +101,7 @@ class TrackedFileAdapters {
 
     @Override
     public StructLike partition() {
-      StructLike partition = file().partition();
-      return partition != null ? partition : PartitionData.EMPTY;
+      return file().partition() != null ? file().partition() : PartitionData.EMPTY;
     }
 
     @Override
