@@ -797,18 +797,18 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | _optional_ | 3        | **`sequence_number`**                | `long`                                                              | Data sequence number of the file. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
     | _optional_ | 4        | **`file_sequence_number`**           | `long`                                                              | File sequence number indicating when the file was added. Inherited when null. See [Sequence Number Inheritance](#sequence-number-inheritance). |
     | _optional_ | 142      | **`first_row_id`**                   | `long`                                                              | Base row ID for assigning `_row_id` values. See [First Row ID Inheritance](#first-row-id-inheritance). |
-    | _optional_ | 6        | **`deleted_positions`**              | `binary`                                                            | Positions deleted in the referenced leaf manifest this snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
+    | _optional_ | 6        | **`deleted_positions`**              | `binary`                                                            | Positions deleted via manifest DV in the `dv_snapshot_id` snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
     | _optional_ | 7        | **`replaced_positions`**             | `binary`                                                            | Positions replaced in the referenced leaf manifest this snapshot. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
 
     The `deletion_vector` struct has the following fields:
 
     | On write   | Field id | Name                | Type     | Description |
     |------------|----------|---------------------|----------|-------------|
-    | _required_ | 155      | **`location`**      | `string` | Location of the Puffin file. |
+    | _required_ | 155      | **`location`**      | `string` | Location of the file that stores the DV. |
     | _required_ | 144      | **`offset`**        | `long`   | Offset in the file where the content starts. |
     | _required_ | 145      | **`size_in_bytes`** | `long`   | Length of the referenced content stored in the file. |
-    | _required_ | 156      | **`cardinality`**   | `long`   | Cardinality of the deletion vector. |
-    | _optional_ | 149      | **`key_metadata`**  | `binary` | Implementation-specific key metadata for encryption. |
+    | _required_ | 156      | **`cardinality`**   | `long`   | Number of set bits (deleted rows) in the deletion vector. |
+    | _optional_ | 149      | **`key_metadata`**  | `binary` | Key metadata for encryption; specific to the encryption scheme. |
 
     ##### Manifest Info
 
