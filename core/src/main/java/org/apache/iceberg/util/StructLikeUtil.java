@@ -19,6 +19,8 @@
 package org.apache.iceberg.util;
 
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 import org.apache.iceberg.StructLike;
 
 public class StructLikeUtil {
@@ -67,16 +69,7 @@ public class StructLikeUtil {
 
     @Override
     public String toString() {
-      StringBuilder sb = new StringBuilder();
-      sb.append("[");
-      for (int i = 0; i < values.length; i += 1) {
-        if (i > 0) {
-          sb.append(", ");
-        }
-        sb.append(values[i]);
-      }
-      sb.append("]");
-      return sb.toString();
+      return Arrays.stream(values).map(String::valueOf).collect(Collectors.joining(", ", "[", "]"));
     }
   }
 }

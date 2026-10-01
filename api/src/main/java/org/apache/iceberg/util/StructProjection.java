@@ -20,6 +20,7 @@ package org.apache.iceberg.util;
 
 import java.util.List;
 import java.util.Set;
+import java.util.StringJoiner;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -226,16 +227,14 @@ public class StructProjection implements StructLike {
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder();
-    sb.append("StructProjection{");
     List<Types.NestedField> fields = type.fields();
-    for (int i = 0; i < fields.size(); i += 1) {
-      if (i > 0) {
-        sb.append(", ");
-      }
-      sb.append(fields.get(i).name()).append("=").append(get(i, Object.class));
+    StringJoiner joiner = new StringJoiner(", ", "StructProjection{", "}");
+    for (int pos = 0; pos < fields.size(); pos += 1) {
+      int structPos = positionMap[pos];
+      Object value = struct == null || structPos == -1 ? null : struct.get(structPos, Object.class);
+      joiner.add(fields.get(pos).name() + "=" + value);
     }
-    sb.append("}");
-    return sb.toString();
+
+    return joiner.toString();
   }
 }
