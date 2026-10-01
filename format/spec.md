@@ -749,27 +749,25 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | _optional_ | _optional_ | _optional_ | **`110  null_value_counts`**      | `map<121: int, 122: long>`                                                  | Map from column id to number of null values in the column |
     | _optional_ | _optional_ | _optional_ | **`137  nan_value_counts`**       | `map<138: int, 139: long>`                                                  | Map from column id to number of NaN values in the column |
     | _optional_ | _optional_ |            | ~~**`111  distinct_counts`**~~    | `map<123: int, 124: long>`                                                  | **Deprecated. Do not write.** |
-    | _optional_ | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>`                                                | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2] |
-    | _optional_ | _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>`                                                | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2] |
+    | _optional_ | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>`                                                | Map from column id to lower bound in the column serialized as binary. Each value must be less than or equal to all non-null, non-NaN values in the column for the file. See [Field-level Metrics and Statistics](#field-level-metrics-and-statistics) |
+    | _optional_ | _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>`                                                | Map from column id to upper bound in the column serialized as binary. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file. See [Field-level Metrics and Statistics](#field-level-metrics-and-statistics) |
     | _optional_ | _optional_ | _optional_ | **`131  key_metadata`**           | `binary`                                                                    | Implementation-specific key metadata for encryption |
     | _optional_ | _optional_ | _optional_ | **`132  split_offsets`**          | `list<133: long>`                                                           | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending |
     |            | _optional_ | _optional_ | **`135  equality_ids`**           | `list<136: int>`                                                            | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file |
-    | _optional_ | _optional_ | _optional_ | **`140  sort_order_id`**          | `int`                                                                       | ID representing sort order for this file [3]. |
+    | _optional_ | _optional_ | _optional_ | **`140  sort_order_id`**          | `int`                                                                       | ID representing sort order for this file [1]. |
     |            |            | _optional_ | **`142  first_row_id`**           | `long`                                                                      | The `_row_id` for the first row in the data file. See [First Row ID Inheritance](#first-row-id-inheritance) |
-    |            | _optional_ | _optional_ | **`143  referenced_data_file`**   | `string`                                                                    | Fully qualified location (URI with FS scheme) of a data file that all deletes reference [4] |
-    |            |            | _optional_ | **`144  content_offset`**         | `long`                                                                      | The offset in the file where the content starts [5] |
-    |            |            | _optional_ | **`145  content_size_in_bytes`**  | `long`                                                                      | The length of a referenced content stored in the file; required if `content_offset` is present [5] |
+    |            | _optional_ | _optional_ | **`143  referenced_data_file`**   | `string`                                                                    | Fully qualified location (URI with FS scheme) of a data file that all deletes reference [2] |
+    |            |            | _optional_ | **`144  content_offset`**         | `long`                                                                      | The offset in the file where the content starts [3] |
+    |            |            | _optional_ | **`145  content_size_in_bytes`**  | `long`                                                                      | The length of a referenced content stored in the file; required if `content_offset` is present [3] |
 
     The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
     Notes:
 
-    1. Single-value serialization for lower and upper bounds is detailed in Appendix D.
-    2. For `float` and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate. NaNs are not permitted as lower or upper bounds.
-    3. If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files should be written with a non-null order id. [Position deletes](#position-delete-files) are required to be sorted by file and position, not a table order, and should set sort order id to null. Readers must ignore sort order id for position delete files.
-    4. Position delete metadata can use `referenced_data_file` when all deletes tracked by the entry are in a single data file. Setting the referenced file is required for deletion vectors.
-    5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
-    6. The following field ids are reserved on `data_file`: 141.
+    1. If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files should be written with a non-null order id. [Position deletes](#position-delete-files) are required to be sorted by file and position, not a table order, and should set sort order id to null. Readers must ignore sort order id for position delete files.
+    2. Position delete metadata can use `referenced_data_file` when all deletes tracked by the entry are in a single data file. Setting the referenced file is required for deletion vectors.
+    3. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
+    4. The following field ids are reserved on `data_file`: 141.
 
 === "v4"
     **Tracked Files**
@@ -886,11 +884,11 @@ Notes:
 
 Field statistics (or, interchangeably, metrics) are used when filtering to select data and delete files.
 
-In v3 and earlier, metrics are stored in maps keyed by field id: `value_counts`, `null_value_counts`, `nan_value_counts`, `lower_bounds` and `upper_bounds`.
+In v3 and earlier, metrics are stored in maps keyed by field id: `value_counts`, `null_value_counts`, `nan_value_counts`, `lower_bounds` and `upper_bounds`. Bounds in these maps use the single-value serialization detailed in [Appendix D](#appendix-d-single-value-serialization).
 
 In v4, metrics are stored as typed values in the `content_stats` struct, documented in the [Content Stats](#content-stats) section.
 
-Both representations store equivalent information. If a map or id in a map is missing in v3, it is equivalent to a `null` value or missing field struct in v4. Lower bounds must be less than or equal to all non-null and non-NaN values and upper bounds must be greater than or equal to all non-null and non-NaN values.
+Both representations store equivalent information. If a map or id in a map is missing in v3, it is equivalent to a `null` value or missing field struct in v4. Lower bounds must be less than or equal to all non-null and non-NaN values and upper bounds must be greater than or equal to all non-null and non-NaN values. For `float` and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate. NaNs are not permitted as lower or upper bounds.
 
 For delete files, metrics must store bounds and counts for all deleted rows, or must be omitted. Storing metrics for deleted rows ensures that the values can be used during job planning to find delete files that must be merged during a scan.
 
@@ -947,17 +945,13 @@ Each stats struct holds statistics for one table field. It may contain the follo
 
 | Requirement | Offset | Name                      | Type                      | Included for                                  | Description |
 |-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
-| _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type [1], or `geo_lower` for geo types |
-| _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type [1], or `geo_upper` for geo types |
+| _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types. See [Field-level Metrics and Statistics](#field-level-metrics-and-statistics) |
+| _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types. See [Field-level Metrics and Statistics](#field-level-metrics-and-statistics) |
 | _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry` and `geography` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
 | _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
 | _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`, `geometry`, `geography` | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
-
-Notes:
-
-1. For `float` and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate. NaNs are not permitted as lower or upper bounds.
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
