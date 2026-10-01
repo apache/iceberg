@@ -284,7 +284,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           entry ->
               entry != null
                   && evaluator.eval(entry.file().partition())
-                  && metricsEvaluator.eval(entry.file())
+                  && metricsEvaluator.eval(withFilterableStats(entry.file()))
                   && inPartitionSet(entry.file()));
     } else {
       CloseableIterable<ManifestEntry<F>> entries =
@@ -411,6 +411,16 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
         && columns != null
         && !columns.containsAll(ManifestReader.ALL_COLUMNS)
         && !columns.containsAll(STATS_COLUMNS);
+  }
+
+  private F withFilterableStats(F contentFile) {
+    if (contentFile.content() == FileContent.EQUALITY_DELETES
+        && !contentFile.equalityFieldIds().isEmpty()) {
+      // only equality delete's equality-field stats are relevant for pruning
+      return contentFile.copyWithStats(Set.copyOf(contentFile.equalityFieldIds()));
+    }
+
+    return contentFile;
   }
 
   static boolean dropStats(Collection<String> columns) {
