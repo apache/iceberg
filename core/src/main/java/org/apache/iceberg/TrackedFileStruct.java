@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.avro.SupportsIndexProjection;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
@@ -87,12 +86,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   /** Used by internal readers to instantiate this class with a projection schema. */
   TrackedFileStruct(Types.StructType projection) {
     super(BASE_TYPE, projection);
-    // partition type may be null if the field was not projected, or unknown for unpartitioned
-    // manifests
-    Type partType = projection.fieldType(TrackedFile.PARTITION_NAME);
-    if (partType != null && partType.isStructType()) {
-      this.partition = new PartitionData(partType.asStructType());
-    }
   }
 
   /** No-projection constructor for direct construction. */

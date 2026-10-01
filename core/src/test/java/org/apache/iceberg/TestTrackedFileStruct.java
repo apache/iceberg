@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.ByteBuffer;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.TestHelpers.RoundTripSerializer;
@@ -28,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
 import org.junit.jupiter.api.Test;
@@ -343,7 +345,7 @@ class TestTrackedFileStruct {
   }
 
   @Test
-  void partitionIsProjectedOntoResolvedSpec() {
+  void partitionIsProjectedToResolvedSpec() {
     // a table whose partitioning evolved from id to category
     Schema schema =
         new Schema(
@@ -371,13 +373,17 @@ class TestTrackedFileStruct {
     TrackedFileStruct file = trackedFile(categorySpec.specId(), unionPartition);
     file.setPartitionProjection(StructProjection.create(unionType, categorySpec.partitionType()));
 
+    Comparator<StructLike> comparator = Comparators.forType(categorySpec.partitionType());
+    PartitionData expected = new PartitionData(categorySpec.partitionType());
+    expected.set(0, "books");
+
     // category is at position 1 in the union but position 0 in categorySpec; reading by the spec's
     // ordinal must return category, not id (null)
-    assertThat(file.partition().get(0, CharSequence.class)).hasToString("books");
+    assertThat(file.partition()).usingComparator(comparator).isEqualTo(expected);
 
     StructLike copyPartition = file.copy().partition();
     unionPartition.set(categoryUnionPos, "changed");
-    assertThat(copyPartition.get(0, CharSequence.class)).hasToString("books");
+    assertThat(copyPartition).usingComparator(comparator).isEqualTo(expected);
   }
 
   @Test
@@ -392,26 +398,6 @@ class TestTrackedFileStruct {
 
     // no projection is set, so partition() returns the stored tuple unchanged
     assertThat(file.partition()).isSameAs(partition);
-  }
-
-  private static TrackedFileStruct trackedFile(int specId, PartitionData partition) {
-    return new TrackedFileStruct(
-        null, // tracking
-        FileContent.DATA,
-        FORMAT_VERSION_V4,
-        "s3://bucket/file.parquet",
-        FileFormat.PARQUET,
-        100L, // recordCount
-        1024L, // fileSizeInBytes
-        specId,
-        partition,
-        null, // contentStats
-        null, // sortOrderId
-        null, // deletionVector
-        null, // manifestInfo
-        null, // keyMetadata
-        null, // splitOffsets
-        null); // equalityIds
   }
 
   @Test
@@ -463,8 +449,8 @@ class TestTrackedFileStruct {
 
   @ParameterizedTest
   @MethodSource("org.apache.iceberg.TestHelpers#serializers")
-  void partitionProjectionSurvivesSerialization(RoundTripSerializer<TrackedFileStruct> serializer)
-      throws Exception {
+  void partitionProjectionSurvivesSerializationAfterCopy(
+      RoundTripSerializer<TrackedFileStruct> serializer) throws Exception {
     Schema schema =
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -489,8 +475,33 @@ class TestTrackedFileStruct {
     TrackedFileStruct file = trackedFile(categorySpec.specId(), unionPartition);
     file.setPartitionProjection(StructProjection.create(unionType, categorySpec.partitionType()));
 
+    PartitionData expected = new PartitionData(categorySpec.partitionType());
+    expected.set(0, "books");
+
     TrackedFileStruct deserialized = serializer.apply((TrackedFileStruct) file.copy());
-    assertThat(deserialized.partition().get(0, CharSequence.class)).hasToString("books");
+    assertThat(deserialized.partition())
+        .usingComparator(Comparators.forType(categorySpec.partitionType()))
+        .isEqualTo(expected);
+  }
+
+  private static TrackedFileStruct trackedFile(int specId, PartitionData partition) {
+    return new TrackedFileStruct(
+        null, // tracking
+        FileContent.DATA,
+        FORMAT_VERSION_V4,
+        "s3://bucket/file.parquet",
+        FileFormat.PARQUET,
+        100L, // recordCount
+        1024L, // fileSizeInBytes
+        specId,
+        partition,
+        null, // contentStats
+        null, // sortOrderId
+        null, // deletionVector
+        null, // manifestInfo
+        null, // keyMetadata
+        null, // splitOffsets
+        null); // equalityIds
   }
 
   private static int pos(String fieldName) {
