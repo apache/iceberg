@@ -1190,7 +1190,7 @@ A simple and valid approach is to estimate the number of rows in data files that
 
 ### Scan Planning
 
-Scans are planned by reading the manifests referenced by the snapshot root for the current snapshot; starting in v4, the snapshot root may also contain data files.
+A reader plans a scan by producing live data files from the snapshot root and any leaf manifests referenced by the root.
 
 A scan uses only [live](#manifest-schema) entries.
 
