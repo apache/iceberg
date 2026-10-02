@@ -91,9 +91,17 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
       Type field = fields.get(i);
       Integer fieldId = getId(originalField);
       if (fieldId != null && selectedIds.contains(fieldId)) {
-        filteredFields.add(originalField);
+        // the field id is in selectedIds both when the struct itself is projected (field ==
+        // originalField) and when it is only a path to a deeper projected field (field is pruned);
+        // adding the pruned field keeps deep projections from widening back to the full struct
+        if (field != null) {
+          hasChange |= !Objects.equal(field, originalField);
+          filteredFields.add(field);
+        } else {
+          filteredFields.add(originalField);
+        }
       } else if (field != null) {
-        filteredFields.add(originalField);
+        filteredFields.add(field);
         hasChange = true;
       }
     }
