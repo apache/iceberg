@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -278,15 +279,22 @@ public abstract class TestMetrics {
     first.setField("geog", geog);
     Record second = GenericRecord.create(schema);
     second.setField("id", 2L);
-    // both geo columns are left null
+    second.setField("geom", wkbPoint(-5, 40));
+    // geog on the second row is left null
 
     Metrics metrics = getMetrics(schema, first, second);
     assertThat(metrics.recordCount()).isEqualTo(2L);
 
-    // geometry and geography keep value/null counts but no bounds: lexicographic WKB min/max is not
-    // meaningful, so bounds are intentionally skipped (spatial bounds are a separate follow-up).
-    assertCounts(2, 2L, 1L, metrics);
-    assertBounds(2, Types.GeometryType.crs84(), null, null, metrics);
+    // geometry bounds are the XY bounding box of all values: min corner (-5, 10), max corner
+    // (30, 40). The null geography row leaves geography with value/null counts but no bounds
+    // (geography bounds are a separate follow-up).
+    assertCounts(2, 2L, 0L, metrics);
+    assertBounds(
+        2,
+        Types.GeometryType.crs84(),
+        GeospatialBound.createXY(-5, 10),
+        GeospatialBound.createXY(30, 40),
+        metrics);
     assertCounts(3, 2L, 1L, metrics);
     assertBounds(3, Types.GeographyType.crs84(), null, null, metrics);
     assertThat(metrics.avgValueSizes())
@@ -345,7 +353,7 @@ public abstract class TestMetrics {
             MetricsModes.None.get().toString(),
             TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "nestedStructCol.longCol",
             MetricsModes.Full.get().toString());
-    MetricsConfig config = MetricsConfig.from(properties, NESTED_SCHEMA, null);
+    MetricsConfig config = MetricsTestUtil.from(properties, NESTED_SCHEMA);
 
     Metrics metrics = getMetrics(NESTED_SCHEMA, config, buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
@@ -587,8 +595,8 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             NESTED_SCHEMA,
-            MetricsConfig.from(
-                ImmutableMap.of("write.metadata.metrics.default", "none"), NESTED_SCHEMA, null),
+            MetricsTestUtil.from(
+                ImmutableMap.of("write.metadata.metrics.default", "none"), NESTED_SCHEMA),
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).isEmpty();
@@ -609,8 +617,8 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             NESTED_SCHEMA,
-            MetricsConfig.from(
-                ImmutableMap.of("write.metadata.metrics.default", "counts"), NESTED_SCHEMA, null),
+            MetricsTestUtil.from(
+                ImmutableMap.of("write.metadata.metrics.default", "counts"), NESTED_SCHEMA),
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
@@ -632,8 +640,8 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             NESTED_SCHEMA,
-            MetricsConfig.from(
-                ImmutableMap.of("write.metadata.metrics.default", "full"), NESTED_SCHEMA, null),
+            MetricsTestUtil.from(
+                ImmutableMap.of("write.metadata.metrics.default", "full"), NESTED_SCHEMA),
             buildNestedTestRecord());
     assertThat(metrics.recordCount()).isEqualTo(1L);
     assertThat(metrics.columnSizes()).doesNotContainValue(null);
@@ -667,10 +675,9 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             singleStringColSchema,
-            MetricsConfig.from(
+            MetricsTestUtil.from(
                 ImmutableMap.of("write.metadata.metrics.default", "truncate(10)"),
-                singleStringColSchema,
-                null),
+                singleStringColSchema),
             record);
 
     CharBuffer expectedMinBound = CharBuffer.wrap("Lorem ipsu");
@@ -694,10 +701,9 @@ public abstract class TestMetrics {
     Metrics metrics =
         getMetrics(
             singleBinaryColSchema,
-            MetricsConfig.from(
+            MetricsTestUtil.from(
                 ImmutableMap.of("write.metadata.metrics.default", "truncate(5)"),
-                singleBinaryColSchema,
-                null),
+                singleBinaryColSchema),
             record);
 
     ByteBuffer expectedMinBounds = ByteBuffer.wrap(new byte[] {0x1, 0x2, 0x3, 0x4, 0x5});

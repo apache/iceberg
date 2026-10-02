@@ -74,7 +74,7 @@ Compacts small files to optimize file sizes. Supports partial progress commits a
 ```
 
 #### DeleteOrphanFiles
-Used to remove files which are not referenced in any metadata files of an Iceberg table and can thus be considered "orphaned".The table location is checked for such files.
+Used to remove files which are not referenced in any metadata files of an Iceberg table and can thus be considered "orphaned". The table location is checked for such files.
 
 ```java
 .add(DeleteOrphanFiles.builder()

@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -96,14 +97,9 @@ interface TrackedFile {
           Types.ListType.ofRequired(136, Types.IntegerType.get()),
           "Field ids used to determine row equality in equality delete files");
 
-  /**
-   * Returns the schema for the given partition and content stats types.
-   *
-   * <p>The partition and content stats fields use {@link Types.UnknownType} when their types have
-   * no fields, so that they are not stored in manifest files.
-   */
-  static Schema schema(Types.StructType partitionType, Types.StructType contentStatsType) {
-    return new Schema(
+  private static List<Types.NestedField> fields(
+      Types.StructType partitionType, Types.StructType contentStatsType) {
+    return ImmutableList.of(
         TRACKING,
         CONTENT_TYPE,
         FORMAT_VERSION,
@@ -131,6 +127,24 @@ interface TrackedFile {
     return structType.fields().isEmpty() ? Types.UnknownType.get() : structType;
   }
 
+  /**
+   * Returns the schema for the given partition and content stats types.
+   *
+   * <p>The partition and content stats fields use {@link Types.UnknownType} when their types have
+   * no fields, so that they are not stored in manifest files.
+   */
+  static Schema schema(Types.StructType partitionType, Types.StructType contentStatsType) {
+    return new Schema(fields(partitionType, contentStatsType));
+  }
+
+  static Schema readSchema(Types.StructType partitionType, Types.StructType contentStatsType) {
+    List<Types.NestedField> nonEmptyFields =
+        fields(partitionType, contentStatsType).stream()
+            .filter(field -> field.type().typeId() != Type.TypeID.UNKNOWN)
+            .toList();
+    return new Schema(nonEmptyFields);
+  }
+
   /** Returns the tracking information for this entry. */
   Tracking tracking();
 
@@ -155,7 +169,9 @@ interface TrackedFile {
   /** Returns the ID of the partition spec used to partition this file, or null. */
   Integer specId();
 
-  /** Returns partition for this file as a {@link StructLike}, or null. */
+  /**
+   * Returns the partition for this file as a struct with the partition spec's output type, or null.
+   */
   StructLike partition();
 
   /** Returns the content stats for this entry. */

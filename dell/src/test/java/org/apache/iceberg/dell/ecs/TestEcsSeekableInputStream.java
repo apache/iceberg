@@ -19,6 +19,7 @@
 package org.apache.iceberg.dell.ecs;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.emc.object.s3.request.PutObjectRequest;
 import java.io.IOException;
@@ -27,6 +28,8 @@ import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestEcsSeekableInputStream {
 
@@ -88,6 +91,54 @@ public class TestEcsSeekableInputStream {
       assertThat(new String(buffer, StandardCharsets.UTF_8))
           .as("The first 3 bytes should be 012")
           .isEqualTo("012");
+    }
+  }
+
+  @Test
+  void seekRejectsNegativePositionWithoutChangingState() throws IOException {
+    String objectName = rule.randomObjectName();
+    rule.client()
+        .putObject(new PutObjectRequest(rule.bucket(), objectName, "0123456789".getBytes()));
+
+    try (EcsSeekableInputStream input =
+        new EcsSeekableInputStream(
+            rule.client(), new EcsURI(rule.bucket(), objectName), MetricsContext.nullMetrics())) {
+      input.seek(2);
+      assertThatThrownBy(() -> input.seek(-1))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("position is negative: -1");
+      assertThat(input.getPos()).isEqualTo(2);
+      assertThat(input.read()).isEqualTo('2');
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void rejectsSeekAndReadAfterClose(boolean readBeforeClose) throws IOException {
+    String objectName = rule.randomObjectName();
+    rule.client()
+        .putObject(new PutObjectRequest(rule.bucket(), objectName, "0123456789".getBytes()));
+
+    try (EcsSeekableInputStream input =
+        new EcsSeekableInputStream(
+            rule.client(), new EcsURI(rule.bucket(), objectName), MetricsContext.nullMetrics())) {
+      if (readBeforeClose) {
+        assertThat(input.read()).isEqualTo('0');
+      }
+
+      long position = input.getPos();
+      input.close();
+
+      assertThatThrownBy(() -> input.seek(2))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("already closed");
+      assertThatThrownBy(input::read)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("Cannot read: already closed");
+      assertThatThrownBy(() -> input.read(new byte[1], 0, 1))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("Cannot read: already closed");
+      assertThat(input.getPos()).isEqualTo(position);
     }
   }
 }

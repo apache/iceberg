@@ -126,6 +126,11 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
   }
 
   @Override
+  public boolean supportsIterativePushdown() {
+    return true;
+  }
+
+  @Override
   public boolean pushAggregation(Aggregation aggregation) {
     if (!canPushDownAggregation(aggregation)) {
       return false;
@@ -266,6 +271,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         readConf(),
         projection,
         filters(),
+        partitionPredicates(),
         metricsReporter()::scanReport);
   }
 
@@ -280,6 +286,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         readConf(),
         projection,
         filters(),
+        partitionPredicates(),
         metricsReporter()::scanReport);
   }
 
@@ -295,6 +302,7 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
         readConf(),
         projection,
         filters(),
+        partitionPredicates(),
         metricsReporter()::scanReport);
   }
 

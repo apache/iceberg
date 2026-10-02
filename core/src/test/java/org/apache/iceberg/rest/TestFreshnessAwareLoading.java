@@ -33,6 +33,7 @@ import static org.mockito.Mockito.verify;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import java.time.Duration;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -67,11 +68,6 @@ import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
-  @Override
-  protected boolean useHttpCompression() {
-    return false;
-  }
-
   private static final ResourcePaths RESOURCE_PATHS =
       ResourcePaths.forCatalogProperties(
           ImmutableMap.of(
@@ -325,6 +321,31 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
     Mockito.verify(adapterForRESTServer, times(2))
         .execute(
             matches(HTTPRequest.HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+  }
+
+  @Test
+  public void freshnessAwareLoadingWithLowercaseETagHeader() {
+    RESTCatalogAdapter adapter = adapterWithLowercaseResponseHeaders();
+    RESTCatalog catalog = new RESTCatalog(DEFAULT_SESSION_CONTEXT, config -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO"));
+    catalog.createNamespace(TABLE.namespace());
+    catalog.createTable(TABLE, SCHEMA);
+
+    Cache<SessionIdTableId, TableWithETag> tableCache =
+        catalog.sessionCatalog().tableCache().cache();
+    BaseTable tableAfterFirstLoad = (BaseTable) catalog.loadTable(TABLE);
+
+    assertThat(tableCache.asMap())
+        .containsOnlyKeys(SessionIdTableId.of(DEFAULT_SESSION_CONTEXT.sessionId(), TABLE));
+
+    expectNotModifiedResponseForLoadTable(TABLE, adapter);
+    BaseTable tableAfterSecondLoad = (BaseTable) catalog.loadTable(TABLE);
+
+    assertThat(tableAfterSecondLoad.operations().current().metadataFileLocation())
+        .isEqualTo(tableAfterFirstLoad.operations().current().metadataFileLocation());
   }
 
   @Test
@@ -749,8 +770,9 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
           Supplier<Map<String, String>> mutationHeaders,
           FileIO io,
           TableMetadata current,
-          Set<Endpoint> endpoints) {
-        super(client, path, readHeaders, mutationHeaders, io, current, endpoints);
+          Set<Endpoint> endpoints,
+          Map<String, String> readQueryParams) {
+        super(client, path, readHeaders, mutationHeaders, io, current, endpoints, readQueryParams);
       }
     }
 
@@ -769,9 +791,17 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
           Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
           TableMetadata current,
-          Set<Endpoint> supportedEndpoints) {
+          Set<Endpoint> supportedEndpoints,
+          Map<String, String> readQueryParams) {
         return new CustomTableOps(
-            restClient, path, readHeaders, mutationHeaders, fileIO, current, supportedEndpoints);
+            restClient,
+            path,
+            readHeaders,
+            mutationHeaders,
+            fileIO,
+            current,
+            supportedEndpoints,
+            readQueryParams);
       }
     }
 
@@ -885,6 +915,31 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
             eq(LoadTableResponse.class),
             any(),
             any());
+  }
+
+  /**
+   * An adapter that reports its response headers in the lowercase form HTTP/2 mandates, which any
+   * server is also free to use over HTTP/1, instead of the traditional "ETag" spelling.
+   */
+  private RESTCatalogAdapter adapterWithLowercaseResponseHeaders() {
+    return Mockito.spy(
+        new RESTCatalogAdapter(backendCatalog) {
+          @Override
+          public <T extends RESTResponse> T execute(
+              HTTPRequest request,
+              Class<T> responseType,
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            Consumer<Map<String, String>> lowercased =
+                headers -> {
+                  Map<String, String> renamed = Maps.newHashMap();
+                  headers.forEach(
+                      (name, value) -> renamed.put(name.toLowerCase(Locale.ROOT), value));
+                  responseHeaders.accept(renamed);
+                };
+            return super.execute(request, responseType, errorHandler, lowercased);
+          }
+        });
   }
 
   private RESTCatalogAdapter adapterCapturingResponseHeaders(Map<String, String> respHeaders) {
