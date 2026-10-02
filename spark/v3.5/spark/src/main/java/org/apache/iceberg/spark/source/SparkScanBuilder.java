@@ -361,6 +361,31 @@ public class SparkScanBuilder
         return false;
       }
 
+      // Type-promotion guard: if the key column was promoted (e.g. int -> long) since the index
+      // was built, a HASH transform value computed from the current type no longer matches the
+      // buckets stored in the leaf files. On its own that would just miss matches, but combined
+      // with a stale index (uncovered files present) it could prune away covered rows that do
+      // match -- a wrong (empty) result. Detect it by comparing the type physically stored in a
+      // leaf file against the current key type, and fall back to normal planning if they differ;
+      // the predicate itself is still applied downstream, so results stay correct.
+      List<TrackingFileEntry> trackedLeafFiles =
+          TrackingFileReader.readAll(table.io().newInputFile(indexSnapshot.trackingFile()));
+      if (!trackedLeafFiles.isEmpty()) {
+        Type storedKeyType =
+            LeafFileReader.storedKeyType(
+                table.io().newInputFile(trackedLeafFiles.get(0).location()), keyField);
+        if (!keyField.type().equals(storedKeyType)) {
+          LOG.warn(
+              "SCALAR index on {} was built for key type {} but the current schema has {} (the "
+                  + "column was changed since the index was built) -- falling back to normal "
+                  + "planning; rebuild the index to re-enable pruning",
+              columnName,
+              storedKeyType,
+              keyField.type());
+          return false;
+        }
+      }
+
       long currentTableSnapshotId = table.currentSnapshot().snapshotId();
       Set<String> uncoveredFilePaths = ImmutableSet.of();
       if (indexSnapshot.sourceTableSnapshotId() != currentTableSnapshotId) {

@@ -260,4 +260,29 @@ public class TestScalarIndexScanPruning extends ExtensionsTestBase {
     List<Object[]> result = sql("SELECT id, data FROM %s WHERE id IN (1, 300)", tableName);
     assertThat(result).extracting(r -> r[0]).containsExactlyInAnyOrder(1L, 300L);
   }
+
+  @TestTemplate
+  public void testQueryCorrectAfterKeyColumnTypePromotion() {
+    // A HASH index built on an int column, then promoted int -> long, then made stale by a new
+    // append. -1 hashes to a different bucket as int vs long, so the stale index would resolve 0
+    // covered matches and prune to the uncovered file only, dropping the covered row that actually
+    // matches -- a wrong (empty) result. The type-promotion guard must detect the changed key type
+    // and fall back to normal planning so the row is still returned.
+    sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (-1, 'neg')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'two')", tableName);
+
+    sql(
+        "CALL %s.system.build_scalar_index(table => '%s', columns => array('id'),"
+            + " transform => 'HASH')",
+        catalogName, tableIdent);
+
+    sql("ALTER TABLE %s ALTER COLUMN id TYPE bigint", tableName);
+    // New append after the promotion, so the index is also stale (has an uncovered file).
+    sql("INSERT INTO TABLE %s VALUES (100, 'hundred')", tableName);
+
+    List<Object[]> result = sql("SELECT data FROM %s WHERE id = -1", tableName);
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)[0]).isEqualTo("neg");
+  }
 }

@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.util.List;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -38,6 +39,8 @@ public class TestLeafFile {
       Types.NestedField.required(3, "order_id", Types.StringType.get());
   private static final Types.NestedField LONG_KEY_FIELD =
       Types.NestedField.required(7, "created_at", Types.LongType.get());
+  private static final Types.NestedField INT_KEY_FIELD =
+      Types.NestedField.required(9, "shard", Types.IntegerType.get());
 
   private File newFile(String name) {
     return new File(tempDir.toFile(), name);
@@ -64,8 +67,7 @@ public class TestLeafFile {
               .build());
     }
 
-    List<LeafFileEntry> entries =
-        LeafFileReader.readAll(Files.localInput(file), STRING_KEY_FIELD);
+    List<LeafFileEntry> entries = LeafFileReader.readAll(Files.localInput(file), STRING_KEY_FIELD);
 
     assertThat(entries).hasSize(2);
     assertThat(entries.get(0).keyValue()).isEqualTo("abc-123");
@@ -194,8 +196,7 @@ public class TestLeafFile {
         .hasMessageContaining("filePath is required");
 
     assertThatThrownBy(
-            () ->
-                LeafFileEntry.builder().keyValue("x").filePath("f.parquet").position(-1L).build())
+            () -> LeafFileEntry.builder().keyValue("x").filePath("f.parquet").position(-1L).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("position must be >= 0");
   }
@@ -279,8 +280,53 @@ public class TestLeafFile {
               .build());
     }
 
-    List<LeafFileEntry> entries =
-        LeafFileReader.readAll(Files.localInput(file), STRING_KEY_FIELD);
+    List<LeafFileEntry> entries = LeafFileReader.readAll(Files.localInput(file), STRING_KEY_FIELD);
     assertThat(entries).hasSize(2);
+  }
+
+  @Test
+  void storedKeyTypeReturnsPhysicalTypeWhenKeyColumnWasPromoted() {
+    // A leaf file physically written for an int key column. Reading its stored key type with a
+    // field that shares the same field ID but has been promoted to long must report the physical
+    // type (int) it was built with, not the promoted type -- this is exactly the signal the read
+    // path uses to detect a type promotion and fall back rather than trust stale HASH buckets.
+    File file = newFile("leaf-int-key.parquet");
+
+    try (LeafFileWriter writer = new LeafFileWriter(Files.localOutput(file), INT_KEY_FIELD)) {
+      writer.add(
+          LeafFileEntry.builder()
+              .keyValue(-1)
+              .transformValue(255L)
+              .filePath("f1.parquet")
+              .position(0L)
+              .build());
+    }
+
+    Types.NestedField promotedKeyField =
+        Types.NestedField.required(
+            INT_KEY_FIELD.fieldId(), INT_KEY_FIELD.name(), Types.LongType.get());
+
+    Type storedType = LeafFileReader.storedKeyType(Files.localInput(file), promotedKeyField);
+
+    assertThat(storedType).isEqualTo(Types.IntegerType.get());
+  }
+
+  @Test
+  void storedKeyTypeMatchesWhenKeyColumnUnchanged() {
+    File file = newFile("leaf-long-key.parquet");
+
+    try (LeafFileWriter writer = new LeafFileWriter(Files.localOutput(file), LONG_KEY_FIELD)) {
+      writer.add(
+          LeafFileEntry.builder()
+              .keyValue(100L)
+              .transformValue(100L)
+              .filePath("f1.parquet")
+              .position(0L)
+              .build());
+    }
+
+    Type storedType = LeafFileReader.storedKeyType(Files.localInput(file), LONG_KEY_FIELD);
+
+    assertThat(storedType).isEqualTo(Types.LongType.get());
   }
 }

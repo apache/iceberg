@@ -28,10 +28,13 @@ import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -40,11 +43,11 @@ import org.apache.iceberg.types.Types;
  * <p>{@link #readMatching} pushes the lookup predicate down to Parquet via {@code
  * ReadBuilder#filter}, which skips whole row groups whose statistics rule out a match — but the
  * {@link org.apache.iceberg.parquet.ParquetReader} used here (via {@code createReaderFunc}) does
- * *not* filter individual records within a row group that wasn't skipped, unlike the older
- * {@code readSupport}-based read path. So every row group that survives statistics-based skipping
- * still needs an exact per-record check, done here with an {@link Evaluator} bound to the leaf
- * file's schema. There is no hand-rolled search beyond that — Parquet's own row-group statistics
- * do the coarse pruning; the {@link Evaluator} does the exact match.
+ * *not* filter individual records within a row group that wasn't skipped, unlike the older {@code
+ * readSupport}-based read path. So every row group that survives statistics-based skipping still
+ * needs an exact per-record check, done here with an {@link Evaluator} bound to the leaf file's
+ * schema. There is no hand-rolled search beyond that — Parquet's own row-group statistics do the
+ * coarse pruning; the {@link Evaluator} does the exact match.
  */
 public class LeafFileReader {
 
@@ -53,6 +56,43 @@ public class LeafFileReader {
   /** Read all entries from a leaf file, in file order. */
   public static List<LeafFileEntry> readAll(InputFile inputFile, Types.NestedField keyField) {
     return read(inputFile, keyField, null);
+  }
+
+  /**
+   * The type of the key column as physically stored in {@code inputFile}. A SCALAR index leaf file
+   * records the key column with the field ID and type it had when the index was built, so comparing
+   * this against the table's current key-column type detects a type promotion (e.g. int to long)
+   * that would invalidate the stored transform values. Returns null if the file does not contain
+   * the key column's field ID.
+   */
+  public static Type storedKeyType(InputFile inputFile, Types.NestedField keyField) {
+    Preconditions.checkNotNull(inputFile, "inputFile is required");
+    Preconditions.checkNotNull(keyField, "keyField is required");
+    Schema projection = LeafFileEntry.schema(keyField);
+    Type[] storedType = new Type[1];
+    boolean[] schemaSeen = new boolean[1];
+    try (CloseableIterable<Record> records =
+            Parquet.read(inputFile)
+                .project(projection)
+                .createReaderFunc(
+                    fileSchema -> {
+                      schemaSeen[0] = true;
+                      Types.NestedField stored =
+                          ParquetSchemaUtil.convert(fileSchema).findField(keyField.fieldId());
+                      storedType[0] = stored == null ? null : stored.type();
+                      return GenericParquetReaders.buildReader(projection, fileSchema);
+                    })
+                .build();
+        CloseableIterator<Record> iterator = records.iterator()) {
+      // Opening the iterator invokes createReaderFunc (via ParquetReader.init), which captures the
+      // stored key type above. No records are read; the iterator is closed by this block.
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to read leaf file schema: " + inputFile.location(), e);
+    }
+
+    Preconditions.checkState(
+        schemaSeen[0], "Could not read schema from leaf file: %s", inputFile.location());
+    return storedType[0];
   }
 
   /**
@@ -71,8 +111,7 @@ public class LeafFileReader {
     Preconditions.checkNotNull(inputFile, "inputFile is required");
     Preconditions.checkNotNull(keyField, "keyField is required");
     Schema schema = LeafFileEntry.schema(keyField);
-    Evaluator evaluator =
-        predicate != null ? new Evaluator(schema.asStruct(), predicate) : null;
+    Evaluator evaluator = predicate != null ? new Evaluator(schema.asStruct(), predicate) : null;
 
     Parquet.ReadBuilder builder =
         Parquet.read(inputFile)
