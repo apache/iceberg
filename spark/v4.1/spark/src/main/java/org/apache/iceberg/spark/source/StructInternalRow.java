@@ -34,6 +34,7 @@ import java.util.function.Function;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -43,6 +44,7 @@ import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.BooleanType;
@@ -53,6 +55,8 @@ import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.DoubleType;
 import org.apache.spark.sql.types.FloatType;
+import org.apache.spark.sql.types.GeographyType;
+import org.apache.spark.sql.types.GeometryType;
 import org.apache.spark.sql.types.IntegerType;
 import org.apache.spark.sql.types.LongType;
 import org.apache.spark.sql.types.MapType;
@@ -190,9 +194,10 @@ class StructInternalRow extends InternalRow {
   }
 
   private byte[] getBinaryInternal(int ordinal) {
-    Object bytes = struct.get(ordinal, Object.class);
+    return toByteArray(struct.get(ordinal, Object.class));
+  }
 
-    // should only be either ByteBuffer or byte[]
+  private static byte[] toByteArray(Object bytes) {
     if (bytes instanceof ByteBuffer) {
       return ByteBuffers.toByteArray((ByteBuffer) bytes);
     } else if (bytes instanceof byte[]) {
@@ -251,12 +256,22 @@ class StructInternalRow extends InternalRow {
 
   @Override
   public GeographyVal getGeography(int ordinal) {
-    return isNullAt(ordinal) ? null : GeographyVal.fromBytes(getBinaryInternal(ordinal));
+    return isNullAt(ordinal) ? null : getGeographyInternal(ordinal);
+  }
+
+  private GeographyVal getGeographyInternal(int ordinal) {
+    return STUtils.stGeogFromWKB(getBinaryInternal(ordinal));
   }
 
   @Override
   public GeometryVal getGeometry(int ordinal) {
-    return isNullAt(ordinal) ? null : GeometryVal.fromBytes(getBinaryInternal(ordinal));
+    return isNullAt(ordinal) ? null : getGeometryInternal(ordinal);
+  }
+
+  private GeometryVal getGeometryInternal(int ordinal) {
+    GeometryType sparkType =
+        (GeometryType) SparkSchemaUtil.convert(type.fields().get(ordinal).type());
+    return toGeometryVal(sparkType.srid(), getBinaryInternal(ordinal));
   }
 
   @Override
@@ -298,6 +313,10 @@ class StructInternalRow extends InternalRow {
       return getLong(ordinal);
     } else if (dataType instanceof VariantType) {
       return getVariantInternal(ordinal);
+    } else if (dataType instanceof GeometryType) {
+      return getGeometryInternal(ordinal);
+    } else if (dataType instanceof GeographyType) {
+      return getGeographyInternal(ordinal);
     }
     return null;
   }
@@ -339,6 +358,19 @@ class StructInternalRow extends InternalRow {
             values,
             array ->
                 (BiConsumer<Integer, BigDecimal>) (pos, dec) -> array[pos] = Decimal.apply(dec));
+      case GEOMETRY:
+        int srid = ((GeometryType) SparkSchemaUtil.convert(elementType)).srid();
+        return fillArray(
+            values,
+            array ->
+                (BiConsumer<Integer, Object>)
+                    (pos, value) -> array[pos] = toGeometryVal(srid, value));
+      case GEOGRAPHY:
+        return fillArray(
+            values,
+            array ->
+                (BiConsumer<Integer, Object>)
+                    (pos, value) -> array[pos] = STUtils.stGeogFromWKB(toByteArray(value)));
       case STRUCT:
         return fillArray(
             values,
@@ -367,6 +399,10 @@ class StructInternalRow extends InternalRow {
       default:
         throw new UnsupportedOperationException("Unsupported array element type: " + elementType);
     }
+  }
+
+  private static GeometryVal toGeometryVal(int srid, Object value) {
+    return STUtils.stGeomFromWKB(toByteArray(value), srid);
   }
 
   private static VariantVal toVariantVal(Object value) {
