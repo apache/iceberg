@@ -39,7 +39,12 @@ public class Days<T> extends TimeTransform<T> {
   @Override
   protected Transform<T, Integer> toEnum(Type type) {
     return (Transform<T, Integer>)
-        fromSourceType(type, Dates.DAY, Timestamps.MICROS_TO_DAY, Timestamps.NANOS_TO_DAY);
+        fromSourceType(
+            type,
+            Dates.DAY,
+            Timestamps.MICROS_TO_DAY,
+            Timestamps.NANOS_TO_DAY,
+            UUIDv7Timestamps.UUID_TO_DAY);
   }
 
   @Override
