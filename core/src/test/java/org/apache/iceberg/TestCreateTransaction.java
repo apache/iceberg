@@ -253,4 +253,28 @@ public class TestCreateTransaction extends TestBase {
 
     assertThat(listManifestFiles(tableDir)).isEmpty();
   }
+
+  @TestTemplate
+  public void testAbortTransactionCleansUpUncommittedFiles() {
+    Transaction txn = TestTables.beginCreate(tableDir, "test_abort", SCHEMA, SPEC);
+
+    // append in the transaction to ensure a manifest and a manifest list are written
+    txn.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    // the staged write produced files on disk, but the table itself is not created yet
+    assertThat(TestTables.readMetadata("test_abort")).isNull();
+    assertThat(listManifestFiles(tableDir)).hasSize(1);
+    assertThat(listManifestLists(tableDir)).hasSize(1);
+
+    // aborting the transaction removes the uncommitted manifests and manifest lists
+    txn.abortTransaction();
+
+    assertThat(listManifestFiles(tableDir)).isEmpty();
+    assertThat(listManifestLists(tableDir)).isEmpty();
+    assertThat(TestTables.readMetadata("test_abort")).isNull();
+
+    // abort is best-effort and idempotent: a second call must not throw
+    txn.abortTransaction();
+    assertThat(listManifestFiles(tableDir)).isEmpty();
+  }
 }
