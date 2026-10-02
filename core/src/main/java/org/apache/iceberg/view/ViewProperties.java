@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.view;
 
+import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+
 /** View properties that can be set during CREATE/REPLACE view or using updateProperties API. */
 public class ViewProperties {
   public static final String VERSION_HISTORY_SIZE = "version.history.num-entries";
@@ -31,6 +34,19 @@ public class ViewProperties {
   public static final String COMMENT = "comment";
   public static final String REPLACE_DROP_DIALECT_ALLOWED = "replace.drop-dialect.allowed";
   public static final boolean REPLACE_DROP_DIALECT_ALLOWED_DEFAULT = false;
+
+  /**
+   * View properties that are managed by Iceberg and should be preserved by engines when replacing a
+   * view.
+   *
+   * <p>Engine-managed properties, such as {@link #COMMENT}, are intentionally excluded.
+   */
+  public static final Set<String> ICEBERG_MANAGED_PROPERTIES =
+      ImmutableSet.of(
+          VERSION_HISTORY_SIZE,
+          METADATA_COMPRESSION,
+          WRITE_METADATA_LOCATION,
+          REPLACE_DROP_DIALECT_ALLOWED);
 
   private ViewProperties() {}
 }
