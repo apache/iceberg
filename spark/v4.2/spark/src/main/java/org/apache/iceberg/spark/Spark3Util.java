@@ -821,6 +821,9 @@ public class Spark3Util {
    * A modified version of Spark's LookupCatalog.CatalogAndIdentifier.unapply Attempts to find the
    * catalog and identifier a multipart identifier represents
    *
+   * <p>A name without a namespace is placed in the current namespace when the default catalog is
+   * the current catalog, and in the default catalog's default namespace otherwise.
+   *
    * @param spark Spark session to use for resolution
    * @param nameParts Multipart identifier representing a table
    * @param defaultCatalog Catalog to use if none is specified
