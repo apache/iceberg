@@ -91,8 +91,9 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
     return new NamedReference[] {SparkMetadataColumns.FILE_PATH.asRef()};
   }
 
+  // serialize concurrent filter() calls on a scan shared across UNION branches
   @Override
-  public void filter(Predicate[] predicates) {
+  public synchronized void filter(Predicate[] predicates) {
     for (Predicate predicate : predicates) {
       // Spark can only pass IN predicates at the moment
       if (isFilePathInPredicate(predicate)) {
