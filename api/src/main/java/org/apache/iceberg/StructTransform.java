@@ -23,6 +23,7 @@ import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.util.SerializableFunction;
@@ -96,16 +97,9 @@ class StructTransform implements StructLike, Serializable {
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder();
-    sb.append("[");
-    for (int i = 0; i < transformedTuple.length; i += 1) {
-      if (i > 0) {
-        sb.append(", ");
-      }
-      sb.append(transformedTuple[i]);
-    }
-    sb.append("]");
-    return sb.toString();
+    return Arrays.stream(transformedTuple)
+        .map(String::valueOf)
+        .collect(Collectors.joining(", ", "[", "]"));
   }
 
   @Override
