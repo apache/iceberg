@@ -33,6 +33,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.PrimitiveIterator;
 import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -485,9 +486,13 @@ public class ParquetValueReaders {
   private static class PositionReader implements ParquetValueReader<Long> {
     private long rowOffset = -1;
     private long rowGroupStart;
+    private PrimitiveIterator.OfLong rowIndexes;
 
     @Override
     public Long read(Long reuse) {
+      if (rowIndexes != null) {
+        return rowGroupStart + rowIndexes.nextLong();
+      }
       rowOffset = rowOffset + 1;
       return rowGroupStart + rowOffset;
     }
@@ -512,6 +517,7 @@ public class ParquetValueReaders {
                       new IllegalArgumentException(
                           "PageReadStore does not contain row index offset"));
       this.rowOffset = -1;
+      this.rowIndexes = pageStore.getRowIndexes().orElse(null);
     }
   }
 
