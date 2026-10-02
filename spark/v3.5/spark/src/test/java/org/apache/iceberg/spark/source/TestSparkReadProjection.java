@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -41,7 +42,10 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.data.GenericFileWriterFactory;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.DataWriter;
@@ -127,6 +131,7 @@ public class TestSparkReadProjection extends TestReadProjection {
             desc,
             writeSchema,
             PartitionSpec.unpartitioned(),
+            2,
             ImmutableMap.of(
                 TableProperties.DATA_PLANNING_MODE, planningMode.modeName(),
                 TableProperties.DELETE_PLANNING_MODE, planningMode.modeName()));
@@ -159,7 +164,9 @@ public class TestSparkReadProjection extends TestReadProjection {
       Schema expectedSchema = reassignIds(readSchema, idMapping);
 
       // Set the schema to the expected schema directly to simulate the table schema evolving
-      TestTables.replaceMetadata(desc, TestTables.readMetadata(desc).updateSchema(expectedSchema));
+      TableOperations ops = ((HasTableOperations) table).operations();
+      TableMetadata metadata = ops.current();
+      ops.commit(metadata, metadata.updateSchema(expectedSchema));
 
       Dataset<Row> df =
           spark
