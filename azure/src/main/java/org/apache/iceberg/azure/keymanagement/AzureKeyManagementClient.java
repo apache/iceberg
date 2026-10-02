@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.azure.keymanagement;
 
+import com.azure.core.credential.TokenCredential;
 import com.azure.security.keyvault.keys.KeyClient;
 import com.azure.security.keyvault.keys.KeyClientBuilder;
 import com.azure.security.keyvault.keys.cryptography.models.KeyWrapAlgorithm;
@@ -25,9 +26,9 @@ import com.azure.security.keyvault.keys.cryptography.models.UnwrapResult;
 import com.azure.security.keyvault.keys.cryptography.models.WrapResult;
 import java.nio.ByteBuffer;
 import java.util.Map;
-import org.apache.iceberg.azure.AdlsTokenCredentialProviders;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.encryption.KeyManagementClient;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.SerializableMap;
 
@@ -74,12 +75,20 @@ public class AzureKeyManagementClient implements KeyManagementClient {
       synchronized (this) {
         if (state == null) {
           AzureProperties azureProperties = new AzureProperties(allProperties);
+          TokenCredential credential =
+              azureProperties
+                  .keyVaultTokenCredential()
+                  .orElseThrow(
+                      () ->
+                          new ValidationException(
+                              "Cannot authenticate to Azure Key Vault: set %s to a catalog-provided "
+                                  + "token or configure %s; ambient Azure credentials are not used "
+                                  + "for Key Vault",
+                              AzureProperties.ADLS_TOKEN,
+                              AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER));
           KeyClientBuilder keyClientBuilder = new KeyClientBuilder();
           azureProperties.keyVaultUrl().ifPresent(keyClientBuilder::vaultUrl);
-          KeyClient keyClient =
-              keyClientBuilder
-                  .credential(AdlsTokenCredentialProviders.from(allProperties).credential())
-                  .buildClient();
+          KeyClient keyClient = keyClientBuilder.credential(credential).buildClient();
           KeyWrapAlgorithm keyWrapAlgorithm =
               KeyWrapAlgorithm.fromString(azureProperties.keyWrapAlgorithm());
           state = new ClientState(keyClient, keyWrapAlgorithm);

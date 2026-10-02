@@ -298,6 +298,41 @@ public class TestAzureProperties {
     verify(clientBuilder, never()).credential(any(StorageSharedKeyCredential.class));
   }
 
+  @Test
+  public void keyVaultTokenCredentialFromAdlsToken() {
+    String token = "kv-token-value";
+    AzureProperties props = new AzureProperties(ImmutableMap.of(AzureProperties.ADLS_TOKEN, token));
+
+    Optional<TokenCredential> credential = props.keyVaultTokenCredential();
+
+    assertThat(credential).isPresent();
+    AccessToken accessToken = credential.get().getToken(new TokenRequestContext()).block();
+    assertThat(accessToken.getToken()).isEqualTo(token);
+  }
+
+  @Test
+  public void keyVaultTokenCredentialFromCustomProvider() {
+    AzureProperties props =
+        new AzureProperties(
+            ImmutableMap.of(
+                AzureProperties.ADLS_TOKEN_CREDENTIAL_PROVIDER,
+                DummyTokenCredentialProvider.class.getName()));
+
+    Optional<TokenCredential> credential = props.keyVaultTokenCredential();
+
+    assertThat(credential).isPresent();
+    assertThat(credential.get()).isInstanceOf(DummyTokenCredential.class);
+  }
+
+  @Test
+  public void keyVaultTokenCredentialAbsentWithoutExplicitConfig() {
+    AzureProperties props = new AzureProperties(ImmutableMap.of());
+
+    // Ambient DefaultAzureCredential must never be used for Key Vault: a misconfigured or malicious
+    // vault URL could otherwise be used to exfiltrate the client's ambient identity.
+    assertThat(props.keyVaultTokenCredential()).isEmpty();
+  }
+
   static class DummyTokenCredential implements TokenCredential {
     @Override
     public Mono<AccessToken> getToken(TokenRequestContext request) {
