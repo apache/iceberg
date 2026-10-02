@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -37,9 +38,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * An async service which allows for committing multiple file groups as their rewrites complete. The
- * service also allows for partial-progress since commits can fail. Once the service has been closed
- * no new file groups should not be offered.
+ * A service that commits file groups as rewrites complete. Commits are serialized and may run in a
+ * thread offering a file group or in the service executor during close. Other offering threads
+ * continue without waiting for an active commit. Failed commits permit partial progress. No groups
+ * may be offered after the service is closed.
  *
  * <p>Specific implementations provide implementations for {@link #commitOrClean(Set)} and {@link
  * #abortFileGroup(Object)}
@@ -59,13 +61,14 @@ abstract class BaseCommitService<T> implements Closeable {
   private final int rewritesPerCommit;
   private final AtomicBoolean running = new AtomicBoolean(false);
   private final long timeoutInMS;
+  private final ReentrantLock commitLock = new ReentrantLock();
   private int succeededCommits = 0;
 
   /**
    * Constructs a {@link BaseCommitService}
    *
    * @param table table to perform commit on
-   * @param rewritesPerCommit number of file groups to include in a commit
+   * @param rewritesPerCommit positive number of file groups to include in a commit
    */
   BaseCommitService(Table table, int rewritesPerCommit) {
     this(table, rewritesPerCommit, TIMEOUT_IN_MS_DEFAULT);
@@ -75,11 +78,15 @@ abstract class BaseCommitService<T> implements Closeable {
    * Constructs a {@link BaseCommitService}
    *
    * @param table table to perform commit on
-   * @param rewritesPerCommit number of file groups to include in a commit
+   * @param rewritesPerCommit positive number of file groups to include in a commit
    * @param timeoutInMS The timeout to wait for commits to complete after all rewrite jobs have been
    *     completed
    */
   BaseCommitService(Table table, int rewritesPerCommit, long timeoutInMS) {
+    Preconditions.checkArgument(
+        rewritesPerCommit > 0,
+        "Invalid number of file groups per commit: %s (must be positive)",
+        rewritesPerCommit);
     this.table = table;
     LOG.info(
         "Creating commit service for table {} with {} groups per commit", table, rewritesPerCommit);
@@ -209,29 +216,50 @@ abstract class BaseCommitService<T> implements Closeable {
   }
 
   private void commitReadyCommitGroups() {
-    Set<T> batch = null;
-    if (canCreateCommitGroup()) {
-      synchronized (completedRewrites) {
-        if (canCreateCommitGroup()) {
-          batch = Sets.newHashSetWithExpectedSize(rewritesPerCommit);
-          for (int i = 0; i < rewritesPerCommit && !completedRewrites.isEmpty(); i++) {
-            batch.add(completedRewrites.poll());
+    while (canCreateCommitGroup()) {
+      if (!commitLock.tryLock()) {
+        return;
+      }
+
+      try {
+        while (canCreateCommitGroup()) {
+          Set<T> batch = null;
+          String inProgressCommitToken = null;
+          try {
+            synchronized (completedRewrites) {
+              if (canCreateCommitGroup()) {
+                batch = Sets.newHashSetWithExpectedSize(rewritesPerCommit);
+                // The committer may exit as soon as both queues are empty.
+                inProgressCommitToken = UUID.randomUUID().toString();
+                inProgressCommits.add(inProgressCommitToken);
+                for (int i = 0; i < rewritesPerCommit && !completedRewrites.isEmpty(); i++) {
+                  batch.add(completedRewrites.poll());
+                }
+              }
+            }
+
+            if (batch != null) {
+              commitBatch(batch);
+            }
+          } finally {
+            if (inProgressCommitToken != null) {
+              inProgressCommits.remove(inProgressCommitToken);
+            }
           }
         }
+      } finally {
+        commitLock.unlock();
       }
     }
+  }
 
-    if (batch != null) {
-      String inProgressCommitToken = UUID.randomUUID().toString();
-      inProgressCommits.add(inProgressCommitToken);
-      try {
-        commitOrClean(batch);
-        committedRewrites.addAll(batch);
-        succeededCommits++;
-      } catch (Exception e) {
-        LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
-      }
-      inProgressCommits.remove(inProgressCommitToken);
+  private void commitBatch(Set<T> batch) {
+    try {
+      commitOrClean(batch);
+      committedRewrites.addAll(batch);
+      succeededCommits++;
+    } catch (Exception e) {
+      LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
     }
   }
 
