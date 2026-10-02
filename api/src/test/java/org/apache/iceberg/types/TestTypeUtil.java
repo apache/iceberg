@@ -1167,4 +1167,33 @@ public class TestTypeUtil {
     Schema result = TypeUtil.replaceFieldTypes(schema, ImmutableMap.of(99, Types.LongType.get()));
     assertThat(result).isSameAs(schema);
   }
+
+  @Test
+  public void testDateToTimestampPromotion() {
+    // format version < 3 should not be accepted
+    assertThat(
+            TypeUtil.isPromotionAllowed(
+                Types.DateType.get(), Types.TimestampType.withoutZone(), 2, false))
+        .isFalse();
+    // timezone should not be accepted
+    assertThat(
+            TypeUtil.isPromotionAllowed(
+                Types.DateType.get(), Types.TimestampType.withZone(), 3, false))
+        .isFalse();
+    // timezone nano should not be accepted
+    assertThat(
+            TypeUtil.isPromotionAllowed(
+                Types.DateType.get(), Types.TimestampNanoType.withZone(), 3, false))
+        .isFalse();
+    // timestamp without timezone should be accepted
+    assertThat(
+            TypeUtil.isPromotionAllowed(
+                Types.DateType.get(), Types.TimestampType.withoutZone(), 3, false))
+        .isTrue();
+    // timestamp nano without timezone should be accepted
+    assertThat(
+            TypeUtil.isPromotionAllowed(
+                Types.DateType.get(), Types.TimestampNanoType.withoutZone(), 3, false))
+        .isTrue();
+  }
 }

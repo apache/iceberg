@@ -42,6 +42,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 public class TypeUtil {
 
   private static final int HEADER_SIZE = 12;
+  private static final int DEFAULT_FORMAT_VERSION = 2;
+  private static final int MIN_FORMAT_VERSION_DATE_PROMOTION = 3;
 
   private TypeUtil() {}
 
@@ -469,6 +471,21 @@ public class TypeUtil {
   }
 
   public static boolean isPromotionAllowed(Type from, Type.PrimitiveType to) {
+    return isPromotionAllowed(from, to, DEFAULT_FORMAT_VERSION, false);
+  }
+
+  /**
+   * Returns whether a type may be promoted to another type.
+   *
+   * @param from the type to promote from
+   * @param to the type to promote to
+   * @param formatVersion the table format version
+   * @param partitionSource whether {@code from} is the source of a partition field whose transform
+   *     would produce a different value after the promotion
+   * @return true if the promotion is allowed
+   */
+  public static boolean isPromotionAllowed(
+      Type from, Type.PrimitiveType to, int formatVersion, boolean partitionSource) {
     // Warning! Before changing this function, make sure that the type change doesn't introduce
     // compatibility problems in partitioning.
     if (from.equals(to)) {
@@ -476,6 +493,8 @@ public class TypeUtil {
     }
 
     switch (from.typeId()) {
+      case DATE:
+        return isDatePromotionAllowed(to, formatVersion, partitionSource);
       case INTEGER:
         return to.typeId() == Type.TypeID.LONG;
 
@@ -494,6 +513,17 @@ public class TypeUtil {
     }
 
     return false;
+  }
+
+  private static boolean isDatePromotionAllowed(
+      Type.PrimitiveType to, int formatVersion, boolean partitionSource) {
+    if (formatVersion < MIN_FORMAT_VERSION_DATE_PROMOTION || partitionSource) {
+      return false;
+    }
+
+    // promotion to timestamptz and timestamptz_ns is not allowed
+    return Types.TimestampType.withoutZone().equals(to)
+        || Types.TimestampNanoType.withoutZone().equals(to);
   }
 
   /**

@@ -23,10 +23,12 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 
@@ -82,6 +84,16 @@ class ParquetConversions {
       } else if (icebergType.typeId() == Type.TypeID.DOUBLE
           && parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
         return value -> ((Float) fromParquet.apply(value)).doubleValue();
+      } else if ((icebergType.typeId() == Type.TypeID.TIMESTAMP
+              || icebergType.typeId() == Type.TypeID.TIMESTAMP_NANO)
+          && parquetType.getLogicalTypeAnnotation()
+              instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+        // dates promoted to timestamps are stored as days and read as micros or nanos
+        long unitsPerDay =
+            icebergType.typeId() == Type.TypeID.TIMESTAMP
+                ? TimeUnit.DAYS.toMicros(1)
+                : TimeUnit.DAYS.toNanos(1);
+        return value -> ((Integer) fromParquet.apply(value)).longValue() * unitsPerDay;
       } else if (icebergType.typeId() == Type.TypeID.UUID) {
         return binary -> UUIDUtil.convert(((Binary) binary).toByteBuffer());
       }

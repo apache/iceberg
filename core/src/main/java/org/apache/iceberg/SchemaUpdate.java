@@ -40,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.schema.UnionByNameVisitor;
+import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -55,6 +56,7 @@ class SchemaUpdate implements UpdateSchema {
   private final TableOperations ops;
   private final TableMetadata base;
   private final Schema schema;
+  private final int formatVersion;
   private final Map<Integer, Integer> idToParent;
   private final List<Integer> deletes = Lists.newArrayList();
   private final Map<Integer, Types.NestedField> updates = Maps.newHashMap();
@@ -73,21 +75,33 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   @VisibleForTesting
+  SchemaUpdate(TableMetadata base) {
+    this(null, base, base.schema(), base.lastColumnId(), base.formatVersion());
+  }
+
+  @VisibleForTesting
   SchemaUpdate(Schema schema, int lastColumnId) {
-    this(null, null, schema, lastColumnId);
+    this(null, null, schema, lastColumnId, TableProperties.DEFAULT_FORMAT_VERSION);
+  }
+
+  @VisibleForTesting
+  SchemaUpdate(Schema schema, int lastColumnId, int formatVersion) {
+    this(null, null, schema, lastColumnId, formatVersion);
   }
 
   private SchemaUpdate(TableOperations ops, TableMetadata base) {
-    this(ops, base, base.schema(), base.lastColumnId());
+    this(ops, base, base.schema(), base.lastColumnId(), base.formatVersion());
   }
 
-  private SchemaUpdate(TableOperations ops, TableMetadata base, Schema schema, int lastColumnId) {
+  private SchemaUpdate(
+      TableOperations ops, TableMetadata base, Schema schema, int lastColumnId, int formatVersion) {
     this.ops = ops;
     this.base = base;
     this.schema = schema;
     this.lastColumnId = lastColumnId;
     this.idToParent = Maps.newHashMap(TypeUtil.indexParents(schema.asStruct()));
     this.identifierFieldNames = schema.identifierFieldNames();
+    this.formatVersion = formatVersion;
   }
 
   @Override
@@ -283,7 +297,8 @@ class SchemaUpdate implements UpdateSchema {
     }
 
     Preconditions.checkArgument(
-        TypeUtil.isPromotionAllowed(field.type(), newType),
+        TypeUtil.isPromotionAllowed(
+            field.type(), newType, formatVersion, isPartitionSource(field.fieldId())),
         "Cannot change column type: %s: %s -> %s",
         name,
         field.type(),
@@ -295,6 +310,23 @@ class SchemaUpdate implements UpdateSchema {
     updates.put(fieldId, newField);
 
     return this;
+  }
+
+  private boolean isPartitionSource(int fieldId) {
+    if (base == null) {
+      return false;
+    }
+
+    // data files written with an older spec are still partitioned by it
+    return base.specs().stream()
+        .flatMap(spec -> spec.getFieldsBySourceId(fieldId).stream())
+        .anyMatch(SchemaUpdate::changesPartitionValue);
+  }
+
+  private static boolean changesPartitionValue(PartitionField partitionField) {
+    Transform<?, ?> transform = partitionField.transform();
+    // year, month, day, and void produce the same value for a date and its promoted timestamp
+    return transform.isIdentity() || transform.toString().startsWith("bucket[");
   }
 
   @Override
@@ -376,7 +408,7 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public UpdateSchema unionByNameWith(Schema newSchema) {
-    UnionByNameVisitor.visit(this, schema, newSchema, caseSensitive);
+    UnionByNameVisitor.visit(this, schema, newSchema, caseSensitive, formatVersion);
     return this;
   }
 
