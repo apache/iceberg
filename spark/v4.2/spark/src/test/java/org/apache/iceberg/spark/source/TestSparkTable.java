@@ -29,13 +29,21 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.spark.SparkTableProperties;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.constraints.Constraint;
 import org.apache.spark.sql.connector.catalog.constraints.PrimaryKey;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.VariantType$;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -54,6 +62,219 @@ public class TestSparkTable extends CatalogTestBase {
   @AfterEach
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @TestTemplate
+  public void testSupportedSchemaEvolutionChanges() {
+    SparkTable table = loadSparkTable();
+
+    assertThat(table.capabilities()).contains(TableCapability.AUTOMATIC_SCHEMA_EVOLUTION);
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.addColumn(new String[] {"new_col"}, DataTypes.IntegerType, true)))
+        .isTrue();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.addColumn(new String[] {"new_col"}, DataTypes.IntegerType, false)))
+        .isFalse();
+
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(new String[] {"id"}, DataTypes.LongType)))
+        .isTrue();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(new String[] {"id"}, DataTypes.IntegerType)))
+        .isFalse();
+
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnNullability(new String[] {"data"}, true)))
+        .isTrue();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnNullability(new String[] {"data"}, false)))
+        .isFalse();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnDefaultValue(new String[] {"data"}, "'default'")))
+        .isFalse();
+  }
+
+  @TestTemplate
+  void addColumnsRespectFormatVersion() {
+    List<DataType> types =
+        Arrays.asList(
+            VariantType$.MODULE$,
+            DataTypes.NullType,
+            new StructType().add("v", VariantType$.MODULE$),
+            DataTypes.createMapType(DataTypes.StringType, VariantType$.MODULE$),
+            DataTypes.createArrayType(VariantType$.MODULE$));
+
+    for (int formatVersion : new int[] {2, 3}) {
+      sql(
+          "ALTER TABLE %s SET TBLPROPERTIES ('%s' = '%s')",
+          tableName, TableProperties.FORMAT_VERSION, formatVersion);
+      SparkTable table = loadSparkTable();
+
+      for (DataType type : types) {
+        assertThat(
+                table.supportsColumnChange(
+                    (TableChange.ColumnChange)
+                        TableChange.addColumn(new String[] {"new_col"}, type, true)))
+            .as("Adding %s to a v%s table", type, formatVersion)
+            .isEqualTo(formatVersion >= 3);
+      }
+    }
+  }
+
+  @TestTemplate
+  void variantTypeUpdatesAreNotSupported() {
+    for (int formatVersion : new int[] {2, 3}) {
+      sql(
+          "ALTER TABLE %s SET TBLPROPERTIES ('%s' = '%s')",
+          tableName, TableProperties.FORMAT_VERSION, formatVersion);
+      SparkTable table = loadSparkTable();
+
+      assertThat(
+              table.supportsColumnChange(
+                  (TableChange.ColumnChange)
+                      TableChange.updateColumnType(new String[] {"data"}, VariantType$.MODULE$)))
+          .as("Updating a column to variant in a v%s table", formatVersion)
+          .isFalse();
+    }
+  }
+
+  @TestTemplate
+  void identifierColumnCannotBecomeNullable() {
+    SparkTable table = loadSparkTable();
+    table.table().updateSchema().allowIncompatibleChanges().setIdentifierFields("id").commit();
+    table = loadSparkTable();
+
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnNullability(new String[] {"id"}, true)))
+        .isFalse();
+  }
+
+  @TestTemplate
+  void identifierStructCannotBecomeNullable() {
+    SparkTable table = loadSparkTable();
+    table
+        .table()
+        .updateSchema()
+        .allowIncompatibleChanges()
+        .addRequiredColumn(
+            "parent",
+            Types.StructType.of(Types.NestedField.required(1, "id", Types.LongType.get())))
+        .setIdentifierFields("parent.id")
+        .commit();
+    table = loadSparkTable();
+
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnNullability(new String[] {"parent"}, true)))
+        .isFalse();
+  }
+
+  @TestTemplate
+  void missingColumnCannotBecomeNullable() {
+    SparkTable table = loadSparkTable();
+
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnNullability(new String[] {"missing"}, true)))
+        .isFalse();
+  }
+
+  @TestTemplate
+  public void testMapKeySchemaEvolutionChanges() {
+    sql("ALTER TABLE %s ADD COLUMN m map<int, string>", tableName);
+    sql("ALTER TABLE %s ADD COLUMN value_map map<int, int>", tableName);
+    sql("ALTER TABLE %s ADD COLUMN struct_key_map map<struct<key_field: int>, string>", tableName);
+    sql("ALTER TABLE %s ADD COLUMN struct_value_map map<int, struct<value_field: int>>", tableName);
+    SparkTable table = loadSparkTable();
+
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(new String[] {"m", "key"}, DataTypes.LongType)))
+        .isFalse();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(
+                        new String[] {"struct_key_map", "key", "key_field"}, DataTypes.LongType)))
+        .isFalse();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.addColumn(
+                        new String[] {"struct_key_map", "key", "new_field"},
+                        DataTypes.IntegerType,
+                        true)))
+        .isFalse();
+
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(
+                        new String[] {"value_map", "value"}, DataTypes.LongType)))
+        .isTrue();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.addColumn(
+                        new String[] {"struct_value_map", "value", "new_field"},
+                        DataTypes.IntegerType,
+                        true)))
+        .isTrue();
+  }
+
+  @TestTemplate
+  void typeUpdatesMustRoundTripToSparkType() {
+    sql("ALTER TABLE %s ADD COLUMN int_col int", tableName);
+    SparkTable table = loadSparkTable();
+
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(new String[] {"int_col"}, DataTypes.ShortType)))
+        .isFalse();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(new String[] {"int_col"}, DataTypes.ByteType)))
+        .isFalse();
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.updateColumnType(new String[] {"int_col"}, DataTypes.LongType)))
+        .isTrue();
+  }
+
+  @TestTemplate
+  void schemaEvolutionWithAcceptAnySchema() {
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, SparkTableProperties.WRITE_ACCEPT_ANY_SCHEMA);
+    SparkTable table = loadSparkTable();
+    TableChange.ColumnChange change =
+        (TableChange.ColumnChange)
+            TableChange.addColumn(new String[] {"new_col"}, DataTypes.IntegerType, true);
+
+    assertThat(table.supportsColumnChange(change)).isTrue();
+    assertThat(table.supportsColumnChange(change)).isTrue();
   }
 
   @TestTemplate
