@@ -106,6 +106,11 @@ public class StandardEncryptionManager implements EncryptionManager {
     return Iterables.transform(encrypted, this::decrypt);
   }
 
+  @Override
+  public ByteBuffer decryptKeyMetadata(String keyId) {
+    return EncryptionUtil.decryptKeyMetadata(keyId, this);
+  }
+
   private LoadingCache<String, ByteBuffer> unwrappedKeyCache() {
     if (this.unwrappedKeyCache == null) {
       this.unwrappedKeyCache =
@@ -168,18 +173,16 @@ public class StandardEncryptionManager implements EncryptionManager {
     return System.currentTimeMillis() + testTimeShift;
   }
 
-  ByteBuffer encryptedByKey(String manifestListKeyID) {
-    EncryptedKey encryptedKeyMetadata = encryptionKeys.get(manifestListKeyID);
+  ByteBuffer encryptedByKey(String keyId) {
+    EncryptedKey encryptedKeyMetadata = encryptionKeys.get(keyId);
 
     Preconditions.checkState(
-        encryptedKeyMetadata != null,
-        "Cannot find manifest list key metadata with id %s",
-        manifestListKeyID);
+        encryptedKeyMetadata != null, "Cannot find manifest list key metadata with id %s", keyId);
 
     Preconditions.checkArgument(
         !encryptedKeyMetadata.encryptedById().equals(tableKeyId),
         "%s is a key encryption key, not manifest list key metadata",
-        manifestListKeyID);
+        keyId);
 
     return unwrappedKeyCache().get(encryptedKeyMetadata.encryptedById());
   }
@@ -207,7 +210,7 @@ public class StandardEncryptionManager implements EncryptionManager {
     EncryptedKey keyEncryptionKey = encryptionKeys.get(keyEncryptionKeyID);
     String keyEncryptionKeyTimestamp = keyEncryptionKey.properties().get(KEY_TIMESTAMP);
     ByteBuffer encryptedKeyMetadata =
-        EncryptionUtil.encryptManifestListKeyMetadata(
+        EncryptionUtil.encryptKeyMetadata(
             unwrappedKeyCache().get(keyEncryptionKeyID), keyEncryptionKeyTimestamp, keyMetadata);
     BaseEncryptedKey key =
         new BaseEncryptedKey(fileKeyID, encryptedKeyMetadata, keyEncryptionKeyID, null);

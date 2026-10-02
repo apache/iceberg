@@ -332,9 +332,7 @@ public class TestManifestListEncryption {
         EncryptingFileIO.combine(
             new TestTables.LocalFileIO(),
             EncryptionTestHelpers.createEncryptionManager(metadata.encryptionKeys()))) {
-      return ManifestLists.read(
-          io.newInputFile(
-              new BaseManifestListFile(snapshot.manifestListLocation(), snapshot.keyId())));
+      return ManifestLists.read(io.newInputFile(snapshot.manifestListLocation(), snapshot.keyId()));
     }
   }
 
@@ -374,9 +372,7 @@ public class TestManifestListEncryption {
                 List.of(encryptionKeys.keyEncryptionKey(), encryptionKeys.fileKey())))) {
       List<ManifestFile> manifests =
           ManifestLists.read(
-              readingIO.newInputFile(
-                  new BaseManifestListFile(
-                      outputFile.location(), encryptionKeys.fileKey().keyId())));
+              readingIO.newInputFile(outputFile.location(), encryptionKeys.fileKey().keyId()));
       assertThat(manifests).hasSize(1);
       return manifests.get(0);
     }

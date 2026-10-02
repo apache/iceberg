@@ -91,7 +91,8 @@ public class TestAllManifestsTableTaskParser {
         fileIO,
         AllManifestsTable.MANIFEST_FILE_SCHEMA,
         specsById,
-        new BaseManifestListFile("/path/manifest-list-file.avro", "a"),
+        "/path/manifest-list-file.avro",
+        "a",
         Expressions.equal("id", 1),
         1L);
   }
@@ -147,9 +148,8 @@ public class TestAllManifestsTableTaskParser {
         .isEqualTo(expected.schema().asStruct());
 
     assertThat(actual.specsById()).isEqualTo(expected.specsById());
-    assertThat(actual.manifestList().location()).isEqualTo(expected.manifestList().location());
-    assertThat(actual.manifestList().encryptionKeyID())
-        .isEqualTo(expected.manifestList().encryptionKeyID());
+    assertThat(actual.location()).isEqualTo(expected.location());
+    assertThat(actual.encryptionKeyId()).isEqualTo(expected.encryptionKeyId());
     assertThat(actual.residual().toString()).isEqualTo(expected.residual().toString());
     assertThat(actual.referenceSnapshotId()).isEqualTo(expected.referenceSnapshotId());
   }

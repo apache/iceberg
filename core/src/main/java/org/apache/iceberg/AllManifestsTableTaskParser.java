@@ -64,9 +64,9 @@ class AllManifestsTableTaskParser {
 
     generator.writeEndArray();
 
-    generator.writeStringField(MANIFEST_LIST_LOCATION, task.manifestList().location());
-    if (task.manifestList().encryptionKeyID() != null) {
-      generator.writeStringField(MANIFEST_LIST_KEY_ID, task.manifestList().encryptionKeyID());
+    generator.writeStringField(MANIFEST_LIST_LOCATION, task.location());
+    if (task.encryptionKeyId() != null) {
+      generator.writeStringField(MANIFEST_LIST_KEY_ID, task.encryptionKeyId());
     }
 
     generator.writeFieldName(RESIDUAL);
@@ -105,7 +105,8 @@ class AllManifestsTableTaskParser {
         fileIO,
         schema,
         specsById,
-        new BaseManifestListFile(manifestListLocation, manifestListKeyId),
+        manifestListLocation,
+        manifestListKeyId,
         residualFilter,
         referenceSnapshotId);
   }
