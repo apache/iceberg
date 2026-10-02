@@ -48,6 +48,7 @@ import org.apache.spark.sql.types.NullType$;
 import org.apache.spark.sql.types.StringType$;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.TimeType;
 import org.apache.spark.sql.types.TimestampNTZType$;
 import org.apache.spark.sql.types.TimestampType$;
 
@@ -268,6 +269,7 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
           .put(TypeID.FLOAT, ImmutableSet.of(FloatType$.class))
           .put(TypeID.DOUBLE, ImmutableSet.of(DoubleType$.class))
           .put(TypeID.DATE, ImmutableSet.of(DateType$.class))
+          .put(TypeID.TIME, ImmutableSet.of(TimeType.class))
           .put(TypeID.TIMESTAMP, ImmutableSet.of(TimestampType$.class, TimestampNTZType$.class))
           .put(TypeID.DECIMAL, ImmutableSet.of(DecimalType.class))
           .put(TypeID.UUID, ImmutableSet.of(StringType$.class))

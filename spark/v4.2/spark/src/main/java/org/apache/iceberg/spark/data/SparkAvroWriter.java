@@ -131,6 +131,11 @@ public class SparkAvroWriter implements MetricsAwareDatumWriter<InternalRow> {
             // Spark uses the same representation
             return ValueWriters.longs();
 
+          case "time-micros":
+            // Spark stores time as nanoseconds, but Iceberg stores it as microseconds
+            ValueWriter<Long> timeMicros = ValueWriters.longs();
+            return (ValueWriter<Long>) (value, encoder) -> timeMicros.write(value / 1000L, encoder);
+
           case "decimal":
             LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
             return SparkValueWriters.decimal(decimal.getPrecision(), decimal.getScale());

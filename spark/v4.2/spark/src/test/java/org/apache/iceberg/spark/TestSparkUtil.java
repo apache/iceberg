@@ -21,12 +21,17 @@ package org.apache.iceberg.spark;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.expressions.EqualTo;
 import org.apache.spark.sql.catalyst.expressions.Expression;
+import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.expressions.Literal;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -41,6 +46,32 @@ public class TestSparkUtil {
           new StructField[] {
             new StructField("ts", DataTypes.TimestampType, true, Metadata.empty())
           });
+
+  private static final LocalTime TIME = LocalTime.of(10, 20, 30, 123_456_000);
+
+  @Test
+  public void testInternalToSparkConvertsTimeToNanos() {
+    Object converted =
+        SparkUtil.internalToSpark(Types.TimeType.get(), DateTimeUtil.microsFromTime(TIME));
+
+    assertThat(converted)
+        .as("Time value should be converted to the nanoseconds Spark expects")
+        .isEqualTo(TIME.toNanoOfDay());
+  }
+
+  @Test
+  public void testInternalToSparkConvertsNestedTimeToNanos() {
+    Types.StructType structType =
+        Types.StructType.of(Types.NestedField.optional(1, "t", Types.TimeType.get()));
+    GenericRecord rec = GenericRecord.create(structType);
+    rec.set(0, DateTimeUtil.microsFromTime(TIME));
+
+    GenericInternalRow row = (GenericInternalRow) SparkUtil.internalToSpark(structType, rec);
+
+    assertThat(row.getLong(0))
+        .as("Nested time value should be converted to the nanoseconds Spark expects")
+        .isEqualTo(TIME.toNanoOfDay());
+  }
 
   @Test
   public void testPartitionMapToExpressionWithOffset() {

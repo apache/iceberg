@@ -108,6 +108,9 @@ public class SparkOrcReader implements OrcRowReader<InternalRow> {
         case INT:
           return OrcValueReaders.ints();
         case LONG:
+          if (Type.TypeID.TIME == iPrimitive.typeId()) {
+            return SparkOrcValueReaders.times();
+          }
           return OrcValueReaders.longs();
         case FLOAT:
           return OrcValueReaders.floats();

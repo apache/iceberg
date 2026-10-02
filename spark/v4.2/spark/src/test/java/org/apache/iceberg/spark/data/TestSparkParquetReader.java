@@ -67,6 +67,12 @@ import org.apache.spark.unsafe.types.BinaryView;
 import org.junit.jupiter.api.Test;
 
 public class TestSparkParquetReader extends AvroDataTestBase {
+
+  @Override
+  protected boolean supportsTime() {
+    return true;
+  }
+
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     writeAndValidate(schema, schema);

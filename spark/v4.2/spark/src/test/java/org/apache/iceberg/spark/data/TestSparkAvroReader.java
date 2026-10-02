@@ -35,6 +35,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 public class TestSparkAvroReader extends AvroDataTestBase {
+
+  @Override
+  protected boolean supportsTime() {
+    return true;
+  }
+
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     writeAndValidate(schema, schema);
