@@ -52,6 +52,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
@@ -2183,5 +2184,61 @@ public class TestTableMetadata {
             .setRef("tag1", SnapshotRef.tagBuilder(snapshot.snapshotId()).build())
             .build();
     assertThat(withTag.ref("tag1").isTag()).isTrue();
+  }
+
+  @Test
+  public void addSnapshotRejectsNonMonotonicTimestampForV4() {
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            TEST_LOCATION,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "4"));
+
+    Snapshot parent =
+        new BaseSnapshot(1, 1L, null, 1_000L, null, null, null, "file:/s1.avro", 0L, 0L, null);
+    TableMetadata withParent = TableMetadata.buildFrom(base).addSnapshot(parent).build();
+
+    Snapshot child =
+        new BaseSnapshot(2, 2L, 1L, 1_000L, null, null, null, "file:/s2.avro", 0L, 0L, null);
+
+    assertThatThrownBy(() -> TableMetadata.buildFrom(withParent).addSnapshot(child))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid snapshot timestamp 1000: not after parent snapshot 1 at 1000");
+  }
+
+  @Test
+  public void addSnapshotAllowsNonMonotonicTimestampBeforeV4() {
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA, PartitionSpec.unpartitioned(), "location", ImmutableMap.of());
+
+    Snapshot parent =
+        new BaseSnapshot(1, 1L, null, 1_000L, null, null, null, "file:/s1.avro", null, null, null);
+    TableMetadata withParent = TableMetadata.buildFrom(base).addSnapshot(parent).build();
+
+    Snapshot child =
+        new BaseSnapshot(2, 2L, 1L, 999L, null, null, null, "file:/s2.avro", null, null, null);
+
+    TableMetadata withChild = TableMetadata.buildFrom(withParent).addSnapshot(child).build();
+    assertThat(withChild.snapshot(2L).timestampMillis()).isEqualTo(999L);
+  }
+
+  @Test
+  public void snapshotTimestampMayBeAheadOfLastUpdatedMillis() {
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of());
+
+    long snapshotTs = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(2);
+    Snapshot snapshot =
+        new BaseSnapshot(
+            1, 1L, null, snapshotTs, null, null, null, "file:/s1.avro", null, null, null);
+
+    TableMetadata updated =
+        TableMetadata.buildFrom(base).setBranchSnapshot(snapshot, SnapshotRef.MAIN_BRANCH).build();
+
+    assertThat(updated.currentSnapshot().timestampMillis()).isEqualTo(snapshotTs);
+    assertThat(updated.lastUpdatedMillis()).isLessThan(snapshotTs);
   }
 }
