@@ -103,7 +103,7 @@ class InMemoryPlanningState {
     Preconditions.checkArgument(existingStatus != null, "Cannot find plan %s", plan);
     Preconditions.checkArgument(
         existingStatus == PlanStatus.SUBMITTED,
-        "Cannot mark plan %s as completed as it is %s",
+        "Cannot mark plan %s as failed as it is %s",
         plan,
         existingStatus);
     asyncPlanningStates.put(plan, PlanStatus.FAILED);
