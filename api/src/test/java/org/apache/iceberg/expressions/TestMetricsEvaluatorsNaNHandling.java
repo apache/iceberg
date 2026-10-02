@@ -345,7 +345,9 @@ public class TestMetricsEvaluatorsNaNHandling {
           .isFalse();
 
       shouldRead = new StrictMetricsEvaluator(SCHEMA, func.apply("max_nan", 1D)).eval(FILE);
-      assertThat(shouldRead).as("Should match: 1 is smaller than lower bound").isTrue();
+      assertThat(shouldRead)
+          .as("Should not match: NaN count is unknown so a NaN may not match")
+          .isFalse();
 
       shouldRead = new StrictMetricsEvaluator(SCHEMA, func.apply("max_nan", 10D)).eval(FILE);
       assertThat(shouldRead).as("Should not match: 10 is larger than lower bound").isFalse();
