@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import org.apache.iceberg.BaseTable;
@@ -111,6 +112,11 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   private Table table;
 
   private final AtomicInteger microBatches = new AtomicInteger();
+
+  private final List<SimpleRecord> recordsReadByStream =
+      Collections.synchronizedList(Lists.newArrayList());
+
+  private final AtomicBoolean failNextDataBatch = new AtomicBoolean();
 
   @Parameter(index = 3)
   private Boolean async;
@@ -573,6 +579,27 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
+  void latestOffsetReturnsNullForTableWithoutCurrentSnapshot() {
+    appendData(List.of(new SimpleRecord(1, "one")));
+    SparkMicroBatchStream stream =
+        newMicroBatchStream(Collections.emptyMap(), "replaced-table-checkpoint");
+
+    try {
+      Offset endOffset = stream.latestOffset(stream.initialOffset(), stream.getDefaultReadLimit());
+      sql("CREATE OR REPLACE TABLE %s (id INT, data STRING) USING iceberg", tableName);
+
+      Awaitility.await()
+          .atMost(Duration.ofSeconds(30))
+          .untilAsserted(
+              () ->
+                  assertThat(stream.latestOffset(endOffset, stream.getDefaultReadLimit()))
+                      .isNull());
+    } finally {
+      stream.stop();
+    }
+  }
+
+  @TestTemplate
   public void testReadStreamOnIcebergThenAddData() throws Exception {
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
 
@@ -719,6 +746,63 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
             SparkReadOptions.STREAM_FROM_TIMESTAMP, String.valueOf(firstSnapshotCommitTime));
     List<SimpleRecord> actual = rowsAvailable(query);
     assertThat(actual).containsExactlyInAnyOrderElementsOf(expectedRecordList);
+  }
+
+  @TestTemplate
+  void replayOfFirstDataBatchIgnoresLaterStreamFromTimestamp() throws Exception {
+    File checkpoint = temp.resolve("checkpoint").toFile();
+    appendData(List.of(new SimpleRecord(1, "one")));
+    StreamingQuery query = startStreamFromTimestamp(checkpoint, timestampAfterCurrentSnapshot());
+    query.processAllAvailable();
+
+    failNextDataBatch.set(true);
+    List<SimpleRecord> firstDataBatch = List.of(new SimpleRecord(2, "two"));
+    appendData(firstDataBatch);
+    Awaitility.await().atMost(Duration.ofSeconds(30)).until(() -> !query.isActive());
+    assertThat(query.exception().get()).hasRootCauseMessage("Sink failure");
+
+    StreamingQuery restarted =
+        startStreamFromTimestamp(checkpoint, timestampAfterCurrentSnapshot());
+    awaitRecordsReadByStream(restarted, firstDataBatch);
+  }
+
+  @TestTemplate
+  void availableNowReadsNothingUntilStreamFromTimestampIsReached() throws Exception {
+    File checkpoint = temp.resolve("checkpoint").toFile();
+    appendData(List.of(new SimpleRecord(1, "one")));
+    long fromTimestamp = timestampAfterCurrentSnapshot();
+
+    StreamingQuery query =
+        startStreamFromTimestamp(checkpoint, fromTimestamp, Trigger.AvailableNow());
+    assertThat(query.awaitTermination(Duration.ofMinutes(1).toMillis())).isTrue();
+    assertThat(recordsReadByStream).isEmpty();
+
+    List<SimpleRecord> appended = List.of(new SimpleRecord(2, "two"));
+    appendData(appended);
+    StreamingQuery rerun =
+        startStreamFromTimestamp(checkpoint, fromTimestamp, Trigger.AvailableNow());
+    assertThat(rerun.awaitTermination(Duration.ofMinutes(1).toMillis())).isTrue();
+    assertThat(recordsReadByStream).containsExactlyInAnyOrderElementsOf(appended);
+  }
+
+  @TestTemplate
+  void resumeIgnoresLaterStreamFromTimestamp() throws Exception {
+    File checkpoint = temp.resolve("checkpoint").toFile();
+    appendData(List.of(new SimpleRecord(1, "one")));
+    StreamingQuery query = startStreamFromTimestamp(checkpoint, timestampAfterCurrentSnapshot());
+    query.processAllAvailable();
+    List<SimpleRecord> expected = Lists.newArrayList(new SimpleRecord(2, "two"));
+    appendData(expected);
+    awaitRecordsReadByStream(query, expected);
+    query.stop();
+
+    List<SimpleRecord> appendedWhileStopped = List.of(new SimpleRecord(3, "three"));
+    appendData(appendedWhileStopped);
+    expected.addAll(appendedWhileStopped);
+
+    StreamingQuery restarted =
+        startStreamFromTimestamp(checkpoint, timestampAfterCurrentSnapshot());
+    awaitRecordsReadByStream(restarted, expected);
   }
 
   @TestTemplate
@@ -1161,6 +1245,57 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
         .sql("select * from " + MEMORY_TABLE)
         .as(Encoders.bean(SimpleRecord.class))
         .collectAsList();
+  }
+
+  private StreamingQuery startStreamFromTimestamp(File checkpoint, long fromTimestamp)
+      throws TimeoutException {
+    return startStreamFromTimestamp(checkpoint, fromTimestamp, Trigger.ProcessingTime(0L));
+  }
+
+  private StreamingQuery startStreamFromTimestamp(
+      File checkpoint, long fromTimestamp, Trigger trigger) throws TimeoutException {
+    Map<String, String> options = Maps.newHashMap();
+    options.put(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(fromTimestamp));
+    options.put(SparkReadOptions.ASYNC_MICRO_BATCH_PLANNING_ENABLED, async.toString());
+    if (async) {
+      options.put(SparkReadOptions.STREAMING_SNAPSHOT_POLLING_INTERVAL_MS, "1");
+    }
+
+    return spark
+        .readStream()
+        .options(options)
+        .format("iceberg")
+        .load(tableName)
+        .writeStream()
+        .option("checkpointLocation", checkpoint.toString())
+        .trigger(trigger)
+        .foreachBatch(
+            (VoidFunction2<Dataset<Row>, Long>)
+                (batch, batchId) -> {
+                  List<SimpleRecord> records =
+                      batch.as(Encoders.bean(SimpleRecord.class)).collectAsList();
+                  if (!records.isEmpty() && failNextDataBatch.getAndSet(false)) {
+                    throw new IllegalStateException("Sink failure");
+                  }
+
+                  recordsReadByStream.addAll(records);
+                })
+        .start();
+  }
+
+  private void awaitRecordsReadByStream(StreamingQuery query, List<SimpleRecord> expected) {
+    Awaitility.await()
+        .atMost(Duration.ofSeconds(30))
+        .untilAsserted(
+            () -> {
+              query.processAllAvailable();
+              assertThat(recordsReadByStream).containsExactlyInAnyOrderElementsOf(expected);
+            });
+  }
+
+  private long timestampAfterCurrentSnapshot() {
+    table.refresh();
+    return waitUntilAfter(table.currentSnapshot().timestampMillis());
   }
 
   private SparkMicroBatchStream newMicroBatchStream(

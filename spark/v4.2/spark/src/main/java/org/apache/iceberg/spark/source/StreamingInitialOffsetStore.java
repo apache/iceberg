@@ -50,16 +50,28 @@ class StreamingInitialOffsetStore {
   StreamingOffset initialOffset() {
     InputFile inputFile = io.newInputFile(initialOffsetLocation);
     if (inputFile.exists()) {
-      return readOffset(inputFile);
+      StreamingOffset offset = readOffset(inputFile);
+      if (!StreamingOffset.START_OFFSET.equals(offset)) {
+        return offset;
+      }
     }
 
+    // START_OFFSET has no position yet, so it is derived again instead of stored
     StreamingOffset offset = offsetSupplier.get();
-    writeOffset(offset, io.newOutputFile(initialOffsetLocation));
+    if (!StreamingOffset.START_OFFSET.equals(offset)) {
+      storeInitialOffset(offset);
+    }
+
     return offset;
   }
 
+  void storeInitialOffset(StreamingOffset offset) {
+    writeOffset(offset, io.newOutputFile(initialOffsetLocation));
+  }
+
   private void writeOffset(StreamingOffset offset, OutputFile file) {
-    try (OutputStream outputStream = file.create();
+    // Existing checkpoints can contain a stored START_OFFSET, which is replaced once resolved
+    try (OutputStream outputStream = file.createOrOverwrite();
         BufferedWriter writer =
             new BufferedWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8))) {
       writer.write(offset.json());

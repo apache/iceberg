@@ -59,12 +59,13 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private final int splitLookback;
   private final long splitOpenFileCost;
   private final boolean localityPreferred;
-  private final StreamingOffset initialOffset;
+  private final StreamingInitialOffsetStore initialOffsetStore;
   private final long fromTimestamp;
   private final int maxFilesPerMicroBatch;
   private final int maxRecordsPerMicroBatch;
   private final boolean cacheDeleteFilesOnExecutors;
   private SparkMicroBatchPlanner planner;
+  private StreamingOffset initialOffset;
   private StreamingOffset lastOffsetForTriggerAvailableNow;
 
   SparkMicroBatchStream(
@@ -90,14 +91,11 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     this.maxRecordsPerMicroBatch = readConf.maxRecordsPerMicroBatch();
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
 
-    StreamingInitialOffsetStore initialOffsetStore =
+    this.initialOffsetStore =
         new StreamingInitialOffsetStore(
             checkpointLocation,
             sparkContext.hadoopConfiguration(),
-            () -> {
-              table.refresh();
-              return MicroBatchUtils.determineStartingOffset(table, fromTimestamp);
-            });
+            this::startingOffsetFromTimestamp);
     this.initialOffset = initialOffsetStore.initialOffset();
   }
 
@@ -215,12 +213,34 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
         "Invalid start offset: %s is not a StreamingOffset",
         startOffset);
 
-    // Initialize planner if not already done
-    if (planner == null) {
-      initializePlanner((StreamingOffset) startOffset, null);
+    StreamingOffset start = (StreamingOffset) startOffset;
+    // Resolve start offset once, if it hasn't been resolved already.
+    if (StreamingOffset.START_OFFSET.equals(start)) {
+      start = startingOffsetFromTimestamp();
+      if (StreamingOffset.START_OFFSET.equals(start)) {
+        return null;
+      }
+
+      // Spark starts the first batch at initialOffset(), also when it replays the batch after a
+      // restart. Store the resolved offset before Spark records the first batch's end offset in the
+      // checkpoint, so the replay starts from the same offset.
+      if (StreamingOffset.START_OFFSET.equals(initialOffset)) {
+        initialOffsetStore.storeInitialOffset(start);
+        this.initialOffset = start;
+      }
     }
 
-    return planner.latestOffset((StreamingOffset) startOffset, limit);
+    // Initialize planner if not already done
+    if (planner == null) {
+      initializePlanner(start, null);
+    }
+
+    return planner.latestOffset(start, limit);
+  }
+
+  private StreamingOffset startingOffsetFromTimestamp() {
+    table.refresh();
+    return MicroBatchUtils.determineStartingOffset(table, fromTimestamp);
   }
 
   @Override
@@ -247,7 +267,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     lastOffsetForTriggerAvailableNow =
         (StreamingOffset) latestOffset(initialOffset, ReadLimit.allAvailable());
 
-    LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow.json());
+    LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow);
 
     // Reset planner so it gets recreated with the cap on next call
     if (planner != null) {

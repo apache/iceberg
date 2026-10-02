@@ -115,19 +115,11 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
   public StreamingOffset latestOffset(StreamingOffset startOffset, ReadLimit limit) {
     table().refresh();
     if (table().currentSnapshot() == null) {
-      return StreamingOffset.START_OFFSET;
-    }
-
-    if (table().currentSnapshot().timestampMillis() < fromTimestamp) {
-      return StreamingOffset.START_OFFSET;
+      return null;
     }
 
     // end offset can expand to multiple snapshots
     StreamingOffset startingOffset = startOffset;
-
-    if (startOffset.equals(StreamingOffset.START_OFFSET)) {
-      startingOffset = MicroBatchUtils.determineStartingOffset(table(), fromTimestamp);
-    }
 
     Snapshot curSnapshot = table().snapshot(startingOffset.snapshotId());
     validateCurrentSnapshotExists(curSnapshot, startingOffset);
