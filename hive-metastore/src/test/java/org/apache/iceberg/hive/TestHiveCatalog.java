@@ -29,6 +29,7 @@ import static org.apache.iceberg.TableProperties.DEFAULT_SORT_ORDER;
 import static org.apache.iceberg.TableProperties.ENCRYPTION_TABLE_KEY;
 import static org.apache.iceberg.TableProperties.SNAPSHOT_COUNT;
 import static org.apache.iceberg.expressions.Expressions.bucket;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
@@ -47,6 +48,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.Database;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
@@ -189,6 +191,31 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     // HMS overwrites createTime server-side in create_table_core, so only the client-supplied
     // lastAccessTime reflects the value set by newHmsTable; asserting createTime would test HMS.
     assertThat(hmsTable.getLastAccessTime()).isBetween(beforeSeconds, afterSeconds);
+  }
+
+  @Test
+  void nestedVariantColumnSyncsToHms() throws TException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "event", Types.StructType.of(optional(3, "id", Types.IntegerType.get()))));
+    TableIdentifier tableIdent = TableIdentifier.of(DB_NAME, "nested_variant_tbl");
+
+    Table table =
+        catalog
+            .buildTable(tableIdent, schema)
+            .withProperty(TableProperties.FORMAT_VERSION, "3")
+            .create();
+    table.updateSchema().addColumn("event", "payload", Types.VariantType.get()).commit();
+
+    assertThat(
+            HIVE_METASTORE_EXTENSION
+                .metastoreClient()
+                .getTable(DB_NAME, tableIdent.name())
+                .getSd()
+                .getCols())
+        .extracting(FieldSchema::getType)
+        .containsExactly("bigint", "struct<id:int,payload:unknown>");
   }
 
   private Schema getTestSchema() {
