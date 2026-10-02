@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Set;
-import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -198,14 +197,29 @@ public class LocationProviders {
     }
 
     private static String pathContext(String tableLocation) {
-      Path dataPath = new Path(tableLocation);
-      Path parent = dataPath.getParent();
+      // strip the scheme and authority (e.g. "s3://bucket") so only path segments remain
+      String path = tableLocation;
+      int schemeEnd = path.indexOf("://");
+      if (schemeEnd >= 0) {
+        int authorityEnd = path.indexOf('/', schemeEnd + 3);
+        path = authorityEnd < 0 ? "" : path.substring(authorityEnd);
+      }
+
+      if (path.isEmpty()) {
+        return "";
+      }
+
+      path = LocationUtil.stripTrailingSlash(path);
+
       String resolvedContext;
-      if (parent != null) {
-        // remove the data folder
-        resolvedContext = String.format("%s/%s", parent.getName(), dataPath.getName());
+      int lastSlash = path.lastIndexOf('/');
+      if (lastSlash <= 0) {
+        resolvedContext = path;
       } else {
-        resolvedContext = dataPath.getName();
+        int parentSlash = path.lastIndexOf('/', lastSlash - 1);
+        String parentName = path.substring(parentSlash + 1, lastSlash);
+        String name = path.substring(lastSlash + 1);
+        resolvedContext = String.format("%s/%s", parentName, name);
       }
 
       Preconditions.checkState(
