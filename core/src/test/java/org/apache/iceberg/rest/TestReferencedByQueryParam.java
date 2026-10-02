@@ -24,6 +24,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
 import java.util.Map;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -241,12 +243,20 @@ public class TestReferencedByQueryParam {
     table.refresh();
 
     // refresh() also runs on stale reads and commit retries, and sends no snapshots parameter
+    String eTag =
+        ETagProvider.of(
+            ((BaseTable) table).operations().current().metadataFileLocation(),
+            ImmutableMap.of(
+                RESTCatalogProperties.SNAPSHOTS_QUERY_PARAMETER,
+                "all",
+                RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER,
+                "ns.outer_view"));
     Mockito.verify(adapter)
         .execute(
             matches(
                 HTTPMethod.GET,
                 "v1/namespaces/ns/tables/test_table",
-                Map.of(),
+                Map.of(HttpHeaders.IF_NONE_MATCH, eTag),
                 ImmutableMap.of(
                     RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, "ns.outer_view")),
             eq(LoadTableResponse.class),

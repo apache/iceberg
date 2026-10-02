@@ -589,10 +589,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     RemoteSigningConfig remoteSigningConfig = response.remoteSigningConfig();
     Labels labels = response.labels();
     RESTClient tableClient = client.withAuthSession(tableSession);
+    String eTag = responseHeaders.getOrDefault(HttpHeaders.ETAG, null);
     Supplier<BaseTable> tableSupplier =
         createTableSupplier(
             finalIdentifier,
             tableMetadata,
+            eTag,
             context,
             tableClient,
             tableConf,
@@ -601,7 +603,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             remoteSigningConfig,
             labels);
 
-    String eTag = responseHeaders.getOrDefault(HttpHeaders.ETAG, null);
     if (eTag != null) {
       tableCache.put(context.sessionId(), finalIdentifier, tableSupplier, eTag);
     }
@@ -616,6 +617,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Supplier<BaseTable> createTableSupplier(
       TableIdentifier identifier,
       TableMetadata tableMetadata,
+      String eTag,
       SessionContext context,
       RESTClient tableClient,
       Map<String, String> tableConf,
@@ -636,6 +638,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               tableFileIO(
                   identifier, context, tableConf, loadContext, credentials, remoteSigningConfig),
               tableMetadata,
+              eTag,
               endpoints,
               readQueryParams);
 
@@ -1410,6 +1413,34 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   /**
    * Create a new {@link RESTTableOperations} instance for simple table operations.
    *
+   * @deprecated since 1.13.0, will be removed in 1.14.0; use {@link #newTableOps(RESTClient,
+   *     String, Supplier, Supplier, FileIO, TableMetadata, String, Set, Map)} instead.
+   */
+  @Deprecated
+  protected RESTTableOperations newTableOps(
+      RESTClient restClient,
+      String path,
+      Supplier<Map<String, String>> readHeaders,
+      Supplier<Map<String, String>> mutationHeaderSupplier,
+      FileIO fileIO,
+      TableMetadata current,
+      Set<Endpoint> supportedEndpoints,
+      Map<String, String> readQueryParams) {
+    return newTableOps(
+        restClient,
+        path,
+        readHeaders,
+        mutationHeaderSupplier,
+        fileIO,
+        current,
+        null,
+        supportedEndpoints,
+        readQueryParams);
+  }
+
+  /**
+   * Create a new {@link RESTTableOperations} instance for simple table operations.
+   *
    * <p>This method can be overridden in subclasses to provide custom table operations
    * implementations.
    *
@@ -1421,6 +1452,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
    *     requests (POST/DELETE)
    * @param fileIO the FileIO implementation for reading and writing table metadata and data files
    * @param current the current table metadata
+   * @param eTag the ETag of the response that returned {@code current}, or null if the server sent
+   *     none
    * @param supportedEndpoints the set of supported REST endpoints
    * @param readQueryParams query parameters to send on read requests, such as the referenced-by
    *     view chain the table was loaded through
@@ -1433,6 +1466,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       Supplier<Map<String, String>> mutationHeaderSupplier,
       FileIO fileIO,
       TableMetadata current,
+      String eTag,
       Set<Endpoint> supportedEndpoints,
       Map<String, String> readQueryParams) {
     return new RESTTableOperations(
@@ -1442,6 +1476,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         mutationHeaderSupplier,
         fileIO,
         current,
+        eTag,
         supportedEndpoints,
         readQueryParams);
   }
