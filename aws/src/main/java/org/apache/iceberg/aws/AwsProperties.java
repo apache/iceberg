@@ -182,6 +182,14 @@ public class AwsProperties implements Serializable {
    */
   public static final String LAKE_FORMATION_DB_NAME = "lakeformation.db-name";
 
+  /**
+   * The number of seconds Lake Formation credential providers are retained after their last use.
+   */
+  public static final String LAKE_FORMATION_CREDENTIAL_CACHE_EXPIRATION_SECONDS =
+      "lakeformation.credential-cache.expiration-seconds";
+
+  public static final long LAKE_FORMATION_CREDENTIAL_CACHE_EXPIRATION_SECONDS_DEFAULT = 60L;
+
   /** Region to be used by the SigV4 protocol for signing requests. */
   public static final String REST_SIGNER_REGION = "rest.signing-region";
 
