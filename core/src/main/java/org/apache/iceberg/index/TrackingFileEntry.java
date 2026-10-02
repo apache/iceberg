@@ -24,21 +24,21 @@ import javax.annotation.Nullable;
 /**
  * A single entry in a tracking file, describing one leaf file in an index snapshot.
  *
- * <p>The {@link #transformValueLowerBound()} and {@link #transformValueUpperBound()} fields are
- * the key pruning statistics — the planner uses them to skip leaf files that cannot contain
- * matching entries for a given predicate.
+ * <p>The {@link #transformValueLowerBound()} and {@link #transformValueUpperBound()} fields are the
+ * key pruning statistics — the planner uses them to skip leaf files that cannot contain matching
+ * entries for a given predicate.
  *
  * <p>Field IDs match the tracking file entry schema defined in format/index.md.
  */
 public class TrackingFileEntry {
 
-  private final String location;           // field 100
-  private final String fileFormat;         // field 101
-  private final long recordCount;          // field 103
-  private final long fileSizeInBytes;      // field 104
-  private final long transformValueLowerBound;  // field 146.lower
-  private final long transformValueUpperBound;  // field 146.upper
-  private final ByteBuffer keyMetadata;    // field 131 (optional)
+  private final String location; // field 100
+  private final String fileFormat; // field 101
+  private final long recordCount; // field 103
+  private final long fileSizeInBytes; // field 104
+  private final long transformValueLowerBound; // field 146.lower
+  private final long transformValueUpperBound; // field 146.upper
+  private final ByteBuffer keyMetadata; // field 131 (optional)
 
   private TrackingFileEntry(
       String location,

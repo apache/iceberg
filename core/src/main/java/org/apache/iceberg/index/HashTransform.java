@@ -24,13 +24,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 /**
  * HASH transform for the SCALAR index type.
  *
- * <p>Maps a key value to a hash bucket in [0, numBuckets). Uses the same
- * murmur3-based hash as Iceberg's bucket partition transform so that index
- * bucket assignments are consistent with partition pruning.
+ * <p>Maps a key value to a hash bucket in [0, numBuckets). Uses the same murmur3-based hash as
+ * Iceberg's bucket partition transform so that index bucket assignments are consistent with
+ * partition pruning.
  *
- * <p>The transform value stored in leaf files is the bucket number (long).
- * The tracking file stores [bucketMin, bucketMax] per leaf file, enabling
- * the planner to identify which leaf files to scan for a given key.
+ * <p>The transform value stored in leaf files is the bucket number (long). The tracking file stores
+ * [bucketMin, bucketMax] per leaf file, enabling the planner to identify which leaf files to scan
+ * for a given key.
  *
  * <p>Implements {@link Serializable} so it can be captured directly inside a Spark UDF closure
  * (Spark's ClosureCleaner requires every captured object to be serializable, even for local,
@@ -53,8 +53,8 @@ public class HashTransform implements Serializable {
   /**
    * Compute the hash bucket for a String value.
    *
-   * <p>Uses Java's {@code hashCode()} for Phase 1. A follow-up will switch to murmur3_x86_32
-   * to align with Iceberg's bucket partition transform.
+   * <p>Uses Java's {@code hashCode()} for Phase 1. A follow-up will switch to murmur3_x86_32 to
+   * align with Iceberg's bucket partition transform.
    */
   public long apply(String value) {
     if (value == null) {

@@ -36,15 +36,14 @@ import org.apache.iceberg.types.Types;
  * Writes a SCALAR index leaf file (Parquet), following the schema defined by {@link
  * LeafFileEntry#schema(Types.NestedField)}.
  *
- * <p>Entries must be added in non-decreasing {@code (transform_value, key_value)} order —
- * required for the row-group-level statistics pruning {@link LeafFileReader} relies on to work at
- * all. This class does not sort; callers (the index build job, e.g. Spark's {@code
- * sortWithinPartitions}) are responsible for producing entries in that order. What this class
- * does do is validate that order as entries are added, and fail fast with {@link
- * IllegalStateException} on the first violation, rather than silently writing an unsorted leaf
- * file that would still return correct results but with row-group pruning providing little to no
- * benefit. Equal consecutive keys are allowed, since a key value is not required to be unique
- * across rows.
+ * <p>Entries must be added in non-decreasing {@code (transform_value, key_value)} order — required
+ * for the row-group-level statistics pruning {@link LeafFileReader} relies on to work at all. This
+ * class does not sort; callers (the index build job, e.g. Spark's {@code sortWithinPartitions}) are
+ * responsible for producing entries in that order. What this class does do is validate that order
+ * as entries are added, and fail fast with {@link IllegalStateException} on the first violation,
+ * rather than silently writing an unsorted leaf file that would still return correct results but
+ * with row-group pruning providing little to no benefit. Equal consecutive keys are allowed, since
+ * a key value is not required to be unique across rows.
  */
 public class LeafFileWriter implements AutoCloseable {
 
@@ -106,7 +105,10 @@ public class LeafFileWriter implements AutoCloseable {
                 Locale.ROOT,
                 "Leaf file entries must be added in non-decreasing (transform_value, key_value) "
                     + "order: entry (%s, %s) is out of order after (%s, %s)",
-                entry.transformValue(), entry.keyValue(), lastTransformValue, lastKeyValue));
+                entry.transformValue(),
+                entry.keyValue(),
+                lastTransformValue,
+                lastKeyValue));
       }
     }
     this.hasWritten = true;
@@ -128,4 +130,3 @@ public class LeafFileWriter implements AutoCloseable {
     }
   }
 }
-

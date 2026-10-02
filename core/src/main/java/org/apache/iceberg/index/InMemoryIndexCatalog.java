@@ -68,8 +68,7 @@ public class InMemoryIndexCatalog implements IndexCatalog {
   }
 
   @Override
-  public void updateIndex(
-      IndexIdentifier identifier, IndexMetadata base, IndexMetadata updated) {
+  public void updateIndex(IndexIdentifier identifier, IndexMetadata base, IndexMetadata updated) {
     Preconditions.checkNotNull(identifier, "identifier is required");
     Preconditions.checkNotNull(base, "base metadata is required");
     Preconditions.checkNotNull(updated, "updated metadata is required");
@@ -80,24 +79,23 @@ public class InMemoryIndexCatalog implements IndexCatalog {
     // Optimistic concurrency: only update if the current location matches base
     boolean replaced =
         store.compute(
-            identifier,
-            (key, current) -> {
-              if (current == null) {
-                throw new NoSuchTableException("Index does not exist: %s", identifier);
-              }
-              if (!Objects.equals(
-                  current.metadataFileLocation(), base.metadataFileLocation())) {
-                return null; // signal conflict
-              }
-              return updated;
-            })
+                identifier,
+                (key, current) -> {
+                  if (current == null) {
+                    throw new NoSuchTableException("Index does not exist: %s", identifier);
+                  }
+                  if (!Objects.equals(
+                      current.metadataFileLocation(), base.metadataFileLocation())) {
+                    return null; // signal conflict
+                  }
+                  return updated;
+                })
             != null;
 
     if (!replaced) {
       throw new ConcurrentModificationException(
           String.format(
-              "Cannot update index %s: current metadata location has changed. "
-                  + "Expected: %s",
+              "Cannot update index %s: current metadata location has changed. " + "Expected: %s",
               identifier, base.metadataFileLocation()));
     }
   }

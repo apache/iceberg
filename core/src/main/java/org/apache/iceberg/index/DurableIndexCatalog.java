@@ -38,25 +38,25 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
- * {@link IndexCatalog} implementation that persists each index's current metadata-file pointer
- * as a small file under the table's own location, so registrations survive a process restart --
- * unlike {@link InMemoryIndexCatalog}, which loses them.
+ * {@link IndexCatalog} implementation that persists each index's current metadata-file pointer as a
+ * small file under the table's own location, so registrations survive a process restart -- unlike
+ * {@link InMemoryIndexCatalog}, which loses them.
  *
  * <p>The index metadata, tracking, and leaf files an index build produces are already written to
  * durable storage regardless of which {@link IndexCatalog} is used ({@link ScalarIndexCommitter}
  * writes them directly via {@link FileIO}). What is not durable without this class is purely the
- * pointer telling a fresh process where to find the current metadata file for a given index name
- * -- exactly the gap this fills. One pointer file per index name, at {@code
+ * pointer telling a fresh process where to find the current metadata file for a given index name --
+ * exactly the gap this fills. One pointer file per index name, at {@code
  * <tableLocation>/metadata/scalar-indexes/<tableUuid>/<indexName>.pointer}, containing just the
  * current metadata file's location as plain text.
  *
  * <p>Scoped by the table's UUID, not just its location: a table's location string can be reused
- * across a drop and recreate (most catalogs do not guarantee purging files this class does not
- * know about on drop, since they are outside Iceberg's own metadata/manifest tracking entirely),
- * and without the UUID a fresh table at a reused location would silently pick up a previous,
- * logically unrelated table's index registrations. {@link
- * org.apache.iceberg.spark.SparkIndexCatalogs} already keys its own in-memory cache of {@link
- * IndexCatalog} instances by table UUID for the same reason -- this mirrors that.
+ * across a drop and recreate (most catalogs do not guarantee purging files this class does not know
+ * about on drop, since they are outside Iceberg's own metadata/manifest tracking entirely), and
+ * without the UUID a fresh table at a reused location would silently pick up a previous, logically
+ * unrelated table's index registrations. Spark's {@code SparkIndexCatalogs} already keys its own
+ * in-memory cache of {@link IndexCatalog} instances by table UUID for the same reason -- this
+ * mirrors that.
  *
  * <p>Optimistic concurrency is read-then-conditional-write against that pointer file, not a
  * cross-process lock -- adequate for the same single-writer-at-a-time assumption {@link
@@ -128,7 +128,8 @@ public class DurableIndexCatalog implements IndexCatalog {
           String.format(
               Locale.ROOT,
               "Cannot update index %s: current metadata location has changed. Expected: %s",
-              identifier, base.metadataFileLocation()));
+              identifier,
+              base.metadataFileLocation()));
     }
     writePointer(identifier, updated.metadataFileLocation());
   }
@@ -154,7 +155,8 @@ public class DurableIndexCatalog implements IndexCatalog {
     if (!(io instanceof SupportsPrefixOperations)) {
       throw new UnsupportedOperationException(
           "listIndexes requires a FileIO that supports prefix listing (SupportsPrefixOperations),"
-              + " but got: " + io.getClass().getName());
+              + " but got: "
+              + io.getClass().getName());
     }
 
     List<IndexMetadata> indexes = Lists.newArrayList();

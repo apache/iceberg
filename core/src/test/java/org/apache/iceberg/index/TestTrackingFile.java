@@ -24,14 +24,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.List;
-import org.apache.avro.file.DataFileStream;
-import org.apache.avro.file.DataFileWriter;
-import org.apache.avro.generic.GenericData;
-import org.apache.avro.generic.GenericDatumReader;
-import org.apache.avro.generic.GenericDatumWriter;
-import org.apache.avro.generic.GenericRecord;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -183,17 +176,29 @@ public class TestTrackingFile {
 
   @Test
   void roundTripMultipleEntries() {
-    List<TrackingFileEntry> entries = List.of(
-        TrackingFileEntry.builder()
-            .location("s3://.../leaf-0.parquet").recordCount(500)
-            .fileSizeInBytes(1024).transformValueLowerBound(0).transformValueUpperBound(63).build(),
-        TrackingFileEntry.builder()
-            .location("s3://.../leaf-1.parquet").recordCount(600)
-            .fileSizeInBytes(2048).transformValueLowerBound(64).transformValueUpperBound(127).build(),
-        TrackingFileEntry.builder()
-            .location("s3://.../leaf-2.parquet").recordCount(700)
-            .fileSizeInBytes(3072).transformValueLowerBound(128).transformValueUpperBound(255).build()
-    );
+    List<TrackingFileEntry> entries =
+        List.of(
+            TrackingFileEntry.builder()
+                .location("s3://.../leaf-0.parquet")
+                .recordCount(500)
+                .fileSizeInBytes(1024)
+                .transformValueLowerBound(0)
+                .transformValueUpperBound(63)
+                .build(),
+            TrackingFileEntry.builder()
+                .location("s3://.../leaf-1.parquet")
+                .recordCount(600)
+                .fileSizeInBytes(2048)
+                .transformValueLowerBound(64)
+                .transformValueUpperBound(127)
+                .build(),
+            TrackingFileEntry.builder()
+                .location("s3://.../leaf-2.parquet")
+                .recordCount(700)
+                .fileSizeInBytes(3072)
+                .transformValueLowerBound(128)
+                .transformValueUpperBound(255)
+                .build());
 
     List<TrackingFileEntry> restored = writeAndRead(entries);
     assertThat(restored).hasSize(3);
@@ -204,14 +209,29 @@ public class TestTrackingFile {
 
   @Test
   void readMatchingFiltersCorrectly() {
-    List<TrackingFileEntry> entries = List.of(
-        TrackingFileEntry.builder().location("leaf-0.parquet").recordCount(100)
-            .fileSizeInBytes(1024).transformValueLowerBound(0).transformValueUpperBound(63).build(),
-        TrackingFileEntry.builder().location("leaf-1.parquet").recordCount(100)
-            .fileSizeInBytes(1024).transformValueLowerBound(64).transformValueUpperBound(127).build(),
-        TrackingFileEntry.builder().location("leaf-2.parquet").recordCount(100)
-            .fileSizeInBytes(1024).transformValueLowerBound(128).transformValueUpperBound(255).build()
-    );
+    List<TrackingFileEntry> entries =
+        List.of(
+            TrackingFileEntry.builder()
+                .location("leaf-0.parquet")
+                .recordCount(100)
+                .fileSizeInBytes(1024)
+                .transformValueLowerBound(0)
+                .transformValueUpperBound(63)
+                .build(),
+            TrackingFileEntry.builder()
+                .location("leaf-1.parquet")
+                .recordCount(100)
+                .fileSizeInBytes(1024)
+                .transformValueLowerBound(64)
+                .transformValueUpperBound(127)
+                .build(),
+            TrackingFileEntry.builder()
+                .location("leaf-2.parquet")
+                .recordCount(100)
+                .fileSizeInBytes(1024)
+                .transformValueLowerBound(128)
+                .transformValueUpperBound(255)
+                .build());
 
     InMemoryOutputFile outputFile = new InMemoryOutputFile("test://tracking.avro");
     try (TrackingFileWriter writer = new TrackingFileWriter(outputFile)) {
@@ -237,10 +257,22 @@ public class TestTrackingFile {
   void writerCountsEntries() {
     InMemoryOutputFile outputFile = new InMemoryOutputFile("test://tracking.avro");
     try (TrackingFileWriter writer = new TrackingFileWriter(outputFile)) {
-      writer.add(TrackingFileEntry.builder().location("a.parquet").recordCount(1)
-          .fileSizeInBytes(100).transformValueLowerBound(0).transformValueUpperBound(10).build());
-      writer.add(TrackingFileEntry.builder().location("b.parquet").recordCount(2)
-          .fileSizeInBytes(200).transformValueLowerBound(11).transformValueUpperBound(20).build());
+      writer.add(
+          TrackingFileEntry.builder()
+              .location("a.parquet")
+              .recordCount(1)
+              .fileSizeInBytes(100)
+              .transformValueLowerBound(0)
+              .transformValueUpperBound(10)
+              .build());
+      writer.add(
+          TrackingFileEntry.builder()
+              .location("b.parquet")
+              .recordCount(2)
+              .fileSizeInBytes(200)
+              .transformValueLowerBound(11)
+              .transformValueUpperBound(20)
+              .build());
       assertThat(writer.entryCount()).isEqualTo(2);
     }
   }

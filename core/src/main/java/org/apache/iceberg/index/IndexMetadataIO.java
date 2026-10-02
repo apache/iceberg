@@ -33,10 +33,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 /**
  * Reads and writes {@link IndexMetadata} JSON files using Iceberg's {@link FileIO}.
  *
- * <p>Metadata file naming follows the pattern:
- * {@code {index_location}/metadata/{version:05d}-{uuid}.metadata.json}
+ * <p>Metadata file naming follows the pattern: {@code
+ * {index_location}/metadata/{version:05d}-{uuid}.metadata.json}
  *
- * <p>Example: {@code s3://warehouse/db/orders/index/order_id_idx/metadata/00001-abc123.metadata.json}
+ * <p>Example: {@code
+ * s3://warehouse/db/orders/index/order_id_idx/metadata/00001-abc123.metadata.json}
  */
 public class IndexMetadataIO {
 
@@ -62,8 +63,7 @@ public class IndexMetadataIO {
           .metadataFileLocation(metadataLocation)
           .build();
     } catch (IOException e) {
-      throw new UncheckedIOException(
-          "Failed to read index metadata from: " + metadataLocation, e);
+      throw new UncheckedIOException("Failed to read index metadata from: " + metadataLocation, e);
     }
   }
 
@@ -104,6 +104,8 @@ public class IndexMetadataIO {
     return String.format(
         Locale.ROOT,
         "%s/metadata/%05d-%s.metadata.json",
-        indexLocation.replaceAll("/$", ""), version, uuid);
+        indexLocation.replaceAll("/$", ""),
+        version,
+        uuid);
   }
 }

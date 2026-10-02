@@ -23,7 +23,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
-import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -34,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  * Commits a completed index build to the {@link IndexCatalog}.
  *
  * <p>Given a list of {@link LeafFileMetadata} produced by the Spark build job, this class:
+ *
  * <ol>
  *   <li>Writes the tracking file (Avro) to the index metadata directory.
  *   <li>Creates a new {@link IndexSnapshot} pointing to the tracking file.
@@ -41,8 +41,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
  *   <li>Atomically registers or updates the index in the {@link IndexCatalog}.
  * </ol>
  *
- * <p>The commit is optimistic: if another writer has already committed a newer version,
- * {@link java.util.ConcurrentModificationException} is thrown and the caller should retry.
+ * <p>The commit is optimistic: if another writer has already committed a newer version, {@link
+ * java.util.ConcurrentModificationException} is thrown and the caller should retry.
  */
 public class ScalarIndexCommitter {
 
@@ -170,6 +170,8 @@ public class ScalarIndexCommitter {
     return String.format(
         Locale.ROOT,
         "%s/metadata/tracking-%05d-%s.avro",
-        indexLocation.replaceAll("/$", ""), version, suffix);
+        indexLocation.replaceAll("/$", ""),
+        version,
+        suffix);
   }
 }

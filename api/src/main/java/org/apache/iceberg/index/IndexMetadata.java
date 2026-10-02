@@ -72,8 +72,7 @@ public interface IndexMetadata {
   List<Integer> keyColumnIds();
 
   /**
-   * Optional source-table column IDs copied into the index for read convenience (included
-   * columns).
+   * Optional source-table column IDs copied into the index for read convenience (included columns).
    *
    * <p>These columns are stored in leaf files but do not affect index organization. Used to serve
    * covering queries without reading the source table.
@@ -81,8 +80,7 @@ public interface IndexMetadata {
   List<Integer> includedColumnIds();
 
   /**
-   * Optional index-level properties, e.g. {@code hash.num-buckets}, {@code
-   * ivf.distance-function}.
+   * Optional index-level properties, e.g. {@code hash.num-buckets}, {@code ivf.distance-function}.
    *
    * @return an unmodifiable map of string properties, never null
    */

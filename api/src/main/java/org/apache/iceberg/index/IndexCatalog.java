@@ -27,8 +27,8 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
  * Catalog interface for managing secondary indexes on Iceberg tables.
  *
  * <p>An index catalog stores a pointer to the current index metadata file for each registered
- * index. Commits are atomic: {@link #updateIndex} replaces the metadata pointer only if the
- * current pointer still matches the base that the caller read.
+ * index. Commits are atomic: {@link #updateIndex} replaces the metadata pointer only if the current
+ * pointer still matches the base that the caller read.
  */
 public interface IndexCatalog {
 
@@ -53,9 +53,9 @@ public interface IndexCatalog {
   /**
    * Atomically replace the current index metadata.
    *
-   * <p>The update succeeds only if the current metadata file location matches
-   * {@code base.metadataFileLocation()}. If another writer has already committed a newer version,
-   * this call throws {@link java.util.ConcurrentModificationException}.
+   * <p>The update succeeds only if the current metadata file location matches {@code
+   * base.metadataFileLocation()}. If another writer has already committed a newer version, this
+   * call throws {@link java.util.ConcurrentModificationException}.
    *
    * @param identifier the index identifier
    * @param base the metadata the caller read (used for optimistic concurrency check)

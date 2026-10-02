@@ -37,11 +37,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Unlike {@link TestInMemoryIndexCatalog}, uses a real {@link FileIO} against a real temp
- * directory (not opaque {@code s3://} strings) since {@link DurableIndexCatalog} actually reads
- * and writes pointer files and index metadata, and the whole point being tested is that a fresh
- * instance -- standing in for a process restart, sharing no in-memory state with the one that
- * wrote -- can still find what was registered.
+ * Unlike {@link TestInMemoryIndexCatalog}, uses a real {@link FileIO} against a real temp directory
+ * (not opaque {@code s3://} strings) since {@link DurableIndexCatalog} actually reads and writes
+ * pointer files and index metadata, and the whole point being tested is that a fresh instance --
+ * standing in for a process restart, sharing no in-memory state with the one that wrote -- can
+ * still find what was registered.
  */
 public class TestDurableIndexCatalog {
 
@@ -190,8 +190,7 @@ public class TestDurableIndexCatalog {
 
   @Test
   void dropNonExistentThrows() {
-    assertThatThrownBy(() -> newCatalog().dropIndex(IDX))
-        .isInstanceOf(NoSuchTableException.class);
+    assertThatThrownBy(() -> newCatalog().dropIndex(IDX)).isInstanceOf(NoSuchTableException.class);
   }
 
   @Test

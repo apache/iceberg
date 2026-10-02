@@ -23,9 +23,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 /**
  * Metadata about a leaf file written during index build.
  *
- * <p>Captures the path, size, record count, and transform-value bounds of
- * one leaf file. These fields are written to the tracking file so the planner
- * can select the right leaf files at planning time without opening them.
+ * <p>Captures the path, size, record count, and transform-value bounds of one leaf file. These
+ * fields are written to the tracking file so the planner can select the right leaf files at
+ * planning time without opening them.
  */
 public class LeafFileMetadata {
 
@@ -47,7 +47,8 @@ public class LeafFileMetadata {
     Preconditions.checkArgument(
         transformValueMin <= transformValueMax,
         "transformValueMin (%s) must be <= transformValueMax (%s)",
-        transformValueMin, transformValueMax);
+        transformValueMin,
+        transformValueMax);
     this.path = path;
     this.fileFormat = fileFormat != null ? fileFormat : "parquet";
     this.recordCount = recordCount;

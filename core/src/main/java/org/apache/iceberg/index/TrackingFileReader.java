@@ -32,9 +32,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 /**
  * Reads a tracking file written by {@link TrackingFileWriter}.
  *
- * <p>Uses Avro's {@link DataFileStream} for sequential streaming reads from Iceberg's
- * {@link InputFile} — no random access required, which keeps compatibility with object stores
- * where seeking is expensive.
+ * <p>Uses Avro's {@link DataFileStream} for sequential streaming reads from Iceberg's {@link
+ * InputFile} — no random access required, which keeps compatibility with object stores where
+ * seeking is expensive.
  */
 public class TrackingFileReader {
 
@@ -56,8 +56,7 @@ public class TrackingFileReader {
         entries.add(fromRecord(stream.next()));
       }
     } catch (IOException e) {
-      throw new UncheckedIOException(
-          "Failed to read tracking file: " + inputFile.location(), e);
+      throw new UncheckedIOException("Failed to read tracking file: " + inputFile.location(), e);
     }
     return entries;
   }
@@ -90,8 +89,7 @@ public class TrackingFileReader {
         }
       }
     } catch (IOException e) {
-      throw new UncheckedIOException(
-          "Failed to read tracking file: " + inputFile.location(), e);
+      throw new UncheckedIOException("Failed to read tracking file: " + inputFile.location(), e);
     }
     return matches;
   }

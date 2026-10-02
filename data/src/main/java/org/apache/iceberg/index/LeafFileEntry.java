@@ -26,9 +26,9 @@ import org.apache.iceberg.types.Types;
  * A single row of a SCALAR index leaf file: an indexed key value mapped to its exact source row
  * location.
  *
- * <p>Leaf files are standard Iceberg data files (Parquet). Each row's key value keeps the
- * original field ID from the source table's schema; {@link #keyValue()} can be a {@code String},
- * {@code Long}, or {@code Integer}, matching the types {@link HashTransform} supports.
+ * <p>Leaf files are standard Iceberg data files (Parquet). Each row's key value keeps the original
+ * field ID from the source table's schema; {@link #keyValue()} can be a {@code String}, {@code
+ * Long}, or {@code Integer}, matching the types {@link HashTransform} supports.
  */
 public class LeafFileEntry {
 
@@ -44,9 +44,8 @@ public class LeafFileEntry {
   public static final String POSITION_FIELD_NAME = "position";
 
   /**
-   * Build the leaf-file Parquet schema: the source table's key column (original field ID and
-   * type preserved), followed by {@code transform_value}, {@code file_path}, and {@code
-   * position}.
+   * Build the leaf-file Parquet schema: the source table's key column (original field ID and type
+   * preserved), followed by {@code transform_value}, {@code file_path}, and {@code position}.
    *
    * <p>The writer and reader must always build this schema from the same {@code keyField} to stay
    * in sync — the field IDs and names for the three synthetic columns are fixed constants above,
@@ -75,8 +74,10 @@ public class LeafFileEntry {
     this.position = position;
   }
 
-  /** The indexed key value, in the source table's original type ({@code String}, {@code Long},
-   * or {@code Integer}). */
+  /**
+   * The indexed key value, in the source table's original type ({@code String}, {@code Long}, or
+   * {@code Integer}).
+   */
   public Object keyValue() {
     return keyValue;
   }
@@ -91,8 +92,10 @@ public class LeafFileEntry {
     return filePath;
   }
 
-  /** The row's ordinal position within {@link #filePath()}, matching Iceberg's position-delete
-   * semantics (0-indexed, in file-scan order). */
+  /**
+   * The row's ordinal position within {@link #filePath()}, matching Iceberg's position-delete
+   * semantics (0-indexed, in file-scan order).
+   */
   public long position() {
     return position;
   }
@@ -129,8 +132,7 @@ public class LeafFileEntry {
 
     public LeafFileEntry build() {
       Preconditions.checkArgument(keyValue != null, "keyValue is required");
-      Preconditions.checkArgument(
-          filePath != null && !filePath.isEmpty(), "filePath is required");
+      Preconditions.checkArgument(filePath != null && !filePath.isEmpty(), "filePath is required");
       Preconditions.checkArgument(position >= 0, "position must be >= 0, got: %s", position);
       return new LeafFileEntry(keyValue, transformValue, filePath, position);
     }

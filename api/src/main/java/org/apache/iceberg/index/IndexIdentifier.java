@@ -41,8 +41,7 @@ public class IndexIdentifier {
 
   public static IndexIdentifier of(TableIdentifier tableIdentifier, String name) {
     Preconditions.checkNotNull(tableIdentifier, "tableIdentifier is required");
-    Preconditions.checkArgument(
-        name != null && !name.isEmpty(), "index name must be non-empty");
+    Preconditions.checkArgument(name != null && !name.isEmpty(), "index name must be non-empty");
     return new IndexIdentifier(tableIdentifier, name);
   }
 
@@ -59,8 +58,7 @@ public class IndexIdentifier {
     if (this == o) return true;
     if (!(o instanceof IndexIdentifier)) return false;
     IndexIdentifier that = (IndexIdentifier) o;
-    return Objects.equals(tableIdentifier, that.tableIdentifier)
-        && Objects.equals(name, that.name);
+    return Objects.equals(tableIdentifier, that.tableIdentifier) && Objects.equals(name, that.name);
   }
 
   @Override

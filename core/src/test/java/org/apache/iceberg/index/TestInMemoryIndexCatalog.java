@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import java.util.ConcurrentModificationException;
 import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
@@ -35,8 +34,7 @@ import org.junit.jupiter.api.Test;
 public class TestInMemoryIndexCatalog {
 
   private static final TableIdentifier TABLE = TableIdentifier.of(Namespace.of("db"), "orders");
-  private static final IndexIdentifier IDX =
-      IndexIdentifier.of(TABLE, "order_id_idx");
+  private static final IndexIdentifier IDX = IndexIdentifier.of(TABLE, "order_id_idx");
 
   private InMemoryIndexCatalog catalog;
 
@@ -128,8 +126,7 @@ public class TestInMemoryIndexCatalog {
 
     catalog.dropIndex(IDX);
     assertThat(catalog.indexExists(IDX)).isFalse();
-    assertThatThrownBy(() -> catalog.loadIndex(IDX))
-        .isInstanceOf(NoSuchTableException.class);
+    assertThatThrownBy(() -> catalog.loadIndex(IDX)).isInstanceOf(NoSuchTableException.class);
   }
 
   @Test

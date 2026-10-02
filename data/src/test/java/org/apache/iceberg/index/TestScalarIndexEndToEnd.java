@@ -40,10 +40,10 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Exercises the full SCALAR index chain as one flow: build leaf files, commit them through {@link
  * ScalarIndexCommitter}, then look up a key exactly the way a planner would -- compute its
- * transform value, narrow to candidate leaf files via the tracking file, then resolve the exact
- * row within those leaf files. Everything upstream and downstream of this (a real source table, a
- * real Spark build job, real query planning) is out of scope; this only proves the pieces we've
- * built work together correctly, not that they're wired into any engine yet.
+ * transform value, narrow to candidate leaf files via the tracking file, then resolve the exact row
+ * within those leaf files. Everything upstream and downstream of this (a real source table, a real
+ * Spark build job, real query planning) is out of scope; this only proves the pieces we've built
+ * work together correctly, not that they're wired into any engine yet.
  */
 public class TestScalarIndexEndToEnd {
 

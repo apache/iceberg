@@ -38,8 +38,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * belonging to an index snapshot, with transform-value bounds per leaf file used for planning-time
  * pruning.
  *
- * <p>Uses Avro's {@link DataFileWriter} writing to Iceberg's {@link OutputFile}, following the
- * same pattern as Iceberg's own manifest writers.
+ * <p>Uses Avro's {@link DataFileWriter} writing to Iceberg's {@link OutputFile}, following the same
+ * pattern as Iceberg's own manifest writers.
  */
 public class TrackingFileWriter implements AutoCloseable {
 
@@ -89,9 +89,7 @@ public class TrackingFileWriter implements AutoCloseable {
     record.put("file_size_in_bytes", entry.fileSizeInBytes());
     record.put("transform_value_lower_bound", entry.transformValueLowerBound());
     record.put("transform_value_upper_bound", entry.transformValueUpperBound());
-    record.put(
-        "key_metadata",
-        entry.keyMetadata() != null ? entry.keyMetadata() : null);
+    record.put("key_metadata", entry.keyMetadata() != null ? entry.keyMetadata() : null);
     try {
       writer.append(record);
       entryCount++;
