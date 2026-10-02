@@ -248,13 +248,8 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
         limit);
 
     if (table().currentSnapshot() == null) {
-      LOG.info("latestOffset returning START_OFFSET, currentSnapshot() is null");
-      return StreamingOffset.START_OFFSET;
-    }
-
-    if (table().currentSnapshot().timestampMillis() < readConf().streamFromTimestamp()) {
-      LOG.info("latestOffset returning START_OFFSET, currentSnapshot() < fromTimestamp");
-      return StreamingOffset.START_OFFSET;
+      LOG.info("latestOffset returning null, currentSnapshot() is null");
+      return null;
     }
 
     // if any exceptions were encountered in the background process, raise them here

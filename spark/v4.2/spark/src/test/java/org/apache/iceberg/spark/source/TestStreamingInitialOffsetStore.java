@@ -117,7 +117,7 @@ class TestStreamingInitialOffsetStore {
   }
 
   @Test
-  void restoresStartOffsetWithoutReinitializing() {
+  void rederivesStartOffsetUntilResolved() {
     AtomicInteger initializations = new AtomicInteger();
     StreamingInitialOffsetStore firstStore =
         new StreamingInitialOffsetStore(
@@ -129,6 +129,19 @@ class TestStreamingInitialOffsetStore {
             });
 
     assertThat(firstStore.initialOffset()).isEqualTo(StreamingOffset.START_OFFSET);
+    assertThat(checkpointDir.resolve("offsets/0")).doesNotExist();
+
+    StreamingOffset resolved = new StreamingOffset(34L, 0L, false);
+    StreamingInitialOffsetStore secondStore =
+        new StreamingInitialOffsetStore(
+            checkpointDir.toString(),
+            new Configuration(),
+            () -> {
+              initializations.incrementAndGet();
+              return resolved;
+            });
+
+    assertThat(secondStore.initialOffset()).isEqualTo(resolved);
 
     StreamingInitialOffsetStore restoredStore =
         new StreamingInitialOffsetStore(
@@ -136,10 +149,24 @@ class TestStreamingInitialOffsetStore {
             new Configuration(),
             () -> {
               initializations.incrementAndGet();
-              return new StreamingOffset(34L, 0L, false);
+              return StreamingOffset.START_OFFSET;
             });
 
-    assertThat(restoredStore.initialOffset()).isEqualTo(StreamingOffset.START_OFFSET);
-    assertThat(initializations).hasValue(1);
+    assertThat(restoredStore.initialOffset()).isEqualTo(resolved);
+    assertThat(initializations).hasValue(2);
+  }
+
+  @Test
+  void replacesStoredStartOffsetOnceResolved() throws IOException {
+    Path offsetFile = checkpointDir.resolve("offsets/0");
+    Files.createDirectories(offsetFile.getParent());
+    Files.writeString(offsetFile, StreamingOffset.START_OFFSET.json());
+    StreamingOffset resolved = new StreamingOffset(34L, 0L, false);
+    StreamingInitialOffsetStore store =
+        new StreamingInitialOffsetStore(
+            checkpointDir.toString(), new Configuration(), () -> resolved);
+
+    assertThat(store.initialOffset()).isEqualTo(resolved);
+    assertThat(offsetFile).hasContent(resolved.json());
   }
 }
