@@ -100,6 +100,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -689,6 +690,177 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
               ExceptionUtils.findThrowable(
                   e, t -> t.getMessage().contains("Cannot change column type: id: int -> string")))
           .isNotEmpty();
+    }
+  }
+
+  @Test
+  void testWriteVariant() throws Exception {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "payload", Types.VariantType.get()));
+    createV3Table("t1", schema);
+
+    executeVariantSink(
+        Lists.newArrayList(new VariantInput(schema, 1), new VariantInput(schema, 2)), this.env);
+
+    assertVariantPayloads(ImmutableMap.of(1, 1L, 2, 2L));
+  }
+
+  @Test
+  void testSchemaEvolutionAddVariantField() throws Exception {
+    Schema variantSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()),
+            Types.NestedField.optional(3, "payload", Types.VariantType.get()));
+    createV3Table("t1", SimpleDataUtil.SCHEMA);
+
+    executeVariantSink(
+        Lists.newArrayList(
+            new VariantInput(SimpleDataUtil.SCHEMA, 1), new VariantInput(variantSchema, 2)),
+        this.env);
+
+    Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, "t1"));
+    assertThat(table.schema().findField("payload").type()).isEqualTo(Types.VariantType.get());
+    Map<Integer, Long> expected = Maps.newHashMap();
+    expected.put(1, null);
+    expected.put(2, 2L);
+    assertVariantPayloads(expected);
+  }
+
+  @Test
+  void testSchemaEvolutionStringToVariantFails() throws Exception {
+    assertIncompatibleVariantEvolution(
+        Types.StringType.get(),
+        Types.VariantType.get(),
+        "Cannot change column type: payload: string -> variant");
+  }
+
+  @Test
+  void testSchemaEvolutionVariantToStringFails() throws Exception {
+    assertIncompatibleVariantEvolution(
+        Types.VariantType.get(),
+        Types.StringType.get(),
+        "Cannot change column type: payload: variant -> string");
+  }
+
+  private void assertIncompatibleVariantEvolution(
+      Type tableType, Type writeType, String expectedMessage) throws Exception {
+    Schema tableSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "payload", tableType));
+    Schema writeSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "payload", writeType));
+    createV3Table("t1", tableSchema);
+
+    try {
+      executeVariantSink(
+          Lists.newArrayList(new VariantInput(writeSchema, 1)),
+          StreamExecutionEnvironment.getExecutionEnvironment());
+      fail();
+    } catch (JobExecutionException e) {
+      assertThat(
+              ExceptionUtils.findThrowable(
+                  e, t -> t.getMessage() != null && t.getMessage().contains(expectedMessage)))
+          .isNotEmpty();
+    }
+  }
+
+  private static void createV3Table(String name, Schema schema) {
+    CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TableIdentifier.of(DATABASE, name),
+            schema,
+            PartitionSpec.unpartitioned(),
+            null,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
+  }
+
+  private static void executeVariantSink(List<VariantInput> inputs, StreamExecutionEnvironment env)
+      throws Exception {
+    DataStream<VariantInput> dataStream =
+        env.fromData(inputs, TypeInformation.of(new TypeHint<>() {}));
+    env.setParallelism(1);
+    DynamicIcebergSink.forInput(dataStream)
+        .generator(new VariantGenerator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .writeParallelism(1)
+        .immediateTableUpdate(true)
+        .append();
+    env.execute("Test Iceberg Variant DataStream");
+  }
+
+  /** Reads table t1 and checks the "k" field of each row's variant payload, keyed by row id. */
+  private static void assertVariantPayloads(Map<Integer, Long> expectedById) throws IOException {
+    Map<Integer, Long> actualById = Maps.newHashMap();
+    try (CloseableIterable<Record> records =
+        IcebergGenerics.read(
+                CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, "t1")))
+            .build()) {
+      for (Record record : records) {
+        org.apache.iceberg.variants.Variant payload =
+            (org.apache.iceberg.variants.Variant) record.getField("payload");
+        actualById.put(
+            (Integer) record.getField("id"),
+            payload == null
+                ? null
+                : (Long) payload.value().asObject().get("k").asPrimitive().get());
+      }
+    }
+
+    assertThat(actualById).isEqualTo(expectedById);
+  }
+
+  /** Input for the variant tests; the row is built in {@link VariantGenerator}. */
+  private static class VariantInput implements Serializable {
+    private final Schema schema;
+    private final int id;
+
+    VariantInput(Schema schema, int id) {
+      this.schema = schema;
+      this.id = id;
+    }
+  }
+
+  /**
+   * Builds RowData directly, because the legacy DataFormatConverters used by {@link Generator} do
+   * not support VARIANT. Variant payloads are {"k": id}.
+   */
+  private static class VariantGenerator implements DynamicRecordGenerator<VariantInput> {
+    @Override
+    public void generate(VariantInput input, Collector<DynamicRecord> out) {
+      List<Types.NestedField> columns = input.schema.columns();
+      GenericRowData row = new GenericRowData(columns.size());
+      for (int i = 0; i < columns.size(); i++) {
+        Types.NestedField column = columns.get(i);
+        if (column.type().isVariantType()) {
+          row.setField(
+              i,
+              org.apache.flink.types.variant.Variant.newBuilder()
+                  .object()
+                  .add("k", org.apache.flink.types.variant.Variant.newBuilder().of((long) input.id))
+                  .build());
+        } else if (column.type().typeId() == Type.TypeID.INTEGER) {
+          row.setField(i, input.id);
+        } else {
+          row.setField(i, StringData.fromString(column.name() + "-" + input.id));
+        }
+      }
+
+      out.collect(
+          new DynamicRecord(
+              TableIdentifier.of(DATABASE, "t1"),
+              SnapshotRef.MAIN_BRANCH,
+              input.schema,
+              row,
+              PartitionSpec.unpartitioned(),
+              DistributionMode.NONE,
+              1));
     }
   }
 
