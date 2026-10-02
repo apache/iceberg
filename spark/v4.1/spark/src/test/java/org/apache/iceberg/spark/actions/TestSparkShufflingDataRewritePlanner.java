@@ -66,6 +66,7 @@ public class TestSparkShufflingDataRewritePlanner extends TestBase {
         .isEqualTo(
             ImmutableSet.of(
                 SparkShufflingDataRewritePlanner.COMPRESSION_FACTOR,
+                SparkShufflingDataRewritePlanner.MIN_OVERLAP_DEPTH,
                 SparkShufflingDataRewritePlanner.TARGET_FILE_SIZE_BYTES,
                 SparkShufflingDataRewritePlanner.MIN_FILE_SIZE_BYTES,
                 SparkShufflingDataRewritePlanner.MAX_FILE_SIZE_BYTES,
