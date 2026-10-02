@@ -731,7 +731,7 @@ Only a constraint's `name` and `enforced` fields may be changed in place, and a 
 
 #### Constraint Validation
 
-Enforcement and validation are separate properties. Whether writers must verify the rows that they add is a property of a constraint, tracked by `enforced`. Whether a table is known to satisfy a constraint is a property of a table's data, tracked per snapshot by `constraint-statuses`.
+Enforcement and constraint status are tracked separately. Whether writers must verify the rows that they add is a property of a constraint, tracked by `enforced`. Whether a table is known to satisfy a constraint is a property of a table's data, tracked per snapshot by `constraint-statuses`.
 
 The status of a constraint for a snapshot is one of:
 
