@@ -19,10 +19,12 @@
 package org.apache.iceberg.snowflake;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import java.io.IOException;
 import java.util.Map;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -294,5 +296,36 @@ public class TestSnowflakeCatalog {
     assertThat(catalog.namespaceExists(Namespace.of("DB_1", "SCHEMA_1"))).isTrue();
     assertThat(catalog.namespaceExists(Namespace.of("DB_1", "NONEXISTENT_SCHEMA"))).isFalse();
     assertThat(catalog.namespaceExists(Namespace.of("NONEXISTENT_DB", "SCHEMA_1"))).isFalse();
+  }
+
+  @Test
+  public void testInitializeWithImmutableProperties() throws IOException {
+    catalog = new SnowflakeCatalog();
+    // A caller may legitimately pass an immutable properties map (Map.of()/ImmutableMap.of() is an
+    // idiomatic, contract-legal pattern used throughout the codebase). Initialization must not
+    // require a mutable map.
+    assertThatCode(
+            () ->
+                catalog.initialize(
+                    TEST_CATALOG_NAME,
+                    ImmutableMap.of(
+                        CatalogProperties.URI, "jdbc:snowflake://acct.snowflakecomputing.com")))
+        .doesNotThrowAnyException();
+    catalog.close();
+  }
+
+  @Test
+  public void testInitializeDoesNotMutateCallerProperties() throws IOException {
+    catalog = new SnowflakeCatalog();
+    Map<String, String> callerProperties =
+        ImmutableMap.of(CatalogProperties.URI, "jdbc:snowflake://acct.snowflakecomputing.com");
+    Map<String, String> propertiesPassedToInitialize = Maps.newHashMap(callerProperties);
+
+    catalog.initialize(TEST_CATALOG_NAME, propertiesPassedToInitialize);
+
+    assertThat(propertiesPassedToInitialize)
+        .as("initialize must not mutate the caller-supplied properties map")
+        .isEqualTo(callerProperties);
+    catalog.close();
   }
 }
