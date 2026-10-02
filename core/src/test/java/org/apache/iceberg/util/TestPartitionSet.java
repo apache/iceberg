@@ -80,4 +80,36 @@ public class TestPartitionSet {
     assertThat(set.remove(BY_DATA_CATEGORY_BUCKET_SPEC.specId(), Row.of("a", 1))).isTrue();
     assertThat(set).isEmpty();
   }
+
+  @Test
+  public void testToString() {
+    PartitionSet set = PartitionSet.create(SPECS);
+
+    assertThat(set.toString()).isEqualTo("[]");
+
+    set.add(BY_DATA_SPEC.specId(), Row.of("aaa"));
+    assertThat(set.toString()).isEqualTo("[{data=aaa}]");
+
+    set.add(BY_DATA_SPEC.specId(), CustomRow.of("bbb"));
+    set.add(BY_DATA_CATEGORY_BUCKET_SPEC.specId(), Row.of("ccc", 2));
+    assertThat(set.toString())
+        .as("each partition is rendered as its own group and ordering is not guaranteed in a set")
+        .contains("{data=aaa}", "{data=bbb}", "{data=ccc, category_bucket=2}");
+  }
+
+  @Test
+  public void testToStringWithUnpartitionedSpec() {
+    PartitionSet set = PartitionSet.create(SPECS);
+    set.add(UNPARTITIONED_SPEC.specId(), Row.of());
+
+    assertThat(set.toString()).isEqualTo("[{}]");
+  }
+
+  @Test
+  public void testToStringWithNullPartition() {
+    PartitionSet set = PartitionSet.create(SPECS);
+    set.add(BY_DATA_SPEC.specId(), null);
+
+    assertThat(set.toString()).isEqualTo("[null]");
+  }
 }
