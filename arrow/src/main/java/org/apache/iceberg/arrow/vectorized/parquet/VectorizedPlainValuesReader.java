@@ -74,4 +74,16 @@ class VectorizedPlainValuesReader extends ValuesAsBytesReader implements Vectori
   public void readDoubles(int total, FieldVector vec, int rowId) {
     readValues(total, vec, rowId, DOUBLE_SIZE);
   }
+
+  @Override
+  public boolean supportsBulkFixedLengthRead() {
+    return true;
+  }
+
+  @Override
+  public void readFixedLengthBytes(int total, FieldVector vec, int rowId, int typeWidth) {
+    // Plain FIXED_LEN_BYTE_ARRAY values are stored contiguously with no length prefix, matching the
+    // layout of a FixedSizeBinaryVector data buffer, so the whole run copies in a single memcpy.
+    readValues(total, vec, rowId, typeWidth);
+  }
 }
