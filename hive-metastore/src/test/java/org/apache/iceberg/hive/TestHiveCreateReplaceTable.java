@@ -238,8 +238,8 @@ public class TestHiveCreateReplaceTable {
     // the replace should still succeed
     table = catalog.loadTable(TABLE_IDENTIFIER);
     assertThat(table.properties())
-        .as("Table props should be updated")
-        .doesNotContainKey("another-prop")
+        .as("Replace retry should preserve concurrent property updates")
+        .containsEntry("another-prop", "another-value")
         .containsEntry("prop", "value");
   }
 
