@@ -87,4 +87,15 @@ class TestStructProjection {
 
     assertThat(projection).hasToString("StructProjection{id=1, person=null}");
   }
+
+  @Test
+  void toStringRendersMissingNestedFieldAsNull() {
+    StructProjection projection =
+        StructProjection.createAllowMissing(DATA_STRUCT_MISSING_NESTED_FIELD, PROJECTED_STRUCT);
+    projection.wrap(Row.of(1L, Row.of("John", "Doe")));
+
+    assertThat(projection)
+        .hasToString(
+            "StructProjection{id=1, person=StructProjection{first=John, middle=null, last=Doe}}");
+  }
 }
