@@ -191,6 +191,11 @@ class CommitMetricsResultParser {
       CounterResultParser.toJson(metrics.manifestEntriesProcessed(), gen);
     }
 
+    if (null != metrics.metadataFileSizeInBytes()) {
+      gen.writeFieldName(CommitMetricsResult.METADATA_FILE_SIZE_BYTES);
+      CounterResultParser.toJson(metrics.metadataFileSizeInBytes(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -254,6 +259,8 @@ class CommitMetricsResultParser {
         .manifestsKept(CounterResultParser.fromJson(CommitMetricsResult.KEPT_MANIFESTS_COUNT, json))
         .manifestEntriesProcessed(
             CounterResultParser.fromJson(CommitMetricsResult.PROCESSED_MANIFEST_ENTRY_COUNT, json))
+        .metadataFileSizeInBytes(
+            CounterResultParser.fromJson(CommitMetricsResult.METADATA_FILE_SIZE_BYTES, json))
         .build();
   }
 }

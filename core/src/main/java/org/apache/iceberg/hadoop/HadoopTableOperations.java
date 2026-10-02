@@ -68,6 +68,7 @@ public class HadoopTableOperations implements TableOperations {
   private volatile TableMetadata currentMetadata = null;
   private volatile Integer version = null;
   private volatile boolean shouldRefresh = true;
+  private volatile Long metadataFileSizeInBytes = null;
 
   protected HadoopTableOperations(
       Path location, FileIO fileIO, Configuration conf, LockManager lockManager) {
@@ -152,7 +153,9 @@ public class HadoopTableOperations implements TableOperations {
     TableMetadataParser.Codec codec = TableMetadataParser.Codec.fromName(codecName);
     String fileExtension = TableMetadataParser.getFileExtension(codec);
     Path tempMetadataFile = metadataPath(UUID.randomUUID() + fileExtension);
-    TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
+    this.metadataFileSizeInBytes =
+        TableMetadataParser.writeAndReturnLength(
+            metadata, io().newOutputFile(tempMetadataFile.toString()));
 
     int nextVersion = (current.first() != null ? current.first() : 0) + 1;
     Path finalMetadataFile = metadataFilePath(nextVersion, codec);
@@ -169,6 +172,11 @@ public class HadoopTableOperations implements TableOperations {
     CatalogUtil.deleteRemovedMetadataFiles(io(), base, metadata);
 
     this.shouldRefresh = true;
+  }
+
+  @Override
+  public Long metadataFileSizeInBytes() {
+    return metadataFileSizeInBytes;
   }
 
   @Override

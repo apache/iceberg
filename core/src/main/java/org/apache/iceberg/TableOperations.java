@@ -127,4 +127,17 @@ public interface TableOperations {
   default boolean requireStrictCleanup() {
     return true;
   }
+
+  /**
+   * Returns the size in bytes of the metadata file written for the most recent commit handled by
+   * this table operations instance.
+   *
+   * <p>This value is optional and may be unavailable for implementations that do not write metadata
+   * files directly or cannot determine the final stored length at write time.
+   *
+   * @return metadata file size in bytes, or null if unavailable
+   */
+  default Long metadataFileSizeInBytes() {
+    return null;
+  }
 }
