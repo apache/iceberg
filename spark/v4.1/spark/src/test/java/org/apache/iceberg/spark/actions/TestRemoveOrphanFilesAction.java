@@ -1028,6 +1028,40 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     return current;
   }
 
+    @TestTemplate
+    public void testCompareToFileListDoesNotMatchSiblingPaths() throws IOException {
+        assumeThat(usePrefixListing)
+                .as("Should not test both prefix listing and Hadoop file listing (redundant)")
+                .isEqualTo(false);
+        Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+
+        String sibling1 = tableLocation + "-backup/data/sibling1.parquet";
+        String sibling2 = tableLocation + "_old/data/sibling2.parquet";
+        String insideLocation = tableLocation + "/data/inside.parquet";
+        List<FilePathLastModifiedRecord> mockFiles =
+                Lists.newArrayList(
+                        new FilePathLastModifiedRecord(sibling1, new Timestamp(0L)),
+                        new FilePathLastModifiedRecord(sibling2, new Timestamp(0L)),
+                        new FilePathLastModifiedRecord(insideLocation, new Timestamp(0L)));
+
+        Dataset<Row> compareToFileList =
+                spark
+                        .createDataFrame(mockFiles, FilePathLastModifiedRecord.class)
+                        .withColumnRenamed("filePath", "file_path")
+                        .withColumnRenamed("lastModified", "last_modified");
+
+        DeleteOrphanFiles.Result result =
+                SparkActions.get()
+                        .deleteOrphanFiles(table)
+                        .compareToFileList(compareToFileList)
+                        .olderThan(System.currentTimeMillis())
+                        .deleteWith(s -> {})
+                        .execute();
+
+        assertThat(result.orphanFileLocations()).containsExactly(insideLocation);
+        assertThat(result.orphanFilesCount()).isEqualTo(1L);
+    }
+
   @TestTemplate
   public void testRemoveOrphanFilesWithStatisticFiles() throws Exception {
     assumeThat(usePrefixListing)
