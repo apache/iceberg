@@ -847,7 +847,7 @@ public class RewriteTablePathUtil {
 
   private static void checkNoRowData(Record record, String deleteFilePath) {
     Preconditions.checkArgument(
-        record.get(2) == null,
+        record.size() == 2 || record.get(2) == null,
         "Cannot rewrite position delete file with row data for %s",
         deleteFilePath);
   }
