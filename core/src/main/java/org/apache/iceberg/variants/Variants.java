@@ -57,7 +57,7 @@ public class Variants {
     for (String name : fieldNames) {
       nameBuffers[pos] = ByteBuffer.wrap(name.getBytes(StandardCharsets.UTF_8));
       dataSize += nameBuffers[pos].remaining();
-      if (last != null && last.compareTo(name) >= 0) {
+      if (last != null && VariantMetadata.FIELD_NAME_ORDER.compare(last, name) >= 0) {
         sorted = false;
       }
 
