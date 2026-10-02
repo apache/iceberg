@@ -698,7 +698,7 @@ When a commit is retried against a new parent snapshot, the rows that a writer a
 
 Whether to trust a constraint that is not enforced is left to engines and is not tracked in table metadata.
 
-A table may have at most one `primary-key` constraint. A `primary-key` constraint replaces [identifier field IDs](#identifier-field-ids), which express the same concept: a set of fields that identifies a row, without a uniqueness guarantee. Identifier field IDs are not used in v4.
+A table may have at most one `primary-key` constraint. A `primary-key` constraint replaces [identifier field IDs](#identifier-field-ids), which express the same concept: a set of fields that identifies a row. Iceberg never guaranteed uniqueness for identifier fields and did not track whether it held. A `primary-key` constraint makes both expressible, through `enforced` and `constraint-statuses`. Identifier field IDs are not used in v4.
 
 When a table is upgraded to v4, the `identifier-field-ids` of the table's current schema are rewritten as a single `primary-key` constraint that is not enforced. The constraint is assigned a `constraint-id` from `last-constraint-id` in the same way as any other constraint, its `name` is `pk`, and its `timestamp-ms` is the time of the upgrade. A table whose current schema has no identifier fields has no constraints until they are added. Writers must not set `identifier-field-ids` in a schema that is added to a v4 table, and readers must ignore `identifier-field-ids` in a v4 table.
 
@@ -710,7 +710,7 @@ The `expression` of a `check` constraint is serialized as described in the [Iceb
 
 A check expression is evaluated for each row over the values of that row. An expression may reference more than one field of the row, such as `start_date <= end_date`. Expressions that depend on more than one row, such as aggregates and window functions, and expressions that depend on another table, such as subqueries, must not be used.
 
-A check expression must produce the same result every time it is evaluated for the same row. A function that depends on anything other than its arguments, such as the current time or a random value, must not be called, because the status recorded for a snapshot describes the table's data and an expression whose result can change on its own would make a recorded status wrong without any write. A [user-defined function](udf-spec.md) records whether it is deterministic.
+A check expression must produce the same result every time it is evaluated for the same row. A function that depends on anything other than its arguments, such as the current time or a random value, must not be called, because the status recorded for a snapshot describes the table's data and an expression whose result can change on its own would make a recorded status wrong without any write. A [user-defined function](udf-spec.md) must not be called unless it declares `deterministic` as true.
 
 Changing the definition of a function that a check expression calls changes what the constraint requires even though the constraint itself is unchanged. Statuses recorded before the change do not describe the new definition, so a writer that changes such a function should validate the constraint again.
 
