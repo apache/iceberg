@@ -60,9 +60,7 @@ public class TestVariantMetadataFieldOrdering {
   }
 
   @Test
-  public void utf16OrderedDictionaryFlaggedSortedMissesLookup() {
-    // a dictionary can be flagged sorted_strings yet be laid out in UTF-16 order; the UTF-8 search
-    // then misses the out-of-order name and returns -1 rather than a wrong value
+  public void utf16OrderedDictionaryFlaggedSortedIsFoundViaFallback() {
     ByteBuffer buffer =
         VariantTestUtil.createMetadata(ImmutableList.of(NAME_4_BYTE, NAME_3_BYTE), false);
     buffer.put(0, (byte) (buffer.get(0) | 0b10000));
@@ -70,7 +68,7 @@ public class TestVariantMetadataFieldOrdering {
     SerializedMetadata metadata = SerializedMetadata.from(buffer);
 
     assertThat(metadata.isSorted()).isTrue();
-    assertThat(metadata.id(NAME_3_BYTE)).isEqualTo(-1);
+    assertThat(metadata.id(NAME_3_BYTE)).isEqualTo(1);
     assertThat(metadata.id(NAME_4_BYTE)).isEqualTo(0);
   }
 }

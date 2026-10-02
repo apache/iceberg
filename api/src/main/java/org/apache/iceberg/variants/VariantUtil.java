@@ -100,18 +100,32 @@ class VariantUtil {
   }
 
   static int find(int size, String key, IntFunction<String> resolve) {
-    int low = 0;
-    int high = size - 1;
-    while (low <= high) {
-      int mid = (low + high) >>> 1;
-      String value = resolve.apply(mid);
-      int cmp = VariantMetadata.FIELD_NAME_ORDER.compare(key, value);
-      if (cmp == 0) {
-        return mid;
-      } else if (cmp < 0) {
-        high = mid - 1;
-      } else {
-        low = mid + 1;
+    // retry supplementary-plane keys in UTF-16 order to find fields written in the legacy layout
+    int attempts = 1;
+    for (int i = 0; i < key.length(); i += 1) {
+      if (key.charAt(i) >= Character.MIN_SURROGATE) {
+        attempts = 2;
+        break;
+      }
+    }
+
+    for (int attempt = 0; attempt < attempts; attempt += 1) {
+      int low = 0;
+      int high = size - 1;
+      while (low <= high) {
+        int mid = (low + high) >>> 1;
+        String value = resolve.apply(mid);
+        int cmp =
+            attempt == 0
+                ? VariantMetadata.FIELD_NAME_ORDER.compare(key, value)
+                : key.compareTo(value);
+        if (cmp == 0) {
+          return mid;
+        } else if (cmp < 0) {
+          high = mid - 1;
+        } else {
+          low = mid + 1;
+        }
       }
     }
 
