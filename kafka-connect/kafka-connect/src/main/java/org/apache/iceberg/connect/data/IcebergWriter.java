@@ -57,21 +57,33 @@ class IcebergWriter implements RecordWriter {
 
   @Override
   public void write(SinkRecord record) {
+    Record row = null;
     try {
       // ignore tombstones...
       if (record.value() != null) {
-        Record row = convertToRow(record);
-        writer.write(row);
+        row = convertToRow(record);
       }
     } catch (Exception e) {
+      String recordData =
+          this.config.errorLogIncludeMessages()
+              ? String.format(", record: %s", record.value().toString())
+              : "";
       throw new DataException(
           String.format(
               Locale.ROOT,
-              "An error occurred converting record, topic: %s, partition, %d, offset: %d",
+              "An error occurred converting record, topic: %s, partition, %d, offset: %d%s",
               record.topic(),
               record.kafkaPartition(),
-              record.kafkaOffset()),
+              record.kafkaOffset(),
+              recordData),
           e);
+    }
+    if (row != null) {
+      try {
+        writer.write(row);
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
     }
   }
 
