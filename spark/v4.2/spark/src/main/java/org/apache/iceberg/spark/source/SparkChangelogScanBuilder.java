@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -38,6 +39,12 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
   SparkChangelogScanBuilder(
       SparkSession spark, Table table, Schema schema, CaseInsensitiveStringMap options) {
     super(spark, table, schema, options);
+  }
+
+  @Override
+  protected Schema projectionWithMetadataColumns() {
+    return ChangelogUtil.changelogSchema(
+        ChangelogUtil.dropChangelogMetadata(super.projectionWithMetadataColumns()));
   }
 
   @Override
