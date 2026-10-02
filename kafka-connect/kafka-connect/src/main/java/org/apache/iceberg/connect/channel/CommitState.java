@@ -67,6 +67,11 @@ class CommitState {
     } else if (Objects.equals(currentCommitId, dataComplete.commitId())) {
       readyBuffer.add(dataComplete);
       receivedPartitionCount += dataComplete.assignments().size();
+    } else {
+      LOG.warn(
+          "Received commit ready for a different commit, ignoring. Commit ID: {}, current commit ID: {}",
+          dataComplete.commitId(),
+          currentCommitId);
     }
   }
 
