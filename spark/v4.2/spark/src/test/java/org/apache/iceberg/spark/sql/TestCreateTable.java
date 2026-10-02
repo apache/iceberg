@@ -31,12 +31,19 @@ import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.mapping.MappingUtil;
+import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.spark.CatalogTestBase;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
@@ -67,6 +74,284 @@ public class TestCreateTable extends CatalogTestBase {
             + "USING iceberg partitioned by (hours(ts))",
         tableName);
     assertThat(validationCatalog.tableExists(tableIdent)).as("Table should already exist").isTrue();
+  }
+
+  @TestTemplate
+  public void testCreateTableLike() {
+    String sourceName = tableName("source");
+    TableIdentifier sourceIdent = TableIdentifier.of(Namespace.of("default"), "source");
+    Schema schema =
+        new Schema(
+            NestedField.required(1, "id", Types.LongType.get()),
+            NestedField.optional(2, "category", Types.StringType.get()),
+            NestedField.optional(3, "data", Types.StringType.get()));
+    PartitionSpec spec =
+        PartitionSpec.builderFor(schema).identity("category").bucket("id", 16, "shard").build();
+    SortOrder order = SortOrder.builderFor(schema).desc("id").asc("data").build();
+
+    try {
+      validationCatalog
+          .buildTable(sourceIdent, schema)
+          .withPartitionSpec(spec)
+          .withSortOrder(order)
+          .withProperty("custom-property", "custom-value")
+          .create();
+
+      Table source = validationCatalog.loadTable(sourceIdent);
+      sql("CREATE TABLE %s LIKE %s", tableName, sourceName);
+
+      Table target = validationCatalog.loadTable(tableIdent);
+      assertThat(target.schema().asStruct()).isEqualTo(source.schema().asStruct());
+      assertThat(target.spec()).isEqualTo(source.spec());
+      assertThat(target.sortOrder().sameOrder(source.sortOrder())).isTrue();
+      assertThat(target.properties()).containsEntry("custom-property", "custom-value");
+      assertThat(target.location()).isNotEqualTo(source.location());
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", sourceName);
+    }
+  }
+
+  @TestTemplate
+  void createTableLikeUsesSnapshotSchema() {
+    assumeThat(catalogName)
+        .as("Spark session catalog does not support extended table names")
+        .isNotEqualTo("spark_catalog");
+
+    String sourceName = tableName("source");
+    TableIdentifier sourceIdent = TableIdentifier.of(Namespace.of("default"), "source");
+    Schema schema =
+        new Schema(
+            NestedField.required(1, "id", Types.LongType.get()),
+            NestedField.optional(2, "uuid", Types.UUIDType.get()));
+
+    try {
+      Table source = validationCatalog.createTable(sourceIdent, schema);
+      source.newAppend().commit();
+      long snapshotId = source.currentSnapshot().snapshotId();
+      Schema snapshotSchema = source.schema();
+      sql("ALTER TABLE %s ADD COLUMN data STRING", sourceName);
+
+      sql("CREATE TABLE %s LIKE %s.snapshot_id_%s", tableName, sourceName, snapshotId);
+
+      Table target = validationCatalog.loadTable(tableIdent);
+      assertThat(target.schema().asStruct()).isEqualTo(snapshotSchema.asStruct());
+      assertThat(target.schema().asStruct())
+          .isNotEqualTo(validationCatalog.loadTable(sourceIdent).schema().asStruct());
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", sourceName);
+    }
+  }
+
+  @TestTemplate
+  void createTableLikeUsesSnapshotSortColumnNames() {
+    assumeThat(catalogName)
+        .as("Spark session catalog does not support extended table names")
+        .isNotEqualTo("spark_catalog");
+
+    String sourceName = tableName("source");
+    TableIdentifier sourceIdent = TableIdentifier.of(Namespace.of("default"), "source");
+    Schema schema =
+        new Schema(
+            NestedField.required(1, "id", Types.LongType.get()),
+            NestedField.optional(2, "data", Types.StringType.get()));
+    SortOrder order = SortOrder.builderFor(schema).desc("data").build();
+
+    try {
+      Table source =
+          validationCatalog.buildTable(sourceIdent, schema).withSortOrder(order).create();
+      source.newAppend().commit();
+      long snapshotId = source.currentSnapshot().snapshotId();
+      sql("ALTER TABLE %s RENAME COLUMN data TO payload", sourceName);
+
+      sql("CREATE TABLE %s LIKE %s.snapshot_id_%s", tableName, sourceName, snapshotId);
+
+      Table target = validationCatalog.loadTable(tableIdent);
+      assertThat(target.schema().findField("data")).isNotNull();
+      assertThat(target.sortOrder().sameOrder(order)).isTrue();
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", sourceName);
+    }
+  }
+
+  @TestTemplate
+  void createTableLikeOmitsSortFieldsAddedAfterSnapshot() {
+    assumeThat(catalogName)
+        .as("Spark session catalog does not support extended table names")
+        .isNotEqualTo("spark_catalog");
+
+    String sourceName = tableName("source");
+    TableIdentifier sourceIdent = TableIdentifier.of(Namespace.of("default"), "source");
+    Schema schema = new Schema(NestedField.required(1, "id", Types.LongType.get()));
+    SortOrder order = SortOrder.builderFor(schema).desc("id").build();
+
+    try {
+      Table source =
+          validationCatalog.buildTable(sourceIdent, schema).withSortOrder(order).create();
+      source.newAppend().commit();
+      long snapshotId = source.currentSnapshot().snapshotId();
+      source.updateSchema().addColumn("data", Types.StringType.get()).commit();
+      source.replaceSortOrder().desc("id").asc("data").commit();
+
+      sql("CREATE TABLE %s LIKE %s.snapshot_id_%s", tableName, sourceName, snapshotId);
+
+      Table target = validationCatalog.loadTable(tableIdent);
+      assertThat(target.schema().asStruct()).isEqualTo(schema.asStruct());
+      assertThat(target.sortOrder().sameOrder(order)).isTrue();
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", sourceName);
+    }
+  }
+
+  @TestTemplate
+  void createTableLikeOmitsPartitionFieldsWithDeletedSources() {
+    String sourceName = tableName("source");
+    TableIdentifier sourceIdent = TableIdentifier.of(Namespace.of("default"), "source");
+    Schema schema =
+        new Schema(
+            NestedField.required(1, "id", Types.LongType.get()),
+            NestedField.optional(2, "data", Types.StringType.get()));
+
+    try {
+      Table source =
+          validationCatalog
+              .buildTable(sourceIdent, schema)
+              .withProperty(TableProperties.FORMAT_VERSION, "1")
+              .create();
+      source.updateSpec().addField("data").commit();
+      source.updateSpec().removeField("data").commit();
+      source.updateSchema().deleteColumn("data").commit();
+      source.updateSpec().addField("shard", Expressions.bucket("id", 16)).commit();
+
+      sql("CREATE TABLE %s LIKE %s", tableName, sourceName);
+
+      Table target = validationCatalog.loadTable(tableIdent);
+      PartitionSpec expectedSpec =
+          PartitionSpec.builderFor(target.schema()).bucket("id", 16, "shard").build();
+      assertThat(target.spec()).isEqualTo(expectedSpec);
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", sourceName);
+    }
+  }
+
+  @TestTemplate
+  void createTableLikeOmitsSourceNameMapping() {
+    String sourceName = tableName("source");
+    TableIdentifier sourceIdent = TableIdentifier.of(Namespace.of("default"), "source");
+    Schema schema =
+        new Schema(
+            NestedField.required(1, "id", Types.LongType.get()),
+            NestedField.optional(2, "data", Types.StringType.get()));
+
+    try {
+      Table source = validationCatalog.createTable(sourceIdent, schema);
+      source.newAppend().commit();
+      source.updateSchema().deleteColumn("data").commit();
+      source.updateSchema().addColumn("data", Types.UUIDType.get()).commit();
+      source
+          .updateProperties()
+          .set(
+              TableProperties.DEFAULT_NAME_MAPPING,
+              NameMappingParser.toJson(MappingUtil.create(source.schema())))
+          .commit();
+
+      sql("CREATE TABLE %s LIKE %s", tableName, sourceName);
+
+      Table target = validationCatalog.loadTable(tableIdent);
+      assertThat(target.properties()).doesNotContainKey(TableProperties.DEFAULT_NAME_MAPPING);
+      assertThat(target.schema().findField("data").fieldId())
+          .isNotEqualTo(source.schema().findField("data").fieldId());
+      assertThat(target.schema().asStruct())
+          .isEqualTo(TypeUtil.assignIncreasingFreshIds(source.schema()).asStruct());
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", sourceName);
+    }
+  }
+
+  @TestTemplate
+  public void testCreateTableLikeClonesAndOverridesProperties() {
+    String sourceName = tableName("source");
+    TableIdentifier sourceIdent = TableIdentifier.of(Namespace.of("default"), "source");
+    Schema schema = new Schema(NestedField.required(1, "id", Types.LongType.get()));
+
+    try {
+      validationCatalog
+          .buildTable(sourceIdent, schema)
+          .withProperty("clone-me", "from-source")
+          .withProperty("override-me", "from-source")
+          .create();
+
+      sql(
+          "CREATE TABLE %s LIKE %s TBLPROPERTIES ('override-me'='from-target')",
+          tableName, sourceName);
+
+      Table target = validationCatalog.loadTable(tableIdent);
+      assertThat(target.properties())
+          .containsEntry("clone-me", "from-source")
+          .containsEntry("override-me", "from-target");
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", sourceName);
+    }
+  }
+
+  @TestTemplate
+  void createTableLikeUsingOverridesSourceFormat() {
+    assumeThat(catalogName)
+        .as("Spark session catalog delegates ORC tables to its session catalog")
+        .isNotEqualTo("spark_catalog");
+
+    String sourceName = tableName("source");
+    TableIdentifier sourceIdent = TableIdentifier.of(Namespace.of("default"), "source");
+    Schema schema = new Schema(NestedField.required(1, "id", Types.LongType.get()));
+
+    try {
+      validationCatalog
+          .buildTable(sourceIdent, schema)
+          .withProperty(TableProperties.DEFAULT_FILE_FORMAT, "parquet")
+          .create();
+
+      sql("CREATE TABLE %s LIKE %s USING orc", tableName, sourceName);
+
+      Table target = validationCatalog.loadTable(tableIdent);
+      assertThat(target.properties()).containsEntry(TableProperties.DEFAULT_FILE_FORMAT, "orc");
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", sourceName);
+    }
+  }
+
+  @TestTemplate
+  public void testCreateTableLikeIfNotExists() {
+    String sourceName = tableName("source");
+
+    try {
+      sql(
+          "CREATE TABLE %s (id BIGINT, data STRING) "
+              + "USING iceberg TBLPROPERTIES ('source-property'='source')",
+          sourceName);
+      sql(
+          "CREATE TABLE %s (id BIGINT) "
+              + "USING iceberg TBLPROPERTIES ('target-property'='target')",
+          tableName);
+
+      sql("CREATE TABLE IF NOT EXISTS %s LIKE %s", tableName, sourceName);
+
+      Table target = validationCatalog.loadTable(tableIdent);
+      assertThat(target.schema().columns()).hasSize(1);
+      assertThat(target.properties())
+          .containsEntry("target-property", "target")
+          .doesNotContainKey("source-property");
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", sourceName);
+    }
+  }
+
+  @TestTemplate
+  public void testCreateTableLikeMissingSource() {
+    String missingSource = tableName("missing_source");
+
+    assertThatThrownBy(() -> sql("CREATE TABLE %s LIKE %s", tableName, missingSource))
+        .isInstanceOf(org.apache.spark.sql.AnalysisException.class)
+        .hasMessageContaining("missing_source");
+    assertThat(validationCatalog.tableExists(tableIdent)).isFalse();
   }
 
   @TestTemplate

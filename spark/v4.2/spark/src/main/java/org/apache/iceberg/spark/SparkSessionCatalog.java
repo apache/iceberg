@@ -30,6 +30,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.spark.sql.SparkSession;
@@ -247,6 +248,33 @@ public class SparkSessionCatalog<
     } else {
       // delegate to the session catalog
       return getSessionCatalog().createTable(ident, info);
+    }
+  }
+
+  @Override
+  public Table createTableLike(Identifier ident, TableInfo tableInfo, Table sourceTable)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    checkViewNotExists(ident);
+
+    String provider = tableInfo.properties().get("provider");
+    if (provider == null) {
+      provider = sourceTable.properties().get("provider");
+    }
+
+    if (useIceberg(provider)) {
+      return icebergCatalog.createTableLike(ident, tableInfo, sourceTable);
+    } else {
+      Map<String, String> properties = Maps.newHashMap(sourceTable.properties());
+      properties.remove(TableCatalog.PROP_LOCATION);
+      properties.putAll(tableInfo.properties());
+      properties.put(TableCatalog.PROP_PROVIDER, provider);
+      TableInfo targetInfo =
+          new TableInfo.Builder()
+              .withColumns(sourceTable.columns())
+              .withPartitions(sourceTable.partitioning())
+              .withProperties(properties)
+              .build();
+      return getSessionCatalog().createTable(ident, targetInfo);
     }
   }
 
