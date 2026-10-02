@@ -98,7 +98,9 @@ public class TestTimestampWithoutZone extends TestBase {
     return new Object[][] {
       {FileFormat.PARQUET, false},
       {FileFormat.PARQUET, true},
-      {FileFormat.AVRO, false}
+      {FileFormat.AVRO, false},
+      // Vortex reads are always vectorized, so the flag has no effect and is fixed at false.
+      {FileFormat.VORTEX, false}
     };
   }
 

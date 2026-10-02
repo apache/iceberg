@@ -42,7 +42,9 @@ public class TestDataFrameWriterV2Coercion extends TestBaseWithCatalog {
       parameter(FileFormat.PARQUET, "byte"),
       parameter(FileFormat.AVRO, "short"),
       parameter(FileFormat.ORC, "short"),
-      parameter(FileFormat.PARQUET, "short")
+      parameter(FileFormat.PARQUET, "short"),
+      parameter(FileFormat.VORTEX, "byte"),
+      parameter(FileFormat.VORTEX, "short")
     };
   }
 

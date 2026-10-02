@@ -20,10 +20,12 @@ package org.apache.iceberg.data;
 
 import java.io.Serializable;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -66,7 +68,7 @@ class GenericReader implements Serializable {
     DeleteFilter<Record> deletes = new GenericDeleteFilter(io, task, tableSchema, projection);
     Schema readSchema = deletes.requiredSchema();
 
-    CloseableIterable<Record> records = openFile(task, readSchema);
+    CloseableIterable<Record> records = openFile(task, readSchema, deletes);
     records = deletes.filter(records);
     records = applyResidual(records, readSchema, task.residual());
 
@@ -84,7 +86,8 @@ class GenericReader implements Serializable {
     return records;
   }
 
-  private CloseableIterable<Record> openFile(FileScanTask task, Schema fileProjection) {
+  private CloseableIterable<Record> openFile(
+      FileScanTask task, Schema fileProjection, DeleteFilter<Record> deletes) {
     InputFile input = io.newInputFile(task.file());
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
@@ -93,6 +96,16 @@ class GenericReader implements Serializable {
         FormatModelRegistry.readBuilder(task.file().format(), Record.class, input);
     if (reuseContainers) {
       builder = builder.reuseContainers();
+    }
+
+    // Push position deletes into the scan when the reader applies them natively; the delete filter
+    // then skips re-applying them. Readers without pushdown support fall back to post-scan
+    // filtering.
+    if (builder.supportsPositionDeletes()) {
+      Optional<PositionDeleteIndex> pushable = deletes.pushablePosDeletes();
+      if (pushable.isPresent()) {
+        builder = builder.positionDeletes(pushable.get());
+      }
     }
 
     return builder

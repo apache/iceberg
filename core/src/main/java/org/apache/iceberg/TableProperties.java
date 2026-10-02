@@ -273,6 +273,16 @@ public class TableProperties {
   public static final String ORC_BATCH_SIZE = "read.orc.vectorization.batch-size";
   public static final int ORC_BATCH_SIZE_DEFAULT = 5000;
 
+  public static final String READ_VORTEX_WORKER_THREADS = "read.vortex.worker-threads";
+  public static final String WRITE_VORTEX_WORKER_THREADS = "write.vortex.worker-threads";
+  public static final int VORTEX_WORKER_THREADS_DEFAULT = 4;
+
+  // Granularity of the split offsets persisted in vortex data file metadata. Offsets are
+  // synthetic byte positions (vortex readers approximate them to row ranges), recorded every
+  // split-size bytes so scan planning can split files along them.
+  public static final String WRITE_VORTEX_SPLIT_SIZE = "write.vortex.split-size-bytes";
+  public static final long WRITE_VORTEX_SPLIT_SIZE_DEFAULT = 64L * 1024 * 1024; // 64 MB
+
   public static final String DATA_PLANNING_MODE = "read.data-planning-mode";
   public static final String DELETE_PLANNING_MODE = "read.delete-planning-mode";
   public static final String PLANNING_MODE_DEFAULT = PlanningMode.AUTO.modeName();
