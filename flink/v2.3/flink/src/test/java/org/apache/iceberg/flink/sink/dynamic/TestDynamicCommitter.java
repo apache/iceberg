@@ -70,6 +70,8 @@ class TestDynamicCommitter {
   static final String TABLE1 = "table";
   static final String TABLE2 = "table2";
 
+  private static final long RESTORED_CHECKPOINT_ID = Long.MAX_VALUE;
+
   @RegisterExtension
   static final HadoopCatalogExtension CATALOG_EXTENSION = new HadoopCatalogExtension(DB, TABLE1);
 
@@ -163,6 +165,7 @@ class TestDynamicCommitter {
             overwriteMode,
             workerPoolSize,
             sinkId,
+            RESTORED_CHECKPOINT_ID,
             committerMetrics);
 
     TableKey tableKey1 = new TableKey(TABLE1, "branch");
@@ -275,6 +278,7 @@ class TestDynamicCommitter {
             overwriteMode,
             workerPoolSize,
             sinkId,
+            RESTORED_CHECKPOINT_ID,
             committerMetrics);
 
     TableKey tableKey = new TableKey(TABLE1, "branch");
@@ -344,6 +348,7 @@ class TestDynamicCommitter {
             overwriteMode,
             workerPoolSize,
             uidPrefix,
+            DynamicCommitter.INITIAL_CHECKPOINT_ID,
             previousCommitterMetrics);
 
     DynamicWriteResultAggregator aggregator =
@@ -379,6 +384,7 @@ class TestDynamicCommitter {
             overwriteMode,
             workerPoolSize,
             uidPrefix,
+            previousCheckpointId,
             newCommitterMetrics);
 
     final String newJobIdStr = newJobId.toHexString();
@@ -422,6 +428,149 @@ class TestDynamicCommitter {
   }
 
   @Test
+  void testCommitAfterStatelessRestart() throws Exception {
+    Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table.snapshots()).isEmpty();
+
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
+    OneInputStreamOperatorTestHarness aggregatorHarness =
+        new OneInputStreamOperatorTestHarness(aggregator);
+    aggregatorHarness.open();
+
+    TableKey tableKey = new TableKey(TABLE1, "branch");
+    final String jobId = JobID.generate().toHexString();
+    final String operatorId = new OperatorID().toHexString();
+    final int previousCheckpointId = 10;
+    final int newCheckpointId = 1;
+
+    createCommitter(DynamicCommitter.INITIAL_CHECKPOINT_ID)
+        .commit(
+            Sets.newHashSet(
+                commitRequest(
+                    aggregator,
+                    tableKey,
+                    WRITE_RESULT_BY_SPEC,
+                    jobId,
+                    operatorId,
+                    previousCheckpointId)));
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(1);
+
+    createCommitter(DynamicCommitter.INITIAL_CHECKPOINT_ID)
+        .commit(
+            Sets.newHashSet(
+                commitRequest(
+                    aggregator,
+                    tableKey,
+                    WRITE_RESULT_BY_SPEC_2,
+                    jobId,
+                    operatorId,
+                    newCheckpointId)));
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(2);
+    assertThat(table.snapshot(table.refs().get("branch").snapshotId()).summary())
+        .containsEntry("flink.job-id", jobId)
+        .containsEntry("flink.max-committed-checkpoint-id", String.valueOf(newCheckpointId))
+        .containsEntry("flink.operator-id", operatorId)
+        .containsEntry("total-records", "66");
+  }
+
+  @Test
+  void testCommitAfterRestoringOlderCheckpoint() throws Exception {
+    Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table.snapshots()).isEmpty();
+
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
+    OneInputStreamOperatorTestHarness aggregatorHarness =
+        new OneInputStreamOperatorTestHarness(aggregator);
+    aggregatorHarness.open();
+
+    TableKey tableKey = new TableKey(TABLE1, "branch");
+    final String jobId = JobID.generate().toHexString();
+    final String operatorId = new OperatorID().toHexString();
+    final int restoredCheckpointId = 5;
+    final int latestCheckpointId = 10;
+
+    DynamicCommitter previousCommitter = createCommitter(DynamicCommitter.INITIAL_CHECKPOINT_ID);
+    previousCommitter.commit(
+        Sets.newHashSet(
+            commitRequest(
+                aggregator,
+                tableKey,
+                WRITE_RESULT_BY_SPEC,
+                jobId,
+                operatorId,
+                restoredCheckpointId)));
+    previousCommitter.commit(
+        Sets.newHashSet(
+            commitRequest(
+                aggregator,
+                tableKey,
+                WRITE_RESULT_BY_SPEC,
+                jobId,
+                operatorId,
+                latestCheckpointId)));
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(2);
+
+    createCommitter(restoredCheckpointId)
+        .commit(
+            Sets.newHashSet(
+                commitRequest(
+                    aggregator,
+                    tableKey,
+                    WRITE_RESULT_BY_SPEC,
+                    jobId,
+                    operatorId,
+                    restoredCheckpointId),
+                commitRequest(
+                    aggregator,
+                    tableKey,
+                    WRITE_RESULT_BY_SPEC_2,
+                    jobId,
+                    operatorId,
+                    restoredCheckpointId + 1)));
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(3);
+    assertThat(table.snapshot(table.refs().get("branch").snapshotId()).summary())
+        .containsEntry(
+            "flink.max-committed-checkpoint-id", String.valueOf(restoredCheckpointId + 1))
+        .containsEntry("added-records", "24")
+        .containsEntry("total-records", "108");
+  }
+
+  private DynamicCommitter createCommitter(long restoredCheckpointId) {
+    return new DynamicCommitter(
+        CATALOG_EXTENSION.catalog(),
+        Maps.newHashMap(),
+        false,
+        1,
+        "sinkId",
+        restoredCheckpointId,
+        new DynamicCommitterMetrics(new UnregisteredMetricsGroup()));
+  }
+
+  private static CommitRequest<DynamicCommittable> commitRequest(
+      DynamicWriteResultAggregator aggregator,
+      TableKey tableKey,
+      Map<Integer, Collection<WriteResult>> writeResults,
+      String jobId,
+      String operatorId,
+      long checkpointId)
+      throws IOException {
+    byte[][] manifests =
+        aggregator.writeToManifests(tableKey.tableName(), writeResults, checkpointId);
+    return new MockCommitRequest<>(
+        new DynamicCommittable(tableKey, manifests, jobId, operatorId, checkpointId));
+  }
+
+  @Test
   void testCommitsLandInCheckpointOrderAcrossJobIds() throws Exception {
     Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
     assertThat(table.snapshots()).isEmpty();
@@ -438,6 +587,7 @@ class TestDynamicCommitter {
             overwriteMode,
             workerPoolSize,
             sinkId,
+            RESTORED_CHECKPOINT_ID,
             committerMetrics);
 
     DynamicWriteResultAggregator aggregator =
@@ -503,6 +653,7 @@ class TestDynamicCommitter {
             overwriteMode,
             workerPoolSize,
             sinkId,
+            RESTORED_CHECKPOINT_ID,
             committerMetrics);
 
     DynamicWriteResultAggregator aggregator =
@@ -562,6 +713,7 @@ class TestDynamicCommitter {
             overwriteMode,
             workerPoolSize,
             sinkId,
+            RESTORED_CHECKPOINT_ID,
             committerMetrics);
 
     TableKey tableKey = new TableKey(TABLE1, "branch");
@@ -664,6 +816,7 @@ class TestDynamicCommitter {
             overwriteMode,
             workerPoolSize,
             sinkId,
+            RESTORED_CHECKPOINT_ID,
             committerMetrics);
 
     dynamicCommitter.commit(Sets.newHashSet(commitRequest1, commitRequest2, commitRequest3));
@@ -767,6 +920,7 @@ class TestDynamicCommitter {
             overwriteMode,
             workerPoolSize,
             sinkId,
+            RESTORED_CHECKPOINT_ID,
             committerMetrics);
 
     ThrowingCallable commitExecutable =
@@ -896,6 +1050,7 @@ class TestDynamicCommitter {
             overwriteMode,
             workerPoolSize,
             sinkId,
+            RESTORED_CHECKPOINT_ID,
             committerMetrics);
 
     dynamicCommitter.commit(Sets.newHashSet(commitRequest1, commitRequest2));
@@ -925,6 +1080,7 @@ class TestDynamicCommitter {
             overwriteMode,
             workerPoolSize,
             sinkId,
+            RESTORED_CHECKPOINT_ID,
             committerMetrics);
 
     TableKey tableKey = new TableKey(TABLE1, "branch");
@@ -1020,6 +1176,7 @@ class TestDynamicCommitter {
                     overwriteMode,
                     workerPoolSize,
                     sinkId,
+                    RESTORED_CHECKPOINT_ID,
                     committerMetrics));
 
     DynamicCommitter mainCommitter =
@@ -1030,6 +1187,7 @@ class TestDynamicCommitter {
             overwriteMode,
             workerPoolSize,
             sinkId,
+            RESTORED_CHECKPOINT_ID,
             committerMetrics);
 
     mainCommitter.commit(commitRequests);
@@ -1053,6 +1211,74 @@ class TestDynamicCommitter {
                 .put("total-position-deletes", "0")
                 .put("total-records", "42")
                 .build());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void testCommitsOnceOnDuplicateCommitAfterStatelessRestart(boolean overwriteMode)
+      throws Exception {
+    Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table.snapshots()).isEmpty();
+
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
+    OneInputStreamOperatorTestHarness aggregatorHarness =
+        new OneInputStreamOperatorTestHarness(aggregator);
+    aggregatorHarness.open();
+
+    final String jobId = JobID.generate().toHexString();
+    final String operatorId = new OperatorID().toHexString();
+    final int previousCheckpointId = 10;
+    final int newCheckpointId = 1;
+    TableKey tableKey = new TableKey(TABLE1, SnapshotRef.MAIN_BRANCH);
+
+    createCommitter(DynamicCommitter.INITIAL_CHECKPOINT_ID)
+        .commit(
+            Sets.newHashSet(
+                commitRequest(
+                    aggregator,
+                    tableKey,
+                    WRITE_RESULT_BY_SPEC,
+                    jobId,
+                    operatorId,
+                    previousCheckpointId)));
+
+    DynamicCommitterMetrics committerMetrics =
+        new DynamicCommitterMetrics(new UnregisteredMetricsGroup());
+    CommitHook commitHook =
+        new TestDynamicIcebergSink.DuplicateCommitHook(
+            () ->
+                new DynamicCommitter(
+                    CATALOG_EXTENSION.catalog(),
+                    Map.of(),
+                    overwriteMode,
+                    1,
+                    "sinkId",
+                    DynamicCommitter.INITIAL_CHECKPOINT_ID,
+                    committerMetrics));
+    DynamicCommitter mainCommitter =
+        new CommitHookEnabledDynamicCommitter(
+            commitHook,
+            CATALOG_EXTENSION.catalog(),
+            Maps.newHashMap(),
+            overwriteMode,
+            1,
+            "sinkId",
+            DynamicCommitter.INITIAL_CHECKPOINT_ID,
+            committerMetrics);
+
+    mainCommitter.commit(
+        Sets.newHashSet(
+            commitRequest(
+                aggregator, tableKey, WRITE_RESULT_BY_SPEC, jobId, operatorId, newCheckpointId)));
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(2);
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry("flink.job-id", jobId)
+        .containsEntry("flink.max-committed-checkpoint-id", String.valueOf(newCheckpointId))
+        .containsEntry("flink.operator-id", operatorId)
+        .containsEntry("added-records", "42");
   }
 
   interface CommitHook extends Serializable {
@@ -1132,9 +1358,16 @@ class TestDynamicCommitter {
         boolean replacePartitions,
         int workerPoolSize,
         String sinkId,
+        long restoredCheckpointId,
         DynamicCommitterMetrics committerMetrics) {
       super(
-          catalog, snapshotProperties, replacePartitions, workerPoolSize, sinkId, committerMetrics);
+          catalog,
+          snapshotProperties,
+          replacePartitions,
+          workerPoolSize,
+          sinkId,
+          restoredCheckpointId,
+          committerMetrics);
       this.commitHook = commitHook;
     }
 
@@ -1154,10 +1387,19 @@ class TestDynamicCommitter {
         String description,
         String newFlinkJobId,
         String operatorId,
-        long checkpointId) {
+        long checkpointId,
+        Long baseSnapshotId) {
       commitHook.beforeCommitOperation();
       super.commitOperation(
-          table, branch, operation, summary, description, newFlinkJobId, operatorId, checkpointId);
+          table,
+          branch,
+          operation,
+          summary,
+          description,
+          newFlinkJobId,
+          operatorId,
+          checkpointId,
+          baseSnapshotId);
       commitHook.afterCommitOperation();
     }
   }

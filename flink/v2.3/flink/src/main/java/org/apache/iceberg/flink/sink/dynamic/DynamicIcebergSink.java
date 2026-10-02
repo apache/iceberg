@@ -126,6 +126,7 @@ public class DynamicIcebergSink
         flinkWriteConf.overwriteMode(),
         flinkWriteConf.workerPoolSize(),
         sinkId,
+        context.getRestoredCheckpointId().orElse(DynamicCommitter.INITIAL_CHECKPOINT_ID),
         metrics);
   }
 
