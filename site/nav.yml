@@ -98,7 +98,9 @@ nav:
         - Starrocks: https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog
         - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg
         - Trino: https://trino.io/docs/current/connector/iceberg.html
-  - Releases: releases.md
+  - Releases:
+    - Java releases: releases.md
+    - Specification releases: spec-releases.md
   - Project:
     - Contributing: contribute.md
     - Multi-engine support: multi-engine-support.md
