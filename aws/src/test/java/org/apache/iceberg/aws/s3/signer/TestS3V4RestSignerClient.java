@@ -32,16 +32,16 @@ import java.util.stream.Stream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.OAuth2Manager;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.responses.ImmutableRemoteSignResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.RemoteSignResponse;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -53,62 +53,15 @@ import software.amazon.awssdk.core.interceptor.ExecutionAttributes;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
 import software.amazon.awssdk.http.SdkHttpMethod;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.utils.IoUtils;
 
 class TestS3V4RestSignerClient {
 
-  @BeforeAll
-  static void beforeAll() {
-    S3V4RestSignerClient.authManager = null;
-    S3V4RestSignerClient.httpClient = Mockito.mock(RESTClient.class);
-    when(S3V4RestSignerClient.httpClient.withAuthSession(Mockito.any()))
-        .thenReturn(S3V4RestSignerClient.httpClient);
-    when(S3V4RestSignerClient.httpClient.postForm(
-            Mockito.anyString(),
-            Mockito.eq(
-                Map.of(
-                    "grant_type",
-                    "client_credentials",
-                    "client_id",
-                    "user",
-                    "client_secret",
-                    "12345",
-                    "scope",
-                    "sign")),
-            Mockito.eq(OAuthTokenResponse.class),
-            Mockito.anyMap(),
-            Mockito.any()))
-        .thenReturn(
-            OAuthTokenResponse.builder().withToken("token").withTokenType("Bearer").build());
-    when(S3V4RestSignerClient.httpClient.postForm(
-            Mockito.anyString(),
-            Mockito.eq(
-                Map.of(
-                    "grant_type",
-                    "client_credentials",
-                    "client_id",
-                    "user",
-                    "client_secret",
-                    "12345",
-                    "scope",
-                    "custom")),
-            Mockito.eq(OAuthTokenResponse.class),
-            Mockito.anyMap(),
-            Mockito.any()))
-        .thenReturn(
-            OAuthTokenResponse.builder().withToken("token").withTokenType("Bearer").build());
-  }
-
-  @AfterAll
-  static void afterAll() {
-    S3V4RestSignerClient.httpClient = null;
-  }
-
-  @AfterEach
-  void afterEach() {
-    IoUtils.closeQuietlyV2(S3V4RestSignerClient.authManager, null);
-    S3V4RestSignerClient.authManager = null;
-  }
+  private static final Map<String, String> SIGNER_PROPERTIES =
+      Map.of(
+          RESTCatalogProperties.SIGNER_URI,
+          "https://signer.com",
+          RESTCatalogProperties.SIGNER_ENDPOINT,
+          "v1/sign/s3");
 
   /**
    * A server may write the Cache-Control field name in any case, and HTTP/2 requires it to be
@@ -119,11 +72,11 @@ class TestS3V4RestSignerClient {
   @ValueSource(strings = {"Cache-Control", "cache-control"})
   void signedComponentIsCachedRegardlessOfCacheControlHeaderCase(String cacheControlHeader)
       throws Exception {
-    // the signing cache is static and keyed on method, region and URI
     URI uri = URI.create("https://bucket.s3.us-west-2.amazonaws.com/" + UUID.randomUUID());
     AtomicInteger signRequests = new AtomicInteger();
+    RESTClient mockHttpClient = mockHttpClient();
 
-    when(S3V4RestSignerClient.httpClient.post(
+    when(mockHttpClient.post(
             Mockito.anyString(),
             Mockito.any(),
             Mockito.eq(RemoteSignResponse.class),
@@ -160,6 +113,7 @@ class TestS3V4RestSignerClient {
                     "v1/namespaces/ns1/tables/t1/sign",
                     OAuth2Properties.TOKEN,
                     "token"))
+            .httpClientSupplier(() -> mockHttpClient)
             .build()) {
       SdkHttpFullRequest request =
           SdkHttpFullRequest.builder().uri(uri).method(SdkHttpMethod.GET).build();
@@ -175,10 +129,14 @@ class TestS3V4RestSignerClient {
 
   @ParameterizedTest
   @MethodSource("validOAuth2Properties")
-  void authSessionOAuth2(Map<String, String> properties, String expectedScope, String expectedToken)
-      throws Exception {
+  void authSessionOAuth2(
+      Map<String, String> properties, String expectedScope, String expectedToken) {
+    RESTClient mockHttpClient = mockHttpClient();
     try (S3V4RestSignerClient client =
-            ImmutableS3V4RestSignerClient.builder().properties(properties).build();
+            ImmutableS3V4RestSignerClient.builder()
+                .properties(properties)
+                .httpClientSupplier(() -> mockHttpClient)
+                .build();
         AuthSession authSession = client.authSession()) {
       assertThat(client.optionalOAuthParams()).containsEntry(OAuth2Properties.SCOPE, expectedScope);
       if (expectedToken == null) {
@@ -266,8 +224,7 @@ class TestS3V4RestSignerClient {
   @ParameterizedTest
   @MethodSource("legacySignerProperties")
   void legacySignerProperties(
-      Map<String, String> properties, String expectedBaseSignerUri, String expectedEndpoint)
-      throws Exception {
+      Map<String, String> properties, String expectedBaseSignerUri, String expectedEndpoint) {
     try (S3V4RestSignerClient client =
         ImmutableS3V4RestSignerClient.builder().properties(properties).build()) {
       assertThat(client.baseSignerUri()).isEqualTo(expectedBaseSignerUri);
@@ -309,5 +266,117 @@ class TestS3V4RestSignerClient {
                 "v1/legacy/sign"),
             "https://legacy-signer.com",
             "https://legacy-signer.com/v1/legacy/sign"));
+  }
+
+  @Test
+  void httpClientNotSharedAcrossInstances() {
+    RESTClient firstHttpClient = Mockito.mock(RESTClient.class);
+    RESTClient secondHttpClient = Mockito.mock(RESTClient.class);
+    try (S3V4RestSignerClient first =
+            ImmutableS3V4RestSignerClient.builder()
+                .properties(SIGNER_PROPERTIES)
+                .httpClientSupplier(() -> firstHttpClient)
+                .build();
+        S3V4RestSignerClient second =
+            ImmutableS3V4RestSignerClient.builder()
+                .properties(SIGNER_PROPERTIES)
+                .httpClientSupplier(() -> secondHttpClient)
+                .build()) {
+      // each signer must use its own client, not the first one initialized in the JVM
+      assertThat(first.httpClient()).isSameAs(firstHttpClient);
+      assertThat(second.httpClient()).isSameAs(secondHttpClient);
+      assertThat(first.httpClient()).isNotSameAs(second.httpClient());
+    }
+  }
+
+  @Test
+  void authManagerNotSharedAcrossInstances() {
+    Map<String, String> oauth2Properties =
+        Map.of(
+            RESTCatalogProperties.SIGNER_URI,
+            "https://signer.com",
+            RESTCatalogProperties.SIGNER_ENDPOINT,
+            "v1/sign/s3",
+            AuthProperties.AUTH_TYPE,
+            AuthProperties.AUTH_TYPE_OAUTH2,
+            OAuth2Properties.TOKEN,
+            "token");
+    try (S3V4RestSignerClient noAuth =
+            ImmutableS3V4RestSignerClient.builder().properties(SIGNER_PROPERTIES).build();
+        S3V4RestSignerClient oauth2 =
+            ImmutableS3V4RestSignerClient.builder().properties(oauth2Properties).build()) {
+      AuthManager noAuthManager = noAuth.authManager();
+      AuthManager oauth2Manager = oauth2.authManager();
+      // a catalog configured for OAuth2 must not leak its auth manager into a catalog that
+      // configured no auth (and vice versa)
+      assertThat(noAuthManager).isNotSameAs(oauth2Manager);
+      assertThat(oauth2Manager).isInstanceOf(OAuth2Manager.class);
+      assertThat(noAuthManager).isNotInstanceOf(OAuth2Manager.class);
+    }
+  }
+
+  @Test
+  void signedComponentCacheNotSharedAcrossInstances() {
+    try (S3V4RestSignerClient first =
+            ImmutableS3V4RestSignerClient.builder().properties(SIGNER_PROPERTIES).build();
+        S3V4RestSignerClient second =
+            ImmutableS3V4RestSignerClient.builder().properties(SIGNER_PROPERTIES).build()) {
+      // each signer must keep its own signed-component cache so a signed URL minted for one
+      // catalog can never be served to another catalog
+      assertThat(first.signedComponentCache()).isNotSameAs(second.signedComponentCache());
+    }
+  }
+
+  @Test
+  void closeReleasesHttpClient() throws Exception {
+    RESTClient mockHttpClient = Mockito.mock(RESTClient.class);
+    S3V4RestSignerClient client =
+        ImmutableS3V4RestSignerClient.builder()
+            .properties(SIGNER_PROPERTIES)
+            .httpClientSupplier(() -> mockHttpClient)
+            .build();
+    assertThat(client.httpClient()).isSameAs(mockHttpClient);
+    client.close();
+    Mockito.verify(mockHttpClient).close();
+  }
+
+  private static RESTClient mockHttpClient() {
+    RESTClient mock = Mockito.mock(RESTClient.class);
+    when(mock.withAuthSession(Mockito.any())).thenReturn(mock);
+    when(mock.postForm(
+            Mockito.anyString(),
+            Mockito.eq(
+                Map.of(
+                    "grant_type",
+                    "client_credentials",
+                    "client_id",
+                    "user",
+                    "client_secret",
+                    "12345",
+                    "scope",
+                    "sign")),
+            Mockito.eq(OAuthTokenResponse.class),
+            Mockito.anyMap(),
+            Mockito.any()))
+        .thenReturn(
+            OAuthTokenResponse.builder().withToken("token").withTokenType("Bearer").build());
+    when(mock.postForm(
+            Mockito.anyString(),
+            Mockito.eq(
+                Map.of(
+                    "grant_type",
+                    "client_credentials",
+                    "client_id",
+                    "user",
+                    "client_secret",
+                    "12345",
+                    "scope",
+                    "custom")),
+            Mockito.eq(OAuthTokenResponse.class),
+            Mockito.anyMap(),
+            Mockito.any()))
+        .thenReturn(
+            OAuthTokenResponse.builder().withToken("token").withTokenType("Bearer").build());
+    return mock;
   }
 }
