@@ -117,11 +117,14 @@ import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
+import org.apache.parquet.conf.HadoopParquetConfiguration;
+import org.apache.parquet.conf.ParquetConfiguration;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
+import org.apache.parquet.hadoop.ParquetInputFormat;
 import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -1528,6 +1531,14 @@ public class Parquet {
       if (batchedReaderFunc != null
           || batchedReaderFuncWithSchema != null
           || readerFunction != null) {
+        // Hadoop's Configuration rejects null values
+        Map<String, String> readProperties =
+            Maps.filterEntries(
+                properties,
+                entry ->
+                    entry.getValue() != null
+                        && !READ_PROPERTIES_TO_REMOVE.contains(entry.getKey()));
+
         ParquetReadOptions.Builder optionsBuilder;
         if (file instanceof HadoopConfigurable) {
           // remove read properties already set that may conflict with this read
@@ -1535,9 +1546,14 @@ public class Parquet {
           for (String property : READ_PROPERTIES_TO_REMOVE) {
             conf.unset(property);
           }
+          // must happen before builder(conf) below, which parses some fields from conf once
+          readProperties.forEach(conf::set);
+          applyVectoredIoDefault(new HadoopParquetConfiguration(conf));
           optionsBuilder = HadoopReadOptions.builder(conf);
         } else {
-          optionsBuilder = ParquetReadOptions.builder(new PlainParquetConfiguration());
+          PlainParquetConfiguration conf = new PlainParquetConfiguration(readProperties);
+          applyVectoredIoDefault(conf);
+          optionsBuilder = ParquetReadOptions.builder(conf);
         }
 
         for (Map.Entry<String, String> entry : properties.entrySet()) {
@@ -1552,7 +1568,6 @@ public class Parquet {
           optionsBuilder.withDecryption(fileDecryptionProperties);
         }
 
-        optionsBuilder.withUseHadoopVectoredIo(true);
         ParquetReadOptions options = optionsBuilder.build();
 
         NameMapping mapping;
@@ -1661,6 +1676,13 @@ public class Parquet {
       }
 
       return new ParquetIterable<>(builder);
+    }
+  }
+
+  // Keeps an explicit value, but sets the default so parquet-java older than 1.16.0 also uses true
+  private static void applyVectoredIoDefault(ParquetConfiguration conf) {
+    if (conf.get(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED) == null) {
+      conf.setBoolean(ParquetInputFormat.HADOOP_VECTORED_IO_ENABLED, true);
     }
   }
 
