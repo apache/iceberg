@@ -732,10 +732,14 @@ public class TestVariantMetrics {
 
     String threePath = "$['" + threeByteName + "']";
     String fourPath = "$['" + fourByteName + "']";
-    VariantObject lowerBounds = Variant.from(metrics.lowerBounds().get(2)).value().asObject();
-    assertThat(lowerBounds.fieldNames()).containsExactly(threePath, fourPath);
-    VariantObject upperBounds = Variant.from(metrics.upperBounds().get(2)).value().asObject();
-    assertThat(upperBounds.fieldNames()).containsExactly(threePath, fourPath);
+    Variant lowerBound = Variant.from(metrics.lowerBounds().get(2));
+    assertThat(lowerBound.metadata().get(0)).isEqualTo(threePath);
+    assertThat(lowerBound.metadata().get(1)).isEqualTo(fourPath);
+    assertThat(lowerBound.value().asObject().fieldNames()).containsExactly(threePath, fourPath);
+    Variant upperBound = Variant.from(metrics.upperBounds().get(2));
+    assertThat(upperBound.metadata().get(0)).isEqualTo(threePath);
+    assertThat(upperBound.metadata().get(1)).isEqualTo(fourPath);
+    assertThat(upperBound.value().asObject().fieldNames()).containsExactly(threePath, fourPath);
   }
 
   @Test
