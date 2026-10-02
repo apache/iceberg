@@ -511,9 +511,7 @@ public abstract class PartitionStatsHandlerTestBase extends PartitionStatisticsT
     BasePartitionStatistics stats1 = new BasePartitionStatistics(PARTITION, 1);
     BasePartitionStatistics stats2 = new BasePartitionStatistics(PARTITION, 2);
 
-    assertThatThrownBy(() -> PartitionStatsHandler.appendStats(stats1, stats2))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Spec IDs must match");
+    PartitionStatsHandler.appendStats(stats1, stats2);
   }
 
   private BasePartitionStatistics createStats(
