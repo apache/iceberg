@@ -461,5 +461,9 @@ public class TableProperties {
   public static final String ENCRYPTION_DEK_LENGTH = "encryption.data-key-length";
   public static final int ENCRYPTION_DEK_LENGTH_DEFAULT = 16;
 
+  public static final String ENCRYPTION_KEK_GENERATION_ENABLED =
+      "encryption.kek-generation-enabled";
+  public static final boolean ENCRYPTION_KEK_GENERATION_ENABLED_DEFAULT = false;
+
   public static final int ENCRYPTION_AAD_LENGTH_DEFAULT = 16;
 }
