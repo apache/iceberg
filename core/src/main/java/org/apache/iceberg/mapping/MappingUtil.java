@@ -142,16 +142,72 @@ public class MappingUtil {
       fieldsToAdd.forEach(field -> builder.put(field.name(), field.fieldId()));
       Map<String, Integer> assignments = builder.build();
 
-      // create a copy of fields that can be updated (append new fields, replace existing for
-      // reassignment)
-      List<MappedField> fields = Lists.newArrayList();
+      // single pass: strip reassigned names and merge reused ids (NameMapping requires unique ids)
+      Map<Integer, MappedField> additionsById = Maps.newHashMap();
+      newFields.forEach(field -> additionsById.put(field.id(), field));
+
+      Set<Integer> mergedIds = Sets.newHashSet();
+      List<MappedField> fields =
+          Lists.newArrayListWithExpectedSize(mapping.fields().size() + newFields.size());
       for (MappedField field : mapping.fields()) {
-        fields.add(removeReassignedNames(field, assignments));
+        MappedField stripped = removeReassignedNames(field, assignments);
+        MappedField addition = additionsById.get(stripped.id());
+        if (addition != null) {
+          mergedIds.add(stripped.id());
+          fields.add(mergeMappedFields(stripped, addition));
+        } else {
+          fields.add(stripped);
+        }
       }
 
-      fields.addAll(newFields);
+      for (MappedField field : newFields) {
+        if (!mergedIds.contains(field.id())) {
+          fields.add(field);
+        }
+      }
 
       return MappedFields.of(fields);
+    }
+
+    private MappedField mergeMappedFields(MappedField staleField, MappedField addedField) {
+      Set<String> names = Sets.newHashSet(staleField.names());
+      names.addAll(addedField.names());
+      MappedFields nestedMapping =
+          mergeNestedMappings(staleField.nestedMapping(), addedField.nestedMapping());
+      return MappedField.of(addedField.id(), names, nestedMapping);
+    }
+
+    private MappedFields mergeNestedMappings(MappedFields staleMapping, MappedFields addedMapping) {
+      if (staleMapping == null || staleMapping.fields().isEmpty()) {
+        return addedMapping;
+      }
+
+      if (addedMapping == null) {
+        return staleMapping;
+      }
+
+      Map<Integer, MappedField> addedById = Maps.newHashMap();
+      addedMapping.fields().forEach(field -> addedById.put(field.id(), field));
+
+      List<MappedField> mergedFields = Lists.newArrayList();
+      Set<Integer> mergedIds = Sets.newHashSet();
+      for (MappedField field : staleMapping.fields()) {
+        MappedField added = addedById.get(field.id());
+        if (added != null) {
+          mergedIds.add(field.id());
+          mergedFields.add(mergeMappedFields(field, added));
+        } else {
+          mergedFields.add(field);
+        }
+      }
+
+      for (MappedField field : addedMapping.fields()) {
+        if (!mergedIds.contains(field.id())) {
+          mergedFields.add(field);
+        }
+      }
+
+      return MappedFields.of(mergedFields);
     }
 
     private static MappedField removeReassignedNames(
