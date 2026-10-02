@@ -87,12 +87,14 @@ import org.apache.iceberg.spark.source.FilePathLastModifiedRecord;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.FileSystemWalker;
+import org.apache.spark.api.java.function.MapFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.util.LongAccumulator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -1195,6 +1197,16 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void deleteModeDoesNotEvaluateEagerly() {
+    assertDoesNotEvaluateEagerly(DeleteOrphanFiles.PrefixMismatchMode.DELETE);
+  }
+
+  @TestTemplate
+  public void ignoreModeDoesNotEvaluateEagerly() {
+    assertDoesNotEvaluateEagerly(DeleteOrphanFiles.PrefixMismatchMode.IGNORE);
+  }
+
+  @TestTemplate
   public void testDefaultToHadoopListing() {
     assumeThat(usePrefixListing)
         .as(
@@ -1228,6 +1240,31 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   protected String randomName(String prefix) {
     return prefix + UUID.randomUUID().toString().replace("-", "");
+  }
+
+  private void assertDoesNotEvaluateEagerly(DeleteOrphanFiles.PrefixMismatchMode mode) {
+    LongAccumulator processedActualFiles = spark.sparkContext().longAccumulator();
+    List<String> actualFiles = Lists.newArrayList("file:///dir/orphan-file");
+    List<String> validFiles = Lists.newArrayList();
+    Dataset<String> actualFileDS =
+        spark
+            .createDataset(actualFiles, Encoders.STRING())
+            .map(
+                (MapFunction<String, String>)
+                    file -> {
+                      processedActualFiles.add(1L);
+                      return file;
+                    },
+                Encoders.STRING());
+    Dataset<String> validFileDS = spark.createDataset(validFiles, Encoders.STRING());
+    StringToFileURI toFileUri = new StringToFileURI(ImmutableMap.of(), ImmutableMap.of());
+
+    Dataset<String> orphanFileDS =
+        DeleteOrphanFilesSparkAction.findOrphanFiles(
+            toFileUri.apply(actualFileDS), toFileUri.apply(validFileDS), mode);
+
+    assertThat(processedActualFiles.value()).isZero();
+    assertThat(orphanFileDS.collectAsList()).containsExactly("file:///dir/orphan-file");
   }
 
   private void executeTest(
