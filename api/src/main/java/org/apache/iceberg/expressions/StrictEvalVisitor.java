@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import java.util.Comparator;
 import java.util.Set;
 import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
 
@@ -40,19 +41,11 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
   /** Return true if null count is known and equal to value count, false otherwise. */
   protected abstract boolean containsNullsOnly(int id);
 
-  /**
-   * Return true if null counts are unavailable or if the null count is non-zero, false otherwise.
-   */
-  protected abstract boolean canContainNulls(int id);
-
   /** Return true if NaN count is non-zero or is unknown, false if NaN count is 0. */
   protected abstract boolean mayContainNaN(int id);
 
   /** Return true if NaN count is known and equal to value count, false otherwise. */
   protected abstract boolean containsNaNsOnly(int id);
-
-  /** Return true if the NaN count is known and non-zero, false otherwise. */
-  protected abstract boolean canContainNaNs(int id);
 
   /** Return the lower bound if it is known, or null otherwise. */
   protected abstract <T> T lowerBound(BoundReference<T> ref);
@@ -159,7 +152,7 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
       return ROWS_MIGHT_NOT_MATCH;
     }
 
-    if (canContainNulls(id) || canContainNaNs(id)) {
+    if (canContainNulls(ref) || canContainNaNs(ref)) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
@@ -184,7 +177,7 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
       return ROWS_MIGHT_NOT_MATCH;
     }
 
-    if (canContainNulls(id) || canContainNaNs(id)) {
+    if (canContainNulls(ref) || canContainNaNs(ref)) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
@@ -209,7 +202,7 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
       return ROWS_MIGHT_NOT_MATCH;
     }
 
-    if (canContainNulls(id) || canContainNaNs(id)) {
+    if (canContainNulls(ref) || canContainNaNs(ref)) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
@@ -235,7 +228,7 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
       return ROWS_MIGHT_NOT_MATCH;
     }
 
-    if (canContainNulls(id) || canContainNaNs(id)) {
+    if (canContainNulls(ref) || canContainNaNs(ref)) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
@@ -261,7 +254,7 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
       return ROWS_MIGHT_NOT_MATCH;
     }
 
-    if (canContainNulls(id) || canContainNaNs(id)) {
+    if (canContainNulls(ref) || canContainNaNs(ref)) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
@@ -325,7 +318,7 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
       return ROWS_MIGHT_NOT_MATCH;
     }
 
-    if (canContainNulls(id) || canContainNaNs(id)) {
+    if (canContainNulls(ref) || canContainNaNs(ref)) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
@@ -389,7 +382,7 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
       return ROWS_MIGHT_NOT_MATCH;
     }
 
-    if (canContainNulls(id)) {
+    if (canContainNulls(ref)) {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
@@ -457,6 +450,27 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
     return ROWS_MIGHT_NOT_MATCH;
   }
 
+  /**
+   * Returns true if the field is optional and its null count is non-zero or unknown.
+   *
+   * <p>A null value does not match a comparison predicate, so all rows can only match when the
+   * field has no nulls.
+   */
+  private boolean canContainNulls(BoundReference<?> ref) {
+    return ref.producesNull() && mayContainNull(ref.fieldId());
+  }
+
+  /**
+   * Returns true if the field is a floating point type and its NaN count is non-zero or unknown.
+   *
+   * <p>A NaN value does not match a comparison predicate, so all rows can only match when the field
+   * has no NaNs. NaN counts are tracked only for floating point fields, so the type is checked to
+   * avoid assuming that other fields may contain NaN values.
+   */
+  private boolean canContainNaNs(BoundReference<?> ref) {
+    return isFloatingPoint(ref.type()) && mayContainNaN(ref.fieldId());
+  }
+
   /** Returns true if the field is not a top-level field of the schema. */
   private boolean isNestedColumn(int id) {
     return struct.field(id) == null;
@@ -473,5 +487,9 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
     }
 
     return false;
+  }
+
+  private static boolean isFloatingPoint(Type type) {
+    return Type.TypeID.FLOAT == type.typeId() || Type.TypeID.DOUBLE == type.typeId();
   }
 }
