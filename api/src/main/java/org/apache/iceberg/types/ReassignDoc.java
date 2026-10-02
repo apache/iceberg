@@ -38,6 +38,11 @@ class ReassignDoc extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type struct(Types.StructType struct, Iterable<Type> fieldTypes) {
+    if (struct.isFileType()) {
+      // the nested fields of a file cannot carry docs
+      return struct;
+    }
+
     List<Types.NestedField> fields = struct.fields();
     int length = fields.size();
 

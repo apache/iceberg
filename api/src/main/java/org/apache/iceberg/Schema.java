@@ -61,13 +61,14 @@ public class Schema implements Serializable {
   @VisibleForTesting static final int DEFAULT_VALUES_MIN_FORMAT_VERSION = 3;
 
   @VisibleForTesting
-  static final Map<Type.TypeID, Integer> MIN_FORMAT_VERSIONS =
+  static final Map<Class<? extends Type>, Integer> MIN_FORMAT_VERSIONS =
       ImmutableMap.of(
-          Type.TypeID.TIMESTAMP_NANO, 3,
-          Type.TypeID.VARIANT, 3,
-          Type.TypeID.UNKNOWN, 3,
-          Type.TypeID.GEOMETRY, 3,
-          Type.TypeID.GEOGRAPHY, 3);
+          Types.TimestampNanoType.class, 3,
+          Types.VariantType.class, 3,
+          Types.UnknownType.class, 3,
+          Types.GeometryType.class, 3,
+          Types.GeographyType.class, 3,
+          Types.FileType.class, 4);
 
   private final StructType struct;
   private final int schemaId;
@@ -148,6 +149,8 @@ public class Schema implements Serializable {
     this.struct = StructType.of(finalColumns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
 
+    validateFileFields(struct);
+
     // validate IdentifierField
     if (identifierFieldIds != null) {
       Map<Integer, Integer> idToParent = TypeUtil.indexParents(struct);
@@ -158,6 +161,58 @@ public class Schema implements Serializable {
         identifierFieldIds != null ? Ints.toArray(identifierFieldIds) : new int[0];
 
     this.highestFieldId = lazyIdToName().keySet().stream().mapToInt(i -> i).max().orElse(0);
+  }
+
+  /**
+   * Validates that every file column holds the block of derived field IDs that its type produces.
+   */
+  private static void validateFileFields(StructType struct) {
+    Map<Integer, String> namesById = Maps.newHashMap();
+    Map<Integer, String> fileNamesById = Maps.newHashMap();
+    indexFileFields(struct, null, namesById, fileNamesById);
+
+    fileNamesById.forEach(
+        (enclosingId, fileName) -> {
+          for (int offset = 1; offset <= Types.FileType.NUM_NESTED_FIELDS; offset += 1) {
+            String conflictingName = namesById.get(enclosingId + offset);
+            Preconditions.checkArgument(
+                conflictingName == null,
+                "Invalid file column %s: derived field ID %s is already used by %s",
+                fileName,
+                enclosingId + offset,
+                conflictingName);
+          }
+        });
+  }
+
+  private static void indexFileFields(
+      Type type,
+      String prefix,
+      Map<Integer, String> namesById,
+      Map<Integer, String> fileNamesById) {
+    if (!type.isNestedType()) {
+      return;
+    }
+
+    for (NestedField field : type.asNestedType().fields()) {
+      String name = prefix == null ? field.name() : prefix + "." + field.name();
+      namesById.putIfAbsent(field.fieldId(), name);
+
+      // a file's derived fields are not indexed, so any ID found in its reserved block is a
+      // different column
+      if (field.type().isFileType()) {
+        Types.FileType file = field.type().asFileType();
+        Preconditions.checkArgument(
+            file.enclosingId() == field.fieldId(),
+            "Invalid file column %s: nested field IDs are derived from %s, not %s",
+            name,
+            field.fieldId(),
+            file.enclosingId());
+        fileNamesById.put(field.fieldId(), name);
+      } else {
+        indexFileFields(field.type(), name, namesById, fileNamesById);
+      }
+    }
   }
 
   static void validateIdentifierField(
@@ -578,18 +633,36 @@ public class Schema implements Serializable {
     if (getID == null) {
       return columns;
     }
-    Type res =
-        TypeUtil.assignIds(
-            StructType.of(columns),
-            oldId -> {
-              int newId = getID.get(oldId);
-              if (newId != oldId) {
-                idsToReassigned.put(oldId, newId);
-                idsToOriginal.put(newId, oldId);
-              }
-              return newId;
-            });
+
+    TypeUtil.GetID tracked =
+        new TypeUtil.GetID() {
+          @Override
+          public int get(int oldId) {
+            return track(oldId, getID.get(oldId));
+          }
+
+          @Override
+          public int get(int oldId, int numReserved) {
+            return track(oldId, getID.get(oldId, numReserved));
+          }
+        };
+
+    Type res = TypeUtil.assignIds(StructType.of(columns), tracked);
     return res.asStructType().fields();
+  }
+
+  private int track(int oldId, int newId) {
+    if (newId != oldId) {
+      idsToReassigned.put(oldId, newId);
+      idsToOriginal.put(newId, oldId);
+    }
+
+    return newId;
+  }
+
+  private static Integer minFormatVersion(Type type) {
+    // types are keyed by class because the file type shares STRUCT as its type ID
+    return MIN_FORMAT_VERSIONS.get(type.getClass());
   }
 
   /**
@@ -607,7 +680,7 @@ public class Schema implements Serializable {
 
     // check each field's type and defaults
     for (NestedField field : schema.lazyIdToField().values()) {
-      Integer minFormatVersion = MIN_FORMAT_VERSIONS.get(field.type().typeId());
+      Integer minFormatVersion = minFormatVersion(field.type());
       if (minFormatVersion != null && formatVersion < minFormatVersion) {
         problems.put(
             field.fieldId(),

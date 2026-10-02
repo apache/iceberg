@@ -62,6 +62,11 @@ public class TestTypes {
     assertThat(Types.fromTypeName("geography ( srid:4269 , karney )"))
         .isEqualTo(Types.GeographyType.of("srid:4269", EdgeAlgorithm.KARNEY));
 
+    // a file is not resolvable by name because its nested ids come from the enclosing field
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromTypeName("file"))
+        .withMessage("Cannot parse type string to primitive: file");
+
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromTypeName("abcdefghij"))
         .withMessage("Cannot parse type string to primitive: abcdefghij");
@@ -91,6 +96,10 @@ public class TestTypes {
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("Variant"))
         .withMessage("Cannot parse type string: variant is not a primitive type");
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromPrimitiveString("file"))
+        .withMessage("Cannot parse type string to primitive: file");
 
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("abcdefghij"))
