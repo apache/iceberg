@@ -1119,7 +1119,7 @@ Data and delete files for a snapshot can be stored in more than one manifest. Th
 * Tables can use multiple partition specs. A table’s partition configuration can evolve if, for example, its data volume changes. Queries do not need to change because partition filters are derived from data predicates. In v1-v3, each manifest uses a single partition spec.
 * Large tables can be split across multiple manifests so that implementations can parallelize job planning or reduce the cost of rewriting a manifest.
 
-Manifests for a snapshot are tracked by the snapshot root.
+Manifests for a snapshot are tracked by the snapshot root and are not allowed in leaf manifest files.
 
 Valid snapshots are stored as a list in table metadata. For serialization, see Appendix C.
 
