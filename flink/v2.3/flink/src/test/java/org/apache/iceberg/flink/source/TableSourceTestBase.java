@@ -51,9 +51,12 @@ public abstract class TableSourceTestBase extends TestBase {
   protected static final String CATALOG_NAME = "test_catalog";
   protected static final String DATABASE_NAME = "test_db";
   protected static final String TABLE_NAME = "test_table";
-  protected final FileFormat format = FileFormat.AVRO;
   protected int scanEventCount = 0;
   protected ScanEvent lastScanEvent = null;
+
+  protected FileFormat format() {
+    return FileFormat.AVRO;
+  }
 
   @Override
   protected TableEnvironment getTableEnv() {
@@ -87,7 +90,7 @@ public abstract class TableSourceTestBase extends TestBase {
     sql("USE %s", DATABASE_NAME);
     sql(
         "CREATE TABLE %s (id INT, data VARCHAR,d DOUBLE) WITH ('write.format.default'='%s')",
-        TABLE_NAME, format.name());
+        TABLE_NAME, format().name());
     sql(
         "INSERT INTO %s VALUES (1,'iceberg',10),(2,'b',20),(3,CAST(NULL AS VARCHAR),30)",
         TABLE_NAME);
