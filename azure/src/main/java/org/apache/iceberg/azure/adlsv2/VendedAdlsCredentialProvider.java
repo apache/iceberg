@@ -166,7 +166,7 @@ public class VendedAdlsCredentialProvider implements Serializable, AutoCloseable
     return client;
   }
 
-  private LoadCredentialsResponse fetchCredentials() {
+  LoadCredentialsResponse fetchCredentials() {
     return httpClient()
         .get(
             credentialsEndpoint,
