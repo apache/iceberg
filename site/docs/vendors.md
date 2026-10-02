@@ -111,6 +111,10 @@ With Dremio, an organization can easily build and manage a data lakehouse in whi
 
 DuckDB is an open-source, in-process SQL database optimized for fast analytical queries. DuckDB is not only lightweight &mdash;just a small binary&mdash;, but also extensible. One of the core extensions supported by DuckDB is the [`duckdb-iceberg` extension](https://duckdb.org/docs/stable/core_extensions/iceberg/overview), which allows DuckDB users to attach to an Iceberg catalog, query data and write to Iceberg tables. This functionality is all natively implemented in DuckDB with no external dependencies.
 
+### [Earthmover](https://earthmover.io/)
+
+[Earthmover](https://earthmover.io/) builds [Arraylake](https://docs.earthmover.io/), a cloud data catalog for scientific and geospatial data that manages both multidimensional array data (via [Icechunk](https://icechunk.io/) and Zarr) and tabular data in Apache Iceberg. Arraylake implements the Iceberg REST Catalog specification, so Iceberg namespaces and tables live alongside Icechunk repositories with shared authentication, team- and role-based access control, and bring-your-own-storage bucket configuration. The catalog issues short-lived vended credentials scoped to individual tables, and any engine that speaks the REST catalog protocol, including Apache Spark, DuckDB, Polars, PyIceberg, Snowflake, Trino, and [Zax SQL](https://docs.earthmover.io/compute/sql), can read and write tables directly. Learn more about Iceberg in Arraylake [here](https://docs.earthmover.io/iceberg/).
+
 ### [Estuary](https://estuary.dev)
 
 A low-latency, high-fidelity data movement platform, Estuary lets developers quickly set up pipelines to connect their entire data architecture. Intelligent schema inference and evolution determines field data types based on usage and keeps pipelines running when fields change. Flexible [deployment options](https://estuary.dev/deployment-options/) include public, private, and BYOC (Bring Your Own Cloud) for a range of compliance and privacy-oriented use cases.
