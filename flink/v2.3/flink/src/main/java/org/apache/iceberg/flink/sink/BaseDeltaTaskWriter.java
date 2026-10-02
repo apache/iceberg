@@ -36,6 +36,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningDVWriter;
+import org.apache.iceberg.io.PositionDeleteTracker;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 
@@ -47,6 +48,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
   private final RowDataWrapper keyWrapper;
   private final RowDataProjection keyProjection;
   private final boolean upsert;
+  private final PositionDeleteTracker positionDeleteTracker;
 
   BaseDeltaTaskWriter(
       PartitionSpec spec,
@@ -59,7 +61,8 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
       boolean upsert,
-      boolean useDv) {
+      boolean useDv,
+      PositionDeleteTracker positionDeleteTracker) {
     super(spec, format, fileWriterFactory, fileFactory, io, targetFileSize, useDv);
     this.schema = schema;
     this.deleteSchema = TypeUtil.select(schema, Sets.newHashSet(equalityFieldIds));
@@ -69,6 +72,7 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     this.keyProjection =
         RowDataProjection.create(flinkSchema, schema.asStruct(), deleteSchema.asStruct());
     this.upsert = upsert;
+    this.positionDeleteTracker = positionDeleteTracker;
   }
 
   abstract RowDataDeltaWriter route(RowData row);
@@ -112,7 +116,13 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
 
   protected class RowDataDeltaWriter extends BaseEqualityDeltaWriter {
     RowDataDeltaWriter(PartitionKey partition, PartitioningDVWriter<RowData> dvFileWriter) {
-      super(partition, schema, deleteSchema, DeleteGranularity.FILE, dvFileWriter);
+      super(
+          partition,
+          schema,
+          deleteSchema,
+          DeleteGranularity.FILE,
+          dvFileWriter,
+          positionDeleteTracker);
     }
 
     @Override

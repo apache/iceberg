@@ -35,12 +35,10 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.SortingPositionOnlyDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
-import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructLikeUtil;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
@@ -183,7 +181,9 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     private RollingFileWriter dataWriter;
     private RollingEqDeleteWriter eqDeleteWriter;
     private PartitioningWriter<PositionDelete<T>, DeleteWriteResult> posDeleteWriter;
-    private Map<StructLike, PathOffset> insertedRowMap;
+    private Map<StructLike, PositionDeleteTracker.PathOffset> insertedRowMap;
+    private final PositionDeleteTracker insertedRowTracker;
+    private final boolean closeInsertedRowTracker;
     private boolean closePosDeleteWriter;
 
     protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
@@ -204,6 +204,16 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         Schema deleteSchema,
         DeleteGranularity deleteGranularity,
         PartitioningDVWriter<T> posDeleteWriter) {
+      this(partition, schema, deleteSchema, deleteGranularity, posDeleteWriter, null);
+    }
+
+    protected BaseEqualityDeltaWriter(
+        StructLike partition,
+        Schema schema,
+        Schema deleteSchema,
+        DeleteGranularity deleteGranularity,
+        PartitioningDVWriter<T> posDeleteWriter,
+        PositionDeleteTracker insertedRowTracker) {
       Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");
       Preconditions.checkNotNull(deleteSchema, "Equality-delete schema cannot be null.");
       this.structProjection = StructProjection.create(schema, deleteSchema);
@@ -215,7 +225,12 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
           posDeleteWriter != null
               ? posDeleteWriter
               : createPosDeleteWriter(partition, deleteGranularity);
-      this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
+      this.insertedRowTracker =
+          insertedRowTracker != null
+              ? insertedRowTracker
+              : new PositionDeleteTracker(deleteSchema.asStruct());
+      this.closeInsertedRowTracker = insertedRowTracker == null;
+      this.insertedRowMap = this.insertedRowTracker.insertedRows();
       this.partitionKey = partition;
     }
 
@@ -226,13 +241,14 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     protected abstract StructLike asStructLikeKey(T key);
 
     public void write(T row) throws IOException {
-      PathOffset pathOffset = PathOffset.of(dataWriter.currentPath(), dataWriter.currentRows());
+      PositionDeleteTracker.PathOffset pathOffset =
+          PositionDeleteTracker.PathOffset.of(dataWriter.currentPath(), dataWriter.currentRows());
 
       // Create a copied key from this row.
       StructLike copiedKey = StructLikeUtil.copy(structProjection.wrap(asStructLike(row)));
 
       // Adding a pos-delete to replace the old path-offset.
-      PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
+      PositionDeleteTracker.PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
         writePosDelete(previous);
@@ -260,7 +276,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       }
     }
 
-    private void writePosDelete(PathOffset pathOffset) {
+    private void writePosDelete(PositionDeleteTracker.PathOffset pathOffset) {
       positionDelete.set(pathOffset.path, pathOffset.rowOffset);
       posDeleteWriter.write(positionDelete, spec, partitionKey);
     }
@@ -271,7 +287,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      * @param key has the same columns with the equality fields.
      */
     private boolean internalPosDelete(StructLike key) {
-      PathOffset previous = insertedRowMap.remove(key);
+      PositionDeleteTracker.PathOffset previous = insertedRowMap.remove(key);
 
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
@@ -327,8 +343,8 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
           }
         }
 
-        if (insertedRowMap != null) {
-          insertedRowMap.clear();
+        if (closeInsertedRowTracker) {
+          insertedRowTracker.clear();
           insertedRowMap = null;
         }
 
@@ -348,28 +364,6 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         setFailure(e);
         throw e;
       }
-    }
-  }
-
-  private static class PathOffset {
-    private final CharSequence path;
-    private final long rowOffset;
-
-    private PathOffset(CharSequence path, long rowOffset) {
-      this.path = path;
-      this.rowOffset = rowOffset;
-    }
-
-    private static PathOffset of(CharSequence path, long rowOffset) {
-      return new PathOffset(path, rowOffset);
-    }
-
-    @Override
-    public String toString() {
-      return MoreObjects.toStringHelper(this)
-          .add("path", path)
-          .add("row_offset", rowOffset)
-          .toString();
     }
   }
 

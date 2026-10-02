@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.VisibleForTesting;
@@ -38,12 +39,15 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.sink.RowDataTaskWriterFactory;
 import org.apache.iceberg.flink.sink.SinkUtil;
+import org.apache.iceberg.io.PositionDeleteTracker;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,6 +62,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
 
   private final Map<WriteTarget, RowDataTaskWriterFactory> taskWriterFactories;
   private final Map<WriteTarget, TaskWriter<RowData>> writers;
+  private final Map<PositionDeleteTrackerKey, PositionDeleteTracker> positionDeleteTrackers;
   private final Configuration flinkConfig;
   private final Map<String, String> commonWriteProperties;
   private final DynamicWriterMetrics metrics;
@@ -81,6 +86,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     this.attemptId = attemptId;
     this.taskWriterFactories = new LRUCache<>(cacheMaximumSize);
     this.writers = Maps.newHashMap();
+    this.positionDeleteTrackers = Maps.newHashMap();
 
     LOG.debug("DynamicIcebergSinkWriter created for subtask {} attemptId {}", subTaskId, attemptId);
   }
@@ -142,8 +148,28 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
                             element.spec());
                       });
 
+              PositionDeleteTracker positionDeleteTracker = null;
+              if (element.upsertMode()) {
+                Set<Integer> equalityFieldIds = writerKey.equalityFields();
+                if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
+                  Table table = catalog.loadTable(TableIdentifier.parse(writerKey.tableName()));
+                  equalityFieldIds = getEqualityFields(table, equalityFieldIds);
+                }
+                Types.StructType equalityKeyType =
+                    TypeUtil.select(element.schema(), equalityFieldIds).asStruct();
+                PositionDeleteTrackerKey trackerKey =
+                    new PositionDeleteTrackerKey(
+                        writerKey.tableName(),
+                        writerKey.branch(),
+                        writerKey.specId(),
+                        equalityKeyType);
+                positionDeleteTracker =
+                    positionDeleteTrackers.computeIfAbsent(
+                        trackerKey, key -> new PositionDeleteTracker(equalityKeyType));
+              }
+
               taskWriterFactory.initialize(subTaskId, attemptId);
-              return taskWriterFactory.create();
+              return taskWriterFactory.create(positionDeleteTracker);
             })
         .write(element.rowData());
     metrics.mainMetricsGroup().getNumRecordsSendCounter().inc();
@@ -159,6 +185,7 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     for (TaskWriter<RowData> writer : writers.values()) {
       writer.close();
     }
+    clearPositionDeleteTrackers();
   }
 
   @Override
@@ -196,8 +223,50 @@ class DynamicWriter implements CommittingSinkWriter<DynamicRecordInternal, Dynam
     }
 
     writers.clear();
+    clearPositionDeleteTrackers();
 
     return result;
+  }
+
+  private void clearPositionDeleteTrackers() {
+    positionDeleteTrackers.values().forEach(PositionDeleteTracker::clear);
+    positionDeleteTrackers.clear();
+  }
+
+  private static class PositionDeleteTrackerKey {
+    private final String tableName;
+    private final String branch;
+    private final int specId;
+    private final Types.StructType equalityKeyType;
+
+    private PositionDeleteTrackerKey(
+        String tableName, String branch, int specId, Types.StructType equalityKeyType) {
+      this.tableName = tableName;
+      this.branch = branch;
+      this.specId = specId;
+      this.equalityKeyType = equalityKeyType;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      }
+
+      if (!(other instanceof PositionDeleteTrackerKey that)) {
+        return false;
+      }
+
+      return specId == that.specId
+          && Objects.equals(tableName, that.tableName)
+          && Objects.equals(branch, that.branch)
+          && Objects.equals(equalityKeyType, that.equalityKeyType);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(tableName, branch, specId, equalityKeyType);
+    }
   }
 
   private static Set<Integer> getEqualityFields(Table table, Set<Integer> equalityFieldIds) {
