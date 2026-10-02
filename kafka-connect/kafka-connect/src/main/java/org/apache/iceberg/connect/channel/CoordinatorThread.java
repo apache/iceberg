@@ -62,6 +62,10 @@ class CoordinatorThread extends Thread {
     return terminated;
   }
 
+  void assignmentChanged() {
+    coordinator.assignmentChanged();
+  }
+
   void terminate() {
     this.terminated = true;
     coordinator.terminate();
