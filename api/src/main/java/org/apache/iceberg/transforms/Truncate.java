@@ -51,20 +51,14 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
   static <T, R extends Truncate<T> & SerializableFunction<T, T>> R get(Type type, int width) {
     Preconditions.checkArgument(width > 0, "Invalid truncate width: %s (must be > 0)", width);
 
-    switch (type.typeId()) {
-      case INTEGER:
-        return (R) new TruncateInteger(width);
-      case LONG:
-        return (R) new TruncateLong(width);
-      case DECIMAL:
-        return (R) new TruncateDecimal(width);
-      case STRING:
-        return (R) new TruncateString(width);
-      case BINARY:
-        return (R) new TruncateByteBuffer(width);
-      default:
-        throw new UnsupportedOperationException("Cannot truncate type: " + type);
-    }
+    return switch (type.typeId()) {
+      case INTEGER -> (R) new TruncateInteger(width);
+      case LONG -> (R) new TruncateLong(width);
+      case DECIMAL -> (R) new TruncateDecimal(width);
+      case STRING -> (R) new TruncateString(width);
+      case BINARY -> (R) new TruncateByteBuffer(width);
+      default -> throw new UnsupportedOperationException("Cannot truncate type: " + type);
+    };
   }
 
   @SuppressWarnings("checkstyle:VisibilityModifier")
@@ -92,15 +86,10 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
 
   @Override
   public boolean canTransform(Type type) {
-    switch (type.typeId()) {
-      case INTEGER:
-      case LONG:
-      case STRING:
-      case BINARY:
-      case DECIMAL:
-        return true;
-    }
-    return false;
+    return switch (type.typeId()) {
+      case INTEGER, LONG, STRING, BINARY, DECIMAL -> true;
+      default -> false;
+    };
   }
 
   @Override
@@ -326,28 +315,27 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         return Expressions.predicate(predicate.op(), name);
       } else if (predicate.isLiteralPredicate()) {
         BoundLiteralPredicate<CharSequence> pred = predicate.asLiteralPredicate();
-        switch (pred.op()) {
-          case STARTS_WITH:
+        return switch (pred.op()) {
+          case STARTS_WITH -> {
             if (pred.literal().value().length() < width()) {
-              return Expressions.predicate(pred.op(), name, pred.literal().value());
+              yield Expressions.predicate(pred.op(), name, pred.literal().value());
             } else if (pred.literal().value().length() == width()) {
-              return Expressions.equal(name, pred.literal().value());
+              yield Expressions.equal(name, pred.literal().value());
             }
 
-            return ProjectionUtil.truncateArray(name, pred, this);
-
-          case NOT_STARTS_WITH:
+            yield ProjectionUtil.truncateArray(name, pred, this);
+          }
+          case NOT_STARTS_WITH -> {
             if (pred.literal().value().length() < width()) {
-              return Expressions.predicate(pred.op(), name, pred.literal().value());
+              yield Expressions.predicate(pred.op(), name, pred.literal().value());
             } else if (pred.literal().value().length() == width()) {
-              return Expressions.notEqual(name, pred.literal().value());
+              yield Expressions.notEqual(name, pred.literal().value());
             }
 
-            return null;
-
-          default:
-            return ProjectionUtil.truncateArray(name, pred, this);
-        }
+            yield null;
+          }
+          default -> ProjectionUtil.truncateArray(name, pred, this);
+        };
       } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.IN) {
         return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
       }
@@ -365,28 +353,27 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         return Expressions.predicate(predicate.op(), name);
       } else if (predicate instanceof BoundLiteralPredicate) {
         BoundLiteralPredicate<CharSequence> pred = predicate.asLiteralPredicate();
-        switch (pred.op()) {
-          case STARTS_WITH:
+        return switch (pred.op()) {
+          case STARTS_WITH -> {
             if (pred.literal().value().length() < width()) {
-              return Expressions.predicate(pred.op(), name, pred.literal().value());
+              yield Expressions.predicate(pred.op(), name, pred.literal().value());
             } else if (pred.literal().value().length() == width()) {
-              return Expressions.equal(name, pred.literal().value());
+              yield Expressions.equal(name, pred.literal().value());
             }
 
-            return null;
-
-          case NOT_STARTS_WITH:
+            yield null;
+          }
+          case NOT_STARTS_WITH -> {
             if (pred.literal().value().length() < width()) {
-              return Expressions.predicate(pred.op(), name, pred.literal().value());
+              yield Expressions.predicate(pred.op(), name, pred.literal().value());
             } else if (pred.literal().value().length() == width()) {
-              return Expressions.notEqual(name, pred.literal().value());
+              yield Expressions.notEqual(name, pred.literal().value());
             }
 
-            return Expressions.predicate(pred.op(), name, apply(pred.literal().value()).toString());
-
-          default:
-            return ProjectionUtil.truncateArrayStrict(name, pred, this);
-        }
+            yield Expressions.predicate(pred.op(), name, apply(pred.literal().value()).toString());
+          }
+          default -> ProjectionUtil.truncateArrayStrict(name, pred, this);
+        };
       } else if (predicate.isSetPredicate() && predicate.op() == Expression.Operation.NOT_IN) {
         return ProjectionUtil.transformSet(name, predicate.asSetPredicate(), this);
       }

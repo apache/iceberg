@@ -120,14 +120,13 @@ public class StructProjection implements StructLike {
           found = true;
           positionMap[pos] = i;
           switch (projectedField.type().typeId()) {
-            case STRUCT:
-              nestedProjections[pos] =
-                  new StructProjection(
-                      dataField.type().asStructType(),
-                      projectedField.type().asStructType(),
-                      allowMissing);
-              break;
-            case MAP:
+            case STRUCT ->
+                nestedProjections[pos] =
+                    new StructProjection(
+                        dataField.type().asStructType(),
+                        projectedField.type().asStructType(),
+                        allowMissing);
+            case MAP -> {
               MapType projectedMap = projectedField.type().asMapType();
               MapType originalMap = dataField.type().asMapType();
 
@@ -144,8 +143,8 @@ public class StructProjection implements StructLike {
                   dataField);
 
               nestedProjections[pos] = null;
-              break;
-            case LIST:
+            }
+            case LIST -> {
               ListType projectedList = projectedField.type().asListType();
               ListType originalList = dataField.type().asListType();
 
@@ -159,9 +158,8 @@ public class StructProjection implements StructLike {
                   dataField);
 
               nestedProjections[pos] = null;
-              break;
-            default:
-              nestedProjections[pos] = null;
+            }
+            default -> nestedProjections[pos] = null;
           }
         }
       }
