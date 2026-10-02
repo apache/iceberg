@@ -88,6 +88,10 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         return String.valueOf(value).startsWith((String) literal.value());
       case NOT_STARTS_WITH:
         return !String.valueOf(value).startsWith((String) literal.value());
+      case CONTAINS:
+        return String.valueOf(value).contains((String) literal.value());
+      case NOT_CONTAINS:
+        return !String.valueOf(value).contains((String) literal.value());
       default:
         throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + op());
     }

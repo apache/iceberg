@@ -249,6 +249,16 @@ public class ParquetBloomRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean contains(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notContains(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
       // bloom filter is based on hash and cannot eliminate based on startsWith
       return ROWS_MIGHT_MATCH;
