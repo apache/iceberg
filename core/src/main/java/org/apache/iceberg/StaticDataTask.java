@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -161,6 +162,11 @@ class StaticDataTask implements DataTask {
     @Override
     public <T> void set(int pos, T value) {
       throw new UnsupportedOperationException("Setting values is not supported");
+    }
+
+    @Override
+    public String toString() {
+      return Arrays.stream(values).map(String::valueOf).collect(Collectors.joining(", ", "[", "]"));
     }
   }
 }
