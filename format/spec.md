@@ -1116,7 +1116,7 @@ For other optional snapshot summary fields, see [Appendix F](#optional-snapshot-
 Data and delete files for a snapshot can be stored in more than one manifest. This enables:
 
 * Appends can add a new manifest to minimize the amount of data written, instead of adding new records by rewriting and appending to an existing manifest. (This is called a “fast append”.)
-* Tables can use multiple partition specs. A table’s partition configuration can evolve if, for example, its data volume changes. Queries do not need to change because partition filters are derived from data predicates. In v1-v3, each manifest uses a single partition spec.
+* Tables can use multiple partition specs. A table’s partition configuration can evolve if, for example, its data volume changes. Partition predicates for a partition spec are derived from data predicates and can be applied to filter files written using that spec. Prior to v4, a manifest stored files partitioned by single spec.
 * Large tables can be split across multiple manifests so that implementations can parallelize job planning or reduce the cost of rewriting a manifest.
 
 Manifests for a snapshot are tracked by the snapshot root and are not allowed in leaf manifest files.
