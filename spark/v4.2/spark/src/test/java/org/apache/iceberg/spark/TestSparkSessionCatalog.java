@@ -22,6 +22,7 @@ import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -54,6 +55,9 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 
 public class TestSparkSessionCatalog extends TestBase {
   private final String envHmsUriKey = "spark.hadoop." + METASTOREURIS.varname;
@@ -73,6 +77,89 @@ public class TestSparkSessionCatalog extends TestBase {
     spark.sessionState().catalogManager().reset();
     spark.conf().set(envHmsUriKey, hmsUri);
     spark.conf().set(catalogHmsUriKey, hmsUri);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"parquet", "avro", "orc"})
+  void createTableLikeDelegatesUsingSourceProvider(String provider) throws Exception {
+    Identifier ident = Identifier.of(new String[] {"default"}, "target");
+    TableInfo tableInfo = new TableInfo.Builder().build();
+    TableInfo sourceInfo =
+        new TableInfo.Builder().withSchema(new StructType().add("id", "long")).build();
+    Table source = mock(Table.class);
+    when(source.columns()).thenReturn(sourceInfo.columns());
+    when(source.partitioning()).thenReturn(sourceInfo.partitions());
+    when(source.properties()).thenReturn(Collections.singletonMap("provider", provider));
+    Table target = mock(Table.class);
+    TableCatalog sessionCatalog = sessionCatalogWithViews();
+    when(sessionCatalog.createTable(eq(ident), any(TableInfo.class))).thenReturn(target);
+    TableCatalog icebergCatalog = icebergCatalogWithViews();
+
+    SparkSessionCatalog<?> catalog = new CatalogWithIcebergViews<>(icebergCatalog);
+    catalog.initialize(
+        "spark_catalog",
+        new CaseInsensitiveStringMap(Collections.singletonMap(provider + "-enabled", "false")));
+    catalog.setDelegateCatalog(sessionCatalog);
+
+    assertThat(catalog.createTableLike(ident, tableInfo, source)).isSameAs(target);
+    ArgumentCaptor<TableInfo> targetInfo = ArgumentCaptor.forClass(TableInfo.class);
+    verify(sessionCatalog).createTable(eq(ident), targetInfo.capture());
+    assertThat(targetInfo.getValue().schema()).isEqualTo(sourceInfo.schema());
+    assertThat(targetInfo.getValue().properties()).containsEntry("provider", provider);
+    verify(icebergCatalog, never()).createTableLike(ident, tableInfo, source);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"parquet", "orc"})
+  void createTableLikeWithoutUsingPreservesSourceProvider(String provider) {
+    String sourceName = "spark_catalog.default.like_source";
+    String targetName = "spark_catalog.default.like_target";
+    String conversionOption = "spark.sql.catalog.spark_catalog." + provider + "-enabled";
+
+    withSQLConf(
+        Collections.singletonMap(conversionOption, "false"),
+        () -> {
+          spark.sessionState().catalogManager().reset();
+          try {
+            sql("CREATE TABLE %s (id BIGINT) USING %s", sourceName, provider);
+            sql("CREATE TABLE %s LIKE %s", targetName, sourceName);
+
+            assertThat(sql("DESCRIBE TABLE EXTENDED %s", targetName))
+                .anySatisfy(row -> assertThat(row).startsWith("Provider", provider));
+          } finally {
+            sql("DROP TABLE IF EXISTS %s", targetName);
+            sql("DROP TABLE IF EXISTS %s", sourceName);
+            spark.sessionState().catalogManager().reset();
+          }
+        });
+  }
+
+  @Test
+  void createTableLikeUsingParquetOverridesIcebergProvider() {
+    String sourceName = "spark_catalog.default.like_iceberg_source";
+    String targetName = "spark_catalog.default.like_parquet_target";
+
+    withSQLConf(
+        Collections.singletonMap("spark.sql.catalog.spark_catalog.parquet-enabled", "false"),
+        () -> {
+          spark.sessionState().catalogManager().reset();
+          try {
+            sql("CREATE TABLE %s (id BIGINT, data STRING) USING iceberg", sourceName);
+            sql("INSERT INTO %s VALUES (1, 'source')", sourceName);
+
+            sql("CREATE TABLE %s LIKE %s USING parquet", targetName, sourceName);
+
+            assertThat(sql("DESCRIBE TABLE EXTENDED %s", targetName))
+                .anySatisfy(row -> assertThat(row).startsWith("Provider", "parquet"));
+            assertThat(spark.table(targetName).schema())
+                .isEqualTo(spark.table(sourceName).schema());
+            assertThat(sql("SELECT * FROM %s", targetName)).isEmpty();
+          } finally {
+            sql("DROP TABLE IF EXISTS %s", targetName);
+            sql("DROP TABLE IF EXISTS %s", sourceName);
+            spark.sessionState().catalogManager().reset();
+          }
+        });
   }
 
   @Test

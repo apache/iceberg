@@ -135,6 +135,11 @@ public class SparkTable extends BaseSparkTable
     return new SparkTable(table(), newBranch);
   }
 
+  /** Returns the Iceberg schema pinned when this table was loaded. */
+  public Schema icebergSchema() {
+    return schema;
+  }
+
   public Long snapshotId() {
     return snapshot != null ? snapshot.snapshotId() : null;
   }
