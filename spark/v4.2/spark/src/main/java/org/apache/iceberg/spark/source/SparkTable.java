@@ -33,6 +33,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -107,7 +108,7 @@ public class SparkTable extends BaseSparkTable
           TableCapability.OVERWRITE_DYNAMIC);
 
   private final Schema schema; // effective schema (not necessarily current table schema)
-  private final Set<Integer> mapKeyFieldIds;
+  private Set<Integer> mapKeyFieldIds;
   private final Snapshot snapshot; // always set unless table is empty
   private final String branch; // set if table is loaded for specific branch
   private final TimeTravel timeTravel; // set if table is loaded for time travel
@@ -139,7 +140,6 @@ public class SparkTable extends BaseSparkTable
       Table table, Schema schema, Snapshot snapshot, String branch, TimeTravel timeTravel) {
     super(table, schema);
     this.schema = schema;
-    this.mapKeyFieldIds = mapKeyFieldIds(schema);
     this.snapshot = snapshot;
     this.branch = branch;
     this.timeTravel = timeTravel;
@@ -181,11 +181,15 @@ public class SparkTable extends BaseSparkTable
 
     if (change instanceof TableChange.AddColumn) {
       TableChange.AddColumn add = (TableChange.AddColumn) change;
-      return add.isNullable() && add.defaultValue() == null && canConvert(add.dataType());
+      Type type = tryConvert(add.dataType());
+      return add.isNullable()
+          && add.defaultValue() == null
+          && type != null
+          && isSupportedAtFormatVersion(type);
     } else if (change instanceof TableChange.UpdateColumnType) {
       return supportsTypeUpdate((TableChange.UpdateColumnType) change);
     } else if (change instanceof TableChange.UpdateColumnNullability) {
-      return ((TableChange.UpdateColumnNullability) change).nullable();
+      return supportsNullabilityUpdate((TableChange.UpdateColumnNullability) change);
     } else if (change instanceof TableChange.DeleteColumn) {
       return supportsDeleteColumn((TableChange.DeleteColumn) change);
     } else {
@@ -193,6 +197,14 @@ public class SparkTable extends BaseSparkTable
           || change instanceof TableChange.UpdateColumnComment
           || change instanceof TableChange.UpdateColumnPosition;
     }
+  }
+
+  private Set<Integer> mapKeyFieldIds() {
+    if (mapKeyFieldIds == null) {
+      this.mapKeyFieldIds = mapKeyFieldIds(schema);
+    }
+
+    return mapKeyFieldIds;
   }
 
   private static Set<Integer> mapKeyFieldIds(Schema schema) {
@@ -217,7 +229,7 @@ public class SparkTable extends BaseSparkTable
 
     Types.NestedField field =
         schema.findField(String.join(".", Arrays.copyOf(fieldNames, pathLength)));
-    return field != null && mapKeyFieldIds.contains(field.fieldId());
+    return field != null && mapKeyFieldIds().contains(field.fieldId());
   }
 
   private boolean supportsTypeUpdate(TableChange.UpdateColumnType update) {
@@ -228,9 +240,15 @@ public class SparkTable extends BaseSparkTable
 
     Type newType = tryConvert(update.newDataType());
     return newType != null
+        && isSupportedAtFormatVersion(newType)
         && newType.isPrimitiveType()
         && SparkSchemaUtil.convert(newType).equals(update.newDataType())
         && TypeUtil.isPromotionAllowed(field.type(), newType.asPrimitiveType());
+  }
+
+  private boolean supportsNullabilityUpdate(TableChange.UpdateColumnNullability update) {
+    Types.NestedField field = schema.findField(String.join(".", update.fieldNames()));
+    return update.nullable() && field != null && !containsIdentifierField(field);
   }
 
   private boolean supportsDeleteColumn(TableChange.DeleteColumn delete) {
@@ -240,13 +258,23 @@ public class SparkTable extends BaseSparkTable
     }
 
     // Iceberg rejects dropping an identifier field or a field whose subtree contains one
-    Set<Integer> identifierFieldIds = schema.identifierFieldIds();
-    return TypeUtil.indexById(Types.StructType.of(field)).keySet().stream()
-        .noneMatch(identifierFieldIds::contains);
+    return !containsIdentifierField(field);
   }
 
-  private boolean canConvert(DataType sparkType) {
-    return tryConvert(sparkType) != null;
+  private boolean containsIdentifierField(Types.NestedField field) {
+    Set<Integer> identifierFieldIds = schema.identifierFieldIds();
+    return TypeUtil.indexById(Types.StructType.of(field)).keySet().stream()
+        .anyMatch(identifierFieldIds::contains);
+  }
+
+  private boolean isSupportedAtFormatVersion(Type type) {
+    try {
+      Schema typeSchema = new Schema(Types.NestedField.optional(-1, "value", type));
+      Schema.checkCompatibility(typeSchema, TableUtil.formatVersion(table()));
+      return true;
+    } catch (IllegalArgumentException | IllegalStateException e) {
+      return false;
+    }
   }
 
   private Type tryConvert(DataType sparkType) {
