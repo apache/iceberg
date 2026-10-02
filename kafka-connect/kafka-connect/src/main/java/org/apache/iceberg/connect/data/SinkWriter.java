@@ -132,7 +132,7 @@ public class SinkWriter {
     if (recordValue == null) {
       return null;
     }
-    Object routeValue = RecordUtils.extractFromRecordValue(recordValue, routeField);
+    Object routeValue = RecordUtils.extractFromRecordValue(recordValue, routeField, config);
     return routeValue == null ? null : routeValue.toString();
   }
 
