@@ -73,6 +73,7 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
+import org.apache.iceberg.types.Types.TimestampNanoType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.apache.iceberg.types.Types.VariantType;
@@ -658,6 +659,94 @@ public class TestRecordConverter {
             "2026-03-31 03:17:37.260514+0000",
             "2026-03-31T03:17:37.260514Z");
     assertTimestampConvert(expected, inputs, TimestampType.withoutZone());
+  }
+
+  @Test
+  public void testAvroSubMillisAndLocalTemporalConversion() {
+    // The Confluent AvroConverter passes these Avro logical types through as raw int64 whose unit
+    // and zone are encoded only in the Connect schema name. Verify each is interpreted correctly.
+    org.apache.iceberg.Schema icebergSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "ts_micros", TimestampType.withZone()),
+            NestedField.required(2, "ts_nanos", TimestampNanoType.withZone()),
+            NestedField.required(3, "local_ts_millis", TimestampType.withoutZone()),
+            NestedField.required(4, "local_ts_micros", TimestampType.withoutZone()),
+            NestedField.required(5, "local_ts_nanos", TimestampNanoType.withoutZone()),
+            NestedField.required(6, "time_micros", TimeType.get()));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(icebergSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("ts_micros", SchemaBuilder.int64().name("timestamp-micros").build())
+            .field("ts_nanos", SchemaBuilder.int64().name("timestamp-nanos").build())
+            .field("local_ts_millis", SchemaBuilder.int64().name("local-timestamp-millis").build())
+            .field("local_ts_micros", SchemaBuilder.int64().name("local-timestamp-micros").build())
+            .field("local_ts_nanos", SchemaBuilder.int64().name("local-timestamp-nanos").build())
+            .field("time_micros", SchemaBuilder.int64().name("time-micros").build())
+            .build();
+
+    OffsetDateTime tsMicros = OffsetDateTime.parse("2023-10-15T14:30:45.123456Z");
+    OffsetDateTime tsNanos = OffsetDateTime.parse("2023-10-15T14:30:45.123456789Z");
+    LocalDateTime localMillis = LocalDateTime.parse("2023-10-15T14:30:45.123");
+    LocalDateTime localMicros = LocalDateTime.parse("2023-10-15T14:30:45.123456");
+    LocalDateTime localNanos = LocalDateTime.parse("2023-10-15T14:30:45.123456789");
+    LocalTime timeMicros = LocalTime.parse("14:30:45.123456");
+
+    Struct struct =
+        new Struct(connectSchema)
+            .put("ts_micros", DateTimeUtil.microsFromTimestamptz(tsMicros))
+            .put("ts_nanos", DateTimeUtil.nanosFromTimestamptz(tsNanos))
+            .put("local_ts_millis", DateTimeUtil.millisFromTimestamp(localMillis))
+            .put("local_ts_micros", DateTimeUtil.microsFromTimestamp(localMicros))
+            .put("local_ts_nanos", DateTimeUtil.nanosFromTimestamp(localNanos))
+            .put("time_micros", DateTimeUtil.microsFromTime(timeMicros));
+
+    Record record = converter.convert(struct);
+
+    assertThat(record.getField("ts_micros")).isEqualTo(tsMicros);
+    assertThat(record.getField("ts_nanos")).isEqualTo(tsNanos);
+    assertThat(record.getField("local_ts_millis")).isEqualTo(localMillis);
+    assertThat(record.getField("local_ts_micros")).isEqualTo(localMicros);
+    assertThat(record.getField("local_ts_nanos")).isEqualTo(localNanos);
+    assertThat(record.getField("time_micros")).isEqualTo(timeMicros);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void testAvroMicrosTimestampInListAndMap() {
+    // The source unit must also be recovered for temporal values nested inside lists and maps.
+    org.apache.iceberg.Schema icebergSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "ts_list", ListType.ofRequired(2, TimestampType.withZone())),
+            NestedField.required(
+                3, "ts_map", MapType.ofRequired(4, 5, StringType.get(), TimestampType.withZone())));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(icebergSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema microsSchema = SchemaBuilder.int64().name("timestamp-micros").build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("ts_list", SchemaBuilder.array(microsSchema).build())
+            .field("ts_map", SchemaBuilder.map(Schema.STRING_SCHEMA, microsSchema).build())
+            .build();
+
+    OffsetDateTime ts = OffsetDateTime.parse("2023-10-15T14:30:45.123456Z");
+    long micros = DateTimeUtil.microsFromTimestamptz(ts);
+
+    Struct struct =
+        new Struct(connectSchema)
+            .put("ts_list", ImmutableList.of(micros))
+            .put("ts_map", ImmutableMap.of("k", micros));
+
+    Record record = converter.convert(struct);
+
+    assertThat((List<OffsetDateTime>) record.getField("ts_list")).containsExactly(ts);
+    assertThat((Map<String, OffsetDateTime>) record.getField("ts_map")).containsEntry("k", ts);
   }
 
   private void assertTimestampConvert(Temporal expected, long expectedMillis, TimestampType type) {
