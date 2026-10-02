@@ -56,7 +56,8 @@ class ADLSOutputStream extends PositionOutputStream {
     this.fileClient = fileClient;
     this.azureProperties = azureProperties;
 
-    this.createStack = Thread.currentThread().getStackTrace();
+    this.createStack =
+        azureProperties.isCreateStackTraceEnabled() ? Thread.currentThread().getStackTrace() : null;
 
     this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Unit.BYTES);
     this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS);
@@ -121,8 +122,15 @@ class ADLSOutputStream extends PositionOutputStream {
     super.finalize();
     if (!closed) {
       close(); // releasing resources is more important than printing the warning
-      String trace = Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
-      LOG.warn("Unclosed output stream created by:\n\t{}", trace);
+      if (createStack != null) {
+        String trace =
+            Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
+        LOG.warn("Unclosed output stream created by:\n\t{}", trace);
+      } else {
+        LOG.warn(
+            "Unclosed output stream; enable '{}' to capture its creation stack.",
+            AzureProperties.CREATE_STACK_TRACE_ENABLED);
+      }
     }
   }
 }
