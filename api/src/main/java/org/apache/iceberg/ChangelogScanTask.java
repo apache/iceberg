@@ -32,4 +32,19 @@ public interface ChangelogScanTask extends ScanTask {
 
   /** Returns the snapshot ID in which the changes were committed. */
   long commitSnapshotId();
+
+  /**
+   * Returns the first row ID assigned to rows in the data file associated with this task, or null
+   * if row lineage is not available (i.e. format version &lt; 3 or the file was written before row
+   * lineage was enabled).
+   *
+   * <p>Row IDs are stable, table-scoped 64-bit integers assigned monotonically at commit time. For
+   * an added-rows task, this is the base row ID for the newly added file. For a deleted-data-file
+   * task, this is the base row ID of the file that was removed.
+   *
+   * @return the first row ID for the file associated with this task, or null if unavailable
+   */
+  default Long rowId() {
+    return null;
+  }
 }
