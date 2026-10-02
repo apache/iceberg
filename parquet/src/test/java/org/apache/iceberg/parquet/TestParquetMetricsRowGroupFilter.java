@@ -19,6 +19,8 @@
 package org.apache.iceberg.parquet;
 
 import static org.apache.iceberg.expressions.Expressions.equal;
+import static org.apache.iceberg.expressions.Expressions.greaterThan;
+import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
@@ -26,7 +28,9 @@ import java.io.IOException;
 import java.util.stream.Stream;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
+import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -34,12 +38,14 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.apache.parquet.schema.Types;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TestParquetMetricsRowGroupFilter {
   @TempDir private File temp;
@@ -85,6 +91,47 @@ class TestParquetMetricsRowGroupFilter {
       assertThat(
               new ParquetMetricsRowGroupFilter(schema, equal("s", "\"zzz\""))
                   .shouldRead(schemaWithIds, rowGroup))
+          .isFalse();
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void timestampMillisStats(boolean adjustedToUtc) throws IOException {
+    MessageType writeSchema =
+        new MessageType(
+            "test",
+            Types.optional(PrimitiveTypeName.INT64)
+                .as(LogicalTypeAnnotation.timestampType(adjustedToUtc, TimeUnit.MILLIS))
+                .id(1)
+                .named("ts"));
+    Schema schema =
+        new Schema(
+            NestedField.optional(
+                1, "ts", adjustedToUtc ? TimestampType.withZone() : TimestampType.withoutZone()));
+    File file = new File(temp, "timestamp-millis-" + adjustedToUtc + ".parquet");
+    long timestamp2020Millis = 1_577_836_800_000L;
+    try (ParquetWriter<Group> writer =
+        ExampleParquetWriter.builder(ParquetIO.file(Files.localOutput(file)))
+            .withType(writeSchema)
+            .build()) {
+      writer.write(
+          new SimpleGroupFactory(writeSchema).newGroup().append("ts", timestamp2020Millis));
+    }
+
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      assertThat(reader.getRowGroups()).hasSize(1);
+      BlockMetaData rowGroup = reader.getRowGroups().get(0);
+      long timestamp1990Micros = 631_152_000_000_000L;
+
+      assertThat(
+              new ParquetMetricsRowGroupFilter(schema, greaterThan("ts", timestamp1990Micros))
+                  .shouldRead(writeSchema, rowGroup))
+          .isTrue();
+      assertThat(
+              new ParquetMetricsRowGroupFilter(schema, lessThan("ts", timestamp1990Micros))
+                  .shouldRead(writeSchema, rowGroup))
           .isFalse();
     }
   }
