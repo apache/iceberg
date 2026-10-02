@@ -26,6 +26,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,15 +62,23 @@ public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase 
   }
 
   @TestTemplate
-  public void testBranchAndWapBranchCannotBothBeSetForWrite() {
+  public void testWriteToBranchWithWapBranchSet() {
     Table table = validationCatalog.loadTable(tableIdent);
     table.manageSnapshots().createBranch("test2", table.refs().get(BRANCH).snapshotId()).commit();
     sql("REFRESH TABLE " + tableName);
-    assertThatThrownBy(() -> sql("INSERT INTO %s.branch_test2 VALUES (4, 'd')", tableName))
-        .isInstanceOf(ValidationException.class)
-        .hasMessage(
-            "Cannot write to both branch and WAP branch, but got branch [test2] and WAP branch [%s]",
-            BRANCH);
+
+    // An explicit branch in the table identifier takes precedence over the session WAP branch.
+    sql("INSERT INTO %s.branch_test2 VALUES (4, 'd')", tableName);
+
+    assertEquals(
+        "Data should be written to the branch in the identifier",
+        ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"), row(4L, "d")),
+        sql("SELECT * FROM %s VERSION AS OF 'test2' ORDER BY id", tableName));
+
+    assertEquals(
+        "The session WAP branch should not be affected",
+        ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @TestTemplate
