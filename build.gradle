@@ -959,6 +959,7 @@ project(':iceberg-parquet') {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
+    testFixturesCompileOnly libs.hadoop3.common
     testFixturesApi(libs.parquet.hadoop) {
       exclude group: 'org.apache.avro', module: 'avro'
       // already shaded by Parquet
@@ -1002,6 +1003,7 @@ project(':iceberg-arrow') {
     }
 
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation(testFixtures(project(':iceberg-parquet')))
     // To run ArrowReaderTest test cases, :netty-common is needed.
     // We import :netty-common through :arrow-memory-netty
     // so that the same version as used by the :arrow-memory-netty module is picked.
