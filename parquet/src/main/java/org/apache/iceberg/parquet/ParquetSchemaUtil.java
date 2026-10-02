@@ -257,6 +257,9 @@ public class ParquetSchemaUtil {
     int ordinal = 1;
     for (Type type : fileSchema.getFields()) {
       if (selectedIds.contains(ordinal)) {
+        Types.NestedField expectedField = expectedSchema.findField(ordinal);
+        PruneColumns.validateFallbackType(expectedField.type(), type, type.getName());
+
         builder.addField(type.withId(ordinal));
       }
       ordinal += 1;
