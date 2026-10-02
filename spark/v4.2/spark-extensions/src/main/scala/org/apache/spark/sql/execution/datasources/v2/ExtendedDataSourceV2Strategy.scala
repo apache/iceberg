@@ -189,8 +189,7 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       sourceCatalog: ViewCatalog,
       targetName: Seq[String]): Identifier = {
     if (targetName.length == 1) {
-      // An unqualified target renames in place, matching Spark's v2 RenameTableExec. Resolving it
-      // with Spark3Util would fill in the current namespace instead of the source namespace.
+      // An unqualified target keeps the source view's namespace
       Identifier.of(Array.empty[String], targetName.head)
     } else {
       val target = Spark3Util.catalogAndIdentifier(spark, targetName.toList.asJava, sourceCatalog)
