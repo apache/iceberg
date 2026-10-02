@@ -33,6 +33,8 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectParser { case (_, parser) => new IcebergSparkSqlExtensionsParser(parser) }
 
     // analyzer extensions
+    // Run before Spark's ResolveRelations so Iceberg can rewrite view children with load context.
+    extensions.injectHintResolutionRule { spark => ResolveViews(spark) }
     extensions.injectResolutionRule { spark => ResolveViews(spark) }
     extensions.injectPostHocResolutionRule { spark => ResolveBranch(spark) }
     extensions.injectCheckRule(_ => CheckViews)
