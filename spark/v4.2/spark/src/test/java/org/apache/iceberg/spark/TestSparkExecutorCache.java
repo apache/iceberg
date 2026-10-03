@@ -230,8 +230,10 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
     assertThat(result.rewrittenDataFilesCount()).isEqualTo(2);
 
-    // both delete files apply to both data files and the cache is off, so each is opened per file
-    assertThat(deleteFiles).allMatch(deleteFile -> streamCount(deleteFile) == 2);
+    // the cache is off, so the position delete file is opened once per data file
+    assertThat(streamCount(deleteFiles.get(0))).isEqualTo(2);
+    // the equality delete file is opened once since both data files are in the same task
+    assertThat(streamCount(deleteFiles.get(1))).isEqualTo(1);
   }
 
   @TestTemplate
@@ -562,12 +564,16 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
     sql(
         "CREATE TABLE %s (id INT, dep STRING) "
             + "USING iceberg "
-            + "TBLPROPERTIES ('%s' '%s', '%s' '%s', '%s' '%s')",
+            + "TBLPROPERTIES ('%s' '%s', '%s' '%s', '%s' '%s', '%s' '%s')",
         targetTableName,
         TableProperties.WRITE_METADATA_LOCATION,
         temp.toString().replaceFirst("file:", ""),
         TableProperties.WRITE_DATA_LOCATION,
         temp.toString().replaceFirst("file:", ""),
+        // Prevent deduplication of equality delete reads within a task
+        // by planning each data file into its own task.
+        TableProperties.SPLIT_SIZE,
+        "1",
         operation,
         mode.modeName());
 

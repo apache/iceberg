@@ -42,6 +42,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.BaseDeleteLoader;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.data.DeleteLoader;
+import org.apache.iceberg.data.EqualityDeletes;
 import org.apache.iceberg.deletes.DeleteCounter;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.io.CloseableIterator;
@@ -205,6 +206,27 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
     SparkDeleteFilter(
         String filePath, List<DeleteFile> deletes, DeleteCounter counter, boolean needRowPosCol) {
       super(filePath, deletes, new FieldLookup(table), expectedSchema, counter, needRowPosCol);
+      this.asStructLike =
+          new InternalRowWrapper(
+              SparkSchemaUtil.convert(requiredSchema()), requiredSchema().asStruct());
+    }
+
+    SparkDeleteFilter(
+        String filePath,
+        Long dataSequenceNumber,
+        List<DeleteFile> deletes,
+        EqualityDeletes sharedEqDeletes,
+        DeleteCounter counter,
+        boolean needRowPosCol) {
+      super(
+          filePath,
+          dataSequenceNumber,
+          deletes,
+          sharedEqDeletes,
+          new FieldLookup(table),
+          expectedSchema,
+          counter,
+          needRowPosCol);
       this.asStructLike =
           new InternalRowWrapper(
               SparkSchemaUtil.convert(requiredSchema()), requiredSchema().asStruct());
