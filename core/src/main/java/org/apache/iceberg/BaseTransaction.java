@@ -353,8 +353,6 @@ public class BaseTransaction implements Transaction {
       return;
     }
 
-    Set<Long> startingSnapshots =
-        base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
     try {
       Tasks.foreach(ops)
           .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
@@ -392,6 +390,9 @@ public class BaseTransaction implements Transaction {
       // committed manifests to ensure that no committed manifest is deleted.
       // A manifest could be deleted in one successful operation commit, but reused in another
       // successful commit of that operation if the whole transaction is retried.
+      // only snapshots added on top of the committed base can reference this transaction's files
+      Set<Long> startingSnapshots =
+          base.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
       Set<Snapshot> newSnapshots = Sets.newHashSet();
       for (Snapshot snapshot : current.snapshots()) {
         if (!startingSnapshots.contains(snapshot.snapshotId())) {
