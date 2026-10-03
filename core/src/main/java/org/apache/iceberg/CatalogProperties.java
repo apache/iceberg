@@ -167,7 +167,14 @@ public class CatalogProperties {
 
   public static final boolean UNIQUE_TABLE_LOCATION_DEFAULT = false;
 
+  /**
+   * How long an unused authentication session is retained in the session cache.
+   *
+   * <p>This is an inactivity timeout and does not bound how long a session may live: a session that
+   * keeps being used is retained regardless of the lifetime of the credential it holds.
+   */
   public static final String AUTH_SESSION_TIMEOUT_MS = "auth.session-timeout-ms";
+
   public static final long AUTH_SESSION_TIMEOUT_MS_DEFAULT = TimeUnit.HOURS.toMillis(1);
 
   public static final String ENCRYPTION_KMS_TYPE = "encryption.kms-type";
