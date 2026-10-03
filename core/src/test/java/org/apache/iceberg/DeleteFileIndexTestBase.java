@@ -92,7 +92,8 @@ public abstract class DeleteFileIndexTestBase<
         .build();
   }
 
-  private static DeleteFile posDeletesWithMetrics(PartitionSpec spec, String path) {
+  private static DeleteFile posDeletesWithMetrics(
+      PartitionSpec spec, String lowerPath, String upperPath) {
     return FileMetadata.deleteFileBuilder(spec)
         .ofPositionDeletes()
         .withPath(UUID.randomUUID() + "/path/to/data-partitioned-pos-deletes.parquet")
@@ -109,12 +110,12 @@ public abstract class DeleteFileIndexTestBase<
                     1,
                     ByteBuffer.wrap(new byte[10]),
                     MetadataColumns.DELETE_FILE_PATH.fieldId(),
-                    ByteBuffer.wrap(path.getBytes(StandardCharsets.UTF_8))),
+                    ByteBuffer.wrap(lowerPath.getBytes(StandardCharsets.UTF_8))),
                 ImmutableMap.of(
                     1,
                     ByteBuffer.wrap(new byte[10]),
                     MetadataColumns.DELETE_FILE_PATH.fieldId(),
-                    ByteBuffer.wrap(path.getBytes(StandardCharsets.UTF_8)))))
+                    ByteBuffer.wrap(upperPath.getBytes(StandardCharsets.UTF_8)))))
         .build();
   }
 
@@ -604,7 +605,7 @@ public abstract class DeleteFileIndexTestBase<
   }
 
   @TestTemplate
-  public void testPositionDeleteDiscardMetrics() {
+  public void testFileScopedPositionDeleteDiscardMetrics() {
     assumeThat(formatVersion).isEqualTo(2);
 
     Table table =
@@ -612,9 +613,12 @@ public abstract class DeleteFileIndexTestBase<
 
     table.newAppend().appendFile(FILE_A).commit();
 
-    // add a delete file
-    DeleteFile posDeletesWithMetrics = posDeletesWithMetrics(table.spec(), FILE_A.location());
-    table.newRowDelta().addDeletes(posDeletesWithMetrics).commit();
+    // add two delete files whose file_path bounds both equal FILE_A
+    table
+        .newRowDelta()
+        .addDeletes(posDeletesWithMetrics(table.spec(), FILE_A.location(), FILE_A.location()))
+        .addDeletes(posDeletesWithMetrics(table.spec(), FILE_A.location(), FILE_A.location()))
+        .commit();
 
     List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
     assertThat(tasks).as("Should have one task").hasSize(1);
@@ -623,23 +627,97 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(task.file().location())
         .as("Should have the correct data file path")
         .isEqualTo(FILE_A.location());
+    assertThat(task.deletes()).as("Should have two associated delete files").hasSize(2);
+
+    // verify scanned delete files keep the referenced data file instead of metrics
+    for (DeleteFile deleteFile : task.deletes()) {
+      assertThat(deleteFile.referencedDataFile()).isEqualTo(FILE_A.location());
+      assertThat(ContentFileUtil.isFileScoped(deleteFile)).isTrue();
+      assertThat(deleteFile.dataSequenceNumber()).isEqualTo(2L);
+      assertThat(deleteFile.fileSequenceNumber()).isEqualTo(2L);
+      assertThat(deleteFile.recordCount()).isEqualTo(1L);
+      assertThat(deleteFile.columnSizes()).isNull();
+      assertThat(deleteFile.valueCounts()).isNull();
+      assertThat(deleteFile.nullValueCounts()).isNull();
+      assertThat(deleteFile.nanValueCounts()).isNull();
+      assertThat(deleteFile.lowerBounds()).isNull();
+      assertThat(deleteFile.upperBounds()).isNull();
+    }
+  }
+
+  @TestTemplate
+  public void testPositionDeleteWithReferencedDataFileDiscardMetrics() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    Table table =
+        TestTables.create(tableDir, "partitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
+
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // add a delete file with referenced_data_file set and no file_path bounds
+    DeleteFile posDeletes =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath(UUID.randomUUID() + "/path/to/data-unpartitioned-pos-deletes.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withReferencedDataFile(FILE_A.location())
+            .build();
+    table.newRowDelta().addDeletes(posDeletes).commit();
+
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
+    assertThat(tasks).as("Should have one task").hasSize(1);
+
+    FileScanTask task = (FileScanTask) tasks.get(0);
     assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
 
-    // verify scanned delete file only contains metrics for 'file_path' field
-    int fieldId = MetadataColumns.DELETE_FILE_PATH.fieldId();
     DeleteFile deleteFile = task.deletes().get(0);
-    assertThat(deleteFile.columnSizes()).containsExactly(Map.entry(fieldId, 2L));
-    assertThat(deleteFile.valueCounts()).containsExactly(Map.entry(fieldId, 2L));
-    assertThat(deleteFile.nullValueCounts()).containsExactly(Map.entry(fieldId, 2L));
-    assertThat(deleteFile.nanValueCounts()).containsExactly(Map.entry(fieldId, 2L));
-    assertThat(deleteFile.lowerBounds())
-        .containsExactly(
-            Map.entry(
-                fieldId, ByteBuffer.wrap(FILE_A.location().getBytes(StandardCharsets.UTF_8))));
-    assertThat(deleteFile.upperBounds())
-        .containsExactly(
-            Map.entry(
-                fieldId, ByteBuffer.wrap(FILE_A.location().getBytes(StandardCharsets.UTF_8))));
+    assertThat(deleteFile.location()).isEqualTo(posDeletes.location());
+    assertThat(deleteFile.referencedDataFile()).isEqualTo(FILE_A.location());
+    assertThat(ContentFileUtil.isFileScoped(deleteFile)).isTrue();
+    assertThat(deleteFile.lowerBounds()).isNull();
+    assertThat(deleteFile.upperBounds()).isNull();
+  }
+
+  @TestTemplate
+  public void testMultiFilePositionDeleteDiscardMetrics() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    Table table =
+        TestTables.create(tableDir, "partitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    // add a delete file whose file_path bounds span FILE_A and FILE_B
+    DeleteFile posDeletesWithMetrics =
+        posDeletesWithMetrics(table.spec(), FILE_A.location(), FILE_B.location());
+    table.newRowDelta().addDeletes(posDeletesWithMetrics).commit();
+
+    List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
+    assertThat(tasks).as("Should have two tasks").hasSize(2);
+
+    for (T scanTask : tasks) {
+      FileScanTask task = (FileScanTask) scanTask;
+      assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
+
+      // verify scanned delete file only contains metrics for 'file_path' field
+      int fieldId = MetadataColumns.DELETE_FILE_PATH.fieldId();
+      DeleteFile deleteFile = task.deletes().get(0);
+      assertThat(deleteFile.referencedDataFile()).isNull();
+      assertThat(ContentFileUtil.isFileScoped(deleteFile)).isFalse();
+      assertThat(deleteFile.columnSizes()).containsExactly(Map.entry(fieldId, 2L));
+      assertThat(deleteFile.valueCounts()).containsExactly(Map.entry(fieldId, 2L));
+      assertThat(deleteFile.nullValueCounts()).containsExactly(Map.entry(fieldId, 2L));
+      assertThat(deleteFile.nanValueCounts()).containsExactly(Map.entry(fieldId, 2L));
+      assertThat(deleteFile.lowerBounds())
+          .containsExactly(
+              Map.entry(
+                  fieldId, ByteBuffer.wrap(FILE_A.location().getBytes(StandardCharsets.UTF_8))));
+      assertThat(deleteFile.upperBounds())
+          .containsExactly(
+              Map.entry(
+                  fieldId, ByteBuffer.wrap(FILE_B.location().getBytes(StandardCharsets.UTF_8))));
+    }
   }
 
   @TestTemplate
