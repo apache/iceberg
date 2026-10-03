@@ -387,6 +387,7 @@ public class OrcMetrics {
           .filter(Optional::isPresent)
           .map(Optional::get)
           .forEach(result::add);
+      ORCSchemaUtil.icebergID(record).ifPresent(result::add);
       return result.build();
     }
   }
