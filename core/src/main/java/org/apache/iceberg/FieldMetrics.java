@@ -26,10 +26,11 @@ public class FieldMetrics<T> {
   private final long valueCount;
   private final long nullValueCount;
   private final long nanValueCount;
+  private final long totalBytes;
   private final T lowerBound;
   private final T upperBound;
   private final Type originalType;
-  private final Integer avgValueSizeInBytes;
+  private Integer avgValueSizeInBytes;
 
   public FieldMetrics(int id, long valueCount, long nullValueCount) {
     this(id, valueCount, nullValueCount, -1L, null, null, null);
@@ -66,7 +67,35 @@ public class FieldMetrics<T> {
       T lowerBound,
       T upperBound,
       Type originalType) {
-    this(id, valueCount, nullValueCount, nanValueCount, lowerBound, upperBound, originalType, null);
+    this(id, valueCount, nullValueCount, nanValueCount, lowerBound, upperBound, originalType, -1L);
+  }
+
+  /**
+   * @deprecated since 1.13.0, will be removed in 1.14.0; use the constructor that takes {@code
+   *     long} totalBytes instead.
+   */
+  @Deprecated
+  public FieldMetrics(
+      int id,
+      long valueCount,
+      long nullValueCount,
+      long nanValueCount,
+      T lowerBound,
+      T upperBound,
+      Type originalType,
+      Integer avgValueSizeInBytes) {
+    this(
+        id,
+        valueCount,
+        nullValueCount,
+        nanValueCount,
+        lowerBound,
+        upperBound,
+        originalType,
+        avgValueSizeInBytes == null
+            ? 0L
+            : avgValueSizeInBytes.longValue() * (valueCount - nullValueCount));
+    this.avgValueSizeInBytes = avgValueSizeInBytes;
   }
 
   public FieldMetrics(
@@ -77,7 +106,7 @@ public class FieldMetrics<T> {
       T lowerBound,
       T upperBound,
       Type originalType,
-      Integer avgValueSizeInBytes) {
+      long totalBytes) {
     this.id = id;
     this.valueCount = valueCount;
     this.nullValueCount = nullValueCount;
@@ -85,7 +114,8 @@ public class FieldMetrics<T> {
     this.lowerBound = lowerBound;
     this.upperBound = upperBound;
     this.originalType = originalType;
-    this.avgValueSizeInBytes = avgValueSizeInBytes;
+    this.totalBytes = totalBytes;
+    this.avgValueSizeInBytes = null;
   }
 
   /** Returns the id of the field that the metrics within this class are associated with. */
@@ -126,7 +156,17 @@ public class FieldMetrics<T> {
     return originalType;
   }
 
-  /** Returns the average size in bytes over non-null values, or null if it is not known. */
+  /** Returns the total uncompressed size in bytes of non-null values */
+  public long totalBytes() {
+    return totalBytes;
+  }
+
+  /**
+   * Returns the average size in bytes over non-null values, or null if it is not known.
+   *
+   * @deprecated since 1.13.0, will be removed in 1.14.0; use {@link #totalBytes()} instead.
+   */
+  @Deprecated
   public Integer avgValueSizeInBytes() {
     return avgValueSizeInBytes;
   }

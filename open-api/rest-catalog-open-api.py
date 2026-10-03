@@ -1226,10 +1226,10 @@ class CountMap(BaseModel):
 
 
 class FieldStatistics(BaseModel):
-    avg_value_size_in_bytes: int | None = Field(
+    total_bytes: int | None = Field(
         None,
-        alias='avg-value-size-in-bytes',
-        description='Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption',
+        alias='total-bytes',
+        description='Total uncompressed size in memory in bytes of non-null values',
     )
 
 

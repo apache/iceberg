@@ -81,15 +81,16 @@ public class TestContentStatsBackedMap {
   }
 
   @Test
-  public void avgValueSizes() {
+  public void totalBytes() {
     Schema schema = new Schema(optional(4, "str", Types.StringType.get()));
     Types.StructType statsType = StatsUtil.statsReadSchema(schema, List.of(4));
     Types.StructType fieldStatsType = statsType.field("str").type().asStructType();
     ContentStatsStruct stats = new ContentStatsStruct(statsType);
-    stats.setStats(4, StatsTestUtil.mockFieldStats(fieldStatsType, 4, "a", "z", 10L, 1L, null, 12));
+    stats.setStats(
+        4, StatsTestUtil.mockFieldStats(fieldStatsType, 4, "a", "z", 10L, 1L, null, 12L));
 
-    Map<Integer, Integer> map = ContentStatsBackedMap.avgValueSizes(stats);
-    assertThat(map).containsOnly(Map.entry(4, 12));
+    Map<Integer, Long> map = ContentStatsBackedMap.totalBytes(stats);
+    assertThat(map).containsOnly(Map.entry(4, 12L));
   }
 
   @Test
@@ -257,7 +258,7 @@ public class TestContentStatsBackedMap {
     // only a required long column: it tracks neither null_value_count nor nan_value_count
     assertThat(ContentStatsBackedMap.nullValueCounts(ONLY_REQUIRED_STATS)).isNull();
     assertThat(ContentStatsBackedMap.nanValueCounts(ONLY_REQUIRED_STATS)).isNull();
-    assertThat(ContentStatsBackedMap.avgValueSizes(ONLY_REQUIRED_STATS)).isNull();
+    assertThat(ContentStatsBackedMap.totalBytes(ONLY_REQUIRED_STATS)).isNull();
 
     Map<Integer, Long> valueCounts = ContentStatsBackedMap.valueCounts(ONLY_REQUIRED_STATS);
     assertThat(valueCounts).isNotNull().containsOnly(Map.entry(1, 10L));

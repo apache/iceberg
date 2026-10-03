@@ -61,7 +61,7 @@ public class TestFieldStatsStruct {
 
   @Test
   public void fieldAccess() {
-    FieldStats<String> stats = new FieldStatsStruct<>(STRING_STATS, "a", "z", true, 28, 2, 0, 1);
+    FieldStats<String> stats = new FieldStatsStruct<>(STRING_STATS, "a", "z", true, 28, 2, 0, 1L);
 
     assertThat(stats.fieldId()).isEqualTo(100);
     assertThat(stats.lowerBound()).isEqualTo("a");
@@ -70,20 +70,20 @@ public class TestFieldStatsStruct {
     assertThat(stats.valueCount()).isEqualTo(28L);
     assertThat(stats.nullValueCount()).isEqualTo(2L);
     assertThat(stats.nanValueCount()).isEqualTo(0L);
-    assertThat(stats.avgValueSizeInBytes()).isEqualTo(1);
+    assertThat(stats.totalBytes()).isEqualTo(1L);
   }
 
   @Test
   public void stringGetByPosition() {
     FieldStatsStruct<String> stats =
-        new FieldStatsStruct<>(STRING_STATS, "a", "z", true, 28, 2, 0, 1);
+        new FieldStatsStruct<>(STRING_STATS, "a", "z", true, 28, 2, 0, 1L);
 
     assertThat(stats.get(pos(STRING_STATS, "lower_bound"), String.class)).isEqualTo("a");
     assertThat(stats.get(pos(STRING_STATS, "upper_bound"), String.class)).isEqualTo("z");
     assertThat(stats.get(pos(STRING_STATS, "tight_bounds"), Boolean.class)).isTrue();
     assertThat(stats.get(pos(STRING_STATS, "value_count"), Long.class)).isEqualTo(28L);
     assertThat(stats.get(pos(STRING_STATS, "null_value_count"), Long.class)).isEqualTo(2L);
-    assertThat(stats.get(pos(STRING_STATS, "avg_value_size_in_bytes"), Integer.class)).isEqualTo(1);
+    assertThat(stats.get(pos(STRING_STATS, "total_bytes"), Long.class)).isEqualTo(1L);
   }
 
   @Test
@@ -95,20 +95,20 @@ public class TestFieldStatsStruct {
     stats.set(pos(STRING_STATS, "tight_bounds"), false);
     stats.set(pos(STRING_STATS, "value_count"), 28L);
     stats.set(pos(STRING_STATS, "null_value_count"), 2L);
-    stats.set(pos(STRING_STATS, "avg_value_size_in_bytes"), 1);
+    stats.set(pos(STRING_STATS, "total_bytes"), 1L);
 
     assertThat(stats.lowerBound()).isEqualTo("a");
     assertThat(stats.upperBound()).isEqualTo("z");
     assertThat(stats.tightBounds()).isFalse();
     assertThat(stats.valueCount()).isEqualTo(28L);
     assertThat(stats.nullValueCount()).isEqualTo(2L);
-    assertThat(stats.avgValueSizeInBytes()).isEqualTo(1);
+    assertThat(stats.totalBytes()).isEqualTo(1L);
   }
 
   @Test
   public void doubleGetByPosition() {
     FieldStatsStruct<Double> stats =
-        new FieldStatsStruct<>(DOUBLE_STATS, 0.0d, 25.0d, true, 34, 2, 6, 0);
+        new FieldStatsStruct<>(DOUBLE_STATS, 0.0d, 25.0d, true, 34, 2, 6, 0L);
 
     assertThat(stats.get(pos(DOUBLE_STATS, "lower_bound"), Double.class)).isEqualTo(0.0d);
     assertThat(stats.get(pos(DOUBLE_STATS, "upper_bound"), Double.class)).isEqualTo(25.0d);
@@ -135,7 +135,7 @@ public class TestFieldStatsStruct {
     assertThat(stats.valueCount()).isEqualTo(34L);
     assertThat(stats.nullValueCount()).isEqualTo(2L);
     assertThat(stats.nanValueCount()).isEqualTo(6L);
-    assertThat(stats.avgValueSizeInBytes()).isNull();
+    assertThat(stats.totalBytes()).isNull();
   }
 
   @Test
@@ -150,14 +150,14 @@ public class TestFieldStatsStruct {
   public void fromFieldMetricsString() {
     FieldStatsStruct<String> stats = new FieldStatsStruct<>(STRING_STATS);
 
-    stats.fromFieldMetrics(new FieldMetrics<>(100, 28, 2, -1, "a", "z", null, 4));
+    stats.fromFieldMetrics(new FieldMetrics<>(100, 28, 2, -1, "a", "z", null, 4L));
 
     assertThat(stats.lowerBound()).isEqualTo("a");
     assertThat(stats.upperBound()).isEqualTo("z");
     assertThat(stats.tightBounds()).isFalse();
     assertThat(stats.valueCount()).isEqualTo(28L);
     assertThat(stats.nullValueCount()).isEqualTo(2L);
-    assertThat(stats.avgValueSizeInBytes()).isEqualTo(4);
+    assertThat(stats.totalBytes()).isEqualTo(4L);
   }
 
   @Test
@@ -172,7 +172,7 @@ public class TestFieldStatsStruct {
     assertThat(stats.valueCount()).isEqualTo(34L);
     assertThat(stats.nullValueCount()).isEqualTo(2L);
     assertThat(stats.nanValueCount()).isEqualTo(6L);
-    assertThat(stats.avgValueSizeInBytes()).isNull(); // unknown
+    assertThat(stats.totalBytes()).isNull(); // unknown
   }
 
   @Test
@@ -277,7 +277,7 @@ public class TestFieldStatsStruct {
             28L,
             2L,
             isFloatingPoint ? 6L : 0L,
-            isVariableLength ? 1 : null);
+            isVariableLength ? 1L : null);
 
     Comparator<StructLike> comparator = Comparators.forType(statsStruct);
 
@@ -314,7 +314,7 @@ public class TestFieldStatsStruct {
     upperBound.set(3, 8.0d);
 
     FieldStatsStruct<Object> stats =
-        new FieldStatsStruct<>(statsStruct, lowerBound, upperBound, false, 28L, 2L, 0L, null);
+        new FieldStatsStruct<>(statsStruct, lowerBound, upperBound, false, 28L, 2L, 0L, 23L);
 
     Comparator<StructLike> comparator = Comparators.forType(statsStruct);
 
@@ -354,7 +354,7 @@ public class TestFieldStatsStruct {
     upperObject.put("$['x']", Variants.of(10));
     Variant upperBound = Variant.of(metadata, upperObject);
 
-    int size = metadata.dictionarySize() + lowerObject.sizeInBytes();
+    long size = metadata.dictionarySize() + lowerObject.sizeInBytes();
 
     FieldStatsStruct<Object> stats =
         new FieldStatsStruct<>(statsStruct, lowerBound, upperBound, false, 28L, 2L, 0L, size);
@@ -364,7 +364,7 @@ public class TestFieldStatsStruct {
     assertThat(copy.type()).isEqualTo(stats.type());
     assertThat(copy.valueCount()).isEqualTo(28L);
     assertThat(copy.nullValueCount()).isEqualTo(2L);
-    assertThat(copy.avgValueSizeInBytes()).isEqualTo(size);
+    assertThat(copy.totalBytes()).isEqualTo(size);
 
     Variant copyLower = (Variant) copy.lowerBound();
     VariantTestUtil.assertEqual(lowerBound.metadata(), copyLower.metadata());

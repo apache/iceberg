@@ -46,7 +46,7 @@ public class ContentFileParser {
   private static final String LOWER_BOUNDS = "lower-bounds";
   private static final String UPPER_BOUNDS = "upper-bounds";
   private static final String CONTENT_STATS = "content-stats";
-  private static final String AVG_VALUE_SIZE_IN_BYTES = "avg-value-size-in-bytes";
+  private static final String TOTAL_BYTES = "total-bytes";
   private static final String KEY_METADATA = "key-metadata";
   private static final String SPLIT_OFFSETS = "split-offsets";
   private static final String EQUALITY_IDS = "equality-ids";
@@ -245,12 +245,12 @@ public class ContentFileParser {
       SingleValueParser.toJson(DataFile.UPPER_BOUNDS.type(), contentFile.upperBounds(), generator);
     }
 
-    if (contentFile.avgValueSizes() != null) {
+    if (contentFile.totalBytes() != null) {
       generator.writeFieldName(CONTENT_STATS);
       generator.writeStartObject();
-      for (Map.Entry<Integer, Integer> entry : contentFile.avgValueSizes().entrySet()) {
+      for (Map.Entry<Integer, Long> entry : contentFile.totalBytes().entrySet()) {
         generator.writeObjectFieldStart(String.valueOf(entry.getKey()));
-        generator.writeNumberField(AVG_VALUE_SIZE_IN_BYTES, entry.getValue());
+        generator.writeNumberField(TOTAL_BYTES, entry.getValue());
         generator.writeEndObject();
       }
 
@@ -305,9 +305,9 @@ public class ContentFileParser {
               SingleValueParser.fromJson(DataFile.UPPER_BOUNDS.type(), jsonNode.get(UPPER_BOUNDS));
     }
 
-    Map<Integer, Integer> avgValueSizes = null;
+    Map<Integer, Long> totalBytes = null;
     if (jsonNode.hasNonNull(CONTENT_STATS)) {
-      avgValueSizes = avgValueSizesFromJson(jsonNode.get(CONTENT_STATS));
+      totalBytes = totalBytesFromJson(jsonNode.get(CONTENT_STATS));
     }
 
     return new Metrics(
@@ -318,17 +318,17 @@ public class ContentFileParser {
         nanValueCounts,
         lowerBounds,
         upperBounds,
-        avgValueSizes,
+        totalBytes,
         null /* originalTypes */);
   }
 
-  private static Map<Integer, Integer> avgValueSizesFromJson(JsonNode contentStats) {
+  private static Map<Integer, Long> totalBytesFromJson(JsonNode contentStats) {
     Preconditions.checkArgument(
         contentStats.isObject(),
         "Invalid JSON node for content stats: non-object (%s)",
         contentStats);
 
-    Map<Integer, Integer> avgValueSizes = Maps.newHashMap();
+    Map<Integer, Long> columnTotalBytes = Maps.newHashMap();
     Iterator<String> fieldIds = contentStats.fieldNames();
     while (fieldIds.hasNext()) {
       String fieldId = fieldIds.next();
@@ -338,13 +338,13 @@ public class ContentFileParser {
           "Cannot parse content stats for field %s from non-object: %s",
           fieldId,
           fieldStats);
-      Integer avgValueSize = JsonUtil.getIntOrNull(AVG_VALUE_SIZE_IN_BYTES, fieldStats);
-      if (avgValueSize != null) {
-        avgValueSizes.put(parseFieldId(fieldId), avgValueSize);
+      Long fieldTotalBytes = JsonUtil.getLongOrNull(TOTAL_BYTES, fieldStats);
+      if (fieldTotalBytes != null) {
+        columnTotalBytes.put(parseFieldId(fieldId), fieldTotalBytes);
       }
     }
 
-    return avgValueSizes.isEmpty() ? null : avgValueSizes;
+    return columnTotalBytes.isEmpty() ? null : columnTotalBytes;
   }
 
   private static int parseFieldId(String fieldId) {

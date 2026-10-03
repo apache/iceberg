@@ -20,11 +20,11 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** Field-level metrics for tracking the average size of variable-length values. */
+/** Field-level metrics for tracking the total size of variable-length values. */
 public class ValueSizeFieldMetrics extends FieldMetrics<Object> {
 
-  private ValueSizeFieldMetrics(int id, long valueCount, Integer avgValueSizeInBytes) {
-    super(id, valueCount, 0L, -1L, null, null, null, avgValueSizeInBytes);
+  private ValueSizeFieldMetrics(int id, long valueCount, long totalBytes) {
+    super(id, valueCount, 0L, -1L, null, null, null, totalBytes);
   }
 
   public static class Builder {
@@ -43,9 +43,8 @@ public class ValueSizeFieldMetrics extends FieldMetrics<Object> {
     }
 
     public ValueSizeFieldMetrics build() {
-      Integer avgValueSizeInBytes =
-          valueCount > 0 ? Math.toIntExact(totalValueSizeInBytes / valueCount) : null;
-      return new ValueSizeFieldMetrics(id, valueCount, avgValueSizeInBytes);
+      long totalBytes = valueCount > 0 ? totalValueSizeInBytes : -1L;
+      return new ValueSizeFieldMetrics(id, valueCount, totalBytes);
     }
   }
 }
