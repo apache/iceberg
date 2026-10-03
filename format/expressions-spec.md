@@ -281,7 +281,7 @@ If a function reference is a list of strings, it is the function identifier and 
 ### Predicates
 
 ```
-PREDICATE: true | false
+PREDICATE: { "type": BOOLEAN_CONST }
     | { "type": "not", "child": PREDICATE }
     | { "type": BINARY_OP, "left": PREDICATE, "right": PREDICATE }
     | { "type": UNARY_OP, "child": EXPR }
@@ -289,12 +289,15 @@ PREDICATE: true | false
     | { "type": SET_OP, "child": EXPR, "values": LITERALS }
     | DEPRECATED_PREDICATE
 
+BOOLEAN_CONST: "true" | "false"
 BINARY_OP: "and" | "or"
 UNARY_OP: "is-null" | "not-null" | "is-nan" | "not-nan"
 CMP_OP: "lt" | "lt-eq" | "gt" | "gt-eq" | "eq" | "not-eq"
       | "starts-with" | "not-starts-with"
 SET_OP: "in" | "not-in"
 ```
+
+Boolean predicate constants are serialized as objects to avoid ambiguity with boolean literal values.
 
 ### Backward compatibility
 
