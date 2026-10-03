@@ -30,7 +30,7 @@ CVE-2026-54512
 CVE-2026-54513
 # jackson-core CVE shaded into parquet-jackson, only fixed in jackson
 # >= 2.18.8 / 2.21.4 / 2.22.1.
-GHSA-r7wm-3cxj-wff9
+CVE-2026-68494
 # jackson-databind CVE shaded into parquet-jackson 1.17.1, only fixed in
 # jackson >= 2.18.10 / 2.21.6 / 2.22.2. Resolved once Apache Parquet is
 # bumped to 1.18.1 (apache/iceberg#17321).
