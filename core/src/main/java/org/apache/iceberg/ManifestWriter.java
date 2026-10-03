@@ -44,6 +44,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private final FileFormat format;
   private final OutputFile file;
   private final EncryptionKeyMetadata keyMetadata;
+  private final PartitionSpec spec;
   private final int specId;
   private final FileAppender<ManifestEntry<F>> writer;
   private final Long snapshotId;
@@ -67,6 +68,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       Long snapshotId,
       Long firstRowId,
       Map<String, String> writerProperties) {
+    this.spec = spec;
     this.format = FileFormat.fromFileName(file.encryptingOutputFile().location());
     this.file = outputFile(file);
     this.specId = spec.specId();
@@ -109,6 +111,8 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   }
 
   void addEntry(ManifestEntry<F> entry) {
+    entry = normalizeEntry(entry);
+
     switch (entry.status()) {
       case ADDED:
         addedFiles += 1;
@@ -133,6 +137,33 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     }
 
     writer.add(prepare(entry));
+  }
+
+  @SuppressWarnings("unchecked")
+  private ManifestEntry<F> normalizeEntry(ManifestEntry<F> entry) {
+    if (!(entry.file() instanceof DataFile)) {
+      return entry;
+    }
+
+    DataFile normalizedFile = DataFiles.builder(spec).copy((DataFile) entry.file()).build();
+    switch (entry.status()) {
+      case ADDED:
+        return reused.wrapAppend(snapshotId, entry.dataSequenceNumber(), (F) normalizedFile);
+      case EXISTING:
+        return reused.wrapExisting(
+            entry.snapshotId(),
+            entry.dataSequenceNumber(),
+            entry.fileSequenceNumber(),
+            (F) normalizedFile);
+      case DELETED:
+        return reused.wrapDelete(
+            entry.snapshotId(),
+            entry.dataSequenceNumber(),
+            entry.fileSequenceNumber(),
+            (F) normalizedFile);
+      default:
+        throw new IllegalArgumentException("Unsupported manifest entry status: " + entry.status());
+    }
   }
 
   /**
