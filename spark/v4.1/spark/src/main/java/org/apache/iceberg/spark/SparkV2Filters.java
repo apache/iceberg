@@ -65,6 +65,7 @@ import org.apache.spark.sql.connector.expressions.filter.Not;
 import org.apache.spark.sql.connector.expressions.filter.Or;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.types.TimeType;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class SparkV2Filters {
@@ -381,6 +382,9 @@ public class SparkV2Filters {
       return ((UTF8String) literal.value()).toString();
     } else if (literal.value() instanceof Decimal) {
       return ((Decimal) literal.value()).toJavaBigDecimal();
+    } else if (literal.value() instanceof Long && literal.dataType() instanceof TimeType) {
+      // Spark stores time as nanoseconds, but Iceberg stores it as microseconds
+      return (Long) literal.value() / 1000;
     }
     return literal.value();
   }
