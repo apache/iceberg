@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -36,6 +37,8 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.PrefixListing;
+import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -249,6 +252,168 @@ public class TestFileSystemWalker {
   }
 
   @Test
+  public void testShallowListDirRecursivelyWithFileIO() {
+    List<String> foundFiles = Lists.newArrayList();
+    List<String> remainingDirs = Lists.newArrayList();
+    Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".txt");
+    FileSystemWalker.listDirRecursivelyWithFileIO(
+        fileIO,
+        basePath,
+        specs,
+        fileFilter,
+        Integer.MAX_VALUE,
+        Integer.MAX_VALUE,
+        remainingDirs::add,
+        foundFiles::add);
+
+    assertThat(foundFiles).hasSize(4);
+    assertThat(foundFiles).contains(Paths.get("file://", basePath, "file1.txt").toString());
+    assertThat(foundFiles)
+        .contains(Paths.get("file://", basePath, "normal_dir/file2.txt").toString());
+    assertThat(foundFiles)
+        .contains(Paths.get("file://", basePath, "normal_dir/dep1/file3.txt").toString());
+    assertThat(foundFiles)
+        .contains(Paths.get("file://", basePath, "normal_dir_1/file4.txt").toString());
+    assertThat(remainingDirs).isEmpty();
+  }
+
+  @Test
+  public void testShallowListDirRecursivelyWithFileIOMaxDepth() {
+    List<String> foundFiles = Lists.newArrayList();
+    List<String> remainingDirs = Lists.newArrayList();
+    Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".txt");
+    FileSystemWalker.listDirRecursivelyWithFileIO(
+        fileIO,
+        basePath,
+        specs,
+        fileFilter,
+        2, // maxDepth
+        10, // maxDirectSubDirs
+        remainingDirs::add,
+        foundFiles::add);
+
+    assertThat(foundFiles).hasSize(3);
+    assertThat(foundFiles).contains(Paths.get("file://", basePath, "file1.txt").toString());
+    assertThat(foundFiles)
+        .contains(Paths.get("file://", basePath, "normal_dir/file2.txt").toString());
+    assertThat(foundFiles)
+        .contains(Paths.get("file://", basePath, "normal_dir_1/file4.txt").toString());
+    assertThat(remainingDirs).hasSize(1);
+    assertThat(remainingDirs)
+        .contains(Paths.get("file://", basePath, "normal_dir/dep1").toString() + "/");
+  }
+
+  @Test
+  public void testShallowListDirRecursivelyWithFileIOMaxDirectSubDirs() {
+    List<String> foundFiles = Lists.newArrayList();
+    List<String> remainingDirs = Lists.newArrayList();
+    Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".txt");
+    FileSystemWalker.listDirRecursivelyWithFileIO(
+        fileIO,
+        basePath,
+        specs,
+        fileFilter,
+        2, // maxDepth
+        1, // maxDirectSubDirs
+        remainingDirs::add,
+        foundFiles::add);
+
+    assertThat(foundFiles).hasSize(1);
+    assertThat(foundFiles).contains(Paths.get("file://", basePath, "file1.txt").toString());
+    assertThat(remainingDirs).hasSize(3);
+    assertThat(remainingDirs)
+        .contains(Paths.get("file://", basePath, "normal_dir").toString() + "/");
+    assertThat(remainingDirs)
+        .contains(Paths.get("file://", basePath, "normal_dir_1").toString() + "/");
+    assertThat(remainingDirs)
+        .contains(Paths.get("file://", basePath, "hidden_dir").toString() + "/");
+  }
+
+  @Test
+  void streamsSubPrefixesAfterMaxDirectSubDirsExceeded() {
+    List<String> remainingDirs = Lists.newArrayList();
+    PrefixListingPage firstPage =
+        PrefixListingPage.of(
+            ImmutableList.of(), ImmutableList.of("s3://bucket/table/a/", "s3://bucket/table/b/"));
+    PrefixListingPage secondPage =
+        PrefixListingPage.of(ImmutableList.of(), ImmutableList.of("s3://bucket/table/c/"));
+    Iterable<PrefixListingPage> pages =
+        () ->
+            new Iterator<PrefixListingPage>() {
+              private final Iterator<PrefixListingPage> delegate =
+                  ImmutableList.of(firstPage, secondPage).iterator();
+              private boolean first = true;
+
+              @Override
+              public boolean hasNext() {
+                return delegate.hasNext();
+              }
+
+              @Override
+              public PrefixListingPage next() {
+                if (!first) {
+                  assertThat(remainingDirs)
+                      .containsExactly("s3://bucket/table/a/", "s3://bucket/table/b/");
+                }
+
+                first = false;
+                return delegate.next();
+              }
+            };
+    RecordingPrefixFileIO recordingIO = new RecordingPrefixFileIO(PrefixListing.of(pages));
+
+    FileSystemWalker.listDirRecursivelyWithFileIO(
+        recordingIO,
+        "s3://bucket/table/",
+        null,
+        fileInfo -> true,
+        1,
+        1,
+        remainingDirs::add,
+        file -> {});
+
+    assertThat(remainingDirs)
+        .containsExactly("s3://bucket/table/a/", "s3://bucket/table/b/", "s3://bucket/table/c/");
+  }
+
+  @Test
+  void delimitedListDirRecursivelyWithFileIONormalizesTrailingSlash() {
+    RecordingPrefixFileIO recordingIO = new RecordingPrefixFileIO();
+    FileSystemWalker.listDirRecursivelyWithFileIO(
+        recordingIO,
+        "s3://bucket/table",
+        null,
+        fileInfo -> true,
+        1,
+        Integer.MAX_VALUE,
+        dir -> {},
+        file -> {});
+
+    // walker must normalize the seed prefix so object-store list calls do not accidentally match
+    // sibling prefixes like "s3://bucket/table_backup/"
+    assertThat(recordingIO.calls).containsExactly("s3://bucket/table/");
+  }
+
+  @Test
+  void rejectsUnsupportedDelimitedPrefixListing() {
+    SupportsPrefixOperations io = new StaticPrefixFileIO(ImmutableList.of());
+
+    assertThatThrownBy(
+            () ->
+                FileSystemWalker.listDirRecursivelyWithFileIO(
+                    io,
+                    "s3://bucket/table",
+                    null,
+                    fileInfo -> true,
+                    1,
+                    Integer.MAX_VALUE,
+                    dir -> {},
+                    file -> {}))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not support prefix listing with '/' delimiter");
+  }
+
+  @Test
   public void testListDirRecursivelyWithFileIOBucketRootBaseDir() {
     assertThat(
             listWithMockFileIO(
@@ -307,6 +472,57 @@ public class TestFileSystemWalker {
     FileSystemWalker.listDirRecursivelyWithFileIO(
         mockIO, baseDir, null, fileInfo -> true, foundFiles::add);
     return foundFiles;
+  }
+
+  private static class RecordingPrefixFileIO implements SupportsPrefixOperations {
+    private final List<String> calls = Lists.newArrayList();
+    private final PrefixListing listing;
+
+    private RecordingPrefixFileIO() {
+      this(
+          PrefixListing.of(
+              ImmutableList.of(PrefixListingPage.of(ImmutableList.of(), ImmutableList.of()))));
+    }
+
+    private RecordingPrefixFileIO(PrefixListing listing) {
+      this.listing = listing;
+    }
+
+    @Override
+    public boolean supportsPrefixListingWithDelimiter(String prefix, String delimiter) {
+      return "/".equals(delimiter);
+    }
+
+    @Override
+    public PrefixListing listPrefix(String prefix, String delimiter) {
+      calls.add(prefix);
+      return listing;
+    }
+
+    @Override
+    public Iterable<FileInfo> listPrefix(String prefix) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void deletePrefix(String prefix) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public InputFile newInputFile(String path) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void deleteFile(String path) {
+      throw new UnsupportedOperationException();
+    }
   }
 
   private static class StaticPrefixFileIO implements SupportsPrefixOperations {

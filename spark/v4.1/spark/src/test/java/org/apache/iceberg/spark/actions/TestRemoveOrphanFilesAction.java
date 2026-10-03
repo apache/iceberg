@@ -1195,6 +1195,46 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
   }
 
   @TestTemplate
+  public void testPrefixListingMaxSeedDepthDiscoversOrphans() throws IOException {
+    assumeThat(usePrefixListing)
+        .as("Seed-depth path is only used when prefix listing is enabled")
+        .isEqualTo(true);
+    Table table = TABLES.create(SCHEMA, SPEC, properties, tableLocation);
+
+    List<ThreeColumnRecord> records =
+        Lists.newArrayList(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
+    Dataset<Row> df = spark.createDataFrame(records, ThreeColumnRecord.class).coalesce(1);
+    df.select("c1", "c2", "c3").write().format("iceberg").mode("append").save(tableLocation);
+
+    // orphan files at multiple depths under the table location
+    df.coalesce(1).write().mode("append").parquet(tableLocation + "/data/invalid");
+    df.coalesce(1).write().mode("append").parquet(tableLocation + "/data/nested/invalid");
+
+    waitUntilAfter(System.currentTimeMillis());
+
+    DeleteOrphanFiles.Result result =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .usePrefixListing(true)
+            .prefixListingMaxSeedDepth(2)
+            .olderThan(System.currentTimeMillis())
+            .execute();
+
+    assertThat(result.orphanFileLocations())
+        .as("Seed-depth prefix listing should still discover orphan files at deeper levels")
+        .isNotEmpty();
+  }
+
+  @TestTemplate
+  public void testPrefixListingMaxSeedDepthRejectsNegative() {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+    assertThatThrownBy(
+            () -> SparkActions.get().deleteOrphanFiles(table).prefixListingMaxSeedDepth(-1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Prefix listing max seed depth must be non-negative");
+  }
+
+  @TestTemplate
   public void testDefaultToHadoopListing() {
     assumeThat(usePrefixListing)
         .as(
