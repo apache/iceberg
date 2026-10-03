@@ -127,6 +127,27 @@ env.getConfig()
 | watermark-column              | connector.iceberg.watermark-column              | N/A                          | null                             | Specifies the watermark column to use for watermark generation. If this option is present, the `splitAssignerFactory` will be overridden with `OrderedSplitAssignerFactory`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | watermark-column-time-unit    | connector.iceberg.watermark-column-time-unit    | N/A                          | TimeUnit.MICROSECONDS            | Specifies the watermark time unit to use for watermark generation. The possible values are  DAYS, HOURS, MINUTES, SECONDS, MILLISECONDS, MICROSECONDS, NANOSECONDS.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
+### Statistics reporting
+
+In batch execution mode, the Iceberg connector reports table statistics to the Flink
+planner through `SupportsStatisticReport`: the row count, and per-column null counts,
+min/max values, and NDV (when a Puffin statistics file produced by `ANALYZE TABLE` in
+Spark or the `compute_table_stats` action is present for the current snapshot). These
+statistics enable cost-based optimizations such as join reordering and broadcast-join
+selection. Statistics are estimates: when delete files are present, row counts and null
+counts may overestimate live rows.
+
+| Flink configuration                          | Default | Description                                                                                       |
+| -------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------- |
+| table.exec.iceberg.report-column-statistics  | true    | Include column-level statistics (null counts, min/max, NDV) in addition to the row count. Column statistics require reading manifest metadata during planning; disable for very large tables if planning latency matters. |
+
+Statistics reporting can be disabled entirely with Flink's
+`table.optimizer.source.report-statistics-enabled` option. Point-in-time reads
+(`snapshot-id`, `branch`, `tag`, `as-of-timestamp`) report statistics for the snapshot
+being read. Streaming queries and incremental reads (`start-snapshot-id`,
+`start-snapshot-timestamp`, `start-tag`, `end-snapshot-id`, `end-tag`) always report
+unknown statistics.
+
 ### Write options
 
 Flink write options are passed when configuring the FlinkSink, like this:

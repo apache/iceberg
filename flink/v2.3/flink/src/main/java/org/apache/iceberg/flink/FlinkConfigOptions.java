@@ -97,6 +97,15 @@ public class FlinkConfigOptions {
           .defaultValue(false)
           .withDescription("Use the SinkV2 API based Iceberg sink implementation.");
 
+  public static final ConfigOption<Boolean> TABLE_EXEC_ICEBERG_REPORT_COLUMN_STATISTICS =
+      ConfigOptions.key("table.exec.iceberg.report-column-statistics")
+          .booleanType()
+          .defaultValue(true)
+          .withDescription(
+              "When reporting statistics to the Flink planner in batch mode, whether to include "
+                  + "column-level statistics (null counts, min/max, NDV) computed from table "
+                  + "metadata in addition to the row count.");
+
   public static final ConfigOption<SplitAssignerType> TABLE_EXEC_SPLIT_ASSIGNER_TYPE =
       ConfigOptions.key("table.exec.iceberg.split-assigner-type")
           .enumType(SplitAssignerType.class)
