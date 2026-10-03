@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.gcp;
 
+import static org.apache.iceberg.gcp.GCPProperties.GCS_ENCRYPTION_KEY;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_KMS_KEY_NAME;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_NO_AUTH;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT;
@@ -48,6 +50,33 @@ public class TestGCPProperties {
     gcpProperties = new GCPProperties(ImmutableMap.of(GCS_NO_AUTH, "true"));
     assertThat(gcpProperties.noAuth()).isTrue();
     assertThat(gcpProperties.oauth2Token()).isNotPresent();
+  }
+
+  @Test
+  public void testKmsKeyName() {
+    GCPProperties gcpProperties =
+        new GCPProperties(
+            ImmutableMap.of(GCS_KMS_KEY_NAME, "projects/p/locations/l/keyRings/r/cryptoKeys/k"));
+    assertThat(gcpProperties.kmsKeyName())
+        .get()
+        .isEqualTo("projects/p/locations/l/keyRings/r/cryptoKeys/k");
+    assertThat(gcpProperties.encryptionKey()).isNotPresent();
+
+    assertThat(new GCPProperties().kmsKeyName()).isNotPresent();
+  }
+
+  @Test
+  public void testKmsKeyNameWithEncryptionKey() {
+    assertThatIllegalStateException()
+        .isThrownBy(
+            () ->
+                new GCPProperties(
+                    ImmutableMap.of(
+                        GCS_ENCRYPTION_KEY, "csek", GCS_KMS_KEY_NAME, "projects/p/cryptoKeys/k")))
+        .withMessage(
+            String.format(
+                "Invalid encryption settings: must not configure both %s (CSEK) and %s (CMEK)",
+                GCS_ENCRYPTION_KEY, GCS_KMS_KEY_NAME));
   }
 
   @Test
