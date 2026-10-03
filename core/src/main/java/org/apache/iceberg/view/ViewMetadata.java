@@ -496,11 +496,25 @@ public interface ViewMetadata extends Serializable {
         retainedHistory = history;
       }
 
+      // Drop schemas referenced only by expired versions. Schemas that were never referenced by a
+      // version are standalone metadata and must be preserved.
+      Set<Integer> versionSchemaIds =
+          versions.stream().map(ViewVersion::schemaId).collect(Collectors.toSet());
+      Set<Integer> retainedVersionSchemaIds =
+          retainedVersions.stream().map(ViewVersion::schemaId).collect(Collectors.toSet());
+      List<Schema> retainedSchemas =
+          schemas.stream()
+              .filter(
+                  schema ->
+                      !versionSchemaIds.contains(schema.schemaId())
+                          || retainedVersionSchemaIds.contains(schema.schemaId()))
+              .collect(Collectors.toList());
+
       return ImmutableViewMetadata.of(
           null == uuid ? UUID.randomUUID().toString() : uuid,
           formatVersion,
           location,
-          schemas,
+          retainedSchemas,
           currentVersionId,
           retainedVersions,
           retainedHistory,
