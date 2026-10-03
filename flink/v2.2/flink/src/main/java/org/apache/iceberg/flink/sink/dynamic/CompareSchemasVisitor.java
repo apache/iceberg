@@ -86,7 +86,7 @@ public class CompareSchemasVisitor
       return Result.SCHEMA_UPDATE_NEEDED;
     }
 
-    Result result = fields.stream().reduce(Result::merge).orElse(Result.SCHEMA_UPDATE_NEEDED);
+    Result result = fields.stream().reduce(Result::merge).orElse(Result.SAME);
 
     if (result == Result.SCHEMA_UPDATE_NEEDED) {
       return Result.SCHEMA_UPDATE_NEEDED;
