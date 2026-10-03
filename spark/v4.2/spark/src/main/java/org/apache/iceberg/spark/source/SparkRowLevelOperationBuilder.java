@@ -36,6 +36,7 @@ import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.write.RowLevelOperation;
 import org.apache.spark.sql.connector.write.RowLevelOperation.Command;
@@ -63,7 +64,11 @@ class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
     this.snapshot = snapshot;
     this.branch = branch;
     this.info = info;
-    this.mode = mode(table.properties(), info.command());
+    this.mode =
+        mode(
+            table.properties(),
+            spark.conf().get(SparkSQLProperties.ROW_LEVEL_OPERATION_MODE, null),
+            info.command());
     this.isolationLevel = isolationLevel(table.properties(), info.command());
   }
 
@@ -77,21 +82,26 @@ class SparkRowLevelOperationBuilder implements RowLevelOperationBuilder {
     };
   }
 
-  private RowLevelOperationMode mode(Map<String, String> properties, Command command) {
+  RowLevelOperationMode mode(
+      Map<String, String> properties, String sessionModeName, Command command) {
     String modeName;
 
-    switch (command) {
-      case DELETE:
-        modeName = properties.getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT);
-        break;
-      case UPDATE:
-        modeName = properties.getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT);
-        break;
-      case MERGE:
-        modeName = properties.getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT);
-        break;
-      default:
-        throw new IllegalArgumentException("Unsupported command: " + command);
+    if (sessionModeName != null) {
+      modeName = sessionModeName;
+    } else {
+      switch (command) {
+        case DELETE:
+          modeName = properties.getOrDefault(DELETE_MODE, DELETE_MODE_DEFAULT);
+          break;
+        case UPDATE:
+          modeName = properties.getOrDefault(UPDATE_MODE, UPDATE_MODE_DEFAULT);
+          break;
+        case MERGE:
+          modeName = properties.getOrDefault(MERGE_MODE, MERGE_MODE_DEFAULT);
+          break;
+        default:
+          throw new IllegalArgumentException("Unsupported command: " + command);
+      }
     }
 
     return RowLevelOperationMode.fromName(modeName);
