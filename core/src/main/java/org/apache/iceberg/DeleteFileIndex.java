@@ -69,6 +69,8 @@ import org.apache.iceberg.util.Tasks;
  */
 class DeleteFileIndex {
   private static final DeleteFile[] EMPTY_DELETES = new DeleteFile[0];
+  private static final Set<Integer> DELETE_FILE_PATH_COLUMN =
+      Set.of(MetadataColumns.DELETE_FILE_PATH.fieldId());
 
   private final EqualityDeletes globalDeletes;
   private final PartitionMap<EqualityDeletes> eqDeletesByPartition;
@@ -502,14 +504,7 @@ class DeleteFileIndex {
                 try (CloseableIterable<ManifestEntry<DeleteFile>> reader = deleteFile) {
                   for (ManifestEntry<DeleteFile> entry : reader) {
                     if (entry.dataSequenceNumber() > minSequenceNumber) {
-                      DeleteFile file = entry.file();
-                      // keep minimum stats to avoid memory pressure
-                      Set<Integer> columns =
-                          file.content() == FileContent.POSITION_DELETES
-                              ? Set.of(MetadataColumns.DELETE_FILE_PATH.fieldId())
-                              : Set.copyOf(file.equalityFieldIds());
-                      // copy with stats for better filtering against data file stats
-                      files.add(ContentFileUtil.copy(file, true, columns));
+                      files.add(copyWithMinStats(entry.file()));
                     }
                   }
                 } catch (IOException e) {
@@ -517,6 +512,28 @@ class DeleteFileIndex {
                 }
               });
       return files;
+    }
+
+    private static DeleteFile copyWithMinStats(DeleteFile file) {
+      if (file.content() == FileContent.EQUALITY_DELETES) {
+        // copy with stats for better filtering against data file stats
+        return file.copyWithStats(Set.copyOf(file.equalityFieldIds()));
+      }
+
+      if (ContentFileUtil.isDV(file)) {
+        // a DV already records its referenced data file
+        return file.copyWithoutStats();
+      }
+
+      String referencedDataFile = ContentFileUtil.referencedDataFileLocation(file);
+      if (referencedDataFile != null && file instanceof GenericDeleteFile genericFile) {
+        // a file-scoped position delete is matched by location and needs no stats
+        return genericFile.copyAsFileScoped(referencedDataFile);
+      }
+
+      // keep the file_path bounds for position deletes that span multiple data files and for
+      // other DeleteFile implementations
+      return file.copyWithStats(DELETE_FILE_PATH_COLUMN);
     }
 
     private Collection<Schema> schemas() {
