@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -40,8 +41,6 @@ class TestMapBackedContentStats {
           Types.NestedField.optional(3, "ts", Types.LongType.get()),
           Types.NestedField.optional(4, "name", Types.StringType.get()),
           Types.NestedField.optional(5, "flag", Types.BooleanType.get()));
-
-  private static final MetricsConfig METRICS_CONFIG = MetricsTestUtil.from(Map.of(), SCHEMA);
 
   private static final PartitionData EMPTY_PARTITION =
       new PartitionData(PartitionSpec.unpartitioned().partitionType());
@@ -67,18 +66,41 @@ class TestMapBackedContentStats {
               4, buf(Types.StringType.get(), "zzz")));
 
   @Test
-  void contentStatsType() {
-    Types.StructType expected = StatsUtil.statsWriteSchema(SCHEMA, METRICS_CONFIG);
-    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA, METRICS_CONFIG);
+  void contentStatsTypeBuiltLazilyFromMapIds() {
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA);
 
-    assertThat(stats.type()).isEqualTo(expected);
-    assertThat(stats.wrap(FILE_WITH_STATS).type()).isEqualTo(expected);
+    assertThat(stats.type()).isEqualTo(StatsUtil.statsReadSchema(SCHEMA, ImmutableList.of()));
+
+    stats.wrap(FILE_WITH_STATS);
+
+    assertThat(stats.type())
+        .isEqualTo(StatsUtil.statsReadSchema(SCHEMA, ImmutableList.of(1, 2, 3, 4)));
+  }
+
+  @Test
+  void wrapInvalidatesType() {
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(FILE_WITH_STATS);
+    Types.StructType firstType = stats.type();
+    assertThat(firstType)
+        .isEqualTo(StatsUtil.statsReadSchema(SCHEMA, ImmutableList.of(1, 2, 3, 4)));
+
+    DataFile file2 =
+        dataFile(
+            ImmutableMap.of(1, 50L),
+            ImmutableMap.of(),
+            ImmutableMap.of(),
+            ImmutableMap.of(1, buf(Types.IntegerType.get(), 500)),
+            ImmutableMap.of(1, buf(Types.IntegerType.get(), 5000)));
+    stats.wrap(file2);
+
+    assertThat(stats.type())
+        .isEqualTo(StatsUtil.statsReadSchema(SCHEMA, ImmutableList.of(1)))
+        .isNotEqualTo(firstType);
   }
 
   @Test
   void boundDecodingPerType() {
-    MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(FILE_WITH_STATS);
 
     FieldStats<?> id = stats.statsFor(1);
     assertThat(id.lowerBound()).isInstanceOf(Integer.class).isEqualTo(1);
@@ -100,6 +122,25 @@ class TestMapBackedContentStats {
   }
 
   @Test
+  void geoBoundsDecode() {
+    GeospatialBound lower = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound upper = GeospatialBound.createXYZM(3.0, 4.0, 5.0, 6.0);
+    Schema schema = new Schema(Types.NestedField.optional(10, "geom", Types.GeometryType.crs84()));
+    DataFile file =
+        dataFile(
+            ImmutableMap.of(10, 26L),
+            ImmutableMap.of(),
+            ImmutableMap.of(),
+            ImmutableMap.of(10, lower.toByteBuffer()),
+            ImmutableMap.of(10, upper.toByteBuffer()));
+    MapBackedContentStats stats = new MapBackedContentStats(schema).wrap(file);
+
+    FieldStats<?> geom = stats.statsFor(10);
+    assertThat(geom.lowerBound()).isInstanceOf(GeospatialBound.class).isEqualTo(lower);
+    assertThat(geom.upperBound()).isInstanceOf(GeospatialBound.class).isEqualTo(upper);
+  }
+
+  @Test
   void missingBoundsDecodeToNull() {
     DataFile file =
         dataFile(
@@ -108,7 +149,7 @@ class TestMapBackedContentStats {
             ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of());
-    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(file);
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(file);
 
     FieldStats<?> id = stats.statsFor(1);
     assertThat(id.lowerBound()).isNull();
@@ -118,8 +159,7 @@ class TestMapBackedContentStats {
 
   @Test
   void countsAndTightBounds() {
-    MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(FILE_WITH_STATS);
 
     FieldStats<?> id = stats.statsFor(1);
     assertThat(id.hasValueCount()).isTrue();
@@ -154,10 +194,10 @@ class TestMapBackedContentStats {
 
   @Test
   void fieldWithoutStatsIsExcluded() {
-    MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(FILE_WITH_STATS);
 
-    assertThat(stats.type().field(StatsUtil.toBaseId(5))).isNotNull();
+    assertThat(stats.containsFieldInMaps(5)).isFalse();
+    assertThat(stats.type().field(StatsUtil.toBaseId(5))).isNull();
     assertThat(stats.statsFor(5)).isNull();
     assertThat(stats.fieldStats())
         .extracting(FieldStats::fieldId)
@@ -165,7 +205,7 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void statsForUnknownFieldIdIsRejected() {
+  void unknownFieldIdInMaps() {
     DataFile file =
         dataFile(
             ImmutableMap.of(99, 1L),
@@ -173,18 +213,17 @@ class TestMapBackedContentStats {
             ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of());
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(file);
 
-    assertThatThrownBy(
-            () -> new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(file).statsFor(99))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Cannot convert stats for field ID 99: unknown, not a scalar, or not in metrics config");
+    assertThat(stats.containsFieldInMaps(99)).isTrue();
+    assertThat(stats.statsFor(99)).isNull();
+    assertThat(stats.type().fields()).isEmpty();
+    assertThat(stats.fieldStats()).isEmpty();
   }
 
   @Test
   void copyNotSupported() {
-    MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(FILE_WITH_STATS);
 
     assertThatThrownBy(stats::copy)
         .isInstanceOf(UnsupportedOperationException.class)
@@ -197,8 +236,7 @@ class TestMapBackedContentStats {
 
   @Test
   void fieldStatsCopyNotSupported() {
-    MapBackedContentStats stats =
-        new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(FILE_WITH_STATS);
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(FILE_WITH_STATS);
 
     assertThatThrownBy(stats.statsFor(1)::copy)
         .isInstanceOf(UnsupportedOperationException.class)
@@ -207,7 +245,7 @@ class TestMapBackedContentStats {
 
   @Test
   void reuseRebindsBounds() {
-    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA, METRICS_CONFIG);
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA);
 
     stats.wrap(FILE_WITH_STATS);
     assertThat(stats.statsFor(1).lowerBound()).isEqualTo(1);

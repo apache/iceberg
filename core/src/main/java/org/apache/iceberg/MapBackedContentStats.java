@@ -19,21 +19,25 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 /** Reusable {@link ContentStats} view over a {@link ContentFile}'s stat maps. */
 class MapBackedContentStats implements ContentStats {
-  private final Types.StructType type;
+  private final Schema tableSchema;
   private final Map<Integer, FieldStats<?>> statsById = Maps.newHashMap();
 
+  private Types.StructType type;
   private Map<Integer, Long> valueCounts;
   private Map<Integer, Long> nullValueCounts;
   private Map<Integer, Long> nanValueCounts;
@@ -41,10 +45,9 @@ class MapBackedContentStats implements ContentStats {
   private Map<Integer, ByteBuffer> lowerBounds;
   private Map<Integer, ByteBuffer> upperBounds;
 
-  MapBackedContentStats(Schema tableSchema, MetricsConfig metricsConfig) {
+  MapBackedContentStats(Schema tableSchema) {
     Preconditions.checkArgument(tableSchema != null, "Invalid table schema: null");
-    Preconditions.checkArgument(metricsConfig != null, "Invalid metrics config: null");
-    this.type = StatsUtil.statsWriteSchema(tableSchema, metricsConfig);
+    this.tableSchema = tableSchema;
   }
 
   MapBackedContentStats wrap(ContentFile<?> file) {
@@ -54,20 +57,23 @@ class MapBackedContentStats implements ContentStats {
     this.avgValueSizes = file.avgValueSizes();
     this.lowerBounds = file.lowerBounds();
     this.upperBounds = file.upperBounds();
+    this.type = null;
+    statsById.clear();
     return this;
   }
 
   @Override
   public Iterable<FieldStats<?>> fieldStats() {
     return Iterables.filter(
-        Iterables.transform(type.fields(), field -> statsFor(StatsUtil.toFieldId(field.fieldId()))),
+        Iterables.transform(
+            type().fields(), field -> statsFor(StatsUtil.toFieldId(field.fieldId()))),
         Objects::nonNull);
   }
 
   @Override
   @SuppressWarnings("unchecked")
   public <T> FieldStats<T> statsFor(int fieldId) {
-    if (!hasStats(fieldId)) {
+    if (!containsFieldInMaps(fieldId) || type().field(StatsUtil.toBaseId(fieldId)) == null) {
       return null;
     }
 
@@ -82,6 +88,10 @@ class MapBackedContentStats implements ContentStats {
 
   @Override
   public Types.StructType type() {
+    if (type == null) {
+      this.type = StatsUtil.statsReadSchema(tableSchema, statsFieldIds());
+    }
+
     return type;
   }
 
@@ -95,13 +105,30 @@ class MapBackedContentStats implements ContentStats {
     throw new UnsupportedOperationException("copy is not implemented");
   }
 
-  private boolean hasStats(int id) {
-    return containsId(valueCounts, id)
-        || containsId(nullValueCounts, id)
-        || containsId(nanValueCounts, id)
-        || containsId(avgValueSizes, id)
-        || containsId(lowerBounds, id)
-        || containsId(upperBounds, id);
+  boolean containsFieldInMaps(int fieldId) {
+    return containsId(valueCounts, fieldId)
+        || containsId(nullValueCounts, fieldId)
+        || containsId(nanValueCounts, fieldId)
+        || containsId(avgValueSizes, fieldId)
+        || containsId(lowerBounds, fieldId)
+        || containsId(upperBounds, fieldId);
+  }
+
+  private Set<Integer> statsFieldIds() {
+    Set<Integer> ids = Sets.newTreeSet();
+    addKeys(ids, valueCounts);
+    addKeys(ids, nullValueCounts);
+    addKeys(ids, nanValueCounts);
+    addKeys(ids, avgValueSizes);
+    addKeys(ids, lowerBounds);
+    addKeys(ids, upperBounds);
+    return ids;
+  }
+
+  private static void addKeys(Set<Integer> ids, Map<Integer, ?> map) {
+    if (map != null) {
+      ids.addAll(map.keySet());
+    }
   }
 
   private static boolean containsId(Map<Integer, ?> map, int id) {
@@ -112,16 +139,18 @@ class MapBackedContentStats implements ContentStats {
   private class MapBackedFieldStats<T> implements FieldStats<T> {
     private final int fieldId;
     private final Types.StructType struct;
+    private final Type columnType;
     private final Type boundType;
 
     MapBackedFieldStats(int fieldId) {
       Types.NestedField field = type.field(StatsUtil.toBaseId(fieldId));
       Preconditions.checkArgument(
-          field != null,
-          "Cannot convert stats for field ID %s: unknown, not a scalar, or not in metrics config",
-          fieldId);
+          field != null, "Cannot convert stats for field ID %s: unknown or not a scalar", fieldId);
+      Types.NestedField column = tableSchema.findField(fieldId);
+      Preconditions.checkArgument(column != null, "Missing column for field ID %s", fieldId);
       this.fieldId = fieldId;
       this.struct = field.type().asStructType();
+      this.columnType = column.type();
       this.boundType = struct.fieldType(StatsUtil.LOWER_BOUND_NAME);
     }
 
@@ -151,7 +180,19 @@ class MapBackedContentStats implements ContentStats {
         return null;
       }
 
-      return (T) Conversions.fromByteBuffer(boundType, bounds.get(fieldId));
+      ByteBuffer buffer = bounds.get(fieldId);
+      if (columnType.typeId() == Type.TypeID.GEOMETRY
+          || columnType.typeId() == Type.TypeID.GEOGRAPHY) {
+        // File-map geometry and geography bounds are single-point encoded.
+        if (buffer == null) {
+          return null;
+        }
+
+        ByteBuffer tmp = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN);
+        return (T) GeospatialBound.fromByteBuffer(tmp);
+      }
+
+      return (T) Conversions.fromByteBuffer(boundType, buffer);
     }
 
     @Override

@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -67,8 +68,8 @@ class TrackedFileAdapters {
   }
 
   /** Returns a reusable adapter from {@link DataFile} to {@link TrackedFile}. */
-  static DataTrackedFile forDataFile(Schema tableSchema, MetricsConfig metricsConfig) {
-    return new DataTrackedFile(tableSchema, metricsConfig);
+  static DataTrackedFile forDataFile(Schema tableSchema) {
+    return new DataTrackedFile(tableSchema);
   }
 
   /** Returns a reusable adapter from {@link ManifestFile} to {@link TrackedFile}. */
@@ -569,33 +570,49 @@ class TrackedFileAdapters {
   /** Adapts a {@link DataFile} to {@link TrackedFile}. */
   static class DataTrackedFile implements TrackedFile {
     private final MapBackedContentStats statsWrapper;
+    private final WrappedEntryTracking trackingWrapper = new WrappedEntryTracking();
+
     private Tracking tracking;
     private DataFile file;
     private ContentStats stats;
 
-    DataTrackedFile(Schema tableSchema, MetricsConfig metricsConfig) {
-      this.statsWrapper = new MapBackedContentStats(tableSchema, metricsConfig);
+    DataTrackedFile(Schema tableSchema) {
+      this.statsWrapper = new MapBackedContentStats(tableSchema);
     }
 
-    /** Re-points this adapter at a {@link DataFile} from the public API. Tracking is unset. */
+    /**
+     * Re-points this adapter at a {@link DataFile} from the public API. Tracking is unset.
+     *
+     * <p>Returns the inner {@link TrackedFile} when {@code newFile} is a {@link TrackedDataFile}.
+     */
     public TrackedFile wrap(DataFile newFile) {
-      return wrapFile(newFile, null);
+      if (newFile instanceof TrackedDataFile tracked) {
+        return tracked.file();
+      }
+
+      wrapInternal(newFile);
+      this.tracking = null;
+      return this;
     }
 
     /**
      * Re-points this adapter at a {@link ManifestEntry}. Converts the contained data file and the
      * entry's tracking fields.
+     *
+     * <p>Returns the inner {@link TrackedFile} when the entry's file is a {@link TrackedDataFile}.
      */
     public TrackedFile wrap(ManifestEntry<DataFile> entry) {
       Preconditions.checkArgument(entry != null, "Invalid entry: null");
-      return wrapFile(entry.file(), trackingFrom(entry, entry.file()));
-    }
-
-    private TrackedFile wrapFile(DataFile newFile, Tracking newTracking) {
-      if (newFile instanceof TrackedDataFile tracked) {
+      if (entry.file() instanceof TrackedDataFile tracked) {
         return tracked.file();
       }
 
+      wrapInternal(entry.file());
+      this.tracking = trackingWrapper.wrap(entry);
+      return this;
+    }
+
+    private void wrapInternal(DataFile newFile) {
       Preconditions.checkArgument(newFile != null, "Invalid file: null");
       Preconditions.checkArgument(
           newFile.content() == FileContent.DATA,
@@ -604,8 +621,6 @@ class TrackedFileAdapters {
 
       this.file = newFile;
       this.stats = hasContentStats(newFile) ? statsWrapper.wrap(newFile) : null;
-      this.tracking = newTracking;
-      return this;
     }
 
     @Override
@@ -703,6 +718,7 @@ class TrackedFileAdapters {
   /** Adapts a {@link ManifestFile} to {@link TrackedFile}. */
   static class ManifestTrackedFile implements TrackedFile {
     private final WrappedManifestInfo manifestInfo = new WrappedManifestInfo();
+    private final WrappedManifestTracking trackingWrapper = new WrappedManifestTracking();
     private Tracking tracking;
     private ManifestFile manifest;
     private long recordCount;
@@ -713,6 +729,9 @@ class TrackedFileAdapters {
     /**
      * Re-points this adapter at {@code newManifest}. Converts the manifest's own fields only;
      * write-time tracking updates are applied by the versioned writer.
+     *
+     * <p>Returns the inner {@link TrackedFile} when {@code newManifest} is a {@link
+     * TrackedManifestFile}.
      */
     public TrackedFile wrap(ManifestFile newManifest) {
       if (newManifest instanceof TrackedManifestFile tracked) {
@@ -727,7 +746,7 @@ class TrackedFileAdapters {
               ? FileContent.DATA_MANIFEST
               : FileContent.DELETE_MANIFEST;
       this.recordCount = manifestRecordCount(newManifest);
-      this.tracking = trackingFrom(newManifest);
+      this.tracking = trackingWrapper.wrap(newManifest);
       this.manifestInfo.wrap(newManifest);
       return this;
     }
@@ -754,7 +773,8 @@ class TrackedFileAdapters {
 
     @Override
     public FileFormat fileFormat() {
-      return FileFormat.fromFileName(manifest.path());
+      // Manifest files before v4 are always Avro.
+      return FileFormat.AVRO;
     }
 
     @Override
@@ -787,6 +807,7 @@ class TrackedFileAdapters {
 
     @Override
     public Integer sortOrderId() {
+      // Manifests have no table sort order.
       return null;
     }
 
@@ -828,10 +849,11 @@ class TrackedFileAdapters {
 
   /** Reusable {@link ManifestInfo} view over a {@link ManifestFile}'s counts. */
   private static class WrappedManifestInfo implements ManifestInfo {
-    private ManifestFile manifest;
+    private ManifestFile manifest = null;
 
-    void wrap(ManifestFile newManifest) {
+    WrappedManifestInfo wrap(ManifestFile newManifest) {
       this.manifest = newManifest;
+      return this;
     }
 
     @Override
@@ -900,28 +922,135 @@ class TrackedFileAdapters {
     }
   }
 
-  private static Tracking trackingFrom(ManifestEntry<?> entry, ContentFile<?> file) {
-    return new TrackingStruct(
-        entryStatus(entry.status()),
-        entry.snapshotId(),
-        entry.dataSequenceNumber(),
-        entry.fileSequenceNumber(),
-        null,
-        file.firstRowId(),
-        null,
-        null);
+  private static class WrappedEntryTracking implements Tracking {
+    private ManifestEntry<DataFile> entry = null;
+
+    WrappedEntryTracking wrap(ManifestEntry<DataFile> newEntry) {
+      this.entry = newEntry;
+      return this;
+    }
+
+    @Override
+    public EntryStatus status() {
+      return entryStatus(entry.status());
+    }
+
+    @Override
+    public Long snapshotId() {
+      return entry.snapshotId();
+    }
+
+    @Override
+    public Long dataSequenceNumber() {
+      return entry.dataSequenceNumber();
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return entry.fileSequenceNumber();
+    }
+
+    @Override
+    public Long dvSnapshotId() {
+      // dvSnapshotId is null because this wrapper has no DV entry
+      return null;
+    }
+
+    @Override
+    public Long firstRowId() {
+      return entry.file().firstRowId();
+    }
+
+    @Override
+    public ByteBuffer deletedPositions() {
+      return null;
+    }
+
+    @Override
+    public ByteBuffer replacedPositions() {
+      return null;
+    }
+
+    @Override
+    public String manifestLocation() {
+      return entry.file().manifestLocation();
+    }
+
+    @Override
+    public long manifestPos() {
+      Long pos = entry.file().pos();
+      return pos != null ? pos : -1L;
+    }
+
+    @Override
+    public Tracking copy() {
+      throw new UnsupportedOperationException("copy is not implemented");
+    }
   }
 
-  private static Tracking trackingFrom(ManifestFile manifest) {
-    return new TrackingStruct(
-        null,
-        manifest.snapshotId(),
-        manifest.sequenceNumber(),
-        manifest.sequenceNumber(),
-        null,
-        manifest.firstRowId(),
-        null,
-        null);
+  private static class WrappedManifestTracking implements Tracking {
+    private ManifestFile manifest = null;
+
+    WrappedManifestTracking wrap(ManifestFile newManifest) {
+      this.manifest = newManifest;
+      return this;
+    }
+
+    @Override
+    public EntryStatus status() {
+      // Pre-v4 manifests have no status and are live; the writer sets EXISTING or MODIFIED.
+      return EntryStatus.EXISTING;
+    }
+
+    @Override
+    public Long snapshotId() {
+      return manifest.snapshotId();
+    }
+
+    @Override
+    public Long dataSequenceNumber() {
+      return manifest.sequenceNumber();
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return manifest.sequenceNumber();
+    }
+
+    @Override
+    public Long dvSnapshotId() {
+      return null;
+    }
+
+    @Override
+    public Long firstRowId() {
+      return manifest.firstRowId();
+    }
+
+    @Override
+    public ByteBuffer deletedPositions() {
+      return null;
+    }
+
+    @Override
+    public ByteBuffer replacedPositions() {
+      return null;
+    }
+
+    @Override
+    public String manifestLocation() {
+      return null;
+    }
+
+    @Override
+    public long manifestPos() {
+      return -1L;
+    }
+
+    @Override
+    public Tracking copy() {
+      throw new UnsupportedOperationException("copy is not implemented");
+    }
   }
 
   private static EntryStatus entryStatus(ManifestEntry.Status status) {
@@ -962,21 +1091,13 @@ class TrackedFileAdapters {
         manifest.deletedFilesCount(),
         "Cannot convert manifest %s: missing deleted files count",
         manifest.path());
-    Preconditions.checkNotNull(
-        manifest.replacedFilesCount(),
-        "Cannot convert manifest %s: missing replaced files count",
-        manifest.path());
-    Preconditions.checkNotNull(
-        manifest.modifiedFilesCount(),
-        "Cannot convert manifest %s: missing modified files count",
-        manifest.path());
     Preconditions.checkArgument(
-        manifest.replacedFilesCount() == 0,
+        Objects.equals(manifest.replacedFilesCount(), 0),
         "Cannot convert manifest %s: replaced files count must be 0 for v3 or earlier manifests, was %s",
         manifest.path(),
         manifest.replacedFilesCount());
     Preconditions.checkArgument(
-        manifest.modifiedFilesCount() == 0,
+        Objects.equals(manifest.modifiedFilesCount(), 0),
         "Cannot convert manifest %s: modified files count must be 0 for v3 or earlier manifests, was %s",
         manifest.path(),
         manifest.modifiedFilesCount());
