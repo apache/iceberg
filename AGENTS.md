@@ -117,6 +117,7 @@ When writing new code, default to no comment and no Javadoc. Add one only when i
 - Document thrown exceptions, null behavior, and resource ownership (for example that a returned iterable must be closed).
 - Keep `@param` and `@return` tags in `api/` even when brief — `@return this for method chaining` is the established phrasing. Don't strip them.
 - Don't re-document an inherited contract; let overrides inherit unless they narrow or extend it.
+- Document `public` and `protected` members, interface methods, and anything designed to be overridden. `private` and package-private methods get none unless there is a caller obligation the signature can't express, such as a required lock or pre-sorted input.
 
 ```java
 // Bad: documents the algorithm. The caller cannot rely on any of it.
@@ -185,7 +186,7 @@ CloseableIterable<FileScanTask> planFiles();
 - Test the behavior in the plan. Coverage is not a target.
 - Test the behavior this change adds or modifies. Don't assert the correctness of components this code merely calls.
 - One behavior per test method. No omnibus tests asserting several unrelated things.
-- Don't add a test whose failure would not indicate a user-visible regression.
+- A failing test must point to broken behavior. Don't add one that would fail only because an internal detail changed while the observable behavior is still correct.
 - Don't add tests for unreachable states, or tests that only restate the implementation.
 - Minimal test setup: `PartitionSpec.unpartitioned()` when partitioning isn't needed.
 - Test classes and methods should be package private unless required by inheritance.
