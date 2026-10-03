@@ -29,8 +29,20 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSingleValueParser {
+  @ParameterizedTest
+  @ValueSource(strings = {"\"1\"", "true", "false", "[]", "{}"})
+  void floatingPointValuesRejectNonnumericNodes(String json) {
+    assertThatThrownBy(() -> SingleValueParser.fromJson(Types.FloatType.get(), json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot parse default as a float value");
+    assertThatThrownBy(() -> SingleValueParser.fromJson(Types.DoubleType.get(), json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot parse default as a double value");
+  }
 
   @Test
   public void testValidDefaults() throws IOException {
