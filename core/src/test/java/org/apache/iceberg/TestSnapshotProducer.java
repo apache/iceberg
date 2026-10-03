@@ -28,11 +28,17 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
@@ -275,5 +281,83 @@ public class TestSnapshotProducer extends TestBase {
     } finally {
       executor.shutdownNow();
     }
+  }
+
+  @TestTemplate
+  public void testCommitDoesNotReadCommittedManifestList() {
+    String tableName = "no-manifest-list-reread";
+    List<String> openedInputFiles = Lists.newArrayList();
+    TestTables.LocalFileIO countingFileIO =
+        new TestTables.LocalFileIO() {
+          @Override
+          public InputFile newInputFile(String path) {
+            openedInputFiles.add(path);
+            return super.newInputFile(path);
+          }
+        };
+    TestTables.TestTable countingTable =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, tableDir, countingFileIO));
+
+    countingTable.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    Snapshot committed = countingTable.currentSnapshot();
+    assertThat(committed).isNotNull();
+    assertThat(openedInputFiles).doesNotContain(committed.manifestListLocation());
+  }
+
+  @TestTemplate
+  public void testCleanupUsesManifestsOfCommittedAttempt() {
+    String tableName = "committed-attempt-cleanup";
+    AtomicBoolean throwAfterCommit = new AtomicBoolean(false);
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations(tableName, tableDir) {
+          @Override
+          public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+            super.commit(base, updatedMetadata);
+            if (throwAfterCommit.getAndSet(false)) {
+              throw new CommitFailedException("Injected failure after commit");
+            }
+          }
+        };
+    TestTables.TestTable retryTable =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
+    retryTable
+        .updateProperties()
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1")
+        .set(TableProperties.COMMIT_MIN_RETRY_WAIT_MS, "0")
+        .commit();
+    retryTable.newAppend().appendFile(FILE_A).commit();
+
+    // the first attempt commits but reports failure, so the retry finds its snapshot committed
+    throwAfterCommit.set(true);
+    retryTable.newAppend().appendFile(FILE_B).commit();
+
+    Snapshot committed = retryTable.currentSnapshot();
+    assertThat(committed.allManifests(retryTable.io()))
+        .allSatisfy(manifest -> assertThat(new File(manifest.path())).exists());
+
+    Set<String> referencedManifests = Sets.newHashSet();
+    for (Snapshot snapshot : retryTable.snapshots()) {
+      for (ManifestFile manifest : snapshot.allManifests(retryTable.io())) {
+        referencedManifests.add(new File(manifest.path()).getName());
+      }
+    }
+    assertThat(listManifestFiles(tableDir))
+        .extracting(File::getName)
+        .containsExactlyInAnyOrderElementsOf(referencedManifests);
+    assertThat(listManifestLists(tableDir))
+        .extracting(File::getName)
+        .containsExactlyInAnyOrder(
+            Streams.stream(retryTable.snapshots())
+                .map(snapshot -> new File(snapshot.manifestListLocation()).getName())
+                .toArray(String[]::new));
   }
 }

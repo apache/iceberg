@@ -105,7 +105,7 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
     return replacedManifestsCount.get();
   }
 
-  void cleanUncommitted(Set<ManifestFile> committed) {
+  void cleanUncommitted(Set<String> committed) {
     // iterate over a copy of entries to avoid concurrent modification
     List<Map.Entry<List<ManifestFile>, ManifestFile>> entries =
         Lists.newArrayList(mergedManifests.entrySet());
@@ -113,7 +113,7 @@ abstract class ManifestMergeManager<F extends ContentFile<F>> {
     for (Map.Entry<List<ManifestFile>, ManifestFile> entry : entries) {
       // delete any new merged manifests that aren't in the committed list
       ManifestFile merged = entry.getValue();
-      if (!committed.contains(merged)) {
+      if (!committed.contains(merged.path())) {
         deleteFile(merged.path());
         List<ManifestFile> bin = entry.getKey();
         mergedManifests.remove(bin);

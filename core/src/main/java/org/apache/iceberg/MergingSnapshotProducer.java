@@ -1109,7 +1109,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   @Override
-  protected void cleanUncommitted(Set<ManifestFile> committed) {
+  protected void cleanUncommitted(Set<String> committed) {
     mergeManager.cleanUncommitted(committed);
     filterManager.cleanUncommitted(committed);
     deleteMergeManager.cleanUncommitted(committed);
@@ -1117,7 +1117,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     cleanUncommittedAppends(committed);
   }
 
-  private void cleanUncommittedAppends(Set<ManifestFile> committed) {
+  private void cleanUncommittedAppends(Set<String> committed) {
     deleteUncommitted(cachedNewDataManifests, committed, true /* clear manifests */);
     deleteUncommitted(cachedNewDeleteManifests, committed, true /* clear manifests */);
     // rewritten manifests are always owned by the table
