@@ -40,6 +40,7 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.ExpireSnapshots;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Schema;
@@ -584,17 +585,37 @@ public class TestNessieTable extends BaseTestIceberg {
   }
 
   @Test
-  public void testGCDisabled() {
+  public void testGCDisabled() throws IOException {
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
     assertThat(icebergTable.properties()).containsEntry(TableProperties.GC_ENABLED, "false");
+
+    String fileLocation = addRecordsToFile(icebergTable, "file");
+    DataFile file = makeDataFile(icebergTable, fileLocation);
+    icebergTable.newAppend().appendFile(file).commit();
+
+    long expiredSnapshotId = icebergTable.currentSnapshot().snapshotId();
+    String manifestListLocation =
+        icebergTable.currentSnapshot().manifestListLocation().replace("file:", "");
+
+    icebergTable.newDelete().deleteFile(file).commit();
 
     assertThatThrownBy(
             () ->
                 icebergTable.expireSnapshots().expireOlderThan(System.currentTimeMillis()).commit())
         .isInstanceOf(ValidationException.class)
-        .hasMessage(
-            "Cannot expire snapshots: GC is disabled (deleting files may corrupt other tables)");
+        .hasMessageStartingWith("Cannot expire snapshots with cleanup level ALL: GC is disabled");
+
+    icebergTable
+        .expireSnapshots()
+        .expireOlderThan(Long.MAX_VALUE)
+        .cleanupLevel(ExpireSnapshots.CleanupLevel.NONE)
+        .commit();
+
+    icebergTable.refresh();
+    assertThat(icebergTable.snapshot(expiredSnapshotId)).isNull();
+    assertThat(new File(fileLocation)).exists();
+    assertThat(new File(manifestListLocation)).exists();
   }
 
   @Test

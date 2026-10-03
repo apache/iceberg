@@ -84,9 +84,6 @@ class RemoveSnapshots implements ExpireSnapshots {
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
-    ValidationException.check(
-        PropertyUtil.propertyAsBoolean(base.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
-        "Cannot expire snapshots: GC is disabled (deleting files may corrupt other tables)");
 
     long defaultMaxSnapshotAgeMs =
         PropertyUtil.propertyAsLong(
@@ -369,6 +366,8 @@ class RemoveSnapshots implements ExpireSnapshots {
         .run(
             item -> {
               TableMetadata updated = internalApply();
+              // validate after internalApply so that gc.enabled is read from the refreshed base
+              validateCleanupLevel();
               ops.commit(base, updated);
             });
     LOG.info(
@@ -383,6 +382,15 @@ class RemoveSnapshots implements ExpireSnapshots {
   ExpireSnapshots withIncrementalCleanup(boolean useIncrementalCleanup) {
     this.incrementalCleanup = useIncrementalCleanup;
     return this;
+  }
+
+  private void validateCleanupLevel() {
+    ValidationException.check(
+        CleanupLevel.NONE == cleanupLevel
+            || PropertyUtil.propertyAsBoolean(base.properties(), GC_ENABLED, GC_ENABLED_DEFAULT),
+        "Cannot expire snapshots with cleanup level %s: GC is disabled (deleting files may corrupt "
+            + "other tables). Use CleanupLevel.NONE to expire snapshots without deleting files",
+        cleanupLevel);
   }
 
   private void cleanExpiredSnapshots() {
