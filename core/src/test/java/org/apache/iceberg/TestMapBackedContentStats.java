@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -100,6 +101,26 @@ class TestMapBackedContentStats {
   }
 
   @Test
+  void geoBoundsDecode() {
+    GeospatialBound lower = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound upper = GeospatialBound.createXYZM(3.0, 4.0, 5.0, 6.0);
+    Schema schema = new Schema(Types.NestedField.optional(10, "geom", Types.GeometryType.crs84()));
+    MetricsConfig metricsConfig = MetricsTestUtil.from(Map.of(), schema);
+    DataFile file =
+        dataFile(
+            ImmutableMap.of(10, 26L),
+            ImmutableMap.of(),
+            ImmutableMap.of(),
+            ImmutableMap.of(10, lower.toByteBuffer()),
+            ImmutableMap.of(10, upper.toByteBuffer()));
+    MapBackedContentStats stats = new MapBackedContentStats(schema, metricsConfig).wrap(file);
+
+    FieldStats<?> geom = stats.statsFor(10);
+    assertThat(geom.lowerBound()).isInstanceOf(GeospatialBound.class).isEqualTo(lower);
+    assertThat(geom.upperBound()).isInstanceOf(GeospatialBound.class).isEqualTo(upper);
+  }
+
+  @Test
   void missingBoundsDecodeToNull() {
     DataFile file =
         dataFile(
@@ -165,7 +186,7 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void statsForUnknownFieldIdIsRejected() {
+  void statsForFieldIdNotInTypeIsIgnored() {
     DataFile file =
         dataFile(
             ImmutableMap.of(99, 1L),
@@ -173,12 +194,11 @@ class TestMapBackedContentStats {
             ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of());
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(file);
 
-    assertThatThrownBy(
-            () -> new MapBackedContentStats(SCHEMA, METRICS_CONFIG).wrap(file).statsFor(99))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Cannot convert stats for field ID 99: unknown, not a scalar, or not in metrics config");
+    assertThat(stats.statsFor(99)).isNull();
+    assertThat(stats.hasStats(99)).isFalse();
+    assertThat(stats.fieldStats()).extracting(FieldStats::fieldId).doesNotContain(99);
   }
 
   @Test

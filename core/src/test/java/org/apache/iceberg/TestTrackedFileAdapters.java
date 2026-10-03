@@ -71,6 +71,9 @@ class TestTrackedFileAdapters {
   // these are populated by readers using the setter with the position of the field.
   private static final int MANIFEST_LOCATION_ORDINAL = Tracking.schema().fields().size();
   private static final int MANIFEST_POSITION_ORDINAL = Tracking.schema().fields().size() + 1;
+  // row_position follows the data file schema and stores the manifest position.
+  private static final int DATA_FILE_POS_ORDINAL =
+      DataFile.getType(Types.StructType.of()).fields().size();
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
@@ -164,6 +167,11 @@ class TestTrackedFileAdapters {
           ImmutableList.of(0L),
           null,
           null);
+
+  static {
+    assignManifestPosition(DATA_FILE, MANIFEST_LOCATION, MANIFEST_POS);
+    assignManifestPosition(DATA_FILE_WITH_METRICS, MANIFEST_LOCATION, MANIFEST_POS);
+  }
 
   @Test
   void dataFileAdapterDelegation() {
@@ -744,6 +752,7 @@ class TestTrackedFileAdapters {
     assertThat(result.tracking().dataSequenceNumber()).isNull();
     assertThat(result.tracking().fileSequenceNumber()).isNull();
     assertThat(result.tracking().firstRowId()).isNull();
+    assertManifestPosition(result.tracking(), DATA_FILE);
     assertWrappedDataFileMatchesFileFields(result, DATA_FILE);
   }
 
@@ -755,6 +764,7 @@ class TestTrackedFileAdapters {
 
     assertThat(result.tracking().status()).isEqualTo(EntryStatus.ADDED);
     assertThat(result.tracking().snapshotId()).isNull();
+    assertManifestPosition(result.tracking(), DATA_FILE);
     assertWrappedDataFileMatchesFileFields(result, DATA_FILE);
   }
 
@@ -768,6 +778,7 @@ class TestTrackedFileAdapters {
     assertThat(result.tracking().snapshotId()).isEqualTo(SNAPSHOT_ID);
     assertThat(result.tracking().dataSequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
     assertThat(result.tracking().fileSequenceNumber()).isEqualTo(FILE_SEQUENCE_NUMBER);
+    assertManifestPosition(result.tracking(), DATA_FILE);
     assertWrappedDataFileMatchesFileFields(result, DATA_FILE);
   }
 
@@ -780,6 +791,7 @@ class TestTrackedFileAdapters {
     assertThat(result.tracking().snapshotId()).isEqualTo(SNAPSHOT_ID);
     assertThat(result.tracking().dataSequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
     assertThat(result.tracking().fileSequenceNumber()).isEqualTo(FILE_SEQUENCE_NUMBER);
+    assertManifestPosition(result.tracking(), DATA_FILE);
   }
 
   @Test
@@ -804,10 +816,12 @@ class TestTrackedFileAdapters {
             ImmutableList.of(0L),
             null,
             null);
+    assignManifestPosition(file2, "s3://bucket/table/manifest-2.parquet", 8L);
     adapter.wrap(existingEntry(file2));
     assertThat(adapter.location()).isEqualTo("s3://bucket/data/file2.parquet");
     assertThat(adapter.recordCount()).isEqualTo(200L);
     assertThat(adapter.tracking().status()).isEqualTo(EntryStatus.EXISTING);
+    assertManifestPosition(adapter.tracking(), file2);
     assertThat(adapter.fileSizeInBytes()).isEqualTo(2048L);
     assertThat(adapter.location()).isNotEqualTo(DATA_FILE.location());
   }
@@ -893,6 +907,8 @@ class TestTrackedFileAdapters {
     assertThat(roundTripped.dataSequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
     assertThat(roundTripped.fileSequenceNumber()).isEqualTo(FILE_SEQUENCE_NUMBER);
     assertThat(roundTripped.firstRowId()).isNull();
+    assertThat(roundTripped.manifestLocation()).isEqualTo(source.manifestLocation());
+    assertThat(roundTripped.pos()).isEqualTo(source.pos());
     assertThat(roundTripped.valueCounts()).containsAllEntriesOf(source.valueCounts());
     assertThat(roundTripped.nullValueCounts()).containsAllEntriesOf(source.nullValueCounts());
     assertThat(roundTripped.nanValueCounts()).isNull();
@@ -931,7 +947,8 @@ class TestTrackedFileAdapters {
     assertThat(result.contentType()).isEqualTo(FileContent.DATA_MANIFEST);
     assertThat(result.formatVersion()).isZero();
     assertThat(result.location()).isEqualTo(MANIFEST_LOCATION);
-    assertThat(result.tracking().status()).isNull();
+    assertThat(result.fileFormat()).isEqualTo(FileFormat.AVRO);
+    assertThat(result.tracking().status()).isEqualTo(EntryStatus.EXISTING);
     assertThat(result.tracking().snapshotId()).isEqualTo(SNAPSHOT_ID);
     assertThat(result.tracking().firstRowId()).isNull();
     assertThat(result.recordCount()).isEqualTo(6L);
@@ -954,7 +971,7 @@ class TestTrackedFileAdapters {
     assertThat(result.contentType()).isEqualTo(FileContent.DELETE_MANIFEST);
     assertThat(result.formatVersion()).isZero();
     assertThat(result.recordCount()).isEqualTo(6L);
-    assertThat(result.tracking().status()).isNull();
+    assertThat(result.tracking().status()).isEqualTo(EntryStatus.EXISTING);
     assertThat(result.tracking().firstRowId()).isNull();
   }
 
@@ -971,6 +988,50 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("missing added files count");
+  }
+
+  @Test
+  void manifestTrackedFileAdapterRejectsNullReplacedFilesCount() {
+    ManifestFile manifest = manifestWithCounts(1, 1, 0, null, 0);
+
+    assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot convert manifest %s: replaced files count must be 0 for v3 or earlier manifests, was null",
+            MANIFEST_LOCATION);
+  }
+
+  @Test
+  void manifestTrackedFileAdapterRejectsNonZeroReplacedFilesCount() {
+    ManifestFile manifest = manifestWithCounts(1, 1, 0, 1, 0);
+
+    assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot convert manifest %s: replaced files count must be 0 for v3 or earlier manifests, was 1",
+            MANIFEST_LOCATION);
+  }
+
+  @Test
+  void manifestTrackedFileAdapterRejectsNullModifiedFilesCount() {
+    ManifestFile manifest = manifestWithCounts(1, 1, 0, 0, null);
+
+    assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot convert manifest %s: modified files count must be 0 for v3 or earlier manifests, was null",
+            MANIFEST_LOCATION);
+  }
+
+  @Test
+  void manifestTrackedFileAdapterRejectsNonZeroModifiedFilesCount() {
+    ManifestFile manifest = manifestWithCounts(1, 1, 0, 0, 1);
+
+    assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot convert manifest %s: modified files count must be 0 for v3 or earlier manifests, was 1",
+            MANIFEST_LOCATION);
   }
 
   @Test
@@ -996,6 +1057,23 @@ class TestTrackedFileAdapters {
     assertThat(result.manifestInfo()).isNull();
     assertThat(result.deletionVector()).isNull();
     assertThat(result.equalityIds()).isNull();
+  }
+
+  private static ManifestFile manifestWithCounts(
+      Integer addedFilesCount,
+      Integer existingFilesCount,
+      Integer deletedFilesCount,
+      Integer replacedFilesCount,
+      Integer modifiedFilesCount) {
+    ManifestFile manifest = mock(ManifestFile.class);
+    when(manifest.path()).thenReturn(MANIFEST_LOCATION);
+    when(manifest.content()).thenReturn(ManifestContent.DATA);
+    when(manifest.addedFilesCount()).thenReturn(addedFilesCount);
+    when(manifest.existingFilesCount()).thenReturn(existingFilesCount);
+    when(manifest.deletedFilesCount()).thenReturn(deletedFilesCount);
+    when(manifest.replacedFilesCount()).thenReturn(replacedFilesCount);
+    when(manifest.modifiedFilesCount()).thenReturn(modifiedFilesCount);
+    return manifest;
   }
 
   private static ManifestFile writeManifestFile(ManifestContent content) {
@@ -1043,6 +1121,17 @@ class TestTrackedFileAdapters {
 
   private static ManifestEntry<DataFile> deletedEntry(DataFile file) {
     return newEntry().wrapDelete(SNAPSHOT_ID, DATA_SEQUENCE_NUMBER, FILE_SEQUENCE_NUMBER, file);
+  }
+
+  private static void assignManifestPosition(DataFile file, String location, long manifestPos) {
+    GenericDataFile dataFile = (GenericDataFile) file;
+    dataFile.setManifestLocation(location);
+    dataFile.set(DATA_FILE_POS_ORDINAL, manifestPos);
+  }
+
+  private static void assertManifestPosition(Tracking tracking, DataFile file) {
+    assertThat(tracking.manifestLocation()).isEqualTo(file.manifestLocation());
+    assertThat(tracking.manifestPos()).isEqualTo(file.pos());
   }
 
   private static void assertNullTrackingFields(ContentFile<?> file) {
