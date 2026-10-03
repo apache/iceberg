@@ -614,6 +614,33 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  void removesNetChangesWithBinaryValues() {
+    sql("CREATE TABLE %s (id INT, data BINARY) USING iceberg", tableName);
+    assertBinaryNetChanges("X'01'", "X'02'", "hex(data)");
+  }
+
+  @TestTemplate
+  void removesNetChangesWithNestedBinaryValues() {
+    sql("CREATE TABLE %s (id INT, data ARRAY<ARRAY<BINARY>>) USING iceberg", tableName);
+    assertBinaryNetChanges("array(array(X'01'))", "array(array(X'02'))", "hex(data[0][0])");
+  }
+
+  private void assertBinaryNetChanges(String initial, String updated, String projection) {
+    sql("INSERT INTO %s VALUES (1, %s), (2, %s)", tableName, initial, initial);
+    sql("INSERT OVERWRITE %s VALUES (1, %s), (2, %s)", tableName, updated, initial);
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', net_changes => true)",
+            catalogName, tableName);
+    String viewName = (String) result.get(0)[0];
+    assertEquals(
+        "Net changes should contain only the final rows",
+        ImmutableList.of(row(1, "02", INSERT), row(2, "01", INSERT)),
+        sql("SELECT id, %s, _change_type FROM %s ORDER BY id", projection, viewName));
+  }
+
+  @TestTemplate
   public void testNetChangesWithRemoveCarryOvers() {
     // partitioned by id
     createTableWithThreeColumns();
