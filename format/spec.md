@@ -110,11 +110,13 @@ Inheriting the sequence number from manifest metadata allows writing a new manif
 
 Row-level deletes are stored in delete files.
 
-There are two types of row-level deletes:
+The current representation is [_deletion vectors_](#deletion-vectors) (v3 or above), which encode deleted positions of a single data file in a bitmap.
 
-* **Position deletes** -- Mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files) (V2) or [_deletion vector_](#deletion-vectors) (V3 or above).
+Legacy representations:
 
-* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in [_equality delete file_](#equality-delete-files) (may be created in v2 and v3 tables only).
+* **Position deletes** -- Mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files), which may be created in v2 tables only.
+
+* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in an [_equality delete file_](#equality-delete-files), which may be created in v2 and v3 tables only.
 
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
 
@@ -1355,7 +1357,14 @@ Notes:
 
 ### Delete Formats
 
-This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are added by v2 and are not supported in v1. Deletion vectors are added in v3 and are not supported in v2 or earlier. Position delete files must not be added to v3 tables, but existing position delete files are valid. Equality delete files must not be added to v4 tables, but existing equality delete files are valid.
+This section details how to encode row-level deletes in Iceberg delete files.
+
+Row-level deletes have changed across Iceberg versions:
+
+* v4 allows writing only deletion vectors that are co-located with data file metadata
+* v3 allows writing deletion vectors and equality delete files in delete manifests
+* v2 allows writing position delete and equality delete files
+* v1 does not support row-level deletes
 
 There are different formats for encoding row-level deletes:
 
@@ -1921,8 +1930,8 @@ Reading v4 metadata:
 Equality deletes are prohibited in v4.
 
 * Writers must not add equality delete files to v4 tables; equality deletes cannot be added as an entry to a v4 manifest
-* Upgrading a v2 or v3 table to v4 does not require rewriting data or delete files
-* Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
+* In a table upgraded to v4, existing delete manifests and the delete files they track remain valid and must be applied at read time
+* Readers must continue to apply equality deletes for v2 and v3 tables
 
 ### Version 3
 
