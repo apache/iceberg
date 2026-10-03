@@ -20,10 +20,10 @@ package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
@@ -40,6 +40,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
@@ -60,11 +61,11 @@ import org.slf4j.LoggerFactory;
 import scala.collection.immutable.Range;
 
 /**
- * A {@link PartitionReader} that reads multiple sorted files and merges them into a single sorted
- * stream using a k-way heap merge ({@link SortedMerge}).
+ * Returns the rows of a task group's files as one stream in the files' shared sort order.
  *
- * <p>Every file in the task group must have the same sort order. A sort key on a nested field is
- * not supported if that field is not in the requested projection.
+ * <p>All files must have the same sort order. Sort orders with a UUID key, a floating point key
+ * followed by another key, or a nested key that is not projected are rejected. All files are open
+ * at once and each loads its own deletes.
  */
 class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
   private static final Logger LOG = LoggerFactory.getLogger(MergingSortedRowDataReader.class);
@@ -94,41 +95,39 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
     List<FileScanTask> tasks = Lists.newArrayList(taskGroup.tasks());
-    int numFiles = tasks.size();
+    int numTasks = tasks.size();
 
     Preconditions.checkArgument(
-        numFiles > 1, "Merging reader requires multiple files, got %s", numFiles);
+        numTasks > 1, "Merging reader requires at least two tasks, got %s", numTasks);
 
     Integer expectedOrderId = tasks.get(0).file().sortOrderId();
     Preconditions.checkArgument(
         expectedOrderId != null && expectedOrderId != SortOrder.unsorted().orderId(),
         "Merging reader requires sorted files, got sort order %s",
         expectedOrderId);
-    Preconditions.checkArgument(
-        tasks.stream().allMatch(task -> Objects.equals(task.file().sortOrderId(), expectedOrderId)),
-        "Not all files in task group have the expected sort order %s",
-        expectedOrderId);
+    for (FileScanTask task : tasks) {
+      Preconditions.checkArgument(
+          Objects.equals(task.file().sortOrderId(), expectedOrderId),
+          "Cannot merge files with different sort orders: %s has sort order %s, expected %s",
+          task.file().location(),
+          task.file().sortOrderId(),
+          expectedOrderId);
+    }
 
     SortOrder sortOrder = table.sortOrders().get(expectedOrderId);
-    Preconditions.checkArgument(
-        sortOrder != null, "Cannot find sort order %s in table %s", expectedOrderId, table.name());
 
     LOG.debug(
-        "Creating merging reader for {} files with sort order {} in table {}",
-        numFiles,
+        "Creating merging reader for {} tasks with sort order {} in table {}",
+        numTasks,
         expectedOrderId,
         table.name());
 
-    // Augment the projected schema with any sort key columns Spark did not request so that
-    // SortOrderComparators can access every sort key field during the merge.
     Schema mergeReadSchema = mergeReadSchema(projection, sortOrder, table);
-    this.projectingRow = buildProjectingRow(projection, mergeReadSchema);
+    this.projectingRow = buildProjectingRow(projection);
     UnsafeProjection deepCopyProjection =
         UnsafeProjection.create(SparkSchemaUtil.convert(mergeReadSchema));
 
     this.resources = new CloseableGroup();
-    // The group holds one reader per file plus the merge. Avoid leaking resources when close()
-    // failure on one resource is called.
     resources.setSuppressCloseFailure(true);
     this.fileReaders =
         tasks.stream()
@@ -164,12 +163,6 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
     }
   }
 
-  /**
-   * A {@link CloseableIterable} over one file's rows, each tagged with the {@link FileBlock} it was
-   * read from so the merged stream can report the correct source file. {@code close()} is a no-op:
-   * the readers are owned by the enclosing {@link CloseableGroup} (see the constructor), not by the
-   * merge.
-   */
   private static class TaggedRowIterable implements CloseableIterable<TaggedRow> {
     private final RowDataReader reader;
     private final UnsafeProjection deepCopyProjection;
@@ -188,21 +181,9 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
     }
 
     @Override
-    public void close() {
-      // No-op. See TaggedRowIterator#close.
-    }
+    public void close() {}
   }
 
-  /**
-   * Adapts a {@link RowDataReader} to an iterator of {@link TaggedRow}. {@code hasNext()} advances
-   * the reader and caches the result so {@code next()} returns the current row without advancing it
-   * again.
-   *
-   * <p>Rows are deep-copied into a self-contained {@code UnsafeRow} before entering the heap.
-   * {@link SortedMerge} advances an iterator before returning the value it just polled, so an
-   * uncopied row would be overwritten by the next read from the same file since Spark's Parquet and
-   * ORC readers reuse {@link InternalRow} containers.
-   */
   private static class TaggedRowIterator implements CloseableIterator<TaggedRow> {
     private final RowDataReader reader;
     private final UnsafeProjection deepCopyProjection;
@@ -236,16 +217,16 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
         hasNext();
       }
       advanced = false;
+      // the next row from this file is read before this one is returned, and readers reuse row
+      // containers, including the structs inside arrays and maps, so a shallow copy is not enough
       InternalRow deepCopy = deepCopyProjection.apply(reader.get()).copy();
       return new TaggedRow(deepCopy, block);
     }
 
     @Override
     public void close() {
-      // Readers are owned by the enclosing CloseableGroup, not by the merge. SortedMerge drops
-      // iterators that are empty on the first hasNext() without closing them, so a file whose rows
-      // are all deleted would otherwise leak. Closing here too would double-close every reader the
-      // merge does drain.
+      // The enclosing CloseableGroup owns the reader. The merge cannot, as it never sees readers
+      // that were not reached when construction fails, or a reader it polled whose next read threw.
     }
   }
 
@@ -256,8 +237,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
     }
 
     TaggedRow tagged = mergedIterator.next();
-    // all rows from one task share a FileBlock instance, so identity is enough to detect a switch
-    // and avoid re-allocating the block holder entry on every row
+    // rows from one task share a FileBlock instance
     if (tagged.block() != currentBlock) {
       FileBlock block = tagged.block();
       InputFileBlockHolder.set(block.filePath(), block.start(), block.length());
@@ -283,97 +263,95 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
 
   @Override
   public CustomTaskMetric[] currentMetricsValues() {
-    long totalDeletes =
-        fileReaders.stream()
-            .flatMap(reader -> Arrays.stream(reader.currentMetricsValues()))
-            .filter(metric -> metric instanceof TaskNumDeletes)
-            .mapToLong(CustomTaskMetric::value)
-            .sum();
+    long totalDeletes = 0L;
+    for (RowDataReader reader : fileReaders) {
+      totalDeletes += reader.counter().get();
+    }
+
     return new CustomTaskMetric[] {
       new TaskNumSplits(fileReaders.size()), new TaskNumDeletes(totalDeletes)
     };
   }
 
-  /**
-   * Builds a comparator for merging {@link InternalRow}s by the given sort order. Each side wraps
-   * its row in its own reusable {@link InternalRowWrapper} so the two arguments stay distinct.
-   */
   private static Comparator<InternalRow> buildComparator(
       Schema mergeReadSchema, SortOrder sortOrder) {
     StructType sparkSchema = SparkSchemaUtil.convert(mergeReadSchema);
     Comparator<StructLike> keyComparator =
         SortOrderComparators.forSchema(mergeReadSchema, sortOrder);
+    // each side needs its own wrapper so the two rows being compared stay distinct
     InternalRowWrapper left = new InternalRowWrapper(sparkSchema, mergeReadSchema.asStruct());
     InternalRowWrapper right = new InternalRowWrapper(sparkSchema, mergeReadSchema.asStruct());
     return (r1, r2) -> keyComparator.compare(left.wrap(r1), right.wrap(r2));
   }
 
-  /**
-   * Returns a {@link ProjectingInternalRow} that remaps columns from the wider merge schema back to
-   * the requested projection. The remap is the identity when no extra columns were added.
-   */
-  private static ProjectingInternalRow buildProjectingRow(Schema projection, Schema mergeSchema) {
+  private static ProjectingInternalRow buildProjectingRow(Schema projection) {
+    // the merge read schema starts with the projection
     int numColumns = projection.columns().size();
-    Preconditions.checkArgument(
-        mergeSchema.columns().subList(0, numColumns).equals(projection.columns()),
-        "Projection must be a prefix of the merge read schema");
     StructType sparkSchema = SparkSchemaUtil.convert(projection);
     return new ProjectingInternalRow(sparkSchema, new Range.Exclusive(0, numColumns, 1));
   }
 
   /**
-   * Returns the schema to use when reading each file. This is the requested {@code projection}
-   * augmented with any sort key columns that are not already present, so the merge comparator can
-   * access every sort key field regardless of what Spark projected.
+   * Returns the requested {@code projection} with any sort key columns it lacks appended after it,
+   * so the merge comparator can read every sort key.
    */
   private static Schema mergeReadSchema(Schema projection, SortOrder sortOrder, Table table) {
     Schema tableSchema = table.schema();
-    validateSortKeys(sortOrder, tableSchema, table.name());
+    validateSortKeys(sortOrder, projection, tableSchema, table.name());
 
-    List<Types.NestedField> missingFields = Lists.newArrayList();
+    Set<Integer> missingIds = Sets.newHashSet();
     for (SortField sortField : sortOrder.fields()) {
       int fieldId = sortField.sourceId();
-      if (projection.findField(fieldId) != null
-          || missingFields.stream().anyMatch(f -> f.fieldId() == fieldId)) {
-        continue;
+      if (projection.findField(fieldId) == null) {
+        // an unprojected nested key would have to be added as a top-level column
+        Preconditions.checkArgument(
+            tableSchema.asStruct().field(fieldId) != null,
+            "Cannot merge on nested sort key %s: it must be included in the projection",
+            tableSchema.findColumnName(fieldId));
+        missingIds.add(fieldId);
       }
-
-      // A missing field can only be added to the read schema as a top-level column, so a nested
-      // sort key is only supported when it is already part of the requested projection.
-      Preconditions.checkArgument(
-          tableSchema.asStruct().field(fieldId) != null,
-          "Merging reader does not support sort keys on nested fields (field id %s in table %s)",
-          fieldId,
-          table.name());
-      missingFields.add(tableSchema.findField(fieldId));
     }
 
-    if (missingFields.isEmpty()) {
+    if (missingIds.isEmpty()) {
       return projection;
     }
 
-    return TypeUtil.join(projection, new Schema(missingFields));
+    return TypeUtil.join(projection, TypeUtil.select(tableSchema, missingIds));
   }
 
-  /** Validates that every sort key exists in the table schema and is not UUID-typed. */
-  private static void validateSortKeys(SortOrder sortOrder, Schema tableSchema, String tableName) {
-    for (SortField sortField : sortOrder.fields()) {
+  private static void validateSortKeys(
+      SortOrder sortOrder, Schema projection, Schema tableSchema, String tableName) {
+    List<SortField> sortFields = sortOrder.fields();
+    for (int i = 0; i < sortFields.size(); i++) {
+      SortField sortField = sortFields.get(i);
       int fieldId = sortField.sourceId();
-      Types.NestedField tableField = tableSchema.findField(fieldId);
+      Types.NestedField field = projection.findField(fieldId);
+      if (field == null) {
+        field = tableSchema.findField(fieldId);
+      }
+
       Preconditions.checkArgument(
-          tableField != null,
-          "Cannot find sort field id %s in schema of table %s",
+          field != null,
+          "Cannot find sort field id %s in the projection or the schema of table %s",
           fieldId,
           tableName);
 
-      // Iceberg orders UUIDs by their bit pattern while Spark orders them lexicographically,
+      // Iceberg orders UUIDs by bit pattern and Spark orders them as strings:
       // https://github.com/apache/iceberg/issues/14216
-      Type resultType = sortField.transform().getResultType(tableField.type());
+      Type.TypeID resultType = sortField.transform().getResultType(field.type()).typeId();
       Preconditions.checkArgument(
-          resultType.typeId() != Type.TypeID.UUID,
-          "Merging reader does not support UUID-typed sort keys (field id %s in table %s)",
-          fieldId,
-          tableName);
+          resultType != Type.TypeID.UUID,
+          "Cannot merge on UUID sort key %s: Iceberg and Spark order UUIDs differently",
+          field.name());
+
+      // Iceberg orders -0.0 before 0.0 and Spark treats them as equal, so the next sort key breaks
+      // the tie differently
+      boolean floatingPoint = resultType == Type.TypeID.FLOAT || resultType == Type.TypeID.DOUBLE;
+      Preconditions.checkArgument(
+          !floatingPoint || i == sortFields.size() - 1,
+          "Cannot merge on floating point sort key %s followed by other sort keys: "
+              + "Iceberg and Spark order -0.0 and 0.0 differently",
+          field.name());
     }
   }
 
