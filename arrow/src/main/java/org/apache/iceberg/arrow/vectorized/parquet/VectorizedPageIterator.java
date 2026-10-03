@@ -171,10 +171,16 @@ public class VectorizedPageIterator extends BasePageIterator {
       final IntVector vector,
       final int expectedBatchSize,
       final int numValsInVector,
-      NullabilityHolder holder) {
+      NullabilityHolder holder,
+      int[] repLevels) {
     final int actualBatchSize = getActualBatchSize(expectedBatchSize);
     if (actualBatchSize <= 0) {
       return 0;
+    }
+    if (repLevels != null) {
+      for (int i = 0; i < actualBatchSize; i++) {
+        repLevels[numValsInVector + i] = nextRepetitionLevel();
+      }
     }
     vectorizedDefinitionLevelReader
         .dictionaryIdReader()
@@ -197,10 +203,17 @@ public class VectorizedPageIterator extends BasePageIterator {
         int expectedBatchSize,
         int numValsInVector,
         int typeWidth,
-        NullabilityHolder holder) {
+        NullabilityHolder holder,
+        int[] repLevels) {
       final int actualBatchSize = getActualBatchSize(expectedBatchSize);
       if (actualBatchSize <= 0) {
         return 0;
+      }
+      // TODO this can be batched
+      if (repLevels != null) {
+        for (int i = 0; i < actualBatchSize; i++) {
+          repLevels[numValsInVector + i] = nextRepetitionLevel();
+        }
       }
       if (dictionaryDecodeMode == DictionaryDecodeMode.EAGER) {
         nextDictEncodedVal(vector, actualBatchSize, numValsInVector, typeWidth, holder);
