@@ -105,17 +105,12 @@ public abstract class S3V4RestSignerClient
 
   @Value.Lazy
   public String baseSignerUri() {
-    return properties()
-        .getOrDefault(RESTCatalogProperties.SIGNER_URI, properties().get(CatalogProperties.URI));
+    return properties().get(CatalogProperties.URI);
   }
 
   @Value.Lazy
   public String endpoint() {
-    String endpointPath =
-        properties()
-            .getOrDefault(
-                RESTCatalogProperties.SIGNER_ENDPOINT,
-                properties().get(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT));
+    String endpointPath = properties().get(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT);
 
     return RESTUtil.resolveEndpoint(baseSignerUri(), endpointPath);
   }
@@ -225,28 +220,11 @@ public abstract class S3V4RestSignerClient
   @Value.Check
   protected void check() {
     Preconditions.checkArgument(
-        properties().containsKey(RESTCatalogProperties.SIGNER_ENDPOINT)
-            || properties().containsKey(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT),
+        properties().containsKey(RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT),
         "Remote signing endpoint is required");
 
     Preconditions.checkArgument(
-        properties().containsKey(RESTCatalogProperties.SIGNER_URI)
-            || properties().containsKey(CatalogProperties.URI),
-        "S3 signer service URI is required");
-
-    if (properties().containsKey(RESTCatalogProperties.SIGNER_URI)) {
-      LOG.warn(
-          "S3 signer URI is configured via deprecated property {}, this won't be supported in future releases. "
-              + "Please remove this property to let the signer use the default URI instead.",
-          RESTCatalogProperties.SIGNER_URI);
-    }
-
-    if (properties().containsKey(RESTCatalogProperties.SIGNER_ENDPOINT)) {
-      LOG.warn(
-          "Signer endpoint is configured via deprecated property {}, this won't be supported in future releases. "
-              + "Please remove this property to let the signer use the default endpoint instead.",
-          RESTCatalogProperties.SIGNER_ENDPOINT);
-    }
+        properties().containsKey(CatalogProperties.URI), "S3 signer service URI is required");
   }
 
   @Override
