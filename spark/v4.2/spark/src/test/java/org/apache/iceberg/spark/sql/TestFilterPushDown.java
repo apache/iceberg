@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.sql;
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -46,6 +47,7 @@ import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.variants.ShreddedObject;
 import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.Variants;
+import org.apache.spark.SparkException;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec;
 import org.apache.spark.sql.types.DataTypes;
@@ -240,6 +242,30 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
                     sql("SELECT * FROM %s WHERE is_d2(dep)", tableName)));
 
     assertInputPartitions(plan, 1);
+  }
+
+  @TestTemplate
+  public void partitionPredicateEvaluationFailureIsPropagated() {
+    sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg PARTITIONED BY (dep)", tableName);
+    configurePlanningMode(planningMode);
+
+    sql("INSERT INTO %s VALUES (1, 'hr'), (2, '1')", tableName);
+    spark
+        .udf()
+        .register(
+            "parse_partition_int",
+            (String value) -> Integer.parseInt(value),
+            DataTypes.IntegerType);
+
+    assertThatThrownBy(
+            () ->
+                spark
+                    .sql("SELECT * FROM " + tableName + " WHERE parse_partition_int(dep) = 1")
+                    .queryExecution()
+                    .optimizedPlan())
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining("FAILED_EXECUTE_UDF")
+        .hasRootCauseInstanceOf(NumberFormatException.class);
   }
 
   @TestTemplate

@@ -158,6 +158,13 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void insertIntoComputedIdentifier() {
+    sql("INSERT INTO IDENTIFIER(lower('%s')) VALUES (1, 'abc')", tableName);
+
+    assertThat(sql("SELECT * FROM %s", tableName)).containsExactly(row(1L, "abc"));
+  }
+
+  @TestTemplate
   public void testMetricViewTypeRoundTrip()
       throws NoSuchNamespaceException, NoSuchViewException, ViewAlreadyExistsException {
     BaseCatalog catalog = (BaseCatalog) spark.sessionState().catalogManager().catalog(catalogName);
