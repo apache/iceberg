@@ -87,6 +87,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -254,6 +255,77 @@ public class TestS3FileIO {
     for (String path : paths) {
       assertThat(s3FileIO.newInputFile(path).exists()).isFalse();
     }
+  }
+
+  @Test
+  void deleteFilesBatchesPerStorageCredentialPrefix() {
+    try (S3FileIO fileIO = fileIOWithClientPerPrefix("s3://bucket/table1", "s3://bucket/table2")) {
+      // a full batch and a remainder per prefix, and a few paths outside of any prefix
+      List<String> table1Paths = createObjects("s3://bucket/table1/", batchDeletionSize + 1);
+      List<String> table2Paths = createObjects("s3://bucket/table2/", batchDeletionSize + 1);
+      List<String> otherPaths = createObjects("s3://bucket/other/", 3);
+      List<String> paths = Lists.newArrayList(otherPaths);
+      for (int i = 0; i < table1Paths.size(); i++) {
+        paths.add(table1Paths.get(i));
+        paths.add(table2Paths.get(i));
+      }
+
+      fileIO.deleteFiles(paths);
+
+      assertDeleteBatches(fileIO.client("s3://bucket/table1/"), table1Paths);
+      assertDeleteBatches(fileIO.client("s3://bucket/table2/"), table2Paths);
+      assertDeleteBatches(fileIO.client(), otherPaths);
+      for (String path : paths) {
+        assertThat(fileIO.newInputFile(path).exists()).isFalse();
+      }
+    }
+  }
+
+  // every client is a separate mock, so each request can be verified against its client
+  private S3FileIO fileIOWithClientPerPrefix(String... prefixes) {
+    S3FileIO fileIO = new S3FileIO(() -> mock(S3Client.class, delegatesTo(s3.get())));
+    fileIO.setCredentials(
+        Arrays.stream(prefixes)
+            .map(
+                prefix ->
+                    StorageCredential.create(
+                        prefix,
+                        ImmutableMap.of(
+                            "s3.access-key-id", "keyId", "s3.secret-access-key", "secretKey")))
+            .collect(Collectors.toList()));
+    fileIO.initialize(properties);
+    return fileIO;
+  }
+
+  private List<String> createObjects(String prefix, int count) {
+    S3URI s3URI = new S3URI(prefix);
+    List<String> paths = Lists.newArrayList();
+    for (int i = 0; i < count; i++) {
+      String key = s3URI.key() + "object-" + i;
+      s3.get()
+          .putObject(
+              builder -> builder.bucket(s3URI.bucket()).key(key).build(), RequestBody.empty());
+      paths.add(prefix + "object-" + i);
+    }
+
+    return paths;
+  }
+
+  private void assertDeleteBatches(S3Client client, List<String> expectedPaths) {
+    ArgumentCaptor<DeleteObjectsRequest> requests =
+        ArgumentCaptor.forClass(DeleteObjectsRequest.class);
+    verify(client, times((expectedPaths.size() + batchDeletionSize - 1) / batchDeletionSize))
+        .deleteObjects(requests.capture());
+    List<String> deleted = Lists.newArrayList();
+    for (DeleteObjectsRequest request : requests.getAllValues()) {
+      assertThat(request.delete().objects()).hasSizeLessThanOrEqualTo(batchDeletionSize);
+      request
+          .delete()
+          .objects()
+          .forEach(obj -> deleted.add(String.format("s3://%s/%s", request.bucket(), obj.key())));
+    }
+
+    assertThat(deleted).containsExactlyInAnyOrderElementsOf(expectedPaths);
   }
 
   @Test
