@@ -35,12 +35,12 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Focused unit test for {@link SparkScanBuilder#collectCandidateLeafFiles}, the piece of {@code
  * tryPruneUsingScalarIndex} responsible for deduping candidate leaf files across an {@code IN}
- * predicate's separate per-value target ranges. Verified directly against a real tracking file
- * (via {@link TrackingFileWriter}) rather than through a full Spark SQL query: the SQL-level
- * result is a {@code Set<String>} of resolved paths regardless of whether dedup happened
- * upstream, so a black-box query test cannot actually distinguish "dedup worked" from "dedup is
- * missing but the result is still correct by coincidence." Testing this method's return value
- * directly is the only way to actually prove the dedup, not just correctness under collision.
+ * predicate's separate per-value target ranges. Verified directly against a real tracking file (via
+ * {@link TrackingFileWriter}) rather than through a full Spark SQL query: the SQL-level result is a
+ * {@code Set<String>} of resolved paths regardless of whether dedup happened upstream, so a
+ * black-box query test cannot actually distinguish "dedup worked" from "dedup is missing but the
+ * result is still correct by coincidence." Testing this method's return value directly is the only
+ * way to actually prove the dedup, not just correctness under collision.
  */
 public class TestSparkScanBuilderCandidateLeafFiles {
 
@@ -56,7 +56,8 @@ public class TestSparkScanBuilderCandidateLeafFiles {
   }
 
   private void writeTrackingFile(TrackingFileEntry... entries) {
-    try (TrackingFileWriter writer = new TrackingFileWriter(io.newOutputFile(trackingFileLocation))) {
+    try (TrackingFileWriter writer =
+        new TrackingFileWriter(io.newOutputFile(trackingFileLocation))) {
       for (TrackingFileEntry entry : entries) {
         writer.add(entry);
       }

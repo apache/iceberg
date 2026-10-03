@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -101,8 +101,7 @@ public class TestFileScanTaskFilteringScan {
   public void planFilesMatchesMultipleAllowedPaths() throws IOException {
     BatchScan scan = table.newBatchScan();
     FileScanTaskFilteringScan filtered =
-        new FileScanTaskFilteringScan(
-            scan, ImmutableSet.of(fileA.location(), fileC.location()));
+        new FileScanTaskFilteringScan(scan, ImmutableSet.of(fileA.location(), fileC.location()));
 
     try (CloseableIterable<ScanTask> tasks = filtered.planFiles()) {
       assertThat(tasks)

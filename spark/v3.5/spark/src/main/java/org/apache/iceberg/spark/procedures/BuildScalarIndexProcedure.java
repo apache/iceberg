@@ -79,26 +79,26 @@ import org.slf4j.LoggerFactory;
 /**
  * A procedure that builds a SCALAR index on a single key column.
  *
- * <p>Builds the index by reading the source table, computing each row's position within its
- * source file (before any shuffle, so file-scan order is preserved), computing the transform
- * value (HASH bucket, or the key value itself for IDENTITY), sorting by {@code (transform_value,
- * key_value)}, and writing one leaf file per resulting Spark partition. Commits the result through
- * {@link ScalarIndexCommitter} into a session-scoped {@link IndexCatalog} ({@link
- * SparkIndexCatalogs}) -- see that class's javadoc for the persistence limitation this implies.
+ * <p>Builds the index by reading the source table, computing each row's position within its source
+ * file (before any shuffle, so file-scan order is preserved), computing the transform value (HASH
+ * bucket, or the key value itself for IDENTITY), sorting by {@code (transform_value, key_value)},
+ * and writing one leaf file per resulting Spark partition. Commits the result through {@link
+ * ScalarIndexCommitter} into a session-scoped {@link IndexCatalog} ({@link SparkIndexCatalogs}) --
+ * see that class's javadoc for the persistence limitation this implies.
  *
  * <p>Only a single key column is supported, matching the current SCALAR proposal's scope
- * (multi-column composite indexes are an explicit Non-Goal). {@code IDENTITY} additionally
- * requires a numeric (long or int) key column, since the transform value is a {@code long} and a
- * string cannot be cast to one meaningfully.
+ * (multi-column composite indexes are an explicit Non-Goal). {@code IDENTITY} additionally requires
+ * a numeric (long or int) key column, since the transform value is a {@code long} and a string
+ * cannot be cast to one meaningfully.
  *
- * <p>Defaults to a full rebuild -- reading the entire source table and rewriting every leaf file
- * -- every time it is called. Passing {@code options => map('mode', 'incremental')} builds only
- * the leaf files for data files added since the existing index's last snapshot, appending them to
- * the existing leaf files rather than rewriting everything (the append-only option from Huaxin
- * Gao's Primary Key Index for Apache Iceberg proposal, Section 7.2). Falls back to a full rebuild
- * if there is no existing index to build on incrementally, or if anything about determining the
- * added files fails (for example, a compaction/rewrite happened since the index was last built --
- * see {@link org.apache.iceberg.spark.IndexSnapshotUtil#addedFilePathsSince}).
+ * <p>Defaults to a full rebuild -- reading the entire source table and rewriting every leaf file --
+ * every time it is called. Passing {@code options => map('mode', 'incremental')} builds only the
+ * leaf files for data files added since the existing index's last snapshot, appending them to the
+ * existing leaf files rather than rewriting everything (the append-only option from Huaxin Gao's
+ * Primary Key Index for Apache Iceberg proposal, Section 7.2). Falls back to a full rebuild if
+ * there is no existing index to build on incrementally, or if anything about determining the added
+ * files fails (for example, a compaction/rewrite happened since the index was last built -- see
+ * {@link org.apache.iceberg.spark.IndexSnapshotUtil#addedFilePathsSince}).
  */
 class BuildScalarIndexProcedure extends BaseProcedure {
 
@@ -165,7 +165,8 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     return withIcebergTable(
         tableIdent,
         table -> {
-          BuildResult result = buildAndCommit(tableIdent, table, keyColumnName, transformName, options);
+          BuildResult result =
+              buildAndCommit(tableIdent, table, keyColumnName, transformName, options);
           return toOutputRows(result);
         });
   }
@@ -208,8 +209,15 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     if ("incremental".equals(mode) && catalog.indexExists(indexIdent)) {
       try {
         return buildIncremental(
-            catalog, indexIdent, tableIdent, table, keyField, upperTransform, transformValueCol,
-            keyColumnName, options);
+            catalog,
+            indexIdent,
+            tableIdent,
+            table,
+            keyField,
+            upperTransform,
+            transformValueCol,
+            keyColumnName,
+            options);
       } catch (Exception e) {
         LOG.warn(
             "Incremental build failed for index {}, falling back to full rebuild: {}",
@@ -219,8 +227,15 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     }
 
     return buildFull(
-        catalog, indexIdent, tableIdent, table, keyField, upperTransform, transformValueCol,
-        keyColumnName, options);
+        catalog,
+        indexIdent,
+        tableIdent,
+        table,
+        keyField,
+        upperTransform,
+        transformValueCol,
+        keyColumnName,
+        options);
   }
 
   private BuildResult buildFull(
@@ -244,11 +259,19 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     FileIO io = table.io();
 
     List<LeafFileWriteResult> writeResults =
-        buildLeafFiles(sourceDf, keyColumnName, transformValueCol, keyField, io, leafDataLocation, targetLeafFiles);
+        buildLeafFiles(
+            sourceDf,
+            keyColumnName,
+            transformValueCol,
+            keyField,
+            io,
+            leafDataLocation,
+            targetLeafFiles);
     List<LeafFileMetadata> leafFiles = toLeafFileMetadata(writeResults);
 
     Preconditions.checkArgument(
-        !leafFiles.isEmpty(), "build_scalar_index produced no leaf files -- source table is empty?");
+        !leafFiles.isEmpty(),
+        "build_scalar_index produced no leaf files -- source table is empty?");
 
     ScalarIndexCommitter committer = new ScalarIndexCommitter(catalog, io);
     committer.commit(
@@ -271,8 +294,8 @@ class BuildScalarIndexProcedure extends BaseProcedure {
    * 7.2). Stale entries (e.g. from rows since updated or deleted) are not removed here; a full
    * rebuild is what cleans those up, matching that same proposal's recommendation.
    *
-   * <p>Throws (letting {@link #buildAndCommit} fall back to a full rebuild) if the existing
-   * index's key column doesn't match, has no committed snapshot, or if {@link
+   * <p>Throws (letting {@link #buildAndCommit} fall back to a full rebuild) if the existing index's
+   * key column doesn't match, has no committed snapshot, or if {@link
    * IndexSnapshotUtil#addedFilePathsSince} can't safely determine the added files (for example, a
    * compaction/rewrite happened since the index was last built).
    */
@@ -347,7 +370,14 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     String leafDataLocation = existing.location() + "/data";
 
     List<LeafFileWriteResult> newWriteResults =
-        buildLeafFiles(newRowsDf, keyColumnName, transformValueCol, keyField, io, leafDataLocation, targetLeafFiles);
+        buildLeafFiles(
+            newRowsDf,
+            keyColumnName,
+            transformValueCol,
+            keyField,
+            io,
+            leafDataLocation,
+            targetLeafFiles);
     List<LeafFileMetadata> newLeafFiles = toLeafFileMetadata(newWriteResults);
     Preconditions.checkArgument(
         !newLeafFiles.isEmpty(),
@@ -389,8 +419,7 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     // ClassCastException at runtime, not a compile error, so this must be fixed at the source.
     Dataset<Row> withPosition =
         sourceDf
-            .select(
-                col(keyColumnName).as("__key"), input_file_name().as("__source_file_path"))
+            .select(col(keyColumnName).as("__key"), input_file_name().as("__source_file_path"))
             .withColumn(
                 "__position",
                 row_number()
@@ -420,7 +449,11 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     for (LeafFileWriteResult r : writeResults) {
       leafFiles.add(
           new LeafFileMetadata(
-              r.path, "parquet", r.recordCount, r.sizeBytes, r.transformValueMin,
+              r.path,
+              "parquet",
+              r.recordCount,
+              r.sizeBytes,
+              r.transformValueMin,
               r.transformValueMax));
     }
     return leafFiles;
@@ -537,8 +570,10 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     return new InternalRow[] {row};
   }
 
-  /** Per-partition leaf-file write result, passed back to the driver via {@code
-   * Encoders.javaSerialization} since it needs no further Spark-side column operations. */
+  /**
+   * Per-partition leaf-file write result, passed back to the driver via {@code
+   * Encoders.javaSerialization} since it needs no further Spark-side column operations.
+   */
   public static final class LeafFileWriteResult implements Serializable {
     private final String path;
     private final long recordCount;
@@ -547,7 +582,10 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     private final long transformValueMax;
 
     LeafFileWriteResult(
-        String path, long recordCount, long sizeBytes, long transformValueMin,
+        String path,
+        long recordCount,
+        long sizeBytes,
+        long transformValueMin,
         long transformValueMax) {
       this.path = path;
       this.recordCount = recordCount;

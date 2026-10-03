@@ -48,10 +48,10 @@ public class IndexSnapshotUtil {
    * <p>Requires every snapshot in that range to be a pure append -- throws {@link
    * IllegalStateException} otherwise (for example, if a compaction/rewrite ran in between).
    * Silently omitting such a snapshot's files here would be a correctness risk, not just a missed
-   * optimization: a row physically moved by a rewrite into a file this method fails to report
-   * could end up covered by neither an index's existing entries nor its "added since" set, and
-   * never be indexed or scanned again. Callers should let the exception propagate and fall back
-   * to their safe default (no pruning, or a full rebuild) rather than catch it here.
+   * optimization: a row physically moved by a rewrite into a file this method fails to report could
+   * end up covered by neither an index's existing entries nor its "added since" set, and never be
+   * indexed or scanned again. Callers should let the exception propagate and fall back to their
+   * safe default (no pruning, or a full rebuild) rather than catch it here.
    *
    * @throws IllegalArgumentException if {@code sourceSnapshotId} is not an ancestor of {@code
    *     currentSnapshotId}

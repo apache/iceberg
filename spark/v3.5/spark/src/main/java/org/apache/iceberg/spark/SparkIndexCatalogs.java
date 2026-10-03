@@ -26,15 +26,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * Session-scoped registry of {@link IndexCatalog} instances, one per table, shared between {@code
- * CALL system.build_scalar_index(...)} and query-time index lookups within the same Spark
- * session. Follows the same singleton-registry pattern as {@link ScanTaskSetManager}.
+ * CALL system.build_scalar_index(...)} and query-time index lookups within the same Spark session.
+ * Follows the same singleton-registry pattern as {@link ScanTaskSetManager}.
  *
- * <p>Backed by {@link DurableIndexCatalog}, so index registrations survive a JVM restart -- a
- * fresh {@link #catalogFor} call in a new process re-derives the same catalog (it persists its
- * pointer files under the table's own location, not in this class's map). What this class caches
- * is purely the {@link IndexCatalog} object itself, for reuse within one process's lifetime, not
- * the index metadata -- losing that cache costs nothing beyond re-constructing a cheap wrapper
- * object.
+ * <p>Backed by {@link DurableIndexCatalog}, so index registrations survive a JVM restart -- a fresh
+ * {@link #catalogFor} call in a new process re-derives the same catalog (it persists its pointer
+ * files under the table's own location, not in this class's map). What this class caches is purely
+ * the {@link IndexCatalog} object itself, for reuse within one process's lifetime, not the index
+ * metadata -- losing that cache costs nothing beyond re-constructing a cheap wrapper object.
  */
 public class SparkIndexCatalogs {
 

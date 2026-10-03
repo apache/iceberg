@@ -27,11 +27,11 @@ import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
- * Verifies the read side of the SCALAR index at the SQL level: once {@code build_scalar_index}
- * has populated an index, a subsequent equality query on the indexed column returns the correct
- * row -- functional correctness, which never depends on pruning actually kicking in. Whether
- * {@code FileScanTaskFilteringScan} (the mechanism that actually enforces pruning) narrows the
- * planned file set correctly is verified separately and in isolation by {@code
+ * Verifies the read side of the SCALAR index at the SQL level: once {@code build_scalar_index} has
+ * populated an index, a subsequent equality query on the indexed column returns the correct row --
+ * functional correctness, which never depends on pruning actually kicking in. Whether {@code
+ * FileScanTaskFilteringScan} (the mechanism that actually enforces pruning) narrows the planned
+ * file set correctly is verified separately and in isolation by {@code
  * TestFileScanTaskFilteringScan}: {@code Dataset#inputFiles()} does not reflect Iceberg's
  * DataSourceV2 scans in this Spark version, so it is not a usable signal at this level.
  */

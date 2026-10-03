@@ -233,39 +233,39 @@ public class SparkScanBuilder
   private static final int DEFAULT_MAX_CANDIDATE_LEAF_FILES = 100;
 
   /**
-   * If a SCALAR index exists on a column referenced by an equality, {@code IN}, or range
-   * predicate in {@link #filterExpressions}, resolves the predicate(s) against the index's leaf
-   * files and records the matching source file paths in {@link #scalarIndexResolvedFilePaths}, so
-   * {@link #buildBatchScan} can constrain the scan to just those files via {@link
+   * If a SCALAR index exists on a column referenced by an equality, {@code IN}, or range predicate
+   * in {@link #filterExpressions}, resolves the predicate(s) against the index's leaf files and
+   * records the matching source file paths in {@link #scalarIndexResolvedFilePaths}, so {@link
+   * #buildBatchScan} can constrain the scan to just those files via {@link
    * FileScanTaskFilteringScan}.
    *
-   * <p>An equality predicate (HASH or IDENTITY transform) resolves to a single transform value.
-   * An {@code IN} predicate resolves to one transform value per literal (HASH or IDENTITY),
-   * queried as separate points rather than a combined range -- HASH in particular can scatter an
-   * IN-list's values across unrelated, non-contiguous buckets, so there is no single [min, max]
-   * that would be both correct and useful. A range predicate ({@code <}, {@code <=}, {@code >},
-   * {@code >=} -- including a {@code BETWEEN}, which Spark decomposes into two range predicates on
-   * the same column) only makes sense against an IDENTITY-transform index: HASH scatters values
-   * across buckets, so a contiguous range on the original column does not map to a contiguous
-   * range of transform values the way it does for IDENTITY, where the transform value is the key
-   * value itself.
+   * <p>An equality predicate (HASH or IDENTITY transform) resolves to a single transform value. An
+   * {@code IN} predicate resolves to one transform value per literal (HASH or IDENTITY), queried as
+   * separate points rather than a combined range -- HASH in particular can scatter an IN-list's
+   * values across unrelated, non-contiguous buckets, so there is no single [min, max] that would be
+   * both correct and useful. A range predicate ({@code <}, {@code <=}, {@code >}, {@code >=} --
+   * including a {@code BETWEEN}, which Spark decomposes into two range predicates on the same
+   * column) only makes sense against an IDENTITY-transform index: HASH scatters values across
+   * buckets, so a contiguous range on the original column does not map to a contiguous range of
+   * transform values the way it does for IDENTITY, where the transform value is the key value
+   * itself.
    *
    * <p>Restricting the scan to files that could satisfy one AND'd predicate (or set of predicates
    * on the same column) is always sound: any row satisfying the full pushed-down conjunction must
    * also satisfy it, so it must live in one of these files. The predicate itself is still pushed
-   * down and applied as a residual regardless, so a wrong or stale resolution here can only miss
-   * an optimization, never produce a wrong result -- except for the zero-match case (key confirmed
+   * down and applied as a residual regardless, so a wrong or stale resolution here can only miss an
+   * optimization, never produce a wrong result -- except for the zero-match case (key confirmed
    * absent from a fully fresh index, with no uncovered files), which is deliberately NOT pruned to
    * zero files here: that would be a correctness-sensitive optimization (a bug would silently
    * return wrong empty results, not just miss a speedup), left as a documented follow-up rather
    * than attempted in this pass.
    *
    * <p>Staleness is handled via the covered/uncovered-files model from Huaxin Gao's Primary Key
-   * Index for Apache Iceberg proposal (Section 8, "Staleness Semantics"): files that existed at
-   * the index's own snapshot ("covered") can be pruned using the index as usual; files added to
-   * the table since ("uncovered") are never known to the index and are always included in the
-   * resolved set, unconditionally. This lets a stale index still help, rather than falling back
-   * to no pruning at all on any snapshot mismatch. See {@link #uncoveredFilePathsSince}.
+   * Index for Apache Iceberg proposal (Section 8, "Staleness Semantics"): files that existed at the
+   * index's own snapshot ("covered") can be pruned using the index as usual; files added to the
+   * table since ("uncovered") are never known to the index and are always included in the resolved
+   * set, unconditionally. This lets a stale index still help, rather than falling back to no
+   * pruning at all on any snapshot mismatch. See {@link #uncoveredFilePathsSince}.
    *
    * <p>Only the first column whose predicate(s) resolve against an existing index is used;
    * combining resolutions from multiple SCALAR indexes on an AND'd query would need set
@@ -273,8 +273,8 @@ public class SparkScanBuilder
    *
    * <p>Any failure -- no index registered, an unsupported predicate shape, a non-append snapshot
    * (e.g. compaction) between the index's snapshot and the current one, an I/O error reading the
-   * tracking or leaf file -- falls back silently to normal planning, matching the design
-   * proposal's rule that the index must never be required for correctness.
+   * tracking or leaf file -- falls back silently to normal planning, matching the design proposal's
+   * rule that the index must never be required for correctness.
    */
   private void tryPruneUsingScalarIndex() {
     if (filterExpressions == null || filterExpressions.isEmpty()) {
@@ -328,13 +328,12 @@ public class SparkScanBuilder
   }
 
   /**
-   * Attempts to resolve {@code predicates} (all on {@code columnName}, each {@code EQ}, {@code
-   * IN}, or a range comparison) against a SCALAR index covering that column, discovered from
-   * {@code availableIndexes} (as returned by {@link IndexCatalog#listIndexes}) by matching the
-   * column's field ID against {@link IndexMetadata#keyColumnIds()} -- not by any naming
-   * convention. Returns {@code true} if it resolved and set {@link
-   * #scalarIndexResolvedFilePaths}, {@code false} to let {@link #tryPruneUsingScalarIndex()} try
-   * the next column's predicates instead.
+   * Attempts to resolve {@code predicates} (all on {@code columnName}, each {@code EQ}, {@code IN},
+   * or a range comparison) against a SCALAR index covering that column, discovered from {@code
+   * availableIndexes} (as returned by {@link IndexCatalog#listIndexes}) by matching the column's
+   * field ID against {@link IndexMetadata#keyColumnIds()} -- not by any naming convention. Returns
+   * {@code true} if it resolved and set {@link #scalarIndexResolvedFilePaths}, {@code false} to let
+   * {@link #tryPruneUsingScalarIndex()} try the next column's predicates instead.
    */
   private boolean tryPruneUsingScalarIndex(
       List<IndexMetadata> availableIndexes,
@@ -410,7 +409,8 @@ public class SparkScanBuilder
       if (eqPredicate.isPresent()) {
         Object literalValue = eqPredicate.get().literal().value();
         long targetTransformValue = transformValue(metadata, literalValue);
-        targetRanges = ImmutableList.of(new TransformValueRange(targetTransformValue, targetTransformValue));
+        targetRanges =
+            ImmutableList.of(new TransformValueRange(targetTransformValue, targetTransformValue));
         leafFilter = Expressions.equal(columnName, literalValue);
         literalValueForLog = literalValue;
       } else if (inPredicate.isPresent()) {
@@ -543,8 +543,8 @@ public class SparkScanBuilder
   /**
    * One [min, max] transform-value sub-range to query the tracking file for.
    *
-   * <p>Package-private (not private), along with {@link #collectCandidateLeafFiles}, so both can
-   * be tested directly against a real tracking file without needing a full Spark session -- see
+   * <p>Package-private (not private), along with {@link #collectCandidateLeafFiles}, so both can be
+   * tested directly against a real tracking file without needing a full Spark session -- see
    * TestSparkScanBuilderCandidateLeafFiles in this package.
    */
   static final class TransformValueRange {
@@ -560,15 +560,16 @@ public class SparkScanBuilder
   /**
    * Collects the tracking-file entries whose transform-value range overlaps any of {@code
    * targetRanges}, deduped by location. An {@code IN} predicate's separate target ranges can
-   * resolve to the same leaf file (e.g. two IN values landing in the same HASH bucket); reading
-   * it twice would just waste work, not affect correctness, but is worth avoiding.
+   * resolve to the same leaf file (e.g. two IN values landing in the same HASH bucket); reading it
+   * twice would just waste work, not affect correctness, but is worth avoiding.
    */
   static List<TrackingFileEntry> collectCandidateLeafFiles(
       FileIO io, String trackingFileLocation, List<TransformValueRange> targetRanges) {
     Map<String, TrackingFileEntry> byLocation = Maps.newLinkedHashMap();
     for (TransformValueRange range : targetRanges) {
       for (TrackingFileEntry entry :
-          TrackingFileReader.readMatching(io.newInputFile(trackingFileLocation), range.min, range.max)) {
+          TrackingFileReader.readMatching(
+              io.newInputFile(trackingFileLocation), range.min, range.max)) {
         byLocation.putIfAbsent(entry.location(), entry);
       }
     }

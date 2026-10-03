@@ -125,9 +125,7 @@ public class TestBuildScalarIndexProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testCustomBucketCountOption() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
-    sql(
-        "INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')",
-        tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
 
     List<Object[]> output =
         sql(

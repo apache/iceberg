@@ -27,9 +27,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 import org.apache.iceberg.BatchScan;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
@@ -46,26 +46,26 @@ import org.slf4j.LoggerFactory;
  * paths, resolved ahead of time from a SCALAR index by {@link SparkScanBuilder}.
  *
  * <p>Only {@link #planFiles()} is overridden. Spark's own task planning ({@link
- * SparkPartitioningAwareScan}) calls only {@link #planFiles()}, never {@link #planTasks()}, so
- * that is the one place this filter needs to apply for a normal query. {@link #planTasks()}
- * delegates unfiltered -- callers that plan through it directly won't see the restriction, but
- * since this is purely an additive, sound restriction (the original predicate is still applied as
- * a residual regardless), an unfiltered {@link #planTasks()} only costs a missed optimization, not
- * a wrong result.
+ * SparkPartitioningAwareScan}) calls only {@link #planFiles()}, never {@link #planTasks()}, so that
+ * is the one place this filter needs to apply for a normal query. {@link #planTasks()} delegates
+ * unfiltered -- callers that plan through it directly won't see the restriction, but since this is
+ * purely an additive, sound restriction (the original predicate is still applied as a residual
+ * regardless), an unfiltered {@link #planTasks()} only costs a missed optimization, not a wrong
+ * result.
  *
- * <p>{@link #planFiles()} self-verifies before trusting the resolved paths: the index recorded
- * file paths at index-build time via Spark's {@code input_file_name()}, while this class matches
- * them against {@link org.apache.iceberg.DataFile#path()} as reported by normal scan planning --
- * two different code paths that are expected to agree, but have not been verified to always agree
- * across every {@code FileIO} implementation and path-normalization scheme. If none of the
- * resolved paths match any real candidate file (a sign of exactly that kind of mismatch, not a
- * genuine "no files match"), this falls back to the full, unfiltered file list rather than risk
- * silently returning zero rows -- this optimization must never be able to produce a wrong result.
+ * <p>{@link #planFiles()} self-verifies before trusting the resolved paths: the index recorded file
+ * paths at index-build time via Spark's {@code input_file_name()}, while this class matches them
+ * against {@link org.apache.iceberg.DataFile#path()} as reported by normal scan planning -- two
+ * different code paths that are expected to agree, but have not been verified to always agree
+ * across every {@code FileIO} implementation and path-normalization scheme. If none of the resolved
+ * paths match any real candidate file (a sign of exactly that kind of mismatch, not a genuine "no
+ * files match"), this falls back to the full, unfiltered file list rather than risk silently
+ * returning zero rows -- this optimization must never be able to produce a wrong result.
  *
- * <p>Every other method delegates straight through to the wrapped scan. Refinement methods (
- * {@link #filter}, {@link #select}, {@link #useSnapshot}, etc.) are not expected to be called on
- * this decorator in practice -- by the time {@link SparkScanBuilder} wraps a scan with this class,
- * all such refinement has already happened on the underlying scan -- so they delegate without
+ * <p>Every other method delegates straight through to the wrapped scan. Refinement methods ( {@link
+ * #filter}, {@link #select}, {@link #useSnapshot}, etc.) are not expected to be called on this
+ * decorator in practice -- by the time {@link SparkScanBuilder} wraps a scan with this class, all
+ * such refinement has already happened on the underlying scan -- so they delegate without
  * re-wrapping the result.
  */
 class FileScanTaskFilteringScan implements BatchScan {
