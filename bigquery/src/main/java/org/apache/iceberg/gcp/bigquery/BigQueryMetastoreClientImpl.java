@@ -70,6 +70,7 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
+import org.apache.iceberg.gcp.bigquery.util.RetryDetector;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -325,14 +326,18 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
   @Override
   public Table create(Table table) {
+    return create(table, new RetryDetector());
+  }
+
+  @Override
+  public Table create(Table table, RetryDetector retryDetector) {
     // Ensure it is an Iceberg table supported by the BigQuery metastore catalog.
     validateTable(table);
-    // TODO: Ensure table creation is idempotent when handling retries.
     Table response = null;
     try {
       response =
           BigQueryRetryHelper.runWithRetries(
-              () -> internalCreate(table),
+              retryDetector.wrap(() -> internalCreate(table)),
               bigqueryOptions.getRetrySettings(),
               BIGQUERY_EXCEPTION_HANDLER,
               bigqueryOptions.getClock(),
@@ -387,6 +392,11 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
   @Override
   public Table update(TableReference tableReference, Table table) {
+    return update(tableReference, table, new RetryDetector());
+  }
+
+  @Override
+  public Table update(TableReference tableReference, Table table, RetryDetector retryDetector) {
     // Ensure it is an Iceberg table supported by the BQ metastore catalog.
     validateTable(table);
 
@@ -405,7 +415,8 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     try {
       response =
           BigQueryRetryHelper.runWithRetries(
-              () -> internalUpdate(tableReference, updatedTable, table.getEtag()),
+              retryDetector.wrap(
+                  () -> internalUpdate(tableReference, updatedTable, table.getEtag())),
               bigqueryOptions.getRetrySettings(),
               BIGQUERY_EXCEPTION_HANDLER,
               bigqueryOptions.getClock(),

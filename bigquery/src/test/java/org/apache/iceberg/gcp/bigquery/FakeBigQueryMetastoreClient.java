@@ -36,6 +36,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.gcp.bigquery.util.RetryDetector;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
@@ -150,6 +151,11 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
   }
 
   @Override
+  public Table create(Table table, RetryDetector retryDetector) {
+    return create(table);
+  }
+
+  @Override
   public Table create(Table table) {
     if (tables.containsKey(table.getTableReference())) {
       throw new AlreadyExistsException("Table already exists: %s", table.getTableReference());
@@ -168,6 +174,11 @@ public class FakeBigQueryMetastoreClient implements BigQueryMetastoreClient {
     }
 
     return table;
+  }
+
+  @Override
+  public Table update(TableReference tableReference, Table table, RetryDetector retryDetector) {
+    return update(tableReference, table);
   }
 
   @Override
