@@ -19,6 +19,7 @@
 package org.apache.iceberg.parquet;
 
 import java.nio.ByteBuffer;
+import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
@@ -29,6 +30,7 @@ import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
@@ -221,7 +223,6 @@ class ParquetFilters {
       return null;
     }
 
-    // TODO: this needs to convert to handle BigDecimal and UUID
     Object value = lit.value();
     if (value instanceof Number) {
       return (C) lit.value();
@@ -229,6 +230,8 @@ class ParquetFilters {
       return (C) Binary.fromString(value.toString());
     } else if (value instanceof ByteBuffer) {
       return (C) Binary.fromReusedByteBuffer((ByteBuffer) value);
+    } else if (value instanceof UUID) {
+      return (C) Binary.fromConstantByteArray(UUIDUtil.convert((UUID) value));
     }
     throw new UnsupportedOperationException(
         "Type not supported yet: " + value.getClass().getName());
