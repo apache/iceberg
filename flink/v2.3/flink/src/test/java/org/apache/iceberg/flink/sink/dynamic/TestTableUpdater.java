@@ -19,10 +19,15 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
@@ -61,6 +66,8 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
           Types.NestedField.optional(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()),
           Types.NestedField.optional(3, "extra", Types.StringType.get()));
+
+  private static final TableIdentifier RACED_TABLE = TableIdentifier.parse("myNamespace.myTable");
 
   @Test
   void testTableCreation(@TempDir Path tempDir) {
@@ -134,6 +141,46 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     tableUpdater.update(
         tableIdentifier, "myBranch", SCHEMA, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
     assertThat(cache.getInternalCache()).contains(Map.entry(tableIdentifier, cacheItem));
+  }
+
+  @Test
+  void branchCreatedByAnotherWriterSinceTheCacheLoadedTheTable() {
+    InMemoryCatalog catalog = catalogWithEmptyTable();
+    TableUpdater tableUpdater = tableUpdaterCachingTheTable(catalog);
+    createMainBranch(catalog);
+
+    assertThatCode(() -> updateMainBranch(tableUpdater)).doesNotThrowAnyException();
+
+    assertMainIsTheOtherWritersEmptySnapshot(catalog.loadTable(RACED_TABLE));
+  }
+
+  @Test
+  void branchCreatedByAnotherWriterBeforeManagingSnapshots() {
+    InMemoryCatalog catalog = catalogWithEmptyTable();
+    TableUpdater tableUpdater =
+        tableUpdaterCachingTheTable(createsMainBranchBeforeManagingSnapshots(catalog));
+
+    assertThatCode(() -> updateMainBranch(tableUpdater)).doesNotThrowAnyException();
+
+    assertMainIsTheOtherWritersEmptySnapshot(catalog.loadTable(RACED_TABLE));
+  }
+
+  @Test
+  void tagWithTheBranchNameFailsTheUpdate() {
+    InMemoryCatalog catalog = catalogWithEmptyTable();
+    catalog.loadTable(RACED_TABLE).newFastAppend().commit();
+    TableUpdater tableUpdater = tableUpdaterCachingTheTable(catalog);
+    String tag = "audit";
+    Table table = catalog.loadTable(RACED_TABLE);
+    table.manageSnapshots().createTag(tag, table.currentSnapshot().snapshotId()).commit();
+
+    assertThatThrownBy(
+            () ->
+                tableUpdater.update(
+                    RACED_TABLE, tag, SCHEMA, PartitionSpec.unpartitioned(), TableCreator.DEFAULT))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Ref %s already exists", tag);
+    assertThat(catalog.loadTable(RACED_TABLE).refs().get(tag).isTag()).isTrue();
   }
 
   @Test
@@ -430,5 +477,63 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     assertThat(catalog.tableExists(tableIdentifier)).isTrue();
     assertThat(result.f0.resolvedTableSchema().sameSchema(SCHEMA)).isTrue();
     assertThat(result.f0.compareResult()).isEqualTo(CompareSchemasVisitor.Result.SAME);
+  }
+
+  private static InMemoryCatalog catalogWithEmptyTable() {
+    InMemoryCatalog catalog = new InMemoryCatalog();
+    catalog.initialize("catalog", Map.of());
+    catalog.createNamespace(RACED_TABLE.namespace());
+    catalog.createTable(RACED_TABLE, SCHEMA);
+    return catalog;
+  }
+
+  private static TableUpdater tableUpdaterCachingTheTable(Catalog catalog) {
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    cache.schema(RACED_TABLE, SCHEMA);
+    return new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+  }
+
+  private static void createMainBranch(Catalog catalog) {
+    catalog.loadTable(RACED_TABLE).manageSnapshots().createBranch(SnapshotRef.MAIN_BRANCH).commit();
+  }
+
+  /** Returns a catalog whose tables let another writer create the main branch first, once. */
+  private static Catalog createsMainBranchBeforeManagingSnapshots(InMemoryCatalog catalog) {
+    AtomicBoolean created = new AtomicBoolean();
+    Catalog racing = spy(catalog);
+    doAnswer(
+            load -> {
+              Table table = spy((Table) load.callRealMethod());
+              doAnswer(
+                      manage -> {
+                        if (created.compareAndSet(false, true)) {
+                          createMainBranch(catalog);
+                        }
+
+                        return manage.callRealMethod();
+                      })
+                  .when(table)
+                  .manageSnapshots();
+              return table;
+            })
+        .when(racing)
+        .loadTable(RACED_TABLE);
+    return racing;
+  }
+
+  private static void updateMainBranch(TableUpdater tableUpdater) {
+    tableUpdater.update(
+        RACED_TABLE,
+        SnapshotRef.MAIN_BRANCH,
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        TableCreator.DEFAULT);
+  }
+
+  private static void assertMainIsTheOtherWritersEmptySnapshot(Table table) {
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(table.refs().get(SnapshotRef.MAIN_BRANCH).snapshotId())
+        .isEqualTo(table.currentSnapshot().snapshotId());
   }
 }

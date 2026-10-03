@@ -23,6 +23,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -104,21 +105,37 @@ class TableUpdater {
     String fromCache = cache.branch(identifier, branch);
     if (fromCache == null) {
       Table table = catalog.loadTable(identifier);
-      try {
-        table.manageSnapshots().createBranch(branch).commit();
-        LOG.info("Branch {} for {} created", branch, identifier);
-      } catch (CommitFailedException e) {
-        table.refresh();
-        if (table.refs().containsKey(branch)) {
-          LOG.debug("Branch {} concurrently created for {}.", branch, identifier);
-        } else {
-          LOG.error("Failed to create branch {} for {}.", branch, identifier, e);
-          throw e;
-        }
+      // Another writer may have created the branch since the cache loaded the table.
+      if (hasBranch(table, branch)) {
+        LOG.debug("Branch {} for {} created by another writer.", branch, identifier);
+      } else {
+        createBranch(identifier, table, branch);
       }
 
       cache.update(identifier, table);
     }
+  }
+
+  private static void createBranch(TableIdentifier identifier, Table table, String branch) {
+    try {
+      table.manageSnapshots().createBranch(branch).commit();
+      LOG.info("Branch {} for {} created", branch, identifier);
+    } catch (CommitFailedException | IllegalArgumentException e) {
+      // Another writer may still create the branch after the load. Snapshot management starts from
+      // refreshed metadata, so that can fail as an existing ref rather than as a commit conflict.
+      table.refresh();
+      if (hasBranch(table, branch)) {
+        LOG.debug("Branch {} concurrently created for {}.", branch, identifier);
+      } else {
+        LOG.error("Failed to create branch {} for {}.", branch, identifier, e);
+        throw e;
+      }
+    }
+  }
+
+  private static boolean hasBranch(Table table, String branch) {
+    SnapshotRef ref = table.refs().get(branch);
+    return ref != null && ref.isBranch();
   }
 
   private TableMetadataCache.ResolvedSchemaInfo findOrCreateSchema(
