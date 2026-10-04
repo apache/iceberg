@@ -47,6 +47,7 @@ import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
@@ -1070,6 +1071,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     public Table create() {
       Endpoint.check(endpoints, Endpoint.V1_CREATE_TABLE);
       propertiesBuilder.putAll(tableOverrideProperties());
+      Map<String, String> tableProperties = propertiesBuilder.buildKeepingLast();
+      checkFormatVersion(schema, tableProperties);
       CreateTableRequest request =
           CreateTableRequest.builder()
               .withName(ident.name())
@@ -1077,7 +1080,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .withPartitionSpec(spec)
               .withWriteOrder(writeOrder)
               .withLocation(location)
-              .setProperties(propertiesBuilder.buildKeepingLast())
+              .setProperties(tableProperties)
               .build();
 
       AuthSession contextualSession = authManager.contextualSession(context, catalogAuth);
@@ -1252,6 +1255,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     private LoadTableResponse stageCreate() {
       propertiesBuilder.putAll(tableOverrideProperties());
       Map<String, String> tableProperties = propertiesBuilder.buildKeepingLast();
+      checkFormatVersion(schema, tableProperties);
 
       CreateTableRequest request =
           CreateTableRequest.builder()
@@ -1273,6 +1277,14 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               LoadTableResponse.class,
               mutationHeaders,
               ErrorHandlers.tableErrorHandler());
+    }
+  }
+
+  private static void checkFormatVersion(Schema schema, Map<String, String> properties) {
+    Integer formatVersion =
+        PropertyUtil.propertyAsNullableInt(properties, TableProperties.FORMAT_VERSION);
+    if (formatVersion != null) {
+      Schema.checkCompatibility(schema, formatVersion);
     }
   }
 
