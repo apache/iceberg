@@ -1495,40 +1495,118 @@ class TestV4ManifestReader {
             .build();
     Map<Integer, PartitionSpec> specsById =
         ImmutableMap.of(idSpec.specId(), idSpec, dataSpec.specId(), dataSpec);
-
-    PartitionData dataPartitionX = partition(dataSpec, "x");
-    TrackedFile dataPartitionedFile =
-        dataFileWithoutStats(
-            "s3://bucket/table/data=x/file-c.parquet", dataSpec.specId(), dataPartitionX);
-
-    ManifestFile idPartitionedManifest =
-        writeManifest(format, idSpec.partitionType(), ImmutableList.of(FILE_A, FILE_B));
-    ManifestFile dataPartitionedManifest =
-        writeManifest(format, dataSpec.partitionType(), dataPartitionedFile);
-
-    List<TrackedFile> files = Lists.newArrayList();
-    files.addAll(
-        read(
-            V4ManifestReader.builder(idPartitionedManifest, IO, TABLE_SCHEMA, specsById)
-                .metricsConfig(METRICS_CONFIG)));
-    files.addAll(
-        read(
-            V4ManifestReader.builder(dataPartitionedManifest, IO, TABLE_SCHEMA, specsById)
-                .metricsConfig(METRICS_CONFIG)));
-
     Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
+    int idPos = unionType.fields().indexOf(unionType.field("id"));
+    int dataPos = unionType.fields().indexOf(unionType.field("data"));
 
-    ManifestFile manifest = writeManifest(format, unionType, files);
+    // a mixed-spec manifest stores every file's partition in the union type
+    PartitionData idOne = new PartitionData(unionType);
+    idOne.set(idPos, 1);
+    PartitionData idTwo = new PartitionData(unionType);
+    idTwo.set(idPos, 2);
+    PartitionData dataX = new PartitionData(unionType);
+    dataX.set(dataPos, "x");
+
+    TrackedFile idFileKept =
+        dataFileWithoutStats("s3://bucket/table/id=1/file-a.parquet", idSpec.specId(), idOne);
+    TrackedFile idFilePruned =
+        dataFileWithoutStats("s3://bucket/table/id=2/file-b.parquet", idSpec.specId(), idTwo);
+    TrackedFile dataFile =
+        dataFileWithoutStats("s3://bucket/table/data=x/file-c.parquet", dataSpec.specId(), dataX);
+
+    ManifestFile manifest =
+        writeManifest(format, unionType, ImmutableList.of(idFileKept, idFilePruned, dataFile));
 
     V4ManifestReader.Builder builder =
         V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, specsById)
             .filter(Expressions.equal("id", 1))
             .metricsConfig(METRICS_CONFIG);
 
-    // the comparator is built for ID partitioning, so only check the location
     assertThat(read(builder))
         .extracting(TrackedFile::location)
-        .containsExactlyInAnyOrder(FILE_A.location(), dataPartitionedFile.location());
+        .containsExactlyInAnyOrder(idFileKept.location(), dataFile.location());
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void narrowPartitionProjectionReadsFullUnionTuple(FileFormat format) throws IOException {
+    PartitionSpec idSpec =
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .withSpecId(1)
+            .add(1, 1000, "id", Transforms.identity())
+            .build();
+    PartitionSpec dataSpec =
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .withSpecId(2)
+            .add(2, 1001, "data", Transforms.identity())
+            .build();
+    Map<Integer, PartitionSpec> specsById =
+        ImmutableMap.of(idSpec.specId(), idSpec, dataSpec.specId(), dataSpec);
+    Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
+
+    PartitionData unionPartition = new PartitionData(unionType);
+    unionPartition.set(unionType.fields().indexOf(unionType.field("data")), "x");
+    TrackedFile file =
+        dataFileWithoutStats(
+            "s3://bucket/table/data=x/file.parquet", dataSpec.specId(), unionPartition);
+    ManifestFile manifest = writeManifest(format, unionType, ImmutableList.of(file));
+
+    TrackedFile actual =
+        readOne(
+            V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, specsById)
+                .metricsConfig(METRICS_CONFIG)
+                .select("partition.id"));
+    assertThat(actual.partition().get(0, CharSequence.class)).hasToString("x");
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void unknownSpecPartitionFails(FileFormat format) throws IOException {
+    PartitionSpec idSpec =
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .withSpecId(1)
+            .add(1, 1000, "id", Transforms.identity())
+            .build();
+    PartitionSpec dataSpec =
+        PartitionSpec.builderFor(TABLE_SCHEMA)
+            .withSpecId(2)
+            .add(2, 1001, "data", Transforms.identity())
+            .build();
+    Map<Integer, PartitionSpec> specsById =
+        ImmutableMap.of(idSpec.specId(), idSpec, dataSpec.specId(), dataSpec);
+    Types.StructType unionType = Partitioning.unionPartitionTypes(specsById.values());
+    int dataPos = unionType.fields().indexOf(unionType.field("data"));
+
+    PartitionData knownPartition = new PartitionData(unionType);
+    knownPartition.set(unionType.fields().indexOf(unionType.field("id")), 7);
+    TrackedFile known =
+        dataFileWithoutStats("s3://bucket/table/known.parquet", idSpec.specId(), knownPartition);
+
+    // spec id 5 is not in specsById; it follows a known-spec file in the same (reused) reader
+    PartitionData unknownPartition = new PartitionData(unionType);
+    unknownPartition.set(dataPos, "x");
+    TrackedFile unknown =
+        dataFileWithoutStats("s3://bucket/table/unknown.parquet", 5, unknownPartition);
+
+    ManifestFile manifest = writeManifest(format, unionType, ImmutableList.of(known, unknown));
+
+    List<TrackedFile> files =
+        read(
+            V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, specsById)
+                .metricsConfig(METRICS_CONFIG));
+
+    TrackedFile knownActual =
+        files.stream().filter(f -> Integer.valueOf(1).equals(f.specId())).findFirst().orElseThrow();
+    assertThat(knownActual.partition().get(0, Integer.class))
+        .as("known spec's partition is projected to its output type")
+        .isEqualTo(7);
+
+    TrackedFile unknownActual =
+        files.stream().filter(f -> Integer.valueOf(5).equals(f.specId())).findFirst().orElseThrow();
+    assertThatThrownBy(unknownActual::partition)
+        .as("partition cannot be projected to an unknown spec's output type")
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing partition for spec 5");
   }
 
   @ParameterizedTest
@@ -1548,7 +1626,11 @@ class TestV4ManifestReader {
 
     TrackedFile actual = readOne(builder);
 
-    assertThat(actual).usingComparator(FILE_COMPARATOR).isEqualTo(file);
+    assertThat(actual.location()).isEqualTo(file.location());
+    assertThatThrownBy(actual::partition)
+        .as("unknown spec's partition cannot be projected to its output type")
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing partition for spec 5");
   }
 
   @ParameterizedTest

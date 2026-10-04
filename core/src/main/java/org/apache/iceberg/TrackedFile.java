@@ -169,7 +169,9 @@ interface TrackedFile {
   /** Returns the ID of the partition spec used to partition this file, or null. */
   Integer specId();
 
-  /** Returns partition for this file as a {@link StructLike}, or null. */
+  /**
+   * Returns the partition for this file as a struct with the partition spec's output type, or null.
+   */
   StructLike partition();
 
   /** Returns the content stats for this entry. */
