@@ -22,37 +22,29 @@ import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.MultisetType;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/**
- * Lets the write path treat a Flink {@code MULTISET<T>} as the map it is stored as.
- *
- * <p>{@link org.apache.iceberg.flink.FlinkTypeToType#visit(MultisetType)} converts a {@code
- * MULTISET<T>} to an Iceberg {@code map<T, int>} of element to occurrence count, and {@code
- * RowData} represents both a map and a multiset as {@code MapData}, so the writers only need the
- * equivalent {@link MapType} rather than a separate multiset code path.
- */
-class FlinkMultisets {
+/** Lets the write path treat a Flink {@code MULTISET<T>} as the map it is stored as. */
+class FlinkMapTypeUtil {
 
-  /**
-   * The occurrence count is not nullable, because {@code FlinkTypeToType#visit(MultisetType)}
-   * produces {@code Types.MapType#ofRequired}.
-   */
+  // Required, to match the map<T, int> that FlinkTypeToType creates for a MULTISET<T>
   private static final IntType OCCURRENCE_COUNT_TYPE = new IntType(false);
 
-  private FlinkMultisets() {}
+  private FlinkMapTypeUtil() {}
 
-  /** Returns whether the type is stored as a map, that is, a {@code MAP} or a {@code MULTISET}. */
-  static boolean isMapLike(LogicalType logicalType) {
+  static boolean isMapType(LogicalType logicalType) {
     return logicalType instanceof MapType || logicalType instanceof MultisetType;
   }
 
   /**
-   * Returns the given type as a {@link MapType}, converting a {@code MULTISET<T>} to {@code map<T,
-   * int not null>}.
+   * Returns the type as a {@link MapType}, with a {@code MULTISET<T>} as {@code map<T, int not
+   * null>}.
    *
-   * @throws ClassCastException if the type is neither a {@code MAP} nor a {@code MULTISET}
+   * @throws IllegalArgumentException if the type is neither a {@code MAP} nor a {@code MULTISET}
    */
   static MapType asMapType(LogicalType logicalType) {
+    Preconditions.checkArgument(
+        isMapType(logicalType), "Invalid map: %s is not a map or multiset", logicalType);
     if (logicalType instanceof MultisetType multisetType) {
       return new MapType(
           logicalType.isNullable(), multisetType.getElementType(), OCCURRENCE_COUNT_TYPE);

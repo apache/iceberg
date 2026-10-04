@@ -43,7 +43,7 @@ public abstract class AvroWithFlinkSchemaVisitor<T>
 
   @Override
   protected boolean isMapType(LogicalType logicalType) {
-    return FlinkMultisets.isMapLike(logicalType);
+    return FlinkMapTypeUtil.isMapType(logicalType);
   }
 
   @Override
@@ -55,16 +55,12 @@ public abstract class AvroWithFlinkSchemaVisitor<T>
 
   @Override
   protected LogicalType mapKeyType(LogicalType mapType) {
-    Preconditions.checkArgument(
-        isMapType(mapType), "Invalid map: %s is not a map or multiset", mapType);
-    return FlinkMultisets.asMapType(mapType).getKeyType();
+    return FlinkMapTypeUtil.asMapType(mapType).getKeyType();
   }
 
   @Override
   protected LogicalType mapValueType(LogicalType mapType) {
-    Preconditions.checkArgument(
-        isMapType(mapType), "Invalid map: %s is not a map or multiset", mapType);
-    return FlinkMultisets.asMapType(mapType).getValueType();
+    return FlinkMapTypeUtil.asMapType(mapType).getValueType();
   }
 
   @Override

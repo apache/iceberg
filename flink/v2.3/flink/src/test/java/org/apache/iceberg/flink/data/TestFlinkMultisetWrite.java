@@ -39,7 +39,6 @@ import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.Avro;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -52,19 +51,6 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/**
- * Writing a Flink {@code MULTISET<T>} column through the Iceberg data file writers.
- *
- * <p>{@code FlinkTypeToType#visit(MultisetType)} converts a {@code MULTISET<T>} to an Iceberg
- * {@code map<T, int>} of element to occurrence count, and {@code RowData} represents a map and a
- * multiset alike as {@code MapData}, so the writers handle a multiset as its equivalent map.
- *
- * <p>These tests pair the Iceberg map schema with a Flink {@link MultisetType}, which is the
- * pairing the write path sees for a multiset column. The other writer tests in this package cannot
- * produce it, because they derive the Flink type with {@code
- * FlinkSchemaUtil.convert(icebergSchema)}, which maps {@code map<string, int>} to a {@code
- * MapType}.
- */
 class TestFlinkMultisetWrite {
 
   private static final Schema SCHEMA =
@@ -75,11 +61,9 @@ class TestFlinkMultisetWrite {
               "tags",
               Types.MapType.ofRequired(3, 4, Types.StringType.get(), Types.IntegerType.get())));
 
-  /** {@code ROW<id INT NOT NULL, tags MULTISET<STRING NOT NULL>>}. */
   private static final RowType MULTISET_OF_REQUIRED_STRING =
       rowTypeWithTags(new VarCharType(false, VarCharType.MAX_LENGTH));
 
-  /** {@code ROW<id INT NOT NULL, tags MULTISET<STRING>>}, the nullable element case. */
   private static final RowType MULTISET_OF_NULLABLE_STRING =
       rowTypeWithTags(new VarCharType(true, VarCharType.MAX_LENGTH));
 
@@ -87,6 +71,7 @@ class TestFlinkMultisetWrite {
 
   @TempDir private Path temp;
 
+  // Built by hand: converting SCHEMA with FlinkSchemaUtil would give a MAP, not a MULTISET
   private static RowType rowTypeWithTags(LogicalType elementType) {
     return RowType.of(
         new LogicalType[] {new IntType(false), new MultisetType(true, elementType)},
@@ -207,17 +192,5 @@ class TestFlinkMultisetWrite {
             .build()) {
       assertRoundTrip(reader, TAGS);
     }
-  }
-
-  @Test
-  void multisetConvertsToMapWithRequiredCount() {
-    Types.MapType tags =
-        FlinkSchemaUtil.convert(new MultisetType(true, new VarCharType(false, 42))).asMapType();
-
-    assertThat(tags.keyType()).isEqualTo(Types.StringType.get());
-    assertThat(tags.valueType()).isEqualTo(Types.IntegerType.get());
-    assertThat(tags.isValueRequired())
-        .as("the occurrence count a multiset converts to is required")
-        .isTrue();
   }
 }

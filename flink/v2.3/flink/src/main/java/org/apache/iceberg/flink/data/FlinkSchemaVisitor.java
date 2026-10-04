@@ -41,7 +41,7 @@ abstract class FlinkSchemaVisitor<T> {
         return visitRecord(flinkType, iType.asStructType(), visitor);
 
       case MAP:
-        MapType mapType = FlinkMultisets.asMapType(flinkType);
+        MapType mapType = FlinkMapTypeUtil.asMapType(flinkType);
         Types.MapType iMapType = iType.asMapType();
         T key;
         T value;

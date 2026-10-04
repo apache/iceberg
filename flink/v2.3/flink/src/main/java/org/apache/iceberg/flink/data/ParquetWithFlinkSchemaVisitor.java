@@ -111,9 +111,7 @@ public class ParquetWithFlinkSchemaVisitor<T> {
             repeatedKeyValue.getFieldCount() <= 2,
             "Invalid map: repeated group does not have 2 fields");
 
-        Preconditions.checkArgument(
-            FlinkMultisets.isMapLike(sType), "Invalid map: %s is not a map or multiset", sType);
-        MapType map = FlinkMultisets.asMapType(sType);
+        MapType map = FlinkMapTypeUtil.asMapType(sType);
         RowField keyField =
             new RowField("key", map.getKeyType(), "key of " + map.asSummaryString());
         RowField valueField =
