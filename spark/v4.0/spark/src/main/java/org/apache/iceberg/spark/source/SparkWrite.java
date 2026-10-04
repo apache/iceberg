@@ -109,6 +109,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final StructType dsSchema;
   private final Map<String, String> extraSnapshotMetadata;
   private final boolean useFanoutWriter;
+  private final boolean useMergeAppendForStreaming;
   private final SparkWriteRequirements writeRequirements;
   private final Map<String, String> writeProperties;
 
@@ -138,6 +139,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
     this.dsSchema = dsSchema;
     this.extraSnapshotMetadata = writeConf.extraSnapshotMetadata();
     this.useFanoutWriter = writeConf.useFanoutWriter(writeRequirements);
+    this.useMergeAppendForStreaming = writeConf.useMergeAppendForStreaming();
     this.writeRequirements = writeRequirements;
     this.outputSpecId = writeConf.outputSpecId();
     this.writeProperties = writeConf.writeProperties();
@@ -622,7 +624,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
 
     @Override
     protected void doCommit(long epochId, WriterCommitMessage[] messages) {
-      AppendFiles append = table.newFastAppend();
+      AppendFiles append = useMergeAppendForStreaming ? table.newAppend() : table.newFastAppend();
       int numFiles = 0;
       for (DataFile file : files(messages)) {
         append.appendFile(file);

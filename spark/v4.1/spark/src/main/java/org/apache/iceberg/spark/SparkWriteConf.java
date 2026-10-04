@@ -94,20 +94,10 @@ public class SparkWriteConf {
   private final SparkConfParser confParser;
 
   public SparkWriteConf(SparkSession spark, Table table) {
-    this(spark, table, null, CaseInsensitiveStringMap.empty());
+    this(spark, table, CaseInsensitiveStringMap.empty());
   }
 
   public SparkWriteConf(SparkSession spark, Table table, CaseInsensitiveStringMap options) {
-    this(spark, table, null, options);
-  }
-
-  /**
-   * @deprecated since 1.11.0, will be removed in 1.12.0. Use {@link #SparkWriteConf(SparkSession,
-   *     Table, CaseInsensitiveStringMap)} instead.
-   */
-  @Deprecated
-  public SparkWriteConf(
-      SparkSession spark, Table table, String branch, CaseInsensitiveStringMap options) {
     this.spark = spark;
     this.table = table;
     this.sessionConf = spark.conf();
@@ -179,8 +169,11 @@ public class SparkWriteConf {
         confParser.intConf().option(SparkWriteOptions.OUTPUT_SORT_ORDER_ID).parseOptional();
 
     if (explicitId != null) {
+      // order id 0 is reserved for unsorted order, which is a valid output for any table
+      // whether or not the table contains a sort order with that id
       Preconditions.checkArgument(
-          table.sortOrders().containsKey(explicitId),
+          explicitId == SortOrder.unsorted().orderId()
+              || table.sortOrders().containsKey(explicitId),
           "Cannot use output sort order id %s because the table does not contain a sort order with that id",
           explicitId);
       return explicitId;
@@ -239,8 +232,16 @@ public class SparkWriteConf {
     return confParser
         .booleanConf()
         .option(SparkWriteOptions.FANOUT_ENABLED)
-        .tableProperty(TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED)
+        .tableProperty(SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED)
         .defaultValue(defaultValue)
+        .parse();
+  }
+
+  public boolean useMergeAppendForStreaming() {
+    return confParser
+        .booleanConf()
+        .option(SparkWriteOptions.USE_MERGE_APPEND_FOR_STREAMING)
+        .defaultValue(SparkWriteOptions.USE_MERGE_APPEND_FOR_STREAMING_DEFAULT)
         .parse();
   }
 
@@ -706,7 +707,7 @@ public class SparkWriteConf {
         .longConf()
         .option(SparkWriteOptions.ADVISORY_PARTITION_SIZE)
         .sessionConf(SparkSQLProperties.ADVISORY_PARTITION_SIZE)
-        .tableProperty(TableProperties.SPARK_WRITE_ADVISORY_PARTITION_SIZE_BYTES)
+        .tableProperty(SparkTableProperties.WRITE_ADVISORY_PARTITION_SIZE_BYTES)
         .defaultValue(defaultValue)
         .parse();
   }

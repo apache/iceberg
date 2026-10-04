@@ -175,12 +175,12 @@ public class ParquetDictionaryRowGroupFilter {
     public <T> Boolean notNaN(BoundReference<T> ref) {
       int id = ref.fieldId();
 
-      if (mayContainNulls.get(id)) {
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
         return ROWS_MIGHT_MATCH;
       }
 
-      Boolean hasNonDictPage = isFallback.get(id);
-      if (hasNonDictPage == null || hasNonDictPage) {
+      if (mayContainNulls.get(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -395,6 +395,11 @@ public class ParquetDictionaryRowGroupFilter {
 
       Boolean hasNonDictPage = isFallback.get(id);
       if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      // the dictionary only contains non-null values, so a null value matches notStartsWith
+      if (mayContainNulls.get(id)) {
         return ROWS_MIGHT_MATCH;
       }
 

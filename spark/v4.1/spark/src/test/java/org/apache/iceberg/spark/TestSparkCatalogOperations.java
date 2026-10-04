@@ -27,13 +27,17 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
+import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.connector.catalog.TableSummary;
 import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,6 +85,17 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
             "false", // Spark will delete tables using v1, leaving the cache out of sync
             "use-nullable-query-schema",
             Boolean.toString(USE_NULLABLE_QUERY_SCHEMA)),
+      },
+      {
+        // HiveCatalog with list-all-tables=true returns views from listTables, exercising the
+        // de-duplication guard in SparkCatalog.listTableSummaries.
+        "testhive_list_all",
+        SparkCatalog.class.getName(),
+        ImmutableMap.of(
+            "type", "hive",
+            "default-namespace", "default",
+            "list-all-tables", "true",
+            "use-nullable-query-schema", Boolean.toString(USE_NULLABLE_QUERY_SCHEMA))
       }
     };
   }
@@ -120,6 +135,67 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
         .as(
             "Adding a property to a table should return the updated table with the new property with the new correct value")
         .containsEntry(propsKey, propsValue);
+  }
+
+  @TestTemplate
+  public void testTableTypeIsExternal() throws NoSuchTableException {
+    BaseCatalog catalog = (BaseCatalog) spark.sessionState().catalogManager().catalog(catalogName);
+    Identifier identifier = Identifier.of(tableIdent.namespace().levels(), tableIdent.name());
+
+    Table table = catalog.loadTable(identifier);
+
+    assertThat(table.properties())
+        .as("Iceberg tables should report an EXTERNAL table type")
+        .containsEntry(TableCatalog.PROP_TABLE_TYPE, TableSummary.EXTERNAL_TABLE_TYPE);
+  }
+
+  @TestTemplate
+  public void testListTableSummaries() throws NoSuchNamespaceException, NoSuchTableException {
+    BaseCatalog catalog = (BaseCatalog) spark.sessionState().catalogManager().catalog(catalogName);
+    String[] namespace = tableIdent.namespace().levels();
+    Identifier tableIdentifier = Identifier.of(namespace, tableIdent.name());
+
+    // Views require a view-capable catalog (e.g. Hive), and only SparkCatalog overrides
+    // listTableSummaries to report them. Where that holds, create a view so the view-specific
+    // assertions exercise it; otherwise only the EXTERNAL-table assertion runs.
+    boolean supportsViews =
+        catalog instanceof SparkCatalog && validationCatalog instanceof ViewCatalog;
+    TableIdentifier viewIdent = TableIdentifier.of(tableIdent.namespace(), "summary_view");
+    if (supportsViews) {
+      // Create the view directly through the Iceberg ViewCatalog API. SQL CREATE VIEW against a v2
+      // catalog requires the Iceberg Spark extensions, which this module's tests do not load.
+      ((ViewCatalog) validationCatalog)
+          .buildView(viewIdent)
+          .withSchema(new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())))
+          .withDefaultNamespace(tableIdent.namespace())
+          .withQuery("spark", "SELECT id FROM " + tableIdent.name())
+          .create();
+    }
+
+    try {
+      TableSummary[] summaries = catalog.listTableSummaries(namespace);
+
+      assertThat(summaries)
+          .as("Base table should be reported exactly once as EXTERNAL")
+          .filteredOn(summary -> summary.identifier().equals(tableIdentifier))
+          .singleElement()
+          .extracting(TableSummary::tableType)
+          .isEqualTo(TableSummary.EXTERNAL_TABLE_TYPE);
+
+      if (supportsViews) {
+        Identifier viewIdentifier = Identifier.of(namespace, "summary_view");
+        assertThat(summaries)
+            .as("View should be reported exactly once as VIEW, never as a table")
+            .filteredOn(summary -> summary.identifier().equals(viewIdentifier))
+            .singleElement()
+            .extracting(TableSummary::tableType)
+            .isEqualTo(TableSummary.VIEW_TABLE_TYPE);
+      }
+    } finally {
+      if (supportsViews) {
+        ((ViewCatalog) validationCatalog).dropView(viewIdent);
+      }
+    }
   }
 
   @TestTemplate

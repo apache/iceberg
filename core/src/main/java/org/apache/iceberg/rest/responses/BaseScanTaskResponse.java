@@ -57,11 +57,7 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
     return deleteFiles == null ? null : Lists.newArrayList(deleteFiles.iterator());
   }
 
-  /**
-   * @deprecated since 1.11.0, visibility will be reduced in 1.12.0.
-   */
-  @Deprecated
-  public Map<Integer, PartitionSpec> specsById() {
+  protected Map<Integer, PartitionSpec> specsById() {
     return specsById;
   }
 
@@ -85,28 +81,15 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
 
     public B withFileScanTasks(List<FileScanTask> tasks) {
       this.fileScanTasks = tasks;
-      if (fileScanTasks != null) {
-        this.deleteFiles =
-            DeleteFileSet.of(
-                () -> tasks.stream().flatMap(task -> task.deletes().stream()).iterator());
-      }
+      this.deleteFiles =
+          tasks == null
+              ? null
+              : DeleteFileSet.of(
+                  () -> tasks.stream().flatMap(task -> task.deletes().stream()).iterator());
       return self();
     }
 
-    /**
-     * @deprecated since 1.11.0, will be removed in 1.12.0.
-     */
-    @Deprecated
-    public B withDeleteFiles(List<DeleteFile> deleteFilesList) {
-      this.deleteFiles = DeleteFileSet.of(deleteFilesList);
-      return self();
-    }
-
-    /**
-     * @deprecated since 1.11.0, visibility will be reduced in 1.12.0.
-     */
-    @Deprecated
-    public B withSpecsById(Map<Integer, PartitionSpec> specs) {
+    protected B withSpecsById(Map<Integer, PartitionSpec> specs) {
       this.specsById = specs;
       return self();
     }
@@ -119,19 +102,11 @@ public abstract class BaseScanTaskResponse implements RESTResponse {
       return fileScanTasks;
     }
 
-    /**
-     * @deprecated since 1.11.0, visibility will be reduced in 1.12.0.
-     */
-    @Deprecated
-    public List<DeleteFile> deleteFiles() {
+    protected List<DeleteFile> deleteFiles() {
       return deleteFiles == null ? null : Lists.newArrayList(deleteFiles.iterator());
     }
 
-    /**
-     * @deprecated since 1.11.0, visibility will be reduced in 1.12.0.
-     */
-    @Deprecated
-    public Map<Integer, PartitionSpec> specsById() {
+    protected Map<Integer, PartitionSpec> specsById() {
       return specsById;
     }
 

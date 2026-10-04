@@ -23,6 +23,7 @@ import org.apache.flink.annotation.Experimental;
 import org.apache.flink.configuration.ConfigOption;
 import org.apache.flink.configuration.ConfigOptions;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.flink.maintenance.api.ConvertEqualityDeletesConfig;
 import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFilesConfig;
 import org.apache.iceberg.flink.maintenance.api.ExpireSnapshotsConfig;
 import org.apache.iceberg.flink.maintenance.api.RewriteDataFilesConfig;
@@ -95,6 +96,11 @@ public class FlinkWriteOptions {
 
   public static final ConfigOption<Boolean> DELETE_ORPHAN_FILES_ENABLE =
       ConfigOptions.key(DeleteOrphanFilesConfig.PREFIX + "enabled")
+          .booleanType()
+          .defaultValue(false);
+
+  public static final ConfigOption<Boolean> CONVERT_EQUALITY_DELETES_ENABLE =
+      ConfigOptions.key(ConvertEqualityDeletesConfig.PREFIX + "enabled")
           .booleanType()
           .defaultValue(false);
 

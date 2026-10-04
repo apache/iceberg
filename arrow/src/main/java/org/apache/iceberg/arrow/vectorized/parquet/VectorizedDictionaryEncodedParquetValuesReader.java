@@ -143,11 +143,7 @@ public class VectorizedDictionaryEncodedParquetValuesReader
         FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
       ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
       ((BaseVariableWidthVector) vector)
-          .setSafe(
-              idx,
-              buffer.array(),
-              buffer.position() + buffer.arrayOffset(),
-              buffer.limit() - buffer.position());
+          .setSafe(idx, buffer, buffer.position(), buffer.remaining());
     }
   }
 

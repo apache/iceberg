@@ -30,6 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -339,5 +340,41 @@ public class TestSchemaUtils {
 
     Schema uuidSchema = SchemaBuilder.string().name("uuid").build();
     assertThat(SchemaUtils.toIcebergType(uuidSchema, config)).isInstanceOf(UUIDType.class);
+  }
+
+  @Test
+  public void testInferIcebergTypeSmallDecimal() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+
+    // BigDecimal("0.001") has precision 1, smaller than its scale 3;
+    // Iceberg requires scale <= precision, so precision is widened to the scale
+    assertThat(SchemaUtils.inferIcebergType(new BigDecimal("0.001"), config))
+        .isEqualTo(DecimalType.of(3, 3));
+
+    // BigDecimal("1E+2") has a negative scale (-2); normalized to scale 0,
+    // the same decimal(3, 0) as new BigDecimal("100")
+    assertThat(SchemaUtils.inferIcebergType(new BigDecimal("1E+2"), config))
+        .isEqualTo(DecimalType.of(3, 0));
+  }
+
+  @Test
+  public void testInferIcebergTypeDecimalOutOfRange() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+
+    // the widest values that can still be represented
+    assertThat(SchemaUtils.inferIcebergType(new BigDecimal("1E+37"), config))
+        .isEqualTo(DecimalType.of(38, 0));
+    assertThat(SchemaUtils.inferIcebergType(new BigDecimal("1E-38"), config))
+        .isEqualTo(DecimalType.of(38, 38));
+
+    // one digit past the limit on either branch: no type can be inferred
+    assertThat(SchemaUtils.inferIcebergType(new BigDecimal("1E+38"), config)).isNull();
+    assertThat(SchemaUtils.inferIcebergType(new BigDecimal("1E-39"), config)).isNull();
+
+    // a scale of Integer.MIN_VALUE must not overflow the precision normalization. it is built
+    // here rather than parsed from "1E+2147483648", which only yields this scale on Java 21+
+    // (Java 17 rejects that exponent with a NumberFormatException)
+    BigDecimal minScale = new BigDecimal(BigInteger.ONE, Integer.MIN_VALUE);
+    assertThat(SchemaUtils.inferIcebergType(minScale, config)).isNull();
   }
 }

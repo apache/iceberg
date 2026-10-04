@@ -18,15 +18,18 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.InvalidRecordException;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
@@ -129,10 +132,105 @@ public class ParquetSchemaUtil {
 
   public static MessageType pruneColumns(MessageType fileSchema, Schema expectedSchema) {
     // column order must match the incoming type, so it doesn't matter that the ids are unordered
-    Set<Integer> selectedIds = TypeUtil.getProjectedIds(expectedSchema);
+    Set<Integer> selectedIds = Sets.newHashSet(TypeUtil.getProjectedIds(expectedSchema));
+    // retain one real leaf under each struct that projects only constants like default values,
+    // so its definition level still shows whether the struct is present
+    TypeWithSchemaVisitor.visit(
+        expectedSchema.asStruct(), fileSchema, new PresenceColumnSelector(fileSchema, selectedIds));
     return (MessageType)
         TypeWithSchemaVisitor.visit(
             expectedSchema.asStruct(), fileSchema, new PruneColumns(selectedIds));
+  }
+
+  /**
+   * Adds one leaf id under each projected struct whose fields are all constants and would otherwise
+   * retain no file leaf. That leaf's definition level is what still shows whether the struct is
+   * present.
+   */
+  private static class PresenceColumnSelector extends TypeWithSchemaVisitor<Void> {
+    private final MessageType fileSchema;
+    private final Set<Integer> selectedIds;
+
+    private PresenceColumnSelector(MessageType fileSchema, Set<Integer> selectedIds) {
+      this.fileSchema = fileSchema;
+      this.selectedIds = selectedIds;
+    }
+
+    @Override
+    public Void struct(Types.StructType expected, GroupType struct, List<Void> fields) {
+      // nothing projected under this struct, so there is nothing to track
+      if (expected == null || expected.fields().isEmpty()) {
+        return null;
+      }
+
+      String[] path = currentPath();
+      List<ColumnDescriptor> leaves = leafColumns(fileSchema, path);
+      // add a presence column only if no real leaf under the struct is already read
+      boolean readsRealLeaf = leaves.stream().anyMatch(leaf -> selectedIds.contains(leafId(leaf)));
+      if (!readsRealLeaf) {
+        ColumnDescriptor presence = selectPresenceColumn(fileSchema, path, leaves);
+        if (presence != null) {
+          selectedIds.add(leafId(presence));
+        }
+      }
+
+      return null;
+    }
+
+    @Override
+    public Void variant(Types.VariantType expected, GroupType variantGroup, Void result) {
+      return null;
+    }
+  }
+
+  /** Shallowest leaf under path; its definition level shows whether the struct is present. */
+  static ColumnDescriptor selectPresenceColumn(MessageType fileSchema, String[] path) {
+    return selectPresenceColumn(fileSchema, path, leafColumns(fileSchema, path));
+  }
+
+  private static ColumnDescriptor selectPresenceColumn(
+      MessageType fileSchema, String[] path, List<ColumnDescriptor> leaves) {
+    if (fileSchema.getMaxDefinitionLevel(path) <= 0) {
+      return null;
+    }
+
+    return leaves.stream()
+        .min(Comparator.comparingInt(ColumnDescriptor::getMaxRepetitionLevel))
+        .orElse(null);
+  }
+
+  /** Returns the leaf columns with ids under the given path. */
+  private static List<ColumnDescriptor> leafColumns(MessageType fileSchema, String[] path) {
+    List<ColumnDescriptor> columns = Lists.newArrayList();
+    for (ColumnDescriptor column : fileSchema.getColumns()) {
+      // a presence column is kept in the read set by id, so a leaf without one cannot be used
+      if (column.getPrimitiveType().getId() == null) {
+        continue;
+      }
+
+      String[] columnPath = column.getPath();
+      if (columnPath.length <= path.length) {
+        continue;
+      }
+
+      boolean under = true;
+      for (int i = 0; i < path.length; i += 1) {
+        if (!path[i].equals(columnPath[i])) {
+          under = false;
+          break;
+        }
+      }
+
+      if (under) {
+        columns.add(column);
+      }
+    }
+
+    return columns;
+  }
+
+  private static int leafId(ColumnDescriptor column) {
+    return column.getPrimitiveType().getId().intValue();
   }
 
   /**

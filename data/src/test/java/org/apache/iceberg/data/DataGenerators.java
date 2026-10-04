@@ -44,7 +44,8 @@ class DataGenerators {
         new StructOfPrimitive(),
         new ListOfPrimitive(),
         new MapOfPrimitive(),
-        new TimestampNano()
+        new TimestampNano(),
+        new Variant()
       };
 
   private DataGenerators() {}
@@ -98,6 +99,21 @@ class DataGenerators {
     @Override
     public String toString() {
       return "DefaultSchema";
+    }
+  }
+
+  static class Variant implements DataGenerator {
+    private final Schema schema =
+        new Schema(Types.NestedField.required(1, "variant_col", Types.VariantType.get()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "Variant";
     }
   }
 
@@ -251,9 +267,6 @@ class DataGenerators {
   }
 
   // Generator for reader default-value tests across primitive types.
-  // FIXED is excluded: Spark's InternalRowConverter expects a ByteBuffer but the generator produces
-  // byte[] (ClassCastException).
-  // TODO: include FIXED once Spark's converter handles it.
   static class PrimitiveDefaults implements DataGenerator {
     static final Schema READ_SCHEMA =
         new Schema(
@@ -302,7 +315,18 @@ class DataGenerators {
                 14,
                 "time_with_default",
                 Types.TimeType.get(),
-                Literal.of(DateTimeUtil.isoTimeToMicros("23:59:59.999999"))));
+                Literal.of(DateTimeUtil.isoTimeToMicros("23:59:59.999999"))),
+            optionalWithDefault(
+                15,
+                "fixed_with_default",
+                Types.FixedType.ofLength(16),
+                Literal.of(
+                        ByteBuffer.wrap(
+                            new byte[] {
+                              0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+                              0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+                            }))
+                    .to(Types.FixedType.ofLength(16))));
 
     static final Schema WRITE_SCHEMA = new Schema(required(1, "id", Types.LongType.get()));
 

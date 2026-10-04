@@ -230,13 +230,15 @@ public class TestFlinkCatalogTable extends CatalogTestBase {
                 .column("id", DataTypes.BIGINT())
                 .build());
 
-    String srcCatalogProps = FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl", config);
+    String srcCatalogProps = FlinkCreateTableOptions.toJson(catalogName, DATABASE, "tl");
     Map<String, String> options = catalogTable.getOptions();
     assertThat(options)
         .containsEntry(
             FlinkCreateTableOptions.CONNECTOR_PROPS_KEY,
             FlinkDynamicTableFactory.FACTORY_IDENTIFIER)
         .containsEntry(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY, srcCatalogProps);
+    assertThat(options.get(FlinkCreateTableOptions.SRC_CATALOG_PROPS_KEY))
+        .doesNotContain("extra-catalog-prop", "extra-value");
   }
 
   @TestTemplate

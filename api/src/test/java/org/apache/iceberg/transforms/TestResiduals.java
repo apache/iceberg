@@ -193,6 +193,29 @@ public class TestResiduals {
 
     residual = resEval.residualFor(Row.of(20180815));
     assertThat(residual).isEqualTo(alwaysFalse());
+
+    residual = resEval.residualFor(Row.of((Object) null));
+    assertThat(residual)
+        .as("null in [20170815, 20170816, 20170817] => false")
+        .isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  public void testInWithNullStringPartition() {
+    Schema schema = new Schema(Types.NestedField.optional(50, "category", Types.StringType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("category").build();
+
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec, in("category", "a", "b", "c"), true);
+
+    Expression residual = resEval.residualFor(Row.of("a"));
+    assertThat(residual).isEqualTo(alwaysTrue());
+
+    residual = resEval.residualFor(Row.of("d"));
+    assertThat(residual).isEqualTo(alwaysFalse());
+
+    residual = resEval.residualFor(Row.of((Object) null));
+    assertThat(residual).as("null in [a, b, c] => false").isEqualTo(alwaysFalse());
   }
 
   @Test
@@ -241,6 +264,29 @@ public class TestResiduals {
 
     residual = resEval.residualFor(Row.of(20170815));
     assertThat(residual).isEqualTo(alwaysFalse());
+
+    residual = resEval.residualFor(Row.of((Object) null));
+    assertThat(residual)
+        .as("null not in [20170815, 20170816, 20170817] => true")
+        .isEqualTo(alwaysTrue());
+  }
+
+  @Test
+  public void testNotInWithNullStringPartition() {
+    Schema schema = new Schema(Types.NestedField.optional(50, "category", Types.StringType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("category").build();
+
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec, notIn("category", "a", "b", "c"), true);
+
+    Expression residual = resEval.residualFor(Row.of("d"));
+    assertThat(residual).isEqualTo(alwaysTrue());
+
+    residual = resEval.residualFor(Row.of("a"));
+    assertThat(residual).isEqualTo(alwaysFalse());
+
+    residual = resEval.residualFor(Row.of((Object) null));
+    assertThat(residual).as("null not in [a, b, c] => true").isEqualTo(alwaysTrue());
   }
 
   @Test

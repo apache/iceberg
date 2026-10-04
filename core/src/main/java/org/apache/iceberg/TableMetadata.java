@@ -139,7 +139,7 @@ public class TableMetadata implements Serializable {
 
     // Validate the metrics configuration. Note: we only do this on new tables to we don't
     // break existing tables.
-    MetricsConfig.fromProperties(properties).validateReferencedColumns(schema);
+    MetricsConfig.validate(properties, schema);
 
     PropertyUtil.validateCommitProperties(properties);
 
@@ -1607,7 +1607,7 @@ public class TableMetadata implements Serializable {
               .flatMap(List::stream)
               .collect(Collectors.toList()),
           nextRowId,
-          encryptionKeys,
+          ImmutableList.copyOf(encryptionKeys),
           discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
     }
 

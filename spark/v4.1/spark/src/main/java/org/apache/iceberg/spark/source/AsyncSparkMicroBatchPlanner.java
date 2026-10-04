@@ -129,7 +129,7 @@ class AsyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner implements 
   @Override
   public synchronized void stop() {
     Preconditions.checkArgument(
-        !stopped, "AsyncSparkMicroBatchPlanner for {} was already stopped", table().name());
+        !stopped, "AsyncSparkMicroBatchPlanner for %s was already stopped", table().name());
     stopped = true;
     LOG.info("Stopping AsyncSparkMicroBatchPlanner for table: {}", table().name());
     executor.shutdownNow();

@@ -129,6 +129,7 @@ public interface SupportsNamespaces {
    *
    * @param namespace a namespace. {@link Namespace}
    * @param properties a collection of metadata to apply to the namespace
+   * @return true if the properties were successfully set, false otherwise
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    * @throws UnsupportedOperationException If namespace properties are not supported
    */
@@ -142,6 +143,7 @@ public interface SupportsNamespaces {
    *
    * @param namespace a namespace. {@link Namespace}
    * @param properties a collection of metadata to apply to the namespace
+   * @return true if the properties were successfully removed, false otherwise
    * @throws NoSuchNamespaceException If the namespace does not exist (optional)
    * @throws UnsupportedOperationException If namespace properties are not supported
    */

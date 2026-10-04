@@ -25,7 +25,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.credentials.Credential;
 
@@ -65,6 +64,29 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
     return new Builder();
   }
 
+  /**
+   * Returns a new builder pre-populated with the given partition specs map. Required for server
+   * responses that serialize {@code fileScanTasks} or {@code deleteFiles}; the specs are used only
+   * to serialize partition data and are never written to the response payload.
+   */
+  public static Builder builder(Map<Integer, PartitionSpec> specsById) {
+    return new Builder().withSpecsById(specsById);
+  }
+
+  /**
+   * Returns a builder pre-populated with this response's fields, suitable for producing a copy with
+   * one or more fields modified.
+   */
+  public Builder toBuilder() {
+    return new Builder()
+        .withPlanStatus(planStatus)
+        .withErrorResponse(errorResponse)
+        .withPlanTasks(planTasks())
+        .withFileScanTasks(fileScanTasks())
+        .withCredentials(credentials())
+        .withSpecsById(specsById());
+  }
+
   @Override
   public void validate() {
     Preconditions.checkArgument(planStatus() != null, "Invalid status: null");
@@ -87,7 +109,7 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
 
     private PlanStatus planStatus;
     private ErrorResponse errorResponse;
-    private final List<Credential> credentials = Lists.newArrayList();
+    private List<Credential> credentials = ImmutableList.of();
 
     public Builder withPlanStatus(PlanStatus status) {
       this.planStatus = status;
@@ -99,8 +121,10 @@ public class FetchPlanningResultResponse extends BaseScanTaskResponse {
       return this;
     }
 
-    public Builder withCredentials(List<Credential> credentialsToAdd) {
-      credentials.addAll(credentialsToAdd);
+    public Builder withCredentials(List<Credential> newCredentials) {
+      Preconditions.checkArgument(null != newCredentials, "Invalid credentials: null");
+      Preconditions.checkArgument(!newCredentials.contains(null), "Invalid credential: null");
+      this.credentials = ImmutableList.copyOf(newCredentials);
       return this;
     }
 

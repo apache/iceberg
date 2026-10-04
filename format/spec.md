@@ -62,6 +62,7 @@ The full set of changes are listed in [Appendix E](#version-3).
 Version 4 of the Iceberg spec restructures metadata for improved performance and new capabilities:
 
 * Support for [relative locations](#file-locations-in-metadata) in metadata fields
+* Writing new [equality deletes](#equality-delete-files) is no longer allowed
 
 The full set of changes are listed in [Appendix E](#version-4).
 
@@ -83,7 +84,7 @@ This table format tracks individual data files in a table instead of directories
 
 Table state is maintained in metadata files. All changes to table state create a new metadata file and replace the old metadata with an atomic swap. The table metadata file tracks the table schema, partitioning config, custom properties, and snapshots of the table contents. A snapshot represents the state of a table at some time and is used to access the complete set of data files in the table.
 
-Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, and its metrics. The data in a snapshot is the union of all files in its manifests. Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Manifests can track data files with any subset of a table and are not associated with partitions.
+Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, and its metrics. The data in a snapshot is the union of all live files in its manifests; each live file may only appear once (see [Content file uniqueness](#content-file-uniqueness)). Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Manifests can track data files with any subset of a table and are not associated with partitions.
 
 The manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation.
 
@@ -113,7 +114,7 @@ There are two types of row-level deletes:
 
 * **Position deletes** -- Mark a row deleted by data file path and the row position in the data file. Position deletes are encoded in a [_position delete file_](#position-delete-files) (V2) or [_deletion vector_](#deletion-vectors) (V3 or above).
 
-* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in [_equality delete file_](#equality-delete-files).
+* **Equality deletes** -- Mark a row deleted by one or more column values, like id = 5. Equality deletes are encoded in [_equality delete file_](#equality-delete-files) (may be created in v2 and v3 tables only).
 
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
 
@@ -228,7 +229,7 @@ When the `location` field is present in table metadata, it is used directly as t
 
 ### Schemas and Data Types
 
-A table's **schema** is a list of named columns. All data types are either primitives or nested types, which are maps, lists, or structs. A table schema is also a struct type.
+A table's **schema** is a list of named columns. Data types are primitive, nested, or semi-structured. Nested types are maps, lists, or structs. A table schema is also a struct type.
 
 For the representations of these types in Avro, ORC, and Parquet file formats, see Appendix A.
 
@@ -243,6 +244,8 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 #### Semi-structured Types
 
 A **`variant`** is a value that stores semi-structured data. The structure and data types in a variant are not necessarily consistent across rows in a table or data file. The variant type and binary encoding are defined in the [Parquet project](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md), with support currently available for V1. Support for Variant is added in Iceberg v3.
+
+As a semi-structured type, `variant` is neither a primitive type nor a nested type.
 
 Variants are similar to JSON with a wider set of primitive values including date, timestamp, timestamptz, binary, and decimals.
 
@@ -567,7 +570,7 @@ Partition field IDs must be reused if an existing partition spec contains an equ
 
 | Transform name    | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
-| **`identity`**    | Source value, unmodified                                     | Any except for `geometry`, `geography`, and `variant`                                                     | Source type |
+| **`identity`**    | Source value, unmodified                                     | Any primitive except for `geometry` and `geography` | Source type |
 | **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
 | **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`, `binary`                                                              | Source type |
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
@@ -674,11 +677,13 @@ A manifest file must store the partition spec and other metadata as properties i
     | _optional_ | _required_ | `format-version`    | Table format version number of the manifest as a string                                                                                     |
     |            | _required_ | `content`           | Type of content files tracked by the manifest: "data" or "deletes"                                                                          |
 
-The schema of a manifest file is defined by the `manifest_entry` struct, described in the following section.
+#### Content file uniqueness
+
+Within a snapshot, each content file must be referenced by at most one live manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers should not produce multiple manifest entries for the same content file in a snapshot (for example, both ADDED and DELETED entries for the same file). Writers are not required to validate uniqueness at commit time.
 
 #### Manifest Entry Fields
 
-The `manifest_entry` struct consists of the following fields:
+The schema of a manifest file is defined by the `manifest_entry` struct, which consists of the following fields:
 
 === "v1 - v3"
     | v1         | v2 and v3  | Field id, name                | Type                                                      | Description |
@@ -818,11 +823,11 @@ Each stats struct holds statistics for one table field. It may contain the follo
 |-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
 | _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types |
 | _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types |
-| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all except `geometry`, `geography`, `variant` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
+| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry` and `geography` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
 | _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
-| _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`                 | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
+| _optional_  | 7      | `total_bytes`             | `long`                    | `string`, `binary`, `variant`, `geometry`, `geography` | Estimated uncompressed bytes in memory of non-null values. The estimate depends on the in-memory representation |
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
@@ -835,7 +840,7 @@ For example, stats for a `required` `int` field named `id` with field-id `2` are
 
   // null_value_count is only used for optional fields
   // nan_value_count is only used for float and double
-  // avg_value_size_in_bytes is only used for variable length types
+  // total_bytes is only used for variable length types
 }
 ```
 
@@ -879,7 +884,8 @@ For example, stats for an optional `geometry` field named `location` with field-
   }
   10_804: optional long value_count;
   10_805: optional long null_value_count;
-  // tight_bounds, nan_value_count, avg_value_size_in_bytes are omitted for geo types
+  10_807: optional long total_bytes;
+  // tight_bounds and nan_value_count are omitted for geo types
 }
 ```
 
@@ -908,7 +914,7 @@ For example, stats for a table with a required int, `id`, and an optional string
     10_603: optional boolean tight_bounds;
     10_604: optional long value_count;
     10_605: optional long null_value_count;
-    10_607: optional int avg_value_size_in_bytes;
+    10_607: optional long total_bytes;
   }
 }
 ```
@@ -1062,7 +1068,7 @@ Scan predicates are also used to filter data and delete files using column bound
 
 Data files that match the query filter must be read by the scan.
 
-Note that for any snapshot, all file paths marked with "ADDED" or "EXISTING" may appear at most once across all manifest files in the snapshot. If a file path appears more than once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are not required to do so.
+Duplicate live manifest entries for the same content file violate [content file uniqueness](#content-file-uniqueness). When duplicate live entries are present, table behavior (including scan results) is undefined. Reader implementations may raise an error but are not required to do so.
 
 Delete files and deletion vector metadata that match the filters must be applied to data files at read time, limited by the following scope rules.
 
@@ -1264,7 +1270,7 @@ The schema of the partition statistics file is as follows:
     |            |            | _required_ | **`13 dv_count`**                        | `int`        | Count of deletion vectors |
     | _optional_ | _optional_ | _required_ | **`8 equality_delete_record_count`**     | `long`       | Count of records in equality delete files |
     | _optional_ | _optional_ | _required_ | **`9 equality_delete_file_count`**       | `int`        | Count of equality delete files |
-    | _optional_ | _optional_ | _optional_ | **`10 total_record_count`**              | `long`       | Accurate count of records in a partition after applying deletes if any |
+    | _optional_ | _optional_ | _optional_ | **`10 total_record_count`**              | `long`       | Total number of records in data files, after applying position deletes, equality deletes, or deletion vectors |
     | _optional_ | _optional_ | _optional_ | **`11 last_updated_at`**                 | `long`       | Timestamp in milliseconds from the unix epoch when the partition was last updated |
     | _optional_ | _optional_ | _optional_ | **`12 last_updated_snapshot_id`**        | `long`       | ID of snapshot that last updated this partition |
 
@@ -1349,13 +1355,13 @@ Notes:
 
 ### Delete Formats
 
-This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are added by v2 and are not supported in v1. Deletion vectors are added in v3 and are not supported in v2 or earlier. Position delete files must not be added to v3 tables, but existing position delete files are valid.
+This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are added by v2 and are not supported in v1. Deletion vectors are added in v3 and are not supported in v2 or earlier. Position delete files must not be added to v3 tables, but existing position delete files are valid. Equality delete files must not be added to v4 tables, but existing equality delete files are valid.
 
 There are different formats for encoding row-level deletes:
 
 * Deletion vectors (DVs) identify deleted rows within a single referenced data file by position in a bitmap
-* Position delete files identify deleted rows by file location and row position (**deprecated** in v3)
-* Equality delete files identify deleted rows by the value of one or more columns
+* Position delete files identify deleted rows by file location and row position (**prohibited** in v3)
+* Equality delete files identify deleted rows by the value of one or more columns (**prohibited** in v4)
 
 Deletion vectors are a binary representation of deletes for a single data file that is more efficient at execution time than position delete files. Unlike equality or position delete files, there can be at most one deletion vector for a given data file in a snapshot. Writers must ensure that there is at most one deletion vector per data file and must merge new deletes with existing vectors or position delete files.
 When removing a data file, writers must also remove any deletion vector that applies to that data file from delete manifests. Writers are not required to rewrite Puffin files that contain the removed deletion vectors.
@@ -1412,6 +1418,8 @@ The rows in the delete file must be sorted by `file_path` then `pos` to optimize
 #### Equality Delete Files
 
 Equality delete files identify deleted rows in a collection of data files by one or more column values, and may optionally contain additional columns of the deleted row.
+
+Equality delete files must not be added to v4 tables. Equality deletes cannot be added as an entry to a v4 manifest. Equality delete files referenced by v2 or v3 delete manifests must still be applied in a v4 table.
 
 Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). The column restrictions for columns used in equality delete files are the same as those for [identifier fields](#identifier-field-ids) with the exception that optional columns and columns nested under optional structs are allowed (if a parent struct column is null it implies the leaf column is null).
 
@@ -1654,7 +1662,7 @@ Hash results are not dependent on decimal scale, which is part of the type, not 
 
 Schemas are serialized as a JSON object with the same fields as a struct in the table below, and the following additional fields:
 
-| v1         | v2         |Field|JSON representation|Example|
+| v1         | v2 and v3  |Field|JSON representation|Example|
 | ---------- | ---------- |--- |--- |--- |
 | _optional_ | _required_ |**`schema-id`**|`JSON int`|`0`|
 | _optional_ | _optional_ |**`identifier-field-ids`**|`JSON list of ints`|`[1, 2]`|
@@ -1679,13 +1687,15 @@ Types are serialized according to this table:
 |**`uuid`**|`JSON string: "uuid"`|`"uuid"`|
 |**`fixed(L)`**|`JSON string: "fixed[<L>]"`|`"fixed[16]"`|
 |**`binary`**|`JSON string: "binary"`|`"binary"`|
-|**`decimal(P, S)`**|`JSON string: "decimal(<P>,<S>)"`|`"decimal(9,2)"`,<br />`"decimal(9, 2)"`|
+|**`decimal(P, S)`**|`JSON string: "decimal(<P>, <S>)"`|`"decimal(9, 2)"`|
 |**`struct`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": <field id int>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": <boolean>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": <type JSON>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"doc": <comment string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": <JSON encoding of default value>`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}, ...`<br />&nbsp;&nbsp;`] }`|`{`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 1,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "id",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": true,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": "uuid",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": "0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": "ec5911be-b0a7-458c-8438-c9a3e53cffae"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 2,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "data",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": false,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`} ]`<br />`}`|
 |**`list`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": <id int>,`<br />&nbsp;&nbsp;`"element-required": <bool>`<br />&nbsp;&nbsp;`"element": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": 3,`<br />&nbsp;&nbsp;`"element-required": true,`<br />&nbsp;&nbsp;`"element": "string"`<br />`}`|
 |**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
 | **`variant`**| `JSON string: "variant"`|`"variant"`|
 | **`geometry(C)`** |`JSON string: "geometry(<C>)"`|`"geometry(srid:4326)"`|
 | **`geography(C, A)`** |`JSON string: "geography(<C>, <A>)"`|`"geography(srid:4326, spherical)"`|
+
+The schema JSON type strings in this table are the canonical serialized forms. Readers should accept optional whitespace around parameters and separators in parameterized type strings.
 
 Note that default values are serialized using the JSON single-value serialization in [Appendix D](#appendix-d-single-value-serialization).
 
@@ -1908,6 +1918,12 @@ Reading v4 metadata:
 * Relative paths must be resolved against the table location before use (see [Path Resolution](#path-resolution))
 * When `location` is omitted, the table location must be provided (see [Table Location Specification](#table-location-specification))
 
+Equality deletes are prohibited in v4.
+
+* Writers must not add equality delete files to v4 tables; equality deletes cannot be added as an entry to a v4 manifest
+* Upgrading a v2 or v3 table to v4 does not require rewriting data or delete files
+* Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
+
 ### Version 3
 
 Default values are added to struct fields in v3.
@@ -2069,38 +2085,38 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 
 #### Metrics
 
-| Field                               | Description                                                                                      |
-|-------------------------------------|--------------------------------------------------------------------------------------------------|
-| **`added-data-files`**              | Number of data files added in the snapshot                                                       |
-| **`deleted-data-files`**            | Number of data files deleted in the snapshot                                                     |
-| **`total-data-files`**              | Total number of live data files in the snapshot                                                  |
-| **`added-delete-files`**            | Number of positional/equality delete files and deletion vectors added in the snapshot            |
-| **`added-equality-delete-files`**   | Number of equality delete files added in the snapshot                                            |
-| **`removed-equality-delete-files`** | Number of equality delete files removed in the snapshot                                          |
-| **`added-position-delete-files`**   | Number of position delete files added in the snapshot                                            |
-| **`removed-position-delete-files`** | Number of position delete files removed in the snapshot                                          |
-| **`added-dvs`**                     | Number of deletion vectors added in the snapshot                                                 |
-| **`removed-dvs`**                   | Number of deletion vectors removed in the snapshot                                               |
-| **`removed-delete-files`**          | Number of positional/equality delete files and deletion vectors removed in the snapshot          |
-| **`total-delete-files`**            | Total number of live positional/equality delete files and deletion vectors in the snapshot       |
-| **`added-records`**                 | Number of records added in the snapshot                                                          |
-| **`deleted-records`**               | Number of records deleted in the snapshot                                                        |
-| **`total-records`**                 | Total number of records in the snapshot                                                          |
-| **`added-files-size`**              | The size of files added in the snapshot                                                          |
-| **`removed-files-size`**            | The size of files removed in the snapshot                                                        |
-| **`total-files-size`**              | Total size of live files in the snapshot                                                         |
-| **`added-position-deletes`**        | Number of position delete records added in the snapshot                                          |
-| **`removed-position-deletes`**      | Number of position delete records removed in the snapshot                                        |
-| **`total-position-deletes`**        | Total number of position delete records in the snapshot                                          |
-| **`added-equality-deletes`**        | Number of equality delete records added in the snapshot                                          |
-| **`removed-equality-deletes`**      | Number of equality delete records removed in the snapshot                                        |
-| **`total-equality-deletes`**        | Total number of equality delete records in the snapshot                                          |
-| **`deleted-duplicate-files`**       | Number of duplicate files deleted (duplicates are files recorded more than once in the manifest) |
-| **`changed-partition-count`**       | Number of partitions with files added or removed in the snapshot                                 |
-| **`manifests-created`**             | Number of manifest files created in the snapshot                                                 |
-| **`manifests-kept`**                | Number of manifest files kept in the snapshot                                                    |
-| **`manifests-replaced`**            | Number of manifest files replaced in the snapshot                                                |
-| **`entries-processed`**             | Number of manifest entries processed in the snapshot                                             |
+| Field                               | Description                                                                                                                         |
+|-------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| **`added-data-files`**              | Number of data files added in the snapshot                                                                                          |
+| **`deleted-data-files`**            | Number of data files deleted in the snapshot                                                                                        |
+| **`total-data-files`**              | Total number of live data files in the snapshot                                                                                     |
+| **`added-delete-files`**            | Number of positional/equality delete files and deletion vectors added in the snapshot                                               |
+| **`added-equality-delete-files`**   | Number of equality delete files added in the snapshot                                                                               |
+| **`removed-equality-delete-files`** | Number of equality delete files removed in the snapshot                                                                             |
+| **`added-position-delete-files`**   | Number of position delete files added in the snapshot                                                                               |
+| **`removed-position-delete-files`** | Number of position delete files removed in the snapshot                                                                             |
+| **`added-dvs`**                     | Number of deletion vectors added in the snapshot                                                                                    |
+| **`removed-dvs`**                   | Number of deletion vectors removed in the snapshot                                                                                  |
+| **`removed-delete-files`**          | Number of positional/equality delete files and deletion vectors removed in the snapshot                                             |
+| **`total-delete-files`**            | Total number of live positional/equality delete files and deletion vectors in the snapshot                                          |
+| **`added-records`**                 | Number of records added in the snapshot                                                                                             |
+| **`deleted-records`**               | Number of records deleted in the snapshot                                                                                           |
+| **`total-records`**                 | Total number of records in live data files in the snapshot, before applying position deletes, equality deletes, or deletion vectors |
+| **`added-files-size`**              | The size of files added in the snapshot                                                                                             |
+| **`removed-files-size`**            | The size of files removed in the snapshot                                                                                           |
+| **`total-files-size`**              | Total size of live files in the snapshot                                                                                            |
+| **`added-position-deletes`**        | Number of position delete records added in the snapshot                                                                             |
+| **`removed-position-deletes`**      | Number of position delete records removed in the snapshot                                                                           |
+| **`total-position-deletes`**        | Total number of position delete records in the snapshot                                                                             |
+| **`added-equality-deletes`**        | Number of equality delete records added in the snapshot                                                                             |
+| **`removed-equality-deletes`**      | Number of equality delete records removed in the snapshot                                                                           |
+| **`total-equality-deletes`**        | Total number of equality delete records in the snapshot                                                                             |
+| **`deleted-duplicate-files`**       | Number of duplicate files deleted (duplicates are files recorded more than once in the manifest)                                    |
+| **`changed-partition-count`**       | Number of partitions with files added or removed in the snapshot                                                                    |
+| **`manifests-created`**             | Number of manifest files created in the snapshot                                                                                    |
+| **`manifests-kept`**                | Number of manifest files kept in the snapshot                                                                                       |
+| **`manifests-replaced`**            | Number of manifest files replaced in the snapshot                                                                                   |
+| **`entries-processed`**             | Number of manifest entries processed in the snapshot                                                                                |
 
 #### Other Fields
 

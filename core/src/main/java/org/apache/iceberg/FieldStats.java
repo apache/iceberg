@@ -18,20 +18,18 @@
  */
 package org.apache.iceberg;
 
-import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 
-interface FieldStats<T> extends StructLike {
+public interface FieldStats<T> {
   /** The field ID of the statistic */
   int fieldId();
 
   /**
-   * The field type of the statistic.
+   * Struct type describing the stats tracked for the field identified by {@link #fieldId()}.
    *
-   * <p>For geo types (geometry/geography), this returns the bounding box struct type (geo_lower /
-   * geo_upper) rather than the column's geometry or geography type, because the type is inferred
-   * from the lower/upper bound schema fields.
+   * <p>Note: This type may be a projection of the stats stored in manifest files.
    */
-  Type type();
+  Types.StructType type();
 
   /** The lower bound */
   T lowerBound();
@@ -45,18 +43,30 @@ interface FieldStats<T> extends StructLike {
    */
   boolean tightBounds();
 
-  /** The total value count, including null and NaN */
-  Long valueCount();
+  /** Whether a value count is tracked for this field. */
+  boolean hasValueCount();
 
-  /** The total null value count */
-  Long nullValueCount();
+  /** The total value count, including null and NaN, defined only when {@link #hasValueCount()}. */
+  long valueCount();
 
-  /** The total NaN value count */
-  Long nanValueCount();
+  /** Whether a null value count is tracked for this field. */
+  boolean hasNullValueCount();
+
+  /** The total null value count, defined only when {@link #hasNullValueCount()}. */
+  long nullValueCount();
+
+  /** Whether a NaN value count is tracked for this field. */
+  boolean hasNanValueCount();
+
+  /** The total NaN value count, defined only when {@link #hasNanValueCount()}. */
+  long nanValueCount();
 
   /**
    * The avg value size in memory (uncompressed) in bytes for variable-length types (string, binary,
-   * variant)
+   * variant, geometry, geography)
    */
   Integer avgValueSizeInBytes();
+
+  /** Returns a copy of this {@link FieldStats}. */
+  FieldStats<T> copy();
 }

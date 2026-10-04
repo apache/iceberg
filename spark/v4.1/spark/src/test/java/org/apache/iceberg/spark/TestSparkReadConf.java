@@ -68,6 +68,44 @@ public class TestSparkReadConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testSplitSizeSessionConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.READ_SPLIT_SIZE, "42"),
+        () -> {
+          SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+          assertThat(conf.splitSizeOption()).isEqualTo(42L);
+          assertThat(conf.splitSize()).isEqualTo(42L);
+        });
+  }
+
+  @TestTemplate
+  public void testSplitSizeCamelCaseSessionConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    withSQLConf(
+        ImmutableMap.of("spark.sql.iceberg.read.splitSize", "42"),
+        () -> {
+          SparkReadConf conf = new SparkReadConf(spark, table, CaseInsensitiveStringMap.empty());
+          assertThat(conf.splitSizeOption()).isEqualTo(42L);
+          assertThat(conf.splitSize()).isEqualTo(42L);
+        });
+  }
+
+  @TestTemplate
+  public void testSplitSizeReadOptionOverridesSessionConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.READ_SPLIT_SIZE, "24"),
+        () -> {
+          CaseInsensitiveStringMap options =
+              new CaseInsensitiveStringMap(ImmutableMap.of(SparkReadOptions.SPLIT_SIZE, "42"));
+          SparkReadConf conf = new SparkReadConf(spark, table, options);
+          assertThat(conf.splitSizeOption()).isEqualTo(42L);
+          assertThat(conf.splitSize()).isEqualTo(42L);
+        });
+  }
+
+  @TestTemplate
   public void testSplitParallelismRejectsZero() {
     Table table = validationCatalog.loadTable(tableIdent);
     withSQLConf(
