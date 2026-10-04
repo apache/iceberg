@@ -82,7 +82,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
         force 'com.fasterxml.woodstox:woodstox-core:6.7.0'
         force 'commons-beanutils:commons-beanutils:1.11.0'
         force 'io.grpc:grpc-netty-shaded:1.84.0'
-        force 'com.fasterxml.jackson.core:jackson-core:2.22.3'
         force 'com.fasterxml.jackson.core:jackson-databind:2.22.3'
       }
     }
