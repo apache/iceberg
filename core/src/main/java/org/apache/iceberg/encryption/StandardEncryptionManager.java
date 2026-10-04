@@ -59,7 +59,10 @@ public class StandardEncryptionManager implements EncryptionManager {
    * @param tableKeyId table encryption key id
    * @param dataKeyLength length of data encryption key (16/24/32 bytes)
    * @param kmsClient Client of KMS used to wrap/unwrap keys in envelope encryption
+   * @deprecated since 1.13.0, will be removed in 1.14.0; use the constructor that takes
+   *     kekGenerationEnabled instead.
    */
+  @Deprecated
   public StandardEncryptionManager(
       List<EncryptedKey> keys,
       String tableKeyId,
