@@ -263,6 +263,7 @@ public class TestMergeAppend extends TestBase {
   }
 
   private void createIdentityPromotionTable() {
+    TestTables.clearTables();
     Schema schema =
         new Schema(
             Types.NestedField.required(1, "id", Types.IntegerType.get()),
