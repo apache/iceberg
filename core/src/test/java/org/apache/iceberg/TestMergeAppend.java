@@ -192,7 +192,7 @@ public class TestMergeAppend extends TestBase {
     File manifestFile = temp.resolve("promotion-manifest.avro").toFile();
     OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
     ManifestWriter<DataFile> writer =
-        ManifestFiles.write(formatVersion, specBeforePromotion, outputFile, 1L);
+        ManifestFiles.write(formatVersion, specBeforePromotion, outputFile, null);
     try (writer) {
       assertThatCode(() -> writer.add(afterPromotion)).doesNotThrowAnyException();
     }
