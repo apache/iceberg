@@ -253,6 +253,8 @@ public class TestFlinkParquetReader extends DataTestBase {
     writer.write(rb.set("names", java.util.Arrays.asList("bob")).set("label", "row2").build());
     writer.write(
         rb.set("names", java.util.Arrays.asList("carol", "dave")).set("label", "row3").build());
+    writer.write(rb.set("names", null).set("label", "row4").build());
+    writer.write(rb.set("names", java.util.Arrays.asList("eve")).set("label", "row5").build());
     writer.close();
 
     try (CloseableIterable<RowData> reader =
@@ -280,6 +282,15 @@ public class TestFlinkParquetReader extends DataTestBase {
       assertThat(row3.getArray(0).getString(0).toString()).isEqualTo("carol");
       assertThat(row3.getArray(0).getString(1).toString()).isEqualTo("dave");
       assertThat(row3.getString(1).toString()).isEqualTo("row3");
+
+      RowData row4 = rows.next();
+      assertThat(row4.isNullAt(0)).isTrue();
+      assertThat(row4.getString(1).toString()).isEqualTo("row4");
+
+      RowData row5 = rows.next();
+      assertThat(row5.getArray(0).size()).isEqualTo(1);
+      assertThat(row5.getArray(0).getString(0).toString()).isEqualTo("eve");
+      assertThat(row5.getString(1).toString()).isEqualTo("row5");
 
       assertThat(rows).isExhausted();
     }

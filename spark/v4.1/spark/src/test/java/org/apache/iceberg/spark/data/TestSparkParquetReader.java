@@ -273,7 +273,7 @@ public class TestSparkParquetReader extends AvroDataTestBase {
         .hasMessageStartingWith("Cannot convert value Parquet: unknown");
   }
 
-  /** Verifies reading 2-level (Thrift) encoded lists with empty lists interspersed */
+  /** Verifies reading 2-level (Thrift) encoded lists with empty and null lists interspersed */
   @Test
   public void testTwoLevelThriftListWithStrings() throws IOException {
     // Parquet schema: 2-level Thrift-style list with _tuple naming convention
@@ -338,11 +338,24 @@ public class TestSparkParquetReader extends AvroDataTestBase {
       row5.addGroup("names").append("names_tuple", "eve");
       row5.append("label", "row5");
       writer.write(row5);
+
+      // Row 6: null list — group absent
+      Group row6 = factory.newGroup();
+      row6.append("label", "row6");
+      writer.write(row6);
+
+      // Row 7: multi-element list after null
+      Group row7 = factory.newGroup();
+      Group names7 = row7.addGroup("names");
+      names7.append("names_tuple", "frank");
+      names7.append("names_tuple", "grace");
+      row7.append("label", "row7");
+      writer.write(row7);
     }
 
     // Read through the Iceberg Spark reader
     List<InternalRow> rows = rowsFromFile(Files.localInput(testFile), icebergSchema);
-    assertThat(rows).hasSize(6);
+    assertThat(rows).hasSize(8);
 
     // Row 0: ["alice"]
     assertThat(rows.get(0).getArray(0).numElements()).isEqualTo(1);
@@ -374,5 +387,15 @@ public class TestSparkParquetReader extends AvroDataTestBase {
     assertThat(rows.get(5).getArray(0).numElements()).isEqualTo(1);
     assertThat(rows.get(5).getArray(0).getUTF8String(0).toString()).isEqualTo("eve");
     assertThat(rows.get(5).getString(1)).isEqualTo("row5");
+
+    // Row 6: null list, distinct from empty
+    assertThat(rows.get(6).isNullAt(0)).isTrue();
+    assertThat(rows.get(6).getString(1)).isEqualTo("row6");
+
+    // Row 7: ["frank", "grace"]
+    assertThat(rows.get(7).getArray(0).numElements()).isEqualTo(2);
+    assertThat(rows.get(7).getArray(0).getUTF8String(0).toString()).isEqualTo("frank");
+    assertThat(rows.get(7).getArray(0).getUTF8String(1).toString()).isEqualTo("grace");
+    assertThat(rows.get(7).getString(1)).isEqualTo("row7");
   }
 }
