@@ -146,7 +146,7 @@ Version 4 of the Iceberg spec adds support for relative locations in metadata, e
 * **Schema** -- Names and types of fields in a table.
 * **Partition spec** -- A definition of how partition values are derived from data fields.
 * **Snapshot** -- The state of a table at some point in time, including the set of all data files.
-* **Snapshot root** -- The per-snapshot file that tracks a snapshot's manifests; a manifest list (v1-v3) or a root manifest (v4).
+* **Snapshot root file** -- The per-snapshot file that tracks a snapshot's manifests; a manifest list (v1-v3) or a root manifest (v4).
 * **Manifest list** -- (v1-v3 only) A file that lists manifest files; one per snapshot.
 * **Root manifest** -- (v4+) A manifest that can reference leaf manifests, data files, or v1-v3 manifests; one per snapshot.
 * **Data manifest** -- A file that lists data files and, in v4, their deletion vectors and column files; a subset of a snapshot.
@@ -661,7 +661,7 @@ A data or delete file is associated with a sort order by the sort order's id wit
 
 ### Manifests
 
-A table's metadata tree is composed of manifests. A manifest is an immutable file that tracks a subset of a table metadata for a given [snapshot](#snapshots). Leaf manifests are the lowest level of the metadata tree and track data or delete files, along with each file's partition data, metrics, and tracking information. The snapshot root tracks leaf manifests; in v4 and later the root is also a manifest and can also track data files.
+A table's metadata tree is composed of manifests. A manifest is an immutable file that tracks a subset of a table metadata for a given [snapshot](#snapshots). Leaf manifests are the lowest level of the metadata tree and track data or delete files, along with each file's partition data, metrics, and tracking information. The snapshot root file tracks leaf manifests; in v4 and later the root is also a manifest and can also track data files.
 
 A manifest is a valid Iceberg data file: files must use valid Iceberg formats, schemas, and column projection.
 
@@ -869,7 +869,7 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
 
 A file that is no longer live may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
 
-Iceberg v2 adds data and file sequence numbers to the entry and makes the snapshot ID optional. Values for these fields are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the snapshot root.
+Iceberg v2 adds data and file sequence numbers to the entry and makes the snapshot ID optional. Values for these fields are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the snapshot root file.
 The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
 The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number.
 The data and file sequence numbers are inherited only if the entry status is 1 (added). If the entry status is 0 (existing) or 2 (deleted), the entry must include both sequence numbers explicitly. In v4, a MODIFIED entry that adds a column file also inherits its data sequence number.
@@ -1056,12 +1056,12 @@ A simple (and recommended) way for writers to adapt existing metadata for table 
 
 Manifests track the sequence number when a data or delete file was added to the table.
 
-When adding a new file, its data and file sequence numbers are set to `null` because the snapshot's sequence number is not assigned until the snapshot is successfully committed. When reading, sequence numbers are inherited by replacing `null` with the manifest's sequence number from the snapshot root.
+When adding a new file, its data and file sequence numbers are set to `null` because the snapshot's sequence number is not assigned until the snapshot is successfully committed. When reading, sequence numbers are inherited by replacing `null` with the manifest's sequence number from the snapshot root file.
 It is also possible to add a new file with data that logically belongs to an older sequence number. In that case, the data sequence number must be provided explicitly and not inherited. However, the file sequence number must be always assigned when the snapshot is successfully committed.
 
 When writing an existing file to a new manifest or marking an existing file as deleted, the data and file sequence numbers must be non-null and set to the original values that were either inherited or provided at the commit time.
 
-Inheriting sequence numbers through the metadata tree allows writing a new manifest without a known sequence number, so that a manifest can be written once and reused in commit retries. To change a sequence number for a retry, only the snapshot root must be rewritten.
+Inheriting sequence numbers through the metadata tree allows writing a new manifest without a known sequence number, so that a manifest can be written once and reused in commit retries. To change a sequence number for a retry, only the snapshot root file must be rewritten.
 
 When reading v1 manifests with no sequence number column, sequence numbers for all files must default to 0.
 
@@ -1122,7 +1122,7 @@ Data and delete files for a snapshot can be stored in more than one manifest. Th
 * Tables can use multiple partition specs. A table’s partition configuration can evolve if, for example, its data volume changes. Partition predicates for a partition spec are derived from data predicates and can be applied to filter files written using that spec. Prior to v4, a manifest stored files partitioned by single spec.
 * Large tables can be split across multiple manifests so that implementations can parallelize job planning or reduce the cost of rewriting a manifest.
 
-Manifests for a snapshot are tracked by the snapshot root and are not allowed in leaf manifest files.
+Manifests for a snapshot are tracked by the snapshot root file and are not allowed in leaf manifest files.
 
 Valid snapshots are stored as a list in table metadata. For serialization, see Appendix C.
 
@@ -1130,7 +1130,7 @@ Valid snapshots are stored as a list in table metadata. For serialization, see A
 
 A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on each commit attempt. If a commit is retried, the `first-row-id` must be reassigned based on the table's current `next-row-id`. The `first-row-id` field is required even if a commit does not assign any ID space.
 
-The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifests in the snapshot root. In v4, this includes data files in the root manifest.
+The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifests in the snapshot root file. In v4, this includes data files in the root manifest.
 
 The snapshot's `added-rows` captures the upper bound of the number of rows with assigned row IDs.
 It can be used safely to increment the table's `next-row-id` during a commit.
@@ -1185,7 +1185,7 @@ Notes:
 
 #### First Row ID Assignment
 
-The `first_row_id` for existing manifests must be preserved when writing a new snapshot root. The value of `first_row_id` for delete manifests is always `null`. The `first_row_id` is only assigned for data manifests that do not have a `first_row_id`. Assignment must account for data files that will be assigned `first_row_id` values when the manifest is read. In v4, data files in the root manifest must also have a `first_row_id`: existing values must be preserved, and data files without one are assigned a `first_row_id` in the same way as data manifests.
+The `first_row_id` for existing manifests must be preserved when writing a new snapshot root file. The value of `first_row_id` for delete manifests is always `null`. The `first_row_id` is only assigned for data manifests that do not have a `first_row_id`. Assignment must account for data files that will be assigned `first_row_id` values when the manifest is read. In v4, data files in the root manifest must also have a `first_row_id`: existing values must be preserved, and data files without one are assigned a `first_row_id` in the same way as data manifests.
 
 The first manifest without a `first_row_id` is assigned a value that is greater than or equal to the `first_row_id` of the snapshot. Subsequent manifests without a `first_row_id` are assigned one based on the previous manifest to be assigned a `first_row_id`. Each assigned `first_row_id` must increase by the row count of all files that will be assigned a `first_row_id` via inheritance in the last assigned manifest. That is, each `first_row_id` must be greater than or equal to the last assigned `first_row_id` plus the total record count of data files with a null `first_row_id` in the last assigned manifest. In v4, when the last assigned entry is a data file, each `first_row_id` must be greater than or equal to the last assigned `first_row_id` plus that data file's `record_count`.
 
@@ -1193,7 +1193,7 @@ A simple and valid approach is to estimate the number of rows in data files that
 
 ### Scan Planning
 
-A reader plans a scan by producing live data files from the snapshot root and any leaf manifests referenced by the root.
+A reader plans a scan by producing live data files from the snapshot root file and any leaf manifests referenced by the root.
 
 A scan uses only [live](#manifest-schema) entries.
 
