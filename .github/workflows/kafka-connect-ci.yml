@@ -100,7 +100,7 @@ jobs:
         cache-read-only: true
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
     - run: |
-        ./gradlew -DsparkVersions= -DflinkVersions= -DkafkaVersions=3 \
+        .github/bin/retry ./gradlew -DsparkVersions= -DflinkVersions= -DkafkaVersions=3 \
           :iceberg-kafka-connect:iceberg-kafka-connect-events:check \
           :iceberg-kafka-connect:iceberg-kafka-connect-transforms:check \
           :iceberg-kafka-connect:iceberg-kafka-connect:check \

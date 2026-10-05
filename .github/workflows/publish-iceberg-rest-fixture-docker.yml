@@ -53,7 +53,7 @@ jobs:
         # Read-only: small job; restore opportunistically from other jobs' caches but never write.
         cache-read-only: true
     - name: Build Iceberg Open API project
-      run: ./gradlew :iceberg-open-api:shadowJar
+      run: .github/bin/retry ./gradlew :iceberg-open-api:shadowJar
     - name: Login to Docker Hub
       env:
         DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}

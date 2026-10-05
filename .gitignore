@@ -62,6 +62,7 @@ coverage.xml
 .project
 .settings
 bin/
+!.github/bin/
 
 # Hive/metastore files
 metastore_db/
