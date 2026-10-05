@@ -20,12 +20,16 @@ package org.apache.iceberg.rest.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 
+import java.lang.ref.WeakReference;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -87,5 +91,73 @@ class TestAuthSessionCache {
     Mockito.verify(session1).close();
 
     cache.close();
+  }
+
+  @Test
+  void closedCacheDoesNotRetainInheritableThreadLocals() {
+    InheritableThreadLocal<Object> threadLocal = new InheritableThreadLocal<>();
+    WeakReference<Object> value = useAndCloseCache(threadLocal);
+
+    Awaitility.await()
+        .atMost(10, TimeUnit.SECONDS)
+        .pollInSameThread()
+        .untilAsserted(
+            () -> {
+              System.gc();
+              assertThat(value.get()).isNull();
+            });
+  }
+
+  @Test
+  void closingCacheDoesNotStopEvictionForOtherCaches() {
+    try (AuthSessionCache closed = new AuthSessionCache("closed", Duration.ofHours(1))) {
+      closed.cachedSession("key", key -> Mockito.mock(AuthSession.class));
+    }
+
+    AuthSession session = Mockito.mock(AuthSession.class);
+    AtomicReference<Thread> closingThread = new AtomicReference<>();
+    Mockito.doAnswer(
+            invocation -> {
+              closingThread.set(Thread.currentThread());
+              return null;
+            })
+        .when(session)
+        .close();
+
+    try (AuthSessionCache open = new AuthSessionCache("open", Duration.ofHours(1))) {
+      open.cachedSession("key", key -> session);
+    }
+
+    Mockito.verify(session, timeout(TimeUnit.SECONDS.toMillis(10))).close();
+    assertThat(closingThread.get()).isNotSameAs(Thread.currentThread());
+  }
+
+  @Test
+  void evictionThreadDoesNotInheritThreadLocals() throws InterruptedException {
+    InheritableThreadLocal<String> threadLocal = new InheritableThreadLocal<>();
+    AtomicReference<String> inherited = new AtomicReference<>("unset");
+    threadLocal.set("creator");
+    try {
+      Thread thread = AuthSessionCache.newEvictionThread(() -> inherited.set(threadLocal.get()));
+      thread.start();
+      thread.join();
+    } finally {
+      threadLocal.remove();
+    }
+
+    assertThat(inherited.get()).isNull();
+  }
+
+  private static WeakReference<Object> useAndCloseCache(
+      InheritableThreadLocal<Object> threadLocal) {
+    Object value = new Object();
+    threadLocal.set(value);
+    try (AuthSessionCache cache = new AuthSessionCache("test", Duration.ofHours(1))) {
+      cache.cachedSession("key", key -> Mockito.mock(AuthSession.class));
+    } finally {
+      threadLocal.remove();
+    }
+
+    return new WeakReference<>(value);
   }
 }
