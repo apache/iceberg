@@ -37,6 +37,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -722,6 +723,68 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
         "SELECT COUNT (DISTINCT id) AS count FROM %s GROUP BY dep ORDER BY count",
         tableName,
         tableName(OTHER_TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testAggregateOverPartiallyClusteredJoin() throws NoSuchTableException {
+    // SPARK-55848: an aggregate placed directly on a partially-clustered storage-partitioned join
+    // output must return the same rows with SPJ enabled as without it. Partial clustering splits
+    // the skewed side's partitions, and before SPARK-55848 a DISTINCT / GROUP BY on that output
+    // trusted the split partitioning and over-counted by the split factor (1200 rows instead of
+    // 200). The existing testAggregates covers an aggregate over a single scan, not over a
+    // partially-clustered join, so this pins the join case. It fails on Spark 4.0.2 and passes on
+    // 4.0.3, the SPARK-55848 fix version, through the Iceberg Spark runtime.
+    String createTableStmt =
+        "CREATE TABLE %s (id BIGINT, salary INT)"
+            + "USING iceberg "
+            + "PARTITIONED BY (bucket(8, id))"
+            + "TBLPROPERTIES (%s)";
+
+    sql(createTableStmt, tableName, tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(tableName, planningMode);
+    sql(createTableStmt, tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(tableName(OTHER_TABLE_NAME), planningMode);
+
+    // Skew the probe side: append the same rows six times so each bucket of the first table holds
+    // six files. With split-per-file (16 MB split size and open-file cost) and partial clustering
+    // enabled, that side's partitions split while the single-file side is replicated to match.
+    Table table = validationCatalog.loadTable(tableIdent);
+    Dataset<Row> dataDF = randomDataDF(table.schema(), 200);
+    for (int i = 0; i < 6; i++) {
+      append(tableName, dataDF);
+    }
+    append(tableName(OTHER_TABLE_NAME), dataDF);
+
+    Map<String, String> partiallyClusteredSpjConf = Maps.newHashMap(ENABLED_SPJ_SQL_CONF);
+    partiallyClusteredSpjConf.put(
+        SQLConf.V2_BUCKETING_PARTIALLY_CLUSTERED_DISTRIBUTION_ENABLED().key(), "true");
+
+    String distinctAfterJoin =
+        "SELECT count(*) AS c FROM ("
+            + "SELECT DISTINCT t1.id FROM %s t1 INNER JOIN %s t2 ON t1.id = t2.id)";
+    String aggAfterJoin =
+        "SELECT count(*) AS c FROM ("
+            + "SELECT t1.id, count(*) AS cnt FROM %s t1 INNER JOIN %s t2 ON t1.id = t2.id "
+            + "GROUP BY t1.id)";
+
+    for (String query : new String[] {distinctAfterJoin, aggAfterJoin}) {
+      AtomicReference<List<Object[]>> rowsWithSPJ = new AtomicReference<>();
+      AtomicReference<List<Object[]>> rowsWithoutSPJ = new AtomicReference<>();
+
+      withSQLConf(
+          partiallyClusteredSpjConf,
+          () -> rowsWithSPJ.set(sql(query, tableName, tableName(OTHER_TABLE_NAME))));
+
+      withSQLConf(
+          DISABLED_SPJ_SQL_CONF,
+          () -> rowsWithoutSPJ.set(sql(query, tableName, tableName(OTHER_TABLE_NAME))));
+
+      assertThat(rowsWithoutSPJ.get()).as("ground-truth rows should be non-empty").isNotEmpty();
+      assertEquals(
+          "partially clustered SPJ must not change the aggregate output",
+          rowsWithoutSPJ.get(),
+          rowsWithSPJ.get());
+    }
   }
 
   @TestTemplate
