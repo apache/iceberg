@@ -22,7 +22,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.type;
 import static org.mockito.Mockito.when;
 
+import java.net.URI;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.rest.RESTCatalogProperties;
@@ -31,7 +35,10 @@ import org.apache.iceberg.rest.auth.AuthProperties;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
+import org.apache.iceberg.rest.requests.RemoteSignRequest;
+import org.apache.iceberg.rest.responses.ImmutableRemoteSignResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.rest.responses.RemoteSignResponse;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -40,6 +47,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
+import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.auth.signer.AwsSignerExecutionAttribute;
+import software.amazon.awssdk.core.interceptor.ExecutionAttributes;
+import software.amazon.awssdk.http.SdkHttpFullRequest;
+import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.utils.IoUtils;
 
 class TestS3V4RestSignerClient {
@@ -243,21 +256,86 @@ class TestS3V4RestSignerClient {
             "https://signer.com",
             RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
             "v1/sign",
-            OAuth2Properties.CREDENTIAL,
-            "user1:secret1");
+            OAuth2Properties.TOKEN,
+            "token1");
     Map<String, String> properties2 =
         Map.of(
             CatalogProperties.URI,
             "https://signer.com",
             RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
             "v1/sign",
-            OAuth2Properties.CREDENTIAL,
-            "user2:secret2");
+            OAuth2Properties.TOKEN,
+            "token2");
+
+    URI requestUri = URI.create("https://bucket.s3.us-west-2.amazonaws.com/object-key");
+    SdkHttpFullRequest request =
+        SdkHttpFullRequest.builder()
+            .method(SdkHttpMethod.GET)
+            .uri(requestUri)
+            .protocol("https")
+            .host("bucket.s3.us-west-2.amazonaws.com")
+            .encodedPath("/object-key")
+            .build();
+
+    ExecutionAttributes executionAttributes = new ExecutionAttributes();
+    executionAttributes.putAttribute(AwsSignerExecutionAttribute.SERVICE_SIGNING_NAME, "s3");
+    executionAttributes.putAttribute(AwsSignerExecutionAttribute.SIGNING_REGION, Region.US_WEST_2);
+    executionAttributes.putAttribute(
+        AwsSignerExecutionAttribute.AWS_CREDENTIALS,
+        AnonymousCredentialsProvider.create().resolveCredentials());
+
+    AtomicInteger callCount = new AtomicInteger();
+    when(S3V4RestSignerClient.httpClient.post(
+            Mockito.eq("https://signer.com/v1/sign"),
+            Mockito.any(RemoteSignRequest.class),
+            Mockito.eq(RemoteSignResponse.class),
+            Mockito.anyMap(),
+            Mockito.any(),
+            Mockito.any()))
+        .thenAnswer(
+            invocation -> {
+              int count = callCount.incrementAndGet();
+              Consumer<Map<String, String>> headersConsumer = invocation.getArgument(5);
+              if (headersConsumer != null) {
+                headersConsumer.accept(Map.of("Cache-Control", "private"));
+              }
+              return ImmutableRemoteSignResponse.builder()
+                  .uri(requestUri)
+                  .headers(Map.of("Authorization", List.of("AWS4-HMAC-SHA256 sig-client-" + count)))
+                  .build();
+            });
 
     try (S3V4RestSignerClient client1 =
             ImmutableS3V4RestSignerClient.builder().properties(properties1).build();
         S3V4RestSignerClient client2 =
             ImmutableS3V4RestSignerClient.builder().properties(properties2).build()) {
+
+      // Client 1 makes request: cache miss, calls signer, response is cached
+      SdkHttpFullRequest signed1 = client1.sign(request, executionAttributes);
+      assertThat(signed1.headers().get("Authorization"))
+          .containsExactly("AWS4-HMAC-SHA256 sig-client-1");
+      assertThat(callCount.get()).isEqualTo(1);
+
+      // Client 1 repeated request: cache hit, does not call signer again
+      SdkHttpFullRequest signed1Repeat = client1.sign(request, executionAttributes);
+      assertThat(signed1Repeat.headers().get("Authorization"))
+          .containsExactly("AWS4-HMAC-SHA256 sig-client-1");
+      assertThat(callCount.get()).isEqualTo(1);
+
+      // Client 2 makes the same request: must NOT reuse Client 1's cached signature.
+      // It must call signer and receive Client 2's own signature.
+      SdkHttpFullRequest signed2 = client2.sign(request, executionAttributes);
+      assertThat(signed2.headers().get("Authorization"))
+          .containsExactly("AWS4-HMAC-SHA256 sig-client-2");
+      assertThat(callCount.get()).isEqualTo(2);
+
+      // Client 2 repeated request: cache hit on client 2's cache
+      SdkHttpFullRequest signed2Repeat = client2.sign(request, executionAttributes);
+      assertThat(signed2Repeat.headers().get("Authorization"))
+          .containsExactly("AWS4-HMAC-SHA256 sig-client-2");
+      assertThat(callCount.get()).isEqualTo(2);
+
+      // Verify structural isolation of the cache instances
       assertThat(client1.signedComponentCache()).isNotSameAs(client2.signedComponentCache());
     }
   }
