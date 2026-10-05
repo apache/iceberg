@@ -120,12 +120,10 @@ class TableUpdater {
     try {
       table.manageSnapshots().createBranch(branch).commit();
       LOG.info("Branch {} for {} created", branch, identifier);
-    } catch (CommitFailedException | IllegalArgumentException e) {
-      // Another writer may still create the branch after the load. Snapshot management starts from
-      // refreshed metadata, so that can fail as an existing ref rather than as a commit conflict.
+    } catch (RuntimeException e) {
       table.refresh();
       if (hasBranch(table, branch)) {
-        LOG.debug("Branch {} concurrently created for {}.", branch, identifier);
+        LOG.debug("Branch {} concurrently created for {}.", branch, identifier, e);
       } else {
         LOG.error("Failed to create branch {} for {}.", branch, identifier, e);
         throw e;
