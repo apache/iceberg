@@ -125,7 +125,7 @@ public class FileHelpers {
       FileWriterFactory<Record> factory = GenericFileWriterFactory.builderFor(table).build();
 
       PositionDeleteWriter<Record> writer =
-          factory.newPositionDeleteWriter(encrypt(out), table.spec(), partition);
+          factory.newPositionDeleteWriter(table.encryption().encrypt(out), table.spec(), partition);
       PositionDelete<Record> posDelete = PositionDelete.create();
       try (Closeable toClose = writer) {
         for (Pair<CharSequence, Long> delete : deletes) {
@@ -159,7 +159,7 @@ public class FileHelpers {
             .build();
 
     EqualityDeleteWriter<Record> writer =
-        factory.newEqualityDeleteWriter(encrypt(out), table.spec(), partition);
+        factory.newEqualityDeleteWriter(table.encryption().encrypt(out), table.spec(), partition);
     try (Closeable toClose = writer) {
       writer.write(deletes);
     }
@@ -176,7 +176,8 @@ public class FileHelpers {
       Table table, OutputFile out, List<Record> rows, PartitionData partition) throws IOException {
     FileWriterFactory<Record> factory = GenericFileWriterFactory.builderFor(table).build();
 
-    DataWriter<Record> writer = factory.newDataWriter(encrypt(out), table.spec(), partition);
+    DataWriter<Record> writer =
+        factory.newDataWriter(table.encryption().encrypt(out), table.spec(), partition);
     try (Closeable toClose = writer) {
       writer.write(rows);
     }
@@ -188,7 +189,8 @@ public class FileHelpers {
       Table table, OutputFile out, StructLike partition, List<Record> rows) throws IOException {
     FileWriterFactory<Record> factory = GenericFileWriterFactory.builderFor(table).build();
 
-    DataWriter<Record> writer = factory.newDataWriter(encrypt(out), table.spec(), partition);
+    DataWriter<Record> writer =
+        factory.newDataWriter(table.encryption().encrypt(out), table.spec(), partition);
     try (Closeable toClose = writer) {
       writer.write(rows);
     }
@@ -224,7 +226,7 @@ public class FileHelpers {
       FileWriterFactory<Record> factory = GenericFileWriterFactory.builderFor(table).build();
 
       PositionDeleteWriter<?> writer =
-          factory.newPositionDeleteWriter(encrypt(out), table.spec(), partition);
+          factory.newPositionDeleteWriter(table.encryption().encrypt(out), table.spec(), partition);
       try (Closeable toClose = writer) {
         for (PositionDelete delete : deletes) {
           writer.write(delete);

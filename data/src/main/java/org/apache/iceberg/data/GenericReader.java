@@ -21,10 +21,11 @@ package org.apache.iceberg.data;
 import java.io.Serializable;
 import java.util.Map;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -33,21 +34,18 @@ import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.PartitionUtil;
 
 class GenericReader implements Serializable {
-  private final FileIO io;
+  private final EncryptingFileIO io;
   private final Schema tableSchema;
   private final Schema projection;
   private final boolean caseSensitive;
   private final boolean reuseContainers;
 
   GenericReader(TableScan scan, boolean reuseContainers) {
-    this.io = scan.table().io();
+    this.io = EncryptingFileIO.combine(scan.table().io(), scan.table().encryption());
     this.tableSchema = scan.table().schema();
     this.projection = scan.schema();
     this.caseSensitive = scan.isCaseSensitive();
@@ -55,20 +53,19 @@ class GenericReader implements Serializable {
   }
 
   CloseableIterator<Record> open(CloseableIterable<CombinedScanTask> tasks) {
-    Iterable<FileScanTask> fileTasks =
-        Iterables.concat(Iterables.transform(tasks, CombinedScanTask::files));
-    return CloseableIterable.concat(Iterables.transform(fileTasks, this::open)).iterator();
+    return CloseableIterable.concat(Iterables.transform(tasks, this::open)).iterator();
   }
 
   public CloseableIterable<Record> open(CombinedScanTask task) {
     return new CombinedTaskIterable(task);
   }
 
-  public CloseableIterable<Record> open(FileScanTask task) {
-    DeleteFilter<Record> deletes = new GenericDeleteFilter(io, task, tableSchema, projection);
+  private CloseableIterable<Record> open(FileScanTask task, InputFilesDecryptor decryptor) {
+    DeleteFilter<Record> deletes =
+        new GenericDeleteFilter(decryptor::getInputFile, task, tableSchema, projection);
     Schema readSchema = deletes.requiredSchema();
 
-    CloseableIterable<Record> records = openFile(task, readSchema);
+    CloseableIterable<Record> records = openFile(task, readSchema, decryptor);
     records = deletes.filter(records);
     records = applyResidual(records, readSchema, task.residual());
 
@@ -86,13 +83,13 @@ class GenericReader implements Serializable {
     return records;
   }
 
-  private CloseableIterable<Record> openFile(FileScanTask task, Schema fileProjection) {
-    DataFile file = task.file();
-    Map<String, InputFile> inputFiles = ImmutableMap.of(file.location(), io.newInputFile(file));
+  private CloseableIterable<Record> openFile(
+      FileScanTask task, Schema fileProjection, InputFilesDecryptor decryptor) {
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
-    ReadBuilder<Record, ?> builder = DataFileReadBuilder.read(file, Record.class, inputFiles::get);
+    ReadBuilder<Record, ?> builder =
+        DataFileReadBuilder.read(task.file(), Record.class, decryptor::getInputFile);
     if (reuseContainers) {
       builder = builder.reuseContainers();
     }
@@ -115,8 +112,10 @@ class GenericReader implements Serializable {
 
     @Override
     public CloseableIterator<Record> iterator() {
+      InputFilesDecryptor decryptor = InputFilesDecryptor.fromTasks(task.files(), io);
       CloseableIterator<Record> iter =
-          CloseableIterable.concat(Iterables.transform(task.files(), GenericReader.this::open))
+          CloseableIterable.concat(
+                  Iterables.transform(task.files(), fileTask -> open(fileTask, decryptor)))
               .iterator();
       addCloseable(iter);
       return iter;
