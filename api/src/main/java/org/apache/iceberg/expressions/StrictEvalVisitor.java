@@ -383,6 +383,16 @@ abstract class StrictEvalVisitor extends ExpressionVisitors.BoundExpressionVisit
   }
 
   @Override
+  public <T> Boolean contains(BoundReference<T> ref, Literal<T> lit) {
+    return ROWS_MIGHT_NOT_MATCH;
+  }
+
+  @Override
+  public <T> Boolean notContains(BoundReference<T> ref, Literal<T> lit) {
+    return ROWS_MIGHT_NOT_MATCH;
+  }
+
+  @Override
   public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
     int id = ref.fieldId();
     if (isNestedColumn(id)) {

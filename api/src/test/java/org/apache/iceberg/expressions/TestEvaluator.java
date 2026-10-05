@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.contains;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -33,6 +34,7 @@ import static org.apache.iceberg.expressions.Expressions.not;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
+import static org.apache.iceberg.expressions.Expressions.notContains;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
@@ -345,6 +347,60 @@ public class TestEvaluator {
         .isFalse();
     assertThat(evaluator.eval(TestHelpers.Row.of("Abcde")))
         .as("Abcde notStartsWith abc should be true")
+        .isTrue();
+  }
+
+  @Test
+  public void testContains() {
+    StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
+    Evaluator evaluator = new Evaluator(struct, contains("s", "abc"));
+    assertThat(evaluator.eval(TestHelpers.Row.of("abc")))
+        .as("abc contains abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("xabc")))
+        .as("xabc contains abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("Abc")))
+        .as("Abc contains abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("a")))
+        .as("a contains abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("abcd")))
+        .as("abcd contains abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("xabcd")))
+        .as("xabcd contains abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of((String) null)))
+        .as("null contains abc should be false")
+        .isFalse();
+  }
+
+  @Test
+  public void testNotContains() {
+    StructType struct = StructType.of(required(24, "s", Types.StringType.get()));
+    Evaluator evaluator = new Evaluator(struct, notContains("s", "abc"));
+    assertThat(evaluator.eval(TestHelpers.Row.of("abc")))
+        .as("abc notContains abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("xabc")))
+        .as("xabc notContains abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("Abc")))
+        .as("Abc notContains abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("a")))
+        .as("a notContains abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of("abcde")))
+        .as("abcde notContains abc should be false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of("Abcde")))
+        .as("Abcde notContains abc should be true")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of((String) null)))
+        .as("null notContains abc should be true")
         .isTrue();
   }
 

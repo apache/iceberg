@@ -84,6 +84,8 @@ public class TestExpressionParser {
           Expressions.notNaN("f"),
           Expressions.startsWith("s", "crackle"),
           Expressions.notStartsWith("s", "tackle"),
+          Expressions.contains("s", "crackle"),
+          Expressions.notContains("s", "tackle"),
           Expressions.equal(Expressions.day("date"), "2022-08-14"),
           Expressions.equal(Expressions.bucket("id", 100), 0),
           Expressions.and(

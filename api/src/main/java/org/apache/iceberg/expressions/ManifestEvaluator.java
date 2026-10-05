@@ -324,6 +324,16 @@ public class ManifestEvaluator {
     }
 
     @Override
+    public <T> Boolean contains(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notContains(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
       int pos = Accessors.toPosition(ref.accessor());
       PartitionFieldSummary fieldStats = stats.get(pos);

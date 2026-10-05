@@ -22,12 +22,14 @@ import static org.apache.iceberg.expressions.Expressions.alwaysFalse;
 import static org.apache.iceberg.expressions.Expressions.alwaysTrue;
 import static org.apache.iceberg.expressions.Expressions.and;
 import static org.apache.iceberg.expressions.Expressions.bucket;
+import static org.apache.iceberg.expressions.Expressions.contains;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.extract;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notContains;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
@@ -180,6 +182,48 @@ public class TestExpressionBinding {
     assertThat(pred.term().ref().fieldId())
         .as("Should bind term to correct field id")
         .isEqualTo(21);
+  }
+
+  @Test
+  public void testContains() {
+    StructType struct = StructType.of(required(0, "s", Types.StringType.get()));
+    Expression expr = contains("s", "abc");
+    Expression boundExpr = Binder.bind(struct, expr);
+    TestHelpers.assertAllReferencesBound("Contains", boundExpr);
+    // make sure the expression is a Contains
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(boundExpr, BoundPredicate.class);
+    assertThat(pred.op()).as("Should be right operation").isEqualTo(Expression.Operation.CONTAINS);
+    assertThat(pred.term().ref().fieldId()).as("Should bind s correctly").isZero();
+  }
+
+  @Test
+  public void testNotContains() {
+    StructType struct = StructType.of(required(21, "s", Types.StringType.get()));
+    Expression expr = notContains("s", "abc");
+    Expression boundExpr = Binder.bind(struct, expr);
+    TestHelpers.assertAllReferencesBound("NotContains", boundExpr);
+    // Make sure the expression is a NotContains
+    BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(boundExpr, BoundPredicate.class);
+    assertThat(pred.op())
+        .as("Should be right operation")
+        .isEqualTo(Expression.Operation.NOT_CONTAINS);
+    assertThat(pred.term().ref().fieldId())
+        .as("Should bind term to correct field id")
+        .isEqualTo(21);
+  }
+
+  @Test
+  public void testContainsNonStringColumn() {
+    assertThatThrownBy(() -> Binder.bind(STRUCT, contains("x", "abc")))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Term for CONTAINS must produce a string");
+  }
+
+  @Test
+  public void testNotContainsNonStringColumn() {
+    assertThatThrownBy(() -> Binder.bind(STRUCT, notContains("x", "abc")))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Term for NOT_CONTAINS must produce a string");
   }
 
   @Test

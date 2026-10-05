@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import static org.apache.iceberg.expressions.Expressions.and;
+import static org.apache.iceberg.expressions.Expressions.contains;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
@@ -28,6 +29,7 @@ import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.not;
+import static org.apache.iceberg.expressions.Expressions.notContains;
 import static org.apache.iceberg.expressions.Expressions.notEqual;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
@@ -861,6 +863,59 @@ public class TestInclusiveMetricsEvaluator<F> {
 
     shouldRead = shouldRead(SCHEMA, notStartsWith("required", "abcd"), true, file5());
     assertThat(shouldRead).as("Should not read: lower shorter than prefix, cannot match").isTrue();
+  }
+
+  @Test
+  public void testStringContains() {
+    boolean shouldRead = shouldRead(SCHEMA, contains("required", "a"), true, file());
+    assertThat(shouldRead).as("Should read: no stats").isTrue();
+
+    shouldRead = shouldRead(SCHEMA, contains("required", "a"), true, file2());
+    assertThat(shouldRead).as("Should read: contains never skips").isTrue();
+
+    shouldRead = shouldRead(SCHEMA, contains("required", "aB"), true, file2());
+    assertThat(shouldRead).as("Should read: contains never skips").isTrue();
+
+    shouldRead = shouldRead(SCHEMA, contains("required", "dWX"), true, file2());
+    assertThat(shouldRead).as("Should read: contains never skips").isTrue();
+
+    shouldRead = shouldRead(SCHEMA, contains("required", "5"), true, file3());
+    assertThat(shouldRead).as("Should read: contains never skips").isTrue();
+
+    shouldRead = shouldRead(SCHEMA, contains("required", "3str3x"), true, file3());
+    assertThat(shouldRead).as("Should read: contains never skips").isTrue();
+
+    shouldRead = shouldRead(SCHEMA, contains("all_nulls", ""), true, file());
+    assertThat(shouldRead).as("Should read: contains never skips").isTrue();
+
+    String aboveMax = UnicodeUtil.truncateStringMax(Literal.of("イロハニホヘト"), 4).value().toString();
+    shouldRead = shouldRead(SCHEMA, contains("required", aboveMax), true, file4());
+    assertThat(shouldRead).as("Should read: contains never skips").isTrue();
+  }
+
+  @Test
+  public void testStringNotContains() {
+    boolean shouldRead = shouldRead(SCHEMA, notContains("required", "a"), true, file());
+    assertThat(shouldRead).as("Should read: no stats").isTrue();
+
+    shouldRead = shouldRead(SCHEMA, notContains("required", "a"), true, file2());
+    assertThat(shouldRead).as("Should read: notContains never skips").isTrue();
+
+    shouldRead = shouldRead(SCHEMA, notContains("required", "aB"), true, file2());
+    assertThat(shouldRead).as("Should read: notContains never skips").isTrue();
+
+    shouldRead = shouldRead(SCHEMA, notContains("required", "5"), true, file3());
+    assertThat(shouldRead).as("Should read: notContains never skips").isTrue();
+
+    String aboveMax = UnicodeUtil.truncateStringMax(Literal.of("イロハニホヘト"), 4).value().toString();
+    shouldRead = shouldRead(SCHEMA, notContains("required", aboveMax), true, file4());
+    assertThat(shouldRead).as("Should read: notContains never skips").isTrue();
+
+    shouldRead = shouldRead(SCHEMA, notContains("required", "abc"), true, file5());
+    assertThat(shouldRead).as("Should read: notContains never skips").isTrue();
+
+    shouldRead = shouldRead(SCHEMA, notContains("required", "abcd"), true, file5());
+    assertThat(shouldRead).as("Should read: notContains never skips").isTrue();
   }
 
   @Test

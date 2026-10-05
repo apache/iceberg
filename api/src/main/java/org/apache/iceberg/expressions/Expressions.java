@@ -198,6 +198,14 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.NOT_STARTS_WITH, ref(name), value);
   }
 
+  public static UnboundPredicate<String> contains(String name, String value) {
+    return new UnboundPredicate<>(Expression.Operation.CONTAINS, ref(name), value);
+  }
+
+  public static UnboundPredicate<String> notContains(String name, String value) {
+    return new UnboundPredicate<>(Expression.Operation.NOT_CONTAINS, ref(name), value);
+  }
+
   public static UnboundPredicate<String> notStartsWith(UnboundTerm<String> expr, String value) {
     return new UnboundPredicate<>(Expression.Operation.NOT_STARTS_WITH, expr, value);
   }
