@@ -93,7 +93,9 @@ import org.apache.spark.sql.connector.catalog.TableChange.RemoveProperty;
 import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
 import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.catalog.TableSummary;
+import org.apache.spark.sql.connector.catalog.TransactionalCatalogPlugin;
 import org.apache.spark.sql.connector.catalog.View;
+import org.apache.spark.sql.connector.catalog.transactions.TransactionInfo;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -127,7 +129,8 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContext {
+public class SparkCatalog extends BaseCatalog
+    implements SparkSupportsLoadContext, TransactionalCatalogPlugin {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
@@ -1024,6 +1027,12 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
   @Override
   public String name() {
     return catalogName;
+  }
+
+  @Override
+  public org.apache.spark.sql.connector.catalog.transactions.Transaction beginTransaction(
+      TransactionInfo info) {
+    return new SparkTransaction(this, info);
   }
 
   private static void commitChanges(
