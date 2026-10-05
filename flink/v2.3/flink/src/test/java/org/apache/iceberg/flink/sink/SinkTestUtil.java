@@ -28,8 +28,9 @@ import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.iceberg.Table;
 
-class SinkTestUtil {
+public class SinkTestUtil {
 
   private SinkTestUtil() {}
 
@@ -58,5 +59,31 @@ class SinkTestUtil {
     final Object value = element.asRecord().getValue();
     assertThat(value).isInstanceOf(CommittableWithLineage.class);
     return (CommittableWithLineage<IcebergCommittable>) value;
+  }
+
+  /** Expires every snapshot but the branch heads, keeping their files. */
+  public static void expireAllButHeads(Table table) {
+    table
+        .expireSnapshots()
+        .expireOlderThan(System.currentTimeMillis() + 1)
+        .retainLast(1)
+        .cleanExpiredFiles(false)
+        .commit();
+  }
+
+  /** Asserts the writer's last committed checkpoint, without recording anything. */
+  static void assertCommittedCheckpoint(
+      Table table, String branch, String jobId, String operatorId, long expected) {
+    table.refresh();
+    assertThat(FlinkCommitMarkers.maxCommittedCheckpointId(table, branch, jobId, operatorId))
+        .isEqualTo(expected);
+    long durable =
+        FlinkCommitMarkers.durableCheckpointId(table.properties(), branch, jobId, operatorId);
+    if (expected == IcebergStreamWriter.END_INPUT_CHECKPOINT_ID) {
+      // The end-of-input checkpoint is recorded in the summary only.
+      assertThat(durable).isLessThan(expected);
+    } else {
+      assertThat(durable).isEqualTo(expected);
+    }
   }
 }

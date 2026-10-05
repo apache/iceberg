@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 import java.io.File;
 import java.io.IOException;
@@ -1196,6 +1197,83 @@ class TestIcebergCommitter extends TestBase {
     }
   }
 
+  /**
+   * Job A goes idle while job B keeps committing, and snapshot expiry removes A's snapshots. A
+   * restore that replays A's last committable, already committed, must not commit it again.
+   */
+  @TestTemplate
+  public void testRestoreOfIdleWriterAfterExpiryDoesNotRecommit() throws Exception {
+    List<RowData> expectedRows = Lists.newArrayList();
+    Committer.CommitRequest<IcebergCommittable> lastOfA = null;
+    IcebergCommitter committerA = getCommitter();
+    for (long checkpointId = 1; checkpointId <= 3; checkpointId++) {
+      RowData row = SimpleDataUtil.createRowData((int) checkpointId, "a");
+      expectedRows.add(row);
+      lastOfA =
+          buildCommitRequestFor(
+              "jobA", checkpointId, List.of(of(writeDataFile("a-" + checkpointId, List.of(row)))));
+      committerA.commit(List.of(lastOfA));
+    }
+
+    IcebergCommitter committerB = getCommitter();
+    for (long checkpointId = 1; checkpointId <= 3; checkpointId++) {
+      RowData row = SimpleDataUtil.createRowData((int) checkpointId, "b");
+      expectedRows.add(row);
+      committerB.commit(
+          List.of(
+              buildCommitRequestFor(
+                  "jobB",
+                  checkpointId,
+                  List.of(of(writeDataFile("b-" + checkpointId, List.of(row)))))));
+    }
+
+    SinkTestUtil.expireAllButHeads(table);
+    assertSnapshotSize(1);
+
+    getCommitter().commit(List.of(lastOfA));
+
+    assertSnapshotSize(1);
+    verify(lastOfA).signalAlreadyCommitted();
+    SimpleDataUtil.assertTableRows(table, expectedRows, branch);
+  }
+
+  /**
+   * A writer whose commit is recorded only in the summaries, as before table-property markers, is
+   * resumed with an empty pending checkpoint, whose commit is suppressed. Its checkpoint is still
+   * recorded, so a replay of the committed checkpoint after expiry commits nothing.
+   */
+  @TestTemplate
+  public void testEmptyPendingCheckpointStillRecordsASummaryOnlyMarker() throws Exception {
+    table.updateProperties().set(IcebergCommitter.MAX_CONTINUOUS_EMPTY_COMMITS, "10").commit();
+    List<RowData> expectedRows = Lists.newArrayList();
+    RowData rowA = SimpleDataUtil.createRowData(1, "a");
+    expectedRows.add(rowA);
+    Committer.CommitRequest<IcebergCommittable> committed =
+        buildCommitRequestFor("jobA", 1, List.of(of(writeDataFile("a-1", List.of(rowA)))));
+    getCommitter().commit(List.of(committed));
+    FlinkCommitMarkers.removeMarkers(table, marker -> true);
+
+    getCommitter()
+        .commit(List.of(buildCommitRequestFor("jobA", 2, List.of(WriteResult.builder().build()))));
+
+    assertSnapshotSize(1);
+    assertMaxCommittedCheckpointId("jobA", 1);
+
+    RowData rowB = SimpleDataUtil.createRowData(1, "b");
+    expectedRows.add(rowB);
+    getCommitter()
+        .commit(
+            List.of(
+                buildCommitRequestFor(
+                    "jobB", 1, List.of(of(writeDataFile("b-1", List.of(rowB)))))));
+    SinkTestUtil.expireAllButHeads(table);
+    getCommitter().commit(List.of(committed));
+
+    assertSnapshotSize(1);
+    verify(committed).signalAlreadyCommitted();
+    SimpleDataUtil.assertTableRows(table, expectedRows, branch);
+  }
+
   private ManifestFile createTestingManifestFile(Path manifestPath, DataFile dataFile)
       throws IOException {
     ManifestWriter<DataFile> writer =
@@ -1384,9 +1462,7 @@ class TestIcebergCommitter extends TestBase {
   }
 
   private void assertMaxCommittedCheckpointId(String myJobID, String operatorId, long expectedId) {
-    table.refresh();
-    long actualId = SinkUtil.getMaxCommittedCheckpointId(table, myJobID, operatorId, branch);
-    assertThat(actualId).isEqualTo(expectedId);
+    SinkTestUtil.assertCommittedCheckpoint(table, branch, myJobID, operatorId, expectedId);
   }
 
   private void assertMaxCommittedCheckpointId(String myJobID, long expectedId) {

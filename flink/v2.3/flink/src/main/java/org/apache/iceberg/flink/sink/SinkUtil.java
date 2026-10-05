@@ -33,7 +33,6 @@ import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -45,12 +44,11 @@ import org.slf4j.LoggerFactory;
 @Internal
 public class SinkUtil {
 
-  private static final long INITIAL_CHECKPOINT_ID = -1L;
-
   public static final String FLINK_JOB_ID = "flink.job-id";
 
   public static final String OPERATOR_ID = "flink.operator-id";
   public static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
+  public static final String BRANCH = "flink.branch";
 
   private SinkUtil() {}
 
@@ -80,30 +78,6 @@ public class SinkUtil {
       equalityFieldIds = Sets.newHashSet(equalityFieldSet);
     }
     return equalityFieldIds;
-  }
-
-  static long getMaxCommittedCheckpointId(
-      Table table, String flinkJobId, String operatorId, String branch) {
-    Snapshot snapshot = table.snapshot(branch);
-    long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
-
-    while (snapshot != null) {
-      Map<String, String> summary = snapshot.summary();
-      String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
-      String snapshotOperatorId = summary.get(OPERATOR_ID);
-      if (flinkJobId.equals(snapshotFlinkJobId)
-          && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
-        String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
-        if (value != null) {
-          lastCommittedCheckpointId = Long.parseLong(value);
-          break;
-        }
-      }
-      Long parentSnapshotId = snapshot.parentId();
-      snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
-    }
-
-    return lastCommittedCheckpointId;
   }
 
   /**

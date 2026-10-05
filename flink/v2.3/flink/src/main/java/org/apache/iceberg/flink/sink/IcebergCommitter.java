@@ -34,6 +34,7 @@ import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -55,6 +56,7 @@ import org.slf4j.LoggerFactory;
  *       successful run only checkpoints &gt; x will arrive
  *   <li>There is no other writer which would generate another commit to the same branch with the
  *       same jobId-operatorId-checkpointId triplet
+ *   <li>A job id isn't reused by a run that starts without state (see {@link FlinkCommitMarkers})
  * </ul>
  */
 class IcebergCommitter implements Committer<IcebergCommittable> {
@@ -139,7 +141,10 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
 
     IcebergCommittable last = commitRequestMap.lastEntry().getValue().getCommittable();
     long maxCommittedCheckpointId =
-        SinkUtil.getMaxCommittedCheckpointId(table, last.jobId(), last.operatorId(), branch);
+        FlinkCommitMarkers.maxCommittedCheckpointId(table, branch, last.jobId(), last.operatorId());
+    // Keeps a checkpoint found only in summaries beyond their expiry; usually a no-op.
+    FlinkCommitMarkers.recordCommittedCheckpoint(
+        table, branch, last.jobId(), last.operatorId(), maxCommittedCheckpointId);
     // Mark the already committed FilesCommittable(s) as finished
     commitRequestMap
         .headMap(maxCommittedCheckpointId, true)
@@ -235,7 +240,9 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     Preconditions.checkState(
         summary.deleteFilesCount() == 0, "Cannot overwrite partitions with delete files.");
     // Commit the overwrite transaction.
-    ReplacePartitions dynamicOverwrite = table.newReplacePartitions().scanManifestsWith(workerPool);
+    Transaction transaction = table.newTransaction();
+    ReplacePartitions dynamicOverwrite =
+        transaction.newReplacePartitions().scanManifestsWith(workerPool);
     for (WriteResult result : pendingResults.values()) {
       Preconditions.checkState(
           result.referencedDataFiles().length == 0, "Should have no referenced data files.");
@@ -244,7 +251,8 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     String description = "dynamic partition overwrite";
 
     logCommitSummary(summary, description);
-    commitOperation(dynamicOverwrite, description, newFlinkJobId, operatorId, checkpointId);
+    commitOperation(
+        transaction, dynamicOverwrite, description, newFlinkJobId, operatorId, checkpointId);
   }
 
   private void commitDeltaTxn(
@@ -255,7 +263,8 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     long checkpointId = pendingResults.lastKey();
     if (summary.deleteFilesCount() == 0) {
       // To be compatible with iceberg format V1.
-      AppendFiles appendFiles = table.newAppend().scanManifestsWith(workerPool);
+      Transaction transaction = table.newTransaction();
+      AppendFiles appendFiles = transaction.newAppend().scanManifestsWith(workerPool);
       for (WriteResult result : pendingResults.values()) {
         Preconditions.checkState(
             result.referencedDataFiles().length == 0,
@@ -265,7 +274,8 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
       String description = "append";
       logCommitSummary(summary, description);
       // fail all commits as really its only one
-      commitOperation(appendFiles, description, newFlinkJobId, operatorId, checkpointId);
+      commitOperation(
+          transaction, appendFiles, description, newFlinkJobId, operatorId, checkpointId);
     } else {
       // To be compatible with iceberg format V2.
       for (Map.Entry<Long, WriteResult> e : pendingResults.entrySet()) {
@@ -282,19 +292,21 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
         // being added in this commit. There is no way for data files added along with the delete
         // files to be concurrently removed, so there is no need to validate the files referenced by
         // the position delete files that are being committed.
-        RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
+        Transaction transaction = table.newTransaction();
+        RowDelta rowDelta = transaction.newRowDelta().scanManifestsWith(workerPool);
 
         Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
         Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
 
         String description = "rowDelta";
         logCommitSummary(summary, description);
-        commitOperation(rowDelta, description, newFlinkJobId, operatorId, e.getKey());
+        commitOperation(transaction, rowDelta, description, newFlinkJobId, operatorId, e.getKey());
       }
     }
   }
 
   private void commitOperation(
+      Transaction transaction,
       SnapshotUpdate<?> operation,
       String description,
       String newFlinkJobId,
@@ -304,13 +316,10 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     snapshotProperties.forEach(operation::set);
     // custom snapshot metadata properties will be overridden if they conflict with internal ones
     // used by the sink.
-    operation.set(SinkUtil.MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
-    operation.set(SinkUtil.FLINK_JOB_ID, newFlinkJobId);
-    operation.set(SinkUtil.OPERATOR_ID, operatorId);
-    operation.toBranch(branch);
-
     long startNano = System.nanoTime();
-    operation.commit(); // abort is automatically called if this fails.
+    // abort is automatically called if this fails.
+    FlinkCommitMarkers.commit(
+        transaction, operation, branch, newFlinkJobId, operatorId, checkpointId);
     long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
     LOG.info(
         "Committed {} to table: {}, branch: {}, checkpointId {} in {} ms",

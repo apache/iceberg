@@ -1128,6 +1128,169 @@ public class TestIcebergFilesCommitter extends TestBase {
     return manifests;
   }
 
+  /**
+   * Job A goes idle while job B keeps committing, and snapshot expiry removes A's snapshots. A
+   * restore from A's last snapshot, whose checkpoint A committed after taking it, must not commit
+   * it again.
+   */
+  @TestTemplate
+  public void testRestoreOfIdleWriterAfterExpiryDoesNotRecommit() throws Exception {
+    long timestamp = 0;
+    List<RowData> expectedRows = Lists.newArrayList();
+    OperatorSubtaskState savepoint = null;
+    JobID jobA = new JobID();
+    OperatorID operatorA;
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobA)) {
+      harness.setup();
+      harness.open();
+      operatorA = harness.getOperator().getOperatorID();
+      for (long checkpointId = 1; checkpointId <= 3; checkpointId++) {
+        savepoint = commitRow(harness, checkpointId, ++timestamp, "a", expectedRows);
+      }
+    }
+
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(new JobID())) {
+      harness.setup();
+      harness.open();
+      for (long checkpointId = 1; checkpointId <= 3; checkpointId++) {
+        commitRow(harness, checkpointId, ++timestamp, "b", expectedRows);
+      }
+    }
+
+    SinkTestUtil.expireAllButHeads(table);
+    assertSnapshotSize(1);
+
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(new JobID())) {
+      harness.getStreamConfig().setOperatorID(operatorA);
+      harness.setup();
+      harness.initializeState(savepoint);
+      harness.open();
+
+      assertSnapshotSize(1);
+      SimpleDataUtil.assertTableRows(table, expectedRows, branch);
+      assertMaxCommittedCheckpointId(jobA, operatorA, 3);
+    }
+  }
+
+  /**
+   * A restore whose marker exists only in the summaries, as written before table-property markers,
+   * resolves it and records it, so a later restore finds it after the summaries expired.
+   */
+  @TestTemplate
+  public void testRestoreRecordsASummaryOnlyMarker() throws Exception {
+    long timestamp = 0;
+    List<RowData> expectedRows = Lists.newArrayList();
+    OperatorSubtaskState savepoint;
+    JobID jobA = new JobID();
+    OperatorID operatorA;
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobA)) {
+      harness.setup();
+      harness.open();
+      operatorA = harness.getOperator().getOperatorID();
+      savepoint = commitRow(harness, 1, ++timestamp, "a", expectedRows);
+    }
+
+    FlinkCommitMarkers.removeMarkers(table, marker -> true);
+    table.refresh();
+    assertThat(FlinkCommitMarkers.markers(table)).isEmpty();
+
+    restore(savepoint, operatorA);
+    table.refresh();
+    assertThat(
+            FlinkCommitMarkers.durableCheckpointId(
+                table.properties(), branch, jobA.toString(), operatorA.toString()))
+        .isEqualTo(1);
+    assertSnapshotSize(1);
+
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(new JobID())) {
+      harness.setup();
+      harness.open();
+      commitRow(harness, 1, ++timestamp, "b", expectedRows);
+    }
+
+    SinkTestUtil.expireAllButHeads(table);
+    restore(savepoint, operatorA);
+
+    assertSnapshotSize(1);
+    SimpleDataUtil.assertTableRows(table, expectedRows, branch);
+  }
+
+  /**
+   * A writer whose commit is recorded only in the summaries is restored with an empty pending
+   * checkpoint, whose commit is suppressed. Its checkpoint is still recorded, so a restore of the
+   * committed checkpoint after expiry commits nothing.
+   */
+  @TestTemplate
+  public void testEmptyPendingCheckpointStillRecordsASummaryOnlyMarker() throws Exception {
+    table.updateProperties().set(MAX_CONTINUOUS_EMPTY_COMMITS, "10").commit();
+    long timestamp = 0;
+    List<RowData> expectedRows = Lists.newArrayList();
+    OperatorSubtaskState committed;
+    OperatorSubtaskState emptyPending;
+    JobID jobA = new JobID();
+    OperatorID operatorA;
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobA)) {
+      harness.setup();
+      harness.open();
+      operatorA = harness.getOperator().getOperatorID();
+      committed = commitRow(harness, 1, ++timestamp, "a", expectedRows);
+      emptyPending = harness.snapshot(2, ++timestamp);
+    }
+
+    FlinkCommitMarkers.removeMarkers(table, marker -> true);
+    restore(emptyPending, operatorA);
+
+    assertSnapshotSize(1);
+    assertMaxCommittedCheckpointId(jobA, operatorA, 1);
+
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(new JobID())) {
+      harness.setup();
+      harness.open();
+      commitRow(harness, 1, ++timestamp, "b", expectedRows);
+    }
+
+    SinkTestUtil.expireAllButHeads(table);
+    restore(committed, operatorA);
+
+    assertSnapshotSize(1);
+    SimpleDataUtil.assertTableRows(table, expectedRows, branch);
+  }
+
+  private void restore(OperatorSubtaskState savepoint, OperatorID operatorId) throws Exception {
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(new JobID())) {
+      harness.getStreamConfig().setOperatorID(operatorId);
+      harness.setup();
+      harness.initializeState(savepoint);
+      harness.open();
+    }
+  }
+
+  /** Commits one row as the given checkpoint, returning the snapshot taken before the commit. */
+  private OperatorSubtaskState commitRow(
+      OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness,
+      long checkpointId,
+      long timestamp,
+      String data,
+      List<RowData> expectedRows)
+      throws Exception {
+    RowData row = SimpleDataUtil.createRowData((int) checkpointId, data);
+    expectedRows.add(row);
+    harness.processElement(
+        of(checkpointId, writeDataFile(data + "-" + checkpointId, ImmutableList.of(row))),
+        timestamp);
+    OperatorSubtaskState snapshot = harness.snapshot(checkpointId, timestamp);
+    harness.notifyOfCompletedCheckpoint(checkpointId);
+    return snapshot;
+  }
+
   private DataFile writeDataFile(String filename, List<RowData> rows) throws IOException {
     return SimpleDataUtil.writeFile(
         table,
@@ -1154,11 +1317,8 @@ public class TestIcebergFilesCommitter extends TestBase {
   }
 
   private void assertMaxCommittedCheckpointId(JobID jobID, OperatorID operatorID, long expectedId) {
-    table.refresh();
-    long actualId =
-        SinkUtil.getMaxCommittedCheckpointId(
-            table, jobID.toString(), operatorID.toString(), branch);
-    assertThat(actualId).isEqualTo(expectedId);
+    SinkTestUtil.assertCommittedCheckpoint(
+        table, branch, jobID.toString(), operatorID.toString(), expectedId);
   }
 
   private void assertSnapshotSize(int expectedSnapshotSize) {
