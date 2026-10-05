@@ -770,7 +770,6 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     | On write   | Field id | Name                     | Type                                                  | Description |
     |------------|----------|--------------------------|-------------------------------------------------------|-------------|
     | _required_ | 134      | **`content_type`**       | `int` (0: DATA, 3: DATA_MANIFEST, 4: DELETE_MANIFEST) | Type of content stored in the entry. |
-    | _required_ | 157      | **`format_version`**     | `int` (0: PRE-V4, 4: V4)                              | Writer format version. |
     | _required_ | 147      | **`tracking`**           | `tracking` struct                                     | Tracking metadata like status, snapshot ID, and sequence number. See tracking struct below. |
     | _required_ | 100      | **`location`**           | `string`                                              | Location of the file. |
     | _required_ | 101      | **`file_format`**        | `string`                                              | String file format name: `avro`, `orc`, or `parquet` |
@@ -814,26 +813,26 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
 
     The `manifest_info` struct has the following fields:
 
-    | On write   | Field id | Name                       | Type     | Description |
-    |------------|----------|----------------------------|----------|-------------|
-    | _optional_ | 522      | **`dv`**                   | `binary` | Positions in the referenced leaf manifest that are not live. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
-    | _required_ | 504      | **`added_files_count`**    | `int`    | Count of entries with status ADDED in the manifest. |
-    | _required_ | 505      | **`existing_files_count`** | `int`    | Count of entries with status EXISTING in the manifest. |
-    | _required_ | 525      | **`modified_files_count`** | `int`    | Count of entries with status MODIFIED in the manifest. |
-    | _required_ | 506      | **`deleted_files_count`**  | `int`    | Count of entries with status DELETED in the manifest. |
-    | _required_ | 523      | **`replaced_files_count`** | `int`    | Count of entries with status REPLACED in the manifest. |
-    | _required_ | 512      | **`added_rows_count`**     | `long`   | Total number of rows in ADDED entries. |
-    | _required_ | 513      | **`existing_rows_count`**  | `long`   | Total number of rows in EXISTING entries. |
-    | _required_ | 526      | **`modified_rows_count`**  | `long`   | Total number of rows in MODIFIED entries. |
-    | _required_ | 514      | **`deleted_rows_count`**   | `long`   | Total number of rows in DELETED entries. |
-    | _required_ | 524      | **`replaced_rows_count`**  | `long`   | Total number of rows in REPLACED entries. |
-    | _required_ | 516      | **`min_sequence_number`**  | `long`   | Minimum data sequence number of all live entries in the manifest. |
+    | On write   | Field id | Name                       | Type                     | Description |
+    |------------|----------|----------------------------|--------------------------|-------------|
+    | _required_ | 521      | **`format_version`**       | `int` (0: PRE-V4, 4: V4) | Format version used to write the manifest. |
+    | _optional_ | 522      | **`dv`**                   | `binary`                 | Positions in the referenced leaf manifest that are not live. See [Manifest Deletion Vectors](#manifest-deletion-vectors). |
+    | _required_ | 504      | **`added_files_count`**    | `int`                    | Count of entries with status ADDED in the manifest. |
+    | _required_ | 505      | **`existing_files_count`** | `int`                    | Count of entries with status EXISTING in the manifest. |
+    | _required_ | 525      | **`modified_files_count`** | `int`                    | Count of entries with status MODIFIED in the manifest. |
+    | _required_ | 506      | **`deleted_files_count`**  | `int`                    | Count of entries with status DELETED in the manifest. |
+    | _required_ | 523      | **`replaced_files_count`** | `int`                    | Count of entries with status REPLACED in the manifest. |
+    | _required_ | 512      | **`added_rows_count`**     | `long`                   | Total number of rows in ADDED entries. |
+    | _required_ | 513      | **`existing_rows_count`**  | `long`                   | Total number of rows in EXISTING entries. |
+    | _required_ | 526      | **`modified_rows_count`**  | `long`                   | Total number of rows in MODIFIED entries. |
+    | _required_ | 514      | **`deleted_rows_count`**   | `long`                   | Total number of rows in DELETED entries. |
+    | _required_ | 524      | **`replaced_rows_count`**  | `long`                   | Total number of rows in REPLACED entries. |
+    | _required_ | 516      | **`min_sequence_number`**  | `long`                   | Minimum data sequence number of all live entries in the manifest. |
 
     The `column_file` struct has the following fields:
 
     | On write   | Field id | Name                     | Type             | Description |
     |------------|----------|--------------------------|------------------|-------------|
-    | _required_ | 161      | **`format_version`**     | `int` (4: V4)    | Format version of this column file. |
     | _required_ | 162      | **`field_ids`**          | `list<163: int>` | Live field IDs stored in this column file. |
     | _required_ | 164      | **`location`**           | `string`         | Location of the column file. |
     | _required_ | 165      | **`file_format`**        | `string`         | String file format name: `avro`, `orc`, or `parquet`. |
@@ -846,8 +845,8 @@ In v1-v3, manifest entries are described by the `manifest_entry` struct. In v4, 
     - A leaf manifest written in v4 may only contain data files.
     - Row-level deletes may only be written in v4 as deletion vectors in the data file's `deletion_vector`.
     - Delete files from pre-v4 tables are valid in upgraded tables and are tracked in delete manifests written before the upgrade.
-    - A root manifest may reference v1-v3 manifests; a referenced v1-v3 leaf manifest must have `format_version` PRE-V4.
-    - Other v4 tracked files must have `format_version` V4.
+    - A root manifest may reference v1-v3 manifests; a referenced v1-v3 leaf manifest must have `manifest_info.format_version` PRE-V4.
+    - A manifest written in v4 must have `manifest_info.format_version` V4.
     - `manifest_info` must be set if and only if the tracked file is a manifest.
     - For manifests, `manifest_info.added_files_count`, `existing_files_count`, `deleted_files_count`, `replaced_files_count`, and `modified_files_count` must sum to `record_count`.
     - `deletion_vector` may only be set if the tracked file is a data file.
