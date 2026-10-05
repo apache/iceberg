@@ -240,7 +240,7 @@ public class TestFlinkParquetReader extends DataTestBase {
     assertThat(testFile.delete()).isTrue();
 
     ParquetWriter<GenericRecord> writer =
-        AvroParquetWriter.<GenericRecord>builder(new Path(testFile.toURI()))
+        AvroParquetWriter.<GenericRecord>builder(new LocalOutputFile(testFile.toPath()))
             .withDataModel(GenericData.get())
             .withSchema(avroSchema)
             .config("parquet.avro.add-list-element-records", "true")
