@@ -19,7 +19,9 @@
 package org.apache.iceberg.data;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.ColumnFile;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
@@ -35,8 +37,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PartitionUtil;
 
 class GenericReader implements Serializable {
@@ -88,7 +91,7 @@ class GenericReader implements Serializable {
 
   private CloseableIterable<Record> openFile(FileScanTask task, Schema fileProjection) {
     DataFile file = task.file();
-    Map<String, InputFile> inputFiles = ImmutableMap.of(file.location(), io.newInputFile(file));
+    Map<String, InputFile> inputFiles = inputFiles(file);
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
@@ -104,6 +107,26 @@ class GenericReader implements Serializable {
         .caseSensitive(caseSensitive)
         .filter(task.residual())
         .build();
+  }
+
+  private Map<String, InputFile> inputFiles(DataFile file) {
+    Map<String, InputFile> inputFiles = Maps.newHashMap();
+    inputFiles.put(file.location(), io.newInputFile(file));
+
+    List<ColumnFile> columnFiles = file.columnFiles();
+    if (columnFiles != null) {
+      for (ColumnFile columnFile : columnFiles) {
+        Preconditions.checkArgument(
+            columnFile.keyMetadata() == null,
+            "Cannot read encrypted column file: %s",
+            columnFile.location());
+        inputFiles.put(
+            columnFile.location(),
+            io.newInputFile(columnFile.location(), columnFile.fileSizeInBytes()));
+      }
+    }
+
+    return inputFiles;
   }
 
   private class CombinedTaskIterable extends CloseableGroup implements CloseableIterable<Record> {
