@@ -44,12 +44,20 @@ public final class PositionDeleteTracker {
   }
 
   static final class PathOffset {
-    final CharSequence path;
-    final long rowOffset;
+    private final CharSequence path;
+    private final long rowOffset;
 
-    PathOffset(CharSequence path, long rowOffset) {
+    private PathOffset(CharSequence path, long rowOffset) {
       this.path = path;
       this.rowOffset = rowOffset;
+    }
+
+    CharSequence path() {
+      return path;
+    }
+
+    long rowOffset() {
+      return rowOffset;
     }
 
     static PathOffset of(CharSequence path, long rowOffset) {

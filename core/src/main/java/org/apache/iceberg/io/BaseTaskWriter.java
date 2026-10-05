@@ -277,7 +277,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
 
     private void writePosDelete(PositionDeleteTracker.PathOffset pathOffset) {
-      positionDelete.set(pathOffset.path, pathOffset.rowOffset);
+      positionDelete.set(pathOffset.path(), pathOffset.rowOffset());
       posDeleteWriter.write(positionDelete, spec, partitionKey);
     }
 
