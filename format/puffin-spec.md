@@ -27,6 +27,12 @@ Puffin file contains arbitrary pieces of information (here called "blobs"),
 along with metadata necessary to interpret them. The blobs supported by Iceberg
 are documented at [Blob types](#blob-types).
 
+## Format Versioning
+
+| Version | Status  | Adopted    | Vote                                                                     | Changes since adoption |
+|---------|---------|------------|--------------------------------------------------------------------------|------------------------|
+| 1       | Adopted | 2022-06-23 | [vote](https://lists.apache.org/thread/950rz31y3kr3kz0zzncwokvgzbrmmz4q) | -                      |
+
 ## Format specification
 
 A file conforming to the Puffin file format specification should have the structure

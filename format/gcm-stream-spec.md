@@ -20,6 +20,12 @@ title: "AES GCM Stream Spec"
 
 # AES GCM Stream file format extension
 
+## Format Versioning
+
+| Version | Status  | Adopted    | Vote | Changes since adoption |
+|---------|---------|------------|------|------------------------|
+| 1       | Adopted | 2022-11-27 | -    | -                      |
+
 ## Background and Motivation
 
 Iceberg supports a number of data file formats. Two of these formats (Parquet and ORC) have built-in encryption capabilities, that allow to protect sensitive information in the data files. However, besides the data files, Iceberg tables also have metadata files, that keep sensitive information too (e.g., min/max values in manifest files, or bloom filter bitsets in puffin files). Metadata file formats (AVRO, JSON, Puffin) don't have encryption support.
