@@ -95,5 +95,5 @@ public class SparkWriteOptions {
 
   // Uses the merge append instead of fast append for streaming appends
   public static final String USE_MERGE_APPEND_FOR_STREAMING = "use-merge-append-for-streaming";
-  public static final boolean USE_MERGE_APPEND_FOR_STREAMING_DEFAULT = false;
+  public static final boolean USE_MERGE_APPEND_FOR_STREAMING_DEFAULT = true;
 }
