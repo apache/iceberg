@@ -27,6 +27,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 public final class HiveSchemaUtil {
@@ -176,18 +177,28 @@ public final class HiveSchemaUtil {
         final Types.StructType structType = type.asStructType();
         final String nameToType =
             structType.fields().stream()
-                .map(f -> String.format("%s:%s", f.name(), convert(f.type())))
+                .map(f -> String.format("%s:%s", f.name(), nestedTypeString(f.type())))
                 .collect(Collectors.joining(","));
         return String.format("struct<%s>", nameToType);
       case LIST:
         final Types.ListType listType = type.asListType();
-        return String.format("array<%s>", convert(listType.elementType()));
+        return String.format("array<%s>", nestedTypeString(listType.elementType()));
       case MAP:
         final Types.MapType mapType = type.asMapType();
         return String.format(
-            "map<%s,%s>", convert(mapType.keyType()), convert(mapType.valueType()));
+            "map<%s,%s>",
+            nestedTypeString(mapType.keyType()), nestedTypeString(mapType.valueType()));
       default:
         throw new UnsupportedOperationException(type + " is not supported");
     }
+  }
+
+  private static String nestedTypeString(Type type) {
+    if (TypeUtil.find(type, Type::isVariantType) != null) {
+      return convertToTypeString(type);
+    }
+
+    // stored column types include what this round trip adds, like the Hive 3 zone on timestamptz
+    return convert(type).toString();
   }
 }
