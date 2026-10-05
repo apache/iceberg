@@ -215,14 +215,15 @@ An extract must index exactly the live rows of the referenced table snapshot.
 The referenced snapshot must have a `schema-id`. The schema it identifies is the **source schema** of the extract, the
 schema that index fields resolve source table fields against.
 
-| Requirement | Field name                 | Type                  | Description                                                                  |
-|-------------|----------------------------|-----------------------|------------------------------------------------------------------------------|
-| _required_  | `extract-id`               | `long`                | Extract identifier                                                           |
-| _required_  | `source-table-snapshot-id` | `long`                | Source table snapshot                                                        |
-| _required_  | `timestamp-ms`             | `long`                | Timestamp when the extract was created (ms from epoch)                       |
-| _required_  | `tracking-file`            | `string`              | Location of the tracking file                                                |
-| _optional_  | `properties`               | `map<string, string>` | Extract properties specific to this extract                                  |
-| _optional_  | `key-id`                   | `string`              | ID of the encryption key that holds the tracking file key metadata           |
+| Requirement | Field name                    | Type                  | Description                                                        |
+|-------------|-------------------------------|-----------------------|--------------------------------------------------------------------|
+| _required_  | `extract-id`                  | `long`                | Extract identifier                                                 |
+| _required_  | `source-table-snapshot-id`    | `long`                | Source table snapshot                                              |
+| _required_  | `timestamp-ms`                | `long`                | Timestamp when the extract was created (ms from epoch)             |
+| _required_  | `tracking-file`               | `string`              | Location of the tracking file                                      |
+| _required_  | `tracking-file-size-in-bytes` | `long`                | Total size of the tracking file in bytes                           |
+| _optional_  | `properties`                  | `map<string, string>` | Extract properties specific to this extract                        |
+| _optional_  | `key-id`                      | `string`              | ID of the encryption key that holds the tracking file key metadata |
 
 Each `extract-id` must be unique within the `extracts` list. Engines locate index data by matching
 `source-table-snapshot-id`. More than one extract may reference the same source table snapshot, and an engine may
@@ -594,7 +595,8 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
     "extract-id" : 8744736658442914487,
     "source-table-snapshot-id" : 3055729675574597004,
     "timestamp-ms" : 1573518431292,
-    "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00001-(uuid).parquet"
+    "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00001-(uuid).parquet",
+    "tracking-file-size-in-bytes" : 4382
   } ]
 }
 ```
@@ -676,12 +678,14 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid)
     "extract-id" : 8744736658442914487,
     "source-table-snapshot-id" : 3055729675574597004,
     "timestamp-ms" : 1573518431292,
-    "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00001-(uuid).parquet"
+    "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00001-(uuid).parquet",
+    "tracking-file-size-in-bytes" : 4382
   }, {
     "extract-id" : 6574117201097113750,
     "source-table-snapshot-id" : 5459876531255530170,
     "timestamp-ms" : 1573518981593,
-    "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00002-(uuid).parquet"
+    "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00002-(uuid).parquet",
+    "tracking-file-size-in-bytes" : 4417
   } ],
   "metadata-log" : [ {
     "metadata-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid).metadata.json",
@@ -735,7 +739,8 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00003-(uuid)
     "extract-id" : 6574117201097113750,
     "source-table-snapshot-id" : 5459876531255530170,
     "timestamp-ms" : 1573518981593,
-    "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00002-(uuid).parquet"
+    "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00002-(uuid).parquet",
+    "tracking-file-size-in-bytes" : 4417
   } ],
   "metadata-log" : [ {
     "metadata-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid).metadata.json",
