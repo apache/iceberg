@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.data;
 
+import java.util.function.Function;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -25,13 +26,21 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 
 public class GenericDeleteFilter extends DeleteFilter<Record> {
-  private final FileIO io;
+  private final Function<String, InputFile> inputFiles;
   private final InternalRecordWrapper asStructLike;
 
   public GenericDeleteFilter(
       FileIO io, FileScanTask task, Schema tableSchema, Schema requestedSchema) {
+    this(io::newInputFile, task, tableSchema, requestedSchema);
+  }
+
+  GenericDeleteFilter(
+      Function<String, InputFile> inputFiles,
+      FileScanTask task,
+      Schema tableSchema,
+      Schema requestedSchema) {
     super(task.file().location(), task.deletes(), tableSchema, requestedSchema);
-    this.io = io;
+    this.inputFiles = inputFiles;
     this.asStructLike = new InternalRecordWrapper(requiredSchema().asStruct());
   }
 
@@ -47,6 +56,6 @@ public class GenericDeleteFilter extends DeleteFilter<Record> {
 
   @Override
   protected InputFile getInputFile(String location) {
-    return io.newInputFile(location);
+    return inputFiles.apply(location);
   }
 }
