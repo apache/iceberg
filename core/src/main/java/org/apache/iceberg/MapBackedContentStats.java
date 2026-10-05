@@ -19,11 +19,9 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -180,19 +178,7 @@ class MapBackedContentStats implements ContentStats {
         return null;
       }
 
-      ByteBuffer buffer = bounds.get(fieldId);
-      if (columnType.typeId() == Type.TypeID.GEOMETRY
-          || columnType.typeId() == Type.TypeID.GEOGRAPHY) {
-        // File-map geometry and geography bounds are single-point encoded.
-        if (buffer == null) {
-          return null;
-        }
-
-        ByteBuffer tmp = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN);
-        return (T) GeospatialBound.fromByteBuffer(tmp);
-      }
-
-      return (T) Conversions.fromByteBuffer(boundType, buffer);
+      return (T) Conversions.fromByteBuffer(columnType, bounds.get(fieldId));
     }
 
     @Override
