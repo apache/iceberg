@@ -26,13 +26,13 @@ changes are tracked here rather than in the release notes of the Java or any
 other implementation.
 
 This page records changes to the specifications under the `format` directory.
-Changes to the REST catalog specification are not covered here.
+Changes to the REST catalog spec are not covered here.
 
 ## What is recorded
 
 A specification version is listed once it is adopted, with a summary of its main
-changes. The full set of changes in each table specification version is
-described in [Appendix E](spec.md#appendix-e-format-version-changes).
+changes. The full set of changes in each table spec version is described in
+[Appendix E](spec.md#appendix-e-format-version-changes).
 
 After a version is adopted, every change to it is recorded here. A change is
 listed under the most recent version it affects. Many changes also apply to
@@ -42,7 +42,7 @@ document; such changes are not repeated under each version.
 Each entry links the vote that adopted the change. Changes that do not require a
 vote, such as grammar, spelling and minor formatting fixes, are not recorded.
 
-## Table specification
+## Table spec
 
 ### Version 4
 
@@ -108,27 +108,27 @@ vote to link for the version itself.
 No changes recorded. Clarifications that also apply to v1 are listed under the
 most recent version they affect.
 
-## View specification
+## View spec
 
 Adopted on 2022-04-03 in [#3188](https://github.com/apache/iceberg/pull/3188),
 before specification changes were voted on.
 
 No changes recorded.
 
-## Puffin specification
+## Puffin spec
 
 Adopted on 2022-06-23 ([vote](https://lists.apache.org/thread/950rz31y3kr3kz0zzncwokvgzbrmmz4q)).
 
 No changes recorded.
 
-## AES GCM stream specification
+## AES GCM stream spec
 
 Adopted on 2022-11-27 in [#5432](https://github.com/apache/iceberg/pull/5432),
 before specification changes were voted on.
 
 No changes recorded.
 
-## SQL UDF specification
+## SQL UDF spec
 
 Adopted on 2026-02-05 ([vote](https://lists.apache.org/thread/whbgoc325o99vm4b599f0g1owhgww2kx)).
 
@@ -138,13 +138,13 @@ Changes since adoption:
 | ---------- | ------------------------------------------------------- | ------- | ---- |
 | 2026-07-01 | Add optional `specific-name` to the UDF definition model | [#16727](https://github.com/apache/iceberg/pull/16727) | [vote](https://lists.apache.org/thread/75xs4trcgcpog8b2zoxpknf8bq6vfk4c) |
 
-## Expressions specification
+## Expressions spec
 
 Adopted on 2026-06-30 ([vote](https://lists.apache.org/thread/6wfmjhgthlykwbk3f7df4zgcm40xtm2o)).
 
 No changes recorded.
 
-## Mumbling bitmap specification
+## Mumbling bitmap spec
 
 A draft added on 2026-06-09 ([vote](https://lists.apache.org/thread/59bn4jty8jmtbks8td8zfqodkcpro1hw)).
 The specification has not been adopted, so its changes are not recorded here.
