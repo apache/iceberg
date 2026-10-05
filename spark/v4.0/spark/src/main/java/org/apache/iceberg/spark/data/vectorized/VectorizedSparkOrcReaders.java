@@ -156,7 +156,7 @@ public class VectorizedSparkOrcReaders {
           break;
         case BINARY:
           primitiveValueReader =
-              Type.TypeID.UUID == iPrimitive.typeId()
+              iPrimitive != null && Type.TypeID.UUID == iPrimitive.typeId()
                   ? SparkOrcValueReaders.uuids()
                   : OrcValueReaders.bytes();
           break;

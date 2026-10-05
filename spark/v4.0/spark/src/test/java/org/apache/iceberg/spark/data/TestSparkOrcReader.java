@@ -30,6 +30,8 @@ import java.util.Iterator;
 import java.util.List;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.orc.ORC;
@@ -42,6 +44,11 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
 
 public class TestSparkOrcReader extends AvroDataTestBase {
+  private static final Schema VARIANT_SCHEMA =
+      new Schema(
+          required(100, "id", Types.LongType.get()),
+          required(101, "payload", Types.VariantType.get()));
+
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     final Iterable<InternalRow> expected = RandomData.generateSpark(schema, 100, 0L);
@@ -123,5 +130,52 @@ public class TestSparkOrcReader extends AvroDataTestBase {
     assertThatThrownBy(super::testUnknownMapType)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot create MapType with unknown value type");
+  }
+
+  @Test
+  public void variantIsNotSupported() throws IOException {
+    File testFile = writeVariantOrcFile();
+
+    try (CloseableIterable<InternalRow> reader =
+        ORC.read(Files.localInput(testFile))
+            .project(VARIANT_SCHEMA)
+            .createReaderFunc(readOrcSchema -> new SparkOrcReader(VARIANT_SCHEMA, readOrcSchema))
+            .build()) {
+      assertThatThrownBy(reader::iterator)
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage("Variant is not supported");
+    }
+  }
+
+  @Test
+  public void variantIsNotSupportedWhenVectorized() throws IOException {
+    File testFile = writeVariantOrcFile();
+
+    try (CloseableIterable<ColumnarBatch> reader =
+        ORC.read(Files.localInput(testFile))
+            .project(VARIANT_SCHEMA)
+            .createBatchedReaderFunc(
+                readOrcSchema ->
+                    VectorizedSparkOrcReaders.buildReader(
+                        VARIANT_SCHEMA, readOrcSchema, ImmutableMap.of()))
+            .build()) {
+      assertThatThrownBy(reader::iterator)
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessage("Variant is not supported");
+    }
+  }
+
+  private File writeVariantOrcFile() throws IOException {
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+
+    FileAppender<Record> writer =
+        ORC.write(Files.localOutput(testFile))
+            .createWriterFunc(GenericOrcWriter::buildWriter)
+            .schema(VARIANT_SCHEMA)
+            .build();
+    writer.close();
+
+    return testFile;
   }
 }
