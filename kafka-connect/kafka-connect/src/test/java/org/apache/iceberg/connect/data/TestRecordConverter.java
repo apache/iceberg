@@ -1418,6 +1418,23 @@ public class TestRecordConverter {
   }
 
   @Test
+  public void testConvertVariantValueOrdersFieldNamesByUtf8() {
+    // U+FFFF is 3 UTF-8 bytes (EF BF BF), U+10000 is 4 (F0 90 80 80); UTF-16 orders them oppositely
+    String threeByteName = new String(Character.toChars(0xFFFF));
+    String fourByteName = new String(Character.toChars(0x10000));
+    Map<String, Object> input = Maps.newLinkedHashMap();
+    input.put(fourByteName, 2);
+    input.put(threeByteName, 1);
+
+    Variant variant = variantConverter().convertVariantValue(input);
+
+    assertThat(variant.metadata().get(0)).isEqualTo(threeByteName);
+    assertThat(variant.metadata().get(1)).isEqualTo(fourByteName);
+    assertThat(variant.value().asObject().get(threeByteName).asPrimitive().get()).isEqualTo(1);
+    assertThat(variant.value().asObject().get(fourByteName).asPrimitive().get()).isEqualTo(2);
+  }
+
+  @Test
   public void testConvertVariantValueFromPrimitiveString() {
     Variant variant = variantConverter().convertVariantValue("hello");
     assertThat(variant).isNotNull();

@@ -21,7 +21,7 @@ package org.apache.iceberg.variants;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.function.Function;
+import java.util.function.IntFunction;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -99,19 +99,33 @@ class VariantUtil {
     }
   }
 
-  static <T extends Comparable<T>> int find(int size, T key, Function<Integer, T> resolve) {
-    int low = 0;
-    int high = size - 1;
-    while (low <= high) {
-      int mid = (low + high) >>> 1;
-      T value = resolve.apply(mid);
-      int cmp = key.compareTo(value);
-      if (cmp == 0) {
-        return mid;
-      } else if (cmp < 0) {
-        high = mid - 1;
-      } else {
-        low = mid + 1;
+  static int find(int size, String key, IntFunction<String> resolve) {
+    // retry supplementary-plane keys in UTF-16 order to find fields written in the legacy layout
+    int attempts = 1;
+    for (int i = 0; i < key.length(); i += 1) {
+      if (key.charAt(i) >= Character.MIN_SURROGATE) {
+        attempts = 2;
+        break;
+      }
+    }
+
+    for (int attempt = 0; attempt < attempts; attempt += 1) {
+      int low = 0;
+      int high = size - 1;
+      while (low <= high) {
+        int mid = (low + high) >>> 1;
+        String value = resolve.apply(mid);
+        int cmp =
+            attempt == 0
+                ? VariantMetadata.FIELD_NAME_ORDER.compare(key, value)
+                : key.compareTo(value);
+        if (cmp == 0) {
+          return mid;
+        } else if (cmp < 0) {
+          high = mid - 1;
+        } else {
+          low = mid + 1;
+        }
       }
     }
 

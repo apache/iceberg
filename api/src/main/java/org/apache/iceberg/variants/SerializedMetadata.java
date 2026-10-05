@@ -112,6 +112,7 @@ class SerializedMetadata implements VariantMetadata, Serialized, Serializable {
   public int id(String name) {
     if (name != null) {
       if (isSorted) {
+        // find retries in UTF-16 order so dictionaries written before the UTF-8 fix still resolve
         return VariantUtil.find(dict.length, name, this::get);
       } else {
         for (int id = 0; id < dict.length; id += 1) {
