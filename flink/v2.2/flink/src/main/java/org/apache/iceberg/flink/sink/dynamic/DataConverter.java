@@ -80,6 +80,7 @@ interface DataConverter {
       case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
       case BINARY:
       case VARBINARY:
+      case VARIANT:
         return object -> object;
       case DOUBLE:
         return object -> {
