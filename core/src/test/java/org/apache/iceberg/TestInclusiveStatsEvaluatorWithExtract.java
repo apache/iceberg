@@ -70,6 +70,15 @@ class TestInclusiveStatsEvaluatorWithExtract
   }
 
   @Override
+  protected TrackedFile fileWithNonNullVariantBounds(String path, VariantValue value) {
+    Variant bounds = VariantTestUtil.variant(Map.of(path, value));
+    return trackedFile(
+        "file.parquet",
+        2,
+        contentStats(STATS_TYPE, fieldStats(STATS_TYPE, 2, bounds, bounds, 2L, 0L, null)));
+  }
+
+  @Override
   protected TrackedFile fileWithVariantBounds(String path, VariantValue lower, VariantValue upper) {
     return trackedFile(
         "file.parquet",

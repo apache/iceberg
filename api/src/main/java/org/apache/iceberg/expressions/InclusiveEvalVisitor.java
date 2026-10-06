@@ -391,7 +391,7 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
   public <T> Boolean notStartsWith(Bound<T> term, Literal<T> lit) {
     // the only transforms that produce strings are truncate and identity, which work with this
     int id = term.ref().fieldId();
-    if (mayContainNull(id)) {
+    if (!isNonNullPreserving(term) || mayContainNull(id)) {
       return ROWS_MIGHT_MATCH;
     }
 
@@ -436,7 +436,7 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
    */
   private <T> T uniqueValue(Bound<T> term) {
     int id = term.ref().fieldId();
-    if (mayContainNull(id)) {
+    if (!isNonNullPreserving(term) || mayContainNull(id)) {
       return null;
     }
 
