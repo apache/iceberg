@@ -319,7 +319,12 @@ public class ExpressionParser {
 
       Matcher matcher = HAS_WIDTH.matcher(transformStr);
       boolean parameterized = matcher.matches();
-      gen.writeStringField(FUNCTION, parameterized ? matcher.group(1) : transformStr);
+      String name = parameterized ? matcher.group(1) : transformStr;
+      if (TRANSFORMS.containsKey(name) || PARAMETERIZED_TRANSFORMS.containsKey(name)) {
+        writeFunctionRef(Expressions.function(ICEBERG_FUNCTIONS, ImmutableList.of(name)));
+      } else {
+        gen.writeStringField(FUNCTION, name);
+      }
 
       gen.writeArrayFieldStart(ARGUMENTS);
       if (parameterized) {
@@ -578,7 +583,7 @@ public class ExpressionParser {
    * catalog, other than {@code void}.
    */
   private static boolean isIcebergFunction(FunctionReference function) {
-    return function.catalog() == null || function.catalog().equalsIgnoreCase(ICEBERG_FUNCTIONS);
+    return ICEBERG_FUNCTIONS.equalsIgnoreCase(function.catalog());
   }
 
   /**

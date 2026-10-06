@@ -174,7 +174,10 @@ public class TestExpressionParser {
             + "  \"type\" : \"lt-eq\",\n"
             + "  \"left\" : {\n"
             + "    \"type\" : \"apply\",\n"
-            + "    \"function\" : \"bucket\",\n"
+            + "    \"function\" : {\n"
+            + "      \"catalog\" : \"iceberg_functions\",\n"
+            + "      \"identifier\" : [ \"bucket\" ]\n"
+            + "    },\n"
             + "    \"arguments\" : [ 100, {\n"
             + "      \"type\" : \"reference\",\n"
             + "      \"name\" : \"id\"\n"
@@ -706,7 +709,7 @@ public class TestExpressionParser {
   }
 
   @Test
-  public void applySimpleFunctionName() {
+  public void applyWithoutCatalogIsNotATransform() {
     // Apply with simple string function name
     String json =
         "{\n"
@@ -722,14 +725,13 @@ public class TestExpressionParser {
             + "  \"right\" : 50\n"
             + "}";
 
-    Expression parsed = ExpressionParser.fromJson(json, SCHEMA);
-    assertThat(
-            ExpressionUtil.equivalent(
-                parsed,
-                Expressions.lessThanOrEqual(Expressions.year("ts"), 50),
-                SUPPORTED_PRIMITIVES,
-                true))
-        .isTrue();
+    Expression parsed = ExpressionParser.fromJson(json);
+    assertThat(parsed).isInstanceOf(UnboundPredicate.class);
+    UnboundTerm<?> term = ((UnboundPredicate<?>) parsed).term();
+    assertThat(term).isInstanceOf(UnboundApply.class);
+    FunctionReference function = ((UnboundApply<?>) term).function();
+    assertThat(function.catalog()).isNull();
+    assertThat(function.identifier()).containsExactly("year");
   }
 
   @Test
@@ -1003,46 +1005,48 @@ public class TestExpressionParser {
   @Test
   public void transformRejectsReversedArguments() {
     String json =
-        "{\"type\":\"is-null\",\"child\":{\"type\":\"apply\",\"function\":\"bucket\","
+        "{\"type\":\"is-null\",\"child\":{\"type\":\"apply\",\"function\":{\"catalog\":\"iceberg_functions\",\"identifier\":[\"bucket\"]},"
             + "\"arguments\":[{\"type\":\"reference\",\"name\":\"id\"},16]}}";
     assertThatThrownBy(() -> ExpressionParser.fromJson(json))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot convert bucket to a transform: first argument must be an int, "
+            "Cannot convert iceberg_functions.bucket to a transform: first argument must be an int, "
                 + "got ref(name=\"id\")");
   }
 
   @Test
   public void transformRejectsNestedTransform() {
     String json =
-        "{\"type\":\"is-null\",\"child\":{\"type\":\"apply\",\"function\":\"bucket\","
-            + "\"arguments\":[16,{\"type\":\"apply\",\"function\":\"year\","
+        "{\"type\":\"is-null\",\"child\":{\"type\":\"apply\",\"function\":{\"catalog\":\"iceberg_functions\",\"identifier\":[\"bucket\"]},"
+            + "\"arguments\":[16,{\"type\":\"apply\",\"function\":{\"catalog\":\"iceberg_functions\",\"identifier\":[\"year\"]},"
             + "\"arguments\":[{\"type\":\"reference\",\"name\":\"ts\"}]}]}}";
     assertThatThrownBy(() -> ExpressionParser.fromJson(json))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith(
-            "Cannot convert bucket to a transform: last argument must be a reference");
+            "Cannot convert iceberg_functions.bucket to a transform: last argument must be a reference");
   }
 
   @Test
   public void transformRejectsExtraArguments() {
     String json =
-        "{\"type\":\"is-null\",\"child\":{\"type\":\"apply\",\"function\":\"bucket\","
+        "{\"type\":\"is-null\",\"child\":{\"type\":\"apply\",\"function\":{\"catalog\":\"iceberg_functions\",\"identifier\":[\"bucket\"]},"
             + "\"arguments\":[16,{\"type\":\"reference\",\"name\":\"id\"},"
             + "{\"type\":\"reference\",\"name\":\"data\"}]}}";
     assertThatThrownBy(() -> ExpressionParser.fromJson(json))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot convert bucket to a transform: expected 2 argument(s), got 3");
+        .hasMessage(
+            "Cannot convert iceberg_functions.bucket to a transform: expected 2 argument(s), got 3");
   }
 
   @Test
   public void transformRejectsMissingArguments() {
     String json =
-        "{\"type\":\"is-null\",\"child\":{\"type\":\"apply\",\"function\":\"year\","
+        "{\"type\":\"is-null\",\"child\":{\"type\":\"apply\",\"function\":{\"catalog\":\"iceberg_functions\",\"identifier\":[\"year\"]},"
             + "\"arguments\":[]}}";
     assertThatThrownBy(() -> ExpressionParser.fromJson(json))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot convert year to a transform: expected 1 argument(s), got 0");
+        .hasMessage(
+            "Cannot convert iceberg_functions.year to a transform: expected 1 argument(s), got 0");
   }
 
   @Test
@@ -1079,14 +1083,14 @@ public class TestExpressionParser {
   public void transformRejectsNonIntParameter() {
     for (String parameter : ImmutableList.of("16.7", "4294967312")) {
       String json =
-          "{\"type\":\"is-null\",\"child\":{\"type\":\"apply\",\"function\":\"bucket\","
+          "{\"type\":\"is-null\",\"child\":{\"type\":\"apply\",\"function\":{\"catalog\":\"iceberg_functions\",\"identifier\":[\"bucket\"]},"
               + "\"arguments\":["
               + parameter
               + ",{\"type\":\"reference\",\"name\":\"id\"}]}}";
       assertThatThrownBy(() -> ExpressionParser.fromJson(json))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessage(
-              "Cannot convert bucket to a transform: first argument must be an int, got "
+              "Cannot convert iceberg_functions.bucket to a transform: first argument must be an int, got "
                   + parameter);
     }
   }
@@ -1135,7 +1139,7 @@ public class TestExpressionParser {
   @Test
   public void transformRejectsInvalidParameter() {
     String json =
-        "{\"type\":\"is-null\",\"child\":{\"type\":\"apply\",\"function\":\"bucket\","
+        "{\"type\":\"is-null\",\"child\":{\"type\":\"apply\",\"function\":{\"catalog\":\"iceberg_functions\",\"identifier\":[\"bucket\"]},"
             + "\"arguments\":[-1,{\"type\":\"reference\",\"name\":\"id\"}]}}";
     assertThatThrownBy(() -> ExpressionParser.fromJson(json))
         .isInstanceOf(IllegalArgumentException.class)
