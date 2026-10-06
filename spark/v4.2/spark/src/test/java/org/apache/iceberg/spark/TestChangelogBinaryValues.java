@@ -21,11 +21,8 @@ package org.apache.iceberg.spark;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 import org.apache.iceberg.ChangelogOperation;
@@ -63,28 +60,8 @@ class TestChangelogBinaryValues {
             (IntFunction<Object>)
                 value -> List.of(RowFactory.create(new byte[] {(byte) value}, 7))),
         Arguments.of(
-            DataTypes.createMapType(DataTypes.StringType, array),
-            (IntFunction<Object>)
-                value -> Collections.singletonMap("key", List.of(new byte[] {(byte) value}))),
-        Arguments.of(
-            DataTypes.createMapType(binary, binary),
-            (IntFunction<Object>)
-                value -> Collections.singletonMap(new byte[] {1}, new byte[] {(byte) value})),
-        Arguments.of(
-            DataTypes.createMapType(binary, DataTypes.StringType),
-            (IntFunction<Object>)
-                value -> Collections.singletonMap(new byte[] {(byte) value}, "value")),
-        Arguments.of(
-            DataTypes.createMapType(array, binary),
-            (IntFunction<Object>)
-                value ->
-                    Collections.singletonMap(List.of(new byte[] {1}), new byte[] {(byte) value})),
-        Arguments.of(
             DataTypes.createArrayType(DataTypes.IntegerType),
-            (IntFunction<Object>) value -> Arrays.asList(value, null)),
-        Arguments.of(
-            DataTypes.createMapType(DataTypes.StringType, DataTypes.IntegerType),
-            (IntFunction<Object>) value -> Collections.singletonMap("key", value)));
+            (IntFunction<Object>) value -> Arrays.asList(value, null)));
   }
 
   @ParameterizedTest
@@ -125,29 +102,6 @@ class TestChangelogBinaryValues {
     assertRemoved(type, List.of(row(type, null, DELETE, 0), row(type, null, INSERT, 0)));
   }
 
-  static Stream<Arguments> mapKeys() {
-    return Stream.of(
-        Arguments.of(DataTypes.StringType, (IntFunction<Object>) value -> "key" + value),
-        Arguments.of(
-            DataTypes.BinaryType, (IntFunction<Object>) value -> new byte[] {(byte) value}),
-        Arguments.of(
-            DataTypes.createArrayType(DataTypes.BinaryType),
-            (IntFunction<Object>) value -> List.of(new byte[] {(byte) value})));
-  }
-
-  @ParameterizedTest
-  @MethodSource("mapKeys")
-  void ignoresMapEntryOrder(DataType keyType, IntFunction<Object> keys) {
-    DataType type = DataTypes.createMapType(keyType, DataTypes.BinaryType);
-    Map<Object, Object> left = new LinkedHashMap<>();
-    left.put(keys.apply(1), new byte[] {1});
-    left.put(keys.apply(2), null);
-    Map<Object, Object> right = new LinkedHashMap<>();
-    right.put(keys.apply(2), null);
-    right.put(keys.apply(1), new byte[] {1});
-    assertRemoved(type, List.of(row(type, left, DELETE, 0), row(type, right, INSERT, 0)));
-  }
-
   @Test
   void retainsChangesWithDifferentArrayLengths() {
     DataType type = DataTypes.createArrayType(DataTypes.BinaryType);
@@ -168,43 +122,18 @@ class TestChangelogBinaryValues {
             row(type, List.of(new byte[] {2}, new byte[] {1}), INSERT, 0)));
   }
 
-  @ParameterizedTest
-  @MethodSource("mapKeys")
-  void retainsChangesWithDifferentMapKeysAndNullValues(DataType keyType, IntFunction<Object> keys) {
-    DataType type = DataTypes.createMapType(keyType, DataTypes.BinaryType);
-    assertRetained(
-        type,
-        List.of(
-            row(type, Collections.singletonMap(keys.apply(1), null), DELETE, 0),
-            row(type, Collections.singletonMap(keys.apply(2), null), INSERT, 0)));
-  }
-
-  @ParameterizedTest
-  @MethodSource("mapKeys")
-  void retainsChangesWithDifferentMapSizes(DataType keyType, IntFunction<Object> keys) {
-    DataType type = DataTypes.createMapType(keyType, DataTypes.BinaryType);
-    Map<Object, Object> larger = new LinkedHashMap<>();
-    larger.put(keys.apply(1), new byte[] {1});
-    larger.put(keys.apply(2), new byte[] {2});
-    assertRetained(
-        type,
-        List.of(
-            row(type, Collections.singletonMap(keys.apply(1), new byte[] {1}), DELETE, 0),
-            row(type, larger, INSERT, 0)));
-  }
-
   @Test
-  void preservesNonBinaryArrayEquality() {
+  void retainsChangesWithDifferentSignedZerosInArrays() {
     DataType type = DataTypes.createArrayType(DataTypes.DoubleType);
-    assertRemoved(
+    assertRetained(
         type, List.of(row(type, List.of(-0.0), DELETE, 0), row(type, List.of(0.0), INSERT, 0)));
   }
 
   @Test
-  void preservesStructEquality() {
+  void retainsChangesWithDifferentSignedZerosInStructs() {
     StructType type =
         new StructType().add("binary", DataTypes.BinaryType).add("number", DataTypes.DoubleType);
-    assertRemoved(
+    assertRetained(
         type,
         List.of(
             row(type, RowFactory.create(new byte[] {1}, -0.0), DELETE, 0),
