@@ -29,12 +29,13 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
-class TestStandardEncryptionManager {
+class TestStandardEncryptionManagerKeyGeneration {
 
   private static final String MASTER_KEY = UnitestKMS.MASTER_KEY_NAME1;
 
   @Test
-  void kekWrappedByDefault() {
+  @SuppressWarnings("deprecation")
+  void keyWrappedWithDeprecatedConstructor() {
     TrackingKMS kms = new TrackingKMS(true);
     StandardEncryptionManager manager =
         new StandardEncryptionManager(List.of(), MASTER_KEY, 16, kms);
@@ -46,7 +47,7 @@ class TestStandardEncryptionManager {
   }
 
   @Test
-  void kekWrappedWhenGenerationDisabled() {
+  void keyWrappedWhenGenerationDisabled() {
     TrackingKMS kms = new TrackingKMS(true);
     StandardEncryptionManager manager =
         new StandardEncryptionManager(List.of(), MASTER_KEY, 16, kms, false);
@@ -58,7 +59,7 @@ class TestStandardEncryptionManager {
   }
 
   @Test
-  void kekGeneratedWhenEnabledAndSupported() {
+  void keyGeneratedInKmsWhenEnabled() {
     TrackingKMS kms = new TrackingKMS(true);
     StandardEncryptionManager manager =
         new StandardEncryptionManager(List.of(), MASTER_KEY, 16, kms, true);
@@ -75,25 +76,47 @@ class TestStandardEncryptionManager {
   }
 
   @Test
-  void kekWrappedWhenEnabledButClientDoesNotSupportGeneration() {
+  void failsWhenEnabledButClientDoesNotSupportGeneration() {
     TrackingKMS kms = new TrackingKMS(false);
     StandardEncryptionManager manager =
         new StandardEncryptionManager(List.of(), MASTER_KEY, 16, kms, true);
 
-    manager.keyEncryptionKeyID();
+    assertThatThrownBy(manager::keyEncryptionKeyID)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot generate key encryption key in KMS: encryption.kms-key-generation-enabled "
+                + "is enabled, but "
+                + kms.getClass().getName()
+                + " does not support key generation");
 
-    assertThat(kms.wrapCalls).isEqualTo(1);
+    assertThat(kms.wrapCalls).isEqualTo(0);
     assertThat(kms.generateCalls).isEqualTo(0);
   }
 
   @Test
-  void tablePropertyEnablesKekGeneration() {
+  void existingKeyReusedAfterTogglingProperty() {
+    TrackingKMS kms = new TrackingKMS(true);
+    StandardEncryptionManager enabled =
+        new StandardEncryptionManager(List.of(), MASTER_KEY, 16, kms, true);
+    String keyId = enabled.keyEncryptionKeyID();
+    List<EncryptedKey> keys = List.copyOf(enabled.encryptionKeys().values());
+
+    StandardEncryptionManager disabled =
+        new StandardEncryptionManager(keys, MASTER_KEY, 16, kms, false);
+
+    assertThat(disabled.keyEncryptionKeyID()).isEqualTo(keyId);
+    assertThat(kms.generateCalls).isEqualTo(1);
+    assertThat(kms.wrapCalls).isEqualTo(0);
+  }
+
+  @Test
+  void tablePropertyEnablesKmsKeyGeneration() {
     TrackingKMS kms = new TrackingKMS(true);
     Map<String, String> tableProperties =
         ImmutableMap.of(
             TableProperties.ENCRYPTION_TABLE_KEY,
             MASTER_KEY,
-            TableProperties.ENCRYPTION_KEK_GENERATION_ENABLED,
+            TableProperties.ENCRYPTION_KMS_KEY_GENERATION_ENABLED,
             "true");
 
     EncryptionManager manager =
@@ -119,13 +142,13 @@ class TestStandardEncryptionManager {
   }
 
   @Test
-  void kekGenerationPropertyRejectedBeforeV3() {
+  void propertyRejectedBeforeV3() {
     Map<String, String> tableProperties =
-        ImmutableMap.of(TableProperties.ENCRYPTION_KEK_GENERATION_ENABLED, "true");
+        ImmutableMap.of(TableProperties.ENCRYPTION_KMS_KEY_GENERATION_ENABLED, "true");
 
     assertThatThrownBy(() -> EncryptionUtil.checkCompatibility(tableProperties, 2))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid properties for v2: [encryption.kek-generation-enabled]");
+        .hasMessage("Invalid properties for v2: [encryption.kms-key-generation-enabled]");
   }
 
   /** A mock KMS that records which key creation path was used. */
