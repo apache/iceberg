@@ -42,6 +42,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -53,6 +54,7 @@ import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.io.HttpClientConnectionManager;
 import org.apache.hc.client5.http.ssl.NoopHostnameVerifier;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.iceberg.IcebergBuild;
@@ -586,6 +588,30 @@ public class TestHTTPClient {
 
     // No exception should be thrown, and the second request should succeed
     doExecuteRequest(method, path, loadTableRequestBody, errorHandler, headers -> {});
+  }
+
+  @Test
+  public void responseHeadersAreReadWithoutRegardToCase() throws JsonProcessingException {
+    String path = "response_header_case";
+    // A server may write a field name in any case, and over HTTP/2 it has to be lowercase, so the
+    // spelling it chose must not decide whether a caller can find the header.
+    mockServer
+        .when(
+            request("/" + path)
+                .withMethod("GET")
+                .withHeader("Authorization", "Bearer " + BEARER_AUTH_TOKEN),
+            Times.exactly(1))
+        .respond(
+            response()
+                .withStatusCode(200)
+                .withBody(MAPPER.writeValueAsString(new Item(0L, "hank")))
+                .withHeader("etag", "W/\"1\""));
+
+    AtomicReference<Map<String, String>> responseHeaders = new AtomicReference<>();
+    doExecuteRequest(HttpMethod.GET, path, null, mock(ErrorHandler.class), responseHeaders::set);
+
+    assertThat(responseHeaders.get().get(HttpHeaders.ETAG)).isEqualTo("W/\"1\"");
+    assertThat(responseHeaders.get().get("etag")).isEqualTo("W/\"1\"");
   }
 
   public static void testHttpMethodOnSuccess(HttpMethod method) throws JsonProcessingException {

@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg;
 
-import java.nio.ByteBuffer;
 import org.apache.iceberg.types.Types;
 
 /** Summary information about a manifest referenced by a root manifest entry. */
@@ -56,12 +55,6 @@ interface ManifestInfo {
   Types.NestedField DV =
       Types.NestedField.optional(
           522, "dv", Types.BinaryType.get(), "Deletion vector for manifest entries");
-  Types.NestedField DV_CARDINALITY =
-      Types.NestedField.optional(
-          523,
-          "dv_cardinality",
-          Types.LongType.get(),
-          "Number of entries marked as deleted in the DV");
 
   static Types.StructType schema() {
     return Types.StructType.of(
@@ -74,8 +67,7 @@ interface ManifestInfo {
         DELETED_ROWS_COUNT,
         REPLACED_ROWS_COUNT,
         MIN_SEQUENCE_NUMBER,
-        DV,
-        DV_CARDINALITY);
+        DV);
   }
 
   /** Returns the number of files added by this manifest. */
@@ -105,11 +97,8 @@ interface ManifestInfo {
   /** Returns the minimum sequence number of files in this manifest. */
   long minSequenceNumber();
 
-  /** Returns the deletion vector bitmap, or null if not present. */
-  ByteBuffer dv();
-
-  /** Returns the number of entries marked as deleted in the DV, or null if not present. */
-  Long dvCardinality();
+  /** Returns the deletion vector for manifest entries, or null if not present. */
+  ManifestBitmap manifestDeletionVector();
 
   /** Copies this manifest info. */
   ManifestInfo copy();

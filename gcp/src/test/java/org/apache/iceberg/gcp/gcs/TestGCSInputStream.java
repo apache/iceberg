@@ -114,8 +114,28 @@ public class TestGCSInputStream {
       assertThat(bytesRead).isEqualTo(dataSize);
       assertThat(Arrays.copyOfRange(actual, 0, bytesRead)).isEqualTo(expected);
 
-      assertThat(in.read(actual, 0, 10)).isEqualTo(EOF);
+      assertThat(in.read(actual, 0, actual.length)).isEqualTo(EOF);
       assertThat(in.getPos()).isEqualTo(dataSize);
+    }
+  }
+
+  @Test
+  void bufferedReadRejectsInvalidRanges() throws Exception {
+    BlobId uri = BlobId.fromGsUtilUri("gs://bucket/path/to/read-bounds.dat");
+    writeGCSData(uri, new byte[] {1, 2, 3, 4});
+
+    try (SeekableInputStream in =
+        new GCSInputStream(storage, uri, null, gcpProperties, MetricsContext.nullMetrics())) {
+      byte[] buffer = new byte[4];
+      assertThatThrownBy(() -> in.read(buffer, 2, 3))
+          .isInstanceOf(IndexOutOfBoundsException.class)
+          .hasMessageContaining("end index (5)");
+      assertThatThrownBy(() -> in.read(buffer, -1, 1))
+          .isInstanceOf(IndexOutOfBoundsException.class)
+          .hasMessageContaining("start index (-1)");
+      assertThatThrownBy(() -> in.read(buffer, 0, -1))
+          .isInstanceOf(IndexOutOfBoundsException.class)
+          .hasMessageContaining("end index (-1)");
     }
   }
 

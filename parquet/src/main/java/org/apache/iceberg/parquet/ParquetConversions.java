@@ -94,6 +94,8 @@ class ParquetConversions {
     if (type.getOriginalType() != null) {
       switch (type.getOriginalType()) {
         case UTF8:
+        case ENUM:
+        case JSON:
           // decode to CharSequence to avoid copying into a new String
           return binary -> StandardCharsets.UTF_8.decode(((Binary) binary).toByteBuffer());
         case DECIMAL:

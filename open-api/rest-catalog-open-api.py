@@ -797,6 +797,49 @@ class LoadCredentialsResponse(BaseModel):
     )
 
 
+class CatalogObjectLabels(RootModel[dict[str, str]]):
+    """
+    Flat key-value labels attached to the object (table, view, ...) as a whole.
+    """
+
+    root: dict[str, str]
+
+
+class FieldLabels(BaseModel):
+    """
+    Labels attached to a single field, identified by field-id.
+    """
+
+    field_id: int = Field(
+        ...,
+        alias='field-id',
+        description='Field ID from the schema of the table or view',
+    )
+    labels: dict[str, str] = Field(
+        ..., description='Flat key-value labels for this field'
+    )
+
+
+class Labels(BaseModel):
+    """
+    Catalog-provided metadata enrichment (for example ownership,
+    classification, or cost attribution) returned with a table or view.
+    Labels are catalog-provided and optional; clients may ignore them, and
+    may cache them following the response ETag.
+    The spec does not require how a catalog produces or stores labels, nor
+    whether they are persisted or versioned. `object-labels` carries
+    labels for the object as a whole; `fields` carries per-field labels,
+    each identified by field-id.
+
+    """
+
+    object_labels: CatalogObjectLabels | None = Field(None, alias='object-labels')
+    fields: list[FieldLabels] | None = Field(
+        None,
+        description='Field-level labels. Each entry identifies its field by field-id.',
+    )
+
+
 class AsyncPlanningResult(BaseModel):
     status: Literal['submitted'] = Field(
         ..., description='Status of a server-side planning operation'
@@ -1961,6 +2004,7 @@ class LoadTableResult(BaseModel):
         None, alias='remote-signing-config'
     )
     read_restrictions: ReadRestrictions | None = Field(None, alias='read-restrictions')
+    labels: Labels | None = None
 
 
 class ScanTasks(BaseModel):
@@ -2072,6 +2116,7 @@ class LoadViewResult(BaseModel):
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: ViewMetadata
     config: dict[str, str] | None = None
+    labels: Labels | None = None
 
 
 class ScanReport(BaseModel):

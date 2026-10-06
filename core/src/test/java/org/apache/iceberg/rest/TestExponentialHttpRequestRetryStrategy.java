@@ -229,4 +229,24 @@ public class TestExponentialHttpRequestRetryStrategy {
     context.setRequest(new BasicHttpRequest("GET", "/"));
     assertThat(retryStrategy.retryRequest(response, 3, context)).isTrue();
   }
+
+  @ParameterizedTest
+  @ValueSource(ints = {429, 503, 500, 502, 504, 408})
+  public void testRetryHappensForNonIdempotentMethodWithIdempotencyKey(int statusCode) {
+    BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
+    HttpClientContext context = HttpClientContext.create();
+    BasicHttpRequest request = new BasicHttpRequest("POST", "/");
+    request.addHeader(RESTUtil.IDEMPOTENCY_KEY_HEADER, "017f22e2-79b0-7cc3-98c4-dc0c0c07398f");
+    context.setRequest(request);
+    assertThat(retryStrategy.retryRequest(response, 3, context)).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {503, 500, 502, 504, 408})
+  public void testRetryDoesNotHappenForNonIdempotentMethodWithoutIdempotencyKey(int statusCode) {
+    BasicHttpResponse response = new BasicHttpResponse(statusCode, String.valueOf(statusCode));
+    HttpClientContext context = HttpClientContext.create();
+    context.setRequest(new BasicHttpRequest("POST", "/"));
+    assertThat(retryStrategy.retryRequest(response, 3, context)).isFalse();
+  }
 }

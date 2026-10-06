@@ -16,22 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.aws.s3;
+package org.apache.iceberg;
 
-import org.testcontainers.containers.MinIOContainer;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import java.util.List;
+import java.util.Map;
+import org.immutables.value.Value;
 
-@Testcontainers
-public class TestS3FileIOWithLegacyMinIO extends TestS3FileIO {
-  @Override
-  protected MinIOContainer createMinIOContainer() {
-    MinIOContainer container = MinioUtil.createContainer(MinioUtil.LEGACY_TAG, null);
-    container.start();
-    return container;
-  }
+/** Optional catalog-provided labels returned on a load response. */
+@Value.Immutable
+public interface Labels {
+  Labels EMPTY = ImmutableLabels.builder().build();
 
-  @Override
-  protected boolean legacyMd5PluginEnabled() {
-    return true;
+  /** Object-level labels. */
+  Map<String, String> objectLabels();
+
+  /** Field-level labels */
+  List<FieldLabel> fields();
+
+  /** Returns true when there are neither object-level nor field-level labels. */
+  @Value.Derived
+  default boolean isEmpty() {
+    return objectLabels().isEmpty() && fields().isEmpty();
   }
 }
