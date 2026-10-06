@@ -65,8 +65,10 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.util.Exceptions;
@@ -86,6 +88,7 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings("UnnecessaryAnonymousClass")
 abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotProducer.class);
+  private static final Splitter COMMA = Splitter.on(',').trimResults().omitEmptyStrings();
   static final int MIN_FILE_GROUP_SIZE = 10_000;
   static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
 
@@ -388,7 +391,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected abstract Map<String, String> summary();
 
-  /** Returns the snapshot summary from the implementation and updates totals. */
+  /**
+   * Returns the snapshot summary from the implementation with updated totals and, for replace
+   * commits, the properties carried forward from the replaced snapshot.
+   */
   private Map<String, String> summary(TableMetadata previous) {
     Map<String, String> summary = summary();
 
@@ -467,7 +473,25 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         SnapshotSummary.REMOVED_EQ_DELETES_PROP);
 
     builder.putAll(EnvironmentContext.get());
-    return builder.build();
+    return carryForwardCustomProperties(previous, previousSummary, builder.build());
+  }
+
+  private Map<String, String> carryForwardCustomProperties(
+      TableMetadata previous, Map<String, String> previousSummary, Map<String, String> summary) {
+    String keys = previous.properties().get(TableProperties.WRITE_SUMMARY_CARRY_FORWARD_KEYS);
+    if (keys == null || !DataOperations.REPLACE.equals(operation())) {
+      return summary;
+    }
+
+    Map<String, String> merged = Maps.newLinkedHashMap(summary);
+    for (String key : COMMA.split(keys)) {
+      String value = previousSummary.get(key);
+      if (value != null) {
+        merged.putIfAbsent(key, value);
+      }
+    }
+
+    return ImmutableMap.copyOf(merged);
   }
 
   protected TableMetadata current() {
