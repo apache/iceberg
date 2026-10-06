@@ -41,6 +41,7 @@ public class TestDebeziumTransform {
           .field("account_id", Schema.INT64_SCHEMA)
           .field("balance", Decimal.schema(2))
           .field("last_updated", Schema.STRING_SCHEMA)
+          .field("memo", SchemaBuilder.string().optional().defaultValue("").build())
           .build();
 
   private static final Schema SOURCE_SCHEMA =
@@ -115,6 +116,24 @@ public class TestDebeziumTransform {
     }
   }
 
+  @Test
+  public void testDebeziumTransformPreservesNullOfFieldWithDefault() {
+    try (DebeziumTransform<SinkRecord> smt = new DebeziumTransform<>()) {
+      smt.configure(ImmutableMap.of("cdc.target.pattern", "{db}_x.{table}_x"));
+
+      Struct event = createDebeziumEventStruct("u");
+      Struct key = new Struct(KEY_SCHEMA).put("account_id", 1L);
+      SinkRecord record = new SinkRecord("topic", 0, KEY_SCHEMA, key, VALUE_SCHEMA, event, 0);
+
+      SinkRecord result = smt.apply(record);
+      Struct value = (Struct) result.value();
+
+      // the explicit null is preserved, and the schema still carries the default
+      assertThat(value.getWithoutDefault("memo")).isNull();
+      assertThat(value.get("memo")).isEqualTo("");
+    }
+  }
+
   private Map<String, Object> createDebeziumEventMap(String operation) {
     Map<String, Object> source =
         ImmutableMap.of(
@@ -144,7 +163,8 @@ public class TestDebeziumTransform {
         new Struct(ROW_SCHEMA)
             .put("account_id", 1L)
             .put("balance", BigDecimal.valueOf(100))
-            .put("last_updated", Instant.now().toString());
+            .put("last_updated", Instant.now().toString())
+            .put("memo", null);
 
     return new Struct(VALUE_SCHEMA)
         .put("op", operation)

@@ -220,6 +220,7 @@ public class TestRecordConverter {
   public void before() {
     this.config = mock(IcebergSinkConfig.class);
     when(config.jsonConverter()).thenReturn(JSON_CONVERTER);
+    when(config.replaceNullWithDefault()).thenReturn(true);
   }
 
   @Test
@@ -449,6 +450,31 @@ public class TestRecordConverter {
     } else {
       assertThat(record1.getField("ii")).isEqualTo(null);
       assertThat(record2.getField("ii")).isEqualTo(null);
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testReplaceNullWithDefault(boolean replaceNullWithDefault) {
+    Table table = mock(Table.class);
+    when(table.schema())
+        .thenReturn(new org.apache.iceberg.Schema(NestedField.optional(1, "s", StringType.get())));
+
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("s", SchemaBuilder.string().optional().defaultValue("").build())
+            .build();
+    Struct data = new Struct(connectSchema).put("s", null);
+    Record record = converter.convert(data);
+
+    if (replaceNullWithDefault) {
+      assertThat(record.getField("s")).isEqualTo("");
+    } else {
+      assertThat(record.getField("s")).isNull();
     }
   }
 
@@ -960,6 +986,102 @@ public class TestRecordConverter {
     assertThat(consumer.makeOptionals()).isEmpty();
     assertThat(consumer.updateTypes()).isEmpty();
     assertThat(consumer.empty()).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testNoSchemaEvolutionStructWithNullValueOfFieldWithDefault(
+      boolean replaceNullWithDefault) {
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    org.apache.iceberg.Schema nestedStructSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2, "nested", StructType.of(NestedField.optional(3, "a", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(nestedStructSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    SchemaBuilder connectNestedSchemaBuilder =
+        SchemaBuilder.struct().optional().field("a", Schema.OPTIONAL_INT32_SCHEMA);
+    Struct nestedDefault = new Struct(connectNestedSchemaBuilder).put("a", 42);
+    Schema connectNestedSchema = connectNestedSchemaBuilder.defaultValue(nestedDefault).build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    if (replaceNullWithDefault) {
+      Record nested = (Record) result.getField("nested");
+      assertThat(nested.getField("a")).isEqualTo(42);
+    } else {
+      assertThat(result.getField("nested")).isNull();
+    }
+
+    assertThat(consumer.addColumns()).isEmpty();
+    assertThat(consumer.makeOptionals()).isEmpty();
+    assertThat(consumer.updateTypes()).isEmpty();
+    assertThat(consumer.empty()).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testNestedSchemaEvolutionStructWithNullValueOfFieldWithDefault(
+      boolean replaceNullWithDefault) {
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    org.apache.iceberg.Schema nestedStructSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(
+                2, "nested", StructType.of(NestedField.required(3, "a", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(nestedStructSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    SchemaBuilder connectNestedSchemaBuilder =
+        SchemaBuilder.struct()
+            .optional()
+            .field("a", Schema.INT32_SCHEMA)
+            .field("b", Schema.OPTIONAL_STRING_SCHEMA);
+    Struct nestedDefault = new Struct(connectNestedSchemaBuilder).put("a", 42).put("b", "def");
+    Schema connectNestedSchema = connectNestedSchemaBuilder.defaultValue(nestedDefault).build();
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("nested", connectNestedSchema)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("nested", null);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    Record result = converter.convert(data, consumer);
+
+    assertThat(result.getField("id")).isEqualTo(1);
+    if (replaceNullWithDefault) {
+      Record nested = (Record) result.getField("nested");
+      assertThat(nested.getField("a")).isEqualTo(42);
+    } else {
+      assertThat(result.getField("nested")).isNull();
+    }
+
+    // the new column is discovered from the record schema either way
+    Collection<AddColumn> addCols = consumer.addColumns();
+    assertThat(addCols).hasSize(1);
+    AddColumn addCol = addCols.iterator().next();
+    assertThat(addCol.parentName()).isEqualTo("nested");
+    assertThat(addCol.name()).isEqualTo("b");
+    assertThat(addCol.type()).isInstanceOf(StringType.class);
+    assertThat(consumer.makeOptionals()).isEmpty();
+    assertThat(consumer.updateTypes()).isEmpty();
   }
 
   @Test
@@ -1771,6 +1893,29 @@ public class TestRecordConverter {
 
     assertThat(innerVal.asObject().get("d").type()).isEqualTo(PhysicalType.DATE);
     assertThat(innerVal.asObject().get("d").asPrimitive().get()).isEqualTo(20182);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testConvertVariantValueFromStructReplaceNullWithDefault(
+      boolean replaceNullWithDefault) {
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    Schema schema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT64_SCHEMA)
+            .field("memo", SchemaBuilder.string().optional().defaultValue("").build())
+            .build();
+    Struct struct = new Struct(schema).put("id", 100L).put("memo", null);
+
+    Variant variant = variantConverter().convertVariantValue(struct);
+
+    assertThat(variant.value().asObject().get("id").asPrimitive().get()).isEqualTo(100L);
+    if (replaceNullWithDefault) {
+      assertThat(variant.value().asObject().get("memo").asPrimitive().get()).isEqualTo("");
+    } else {
+      assertThat(variant.value().asObject().get("memo").type()).isEqualTo(PhysicalType.NULL);
+    }
   }
 
   public static Map<String, Object> createMapData() {
