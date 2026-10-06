@@ -83,7 +83,7 @@ public class UnboundApply<T> implements UnboundTerm<T> {
   }
 
   @Override
-  public NamedReference<T> ref() {
+  public NamedReference<?> ref() {
     // a function may be called with any number of references, so there is no single reference that
     // this term produces values from
     throw new UnsupportedOperationException("Cannot determine reference for function: " + function);

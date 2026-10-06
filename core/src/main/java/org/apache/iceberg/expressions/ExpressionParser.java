@@ -32,8 +32,6 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SingleValueParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -68,8 +66,6 @@ public class ExpressionParser {
   private static final String ID = "id";
   private static final String IDENTIFIER = "identifier";
   private static final String CATALOG = "catalog";
-
-  private static final Pattern HAS_WIDTH = Pattern.compile("(\\w+)\\[(\\d+)]");
 
   private static final String ICEBERG_FUNCTIONS = "iceberg_functions";
   // the expressions spec defines partition transforms as functions, other than void
@@ -286,12 +282,6 @@ public class ExpressionParser {
       } else if (term instanceof BoundApply) {
         BoundApply<?> apply = (BoundApply<?>) term;
         writeApply(apply.function(), apply.arguments());
-      } else if (term instanceof UnboundTransform) {
-        UnboundTransform<?, ?> transform = (UnboundTransform<?, ?>) term;
-        writeTransform(transform.transform(), transform.ref());
-      } else if (term instanceof BoundTransform) {
-        BoundTransform<?, ?> transform = (BoundTransform<?, ?>) term;
-        writeTransform(transform.transform(), transform.ref());
       } else if (term instanceof BoundReference) {
         BoundReference<?> ref = (BoundReference<?>) term;
         gen.writeStartObject();
@@ -306,34 +296,6 @@ public class ExpressionParser {
       } else {
         throw new UnsupportedOperationException("Cannot write unsupported term: " + term);
       }
-    }
-
-    /**
-     * Writes a transform as an apply expression. Parameterized transforms are written as
-     * two-argument functions with the parameter first, like {@code bucket(16, ref)}.
-     */
-    private void writeTransform(Transform<?, ?> transform, Term ref) throws IOException {
-      String transformStr = transform.toString();
-      gen.writeStartObject();
-      gen.writeStringField(TYPE, APPLY);
-
-      Matcher matcher = HAS_WIDTH.matcher(transformStr);
-      boolean parameterized = matcher.matches();
-      String name = parameterized ? matcher.group(1) : transformStr;
-      if (TRANSFORMS.containsKey(name) || PARAMETERIZED_TRANSFORMS.containsKey(name)) {
-        writeFunctionRef(Expressions.function(ICEBERG_FUNCTIONS, ImmutableList.of(name)));
-      } else {
-        gen.writeStringField(FUNCTION, name);
-      }
-
-      gen.writeArrayFieldStart(ARGUMENTS);
-      if (parameterized) {
-        gen.writeNumber(Integer.parseInt(matcher.group(2)));
-      }
-      writeExpr(ref);
-      gen.writeEndArray();
-
-      gen.writeEndObject();
     }
 
     private void writeApply(FunctionReference function, List<Object> arguments) throws IOException {

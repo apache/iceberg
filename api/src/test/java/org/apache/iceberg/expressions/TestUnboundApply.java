@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -200,5 +201,34 @@ public class TestUnboundApply {
     BoundTerm<?> bound = apply.bind(STRUCT, false);
     assertThat(bound.isEquivalentTo(apply.bind(STRUCT, false))).isTrue();
     assertThat(bound.isEquivalentTo(otherFunction.bind(STRUCT, false))).isFalse();
+  }
+
+  @Test
+  public void transformIsApplyOfIcebergFunction() {
+    UnboundApply<?> apply = (UnboundApply<?>) Expressions.bucket("id", 16);
+
+    assertThat(apply.function()).hasToString("iceberg_functions.bucket");
+    assertThat(apply.arguments()).hasSize(2);
+    assertThat(apply.arguments().get(0)).isEqualTo(Expressions.lit(16));
+    assertThat(apply.arguments().get(1)).isSameAs(apply.ref());
+  }
+
+  @Test
+  public void voidTransformIsApplyWithoutCatalog() {
+    UnboundApply<?> apply = (UnboundApply<?>) Expressions.transform("id", Transforms.alwaysNull());
+
+    assertThat(apply.function().catalog()).isNull();
+    assertThat(apply.function().identifier()).containsExactly("void");
+  }
+
+  @Test
+  public void boundTransformIsApplyOfIcebergFunction() {
+    BoundApply<?> bound = (BoundApply<?>) Expressions.bucket("id", 16).bind(STRUCT, false);
+
+    assertThat(bound.function()).hasToString("iceberg_functions.bucket");
+    assertThat(bound.arguments()).hasSize(2);
+    assertThat(bound.arguments().get(0)).isEqualTo(Expressions.lit(16));
+    assertThat(bound.arguments().get(1)).isSameAs(bound.ref());
+    assertThat(bound.type()).isEqualTo(Types.IntegerType.get());
   }
 }

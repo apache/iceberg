@@ -29,12 +29,16 @@ import org.apache.iceberg.util.SerializableFunction;
  * @param <S> the Java type of values transformed by this function.
  * @param <T> the Java type of values returned by the function.
  */
-public class BoundTransform<S, T> implements BoundTerm<T> {
+public class BoundTransform<S, T> extends BoundApply<T> {
   private final BoundReference<S> ref;
   private final Transform<S, T> transform;
   private final SerializableFunction<S, T> func;
 
   BoundTransform(BoundReference<S> ref, Transform<S, T> transform) {
+    super(
+        UnboundTransform.functionFor(transform),
+        UnboundTransform.argumentsFor(transform, ref).toArray(),
+        transform.getResultType(ref.type()));
     this.ref = ref;
     this.transform = transform;
     this.func = transform.bind(ref.type());
