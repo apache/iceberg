@@ -21,7 +21,10 @@ package org.apache.iceberg.spark.actions;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.SparkSession;
+import scala.collection.JavaConverters;
 
 abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<ThisT> {
 
@@ -29,6 +32,10 @@ abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<This
 
   protected BaseSnapshotUpdateSparkAction(SparkSession spark) {
     super(spark);
+    summary.putAll(
+        PropertyUtil.propertiesWithPrefix(
+            JavaConverters.mapAsJavaMap(spark.conf().getAll()),
+            SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX));
   }
 
   public ThisT snapshotProperty(String property, String value) {
