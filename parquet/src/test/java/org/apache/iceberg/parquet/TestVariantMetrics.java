@@ -30,7 +30,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsTestUtil;
@@ -60,6 +59,7 @@ import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -878,7 +878,7 @@ public class TestVariantMetrics {
     // Parquet.write() cannot disable stats on variant sub-columns (no field IDs)
     ParquetWriter<Record> writer =
         new ParquetWriter<>(
-            new Configuration(),
+            new PlainParquetConfiguration(),
             out,
             SCHEMA,
             parquetSchema,
