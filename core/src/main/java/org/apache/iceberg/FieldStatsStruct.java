@@ -27,7 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
-import org.apache.iceberg.util.StructLikeUtil;
 
 class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
   private final Types.StructType struct;
@@ -235,8 +234,6 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     } else if (bound instanceof GeospatialBound geo) {
       // readers reuse one bound instance
       return geo.copy();
-    } else if (bound instanceof StructLike struct) {
-      return StructLikeUtil.copy(struct);
     }
 
     return bound;

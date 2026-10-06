@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.iceberg.TestHelpers.RoundTripSerializer;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.inmemory.InMemoryOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -289,7 +290,19 @@ public class TestFieldStatsStruct {
 
   private static Stream<Arguments> geoCases() {
     return ImmutableList.of(Types.GeometryType.crs84(), Types.GeographyType.crs84()).stream()
-        .flatMap(type -> SERIALIZERS.stream().map(serializer -> Arguments.of(type, serializer)));
+        .flatMap(
+            type ->
+                SERIALIZERS.stream()
+                    .map(serializer -> Arguments.of(type, geoSerializer(serializer, type))));
+  }
+
+  private static Named<RoundTripSerializer<FieldStatsStruct<?>>> geoSerializer(
+      Named<RoundTripSerializer<FieldStatsStruct<?>>> serializer, Type type) {
+    if ("InternalData".equals(serializer.getName())) {
+      return Named.of("InternalData", stats -> roundTripInternalData(stats, type));
+    }
+
+    return serializer;
   }
 
   @ParameterizedTest
@@ -300,18 +313,8 @@ public class TestFieldStatsStruct {
         StatsUtil.fieldStatsStruct(geoType, BASE_ID, MetricsModes.Full.get());
 
     // geometry and geography use bounding-box structs (x, y, z, m) for their bounds
-    PartitionData lowerBound =
-        new PartitionData(statsStruct.field("lower_bound").type().asStructType());
-    lowerBound.set(0, 1.0d);
-    lowerBound.set(1, 2.0d);
-    lowerBound.set(2, 3.0d);
-    lowerBound.set(3, 4.0d);
-    PartitionData upperBound =
-        new PartitionData(statsStruct.field("upper_bound").type().asStructType());
-    upperBound.set(0, 5.0d);
-    upperBound.set(1, 6.0d);
-    upperBound.set(2, 7.0d);
-    upperBound.set(3, 8.0d);
+    GeospatialBound lowerBound = GeospatialBound.createXYZM(1.0d, 2.0d, 3.0d, 4.0d);
+    GeospatialBound upperBound = GeospatialBound.createXYZM(5.0d, 6.0d, 7.0d, 8.0d);
 
     FieldStatsStruct<Object> stats =
         new FieldStatsStruct<>(statsStruct, lowerBound, upperBound, false, 28L, 2L, 0L, null);
@@ -376,6 +379,11 @@ public class TestFieldStatsStruct {
 
   private static <T> FieldStatsStruct<T> roundTripInternalData(FieldStats<T> stats)
       throws IOException {
+    return roundTripInternalData(stats, null);
+  }
+
+  private static <T> FieldStatsStruct<T> roundTripInternalData(FieldStats<T> stats, Type columnType)
+      throws IOException {
     Schema schema = stats.type().asSchema();
     InMemoryOutputFile file = new InMemoryOutputFile("internal.avro");
 
@@ -384,12 +392,26 @@ public class TestFieldStatsStruct {
       writer.add(stats);
     }
 
-    try (CloseableIterable<FieldStatsStruct<T>> reader =
+    InternalData.ReadBuilder readBuilder =
         InternalData.read(FileFormat.AVRO, file.toInputFile())
             .project(schema)
-            .setRootType(FieldStatsStruct.class)
-            .build()) {
+            .setRootType(FieldStatsStruct.class);
+    if (columnType != null
+        && (columnType.typeId() == Type.TypeID.GEOMETRY
+            || columnType.typeId() == Type.TypeID.GEOGRAPHY)) {
+      setGeospatialBoundCustomType(readBuilder, stats.type().field(StatsUtil.LOWER_BOUND_NAME));
+      setGeospatialBoundCustomType(readBuilder, stats.type().field(StatsUtil.UPPER_BOUND_NAME));
+    }
+
+    try (CloseableIterable<FieldStatsStruct<T>> reader = readBuilder.build()) {
       return Iterables.getOnlyElement(reader);
+    }
+  }
+
+  private static void setGeospatialBoundCustomType(
+      InternalData.ReadBuilder readBuilder, Types.NestedField boundField) {
+    if (boundField != null) {
+      readBuilder.setCustomType(boundField.fieldId(), GeospatialBound.class);
     }
   }
 
