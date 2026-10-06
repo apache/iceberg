@@ -842,11 +842,11 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
 
     | On write   | Field id | Name                     | Type             | Description |
     |------------|----------|--------------------------|------------------|-------------|
-    | _required_ | 164      | **`location`**           | `string`         | Location of the column file. |
-    | _required_ | 162      | **`field_ids`**          | `list<163: int>` | Live field IDs stored in this column file. |
-    | _required_ | 165      | **`file_format`**        | `string`         | String file format name: `avro`, `orc`, or `parquet`. |
-    | _required_ | 166      | **`file_size_in_bytes`** | `long`           | Total column file size in bytes. |
-    | _optional_ | 167      | **`key_metadata`**       | `binary`         | Key metadata for encryption; specific to the encryption scheme. |
+    | _required_ | 160      | **`location`**           | `string`         | Location of the column file. |
+    | _required_ | 161      | **`field_ids`**          | `list<162: int>` | Live field IDs stored in this column file. |
+    | _required_ | 163      | **`file_format`**        | `string`         | String file format name: `avro`, `orc`, or `parquet`. |
+    | _required_ | 164      | **`file_size_in_bytes`** | `long`           | Total column file size in bytes. |
+    | _optional_ | 165      | **`key_metadata`**       | `binary`         | Key metadata for encryption; specific to the encryption scheme. |
 
     ##### Tracked File Requirements
 
