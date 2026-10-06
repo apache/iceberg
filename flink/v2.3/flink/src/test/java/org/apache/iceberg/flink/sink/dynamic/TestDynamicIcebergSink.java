@@ -102,6 +102,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.Variant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -707,8 +708,9 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     assertVariantPayloads(ImmutableMap.of(1, 1L, 2, 2L));
   }
 
-  @Test
-  void testSchemaEvolutionAddVariantField() throws Exception {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void testSchemaEvolutionAddVariantField(boolean immediateUpdate) throws Exception {
     Schema variantSchema =
         new Schema(
             Types.NestedField.optional(1, "id", Types.IntegerType.get()),
@@ -719,7 +721,8 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     executeVariantSink(
         Lists.newArrayList(
             new VariantInput(SimpleDataUtil.SCHEMA, 1), new VariantInput(variantSchema, 2)),
-        this.env);
+        this.env,
+        immediateUpdate);
 
     Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, "t1"));
     assertThat(table.schema().findField("payload").type()).isEqualTo(Types.VariantType.get());
@@ -783,6 +786,12 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
   private static void executeVariantSink(List<VariantInput> inputs, StreamExecutionEnvironment env)
       throws Exception {
+    executeVariantSink(inputs, env, true);
+  }
+
+  private static void executeVariantSink(
+      List<VariantInput> inputs, StreamExecutionEnvironment env, boolean immediateUpdate)
+      throws Exception {
     DataStream<VariantInput> dataStream =
         env.fromData(inputs, TypeInformation.of(new TypeHint<>() {}));
     env.setParallelism(1);
@@ -790,7 +799,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         .generator(new VariantGenerator())
         .catalogLoader(CATALOG_EXTENSION.catalogLoader())
         .writeParallelism(1)
-        .immediateTableUpdate(true)
+        .immediateTableUpdate(immediateUpdate)
         .append();
     env.execute("Test Iceberg Variant DataStream");
   }
@@ -803,8 +812,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                 CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, "t1")))
             .build()) {
       for (Record record : records) {
-        org.apache.iceberg.variants.Variant payload =
-            (org.apache.iceberg.variants.Variant) record.getField("payload");
+        Variant payload = (Variant) record.getField("payload");
         actualById.put(
             (Integer) record.getField("id"),
             payload == null

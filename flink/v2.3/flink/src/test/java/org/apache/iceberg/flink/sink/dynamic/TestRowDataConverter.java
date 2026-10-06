@@ -96,7 +96,12 @@ class TestRowDataConverter {
         new Schema(
             Types.NestedField.optional(1, "id", Types.LongType.get()),
             Types.NestedField.optional(2, "payload", Types.VariantType.get()));
-    assertThat(CompareSchemasVisitor.visit(sourceSchema, targetSchema))
+    assertThat(
+            CompareSchemasVisitor.visit(
+                sourceSchema,
+                targetSchema,
+                true /* caseSensitive */,
+                false /* dropUnusedColumns */))
         .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
 
     Variant variant = Variant.newBuilder().object().add("k", Variant.newBuilder().of(1L)).build();
