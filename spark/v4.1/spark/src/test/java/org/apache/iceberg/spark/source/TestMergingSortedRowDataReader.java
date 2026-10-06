@@ -388,6 +388,18 @@ class TestMergingSortedRowDataReader extends TestBase {
   }
 
   @Test
+  void mergeRejectsUnknownSortOrderId() {
+    ScanTaskGroup<FileScanTask> taskGroup = taskGroupWithSortOrderIds(99, 99);
+
+    assertThatThrownBy(
+            () ->
+                new MergingSortedRowDataReader(
+                    table, table.io(), taskGroup, table.schema(), true, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot find sort order 99");
+  }
+
+  @Test
   void mergeRejectsMissingSortOrderIdOnFirstFile() {
     ScanTaskGroup<FileScanTask> taskGroup =
         taskGroupWithSortOrderIds(null, table.sortOrder().orderId());

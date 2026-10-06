@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.BaseScanTaskGroup;
@@ -115,6 +116,8 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
     }
 
     SortOrder sortOrder = table.sortOrders().get(expectedOrderId);
+    Preconditions.checkArgument(
+        sortOrder != null, "Cannot find sort order %s in table %s", expectedOrderId, table.name());
 
     LOG.debug(
         "Creating merging reader for {} tasks with sort order {} in table {}",
@@ -213,9 +216,10 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
 
     @Override
     public TaggedRow next() {
-      if (!advanced) {
-        hasNext();
+      if (!hasNext()) {
+        throw new NoSuchElementException();
       }
+
       advanced = false;
       // the next row from this file is read before this one is returned, and readers reuse row
       // containers, including the structs inside arrays and maps, so a shallow copy is not enough
