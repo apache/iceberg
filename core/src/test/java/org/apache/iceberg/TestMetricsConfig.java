@@ -292,14 +292,13 @@ public class TestMetricsConfig {
   }
 
   @Test
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   void metricsFieldIdsCannotBeModified() {
     MetricsConfig config = MetricsTestUtil.from(ImmutableMap.of(), SCHEMA);
     Iterator<Integer> fieldIds = config.metricsFieldIds().iterator();
 
     assertThat(fieldIds.next()).isEqualTo(ID);
-    assertThatThrownBy(fieldIds::remove)
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(null);
+    assertThatThrownBy(fieldIds::remove).isInstanceOf(UnsupportedOperationException.class);
     assertThat(config.metricsFieldIds()).containsExactly(ID, EVENT_TIME, CATEGORY, DATA);
   }
 
