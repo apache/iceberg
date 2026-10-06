@@ -56,7 +56,6 @@ class MapBackedContentStats implements ContentStats {
     this.lowerBounds = file.lowerBounds();
     this.upperBounds = file.upperBounds();
     this.type = null;
-    statsById.clear();
     return this;
   }
 
@@ -68,17 +67,36 @@ class MapBackedContentStats implements ContentStats {
   @Override
   @SuppressWarnings("unchecked")
   public <T> FieldStats<T> statsFor(int fieldId) {
-    if (!containsFieldInMaps(fieldId) || tableSchema.findField(fieldId) == null) {
+    // Schema is fixed for this instance; wrap() rebinds the metric maps. An id absent
+    // from the current maps is left uncached so a later file can still surface it.
+    if (!containsFieldInMaps(fieldId)) {
       return null;
     }
 
-    FieldStats<?> fieldStats = statsById.get(fieldId);
-    if (fieldStats == null) {
-      fieldStats = new MapBackedFieldStats<>(fieldId);
-      statsById.put(fieldId, fieldStats);
+    if (!statsById.containsKey(fieldId)) {
+      statsById.put(fieldId, createFieldStats(fieldId));
     }
 
-    return (FieldStats<T>) fieldStats;
+    return (FieldStats<T>) statsById.get(fieldId);
+  }
+
+  FieldStats<?> createFieldStats(int fieldId) {
+    Types.NestedField field = tableSchema.findField(fieldId);
+    // A file can carry metrics for an id this schema does not have. Skip it.
+    if (field == null) {
+      return null;
+    }
+
+    Type fieldType = field.type();
+    Types.StructType struct =
+        StatsUtil.fieldStatsStruct(fieldType, StatsUtil.toBaseId(fieldId), MetricsModes.Full.get());
+    // null means a struct, list, or map, or an id outside the stats window. The schema is bound
+    // once during wrapper creation, so the cached null stays valid across wrap().
+    if (struct == null) {
+      return null;
+    }
+
+    return new MapBackedFieldStats<>(fieldId, fieldType, struct);
   }
 
   @Override
@@ -135,19 +153,14 @@ class MapBackedContentStats implements ContentStats {
   private class MapBackedFieldStats<T> implements FieldStats<T> {
     private final int fieldId;
     private final Types.StructType struct;
-    private final Type columnType;
+    private final Type fieldType;
     private final Type boundType;
 
-    MapBackedFieldStats(int fieldId) {
-      Types.NestedField column = tableSchema.findField(fieldId);
-      Preconditions.checkArgument(column != null, "Missing column for field ID %s", fieldId);
+    private MapBackedFieldStats(int fieldId, Type fieldType, Types.StructType struct) {
       this.fieldId = fieldId;
-      this.columnType = column.type();
-      int baseId = StatsUtil.toBaseId(fieldId);
-      this.struct = StatsUtil.fieldStatsStruct(columnType, baseId, MetricsModes.Full.get());
-      Types.NestedField lowerBound =
-          struct == null ? null : struct.field(baseId + StatsUtil.LOWER_BOUND_OFFSET);
-      this.boundType = lowerBound == null ? null : lowerBound.type();
+      this.fieldType = fieldType;
+      this.struct = struct;
+      this.boundType = struct.fieldType(StatsUtil.LOWER_BOUND_NAME);
     }
 
     @Override
@@ -176,7 +189,7 @@ class MapBackedContentStats implements ContentStats {
         return null;
       }
 
-      return (T) Conversions.fromByteBuffer(columnType, bounds.get(fieldId));
+      return (T) Conversions.fromByteBuffer(fieldType, bounds.get(fieldId));
     }
 
     @Override
