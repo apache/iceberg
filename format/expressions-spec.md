@@ -93,6 +93,8 @@ Engines may document and use a catalog name to identify their built-in functions
 
 Function references are unambiguous and are not interpreted using session context. Producers are responsible for resolving catalog, namespace, and name if the session is relevant. For example, if a SQL engine uses its current catalog and namespace to find a function, the resolved catalog and namespace must be used to produce an unambiguous function reference.
 
+A function reference may name a specific version of a [UDF](udf-spec.md) definition by including the definition's `definition-id` and the version's `version-id`. Both must be present if either is. When a reference names a version, that version must be used to evaluate the expression; otherwise the definition's current version is used. Evaluation must fail if the named version is not present in the function's metadata.
+
 
 #### Value expression types
 
@@ -267,6 +269,8 @@ FUNC_REF: NAME
     | [ NAME* ]
     | { "identifier": [ NAME* ] }
     | { "catalog": NAME, "identifier": [ NAME* ] }
+    | { "identifier": [ NAME* ], "definition-id": string, "version-id": ID }
+    | { "catalog": NAME, "identifier": [ NAME* ], "definition-id": string, "version-id": ID }
 
 ID: integer
 NAME: string
