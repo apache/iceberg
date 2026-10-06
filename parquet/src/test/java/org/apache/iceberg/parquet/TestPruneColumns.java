@@ -645,7 +645,7 @@ public class TestPruneColumns {
   }
 
   @Test
-  public void testDeeplyNestedStructInsideMap() {
+  public void testNestedStructInsideMap() {
     Schema schema =
         new Schema(
             NestedField.optional(
