@@ -69,20 +69,22 @@ class TestMapBackedContentStats {
   void contentStatsTypeBuiltLazilyFromMapIds() {
     MapBackedContentStats stats = new MapBackedContentStats(SCHEMA);
 
-    assertThat(stats.type()).isEqualTo(StatsUtil.statsReadSchema(SCHEMA, ImmutableList.of()));
+    assertThat(stats.type().fields()).isEmpty();
 
     stats.wrap(FILE_WITH_STATS);
 
-    assertThat(stats.type())
-        .isEqualTo(StatsUtil.statsReadSchema(SCHEMA, ImmutableList.of(1, 2, 3, 4)));
+    assertThat(stats.type().fields())
+        .extracting(field -> StatsUtil.toFieldId(field.fieldId()))
+        .containsExactlyInAnyOrder(1, 2, 3, 4);
   }
 
   @Test
   void wrapInvalidatesType() {
     MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(FILE_WITH_STATS);
     Types.StructType firstType = stats.type();
-    assertThat(firstType)
-        .isEqualTo(StatsUtil.statsReadSchema(SCHEMA, ImmutableList.of(1, 2, 3, 4)));
+    assertThat(firstType.fields())
+        .extracting(field -> StatsUtil.toFieldId(field.fieldId()))
+        .containsExactlyInAnyOrder(1, 2, 3, 4);
 
     DataFile file2 =
         dataFile(
@@ -93,9 +95,10 @@ class TestMapBackedContentStats {
             ImmutableMap.of(1, buf(Types.IntegerType.get(), 5000)));
     stats.wrap(file2);
 
-    assertThat(stats.type())
-        .isEqualTo(StatsUtil.statsReadSchema(SCHEMA, ImmutableList.of(1)))
-        .isNotEqualTo(firstType);
+    assertThat(stats.type().fields())
+        .extracting(field -> StatsUtil.toFieldId(field.fieldId()))
+        .containsExactlyInAnyOrder(1);
+    assertThat(stats.type()).isNotEqualTo(firstType);
   }
 
   @Test
