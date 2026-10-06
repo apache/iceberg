@@ -94,7 +94,9 @@ public class TestSparkDataWrite {
       new Object[] {FileFormat.PARQUET, SnapshotRef.MAIN_BRANCH},
       new Object[] {FileFormat.PARQUET, "testBranch"},
       new Object[] {FileFormat.AVRO, null},
-      new Object[] {FileFormat.ORC, "testBranch"}
+      new Object[] {FileFormat.ORC, "testBranch"},
+      new Object[] {FileFormat.VORTEX, null},
+      new Object[] {FileFormat.VORTEX, "testBranch"}
     };
   }
 

@@ -63,7 +63,8 @@ public class TestBaseTaskWriter extends TestBase {
     return Arrays.asList(
         new Object[] {FORMAT_V2, FileFormat.AVRO},
         new Object[] {FORMAT_V2, FileFormat.ORC},
-        new Object[] {FORMAT_V2, FileFormat.PARQUET});
+        new Object[] {FORMAT_V2, FileFormat.PARQUET},
+        new Object[] {FORMAT_V2, FileFormat.VORTEX});
   }
 
   @Override
