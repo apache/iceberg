@@ -22,15 +22,21 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.formats.Stitcher;
 import org.apache.iceberg.formats.StitcherBuilder;
 import org.apache.iceberg.formats.StitcherRegistry;
+import org.apache.iceberg.formats.VectorizedStitcher;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
+import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.vectorized.ColumnVector;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.jupiter.api.Test;
 
@@ -75,9 +81,63 @@ class TestSparkStitchers {
     assertThat(copy.getInt(0)).isEqualTo(1);
   }
 
+  @Test
+  void stitchesBatchesFromThePartVectors() {
+    ColumnVector data = strings("a", "b");
+    ColumnVector id = ints(1, 2);
+    ColumnVector category = strings("x", "y");
+
+    ColumnarBatch batch =
+        batchStitcher().stitch(List.of(batch(2, data), batch(2, id, category)), 2);
+
+    assertThat(batch.numRows()).isEqualTo(2);
+    assertThat(batch.column(0)).isSameAs(id);
+    assertThat(batch.column(1)).isSameAs(data);
+    assertThat(batch.column(2)).isSameAs(category);
+  }
+
+  @Test
+  void slicesBatchesWithoutCopyingValues() {
+    OnHeapColumnVector id = ints(1, 2, 3, 4);
+
+    ColumnarBatch slice = batchStitcher().slice(batch(4, id), 1, 2);
+    id.putInt(1, 20);
+
+    assertThat(slice.numRows()).isEqualTo(2);
+    assertThat(slice.column(0).getInt(0)).isEqualTo(20);
+    assertThat(slice.column(0).getInt(1)).isEqualTo(3);
+  }
+
+  private static VectorizedStitcher<ColumnarBatch> batchStitcher() {
+    return (VectorizedStitcher<ColumnarBatch>)
+        StitcherRegistry.stitcherBuilder(ColumnarBatch.class).build(EXPECTED, PARTS);
+  }
+
+  private static ColumnarBatch batch(int numRows, ColumnVector... columns) {
+    return new ColumnarBatch(columns, numRows);
+  }
+
   private static List<InternalRow> parts() {
     return Lists.newArrayList(
         new GenericInternalRow(new Object[] {UTF8String.fromString("a")}),
         new GenericInternalRow(new Object[] {1, UTF8String.fromString("x")}));
+  }
+
+  private static OnHeapColumnVector ints(int... values) {
+    OnHeapColumnVector vector = new OnHeapColumnVector(values.length, DataTypes.IntegerType);
+    for (int row = 0; row < values.length; row += 1) {
+      vector.putInt(row, values[row]);
+    }
+
+    return vector;
+  }
+
+  private static OnHeapColumnVector strings(String... values) {
+    OnHeapColumnVector vector = new OnHeapColumnVector(values.length, DataTypes.StringType);
+    for (int row = 0; row < values.length; row += 1) {
+      vector.putByteArray(row, values[row].getBytes(StandardCharsets.UTF_8));
+    }
+
+    return vector;
   }
 }

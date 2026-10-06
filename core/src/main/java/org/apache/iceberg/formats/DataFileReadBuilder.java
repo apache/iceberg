@@ -183,7 +183,12 @@ public class DataFileReadBuilder<D, S> implements ReadBuilder<D, S> {
           partReaders.add(builder.build());
         });
 
-    return new RowAlignedStitchingIterable<>(partReaders, stitcherBuilder.build(projection, parts));
+    Stitcher<D> stitcher = stitcherBuilder.build(projection, parts);
+    if (stitcher instanceof VectorizedStitcher<D> vectorized) {
+      return new VectorizedStitchingIterable<>(partReaders, vectorized);
+    }
+
+    return new RowAlignedStitchingIterable<>(partReaders, stitcher);
   }
 
   private void projectReadBuilders(

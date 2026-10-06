@@ -24,7 +24,12 @@ import org.apache.iceberg.formats.StitchLayout;
 import org.apache.iceberg.formats.Stitcher;
 import org.apache.iceberg.formats.StitcherBuilder;
 import org.apache.iceberg.formats.StitcherRegistry;
+import org.apache.iceberg.formats.VectorizedStitcher;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.data.vectorized.ColumnVectorWithFilter;
+import org.apache.iceberg.spark.data.vectorized.DeletedColumnVector;
+import org.apache.iceberg.spark.data.vectorized.UpdatableDeletedColumnVector;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
@@ -33,6 +38,8 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.vectorized.ColumnVector;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.BinaryView;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
@@ -43,6 +50,7 @@ public class SparkStitchers {
 
   public static void register() {
     StitcherRegistry.register(new InternalRowStitcherBuilder());
+    StitcherRegistry.register(new ColumnarBatchStitcherBuilder());
   }
 
   private static class InternalRowStitcherBuilder implements StitcherBuilder<InternalRow> {
@@ -194,6 +202,63 @@ public class SparkStitchers {
     @Override
     public Object get(int pos, DataType dataType) {
       return part(pos).get(ordinal(pos), dataType);
+    }
+  }
+
+  private static class ColumnarBatchStitcherBuilder implements StitcherBuilder<ColumnarBatch> {
+    @Override
+    public Class<ColumnarBatch> type() {
+      return ColumnarBatch.class;
+    }
+
+    @Override
+    public Stitcher<ColumnarBatch> build(Schema projection, List<Schema> verticalSplits) {
+      return new ColumnarBatchStitcher(StitchLayout.of(projection, verticalSplits));
+    }
+  }
+
+  /** Stitches batches from the column vectors of the parts, without copying values. */
+  private static class ColumnarBatchStitcher implements VectorizedStitcher<ColumnarBatch> {
+    private final StitchLayout layout;
+
+    private ColumnarBatchStitcher(StitchLayout layout) {
+      this.layout = layout;
+    }
+
+    @Override
+    public ColumnarBatch stitch(List<ColumnarBatch> parts, int count) {
+      ColumnVector[] columns = new ColumnVector[layout.size()];
+      for (int pos = 0; pos < columns.length; pos += 1) {
+        columns[pos] = parts.get(layout.split(pos)).column(layout.ordinal(pos));
+      }
+
+      return new ColumnarBatch(columns, count);
+    }
+
+    @Override
+    public int numRows(ColumnarBatch batch) {
+      return batch.numRows();
+    }
+
+    @Override
+    public ColumnarBatch slice(ColumnarBatch batch, int offset, int count) {
+      int[] rowIds = new int[count];
+      for (int row = 0; row < count; row += 1) {
+        rowIds[row] = offset + row;
+      }
+
+      ColumnVector[] columns = new ColumnVector[batch.numCols()];
+      for (int ordinal = 0; ordinal < columns.length; ordinal += 1) {
+        ColumnVector column = batch.column(ordinal);
+        if (column instanceof UpdatableDeletedColumnVector) {
+          // the value is set after stitching, from the deletes of the stitched rows
+          columns[ordinal] = new DeletedColumnVector(Types.BooleanType.get());
+        } else {
+          columns[ordinal] = new ColumnVectorWithFilter(column, rowIds);
+        }
+      }
+
+      return new ColumnarBatch(columns, count);
     }
   }
 }
