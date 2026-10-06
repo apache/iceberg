@@ -254,9 +254,26 @@ public class ExpressionUtil {
       return Expressions.transform(bound.ref().name(), bound.transform());
     } else if (term instanceof BoundReference) {
       return Expressions.ref(((BoundReference<T>) term).name());
+    } else if (term instanceof BoundApply) {
+      BoundApply<T> bound = (BoundApply<T>) term;
+      return new UnboundApply<>(
+          bound.function(),
+          Lists.transform(bound.arguments(), ExpressionUtil::unbindArgument),
+          bound.type());
     }
 
     throw new UnsupportedOperationException("Cannot unbind unsupported term: " + term);
+  }
+
+  private static Object unbindArgument(Object argument) {
+    if (argument instanceof BoundTerm<?> term) {
+      return unbind(term);
+    } else if (argument instanceof Expression) {
+      throw new UnsupportedOperationException(
+          "Cannot unbind unsupported function argument: " + argument);
+    }
+
+    return argument;
   }
 
   @SuppressWarnings("unchecked")

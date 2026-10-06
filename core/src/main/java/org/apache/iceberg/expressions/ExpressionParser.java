@@ -281,7 +281,11 @@ public class ExpressionParser {
 
     private void writeExpr(Term term) throws IOException {
       if (term instanceof UnboundApply) {
-        writeApply((UnboundApply<?>) term);
+        UnboundApply<?> apply = (UnboundApply<?>) term;
+        writeApply(apply.function(), apply.arguments());
+      } else if (term instanceof BoundApply) {
+        BoundApply<?> apply = (BoundApply<?>) term;
+        writeApply(apply.function(), apply.arguments());
       } else if (term instanceof UnboundTransform) {
         UnboundTransform<?, ?> transform = (UnboundTransform<?, ?>) term;
         writeTransform(transform.transform(), transform.ref());
@@ -327,14 +331,14 @@ public class ExpressionParser {
       gen.writeEndObject();
     }
 
-    private void writeApply(UnboundApply<?> apply) throws IOException {
+    private void writeApply(FunctionReference function, List<Object> arguments) throws IOException {
       gen.writeStartObject();
       gen.writeStringField(TYPE, APPLY);
 
-      writeFunctionRef(apply.function());
+      writeFunctionRef(function);
 
       gen.writeArrayFieldStart(ARGUMENTS);
-      for (Object arg : apply.arguments()) {
+      for (Object arg : arguments) {
         if (arg instanceof Term) {
           writeExpr((Term) arg);
         } else if (arg instanceof Expression) {

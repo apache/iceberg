@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Collections;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -105,14 +106,99 @@ public class TestUnboundApply {
   }
 
   @Test
-  public void bindIsNotSupported() {
+  public void bindWithoutResultTypeFails() {
     UnboundApply<?> apply =
-        Expressions.apply(
-            Expressions.function("iceberg_functions", ImmutableList.of("year")),
-            ImmutableList.of(Expressions.ref("id")));
+        Expressions.apply(Expressions.function("my_func"), ImmutableList.of(Expressions.ref("id")));
 
     assertThatThrownBy(() -> apply.bind(STRUCT, false))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot bind function without a result type: my_func");
+  }
+
+  @Test
+  public void bindUsesResultType() {
+    UnboundApply<?> apply =
+        new UnboundApply<>(
+            Expressions.function("my_func"),
+            ImmutableList.of(Expressions.ref("id")),
+            Types.StringType.get());
+
+    assertThat(apply.bind(STRUCT, false).type()).isEqualTo(Types.StringType.get());
+  }
+
+  @Test
+  public void bindBindsReferenceArguments() {
+    UnboundApply<?> apply =
+        new UnboundApply<>(
+            Expressions.function("my_func"),
+            ImmutableList.of(Expressions.ref("id")),
+            Types.StringType.get());
+
+    BoundApply<?> bound = (BoundApply<?>) apply.bind(STRUCT, false);
+    assertThat(bound.arguments()).hasSize(1);
+    assertThat(bound.arguments().get(0)).isInstanceOf(BoundReference.class);
+    assertThat(((BoundReference<?>) bound.arguments().get(0)).fieldId()).isEqualTo(1);
+  }
+
+  @Test
+  public void bindBindsNestedApply() {
+    UnboundApply<?> nested =
+        new UnboundApply<>(
+            Expressions.function("inner"),
+            ImmutableList.of(Expressions.ref("id")),
+            Types.IntegerType.get());
+    UnboundApply<?> apply =
+        new UnboundApply<>(
+            Expressions.function("outer"), ImmutableList.of(nested), Types.StringType.get());
+
+    BoundApply<?> bound = (BoundApply<?>) apply.bind(STRUCT, false);
+    assertThat(bound.arguments().get(0)).isInstanceOf(BoundApply.class);
+    BoundApply<?> boundNested = (BoundApply<?>) bound.arguments().get(0);
+    assertThat(boundNested.type()).isEqualTo(Types.IntegerType.get());
+    assertThat(boundNested.arguments().get(0)).isInstanceOf(BoundReference.class);
+  }
+
+  @Test
+  public void bindBindsPredicateArguments() {
+    UnboundApply<?> apply =
+        new UnboundApply<>(
+            Expressions.function("my_func"),
+            ImmutableList.of(Expressions.equal("id", 5)),
+            Types.StringType.get());
+
+    BoundApply<?> bound = (BoundApply<?>) apply.bind(STRUCT, false);
+    assertThat(bound.arguments().get(0)).isInstanceOf(BoundPredicate.class);
+  }
+
+  @Test
+  public void boundApplyEvalIsNotSupported() {
+    UnboundApply<?> apply =
+        new UnboundApply<>(
+            Expressions.function("my_func"),
+            ImmutableList.of(Expressions.ref("id")),
+            Types.StringType.get());
+    BoundTerm<?> bound = apply.bind(STRUCT, false);
+
+    assertThatThrownBy(() -> bound.eval(null))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Cannot bind function: iceberg_functions.year");
+        .hasMessage("Cannot evaluate " + bound);
+  }
+
+  @Test
+  public void boundApplyEquivalence() {
+    UnboundApply<?> apply =
+        new UnboundApply<>(
+            Expressions.function("my_func"),
+            ImmutableList.of(16, Expressions.ref("id")),
+            Types.StringType.get());
+    UnboundApply<?> otherFunction =
+        new UnboundApply<>(
+            Expressions.function("other_func"),
+            ImmutableList.of(16, Expressions.ref("id")),
+            Types.StringType.get());
+
+    BoundTerm<?> bound = apply.bind(STRUCT, false);
+    assertThat(bound.isEquivalentTo(apply.bind(STRUCT, false))).isTrue();
+    assertThat(bound.isEquivalentTo(otherFunction.bind(STRUCT, false))).isFalse();
   }
 }

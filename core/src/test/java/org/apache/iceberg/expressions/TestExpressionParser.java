@@ -824,6 +824,31 @@ public class TestExpressionParser {
   }
 
   @Test
+  public void boundApplyToJson() {
+    UnboundApply<String> apply =
+        new UnboundApply<>(
+            Expressions.function("my_func"),
+            ImmutableList.of(Expressions.ref("id")),
+            Types.StringType.get());
+    Expression bound = Expressions.equal(apply, "abc").bind(SUPPORTED_PRIMITIVES, true);
+
+    assertThat(ExpressionParser.toJson(bound, true))
+        .isEqualTo(
+            "{\n"
+                + "  \"type\" : \"eq\",\n"
+                + "  \"left\" : {\n"
+                + "    \"type\" : \"apply\",\n"
+                + "    \"function\" : \"my_func\",\n"
+                + "    \"arguments\" : [ {\n"
+                + "      \"type\" : \"reference\",\n"
+                + "      \"id\" : 100\n"
+                + "    } ]\n"
+                + "  },\n"
+                + "  \"right\" : \"abc\"\n"
+                + "}");
+  }
+
+  @Test
   public void referenceByIdRequiresSchema() {
     String json = "{\"type\":\"is-null\",\"child\":{\"type\":\"reference\",\"id\":101}}";
     assertThatThrownBy(() -> ExpressionParser.fromJson(json))
