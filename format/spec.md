@@ -710,7 +710,7 @@ The `expression` of a `check` constraint is serialized as described in the [Iceb
 
 A check expression is evaluated for each row over the values of that row. An expression may reference more than one field of the row, such as `start_date <= end_date`. Expressions that depend on more than one row, such as aggregates and window functions, and expressions that depend on another table, such as subqueries, must not be used. An expression must not reference a field within a `list` or a `map`, because such a field has a value for each element rather than one value for the row.
 
-A check expression must produce the same result every time it is evaluated for the same row. A function that depends on anything other than its arguments, such as the current time or a random value, must not be called, because the status recorded for a snapshot describes the table's data and an expression whose result can change on its own would make a recorded status wrong without any write. A [user-defined function](udf-spec.md) must not be called unless it declares `deterministic` as true.
+A check expression must produce the same result every time it is evaluated for the same row. A function that depends on anything other than its arguments, such as the current time or a random value, must not be called, because the status recorded for a snapshot describes the table's data and an expression whose result can change on its own would make a recorded status wrong without any write. A [user-defined function](udf-spec.md) must not be called unless its current definition version declares `deterministic` as true.
 
 The status of a `check` constraint that calls a user-defined function describes the function definitions that were current when the snapshot was written.
 
