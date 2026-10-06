@@ -268,6 +268,155 @@ class TestMapBackedContentStats {
     assertThat(stats.statsFor(2)).isNull();
   }
 
+  @Test
+  void wrapReusesFieldStats() {
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA);
+    stats.wrap(FILE_WITH_STATS);
+    FieldStats<?> id = stats.statsFor(1);
+    FieldStats<?> score = stats.statsFor(2);
+    FieldStats<?> ts = stats.statsFor(3);
+    FieldStats<?> name = stats.statsFor(4);
+
+    DataFile file2 =
+        dataFile(
+            ImmutableMap.of(1, 50L, 2, 40L, 3, 20L, 4, 30L),
+            ImmutableMap.of(1, 9L, 2, 8L, 3, 7L, 4, 6L),
+            ImmutableMap.of(2, 11L),
+            ImmutableMap.of(
+                1, buf(Types.IntegerType.get(), 500),
+                2, buf(Types.FloatType.get(), 2.5f),
+                3, buf(Types.LongType.get(), 200L),
+                4, buf(Types.StringType.get(), "bbb")),
+            ImmutableMap.of(
+                1, buf(Types.IntegerType.get(), 5000),
+                2, buf(Types.FloatType.get(), 8.5f),
+                3, buf(Types.LongType.get(), 800L),
+                4, buf(Types.StringType.get(), "yyy")));
+    stats.wrap(file2);
+
+    assertThat(stats.statsFor(1)).isSameAs(id);
+    assertThat(id.valueCount()).isEqualTo(50L);
+    assertThat(id.nullValueCount()).isEqualTo(9L);
+    assertThat(id.lowerBound()).isEqualTo(500);
+    assertThat(id.upperBound()).isEqualTo(5000);
+
+    assertThat(stats.statsFor(2)).isSameAs(score);
+    assertThat(score.valueCount()).isEqualTo(40L);
+    assertThat(score.nullValueCount()).isEqualTo(8L);
+    assertThat(score.nanValueCount()).isEqualTo(11L);
+    assertThat(score.lowerBound()).isEqualTo(2.5f);
+    assertThat(score.upperBound()).isEqualTo(8.5f);
+
+    assertThat(stats.statsFor(3)).isSameAs(ts);
+    assertThat(ts.valueCount()).isEqualTo(20L);
+    assertThat(ts.nullValueCount()).isEqualTo(7L);
+    assertThat(ts.lowerBound()).isEqualTo(200L);
+    assertThat(ts.upperBound()).isEqualTo(800L);
+
+    assertThat(stats.statsFor(4)).isSameAs(name);
+    assertThat(name.valueCount()).isEqualTo(30L);
+    assertThat(name.nullValueCount()).isEqualTo(6L);
+    assertThat(name.lowerBound().toString()).isEqualTo("bbb");
+    assertThat(name.upperBound().toString()).isEqualTo("yyy");
+  }
+
+  @Test
+  void absentIdIsRereadWhenPresentAgain() {
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA);
+    stats.wrap(FILE_WITH_STATS);
+    FieldStats<?> id = stats.statsFor(1);
+    assertThat(id).isNotNull();
+
+    stats.wrap(
+        dataFile(
+            ImmutableMap.of(2, 10L),
+            ImmutableMap.of(),
+            ImmutableMap.of(),
+            ImmutableMap.of(2, buf(Types.FloatType.get(), 0.0f)),
+            ImmutableMap.of(2, buf(Types.FloatType.get(), 1.0f))));
+    assertThat(stats.statsFor(1)).isNull();
+
+    stats.wrap(
+        dataFile(
+            ImmutableMap.of(1, 7L),
+            ImmutableMap.of(),
+            ImmutableMap.of(),
+            ImmutableMap.of(1, buf(Types.IntegerType.get(), 42)),
+            ImmutableMap.of(1, buf(Types.IntegerType.get(), 43))));
+    assertThat(stats.statsFor(1)).isSameAs(id);
+    assertThat(id.lowerBound()).isEqualTo(42);
+    assertThat(id.upperBound()).isEqualTo(43);
+    assertThat(id.valueCount()).isEqualTo(7L);
+  }
+
+  @Test
+  void outOfRangeFieldStatsAreNullAndCached() {
+    int fieldId = 999_950;
+    Schema schema =
+        new Schema(Types.NestedField.optional(fieldId, "too_high", Types.IntegerType.get()));
+    DataFile file =
+        dataFile(
+            ImmutableMap.of(fieldId, 1L),
+            ImmutableMap.of(),
+            ImmutableMap.of(),
+            ImmutableMap.of(fieldId, buf(Types.IntegerType.get(), 1)),
+            ImmutableMap.of(fieldId, buf(Types.IntegerType.get(), 2)));
+    CountingContentStats stats = new CountingContentStats(schema);
+    stats.wrap(file);
+
+    assertThat(stats.statsFor(fieldId)).isNull();
+    assertThat(stats.creates).isEqualTo(1);
+
+    DataFile file2 =
+        dataFile(
+            ImmutableMap.of(fieldId, 9L),
+            ImmutableMap.of(),
+            ImmutableMap.of(),
+            ImmutableMap.of(fieldId, buf(Types.IntegerType.get(), 30)),
+            ImmutableMap.of(fieldId, buf(Types.IntegerType.get(), 40)));
+    stats.wrap(file2);
+
+    assertThat(stats.statsFor(fieldId)).isNull();
+    assertThat(stats.creates).isEqualTo(1);
+    assertThat(stats.fieldStats()).isEmpty();
+    assertThat(stats.creates).isEqualTo(1);
+  }
+
+  @Test
+  void listElementFieldStats() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(
+                1, "nums", Types.ListType.ofRequired(2, Types.IntegerType.get())));
+    DataFile file =
+        dataFile(
+            ImmutableMap.of(2, 4L),
+            ImmutableMap.of(),
+            ImmutableMap.of(),
+            ImmutableMap.of(2, buf(Types.IntegerType.get(), 1)),
+            ImmutableMap.of(2, buf(Types.IntegerType.get(), 9)));
+    MapBackedContentStats stats = new MapBackedContentStats(schema).wrap(file);
+
+    FieldStats<?> element = stats.statsFor(2);
+    assertThat(element.lowerBound()).isEqualTo(1);
+    assertThat(element.upperBound()).isEqualTo(9);
+    assertThat(stats.fieldStats()).extracting(FieldStats::fieldId).containsExactly(2);
+  }
+
+  private static final class CountingContentStats extends MapBackedContentStats {
+    private int creates;
+
+    private CountingContentStats(Schema tableSchema) {
+      super(tableSchema);
+    }
+
+    @Override
+    FieldStats<?> createFieldStats(int fieldId) {
+      creates += 1;
+      return super.createFieldStats(fieldId);
+    }
+  }
+
   private static ByteBuffer buf(Type type, Object value) {
     return Conversions.toByteBuffer(type, value);
   }
