@@ -123,6 +123,20 @@ public class TestSparkScan extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  void scanWithLargeIntegerTruncateWidth() {
+    sql(
+        "CREATE TABLE %s (id INT) USING iceberg PARTITIONED BY (truncate(%s, id)) "
+            + "TBLPROPERTIES('%s' = '%s')",
+        tableName, Integer.MAX_VALUE, TableProperties.DEFAULT_FILE_FORMAT, format);
+    int value = Integer.MAX_VALUE - 1;
+    sql("INSERT INTO %s VALUES (%s)", tableName, value);
+
+    assertThat(sql("SELECT id FROM %s WHERE id >= 0", tableName))
+        .singleElement()
+        .satisfies(row -> assertThat(row[0]).isEqualTo(value));
+  }
+
+  @TestTemplate
   public void testEstimatedRowCount() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id BIGINT, date DATE) USING iceberg TBLPROPERTIES('%s' = '%s')",
