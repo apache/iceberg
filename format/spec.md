@@ -866,7 +866,7 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
     - Writers should not write a null `tracking.snapshot_id`.
     - For manifests, `spec_id` must be set to the `spec_id` of the manifest's entries if all entries have the same `spec_id`, and must be null otherwise.
 
-    ##### Updating Tracking Metadata
+    ###### Updating Tracking Metadata
 
     When a file is added to the dataset, its tracked file must set status to ADDED and store the snapshot ID in which the file was added.
 
@@ -1284,7 +1284,7 @@ When expiring snapshots, retention policies in table and snapshot references are
 
 #### Deleting Files
 
-A file that is no longer live may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
+A file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
 
 Notes:
 
