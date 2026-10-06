@@ -28,7 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Types;
 
-public class UnboundTransform<S, T> extends UnboundApply<T> implements UnboundTerm<T>, Term {
+public class UnboundTransform<S, T> extends UnboundApply<T> {
   private static final Pattern HAS_WIDTH = Pattern.compile("(\\w+)\\[(\\d+)]");
   private static final String ICEBERG_FUNCTIONS = "iceberg_functions";
   // the expressions spec defines partition transforms as functions, other than void

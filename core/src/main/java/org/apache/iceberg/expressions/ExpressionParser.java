@@ -68,7 +68,6 @@ public class ExpressionParser {
   private static final String CATALOG = "catalog";
 
   private static final String ICEBERG_FUNCTIONS = "iceberg_functions";
-  // the expressions spec defines partition transforms as functions, other than void
   private static final Map<String, Supplier<Transform<?, ?>>> TRANSFORMS =
       ImmutableMap.of(
           "identity", Transforms::identity,
@@ -311,10 +310,10 @@ public class ExpressionParser {
         } else if (arg instanceof Expression) {
           ExpressionParser.toJson((Expression) arg, gen);
         } else {
-          // remaining arguments are constants, written as bare literal values
           unboundLiteral(((Literal<?>) arg).value());
         }
       }
+
       gen.writeEndArray();
 
       gen.writeEndObject();
@@ -373,10 +372,9 @@ public class ExpressionParser {
     Expression.Operation op = fromType(type);
     switch (op) {
       case TRUE:
-        // deprecated: the constant true predicate is written as a bare boolean
+        // deprecated form; constant predicates are written as bare booleans
         return Expressions.alwaysTrue();
       case FALSE:
-        // deprecated: the constant false predicate is written as a bare boolean
         return Expressions.alwaysFalse();
       case NOT:
         return Expressions.not(fromJson(JsonUtil.get(CHILD, json), schema));
@@ -392,9 +390,9 @@ public class ExpressionParser {
 
     if (json.has(TERM)) {
       return termPredicateFromJson(op, json, schema);
-    } else {
-      return predicateFromJson(op, json, schema);
     }
+
+    return predicateFromJson(op, json, schema);
   }
 
   private static Expression.Operation fromType(String type) {
@@ -492,7 +490,6 @@ public class ExpressionParser {
       };
     }
 
-    // a bare string is a literal value, which cannot be a predicate operand
     throw new IllegalArgumentException(
         "Cannot parse value expression, expected a reference or apply: " + node);
   }
@@ -528,32 +525,16 @@ public class ExpressionParser {
       }
     }
 
-    if (isIcebergFunction(function)) {
+    if (ICEBERG_FUNCTIONS.equalsIgnoreCase(function.catalog())) {
       String name = function.name().toLowerCase(Locale.ROOT);
       if (TRANSFORMS.containsKey(name) || PARAMETERIZED_TRANSFORMS.containsKey(name)) {
         return transformFromApply(function, name, arguments);
       }
     }
 
-    return Expressions.apply(function, arguments);
+    return new UnboundApply<>(function, arguments);
   }
 
-  /**
-   * Returns whether a function reference may be a function defined by the expressions spec.
-   *
-   * <p>The spec defines Iceberg partition transforms as functions in the {@code iceberg_functions}
-   * catalog, other than {@code void}.
-   */
-  private static boolean isIcebergFunction(FunctionReference function) {
-    return ICEBERG_FUNCTIONS.equalsIgnoreCase(function.catalog());
-  }
-
-  /**
-   * Converts a call to an Iceberg partition transform to an {@link UnboundTransform}.
-   *
-   * <p>Parameterized transforms are called as two-argument functions with the transform parameter
-   * first, like {@code bucket(16, ref)}.
-   */
   @SuppressWarnings("unchecked")
   private static <T> UnboundTerm<T> transformFromApply(
       FunctionReference function, String name, List<Object> arguments) {
@@ -683,16 +664,10 @@ public class ExpressionParser {
     return value;
   }
 
-  /**
-   * Parses a value of the given type into the object used to create an unbound literal.
-   *
-   * <p>Nanosecond timestamps are returned as their validated ISO-8601 string. Unbound literals are
-   * created from values with {@code Literals.from}, which would read a long as microseconds when
-   * binding to a nanosecond timestamp; a string literal converts to nanoseconds correctly.
-   */
   private static Object valueFromJson(Type type, JsonNode valueNode) {
     Object value = SingleValueParser.fromJson(type, valueNode);
     if (value != null && type.typeId() == Type.TypeID.TIMESTAMP_NANO) {
+      // a long would bind as microseconds; the ISO-8601 string binds as nanoseconds
       return valueNode.asText();
     }
 

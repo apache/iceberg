@@ -38,7 +38,7 @@ public class TestUnboundApply {
   public void constantArgumentsAreConvertedToLiterals() {
     UnboundTerm<?> ref = Expressions.ref("id");
     UnboundApply<?> apply =
-        Expressions.apply(Expressions.function("bucket"), ImmutableList.of(16, ref));
+        new UnboundApply<>(Expressions.function("bucket"), ImmutableList.of(16, ref));
 
     assertThat(apply.arguments()).hasSize(2);
     assertThat(apply.arguments().get(0)).isInstanceOf(Literal.class);
@@ -49,11 +49,11 @@ public class TestUnboundApply {
   @Test
   public void valueExpressionAndPredicateArgumentsArePreserved() {
     UnboundTerm<?> nested =
-        Expressions.apply(Expressions.function("year"), ImmutableList.of(Expressions.ref("ts")));
+        new UnboundApply<>(Expressions.function("year"), ImmutableList.of(Expressions.ref("ts")));
     Expression predicate = Expressions.isNull("id");
     UnboundTerm<?> ref = Expressions.ref("id");
     UnboundApply<?> apply =
-        Expressions.apply(
+        new UnboundApply<>(
             Expressions.function("if_else"), ImmutableList.of(predicate, nested, ref));
 
     assertThat(apply.arguments()).containsExactly(predicate, nested, ref);
@@ -63,7 +63,7 @@ public class TestUnboundApply {
   public void literalArgumentsArePreserved() {
     Literal<Integer> lit = Expressions.lit(16);
     UnboundApply<?> apply =
-        Expressions.apply(Expressions.function("bucket"), ImmutableList.of(lit));
+        new UnboundApply<>(Expressions.function("bucket"), ImmutableList.of(lit));
 
     assertThat(apply.arguments()).containsExactly(lit);
   }
@@ -72,7 +72,7 @@ public class TestUnboundApply {
   public void nullArgumentIsRejected() {
     assertThatThrownBy(
             () ->
-                Expressions.apply(
+                new UnboundApply<>(
                     Expressions.function("my_func"), Collections.singletonList((Object) null)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid function argument: null");
@@ -82,7 +82,7 @@ public class TestUnboundApply {
   public void argumentThatIsNotAnExpressionIsRejected() {
     assertThatThrownBy(
             () ->
-                Expressions.apply(
+                new UnboundApply<>(
                     Expressions.function("my_func"),
                     Arrays.asList((Object) LocalDate.parse("2024-01-01"))))
         .isInstanceOf(IllegalArgumentException.class)
@@ -91,7 +91,7 @@ public class TestUnboundApply {
 
   @Test
   public void nullFunctionIsRejected() {
-    assertThatThrownBy(() -> Expressions.apply(null, ImmutableList.of()))
+    assertThatThrownBy(() -> new UnboundApply<>(null, ImmutableList.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid function: null");
   }
@@ -99,7 +99,8 @@ public class TestUnboundApply {
   @Test
   public void refIsNotSupported() {
     UnboundApply<?> apply =
-        Expressions.apply(Expressions.function("my_func"), ImmutableList.of(Expressions.ref("id")));
+        new UnboundApply<>(
+            Expressions.function("my_func"), ImmutableList.of(Expressions.ref("id")));
 
     assertThatThrownBy(apply::ref)
         .isInstanceOf(UnsupportedOperationException.class)
@@ -109,7 +110,8 @@ public class TestUnboundApply {
   @Test
   public void bindWithoutResultTypeFails() {
     UnboundApply<?> apply =
-        Expressions.apply(Expressions.function("my_func"), ImmutableList.of(Expressions.ref("id")));
+        new UnboundApply<>(
+            Expressions.function("my_func"), ImmutableList.of(Expressions.ref("id")));
 
     assertThatThrownBy(() -> apply.bind(STRUCT, false))
         .isInstanceOf(ValidationException.class)

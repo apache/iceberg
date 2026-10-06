@@ -19,19 +19,18 @@
 package org.apache.iceberg.expressions;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
- * Represents a function reference in an expression. A function reference identifies a function by
- * name, optionally qualified with a catalog.
+ * A reference to a function by identifier, optionally qualified with a catalog.
  *
- * <p>Use {@link Expressions#function(String...)} and its overloads to create instances.
+ * <p>Created with {@link Expressions#function(String...)}.
  */
 public class FunctionReference implements Serializable {
   private final String catalog;
-  private final List<String> identifier;
+  private final String[] identifier;
 
   FunctionReference(String catalog, List<String> identifier) {
     Preconditions.checkArgument(
@@ -41,8 +40,7 @@ public class FunctionReference implements Serializable {
         "Invalid function identifier (empty or null part): %s",
         identifier);
     this.catalog = catalog;
-    // not an immutable list so that Kryo can deserialize this class
-    this.identifier = Lists.newArrayList(identifier);
+    this.identifier = identifier.toArray(new String[0]);
   }
 
   public String catalog() {
@@ -50,12 +48,12 @@ public class FunctionReference implements Serializable {
   }
 
   public List<String> identifier() {
-    return identifier;
+    return Arrays.asList(identifier);
   }
 
   /** Returns the name of the function, without the catalog or namespace. */
   public String name() {
-    return identifier.get(identifier.size() - 1);
+    return identifier[identifier.length - 1];
   }
 
   @Override
@@ -63,6 +61,7 @@ public class FunctionReference implements Serializable {
     if (catalog != null) {
       return catalog + "." + String.join(".", identifier);
     }
+
     return String.join(".", identifier);
   }
 }

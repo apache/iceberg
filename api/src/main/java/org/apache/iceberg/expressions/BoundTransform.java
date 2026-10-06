@@ -20,7 +20,6 @@ package org.apache.iceberg.expressions;
 
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.transforms.Transform;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /**
@@ -63,11 +62,6 @@ public class BoundTransform<S, T> extends BoundApply<T> {
     // transforms must produce null for null input values
     // transforms may produce null for non-null inputs when not order-preserving
     return ref.producesNull() || !transform.preservesOrder();
-  }
-
-  @Override
-  public Type type() {
-    return transform.getResultType(ref.type());
   }
 
   @Override

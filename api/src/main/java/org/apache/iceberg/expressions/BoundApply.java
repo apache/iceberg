@@ -27,7 +27,7 @@ import org.apache.iceberg.types.Type;
 /**
  * A function applied to bound arguments.
  *
- * @param <T> the Java type of values produced by this expression
+ * @param <T> the Java type of the function's result
  */
 public class BoundApply<T> implements BoundTerm<T> {
   private final FunctionReference function;

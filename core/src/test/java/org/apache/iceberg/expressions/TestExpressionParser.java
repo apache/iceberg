@@ -980,7 +980,7 @@ public class TestExpressionParser {
   public void applyWithBoundReferenceArgument() {
     Schema schema = new Schema(Types.NestedField.required(1, "data", Types.StringType.get()));
     UnboundApply<?> apply =
-        Expressions.apply(
+        new UnboundApply<>(
             Expressions.function("my_func"),
             ImmutableList.of(Expressions.ref("data").bind(schema.asStruct(), false)));
 

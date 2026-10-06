@@ -27,10 +27,9 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
 /**
- * Represents a function application expression. This is the general form for invoking functions on
- * value expressions.
+ * A function applied to unbound arguments.
  *
- * @param <T> the Java type of values produced by this expression
+ * @param <T> the Java type of the function's result
  */
 public class UnboundApply<T> implements UnboundTerm<T> {
   private final FunctionReference function;
@@ -51,13 +50,6 @@ public class UnboundApply<T> implements UnboundTerm<T> {
     this.resultType = resultType;
   }
 
-  /**
-   * Converts an argument to the type used to represent it, or throws if it cannot be an argument.
-   *
-   * <p>An argument is either a value expression or a predicate. Value expressions are {@link Term}
-   * (a reference or a nested apply) or a constant, which is converted to a {@link Literal}.
-   * Predicates are {@link Expression}.
-   */
   private static Object toArgument(Object argument) {
     Preconditions.checkArgument(argument != null, "Invalid function argument: null");
     if (argument instanceof Term || argument instanceof Expression) {
@@ -71,21 +63,13 @@ public class UnboundApply<T> implements UnboundTerm<T> {
     return function;
   }
 
-  /**
-   * Returns the arguments passed to the function.
-   *
-   * <p>Each argument is a {@link Term} (a value expression), an {@link Expression} (a predicate),
-   * or a {@link Literal} (a constant value expression). Java has no union type, so the arguments
-   * are typed as {@link Object} and validated when this expression is created.
-   */
-  public List<Object> arguments() {
+  /** Returns the arguments, each a {@link Term}, an {@link Expression}, or a {@link Literal}. */
+  List<Object> arguments() {
     return Arrays.asList(arguments);
   }
 
   @Override
   public NamedReference<?> ref() {
-    // a function may be called with any number of references, so there is no single reference that
-    // this term produces values from
     throw new UnsupportedOperationException("Cannot determine reference for function: " + function);
   }
 
