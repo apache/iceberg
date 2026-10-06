@@ -184,10 +184,6 @@ public class FileSystemWalker {
       }
     }
 
-    if (maxDirectSubDirsExceeded) {
-      return;
-    }
-
     for (String subDir : subDirs) {
       listDirRecursivelyWithFileIO(
           io,
