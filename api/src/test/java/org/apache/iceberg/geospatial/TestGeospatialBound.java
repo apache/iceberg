@@ -19,9 +19,11 @@
 package org.apache.iceberg.geospatial;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.util.ByteBuffers;
 import org.junit.jupiter.api.Test;
 
@@ -69,6 +71,75 @@ public class TestGeospatialBound {
     assertThat(bound.m()).isEqualTo(4.0);
     assertThat(bound.hasZ()).isTrue();
     assertThat(bound.hasM()).isTrue();
+  }
+
+  @Test
+  public void testStructLikeXY() {
+    StructLike bound = GeospatialBound.createXY(1.0, 2.0);
+    assertThat(bound.size()).isEqualTo(4);
+    assertThat(bound.get(0, Double.class)).isEqualTo(1.0);
+    assertThat(bound.get(1, Double.class)).isEqualTo(2.0);
+    assertThat(bound.get(2, Double.class)).isNull();
+    assertThat(bound.get(3, Double.class)).isNull();
+  }
+
+  @Test
+  public void testStructLikeXYZM() {
+    StructLike bound = GeospatialBound.createXYZM(3.0, 4.0, 5.0, 6.0);
+    assertThat(bound.size()).isEqualTo(4);
+    assertThat(bound.get(0, Double.class)).isEqualTo(3.0);
+    assertThat(bound.get(1, Double.class)).isEqualTo(4.0);
+    assertThat(bound.get(2, Double.class)).isEqualTo(5.0);
+    assertThat(bound.get(3, Double.class)).isEqualTo(6.0);
+  }
+
+  @Test
+  public void testSet() {
+    GeospatialBound bound = GeospatialBound.createXY(1.0, 2.0);
+    bound.set(0, 9.0);
+    bound.set(1, 8.0);
+    bound.set(2, 7.0);
+    bound.set(3, 6.0);
+    assertThat(bound.get(0, Double.class)).isEqualTo(9.0);
+    assertThat(bound.get(1, Double.class)).isEqualTo(8.0);
+    assertThat(bound.get(2, Double.class)).isEqualTo(7.0);
+    assertThat(bound.get(3, Double.class)).isEqualTo(6.0);
+    assertThat(bound.x()).isEqualTo(9.0);
+    assertThat(bound.y()).isEqualTo(8.0);
+    assertThat(bound.z()).isEqualTo(7.0);
+    assertThat(bound.m()).isEqualTo(6.0);
+
+    bound.set(2, null);
+    bound.set(3, null);
+    assertThat(bound.get(2, Double.class)).isNull();
+    assertThat(bound.get(3, Double.class)).isNull();
+    assertThat(bound.hasZ()).isFalse();
+    assertThat(bound.hasM()).isFalse();
+  }
+
+  @Test
+  public void testSetRejectsNullRequiredCoordinate() {
+    GeospatialBound bound = GeospatialBound.createXY(1.0, 2.0);
+    assertThatThrownBy(() -> bound.set(0, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid x coordinate: null");
+    assertThatThrownBy(() -> bound.set(1, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid y coordinate: null");
+  }
+
+  @Test
+  public void testCopyXY() {
+    GeospatialBound bound = GeospatialBound.createXY(1.0, 2.0);
+    GeospatialBound copy = bound.copy();
+    assertThat(copy).isEqualTo(bound).isNotSameAs(bound);
+  }
+
+  @Test
+  public void testCopyXYZM() {
+    GeospatialBound bound = GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0);
+    GeospatialBound copy = bound.copy();
+    assertThat(copy).isEqualTo(bound).isNotSameAs(bound);
   }
 
   @Test
