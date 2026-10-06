@@ -1189,7 +1189,7 @@ Notes:
 
 #### First Row ID Assignment
 
-The `first_row_id` for existing manifests must be preserved when writing a new snapshot root file. The value of `first_row_id` for delete manifests is always `null`. The `first_row_id` is only assigned for data manifests that do not have a `first_row_id`. Assignment must account for data files that will be assigned `first_row_id` values when the manifest is read. In v4, data files in the root manifest must also have a `first_row_id`: existing values must be preserved, and data files without one are assigned a `first_row_id` in the same way as data manifests.
+The `first_row_id` for existing manifests must be preserved when writing a new snapshot root file. The value of `first_row_id` for delete manifests is always `null`. The `first_row_id` is only assigned for data manifests that do not have a `first_row_id`. Assignment must account for data files that will be assigned `first_row_id` values when the manifest is read. Data files in the root manifest (v4) must also have a `first_row_id`: existing values must be preserved and `first_row_id` is assigned when a data file is ADDED.
 
 The first file in the snapshot root file without a `first_row_id` is assigned a value that is greater than or equal to the `first_row_id` of the snapshot. Subsequent files without a `first_row_id` are assigned one based on the previous file to be assigned a `first_row_id`. Each assigned `first_row_id` must be greater than or equal to the last assigned `first_row_id` plus the row count of the last assigned file, where the row count is:
 
