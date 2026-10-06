@@ -436,6 +436,26 @@ Two rows are the "same"---that is, the rows represent the same entity---if the i
 
 Identifier fields may be nested in structs but cannot be nested within maps or lists. Float, double, and optional fields cannot be used as identifier fields and a nested field cannot be used as an identifier field if it is nested in an optional struct, to avoid null values in identifiers.
 
+#### Stats-only Fields
+
+Stats are tracked in manifests by field ID. Schema fields have assigned IDs, but additional field IDs may be assigned to track stats for derived values. For instance, lower and upper bounds for `to_lower_case(name)` are useful for case-insensitive file pruning.
+
+Stats-only fields are used to track stats for derived values that are not part of the table schema and are not materialized. A stats-only field consists of:
+
+* A **`field-id`** assigned by incrementing the table's `last-field-id`
+* A **`type`** that can be `partition-value` or `expr-value`
+* Type-specific fields that defines how derived values are produced
+
+The `partition-value` type stores stats for the output of a partition field, identified by a `partition-field-id` type-specific field. The lower and upper bound type is the partition field's result type.
+
+The `expr-value` type stores stats for the result of a [value expression](https://iceberg.apache.org/expressions-spec#value-expressions), stored in the `expr` field. The output type of the value expression is stored in the `data-type` field and must be a primitive or variant.
+
+Readers must not fail when an unsupported stats-only field `type` is found; stats for unsupported types must be ignored.
+
+Writers must preserve existing stats for stats-only fields listed in a table's `stats-only-fields`. Writers should produce stats when possible for stats-only fields. If an expression is not supported or produces a different output type when bound, a writer should produce no stats.
+
+The data type of a stats-only field may only change according to the type promotion rules above.
+
 #### Reserved Field IDs
 
 Iceberg tables must not use field ids greater than 2147483447 (`Integer.MAX_VALUE - 200`). This id range is reserved for metadata columns that can be used in user data schemas, like the `_file` column that holds the file path in which a row was stored.
@@ -1169,6 +1189,7 @@ Table metadata consists of the following fields:
     | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     |            |            | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot’s `first-row-id`. See [Row Lineage](#row-lineage). |
     |            |            | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
+    |            |            | _optional_ | **`stats-only-fields`**     | A list (optional) of [stats-only fields](#stats-only-fields) used to track stats for derived values. |
 === "v4"
     | v4         | Field                       | Description |
     |------------|-----------------------------|-------------|
@@ -1197,6 +1218,7 @@ Table metadata consists of the following fields:
     | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage). |
     | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
+    | _optional_ | **`stats-only-fields`**     | A list (optional) of [stats-only fields](#stats-only-fields) used to track stats for derived values. |
 
 For serialization details, see Appendix C.
 
@@ -1801,6 +1823,7 @@ A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/
 |**`default-sort-order-id`**|`JSON int`|`0`|
 |**`refs`**|`JSON map with string key and object value:`<br />`{`<br />&nbsp;&nbsp;`"<name>": {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"type": <type>,`<br />&nbsp;&nbsp;`"max-ref-age-ms": <long>,`<br />&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"test": {`<br />&nbsp;&nbsp;`"snapshot-id": 123456789000,`<br />&nbsp;&nbsp;`"type": "tag",`<br />&nbsp;&nbsp;`"max-ref-age-ms": 10000000`<br />&nbsp;&nbsp;`}`<br />`}`|
 |**`encryption-keys`**|`JSON list of encryption key objects`|`[ {"key-id": "5f819b", "key-metadata": "aWNlYmVyZwo="} ]`|
+|**`stats-only-fields`**|`JSON list of stats-only field objects`|`[ {"field-id": 102, "type": "partition-value", "partition-field-id": 1001} ]`|
 
 ### Name Mapping Serialization
 
