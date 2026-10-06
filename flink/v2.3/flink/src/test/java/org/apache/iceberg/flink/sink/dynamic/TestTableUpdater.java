@@ -21,13 +21,10 @@ package org.apache.iceberg.flink.sink.dynamic;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.spy;
 
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
@@ -155,12 +152,16 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  void branchCreatedByAnotherWriterBeforeManagingSnapshots() {
+  void branchCreatedByAnotherWriterAfterTheTableLoaded() {
     InMemoryCatalog catalog = catalogWithEmptyTable();
-    TableUpdater tableUpdater =
-        tableUpdaterCachingTheTable(createsMainBranchBeforeManagingSnapshots(catalog));
+    Table loadedBeforeTheOtherWriter = catalog.loadTable(RACED_TABLE);
+    createMainBranch(catalog);
 
-    assertThatCode(() -> updateMainBranch(tableUpdater)).doesNotThrowAnyException();
+    assertThatCode(
+            () ->
+                TableUpdater.createBranch(
+                    RACED_TABLE, loadedBeforeTheOtherWriter, SnapshotRef.MAIN_BRANCH))
+        .doesNotThrowAnyException();
 
     assertMainIsTheOtherWritersEmptySnapshot(catalog.loadTable(RACED_TABLE));
   }
@@ -496,30 +497,6 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
 
   private static void createMainBranch(Catalog catalog) {
     catalog.loadTable(RACED_TABLE).manageSnapshots().createBranch(SnapshotRef.MAIN_BRANCH).commit();
-  }
-
-  /** Returns a catalog whose tables let another writer create the main branch first, once. */
-  private static Catalog createsMainBranchBeforeManagingSnapshots(InMemoryCatalog catalog) {
-    AtomicBoolean created = new AtomicBoolean();
-    Catalog racing = spy(catalog);
-    doAnswer(
-            load -> {
-              Table table = spy((Table) load.callRealMethod());
-              doAnswer(
-                      manage -> {
-                        if (created.compareAndSet(false, true)) {
-                          createMainBranch(catalog);
-                        }
-
-                        return manage.callRealMethod();
-                      })
-                  .when(table)
-                  .manageSnapshots();
-              return table;
-            })
-        .when(racing)
-        .loadTable(RACED_TABLE);
-    return racing;
   }
 
   private static void updateMainBranch(TableUpdater tableUpdater) {

@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.iceberg.PartitionSpec;
@@ -105,12 +106,13 @@ class TableUpdater {
     String fromCache = cache.branch(identifier, branch);
     if (fromCache == null) {
       Table table = catalog.loadTable(identifier);
-      maybeCreateBranch(identifier, table, branch);
+      createBranch(identifier, table, branch);
       cache.update(identifier, table);
     }
   }
 
-  private static void maybeCreateBranch(TableIdentifier identifier, Table table, String branch) {
+  @VisibleForTesting
+  static void createBranch(TableIdentifier identifier, Table table, String branch) {
     // Another writer may have created the branch since the cache loaded the table.
     if (hasBranch(table, branch)) {
       LOG.debug("Branch {} for {} created by another writer.", branch, identifier);
