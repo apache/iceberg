@@ -19,8 +19,8 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -28,21 +28,23 @@ import org.apache.iceberg.util.ByteBuffers;
 class RootManifestFile implements ManifestFile {
   private static final int FORMAT_VERSION = 4;
 
-  private final InputFile file;
+  private final String location;
+  private final long length;
   private final long snapshotId;
   private final long sequenceNumber;
   private final Long firstRowId;
   private final byte[] keyMetadata;
-  private Long length = null;
 
   RootManifestFile(
-      InputFile file,
+      String location,
+      long length,
       long snapshotId,
       long sequenceNumber,
       Long firstRowId,
       ByteBuffer keyMetadata) {
-    Preconditions.checkArgument(file != null, "Invalid file: null");
-    this.file = file;
+    Preconditions.checkArgument(location != null, "Invalid location: null");
+    this.location = location;
+    this.length = length;
     this.snapshotId = snapshotId;
     this.sequenceNumber = sequenceNumber;
     this.firstRowId = firstRowId;
@@ -51,15 +53,11 @@ class RootManifestFile implements ManifestFile {
 
   @Override
   public String path() {
-    return file.location();
+    return location;
   }
 
   @Override
   public long length() {
-    if (length == null) {
-      this.length = file.getLength();
-    }
-
     return length;
   }
 
@@ -140,7 +138,11 @@ class RootManifestFile implements ManifestFile {
 
   @Override
   public ManifestFile copy() {
-    ByteBuffer keyMetadataCopy = keyMetadata == null ? null : ByteBuffer.wrap(keyMetadata.clone());
-    return new RootManifestFile(file, snapshotId, sequenceNumber, firstRowId, keyMetadataCopy);
+    ByteBuffer keyMetadataCopy =
+        keyMetadata == null
+            ? null
+            : ByteBuffer.wrap(Arrays.copyOf(keyMetadata, keyMetadata.length));
+    return new RootManifestFile(
+        location, length, snapshotId, sequenceNumber, firstRowId, keyMetadataCopy);
   }
 }

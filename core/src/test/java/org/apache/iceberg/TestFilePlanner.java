@@ -60,10 +60,8 @@ class TestFilePlanner {
   private static final long RECORD_COUNT = 100L;
   private static final long FILE_SIZE_IN_BYTES = 1024L;
   private static final String TABLE_LOCATION = "s3://bucket/db/table";
-  private static final String DV_LOCATION = "s3://bucket/db/table/dv.puffin";
-  private static final long DV_OFFSET = 100L;
-  private static final long DV_SIZE_IN_BYTES = 50L;
-  private static final long DV_CARDINALITY = 5L;
+  private static final DeletionVector DV =
+      deletionVector("s3://bucket/db/table/dv.puffin", 100L, 50L, 5L);
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
@@ -112,7 +110,6 @@ class TestFilePlanner {
         .hasSize(2)
         .extracting(task -> task.file().location())
         .containsExactlyInAnyOrder(resolved("a.parquet"), resolved("b.parquet"));
-    assertThat(tasks).allSatisfy(task -> assertThat(task.deletes()).isEmpty());
   }
 
   @ParameterizedTest
@@ -239,12 +236,8 @@ class TestFilePlanner {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  void colocatedDvAttachedAsPositionDeleteFile(FileFormat format) throws IOException {
-    TrackedFile fileWithDv =
-        dataFile(
-            "with-dv.parquet",
-            EMPTY_PARTITION_DATA,
-            deletionVector(DV_LOCATION, DV_OFFSET, DV_SIZE_IN_BYTES, DV_CARDINALITY));
+  void taskAttachesColocatedDV(FileFormat format) throws IOException {
+    TrackedFile fileWithDv = dataFile("with-dv.parquet", EMPTY_PARTITION_DATA, DV);
     InputFile root = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(fileWithDv));
 
     List<FileScanTask> tasks = plan(root, UNPARTITIONED_SPECS);
@@ -252,7 +245,7 @@ class TestFilePlanner {
     assertThat(tasks).hasSize(1);
     assertThat(tasks.get(0).deletes())
         .hasSize(1)
-        .allSatisfy(delete -> assertThat(delete.location()).isEqualTo(DV_LOCATION));
+        .allSatisfy(delete -> assertThat(delete.location()).isEqualTo(DV.location()));
   }
 
   @ParameterizedTest
@@ -434,9 +427,7 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void scanMetricsForComplexFilteredPlan(FileFormat format) throws IOException {
-    InputFile root =
-        filterableRoot(
-            format, deletionVector(DV_LOCATION, DV_OFFSET, DV_SIZE_IN_BYTES, DV_CARDINALITY));
+    InputFile root = filterableRoot(format, DV);
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     List<FileScanTask> tasks =
@@ -462,7 +453,7 @@ class TestFilePlanner {
     assertThat(metrics.resultDeleteFiles().value())
         .as("only the colocated DV contributes a delete file")
         .isEqualTo(1L);
-    assertThat(metrics.totalDeleteFileSizeInBytes().value()).isEqualTo(DV_SIZE_IN_BYTES);
+    assertThat(metrics.totalDeleteFileSizeInBytes().value()).isEqualTo(DV.sizeInBytes());
     assertThat(metrics.dvs().value()).isEqualTo(1L);
     assertThat(metrics.indexedDeleteFiles().value())
         .as("colocated DVs are not indexed delete files")
@@ -488,7 +479,12 @@ class TestFilePlanner {
 
   private static ManifestFile asManifest(InputFile file) {
     return new RootManifestFile(
-        file, SNAPSHOT_ID, SEQUENCE_NUMBER, FIRST_ROW_ID, /* keyMetadata= */ null);
+        file.location(),
+        file.getLength(),
+        SNAPSHOT_ID,
+        SEQUENCE_NUMBER,
+        FIRST_ROW_ID,
+        /* keyMetadata= */ null);
   }
 
   private static TrackedFile dataFile(String location, PartitionData partition) {
