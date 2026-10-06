@@ -118,7 +118,6 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   }
 
   @Override
-  // serialize concurrent filter() calls on a scan shared across UNION branches
   public synchronized void filter(Predicate[] predicates) {
     Preconditions.checkState(
         Objects.equals(snapshotId(), currentSnapshotId()),
