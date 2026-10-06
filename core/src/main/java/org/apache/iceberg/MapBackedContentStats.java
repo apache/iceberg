@@ -62,16 +62,13 @@ class MapBackedContentStats implements ContentStats {
 
   @Override
   public Iterable<FieldStats<?>> fieldStats() {
-    return Iterables.filter(
-        Iterables.transform(
-            type().fields(), field -> statsFor(StatsUtil.toFieldId(field.fieldId()))),
-        Objects::nonNull);
+    return Iterables.filter(Iterables.transform(statsFieldIds(), this::statsFor), Objects::nonNull);
   }
 
   @Override
   @SuppressWarnings("unchecked")
   public <T> FieldStats<T> statsFor(int fieldId) {
-    if (!containsFieldInMaps(fieldId) || type().field(StatsUtil.toBaseId(fieldId)) == null) {
+    if (!containsFieldInMaps(fieldId) || tableSchema.findField(fieldId) == null) {
       return null;
     }
 
@@ -113,7 +110,8 @@ class MapBackedContentStats implements ContentStats {
   }
 
   private Set<Integer> statsFieldIds() {
-    Set<Integer> ids = Sets.newTreeSet();
+    Set<Integer> ids =
+        Sets.newHashSetWithExpectedSize(valueCounts == null ? 0 : valueCounts.size());
     addKeys(ids, valueCounts);
     addKeys(ids, nullValueCounts);
     addKeys(ids, nanValueCounts);
@@ -141,15 +139,15 @@ class MapBackedContentStats implements ContentStats {
     private final Type boundType;
 
     MapBackedFieldStats(int fieldId) {
-      Types.NestedField field = type.field(StatsUtil.toBaseId(fieldId));
-      Preconditions.checkArgument(
-          field != null, "Cannot convert stats for field ID %s: unknown or not a scalar", fieldId);
       Types.NestedField column = tableSchema.findField(fieldId);
       Preconditions.checkArgument(column != null, "Missing column for field ID %s", fieldId);
       this.fieldId = fieldId;
-      this.struct = field.type().asStructType();
       this.columnType = column.type();
-      this.boundType = struct.fieldType(StatsUtil.LOWER_BOUND_NAME);
+      int baseId = StatsUtil.toBaseId(fieldId);
+      this.struct = StatsUtil.fieldStatsStruct(columnType, baseId, MetricsModes.Full.get());
+      Types.NestedField lowerBound =
+          struct == null ? null : struct.field(baseId + StatsUtil.LOWER_BOUND_OFFSET);
+      this.boundType = lowerBound == null ? null : lowerBound.type();
     }
 
     @Override
