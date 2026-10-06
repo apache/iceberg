@@ -267,9 +267,9 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   /**
-   * Deletes orphan files from the cached dataset.
+   * Deletes orphan files from the dataset.
    *
-   * @param orphanFileDS the cached dataset of orphan files
+   * @param orphanFileDS the dataset of orphan files
    * @return result with orphan file paths
    */
   private DeleteOrphanFiles.Result deleteFiles(Dataset<String> orphanFileDS) {
@@ -362,13 +362,17 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
             .joinWith(validFileIdentDS, joinCond, "leftouter")
             .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING());
 
+    if (prefixMismatchMode != PrefixMismatchMode.ERROR) {
+      return orphanFileDS;
+    }
+
     // Cache and force computation to populate conflicts accumulator
     orphanFileDS = orphanFileDS.cache();
 
     try {
       orphanFileDS.count();
 
-      if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
+      if (!conflicts.value().isEmpty()) {
         throw new ValidationException(
             "Unable to determine whether certain files are orphan. Metadata references files that"
                 + " match listed/provided files except for authority/scheme. Please, inspect the"
