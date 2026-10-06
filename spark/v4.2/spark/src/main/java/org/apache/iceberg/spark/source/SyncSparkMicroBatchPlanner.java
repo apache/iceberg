@@ -118,7 +118,9 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
       return StreamingOffset.START_OFFSET;
     }
 
-    if (table().currentSnapshot().timestampMillis() < fromTimestamp) {
+    // Only a new stream starts from the timestamp. A resumed stream continues from its offset.
+    if (startOffset.equals(StreamingOffset.START_OFFSET)
+        && table().currentSnapshot().timestampMillis() < fromTimestamp) {
       return StreamingOffset.START_OFFSET;
     }
 

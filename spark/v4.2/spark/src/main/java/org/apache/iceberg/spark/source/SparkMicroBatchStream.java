@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import java.util.function.Supplier;
 import org.apache.iceberg.CombinedScanTask;
+import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
@@ -32,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -66,6 +68,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private final boolean cacheDeleteFilesOnExecutors;
   private SparkMicroBatchPlanner planner;
   private StreamingOffset lastOffsetForTriggerAvailableNow;
+  private boolean noSnapshotMatchedForTriggerAvailableNow;
 
   SparkMicroBatchStream(
       JavaSparkContext sparkContext,
@@ -215,6 +218,12 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
         "Invalid start offset: %s is not a StreamingOffset",
         startOffset);
 
+    // Snapshots committed after Trigger.AvailableNow started are left for the next run
+    if (noSnapshotMatchedForTriggerAvailableNow
+        && StreamingOffset.START_OFFSET.equals(startOffset)) {
+      return StreamingOffset.START_OFFSET;
+    }
+
     // Initialize planner if not already done
     if (planner == null) {
       initializePlanner((StreamingOffset) startOffset, null);
@@ -244,15 +253,32 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   public void prepareForTriggerAvailableNow() {
     LOG.info("The streaming query reports to use Trigger.AvailableNow");
 
-    lastOffsetForTriggerAvailableNow =
+    StreamingOffset lastOffset =
         (StreamingOffset) latestOffset(initialOffset, ReadLimit.allAvailable());
+    // START_OFFSET means that no snapshot matched stream-from-timestamp. A new stream has nothing
+    // to read in this run, but a resumed stream continues from its offset and needs an actual cap.
+    this.noSnapshotMatchedForTriggerAvailableNow = StreamingOffset.START_OFFSET.equals(lastOffset);
+    this.lastOffsetForTriggerAvailableNow =
+        noSnapshotMatchedForTriggerAvailableNow ? latestAppendOffset() : lastOffset;
 
-    LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow.json());
+    LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow);
 
     // Reset planner so it gets recreated with the cap on next call
     if (planner != null) {
       planner.stop();
       planner = null;
     }
+  }
+
+  // The planners only read append snapshots. A cap at any other snapshot is never reached.
+  private StreamingOffset latestAppendOffset() {
+    for (Snapshot snapshot : SnapshotUtil.currentAncestors(table)) {
+      if (DataOperations.APPEND.equals(snapshot.operation())) {
+        return new StreamingOffset(
+            snapshot.snapshotId(), MicroBatchUtils.addedFilesCount(table, snapshot), false);
+      }
+    }
+
+    return null;
   }
 }
