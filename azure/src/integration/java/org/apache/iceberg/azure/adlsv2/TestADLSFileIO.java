@@ -51,7 +51,6 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -206,8 +205,8 @@ public class TestADLSFileIO extends AzuriteTestBase {
     io.initialize(ImmutableMap.of());
     doReturn(client).when(io).client(any(ADLSLocation.class));
 
-    PrefixListing listing = io.listPrefix(prefix, "/");
-    PrefixListingPage page = listing.pages().iterator().next();
+    Iterable<PrefixListingPage> listing = io.listPrefixWithDelimiter(prefix, "/");
+    PrefixListingPage page = listing.iterator().next();
     assertThat(page.files())
         .extracting(FileInfo::location)
         .containsExactly("abfs://container@account.dfs.core.windows.net/dir/file");

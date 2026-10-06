@@ -39,7 +39,6 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -172,7 +171,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   }
 
   @Override
-  public PrefixListing listPrefix(String prefix, String delimiter) {
+  public Iterable<PrefixListingPage> listPrefixWithDelimiter(String prefix, String delimiter) {
     if (!"/".equals(delimiter)) {
       throw new UnsupportedOperationException(
           String.format("Prefix listing with delimiter '%s' is not supported", delimiter));
@@ -193,7 +192,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
         }
       }
 
-      return PrefixListing.of(Collections.singletonList(PrefixListingPage.of(files, subPrefixes)));
+      return Collections.singletonList(PrefixListingPage.of(files, subPrefixes));
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

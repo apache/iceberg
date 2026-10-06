@@ -44,7 +44,6 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsRecoveryOperations;
@@ -352,7 +351,7 @@ public class S3FileIO
   }
 
   @Override
-  public PrefixListing listPrefix(String prefix, String delimiter) {
+  public Iterable<PrefixListingPage> listPrefixWithDelimiter(String prefix, String delimiter) {
     PrefixedS3Client client = clientForStoragePath(prefix);
 
     S3URI uri = new S3URI(prefix, client.s3FileIOProperties().bucketToAccessPointMapping());
@@ -374,11 +373,10 @@ public class S3FileIO
             .delimiter(delimiter)
             .build();
 
-    return PrefixListing.of(
-        () ->
-            client.s3().listObjectsV2Paginator(request).stream()
-                .map(response -> createPrefixListingPage(s3uri, response))
-                .iterator());
+    return () ->
+        client.s3().listObjectsV2Paginator(request).stream()
+            .map(response -> createPrefixListingPage(s3uri, response))
+            .iterator();
   }
 
   @Override

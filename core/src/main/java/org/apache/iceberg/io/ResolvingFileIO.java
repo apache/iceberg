@@ -275,8 +275,8 @@ public class ResolvingFileIO
   }
 
   @Override
-  public PrefixListing listPrefix(String prefix, String delimiter) {
-    return io(prefix).listPrefix(prefix, delimiter);
+  public Iterable<PrefixListingPage> listPrefixWithDelimiter(String prefix, String delimiter) {
+    return io(prefix).listPrefixWithDelimiter(prefix, delimiter);
   }
 
   @Override

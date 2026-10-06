@@ -27,14 +27,12 @@ import org.junit.jupiter.api.Test;
 class TestSupportsPrefixOperations {
 
   @Test
-  void prefixListingContainsPages() {
+  void prefixListingPageContainsFilesAndSubPrefixes() {
     FileInfo file = new FileInfo("file:/table/file.parquet", 10L, 20L);
     PrefixListingPage page =
         PrefixListingPage.of(
             Collections.singletonList(file), Collections.singletonList("file:/table/partition/"));
-    PrefixListing listing = PrefixListing.of(Collections.singletonList(page));
 
-    assertThat(listing.pages()).containsExactly(page);
     assertThat(page.files()).containsExactly(file);
     assertThat(page.subPrefixes()).containsExactly("file:/table/partition/");
   }
@@ -44,7 +42,7 @@ class TestSupportsPrefixOperations {
     SupportsPrefixOperations io = new TestFileIO();
 
     assertThat(io.supportsPrefixListingWithDelimiter("file:/table/", "/")).isFalse();
-    assertThatThrownBy(() -> io.listPrefix("file:/table/", "/"))
+    assertThatThrownBy(() -> io.listPrefixWithDelimiter("file:/table/", "/"))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Prefix listing with delimiter '/' is not supported");
   }

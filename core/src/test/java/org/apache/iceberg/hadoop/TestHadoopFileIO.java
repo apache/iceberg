@@ -38,7 +38,6 @@ import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
-import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -101,8 +100,9 @@ public class TestHadoopFileIO {
     fs.createNewFile(immediateFile1);
     fs.createNewFile(immediateFile2);
 
-    PrefixListing listing = hadoopFileIO.listPrefix(parent.toUri().toString(), "/");
-    PrefixListingPage page = listing.pages().iterator().next();
+    Iterable<PrefixListingPage> listing =
+        hadoopFileIO.listPrefixWithDelimiter(parent.toUri().toString(), "/");
+    PrefixListingPage page = listing.iterator().next();
 
     assertThat(page.files())
         .extracting(fileInfo -> new Path(fileInfo.location()).getName())
@@ -118,7 +118,7 @@ public class TestHadoopFileIO {
     assertThat(hadoopFileIO.supportsPrefixListingWithDelimiter(prefix, "|")).isFalse();
     assertThat(hadoopFileIO.supportsPrefixListingWithDelimiter(prefix, "")).isFalse();
     assertThat(hadoopFileIO.supportsPrefixListingWithDelimiter(prefix, null)).isFalse();
-    assertThatThrownBy(() -> hadoopFileIO.listPrefix(prefix, "|"))
+    assertThatThrownBy(() -> hadoopFileIO.listPrefixWithDelimiter(prefix, "|"))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Prefix listing with delimiter '|' is not supported");
   }

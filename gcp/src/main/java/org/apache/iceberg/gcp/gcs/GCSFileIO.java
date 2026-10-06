@@ -46,7 +46,6 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.io.SupportsStorageCredentials;
@@ -307,22 +306,21 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
   }
 
   @Override
-  public PrefixListing listPrefix(String prefix, String delimiter) {
+  public Iterable<PrefixListingPage> listPrefixWithDelimiter(String prefix, String delimiter) {
     if (!"/".equals(delimiter)) {
       throw new UnsupportedOperationException(
           String.format("Prefix listing with delimiter '%s' is not supported", delimiter));
     }
 
     GCSLocation location = new GCSLocation(prefix);
-    return PrefixListing.of(
-        () ->
-            prefixListingPages(
-                clientForStoragePath(prefix)
-                    .storage()
-                    .list(
-                        location.bucket(),
-                        Storage.BlobListOption.prefix(location.prefix()),
-                        Storage.BlobListOption.currentDirectory())));
+    return () ->
+        prefixListingPages(
+            clientForStoragePath(prefix)
+                .storage()
+                .list(
+                    location.bucket(),
+                    Storage.BlobListOption.prefix(location.prefix()),
+                    Storage.BlobListOption.currentDirectory()));
   }
 
   @Override

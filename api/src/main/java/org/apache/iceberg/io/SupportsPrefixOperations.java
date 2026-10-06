@@ -49,16 +49,20 @@ public interface SupportsPrefixOperations extends FileIO {
    *
    * @param prefix prefix to list
    * @param delimiter non-empty delimiter used to group matching locations
-   * @return files and common prefixes directly below the prefix
+   * @return iterable of pages containing files and common prefixes directly below the prefix
    * @throws UnsupportedOperationException if prefix listing with the delimiter is not supported
    */
-  default PrefixListing listPrefix(String prefix, String delimiter) {
+  default Iterable<PrefixListingPage> listPrefixWithDelimiter(String prefix, String delimiter) {
     throw new UnsupportedOperationException(
         String.format("Prefix listing with delimiter '%s' is not supported", delimiter));
   }
 
   /**
    * Returns whether this implementation supports prefix listing with the given delimiter.
+   *
+   * <p>Support can vary by prefix when a FileIO selects a storage implementation from the location
+   * or when the target has additional restrictions, such as an S3 directory bucket. Callers must
+   * check support for each prefix and delimiter pair they intend to list.
    *
    * @param prefix prefix to list
    * @param delimiter non-empty delimiter used to group matching locations

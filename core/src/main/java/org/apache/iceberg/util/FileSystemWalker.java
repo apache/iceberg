@@ -36,7 +36,6 @@ import org.apache.hadoop.fs.PathFilter;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.io.FileInfo;
-import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -156,12 +155,12 @@ public class FileSystemWalker {
     Preconditions.checkArgument(
         io.supportsPrefixListingWithDelimiter(listPath, "/"),
         "FileIO does not support prefix listing with '/' delimiter: %s",
-        io);
-    PrefixListing listing = io.listPrefix(listPath, "/");
+        io.getClass().getName());
+    Iterable<PrefixListingPage> listing = io.listPrefixWithDelimiter(listPath, "/");
 
     List<String> subDirs = Lists.newArrayList();
     boolean maxDirectSubDirsExceeded = false;
-    for (PrefixListingPage page : listing.pages()) {
+    for (PrefixListingPage page : listing) {
       for (String subPrefix : page.subPrefixes()) {
         if (!isHiddenPath(baseDir, new Path(subPrefix), pathFilter)) {
           if (maxDirectSubDirsExceeded) {

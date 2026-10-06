@@ -37,7 +37,6 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -360,7 +359,7 @@ public class TestFileSystemWalker {
                 return delegate.next();
               }
             };
-    RecordingPrefixFileIO recordingIO = new RecordingPrefixFileIO(PrefixListing.of(pages));
+    RecordingPrefixFileIO recordingIO = new RecordingPrefixFileIO(pages);
 
     FileSystemWalker.listDirRecursivelyWithFileIO(
         recordingIO,
@@ -410,7 +409,9 @@ public class TestFileSystemWalker {
                     dir -> {},
                     file -> {}))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("does not support prefix listing with '/' delimiter");
+        .hasMessage(
+            "FileIO does not support prefix listing with '/' delimiter: %s",
+            StaticPrefixFileIO.class.getName());
   }
 
   @Test
@@ -476,15 +477,13 @@ public class TestFileSystemWalker {
 
   private static class RecordingPrefixFileIO implements SupportsPrefixOperations {
     private final List<String> calls = Lists.newArrayList();
-    private final PrefixListing listing;
+    private final Iterable<PrefixListingPage> listing;
 
     private RecordingPrefixFileIO() {
-      this(
-          PrefixListing.of(
-              ImmutableList.of(PrefixListingPage.of(ImmutableList.of(), ImmutableList.of()))));
+      this(ImmutableList.of(PrefixListingPage.of(ImmutableList.of(), ImmutableList.of())));
     }
 
-    private RecordingPrefixFileIO(PrefixListing listing) {
+    private RecordingPrefixFileIO(Iterable<PrefixListingPage> listing) {
       this.listing = listing;
     }
 
@@ -494,7 +493,7 @@ public class TestFileSystemWalker {
     }
 
     @Override
-    public PrefixListing listPrefix(String prefix, String delimiter) {
+    public Iterable<PrefixListingPage> listPrefixWithDelimiter(String prefix, String delimiter) {
       calls.add(prefix);
       return listing;
     }

@@ -38,7 +38,6 @@ import org.apache.iceberg.io.DelegateFileIO;
 import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.PrefixListing;
 import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -245,7 +244,7 @@ public class ADLSFileIO implements DelegateFileIO {
   }
 
   @Override
-  public PrefixListing listPrefix(String prefix, String delimiter) {
+  public Iterable<PrefixListingPage> listPrefixWithDelimiter(String prefix, String delimiter) {
     if (!"/".equals(delimiter)) {
       throw new UnsupportedOperationException(
           String.format("Prefix listing with delimiter '%s' is not supported", delimiter));
@@ -258,20 +257,19 @@ public class ADLSFileIO implements DelegateFileIO {
     options.setPath(location.path());
     options.setRecursive(false);
 
-    return PrefixListing.of(
-        () -> {
-          try {
-            return Streams.stream(client(location).listPaths(options, null).iterableByPage())
-                .map(response -> createPrefixListingPage(baseUri, response.getElements()))
-                .iterator();
-          } catch (DataLakeStorageException e) {
-            if (e.getStatusCode() != 404) {
-              throw e;
-            }
+    return () -> {
+      try {
+        return Streams.stream(client(location).listPaths(options, null).iterableByPage())
+            .map(response -> createPrefixListingPage(baseUri, response.getElements()))
+            .iterator();
+      } catch (DataLakeStorageException e) {
+        if (e.getStatusCode() != 404) {
+          throw e;
+        }
 
-            return Collections.emptyIterator();
-          }
-        });
+        return Collections.emptyIterator();
+      }
+    };
   }
 
   @Override
