@@ -48,6 +48,10 @@ public class TestFunctionReference {
     FunctionReference ref = Expressions.function("cat", ImmutableList.of("ns", "func"));
     assertThat(ref.catalog()).isEqualTo("cat");
     assertThat(ref.identifier()).containsExactly("ns", "func");
+  }
+
+  @Test
+  public void catalogIsNullWhenNotSpecified() {
     assertThat(Expressions.function("func").catalog()).isNull();
   }
 

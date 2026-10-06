@@ -185,6 +185,7 @@ public class ExpressionParser {
       return generate(
           () -> {
             gen.writeStartObject();
+
             gen.writeStringField(TYPE, operationType(pred.op()));
 
             if (pred.isUnaryPredicate()) {
@@ -215,26 +216,29 @@ public class ExpressionParser {
       return generate(
           () -> {
             gen.writeStartObject();
+
             gen.writeStringField(TYPE, operationType(pred.op()));
 
-            if (pred.op() == Expression.Operation.IN || pred.op() == Expression.Operation.NOT_IN) {
-              gen.writeFieldName(CHILD);
-              writeExpr(pred.term());
-              gen.writeArrayFieldStart(VALUES);
-              if (pred.literals() != null) {
+            if (pred.literals() != null) {
+              if (pred.op() == Expression.Operation.IN
+                  || pred.op() == Expression.Operation.NOT_IN) {
+                gen.writeFieldName(CHILD);
+                writeExpr(pred.term());
+                gen.writeArrayFieldStart(VALUES);
                 for (Literal<T> lit : pred.literals()) {
                   unboundLiteral(lit.value());
                 }
+                gen.writeEndArray();
+
+              } else {
+                gen.writeFieldName(LEFT);
+                writeExpr(pred.term());
+                gen.writeFieldName(RIGHT);
+                unboundLiteral(pred.literal().value());
               }
-              gen.writeEndArray();
-            } else if (pred.literals() == null || pred.literals().isEmpty()) {
+            } else {
               gen.writeFieldName(CHILD);
               writeExpr(pred.term());
-            } else {
-              gen.writeFieldName(LEFT);
-              writeExpr(pred.term());
-              gen.writeFieldName(RIGHT);
-              unboundLiteral(pred.literal().value());
             }
 
             gen.writeEndObject();

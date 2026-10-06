@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -31,16 +32,15 @@ import org.apache.iceberg.types.Types;
  */
 public class UnboundApply<T> implements UnboundTerm<T> {
   private final FunctionReference function;
-  private final List<Object> arguments;
+  private final Object[] arguments;
 
   UnboundApply(FunctionReference function, List<Object> arguments) {
     Preconditions.checkArgument(function != null, "Invalid function: null");
     this.function = function;
-    // not an immutable list so that Kryo can deserialize this class
     this.arguments =
         arguments == null
-            ? Lists.newArrayList()
-            : Lists.newArrayList(Lists.transform(arguments, UnboundApply::toArgument));
+            ? new Object[0]
+            : Lists.transform(arguments, UnboundApply::toArgument).toArray();
   }
 
   /**
@@ -71,7 +71,7 @@ public class UnboundApply<T> implements UnboundTerm<T> {
    * are typed as {@link Object} and validated when this expression is created.
    */
   public List<Object> arguments() {
-    return arguments;
+    return Arrays.asList(arguments);
   }
 
   @Override
@@ -90,6 +90,6 @@ public class UnboundApply<T> implements UnboundTerm<T> {
 
   @Override
   public String toString() {
-    return function + "(" + arguments + ")";
+    return function + "(" + Arrays.toString(arguments) + ")";
   }
 }
