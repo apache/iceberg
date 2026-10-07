@@ -242,8 +242,23 @@ public class TestExpressionUtil {
     Expression in =
         Binder.bind(STRUCT, Expressions.in("tsns", ninetyMinutesAgo, ninetyOneMinutesAgo), true);
 
+    assertEquals(
+        Expressions.in("tsns", "(timestamp-1-hours-ago)", "(timestamp-1-hours-ago)"),
+        ExpressionUtil.sanitize(in));
     assertThat(ExpressionUtil.toSanitizedString(in))
         .isEqualTo("tsns IN ((timestamp-1-hours-ago), (timestamp-1-hours-ago))");
+  }
+
+  @Test
+  public void testSanitizeBoundDateIn() {
+    String lastWeek = LocalDate.now(ZoneOffset.UTC).minusWeeks(1).toString();
+    String twoWeeksAgo = LocalDate.now(ZoneOffset.UTC).minusWeeks(2).toString();
+    Expression in = Binder.bind(STRUCT, Expressions.in("date", lastWeek, twoWeeksAgo), true);
+
+    assertThat(ExpressionUtil.toSanitizedString(in))
+        .isIn(
+            "date IN ((date-7-days-ago), (date-14-days-ago))",
+            "date IN ((date-14-days-ago), (date-7-days-ago))");
   }
 
   @Test
