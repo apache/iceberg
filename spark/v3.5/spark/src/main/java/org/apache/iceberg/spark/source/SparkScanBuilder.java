@@ -360,29 +360,13 @@ public class SparkScanBuilder
         return false;
       }
 
-      // Type-promotion guard: if the key column was promoted (e.g. int -> long) since the index
-      // was built, a HASH transform value computed from the current type no longer matches the
-      // buckets stored in the leaf files. On its own that would just miss matches, but combined
-      // with a stale index (uncovered files present) it could prune away covered rows that do
-      // match -- a wrong (empty) result. Detect it by comparing the type physically stored in a
-      // leaf file against the current key type, and fall back to normal planning if they differ;
-      // the predicate itself is still applied downstream, so results stay correct.
+      // Read the tracking file once and reuse the entries for both the type-promotion check and
+      // candidate collection, rather than re-reading (and re-decoding) it per use and per range.
       List<TrackingFileEntry> trackedLeafFiles =
           TrackingFileReader.readAll(table.io().newInputFile(indexSnapshot.trackingFile()));
-      if (!trackedLeafFiles.isEmpty()) {
-        Type storedKeyType =
-            LeafFileReader.storedKeyType(
-                table.io().newInputFile(trackedLeafFiles.get(0).location()), keyField);
-        if (!keyField.type().equals(storedKeyType)) {
-          LOG.warn(
-              "SCALAR index on {} was built for key type {} but the current schema has {} (the "
-                  + "column was changed since the index was built) -- falling back to normal "
-                  + "planning; rebuild the index to re-enable pruning",
-              columnName,
-              storedKeyType,
-              keyField.type());
-          return false;
-        }
+
+      if (keyTypePromoted(trackedLeafFiles, keyField, columnName)) {
+        return false;
       }
 
       long currentTableSnapshotId = table.currentSnapshot().snapshotId();
@@ -397,146 +381,224 @@ public class SparkScanBuilder
             uncoveredFilePathsSince(indexSnapshot.sourceTableSnapshotId(), currentTableSnapshotId);
       }
 
-      Optional<UnboundPredicate<?>> eqPredicate =
-          predicates.stream().filter(p -> p.op() == Expression.Operation.EQ).findFirst();
-      Optional<UnboundPredicate<?>> inPredicate =
-          predicates.stream().filter(p -> p.op() == Expression.Operation.IN).findFirst();
-
-      List<TransformValueRange> targetRanges;
-      Expression leafFilter;
-      Object literalValueForLog;
-
-      if (eqPredicate.isPresent()) {
-        Object literalValue = eqPredicate.get().literal().value();
-        long targetTransformValue = transformValue(metadata, literalValue);
-        targetRanges =
-            ImmutableList.of(new TransformValueRange(targetTransformValue, targetTransformValue));
-        leafFilter = Expressions.equal(columnName, literalValue);
-        literalValueForLog = literalValue;
-      } else if (inPredicate.isPresent()) {
-        List<Object> literalValues = Lists.newArrayList();
-        for (Literal<?> literal : inPredicate.get().literals()) {
-          literalValues.add(literal.value());
-        }
-        if (literalValues.isEmpty()) {
-          return false;
-        }
-
-        List<TransformValueRange> ranges = Lists.newArrayListWithExpectedSize(literalValues.size());
-        for (Object literalValue : literalValues) {
-          long tv = transformValue(metadata, literalValue);
-          ranges.add(new TransformValueRange(tv, tv));
-        }
-        targetRanges = ranges;
-        leafFilter = Expressions.in(columnName, literalValues);
-        literalValueForLog = literalValues;
-      } else {
-        // No equality or IN predicate in this group -- only IDENTITY preserves enough order for
-        // a range comparison to map to a contiguous transform-value range; HASH scatters values
-        // across buckets, so a range on the original column tells us nothing about which
-        // buckets to look in.
-        if (!"IDENTITY".equals(metadata.transformFunction())) {
-          return false;
-        }
-
-        long lowerBound = Long.MIN_VALUE;
-        long upperBound = Long.MAX_VALUE;
-        Expression combinedFilter = null;
-        for (UnboundPredicate<?> predicate : predicates) {
-          long value = ((Number) predicate.literal().value()).longValue();
-          switch (predicate.op()) {
-            case GT:
-            case GT_EQ:
-              // Deliberately loose (uses value, not value + 1, for GT): the coarse tracking-file
-              // range only needs to be a superset of the true match set -- LeafFileReader
-              // re-applies the exact original predicate below, so this can only cost scanning
-              // one extra boundary leaf file, never under-prune a real match away.
-              lowerBound = Math.max(lowerBound, value);
-              break;
-            case LT:
-            case LT_EQ:
-              upperBound = Math.min(upperBound, value);
-              break;
-            default:
-              // EQ/IN are handled above; SCALAR_INDEX_PRUNABLE_OPS admits nothing else here.
-              break;
-          }
-          combinedFilter =
-              combinedFilter == null ? predicate : Expressions.and(combinedFilter, predicate);
-        }
-
-        if (combinedFilter == null || lowerBound > upperBound) {
-          return false;
-        }
-
-        targetRanges = ImmutableList.of(new TransformValueRange(lowerBound, upperBound));
-        leafFilter = combinedFilter;
-        literalValueForLog = "[" + lowerBound + ", " + upperBound + "]";
-      }
-
-      // Dedupe by location: an IN predicate's separate target ranges can resolve to the same
-      // leaf file (e.g. two IN values landing in the same HASH bucket), and reading it twice
-      // would just waste work, not affect correctness.
-      List<TrackingFileEntry> candidateLeafFiles =
-          collectCandidateLeafFiles(table.io(), indexSnapshot.trackingFile(), targetRanges);
-
-      int maxCandidateLeafFiles =
-          PropertyUtil.propertyAsInt(
-              table.properties(),
-              MAX_CANDIDATE_LEAF_FILES_PROPERTY,
-              DEFAULT_MAX_CANDIDATE_LEAF_FILES);
-      if (candidateLeafFiles.size() > maxCandidateLeafFiles) {
-        // Resolved to more candidate leaf files than it's worth opening -- bail out to normal
-        // planning rather than let a misconfigured index make planning slower than no index at
-        // all. The original predicate is still applied downstream regardless, so this is purely
-        // a missed optimization, not a correctness concern.
-        LOG.info(
-            "SCALAR index on {} resolved to {} candidate leaf file(s), exceeding the planning-cost"
-                + " bound of {} ({}) -- falling back to normal planning",
-            columnName,
-            candidateLeafFiles.size(),
-            maxCandidateLeafFiles,
-            MAX_CANDIDATE_LEAF_FILES_PROPERTY);
+      ResolvedPredicate resolved = resolvePredicates(metadata, columnName, predicates);
+      if (resolved == null) {
         return false;
       }
 
-      List<LeafFileEntry> matches = Lists.newArrayList();
-      for (TrackingFileEntry leaf : candidateLeafFiles) {
-        matches.addAll(
-            LeafFileReader.readMatching(
-                table.io().newInputFile(leaf.location()), keyField, leafFilter));
-      }
-
-      if (!matches.isEmpty() || !uncoveredFilePaths.isEmpty()) {
-        // Uncovered files are unconditionally included regardless of what the index says --
-        // they're not covered by it, so they must always be scanned. Safe even when matches is
-        // empty: this isn't "the index says zero files match," it's "zero *covered* files
-        // match, plus every uncovered file, which is never an empty set here."
-        Set<String> resolvedPaths = Sets.newHashSet(uncoveredFilePaths);
-        matches.forEach(m -> resolvedPaths.add(m.filePath()));
-        this.scalarIndexResolvedFilePaths = resolvedPaths;
-        LOG.info(
-            "SCALAR index on {} resolved {} {} to {} file(s) ({} covered match(es), {} "
-                + "uncovered file(s)): {}",
-            columnName,
-            columnName,
-            literalValueForLog,
-            resolvedPaths.size(),
-            matches.size(),
-            uncoveredFilePaths.size(),
-            resolvedPaths);
-        return true;
-      }
-      // 0 matches (key not present in covered files) and no uncovered files either -- fall
-      // back to normal planning rather than prune to zero; the original predicate itself
-      // still gets applied downstream and yields no rows.
-      return false;
+      return resolveAndSetFilePaths(
+          trackedLeafFiles, resolved, keyField, columnName, uncoveredFilePaths);
     } catch (Exception e) {
       LOG.warn(
           "Failed to use SCALAR index on column {}, falling back to normal planning: {}",
           columnName,
           e.getMessage());
       return false;
+    }
+  }
+
+  /**
+   * Collects the candidate leaf files for {@code resolved}, enforces the planning-cost bound, reads
+   * the matching entries, and sets {@link #scalarIndexResolvedFilePaths} to the covered match files
+   * plus any uncovered files. Returns {@code true} if pruning was applied, {@code false} to fall
+   * back to normal planning.
+   */
+  private boolean resolveAndSetFilePaths(
+      List<TrackingFileEntry> trackedLeafFiles,
+      ResolvedPredicate resolved,
+      Types.NestedField keyField,
+      String columnName,
+      Set<String> uncoveredFilePaths) {
+    // Dedupe by location: an IN predicate's separate target ranges can resolve to the same leaf
+    // file (e.g. two IN values landing in the same HASH bucket), and reading it twice would just
+    // waste work, not affect correctness.
+    List<TrackingFileEntry> candidateLeafFiles =
+        collectCandidateLeafFiles(trackedLeafFiles, resolved.targetRanges);
+
+    int maxCandidateLeafFiles =
+        PropertyUtil.propertyAsInt(
+            table.properties(),
+            MAX_CANDIDATE_LEAF_FILES_PROPERTY,
+            DEFAULT_MAX_CANDIDATE_LEAF_FILES);
+    if (candidateLeafFiles.size() > maxCandidateLeafFiles) {
+      // Resolved to more candidate leaf files than it's worth opening -- bail out to normal
+      // planning rather than let a misconfigured index make planning slower than no index at all.
+      // The original predicate is still applied downstream regardless, so this is purely a missed
+      // optimization, not a correctness concern.
+      LOG.info(
+          "SCALAR index on {} resolved to {} candidate leaf file(s), exceeding the planning-cost"
+              + " bound of {} ({}) -- falling back to normal planning",
+          columnName,
+          candidateLeafFiles.size(),
+          maxCandidateLeafFiles,
+          MAX_CANDIDATE_LEAF_FILES_PROPERTY);
+      return false;
+    }
+
+    List<LeafFileEntry> matches = Lists.newArrayList();
+    for (TrackingFileEntry leaf : candidateLeafFiles) {
+      matches.addAll(
+          LeafFileReader.readMatching(
+              table.io().newInputFile(leaf.location()), keyField, resolved.leafFilter));
+    }
+
+    if (matches.isEmpty() && uncoveredFilePaths.isEmpty()) {
+      // 0 matches (key not present in covered files) and no uncovered files either -- fall back to
+      // normal planning rather than prune to zero; the original predicate itself still gets applied
+      // downstream and yields no rows.
+      return false;
+    }
+
+    // Uncovered files are unconditionally included regardless of what the index says -- they're not
+    // covered by it, so they must always be scanned.
+    Set<String> resolvedPaths = Sets.newHashSet(uncoveredFilePaths);
+    matches.forEach(m -> resolvedPaths.add(m.filePath()));
+    this.scalarIndexResolvedFilePaths = resolvedPaths;
+    LOG.info(
+        "SCALAR index on {} resolved {} to {} file(s) ({} covered match(es), {} uncovered"
+            + " file(s)): {}",
+        columnName,
+        resolved.literalValueForLog,
+        resolvedPaths.size(),
+        matches.size(),
+        uncoveredFilePaths.size(),
+        resolvedPaths);
+    return true;
+  }
+
+  private boolean keyTypePromoted(
+      List<TrackingFileEntry> trackedLeafFiles, Types.NestedField keyField, String columnName) {
+    // If the key column was promoted (e.g. int -> long) since the index was built, a HASH
+    // transform value computed from the current type no longer matches the buckets stored in the
+    // leaf files. On its own that would just miss matches, but combined with a stale index
+    // (uncovered files present) it could prune away covered rows that do match -- a wrong (empty)
+    // result. Detect it by comparing the type physically stored in a leaf file against the current
+    // key type; the predicate itself is still applied downstream, so results stay correct.
+    if (trackedLeafFiles.isEmpty()) {
+      return false;
+    }
+
+    Type storedKeyType =
+        LeafFileReader.storedKeyType(
+            table.io().newInputFile(trackedLeafFiles.get(0).location()), keyField);
+    if (keyField.type().equals(storedKeyType)) {
+      return false;
+    }
+
+    LOG.warn(
+        "SCALAR index on {} was built for key type {} but the current schema has {} (the column "
+            + "was changed since the index was built) -- falling back to normal planning; rebuild "
+            + "the index to re-enable pruning",
+        columnName,
+        storedKeyType,
+        keyField.type());
+    return true;
+  }
+
+  private ResolvedPredicate resolvePredicates(
+      IndexMetadata metadata, String columnName, List<UnboundPredicate<?>> predicates) {
+    Optional<UnboundPredicate<?>> eqPredicate =
+        predicates.stream().filter(p -> p.op() == Expression.Operation.EQ).findFirst();
+    if (eqPredicate.isPresent()) {
+      return resolveEqPredicate(metadata, columnName, eqPredicate.get());
+    }
+
+    Optional<UnboundPredicate<?>> inPredicate =
+        predicates.stream().filter(p -> p.op() == Expression.Operation.IN).findFirst();
+    if (inPredicate.isPresent()) {
+      return resolveInPredicate(metadata, columnName, inPredicate.get());
+    }
+
+    return resolveRangePredicates(metadata, columnName, predicates);
+  }
+
+  private ResolvedPredicate resolveEqPredicate(
+      IndexMetadata metadata, String columnName, UnboundPredicate<?> eqPredicate) {
+    Object literalValue = eqPredicate.literal().value();
+    long targetTransformValue = transformValue(metadata, literalValue);
+    return new ResolvedPredicate(
+        ImmutableList.of(new TransformValueRange(targetTransformValue, targetTransformValue)),
+        Expressions.equal(columnName, literalValue),
+        literalValue);
+  }
+
+  private ResolvedPredicate resolveInPredicate(
+      IndexMetadata metadata, String columnName, UnboundPredicate<?> inPredicate) {
+    List<Object> literalValues = Lists.newArrayList();
+    for (Literal<?> literal : inPredicate.literals()) {
+      literalValues.add(literal.value());
+    }
+    if (literalValues.isEmpty()) {
+      return null;
+    }
+
+    List<TransformValueRange> ranges = Lists.newArrayListWithExpectedSize(literalValues.size());
+    for (Object literalValue : literalValues) {
+      long transformed = transformValue(metadata, literalValue);
+      ranges.add(new TransformValueRange(transformed, transformed));
+    }
+    return new ResolvedPredicate(ranges, Expressions.in(columnName, literalValues), literalValues);
+  }
+
+  private ResolvedPredicate resolveRangePredicates(
+      IndexMetadata metadata, String columnName, List<UnboundPredicate<?>> predicates) {
+    // No equality or IN predicate in this group -- only IDENTITY preserves enough order for a
+    // range comparison to map to a contiguous transform-value range; HASH scatters values across
+    // buckets, so a range on the original column tells us nothing about which buckets to look in.
+    if (!"IDENTITY".equals(metadata.transformFunction())) {
+      return null;
+    }
+
+    long lowerBound = Long.MIN_VALUE;
+    long upperBound = Long.MAX_VALUE;
+    Expression combinedFilter = null;
+    for (UnboundPredicate<?> predicate : predicates) {
+      long value = ((Number) predicate.literal().value()).longValue();
+      switch (predicate.op()) {
+        case GT:
+        case GT_EQ:
+          // Deliberately loose (uses value, not value + 1, for GT): the coarse tracking-file range
+          // only needs to be a superset of the true match set -- LeafFileReader re-applies the
+          // exact original predicate below, so this can only cost scanning one extra boundary leaf
+          // file, never under-prune a real match away.
+          lowerBound = Math.max(lowerBound, value);
+          break;
+        case LT:
+        case LT_EQ:
+          upperBound = Math.min(upperBound, value);
+          break;
+        default:
+          // EQ/IN are handled above; SCALAR_INDEX_PRUNABLE_OPS admits nothing else here.
+          break;
+      }
+      combinedFilter =
+          combinedFilter == null ? predicate : Expressions.and(combinedFilter, predicate);
+    }
+
+    if (combinedFilter == null || lowerBound > upperBound) {
+      return null;
+    }
+
+    return new ResolvedPredicate(
+        ImmutableList.of(new TransformValueRange(lowerBound, upperBound)),
+        combinedFilter,
+        "[" + lowerBound + ", " + upperBound + "]");
+  }
+
+  /**
+   * The target transform-value ranges, the leaf-file filter, and a log label, resolved from a group
+   * of predicates on one indexed column.
+   */
+  private static final class ResolvedPredicate {
+    private final List<TransformValueRange> targetRanges;
+    private final Expression leafFilter;
+    private final Object literalValueForLog;
+
+    ResolvedPredicate(
+        List<TransformValueRange> targetRanges, Expression leafFilter, Object literalValueForLog) {
+      this.targetRanges = targetRanges;
+      this.leafFilter = leafFilter;
+      this.literalValueForLog = literalValueForLog;
     }
   }
 
@@ -548,12 +610,20 @@ public class SparkScanBuilder
    * TestSparkScanBuilderCandidateLeafFiles in this package.
    */
   static final class TransformValueRange {
-    final long min;
-    final long max;
+    private final long min;
+    private final long max;
 
     TransformValueRange(long min, long max) {
       this.min = min;
       this.max = max;
+    }
+
+    long min() {
+      return min;
+    }
+
+    long max() {
+      return max;
     }
   }
 
@@ -561,16 +631,28 @@ public class SparkScanBuilder
    * Collects the tracking-file entries whose transform-value range overlaps any of {@code
    * targetRanges}, deduped by location. An {@code IN} predicate's separate target ranges can
    * resolve to the same leaf file (e.g. two IN values landing in the same HASH bucket); reading it
-   * twice would just waste work, not affect correctness, but is worth avoiding.
+   * twice would just waste work, not affect correctness, but is worth avoiding. Reads the tracking
+   * file once; prefer {@link #collectCandidateLeafFiles(List, List)} when the entries are already
+   * in hand.
    */
   static List<TrackingFileEntry> collectCandidateLeafFiles(
       FileIO io, String trackingFileLocation, List<TransformValueRange> targetRanges) {
+    return collectCandidateLeafFiles(
+        TrackingFileReader.readAll(io.newInputFile(trackingFileLocation)), targetRanges);
+  }
+
+  /** Filters already-read tracking entries by {@code targetRanges}, deduped by location. */
+  static List<TrackingFileEntry> collectCandidateLeafFiles(
+      List<TrackingFileEntry> trackedLeafFiles, List<TransformValueRange> targetRanges) {
     Map<String, TrackingFileEntry> byLocation = Maps.newLinkedHashMap();
     for (TransformValueRange range : targetRanges) {
-      for (TrackingFileEntry entry :
-          TrackingFileReader.readMatching(
-              io.newInputFile(trackingFileLocation), range.min, range.max)) {
-        byLocation.putIfAbsent(entry.location(), entry);
+      for (TrackingFileEntry entry : trackedLeafFiles) {
+        // Overlap: entry range [lower, upper] overlaps [min, max] iff lower <= max AND upper >=
+        // min.
+        if (entry.transformValueLowerBound() <= range.max()
+            && entry.transformValueUpperBound() >= range.min()) {
+          byLocation.putIfAbsent(entry.location(), entry);
+        }
       }
     }
     return Lists.newArrayList(byLocation.values());
