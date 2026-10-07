@@ -442,17 +442,18 @@ Stats are tracked in manifests by field ID. Schema fields have assigned IDs, but
 
 Stats-only fields are used to track stats for derived values that are not part of the table schema and are not materialized. A stats-only field consists of:
 
-* A **`field-id`** assigned by incrementing the table's `last-field-id`
+* A **`field-id`** assigned by incrementing the table's `last-column-id`
 * A **`type`** that can be `partition-value` or `expr-value`
-* Type-specific fields that defines how derived values are produced
+* An optional **`data-type`** that determines the bound type; must be a primitive or variant
+* Type-specific fields that define how derived values are produced
 
-The `partition-value` type stores stats for the output of a partition field, identified by a `partition-field-id` type-specific field. The lower and upper bound type is the partition field's result type.
+The `partition-value` type stores stats for the output of a partition field, identified by a `partition-field-id` type-specific field. The bound type is the partition field's result type and `data-type` is omitted. This may be used in v4 to filter by bucket partition values.
 
-The `expr-value` type stores stats for the result of a [value expression](https://iceberg.apache.org/expressions-spec#value-expressions), stored in the `expr` field. The output type of the value expression is stored in the `data-type` field and must be a primitive or variant.
+The `expr-value` type stores stats for the result of a [value expression](https://iceberg.apache.org/expressions-spec#value-expressions), stored in the `expr` field. Expressions must use only ID references. The output type of the value expression must be stored in the `data-type` field.
 
 Readers must not fail when an unsupported stats-only field `type` is found; stats for unsupported types must be ignored.
 
-Writers must preserve existing stats for stats-only fields listed in a table's `stats-only-fields`. Writers should produce stats when possible for stats-only fields. If an expression is not supported or produces a different output type when bound, a writer should produce no stats.
+Writers must preserve existing stats for stats-only fields listed in a table's `stats-fields` if the `data-type` is known (either set or specified by a supported type). Writers should produce stats when possible for stats-only fields. A writer should produce no stats by setting the field stats struct to null when an expression is not supported, produces a different output type when bound, or binding fails.
 
 The data type of a stats-only field may only change according to the type promotion rules above.
 
@@ -1189,7 +1190,7 @@ Table metadata consists of the following fields:
     | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     |            |            | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot’s `first-row-id`. See [Row Lineage](#row-lineage). |
     |            |            | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
-    |            |            | _optional_ | **`stats-only-fields`**     | A list (optional) of [stats-only fields](#stats-only-fields) used to track stats for derived values. |
+    |            |            | _optional_ | **`stats-fields`**     | A list (optional) of [stats-only fields](#stats-only-fields) used to track stats for derived values. |
 === "v4"
     | v4         | Field                       | Description |
     |------------|-----------------------------|-------------|
@@ -1218,7 +1219,7 @@ Table metadata consists of the following fields:
     | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage). |
     | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
-    | _optional_ | **`stats-only-fields`**     | A list (optional) of [stats-only fields](#stats-only-fields) used to track stats for derived values. |
+    | _optional_ | **`stats-fields`**     | A list (optional) of [stats-only fields](#stats-only-fields) used to track stats for derived values. |
 
 For serialization details, see Appendix C.
 
