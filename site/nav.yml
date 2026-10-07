@@ -127,4 +127,5 @@ nav:
     - AES GCM Stream spec: gcm-stream-spec.md
     - UDF spec: udf-spec.md
     - Mumbling spec: mumbling-spec.md
+    - Expressions spec: expressions-spec.md
     - Implementation status: status.md
