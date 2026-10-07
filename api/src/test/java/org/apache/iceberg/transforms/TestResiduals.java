@@ -31,7 +31,9 @@ import static org.apache.iceberg.expressions.Expressions.isNaN;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
+import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -287,6 +289,42 @@ public class TestResiduals {
 
     residual = resEval.residualFor(Row.of((Object) null));
     assertThat(residual).as("null not in [a, b, c] => true").isEqualTo(alwaysTrue());
+  }
+
+  @Test
+  public void testStartsWithWithNullStringPartition() {
+    Schema schema = new Schema(Types.NestedField.optional(50, "category", Types.StringType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("category").build();
+
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec, startsWith("category", "a"), true);
+
+    Expression residual = resEval.residualFor(Row.of("abc"));
+    assertThat(residual).isEqualTo(alwaysTrue());
+
+    residual = resEval.residualFor(Row.of("bcd"));
+    assertThat(residual).isEqualTo(alwaysFalse());
+
+    residual = resEval.residualFor(Row.of((Object) null));
+    assertThat(residual).as("null starts with a => false").isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  public void testNotStartsWithWithNullStringPartition() {
+    Schema schema = new Schema(Types.NestedField.optional(50, "category", Types.StringType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("category").build();
+
+    ResidualEvaluator resEval = ResidualEvaluator.of(spec, notStartsWith("category", "a"), true);
+
+    Expression residual = resEval.residualFor(Row.of("bcd"));
+    assertThat(residual).isEqualTo(alwaysTrue());
+
+    residual = resEval.residualFor(Row.of("abc"));
+    assertThat(residual).isEqualTo(alwaysFalse());
+
+    residual = resEval.residualFor(Row.of((Object) null));
+    assertThat(residual).as("null not starts with a => true").isEqualTo(alwaysTrue());
   }
 
   @Test
