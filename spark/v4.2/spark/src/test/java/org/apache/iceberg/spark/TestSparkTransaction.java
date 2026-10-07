@@ -25,8 +25,8 @@ import static org.mockito.Mockito.when;
 
 import java.util.Map;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.types.Types;
