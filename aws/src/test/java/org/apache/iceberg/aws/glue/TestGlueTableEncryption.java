@@ -22,16 +22,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdateProperties;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
@@ -43,6 +51,7 @@ import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.LockManagers;
 import org.junit.jupiter.api.AfterEach;
@@ -195,6 +204,46 @@ public class TestGlueTableEncryption {
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("Cannot create encryption manager without a key management client");
     }
+  }
+
+  @Test
+  public void testTransactionCanReadAfterTableRefresh() {
+    org.apache.iceberg.Table table =
+        catalog.createTable(
+            TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned(), ENCRYPTED_TABLE_PROPERTIES);
+
+    table.newFastAppend().appendFile(dataFile("first.parquet")).commit();
+
+    DataFile uncommittedFile = dataFile("second.parquet");
+    Transaction transaction = table.newTransaction();
+    transaction.newFastAppend().appendFile(uncommittedFile).commit();
+
+    // Refresh must preserve the keys for the transaction's uncommitted snapshot. Those keys are
+    // only held by the encryption manager, since the snapshot is not in committed metadata yet.
+    table.refresh();
+
+    assertThat(SnapshotChanges.builderFor(transaction.table()).build().addedDataFiles())
+        .extracting(DataFile::location)
+        .containsExactly(uncommittedFile.location());
+
+    transaction.commitTransaction();
+
+    assertThat(currentDataFiles(table)).hasSize(2);
+  }
+
+  private static DataFile dataFile(String fileName) {
+    return DataFiles.builder(PartitionSpec.unpartitioned())
+        .withPath(String.format("%s/%s.db/table/data/%s", WAREHOUSE_PATH, DB_NAME, fileName))
+        .withFormat(FileFormat.PARQUET)
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .build();
+  }
+
+  private static List<DataFile> currentDataFiles(org.apache.iceberg.Table table) {
+    return Streams.stream(table.newScan().planFiles())
+        .map(FileScanTask::file)
+        .collect(Collectors.toList());
   }
 
   private GlueCatalog catalogWith(Map<String, String> extraProperties) {
