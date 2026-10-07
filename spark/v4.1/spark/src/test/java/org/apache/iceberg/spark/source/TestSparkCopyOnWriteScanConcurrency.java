@@ -26,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.iceberg.BatchScan;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
@@ -70,9 +71,16 @@ public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
     CountDownLatch releaseFilter = new CountDownLatch(1);
     InstrumentedScan scan = newScan(table, enteredResetTasks, releaseFilter);
 
-    assertThat(scan.tasks()).hasSize(2);
-    scan.taskGroups();
-    String location = scan.tasks().get(0).file().location();
+    List<String> locations =
+        scan.tasks().stream().map(task -> task.file().location()).collect(Collectors.toList());
+    assertThat(locations).hasSize(2);
+    assertThat(
+            scan.taskGroups().stream()
+                .flatMap(group -> group.tasks().stream())
+                .map(task -> task.file().location())
+                .collect(Collectors.toList()))
+        .containsExactlyInAnyOrderElementsOf(locations);
+    String location = locations.get(0);
     NamedReference fileRef = FieldReference.apply(MetadataColumns.FILE_PATH.name());
     LiteralValue<UTF8String> literal =
         new LiteralValue<>(UTF8String.fromString(location), DataTypes.StringType);
@@ -87,14 +95,20 @@ public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
               scan.filter(predicates);
               return null;
             });
-    FutureTask<int[]> loserTask =
+    FutureTask<Void> loserTask =
         new FutureTask<>(
             () -> {
               scan.filter(predicates);
-              int tasks = scan.tasks().size();
-              int taskGroups =
-                  scan.taskGroups().stream().mapToInt(group -> group.tasks().size()).sum();
-              return new int[] {tasks, taskGroups};
+              assertThat(scan.tasks())
+                  .extracting(task -> task.file().location())
+                  .containsExactly(location);
+              assertThat(
+                      scan.taskGroups().stream()
+                          .flatMap(group -> group.tasks().stream())
+                          .map(task -> task.file().location())
+                          .collect(Collectors.toList()))
+                  .containsExactly(location);
+              return null;
             });
     Thread winner = new Thread(winnerTask);
     Thread loser = new Thread(loserTask);
@@ -115,7 +129,7 @@ public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
     assertThat(winner.isAlive()).isFalse();
     assertThat(loser.isAlive()).isFalse();
     assertThat(winnerTask.get()).isNull();
-    assertThat(loserTask.get()).containsExactly(1, 1);
+    assertThat(loserTask.get()).isNull();
   }
 
   private InstrumentedScan newScan(
