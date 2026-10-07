@@ -658,6 +658,7 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
 
     try {
       stream.prepareForTriggerAvailableNow();
+      appendData(List.of(new SimpleRecord(3, "three")));
       StreamingOffset committedOffset =
           new StreamingOffset(
               committed.snapshotId(), MicroBatchUtils.addedFilesCount(table, committed), false);
