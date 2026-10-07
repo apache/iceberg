@@ -134,6 +134,12 @@ abstract class WrapperSet<T> implements Set<T>, Serializable {
   @Override
   public boolean removeAll(Collection<?> collection) {
     Preconditions.checkNotNull(collection, "Invalid collection: null");
+    if (collection == this) {
+      boolean changed = !isEmpty();
+      clear();
+      return changed;
+    }
+
     return collection.stream().filter(this::remove).count() != 0;
   }
 
