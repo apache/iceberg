@@ -40,8 +40,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 
 class TestTrackedFileStruct {
-  private static final int FORMAT_VERSION_V4 = 4;
-
   private static final List<Types.NestedField> DEFAULT_FIELDS =
       TrackedFile.schema(Types.StructType.of(), Types.StructType.of()).asStruct().fields();
 
@@ -72,7 +70,6 @@ class TestTrackedFileStruct {
         new TrackedFileStruct(
             TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
             50L,
@@ -89,7 +86,6 @@ class TestTrackedFileStruct {
 
     assertThat(file.tracking()).isSameAs(TRACKING);
     assertThat(file.contentType()).isEqualTo(FileContent.DATA);
-    assertThat(file.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(file.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
     assertThat(file.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(file.partition()).isSameAs(PARTITION);
@@ -110,7 +106,6 @@ class TestTrackedFileStruct {
     TrackedFileStruct file = new TrackedFileStruct();
     file.set(pos("tracking"), TRACKING);
     file.set(pos("content_type"), FileContent.DATA.id());
-    file.set(pos("format_version"), FORMAT_VERSION_V4);
     file.set(pos("location"), "s3://bucket/data/00000-0-file.parquet");
     file.set(pos("file_format"), "parquet");
     file.set(pos("record_count"), 50L);
@@ -127,7 +122,6 @@ class TestTrackedFileStruct {
 
     assertThat(file.tracking()).isSameAs(TRACKING);
     assertThat(file.contentType()).isEqualTo(FileContent.DATA);
-    assertThat(file.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(file.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
     assertThat(file.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(file.recordCount()).isEqualTo(50L);
@@ -149,7 +143,6 @@ class TestTrackedFileStruct {
         new TrackedFileStruct(
             TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
             50L,
@@ -166,7 +159,6 @@ class TestTrackedFileStruct {
 
     assertThat(file.get(pos("tracking"), Tracking.class)).isSameAs(TRACKING);
     assertThat(file.get(pos("content_type"), Integer.class)).isEqualTo(FileContent.DATA.id());
-    assertThat(file.get(pos("format_version"), Integer.class)).isEqualTo(FORMAT_VERSION_V4);
     assertThat(file.get(pos("location"), String.class))
         .isEqualTo("s3://bucket/data/00000-0-file.parquet");
     assertThat(file.get(pos("file_format"), String.class)).isEqualTo(FileFormat.PARQUET.toString());
@@ -190,7 +182,6 @@ class TestTrackedFileStruct {
         new TrackedFileStruct(
             TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
             50L,
@@ -210,7 +201,6 @@ class TestTrackedFileStruct {
     assertThat(copy).isInstanceOf(TrackedFileStruct.class);
     assertThat(copy.tracking()).isSameAs(TRACKING_COPY);
     assertThat(copy.contentType()).isEqualTo(FileContent.DATA);
-    assertThat(copy.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(copy.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
     assertThat(copy.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(copy.recordCount()).isEqualTo(50L);
@@ -239,7 +229,6 @@ class TestTrackedFileStruct {
         new TrackedFileStruct(
             TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
             50L,
@@ -259,7 +248,6 @@ class TestTrackedFileStruct {
     assertThat(copy).isInstanceOf(TrackedFileStruct.class);
     assertThat(copy.tracking()).isSameAs(TRACKING_COPY);
     assertThat(copy.contentType()).isEqualTo(FileContent.DATA);
-    assertThat(copy.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(copy.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
     assertThat(copy.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(copy.recordCount()).isEqualTo(50L);
@@ -286,7 +274,6 @@ class TestTrackedFileStruct {
         new TrackedFileStruct(
             TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
             50L,
@@ -309,7 +296,6 @@ class TestTrackedFileStruct {
     assertThat(copy).isInstanceOf(TrackedFileStruct.class);
     assertThat(copy.tracking()).isSameAs(TRACKING_COPY);
     assertThat(copy.contentType()).isEqualTo(FileContent.DATA);
-    assertThat(copy.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(copy.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
     assertThat(copy.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(copy.recordCount()).isEqualTo(50L);
@@ -436,7 +422,6 @@ class TestTrackedFileStruct {
         new TrackedFileStruct(
             null, // TrackingStruct has its own serialization tests
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
             100L,
@@ -455,7 +440,6 @@ class TestTrackedFileStruct {
 
     assertThat(deserialized.tracking()).isNull();
     assertThat(deserialized.contentType()).isEqualTo(FileContent.DATA);
-    assertThat(deserialized.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(deserialized.location()).isEqualTo("s3://bucket/data/file.parquet");
     assertThat(deserialized.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(deserialized.partition())
@@ -513,7 +497,6 @@ class TestTrackedFileStruct {
     return new TrackedFileStruct(
         null, // tracking
         FileContent.DATA,
-        FORMAT_VERSION_V4,
         "s3://bucket/file.parquet",
         FileFormat.PARQUET,
         100L, // recordCount

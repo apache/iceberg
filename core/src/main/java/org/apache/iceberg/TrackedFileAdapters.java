@@ -520,7 +520,7 @@ class TrackedFileAdapters {
 
     @Override
     public int formatVersion() {
-      return file.formatVersion();
+      return file.manifestInfo().formatVersion();
     }
 
     @Override
