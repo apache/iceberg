@@ -63,6 +63,7 @@ Version 4 of the Iceberg spec restructures metadata for improved performance and
 
 * Support for [relative locations](#file-locations-in-metadata) in metadata fields
 * Writing new [equality deletes](#equality-delete-files) is no longer allowed
+* New data type: `vector`
 
 The full set of changes are listed in [Appendix E](#version-4).
 
@@ -282,6 +283,7 @@ Supported primitive types are defined in the table below. Primitive types added 
 |                  | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
 |                  | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
 |                  | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
+| [v4](#version-4) | **`vector(E, D)`** | Fixed-length collection of finite numeric values with element type E and dimension D | E must be `int`, `long`, `float`, or `double`; D must be positive |
 | [v3](#version-3) | **`geometry(C)`**  | Geospatial features from [OGC – Simple feature access][1001]. Edge-interpolation is always linear/planar. See [Appendix G](#appendix-g-geospatial-notes). Parameterized by CRS C. If not specified, C is `OGC:CRS84`. |                                                        |
 | [v3](#version-3) | **`geography(C, A)`**  | Geospatial features from [OGC – Simple feature access][1001]. See [Appendix G](#appendix-g-geospatial-notes). Parameterized by CRS C and edge-interpolation algorithm A. If not specified, C is `OGC:CRS84` and A is `spherical`. |
 
@@ -294,6 +296,12 @@ Notes:
 For details on how to serialize a schema to JSON, see Appendix C.
 
 [1001]: <https://portal.ogc.org/files/?artifact_id=25355> "OGC Simple feature access"
+
+##### Vector
+
+Every non-null `vector(E, D)` value must contain exactly D non-null elements of type E. Floating-point elements must not be `NaN`, positive infinity, or negative infinity. The vector value itself may be null when the containing field is optional.
+
+No type promotion to or from `vector` is defined, including changes to its element type or dimension. Lower and upper bounds are not defined for vector values.
 
 ##### CRS
 
@@ -1507,6 +1515,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 |**`binary`**|`bytes`||
 |**`struct`**|`record`||
 |**`list`**|`array`||
+|**`vector(E, D)`**|`array`|Array elements must use the Avro mapping for E and must not be null. Readers and writers must enforce the vector dimension and element requirements.|
 |**`map`**|`array` of key-value records, or `map` when keys are strings (optional).|Array storage must use logical type name `map` and must store elements that are 2-field records. The first field is a non-null key and the second field is the value.|
 |**`variant`**|`record` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. |Shredding is not supported in Avro.|
 |**`geometry`**|`bytes`|WKB format, see [Appendix G](#appendix-g-geospatial-notes)|
@@ -1562,6 +1571,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`binary`**       | `binary`                                                                                                                                     |                                             |                                                                |
 | **`struct`**       | `group`                                                                                                                                      |                                             |                                                                |
 | **`list`**         | `3-level list`                                                                                                                               | `LIST`                                      | See Parquet docs for 3-level representation.                   |
+| **`vector(E, D)`** | `3-level list`                                                                                                                               | `VECTOR(D)`                                 | The element must be required and use the Parquet mapping for E. See [apache/parquet-format#624](https://github.com/apache/parquet-format/pull/624). |
 | **`map`**          | `3-level map`                                                                                                                                | `MAP`                                       | See Parquet docs for 3-level representation.                   |
 | **`variant`**      | `group` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs and the fields are accessed through names. | `VARIANT`                                   | See Parquet docs for [Variant encoding](https://github.com/apache/parquet-format/blob/master/VariantEncoding.md) and [Variant shredding encoding](https://github.com/apache/parquet-format/blob/master/VariantShredding.md). |
 | **`geometry`**     | `binary`                                                                                                                                     | `GEOMETRY`                                  | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                             |
@@ -1594,6 +1604,7 @@ When reading an `unknown` column, any corresponding column must be ignored and r
 | **`binary`**       | `binary`            |                                                      |                                                                                         |
 | **`struct`**       | `struct`            |                                                      |                                                                                         |
 | **`list`**         | `array`             |                                                      |                                                                                         |
+| **`vector(E, D)`** | `array`             |                                                      | Array elements must use the ORC mapping for E and must not be null. Readers and writers must enforce the vector dimension and element requirements. |
 | **`map`**          | `map`               |                                                      |                                                                                         |
 | **`variant`**      | `struct` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs. |  `iceberg.struct-type`=`VARIANT`   | Shredding is not supported in ORC.                                                 |
 | **`geometry`**     | `binary`            | `iceberg.binary-type`=`GEOMETRY`                     | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
@@ -1688,6 +1699,7 @@ Types are serialized according to this table:
 |**`fixed(L)`**|`JSON string: "fixed[<L>]"`|`"fixed[16]"`|
 |**`binary`**|`JSON string: "binary"`|`"binary"`|
 |**`decimal(P, S)`**|`JSON string: "decimal(<P>, <S>)"`|`"decimal(9, 2)"`|
+|**`vector(E, D)`**|`JSON string: "vector(<E>, <D>)"`|`"vector(float, 768)"`|
 |**`struct`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": <field id int>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": <boolean>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": <type JSON>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"doc": <comment string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": <JSON encoding of default value>`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}, ...`<br />&nbsp;&nbsp;`] }`|`{`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 1,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "id",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": true,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": "uuid",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": "0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": "ec5911be-b0a7-458c-8438-c9a3e53cffae"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 2,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "data",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": false,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`} ]`<br />`}`|
 |**`list`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": <id int>,`<br />&nbsp;&nbsp;`"element-required": <bool>`<br />&nbsp;&nbsp;`"element": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": 3,`<br />&nbsp;&nbsp;`"element-required": true,`<br />&nbsp;&nbsp;`"element": "string"`<br />`}`|
 |**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
@@ -1849,6 +1861,7 @@ This serialization scheme is for storing single values as individual binary valu
 | **`decimal(P, S)`**          | Stores unscaled value as two’s-complement big-endian binary, using the minimum number of bytes for the value |
 | **`struct`**                 | Not supported                                                                                                |
 | **`list`**                   | Not supported                                                                                                |
+| **`vector(E, D)`**           | Not supported                                                                                                |
 | **`map`**                    | Not supported                                                                                                |
 | **`variant`**                | Not supported                                                                                                |
 | **`geometry`**               | WKB format, see [Appendix G](#appendix-g-geospatial-notes)                                                   |
@@ -1888,6 +1901,7 @@ The binary single-value serialization can be used to store the lower and upper b
 | **`binary`**       | **`JSON string`**                         | `"000102ff"`                               | Stored as a hexadecimal string |
 | **`struct`**       | **`JSON object by field ID`**             | `{"1": 1, "2": "bar"}`                     | Stores struct fields using the field ID as the JSON field name; field values are stored using this JSON single-value format |
 | **`list`**         | **`JSON array of values`**                | `[1, 2, 3]`                                | Stores a JSON array of values that are serialized using this JSON single-value format |
+| **`vector(E, D)`** | **`JSON array of values`**                | `[1.0, 2.0, 3.0]`                          | Stores exactly D values using E's JSON single-value format |
 | **`map`**          | **`JSON object of key and value arrays`** | `{ "keys": ["a", "b"], "values": [1, 2] }` | Stores arrays of keys and values; individual keys and values are serialized using this JSON single-value format |
 | **`geometry`**     | **`JSON string`**                         | `POINT (30 10)`                            | Stored using WKT representation, see [Appendix G](#appendix-g-geospatial-notes) |
 | **`geography`**    | **`JSON string`**                         | `POINT (30 10)`                            | Stored using WKT representation, see [Appendix G](#appendix-g-geospatial-notes) |
@@ -1895,6 +1909,8 @@ The binary single-value serialization can be used to store the lower and upper b
 ## Appendix E: Format version changes
 
 ### Version 4
+
+The `vector` type is added in v4. Writing `vector` into a v3 or earlier schema is invalid.
 
 Relative path support is added in v4.
 
