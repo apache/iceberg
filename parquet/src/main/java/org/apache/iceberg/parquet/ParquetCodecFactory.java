@@ -35,8 +35,8 @@ import org.apache.parquet.hadoop.util.ConfigurationUtil;
 public class ParquetCodecFactory extends CodecFactory {
 
   /**
-   * @deprecated since 1.13.0; this class is internal to {@link Parquet}
-   *     and should not be constructed directly.
+   * @deprecated since 1.13.0; this class is internal to {@link Parquet} and should not be
+   *     constructed directly.
    */
   @Deprecated
   public ParquetCodecFactory(Configuration configuration, int pageSize) {
