@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import com.fasterxml.jackson.core.Base64Variants;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
@@ -50,9 +51,14 @@ public class EncryptedKeyParser {
     generator.writeStartObject();
 
     generator.writeStringField(KEY_ID, key.keyId());
-    generator.writeStringField(
-        KEY_METADATA,
-        Base64.getEncoder().encodeToString(ByteBuffers.toByteArray(key.encryptedKeyMetadata())));
+    byte[] keyMetadata = ByteBuffers.toByteArray(key.encryptedKeyMetadata());
+    generator.writeFieldName(KEY_METADATA);
+    if (generator.canWriteBinaryNatively()) {
+      // The field must remain a Base64 string in formats with native binary values, such as Smile.
+      generator.writeString(Base64.getEncoder().encodeToString(keyMetadata));
+    } else {
+      generator.writeBinary(Base64Variants.MIME_NO_LINEFEEDS, keyMetadata, 0, keyMetadata.length);
+    }
 
     JsonUtil.writeStringFieldIfPresent(ENCRYPTED_BY_ID, key.encryptedById(), generator);
 
