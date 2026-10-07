@@ -838,7 +838,7 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void trackedFileDoubleWrapRoundTrip() {
+  void dataTrackedFileAdapterUnwrapsToOriginalTrackedFile() {
     TrackedFile source = trackedFile(FileContent.DATA);
     DataFile dataFile = TrackedFileAdapters.asDataFile(source, UNPARTITIONED);
     TrackedFile roundTripped = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(dataFile);
@@ -846,22 +846,10 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void dataTrackedFileAdapterUnwrapsToOriginalTrackedFile() {
-    TrackedFile original = trackedFile(FileContent.DATA);
-    DataFile adapted = TrackedFileAdapters.asDataFile(original, UNPARTITIONED);
-
-    TrackedFile result = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(adapted);
-
-    assertThat(result).isSameAs(original);
-  }
-
-  @Test
   void manifestTrackedFileAdapterUnwrapsToOriginalTrackedFile() {
     TrackedFile original = trackedFile(FileContent.DATA_MANIFEST, 0);
     ManifestFile adapted = TrackedFileAdapters.asManifestFile(original);
-
     TrackedFile result = TrackedFileAdapters.forManifestFile().wrap(adapted);
-
     assertThat(result).isSameAs(original);
     assertThat(result.formatVersion()).isZero();
   }
