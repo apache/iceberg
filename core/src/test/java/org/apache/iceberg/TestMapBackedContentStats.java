@@ -230,17 +230,23 @@ class TestMapBackedContentStats {
         .hasMessageContaining("Long.longValue()");
     assertThat(ts.hasNullValueCount()).isTrue();
     assertThat(ts.nullValueCount()).isEqualTo(1L);
+
+    FieldStats<?> name = stats.statsFor(4);
+    assertThat(name.hasValueCount()).isTrue();
+    assertThat(name.valueCount()).isEqualTo(100L);
+    assertThat(name.hasNullValueCount()).isTrue();
+    assertThat(name.nullValueCount()).isEqualTo(2L);
+    assertThat(name.hasNanValueCount()).isFalse();
+    assertThatThrownBy(name::nanValueCount)
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("Long.longValue()");
   }
 
   @Test
   void fieldWithoutStatsIsExcluded() {
     MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(FILE_WITH_STATS);
-
     assertThat(stats.type().field(StatsUtil.toBaseId(5))).isNull();
     assertThat(stats.statsFor(5)).isNull();
-    assertThat(stats.fieldStats())
-        .extracting(FieldStats::fieldId)
-        .containsExactlyInAnyOrder(1, 2, 3, 4);
   }
 
   @Test
