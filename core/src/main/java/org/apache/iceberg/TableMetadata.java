@@ -64,7 +64,7 @@ public class TableMetadata implements Serializable {
   static final int INITIAL_SCHEMA_ID = 0;
   static final int INITIAL_ROW_ID = 0;
   // field IDs above this are reserved by the spec for metadata columns
-  static final int MAX_FIELD_ID = 2147483447;
+  static final int MAX_FIELD_ID = Integer.MAX_VALUE - 200;
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 

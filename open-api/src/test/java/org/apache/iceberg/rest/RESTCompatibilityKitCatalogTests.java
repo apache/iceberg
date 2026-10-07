@@ -23,18 +23,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.Table;
-import org.apache.iceberg.TableUtil;
-import org.apache.iceberg.catalog.CatalogTests;
-import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.exceptions.BadRequestException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
@@ -188,6 +186,8 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
     assertThatThrownBy(() -> restCatalog.unregisterTable(TABLE))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageContaining("Table does not exist");
+  }
+
   @Test
   public void testUpdateTableSchemaRejectsReservedFieldIds() throws Exception {
     if (requiresNamespaceCreate()) {
