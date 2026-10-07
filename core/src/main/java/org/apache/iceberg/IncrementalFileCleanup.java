@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,6 +29,7 @@ import java.util.function.Consumer;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -111,6 +113,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
     // find manifests to clean up that are still referenced by a valid snapshot, but written by an
     // expired snapshot
     Set<String> validManifests = ConcurrentHashMap.newKeySet();
+    Map<String, ManifestFile> liveDeleteManifests = Maps.newConcurrentMap();
     Set<ManifestFile> manifestsToScan = ConcurrentHashMap.newKeySet();
 
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
@@ -131,6 +134,9 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
               try (CloseableIterable<ManifestFile> manifests = readManifests(snapshot)) {
                 for (ManifestFile manifest : manifests) {
                   validManifests.add(manifest.path());
+                  if (manifest.content() == ManifestContent.DELETES) {
+                    liveDeleteManifests.putIfAbsent(manifest.path(), manifest.copy());
+                  }
 
                   long snapshotId = manifest.snapshotId();
                   // whether the manifest was created by a valid snapshot (true) or an expired
@@ -261,7 +267,11 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
     if (ExpireSnapshots.CleanupLevel.ALL == cleanupLevel) {
       Set<String> filesToDelete =
           findFilesToDelete(
-              manifestsToScan, manifestsToRevert, validIds, beforeExpiration.specsById());
+              manifestsToScan,
+              manifestsToRevert,
+              liveDeleteManifests.values(),
+              validIds,
+              beforeExpiration.specsById());
       LOG.debug("Deleting {} data files", filesToDelete.size());
       deleteFiles(filesToDelete, "data");
     }
@@ -282,9 +292,11 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
   private Set<String> findFilesToDelete(
       Set<ManifestFile> manifestsToScan,
       Set<ManifestFile> manifestsToRevert,
+      Collection<ManifestFile> liveDeleteManifests,
       Set<Long> validIds,
       Map<Integer, PartitionSpec> specsById) {
     Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
+    Set<String> deletionVectorsToDelete = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifestsToScan)
         .retry(3)
         .suppressFailureWhenFinished()
@@ -302,13 +314,20 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                   if (entry.status() == ManifestEntry.Status.DELETED
                       && !validIds.contains(entry.snapshotId())) {
                     // use toString to ensure the path will not change (Utf8 is reused)
-                    filesToDelete.add(entry.file().location());
+                    String location = entry.file().location();
+                    filesToDelete.add(location);
+                    if (entry.file().format() == FileFormat.PUFFIN) {
+                      deletionVectorsToDelete.add(location);
+                    }
                   }
                 }
               } catch (IOException e) {
                 throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
               }
             });
+
+    retainReferencedDeletionVectors(
+        filesToDelete, deletionVectorsToDelete, liveDeleteManifests, specsById);
 
     Tasks.foreach(manifestsToRevert)
         .retry(3)
@@ -334,5 +353,46 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
             });
 
     return filesToDelete;
+  }
+
+  // A Puffin file can be shared by multiple deletion vectors, so keep it if any live one remains
+  private void retainReferencedDeletionVectors(
+      Set<String> filesToDelete,
+      Set<String> deletionVectorsToDelete,
+      Collection<ManifestFile> liveDeleteManifests,
+      Map<Integer, PartitionSpec> specsById) {
+    if (deletionVectorsToDelete.isEmpty()) {
+      return;
+    }
+
+    try {
+      Tasks.foreach(liveDeleteManifests)
+          .retry(3)
+          .stopOnFailure()
+          .throwFailureWhenFinished()
+          .executeWith(planExecutorService)
+          .onFailure(
+              (item, exc) ->
+                  LOG.warn(
+                      "Failed to determine live deletion vectors in manifest {}. Retrying",
+                      item.path(),
+                      exc))
+          .run(
+              manifest -> {
+                try (CloseableIterable<String> paths =
+                    ManifestFiles.readPaths(manifest, fileIO, specsById)) {
+                  for (String path : paths) {
+                    if (deletionVectorsToDelete.contains(path)) {
+                      filesToDelete.remove(path);
+                    }
+                  }
+                } catch (IOException e) {
+                  throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
+                }
+              });
+    } catch (Throwable e) {
+      LOG.warn("Failed to list all live deletion vectors, retaining deletion vector files", e);
+      filesToDelete.removeAll(deletionVectorsToDelete);
+    }
   }
 }

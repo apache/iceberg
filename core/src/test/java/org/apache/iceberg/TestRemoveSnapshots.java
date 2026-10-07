@@ -2145,6 +2145,70 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
+  public void testExpireDoesNotDeletePuffinFileSharedByLiveDeletionVectors() throws Exception {
+    assumeThat(formatVersion).as("Deletion vectors require V3 or later").isGreaterThanOrEqualTo(3);
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    // one Puffin file with deletion vectors for FILE_A and FILE_B
+    String sharedPuffinPath = "/path/to/shared-dvs-" + UUID.randomUUID() + ".puffin";
+    DeleteFile dvA = deletionVector(sharedPuffinPath, FILE_A, 4L);
+    DeleteFile dvB = deletionVector(sharedPuffinPath, FILE_B, 44L);
+    table.newRowDelta().addDeletes(dvA).addDeletes(dvB).commit();
+
+    assertThat(liveDeleteFilePaths())
+        .as("Table should have two deletion vectors in the shared Puffin file")
+        .containsExactly(sharedPuffinPath, sharedPuffinPath);
+
+    // replace FILE_A's deletion vector; FILE_B's stays in the shared Puffin file
+    DeleteFile newDvA =
+        deletionVector("/path/to/new-dv-" + UUID.randomUUID() + ".puffin", FILE_A, 4L);
+    table
+        .newRowDelta()
+        .validateFromSnapshot(table.currentSnapshot().snapshotId())
+        .removeDeletes(dvA)
+        .addDeletes(newDvA)
+        .commit();
+
+    table.newAppend().appendFile(FILE_C).commit();
+
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(deletedFiles)
+        .as("Puffin file with a live deletion vector must not be deleted")
+        .doesNotContain(sharedPuffinPath);
+    assertThat(liveDeleteFilePaths())
+        .as("Table should have the replacement deletion vector for FILE_A and the shared one")
+        .containsExactlyInAnyOrder(newDvA.location(), dvB.location());
+  }
+
+  private List<String> liveDeleteFilePaths() throws IOException {
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      return Lists.newArrayList(
+          Iterables.transform(
+              Iterables.concat(Iterables.transform(tasks, FileScanTask::deletes)),
+              DeleteFile::location));
+    }
+  }
+
+  private DeleteFile deletionVector(String puffinPath, DataFile dataFile, long contentOffset) {
+    return FileMetadata.deleteFileBuilder(table.spec())
+        .ofPositionDeletes()
+        .withPath(puffinPath)
+        .withFileSizeInBytes(100L)
+        .withPartition(dataFile.partition())
+        .withRecordCount(1L)
+        .withReferencedDataFile(dataFile.location())
+        .withContentOffset(contentOffset)
+        .withContentSizeInBytes(40L)
+        .build();
+  }
+
+  @TestTemplate
   void readManifestsProjectsManifestContent() throws IOException {
     assumeThat(formatVersion)
         .as("Delete files are only supported in V2 and later")
