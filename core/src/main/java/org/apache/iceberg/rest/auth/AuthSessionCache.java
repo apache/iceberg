@@ -99,7 +99,7 @@ public class AuthSessionCache implements AutoCloseable {
     ExecutorService service = Executors.newSingleThreadExecutor(threadFactory);
     // Expose as a plain Executor (not the service itself) so that close() leaves the shared
     // executor running.
-    return runnable -> service.execute(runnable);
+    return service::execute;
   }
 
   @VisibleForTesting
