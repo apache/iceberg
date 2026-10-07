@@ -33,6 +33,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -55,7 +56,13 @@ public class LeafFileReader {
 
   /** Read all entries from a leaf file, in file order. */
   public static List<LeafFileEntry> readAll(InputFile inputFile, Types.NestedField keyField) {
-    return read(inputFile, keyField, null);
+    return readAll(inputFile, ImmutableList.of(keyField));
+  }
+
+  /** Multi-column variant: {@code keyFields} in key-column order. */
+  public static List<LeafFileEntry> readAll(
+      InputFile inputFile, List<Types.NestedField> keyFields) {
+    return read(inputFile, keyFields, null);
   }
 
   /**
@@ -102,15 +109,22 @@ public class LeafFileReader {
    */
   public static List<LeafFileEntry> readMatching(
       InputFile inputFile, Types.NestedField keyField, Expression predicate) {
+    return readMatching(inputFile, ImmutableList.of(keyField), predicate);
+  }
+
+  /** Multi-column variant: {@code keyFields} in key-column order. */
+  public static List<LeafFileEntry> readMatching(
+      InputFile inputFile, List<Types.NestedField> keyFields, Expression predicate) {
     Preconditions.checkNotNull(predicate, "predicate is required");
-    return read(inputFile, keyField, predicate);
+    return read(inputFile, keyFields, predicate);
   }
 
   private static List<LeafFileEntry> read(
-      InputFile inputFile, Types.NestedField keyField, Expression predicate) {
+      InputFile inputFile, List<Types.NestedField> keyFields, Expression predicate) {
     Preconditions.checkNotNull(inputFile, "inputFile is required");
-    Preconditions.checkNotNull(keyField, "keyField is required");
-    Schema schema = LeafFileEntry.schema(keyField);
+    Preconditions.checkArgument(
+        keyFields != null && !keyFields.isEmpty(), "at least one key field is required");
+    Schema schema = LeafFileEntry.schema(keyFields);
     Evaluator evaluator = predicate != null ? new Evaluator(schema.asStruct(), predicate) : null;
 
     Parquet.ReadBuilder builder =
@@ -125,7 +139,7 @@ public class LeafFileReader {
         // ReadBuilder.filter() only skips whole row groups by statistics; it does not filter
         // individual records here, so every candidate record still needs an exact check.
         if (evaluator == null || evaluator.eval(record)) {
-          entries.add(fromRecord(record, keyField));
+          entries.add(fromRecord(record, keyFields));
         }
       }
     } catch (IOException e) {
@@ -134,9 +148,13 @@ public class LeafFileReader {
     return entries;
   }
 
-  private static LeafFileEntry fromRecord(Record record, Types.NestedField keyField) {
+  private static LeafFileEntry fromRecord(Record record, List<Types.NestedField> keyFields) {
+    List<Object> keyValues = Lists.newArrayListWithExpectedSize(keyFields.size());
+    for (Types.NestedField keyField : keyFields) {
+      keyValues.add(record.getField(keyField.name()));
+    }
     return LeafFileEntry.builder()
-        .keyValue(record.getField(keyField.name()))
+        .keyValues(keyValues)
         .transformValue((Long) record.getField(LeafFileEntry.TRANSFORM_VALUE_FIELD_NAME))
         .filePath((String) record.getField(LeafFileEntry.FILE_PATH_FIELD_NAME))
         .position((Long) record.getField(LeafFileEntry.POSITION_FIELD_NAME))

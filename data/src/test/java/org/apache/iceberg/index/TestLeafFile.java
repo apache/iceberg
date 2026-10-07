@@ -189,7 +189,7 @@ public class TestLeafFile {
   void leafFileEntryBuilderRejectsMissingFields() {
     assertThatThrownBy(() -> LeafFileEntry.builder().transformValue(1L).position(0L).build())
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("keyValue is required");
+        .hasMessageContaining("at least one key value is required");
 
     assertThatThrownBy(() -> LeafFileEntry.builder().keyValue("x").position(-1L).build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -225,8 +225,8 @@ public class TestLeafFile {
                           .build()))
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("must be added in non-decreasing")
-          .hasMessageContaining("(4, bbb)")
-          .hasMessageContaining("(5, aaa)");
+          .hasMessageContaining("(4, [bbb])")
+          .hasMessageContaining("(5, [aaa])");
     }
   }
 

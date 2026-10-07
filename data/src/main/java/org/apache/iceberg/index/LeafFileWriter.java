@@ -31,6 +31,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -58,20 +59,27 @@ public class LeafFileWriter implements AutoCloseable {
 
   private final FileAppender<Record> appender;
   private final Schema schema;
-  private final Types.NestedField keyField;
+  private final List<Types.NestedField> keyFields;
 
   private boolean hasWritten = false;
   private long lastTransformValue;
-  private Object lastKeyValue;
+  private List<Object> lastKeyValues;
 
   public LeafFileWriter(OutputFile outputFile, Types.NestedField keyField) {
     this(outputFile, keyField, DEFAULT_ROW_GROUP_SIZE_BYTES);
   }
 
   public LeafFileWriter(OutputFile outputFile, Types.NestedField keyField, long rowGroupSizeBytes) {
+    this(outputFile, ImmutableList.of(keyField), rowGroupSizeBytes);
+  }
+
+  public LeafFileWriter(
+      OutputFile outputFile, List<Types.NestedField> keyFields, long rowGroupSizeBytes) {
     Preconditions.checkNotNull(outputFile, "outputFile is required");
-    this.keyField = Preconditions.checkNotNull(keyField, "keyField is required");
-    this.schema = LeafFileEntry.schema(keyField);
+    Preconditions.checkArgument(
+        keyFields != null && !keyFields.isEmpty(), "at least one key field is required");
+    this.keyFields = ImmutableList.copyOf(keyFields);
+    this.schema = LeafFileEntry.schema(this.keyFields);
     try {
       this.appender =
           Parquet.write(outputFile)
@@ -92,10 +100,18 @@ public class LeafFileWriter implements AutoCloseable {
    */
   public void add(LeafFileEntry entry) {
     Preconditions.checkNotNull(entry, "entry is required");
+    List<Object> keyValues = entry.keyValues();
+    Preconditions.checkArgument(
+        keyValues.size() == keyFields.size(),
+        "entry has %s key value(s) but writer expects %s",
+        keyValues.size(),
+        keyFields.size());
     checkOrder(entry);
 
     Record record = GenericRecord.create(schema);
-    record.setField(keyField.name(), entry.keyValue());
+    for (int i = 0; i < keyFields.size(); i++) {
+      record.setField(keyFields.get(i).name(), keyValues.get(i));
+    }
     record.setField(LeafFileEntry.TRANSFORM_VALUE_FIELD_NAME, entry.transformValue());
     record.setField(LeafFileEntry.FILE_PATH_FIELD_NAME, entry.filePath());
     record.setField(LeafFileEntry.POSITION_FIELD_NAME, entry.position());
@@ -111,23 +127,35 @@ public class LeafFileWriter implements AutoCloseable {
     if (hasWritten) {
       int cmp = Long.compare(entry.transformValue(), lastTransformValue);
       if (cmp == 0) {
-        cmp = compareKeys(entry.keyValue(), lastKeyValue);
+        cmp = compareKeyValues(entry.keyValues(), lastKeyValues);
       }
       if (cmp < 0) {
         throw new IllegalStateException(
             String.format(
                 Locale.ROOT,
-                "Leaf file entries must be added in non-decreasing (transform_value, key_value) "
+                "Leaf file entries must be added in non-decreasing (transform_value, key values) "
                     + "order: entry (%s, %s) is out of order after (%s, %s)",
                 entry.transformValue(),
-                entry.keyValue(),
+                entry.keyValues(),
                 lastTransformValue,
-                lastKeyValue));
+                lastKeyValues));
       }
     }
     this.hasWritten = true;
     this.lastTransformValue = entry.transformValue();
-    this.lastKeyValue = entry.keyValue();
+    this.lastKeyValues = entry.keyValues();
+  }
+
+  /** Lexicographic comparison of key values, element by element. */
+  private static int compareKeyValues(List<Object> left, List<Object> right) {
+    int size = Math.min(left.size(), right.size());
+    for (int i = 0; i < size; i++) {
+      int cmp = compareKeys(left.get(i), right.get(i));
+      if (cmp != 0) {
+        return cmp;
+      }
+    }
+    return Integer.compare(left.size(), right.size());
   }
 
   @SuppressWarnings("unchecked")
