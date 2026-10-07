@@ -1093,12 +1093,12 @@ class TrackedFileAdapters {
         manifest.path());
     Preconditions.checkArgument(
         Objects.equals(manifest.replacedFilesCount(), 0),
-        "Cannot convert manifest %s: replaced files count must be 0 for v3 or earlier manifests, was %s",
+        "Cannot convert manifest %s: Invalid replaced file count: %s",
         manifest.path(),
         manifest.replacedFilesCount());
     Preconditions.checkArgument(
         Objects.equals(manifest.modifiedFilesCount(), 0),
-        "Cannot convert manifest %s: modified files count must be 0 for v3 or earlier manifests, was %s",
+        "Cannot convert manifest %s: Invalid modified file count: %s",
         manifest.path(),
         manifest.modifiedFilesCount());
     return (long) manifest.addedFilesCount()

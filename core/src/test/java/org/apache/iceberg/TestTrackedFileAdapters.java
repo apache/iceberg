@@ -926,8 +926,7 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot convert manifest %s: replaced files count must be 0 for v3 or earlier manifests, was null",
-            MANIFEST_LOCATION);
+            "Cannot convert manifest %s: Invalid replaced file count: null", MANIFEST_LOCATION);
   }
 
   @Test
@@ -937,8 +936,7 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot convert manifest %s: replaced files count must be 0 for v3 or earlier manifests, was 1",
-            MANIFEST_LOCATION);
+            "Cannot convert manifest %s: Invalid replaced file count: 1", MANIFEST_LOCATION);
   }
 
   @Test
@@ -948,8 +946,7 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot convert manifest %s: modified files count must be 0 for v3 or earlier manifests, was null",
-            MANIFEST_LOCATION);
+            "Cannot convert manifest %s: Invalid modified file count: null", MANIFEST_LOCATION);
   }
 
   @Test
@@ -959,8 +956,7 @@ class TestTrackedFileAdapters {
     assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Cannot convert manifest %s: modified files count must be 0 for v3 or earlier manifests, was 1",
-            MANIFEST_LOCATION);
+            "Cannot convert manifest %s: Invalid modified file count: 1", MANIFEST_LOCATION);
   }
 
   @Test

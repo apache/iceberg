@@ -80,7 +80,7 @@ class MapBackedContentStats implements ContentStats {
     return (FieldStats<T>) statsById.get(fieldId);
   }
 
-  FieldStats<?> createFieldStats(int fieldId) {
+  private FieldStats<?> createFieldStats(int fieldId) {
     Types.NestedField field = tableSchema.findField(fieldId);
     // A file can carry metrics for an id this schema does not have. Skip it.
     if (field == null) {
@@ -118,7 +118,7 @@ class MapBackedContentStats implements ContentStats {
     throw new UnsupportedOperationException("copy is not implemented");
   }
 
-  boolean containsFieldInMaps(int fieldId) {
+  private boolean containsFieldInMaps(int fieldId) {
     return containsId(valueCounts, fieldId)
         || containsId(nullValueCounts, fieldId)
         || containsId(nanValueCounts, fieldId)
