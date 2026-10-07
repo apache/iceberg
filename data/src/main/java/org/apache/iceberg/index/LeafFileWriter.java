@@ -23,6 +23,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Locale;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -47,6 +48,14 @@ import org.apache.iceberg.types.Types;
  */
 public class LeafFileWriter implements AutoCloseable {
 
+  /**
+   * Default Parquet row-group size for leaf files (1 MB), far smaller than Iceberg's 128 MB
+   * default. Leaf files are sorted by {@code (transform_value, key_value)} and read via point/range
+   * lookups, so small row groups let {@link LeafFileReader}'s statistics filter skip to a tight
+   * slice rather than decode a whole large row group.
+   */
+  public static final long DEFAULT_ROW_GROUP_SIZE_BYTES = 1024 * 1024;
+
   private final FileAppender<Record> appender;
   private final Schema schema;
   private final Types.NestedField keyField;
@@ -56,6 +65,10 @@ public class LeafFileWriter implements AutoCloseable {
   private Object lastKeyValue;
 
   public LeafFileWriter(OutputFile outputFile, Types.NestedField keyField) {
+    this(outputFile, keyField, DEFAULT_ROW_GROUP_SIZE_BYTES);
+  }
+
+  public LeafFileWriter(OutputFile outputFile, Types.NestedField keyField, long rowGroupSizeBytes) {
     Preconditions.checkNotNull(outputFile, "outputFile is required");
     this.keyField = Preconditions.checkNotNull(keyField, "keyField is required");
     this.schema = LeafFileEntry.schema(keyField);
@@ -63,6 +76,7 @@ public class LeafFileWriter implements AutoCloseable {
       this.appender =
           Parquet.write(outputFile)
               .schema(schema)
+              .set(TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES, Long.toString(rowGroupSizeBytes))
               .createWriterFunc(GenericParquetWriter::create)
               .build();
     } catch (IOException e) {
@@ -117,8 +131,8 @@ public class LeafFileWriter implements AutoCloseable {
   }
 
   @SuppressWarnings("unchecked")
-  private static int compareKeys(Object a, Object b) {
-    return ((Comparable<Object>) a).compareTo(b);
+  private static int compareKeys(Object left, Object right) {
+    return ((Comparable<Object>) left).compareTo(right);
   }
 
   @Override

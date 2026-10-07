@@ -266,7 +266,8 @@ class BuildScalarIndexProcedure extends BaseProcedure {
             keyField,
             io,
             leafDataLocation,
-            targetLeafFiles);
+            targetLeafFiles,
+            leafRowGroupSizeBytes(options));
     List<LeafFileMetadata> leafFiles = toLeafFileMetadata(writeResults);
 
     Preconditions.checkArgument(
@@ -377,7 +378,8 @@ class BuildScalarIndexProcedure extends BaseProcedure {
             keyField,
             io,
             leafDataLocation,
-            targetLeafFiles);
+            targetLeafFiles,
+            leafRowGroupSizeBytes(options));
     List<LeafFileMetadata> newLeafFiles = toLeafFileMetadata(newWriteResults);
     Preconditions.checkArgument(
         !newLeafFiles.isEmpty(),
@@ -400,6 +402,18 @@ class BuildScalarIndexProcedure extends BaseProcedure {
   }
 
   /**
+   * Parquet row-group size for leaf files. Defaults small ({@link
+   * LeafFileWriter#DEFAULT_ROW_GROUP_SIZE_BYTES}) so point/range lookups prune to a tight slice;
+   * override with the {@code leaf.row-group-size-bytes} build option.
+   */
+  private static long leafRowGroupSizeBytes(Map<String, String> options) {
+    return Long.parseLong(
+        options.getOrDefault(
+            "leaf.row-group-size-bytes",
+            Long.toString(LeafFileWriter.DEFAULT_ROW_GROUP_SIZE_BYTES)));
+  }
+
+  /**
    * Computes position/transform-value/leaf-file assignment and writes leaf files for {@code
    * sourceDf}'s rows, shared between {@link #buildFull} (the whole source table) and {@link
    * #buildIncremental} (only newly added rows).
@@ -411,7 +425,8 @@ class BuildScalarIndexProcedure extends BaseProcedure {
       Types.NestedField keyField,
       FileIO io,
       String leafDataLocation,
-      int targetLeafFiles) {
+      int targetLeafFiles,
+      long rowGroupSizeBytes) {
     // Compute position before any shuffle, so it reflects physical file-scan order.
     // row_number() returns IntegerType, not LongType -- cast explicitly so __position is
     // genuinely a long column, matching LeafFileEntry.position()'s type. Reading an
@@ -439,7 +454,8 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     return sorted
         .mapPartitions(
             (MapPartitionsFunction<Row, LeafFileWriteResult>)
-                rows -> writeLeafFilePartition(rows, io, keyField, leafDataLocation),
+                rows ->
+                    writeLeafFilePartition(rows, io, keyField, leafDataLocation, rowGroupSizeBytes),
             Encoders.javaSerialization(LeafFileWriteResult.class))
         .collectAsList();
   }
@@ -519,7 +535,11 @@ class BuildScalarIndexProcedure extends BaseProcedure {
   }
 
   private static Iterator<LeafFileWriteResult> writeLeafFilePartition(
-      Iterator<Row> rows, FileIO io, Types.NestedField keyField, String leafDataLocation) {
+      Iterator<Row> rows,
+      FileIO io,
+      Types.NestedField keyField,
+      String leafDataLocation,
+      long rowGroupSizeBytes) {
     if (!rows.hasNext()) {
       return java.util.Collections.emptyIterator();
     }
@@ -529,7 +549,8 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     long tvMin = Long.MAX_VALUE;
     long tvMax = Long.MIN_VALUE;
 
-    try (LeafFileWriter writer = new LeafFileWriter(io.newOutputFile(path), keyField)) {
+    try (LeafFileWriter writer =
+        new LeafFileWriter(io.newOutputFile(path), keyField, rowGroupSizeBytes)) {
       while (rows.hasNext()) {
         Row row = rows.next();
         Object keyValue = row.getAs("__key");
