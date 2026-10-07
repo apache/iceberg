@@ -21,7 +21,9 @@ package org.apache.iceberg.util;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.NotSerializableException;
 import java.io.Serializable;
+import java.io.StreamCorruptedException;
 import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.function.Function;
@@ -54,7 +56,8 @@ class TestSerializationUtil {
 
   @Test
   void deserializeFromBytesReturnsNullForNullInput() {
-    assertThat((Object) SerializationUtil.deserializeFromBytes(null)).isNull();
+    Object result = SerializationUtil.deserializeFromBytes(null);
+    assertThat(result).isNull();
   }
 
   @Test
@@ -67,7 +70,8 @@ class TestSerializationUtil {
 
   @Test
   void deserializeFromBase64ReturnsNullForNullInput() {
-    assertThat((Object) SerializationUtil.deserializeFromBase64(null)).isNull();
+    Object result = SerializationUtil.deserializeFromBase64(null);
+    assertThat(result).isNull();
   }
 
   @Test
@@ -76,7 +80,7 @@ class TestSerializationUtil {
     // the round trip verifies the MIME decoder tolerates that wrapping.
     String original = "a".repeat(1000);
     String encoded = SerializationUtil.serializeToBase64(original);
-    assertThat(encoded).contains("\n");
+    assertThat(encoded).contains("\r\n");
 
     String roundTripped = SerializationUtil.deserializeFromBase64(encoded);
     assertThat(roundTripped).isEqualTo(original);
@@ -86,23 +90,28 @@ class TestSerializationUtil {
   void serializeToBytesAppliesCustomConfSerializerToHadoopConfigurable() {
     Configuration conf = new Configuration(false);
     conf.set("test.key", "test.value");
-    TestHadoopConfigurable configurable = new TestHadoopConfigurable(conf);
+    HadoopConfigurableFixture configurable = new HadoopConfigurableFixture(conf);
 
-    boolean[] confSerializerInvoked = {false};
+    // Return a distinctive supplier whose configuration carries a marker key. If serializeToBytes
+    // ignored our serializer's result and built its own, the marker would be absent after the
+    // round trip, so asserting on it proves our output is what actually got serialized.
     Function<Configuration, SerializableSupplier<Configuration>> confSerializer =
         c -> {
-          confSerializerInvoked[0] = true;
-          return new SerializableConfiguration(c);
+          Configuration marked = new Configuration(c);
+          marked.set("custom.serializer.marker", "applied");
+          return new SerializableConfiguration(marked);
         };
 
-    SerializationUtil.serializeToBytes(configurable, confSerializer);
+    byte[] bytes = SerializationUtil.serializeToBytes(configurable, confSerializer);
+    HadoopConfigurableFixture roundTripped = SerializationUtil.deserializeFromBytes(bytes);
 
     assertThat(configurable.serializeConfWithInvoked)
         .as("serializeConfWith should be called for a HadoopConfigurable object")
         .isTrue();
-    assertThat(confSerializerInvoked[0])
-        .as("the provided confSerializer should be applied")
-        .isTrue();
+    assertThat(roundTripped.getConf().get("custom.serializer.marker"))
+        .as(
+            "the configuration produced by the provided confSerializer should be the one serialized")
+        .isEqualTo("applied");
   }
 
   @Test
@@ -111,7 +120,8 @@ class TestSerializationUtil {
     Object notSerializable = new Object();
     assertThatThrownBy(() -> SerializationUtil.serializeToBytes(notSerializable))
         .isInstanceOf(UncheckedIOException.class)
-        .hasMessage("Failed to serialize object");
+        .hasMessage("Failed to serialize object")
+        .hasCauseInstanceOf(NotSerializableException.class);
   }
 
   @Test
@@ -120,44 +130,58 @@ class TestSerializationUtil {
     byte[] corrupted = {0, 1, 2, 3};
     assertThatThrownBy(() -> SerializationUtil.deserializeFromBytes(corrupted))
         .isInstanceOf(UncheckedIOException.class)
-        .hasMessage("Failed to deserialize object");
+        .hasMessage("Failed to deserialize object")
+        .hasCauseInstanceOf(StreamCorruptedException.class);
   }
 
   @Test
   void hadoopConfigurableRoundTripPreservesConfiguration() {
     Configuration conf = new Configuration(false);
     conf.set("test.key", "test.value");
-    TestHadoopConfigurable configurable = new TestHadoopConfigurable(conf);
+    HadoopConfigurableFixture configurable = new HadoopConfigurableFixture(conf);
 
+    // The fixture holds a live, non-serializable Configuration, so this round trip only succeeds
+    // because serializeToBytes routes HadoopConfigurable objects through serializeConfWith. If
+    // that branch regresses, serialization fails here instead of silently passing.
     byte[] bytes = SerializationUtil.serializeToBytes(configurable);
-    TestHadoopConfigurable roundTripped = SerializationUtil.deserializeFromBytes(bytes);
+    HadoopConfigurableFixture roundTripped = SerializationUtil.deserializeFromBytes(bytes);
 
+    assertThat(configurable.serializeConfWithInvoked)
+        .as("serializeToBytes should route HadoopConfigurable objects through serializeConfWith")
+        .isTrue();
     assertThat(roundTripped.getConf().get("test.key")).isEqualTo("test.value");
   }
 
-  private static class TestHadoopConfigurable implements HadoopConfigurable, Serializable {
-    private SerializableSupplier<Configuration> conf;
+  private static class HadoopConfigurableFixture implements HadoopConfigurable, Serializable {
+    // Not transient on purpose: a live Configuration is not Serializable, so serializing this
+    // fixture fails with NotSerializableException unless serializeConfWith first replaces it with
+    // a serializable supplier. That mirrors real HadoopConfigurable objects (e.g. HadoopFileIO)
+    // and is exactly the contract SerializationUtil's HadoopConfigurable branch fulfills.
+    private Configuration conf;
+    private SerializableSupplier<Configuration> serializableConf;
     private transient boolean serializeConfWithInvoked = false;
 
-    TestHadoopConfigurable(Configuration conf) {
-      this.conf = new SerializableConfiguration(conf);
+    HadoopConfigurableFixture(Configuration conf) {
+      this.conf = conf;
     }
 
     @Override
     public Configuration getConf() {
-      return conf.get();
+      return serializableConf != null ? serializableConf.get() : conf;
     }
 
     @Override
     public void setConf(Configuration conf) {
-      this.conf = new SerializableConfiguration(conf);
+      this.conf = conf;
     }
 
     @Override
     public void serializeConfWith(
         Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
       this.serializeConfWithInvoked = true;
-      this.conf = confSerializer.apply(getConf());
+      this.serializableConf = confSerializer.apply(getConf());
+      // Drop the non-serializable reference so the fixture can be serialized.
+      this.conf = null;
     }
   }
 }
