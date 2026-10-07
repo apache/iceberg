@@ -100,7 +100,7 @@ class SingleBufferInputStream extends ByteBufferInputStream {
 
   @Override
   public long skip(long len) {
-    if (len == 0) {
+    if (len <= 0) {
       return 0;
     }
 
