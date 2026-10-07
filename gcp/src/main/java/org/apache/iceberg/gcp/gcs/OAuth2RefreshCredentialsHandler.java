@@ -32,6 +32,7 @@ import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.auth.AuthManager;
@@ -51,15 +52,15 @@ public class OAuth2RefreshCredentialsHandler
   private AuthSession authSession;
 
   private OAuth2RefreshCredentialsHandler(Map<String, String> properties) {
-    Preconditions.checkArgument(
-        null != properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT),
-        "Invalid credentials endpoint: null");
+    this.credentialsEndpoint =
+        properties.containsKey(RESTCatalogProperties.CREDENTIALS_ENDPOINT)
+            ? properties.get(RESTCatalogProperties.CREDENTIALS_ENDPOINT)
+            : RESTUtil.resolveEndpoint(
+                properties.get(CatalogProperties.URI),
+                properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT));
+    Preconditions.checkArgument(null != credentialsEndpoint, "Invalid credentials endpoint: null");
     Preconditions.checkArgument(
         null != properties.get(CatalogProperties.URI), "Invalid catalog endpoint: null");
-    this.credentialsEndpoint =
-        RESTUtil.resolveEndpoint(
-            properties.get(CatalogProperties.URI),
-            properties.get(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT));
     this.catalogEndpoint = properties.get(CatalogProperties.URI);
     this.properties = properties;
   }

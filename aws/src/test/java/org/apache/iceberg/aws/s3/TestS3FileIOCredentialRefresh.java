@@ -30,11 +30,11 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TestHelpers;
-import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.HttpMethod;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
@@ -44,6 +44,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
@@ -72,8 +74,9 @@ public class TestS3FileIOCredentialRefresh {
     mockServer.reset();
   }
 
-  @Test
-  public void credentialRefreshSchedulesNextRefresh() {
+  @ParameterizedTest
+  @ValueSource(strings = {"rest.credentials.endpoint", "client.refresh-credentials-endpoint"})
+  public void credentialRefreshSchedulesNextRefresh(String endpointProperty) {
     String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
 
     StorageCredential initialCredential =
@@ -146,8 +149,10 @@ public class TestS3FileIOCredentialRefresh {
         ImmutableMap.of(
             AwsProperties.CLIENT_FACTORY,
             StaticClientFactory.class.getName(),
-            AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
-            "/credentials",
+            endpointProperty,
+            endpointProperty.equals(RESTCatalogProperties.CREDENTIALS_ENDPOINT)
+                ? CREDENTIALS_URI
+                : "/credentials",
             CatalogProperties.URI,
             CATALOG_URI,
             "init-creation-stacktrace",

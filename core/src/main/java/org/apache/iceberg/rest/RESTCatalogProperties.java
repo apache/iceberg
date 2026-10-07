@@ -137,6 +137,14 @@ public final class RESTCatalogProperties {
   public static final String REMOTE_SIGNING_ENDPOINT = "rest.remote-signing.endpoint";
 
   /**
+   * The absolute endpoint for refreshing table storage credentials.
+   *
+   * <p>The REST catalog client sets this property when creating a table FileIO with vended
+   * credentials. FileIO implementations use it in preference to their legacy refresh properties.
+   */
+  public static final String CREDENTIALS_ENDPOINT = "rest.credentials.endpoint";
+
+  /**
    * The {@link RemoteSigningConfig}, JSON-encoded.
    *
    * <p>This property is automatically set by the REST catalog client when creating table-scoped
