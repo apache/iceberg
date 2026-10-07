@@ -18,7 +18,11 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.io.File;
+import java.net.URI;
 import java.util.Map;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TestTables;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -58,12 +62,19 @@ public class TestSparkCatalog<
     TableIdentifier tableIdentifier = Spark3Util.identifierToTableIdentifier(ident);
     Namespace namespace = tableIdentifier.namespace();
 
-    TestTables.TestTable table = TestTables.load(tableIdentifier.toString());
+    TestTables.TestTable table = loadTestTable(tableIdentifier.toString());
     if (table == null && namespace.equals(Namespace.of("default"))) {
-      table = TestTables.load(tableIdentifier.name());
+      table = loadTestTable(tableIdentifier.name());
     }
 
     return new SparkTable(table);
+  }
+
+  private static TestTables.TestTable loadTestTable(String tableName) {
+    TableMetadata metadata = TestTables.readMetadata(tableName);
+    return metadata != null
+        ? TestTables.load(new File(URI.create(metadata.location())), tableName)
+        : null;
   }
 
   public static void clearTables() {
