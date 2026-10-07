@@ -119,7 +119,23 @@ public class TestBuildScalarIndexProcedure extends ExtensionsTestBase {
                     "CALL %s.system.build_scalar_index(table => '%s', columns => array('id',"
                         + " 'data'), transform => 'HASH')",
                     catalogName, tableIdent))
-        .hasMessageContaining("supports exactly one key column");
+        .hasMessageContaining("HASH transform requires exactly one key column");
+  }
+
+  @TestTemplate
+  public void testBuildZorderIndexOnMultipleColumns() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+
+    List<Object[]> output =
+        sql(
+            "CALL %s.system.build_scalar_index(table => '%s', columns => array('id', 'data'),"
+                + " transform => 'ZORDER')",
+            catalogName, tableIdent);
+
+    assertThat(output).hasSize(1);
+    assertThat((int) output.get(0)[1]).isGreaterThanOrEqualTo(1);
+    assertThat((long) output.get(0)[2]).isEqualTo(3L);
   }
 
   @TestTemplate

@@ -158,17 +158,16 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     Map<String, String> options = input.asStringMap(OPTIONS_PARAM, ImmutableMap.of());
 
     Preconditions.checkArgument(
-        columns != null && columns.length == 1,
-        "build_scalar_index supports exactly one key column (multi-column composite indexes are"
-            + " not yet supported), got: %s",
+        columns != null && columns.length >= 1,
+        "build_scalar_index requires at least one key column, got: %s",
         columns == null ? 0 : columns.length);
-    String keyColumnName = columns[0];
+    List<String> keyColumnNames = ImmutableList.copyOf(columns);
 
     return withIcebergTable(
         tableIdent,
         table -> {
           BuildResult result =
-              buildAndCommit(tableIdent, table, keyColumnName, transformName, options);
+              buildAndCommit(tableIdent, table, keyColumnNames, transformName, options);
           return toOutputRows(result);
         });
   }
@@ -176,35 +175,46 @@ class BuildScalarIndexProcedure extends BaseProcedure {
   private BuildResult buildAndCommit(
       Identifier tableIdent,
       Table table,
-      String keyColumnName,
+      List<String> keyColumnNames,
       String transformName,
       Map<String, String> options) {
     Schema schema = table.schema();
-    Types.NestedField keyField = schema.findField(keyColumnName);
-    Preconditions.checkArgument(
-        keyField != null, "Column '%s' does not exist in table schema", keyColumnName);
+    List<Types.NestedField> keyFields = Lists.newArrayListWithExpectedSize(keyColumnNames.size());
+    for (String keyColumnName : keyColumnNames) {
+      Types.NestedField keyField = schema.findField(keyColumnName);
+      Preconditions.checkArgument(
+          keyField != null, "Column '%s' does not exist in table schema", keyColumnName);
+      keyFields.add(keyField);
+    }
 
-    if (table.spec().fields().stream().anyMatch(f -> f.sourceId() == keyField.fieldId())) {
+    boolean anyPartitionColumn =
+        keyFields.stream()
+            .anyMatch(
+                keyField ->
+                    table.spec().fields().stream()
+                        .anyMatch(f -> f.sourceId() == keyField.fieldId()));
+    if (anyPartitionColumn) {
       // Open Question 5 in the design doc: should this be rejected outright rather than just
       // warned about? Warning for now, not rejecting -- partitioning already provides some
-      // pruning for this column, making a SCALAR index here redundant overhead rather than
+      // pruning for such a column, making a SCALAR index here redundant overhead rather than
       // wrong, and the index's own "always advisory" guarantee holds regardless.
       LOG.warn(
-          "Building a SCALAR index on column '{}', which is already a partition column on table "
-              + "{} -- partitioning already provides pruning for it, so this index is likely "
-              + "redundant overhead",
-          keyColumnName,
+          "Building a SCALAR index whose key columns {} include a partition column on table {} -- "
+              + "partitioning already provides pruning for it, so this index is likely redundant "
+              + "overhead",
+          keyColumnNames,
           table.name());
     }
 
     String upperTransform = transformName.toUpperCase(Locale.ROOT);
-    Column transformValueCol = transformValueColumn(upperTransform, keyField, options);
+    Column transformValueCol = transformValueColumn(upperTransform, keyFields, options);
 
     // Derived from the core Table's own name, not the Spark catalog Identifier -- must match
     // exactly how SparkScanBuilder derives it on the read side, or indexExists() there silently
     // and permanently returns false.
     TableIdentifier icebergTableIdent = TableIdentifier.parse(table.name());
-    IndexIdentifier indexIdent = IndexIdentifier.of(icebergTableIdent, keyColumnName + "_idx");
+    IndexIdentifier indexIdent =
+        IndexIdentifier.of(icebergTableIdent, String.join("_", keyColumnNames) + "_idx");
     IndexCatalog catalog = SparkIndexCatalogs.get().catalogFor(table);
 
     String mode = options.getOrDefault("mode", "full").toLowerCase(Locale.ROOT);
@@ -215,10 +225,10 @@ class BuildScalarIndexProcedure extends BaseProcedure {
             indexIdent,
             tableIdent,
             table,
-            keyField,
+            keyFields,
             upperTransform,
             transformValueCol,
-            keyColumnName,
+            keyColumnNames,
             options);
       } catch (Exception e) {
         LOG.warn(
@@ -233,10 +243,10 @@ class BuildScalarIndexProcedure extends BaseProcedure {
         indexIdent,
         tableIdent,
         table,
-        keyField,
+        keyFields,
         upperTransform,
         transformValueCol,
-        keyColumnName,
+        keyColumnNames,
         options);
   }
 
@@ -245,10 +255,10 @@ class BuildScalarIndexProcedure extends BaseProcedure {
       IndexIdentifier indexIdent,
       Identifier tableIdent,
       Table table,
-      Types.NestedField keyField,
+      List<Types.NestedField> keyFields,
       String upperTransform,
       Column transformValueCol,
-      String keyColumnName,
+      List<String> keyColumnNames,
       Map<String, String> options) {
     String tableName = Spark3Util.quotedFullIdentifier(tableCatalog().name(), tableIdent);
     Dataset<Row> sourceDf = spark().read().table(tableName);
@@ -256,16 +266,20 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     int targetLeafFiles = Integer.parseInt(options.getOrDefault("target-leaf-files", "4"));
     String indexLocation =
         options.getOrDefault(
-            "location", stripTrailingSlash(table.location()) + "/index/" + keyColumnName + "_idx");
+            "location",
+            stripTrailingSlash(table.location())
+                + "/index/"
+                + String.join("_", keyColumnNames)
+                + "_idx");
     String leafDataLocation = indexLocation + "/data";
     FileIO io = table.io();
 
     List<LeafFileWriteResult> writeResults =
         buildLeafFiles(
             sourceDf,
-            keyColumnName,
+            keyColumnNames,
             transformValueCol,
-            keyField,
+            keyFields,
             io,
             leafDataLocation,
             targetLeafFiles,
@@ -283,7 +297,7 @@ class BuildScalarIndexProcedure extends BaseProcedure {
         table.currentSnapshot().snapshotId(),
         "SCALAR",
         upperTransform,
-        ImmutableList.of(keyField.fieldId()),
+        keyColumnIds(keyFields),
         indexLocation,
         leafFiles);
 
@@ -307,19 +321,19 @@ class BuildScalarIndexProcedure extends BaseProcedure {
       IndexIdentifier indexIdent,
       Identifier tableIdent,
       Table table,
-      Types.NestedField keyField,
+      List<Types.NestedField> keyFields,
       String upperTransform,
       Column transformValueCol,
-      String keyColumnName,
+      List<String> keyColumnNames,
       Map<String, String> options) {
     Preconditions.checkArgument(
         table.currentSnapshot() != null, "Cannot incrementally build an index on an empty table");
 
     IndexMetadata existing = catalog.loadIndex(indexIdent);
     Preconditions.checkArgument(
-        existing.keyColumnIds().equals(ImmutableList.of(keyField.fieldId())),
-        "Existing index %s is on a different key column; incremental build requires the same"
-            + " key column",
+        existing.keyColumnIds().equals(keyColumnIds(keyFields)),
+        "Existing index %s is on different key columns; incremental build requires the same"
+            + " key columns",
         indexIdent);
     IndexSnapshot existingSnapshot = existing.currentSnapshot();
     Preconditions.checkArgument(
@@ -358,7 +372,7 @@ class BuildScalarIndexProcedure extends BaseProcedure {
           currentTableSnapshotId,
           "SCALAR",
           upperTransform,
-          ImmutableList.of(keyField.fieldId()),
+          keyColumnIds(keyFields),
           existing.location(),
           existingLeafFiles);
       return new BuildResult(
@@ -375,9 +389,9 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     List<LeafFileWriteResult> newWriteResults =
         buildLeafFiles(
             newRowsDf,
-            keyColumnName,
+            keyColumnNames,
             transformValueCol,
-            keyField,
+            keyFields,
             io,
             leafDataLocation,
             targetLeafFiles,
@@ -396,11 +410,15 @@ class BuildScalarIndexProcedure extends BaseProcedure {
         currentTableSnapshotId,
         "SCALAR",
         upperTransform,
-        ImmutableList.of(keyField.fieldId()),
+        keyColumnIds(keyFields),
         existing.location(),
         allLeafFiles);
 
     return new BuildResult(existing.location(), allLeafFiles.size(), sumRecordCount(allLeafFiles));
+  }
+
+  private static List<Integer> keyColumnIds(List<Types.NestedField> keyFields) {
+    return keyFields.stream().map(Types.NestedField::fieldId).collect(Collectors.toList());
   }
 
   /**
@@ -422,13 +440,21 @@ class BuildScalarIndexProcedure extends BaseProcedure {
    */
   private List<LeafFileWriteResult> buildLeafFiles(
       Dataset<Row> sourceDf,
-      String keyColumnName,
+      List<String> keyColumnNames,
       Column transformValueCol,
-      Types.NestedField keyField,
+      List<Types.NestedField> keyFields,
       FileIO io,
       String leafDataLocation,
       int targetLeafFiles,
       long rowGroupSizeBytes) {
+    int dimensions = keyColumnNames.size();
+    // Select each key column as __key_0..__key_{n-1}, plus the source file path.
+    Column[] selected = new Column[dimensions + 1];
+    for (int i = 0; i < dimensions; i++) {
+      selected[i] = col(keyColumnNames.get(i)).as("__key_" + i);
+    }
+    selected[dimensions] = input_file_name().as("__source_file_path");
+
     // Compute position before any shuffle, so it reflects physical file-scan order.
     // row_number() returns IntegerType, not LongType -- cast explicitly so __position is
     // genuinely a long column, matching LeafFileEntry.position()'s type. Reading an
@@ -436,7 +462,7 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     // ClassCastException at runtime, not a compile error, so this must be fixed at the source.
     Dataset<Row> withPosition =
         sourceDf
-            .select(col(keyColumnName).as("__key"), input_file_name().as("__source_file_path"))
+            .select(selected)
             .withColumn(
                 "__position",
                 row_number()
@@ -448,16 +474,23 @@ class BuildScalarIndexProcedure extends BaseProcedure {
 
     Dataset<Row> withTransform = withPosition.withColumn("__transform_value", transformValueCol);
 
+    // Sort by (transform_value, key_0..key_{n-1}) for non-overlapping, binary-searchable leaves.
+    Column[] sortColumns = new Column[dimensions + 1];
+    sortColumns[0] = col("__transform_value");
+    for (int i = 0; i < dimensions; i++) {
+      sortColumns[i + 1] = col("__key_" + i);
+    }
     Dataset<Row> sorted =
         withTransform
             .repartitionByRange(targetLeafFiles, col("__transform_value"))
-            .sortWithinPartitions(col("__transform_value"), col("__key"));
+            .sortWithinPartitions(sortColumns);
 
     return sorted
         .mapPartitions(
             (MapPartitionsFunction<Row, LeafFileWriteResult>)
                 rows ->
-                    writeLeafFilePartition(rows, io, keyField, leafDataLocation, rowGroupSizeBytes),
+                    writeLeafFilePartition(
+                        rows, io, keyFields, leafDataLocation, rowGroupSizeBytes),
             Encoders.javaSerialization(LeafFileWriteResult.class))
         .collectAsList();
   }
@@ -496,80 +529,95 @@ class BuildScalarIndexProcedure extends BaseProcedure {
   }
 
   private Column transformValueColumn(
-      String upperTransform, Types.NestedField keyField, Map<String, String> options) {
-    Type keyType = keyField.type();
-    // References "__key", the alias buildAndCommit's earlier .select() gives the key column --
-    // by the time this runs, the original column name no longer exists in the DataFrame's schema.
+      String upperTransform, List<Types.NestedField> keyFields, Map<String, String> options) {
+    // Key columns are aliased __key_0..__key_{n-1} by buildLeafFiles' earlier .select(); the
+    // original column names no longer exist in the DataFrame's schema by the time this runs.
+    for (Types.NestedField keyField : keyFields) {
+      Type.TypeID typeId = keyField.type().typeId();
+      Preconditions.checkArgument(
+          typeId == Type.TypeID.STRING
+              || typeId == Type.TypeID.LONG
+              || typeId == Type.TypeID.INTEGER,
+          "SCALAR index key column '%s' must be string, int, or long, got: %s",
+          keyField.name(),
+          keyField.type());
+    }
+
+    if ("IDENTITY".equals(upperTransform)) {
+      Preconditions.checkArgument(
+          keyFields.size() == 1,
+          "IDENTITY transform requires exactly one key column, got: %s",
+          keyFields.size());
+      Type.TypeID keyType = keyFields.get(0).type().typeId();
+      Preconditions.checkArgument(
+          keyType == Type.TypeID.LONG || keyType == Type.TypeID.INTEGER,
+          "IDENTITY transform requires a numeric (long or int) key column, got: %s",
+          keyFields.get(0).type());
+      return col("__key_0").cast(DataTypes.LongType);
+    }
 
     if ("HASH".equals(upperTransform)) {
-      TransformFunction transform = TransformFunctions.forName(upperTransform, options);
-      UserDefinedFunction udf;
-      switch (keyType.typeId()) {
-        case STRING:
-          udf =
-              functions.udf(
-                  (UDF1<String, Long>)
-                      v -> transform.transform(Collections.singletonList((Object) v)),
-                  DataTypes.LongType);
-          break;
-        case LONG:
-          udf =
-              functions.udf(
-                  (UDF1<Long, Long>)
-                      v -> transform.transform(Collections.singletonList((Object) v)),
-                  DataTypes.LongType);
-          break;
-        case INTEGER:
-          udf =
-              functions.udf(
-                  (UDF1<Integer, Long>)
-                      v -> transform.transform(Collections.singletonList((Object) v)),
-                  DataTypes.LongType);
-          break;
-        default:
-          throw new IllegalArgumentException(
-              "HASH transform does not support key column type: " + keyType);
-      }
-      return udf.apply(col("__key"));
-    } else if ("IDENTITY".equals(upperTransform)) {
       Preconditions.checkArgument(
-          keyType.typeId() == Type.TypeID.LONG || keyType.typeId() == Type.TypeID.INTEGER,
-          "IDENTITY transform requires a numeric (long or int) key column, got: %s",
-          keyType);
-      return col("__key").cast(DataTypes.LongType);
-    } else {
-      throw new IllegalArgumentException(
-          "Unsupported transform '" + upperTransform + "': expected HASH or IDENTITY");
+          keyFields.size() == 1,
+          "HASH transform requires exactly one key column, got: %s",
+          keyFields.size());
     }
+
+    TransformFunction transform = TransformFunctions.forName(upperTransform, options);
+    // HASH (single column), ZORDER, and later HILBERT: compute the transform value from the key
+    // column(s) via a struct + Row UDF, which preserves each column's own type. The transform
+    // itself enforces its arity (HASH rejects more than one key column).
+    int dimensions = keyFields.size();
+    Column[] keyColumns = new Column[dimensions];
+    for (int i = 0; i < dimensions; i++) {
+      keyColumns[i] = col("__key_" + i);
+    }
+    UserDefinedFunction udf =
+        functions.udf(
+            (UDF1<Row, Long>) row -> transform.transform(rowToKeyValues(row, dimensions)),
+            DataTypes.LongType);
+    return udf.apply(functions.struct(keyColumns));
+  }
+
+  private static List<Object> rowToKeyValues(Row row, int dimensions) {
+    List<Object> values = Lists.newArrayListWithExpectedSize(dimensions);
+    for (int i = 0; i < dimensions; i++) {
+      values.add(row.get(i));
+    }
+    return values;
   }
 
   private static Iterator<LeafFileWriteResult> writeLeafFilePartition(
       Iterator<Row> rows,
       FileIO io,
-      Types.NestedField keyField,
+      List<Types.NestedField> keyFields,
       String leafDataLocation,
       long rowGroupSizeBytes) {
     if (!rows.hasNext()) {
       return Collections.emptyIterator();
     }
 
+    int dimensions = keyFields.size();
     String path = leafDataLocation + "/leaf-" + UUID.randomUUID() + ".parquet";
     long recordCount = 0;
     long tvMin = Long.MAX_VALUE;
     long tvMax = Long.MIN_VALUE;
 
     try (LeafFileWriter writer =
-        new LeafFileWriter(io.newOutputFile(path), keyField, rowGroupSizeBytes)) {
+        new LeafFileWriter(io.newOutputFile(path), keyFields, rowGroupSizeBytes)) {
       while (rows.hasNext()) {
         Row row = rows.next();
-        Object keyValue = row.getAs("__key");
+        List<Object> keyValues = Lists.newArrayListWithExpectedSize(dimensions);
+        for (int i = 0; i < dimensions; i++) {
+          keyValues.add(row.getAs("__key_" + i));
+        }
         long transformValue = row.getAs("__transform_value");
         String sourceFilePath = row.getAs("__source_file_path");
         long position = row.getAs("__position");
 
         writer.add(
             LeafFileEntry.builder()
-                .keyValue(keyValue)
+                .keyValues(keyValues)
                 .transformValue(transformValue)
                 .filePath(sourceFilePath)
                 .position(position)
