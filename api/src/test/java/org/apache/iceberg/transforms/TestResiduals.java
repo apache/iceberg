@@ -307,6 +307,12 @@ public class TestResiduals {
 
     residual = resEval.residualFor(Row.of((Object) null));
     assertThat(residual).as("null starts with a => false").isEqualTo(alwaysFalse());
+
+    // both children of an OR are evaluated, so startsWith still sees the null partition value
+    ResidualEvaluator orEval =
+        ResidualEvaluator.of(
+            spec, or(Expressions.isNull("category"), startsWith("category", "a")), true);
+    assertThat(orEval.residualFor(Row.of((Object) null))).isEqualTo(alwaysTrue());
   }
 
   @Test
