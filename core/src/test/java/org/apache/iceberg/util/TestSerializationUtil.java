@@ -61,6 +61,17 @@ class TestSerializationUtil {
   }
 
   @Test
+  void bytesRoundTripPreservesNull() {
+    // serializeToBytes(null) writes a real serialized null (not an empty array), so this exercises
+    // the write-and-read-back path rather than the null-input short circuit above.
+    byte[] bytes = SerializationUtil.serializeToBytes(null);
+    assertThat(bytes).isNotNull();
+
+    Object roundTripped = SerializationUtil.deserializeFromBytes(bytes);
+    assertThat(roundTripped).isNull();
+  }
+
+  @Test
   void base64RoundTripPreservesValue() {
     String original = "s3://bucket/table/metadata/v1.metadata.json";
     String encoded = SerializationUtil.serializeToBase64(original);
