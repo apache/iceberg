@@ -1,28 +1,29 @@
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information regarding
- * copyright ownership.  The ASF licenses this file to You under
- * the Apache License, Version 2.0 (the "License"); you may not use
- * this file except in compliance with the License.  You may obtain
- * a copy of the License at
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package org.apache.iceberg.spark;
 
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.transactions.TransactionInfo;
@@ -49,8 +50,8 @@ class SparkTransaction implements org.apache.spark.sql.connector.catalog.transac
 
   private final SparkCatalog catalog;
   private final TransactionInfo info;
-  private final Map<TableIdentifier, Transaction> stagedTransactions = new HashMap<>();
-  private final Set<Scan> readSet = new HashSet<>();
+  private final Map<TableIdentifier, Transaction> stagedTransactions = Maps.newHashMap();
+  private final Set<Scan> readSet = Sets.newHashSet();
   private State state = State.ACTIVE;
 
   SparkTransaction(SparkCatalog catalog, TransactionInfo info) {
