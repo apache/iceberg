@@ -537,7 +537,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         throw commitStateUnknownException;
       } catch (RuntimeException e) {
         if (!strictCleanup || e instanceof CleanableFailure) {
-          Exceptions.suppressAndThrow(e, this::cleanAll);
+          cleanAfterFailedCommit(newSnapshotId.get(), e);
         }
 
         throw e;
@@ -546,27 +546,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       try {
         LOG.info("Committed snapshot {} ({})", newSnapshotId.get(), getClass().getSimpleName());
 
-        // at this point, the commit must have succeeded. after a refresh, the snapshot is loaded by
-        // id in case another commit was added between this commit and the refresh.
-        // it might not be known which commit attempt succeeded in some cases, so this only cleans
-        // up the one that actually did succeed.
-        Snapshot saved = ops.refresh().snapshot(newSnapshotId.get());
-        if (saved != null) {
-          if (cleanupAfterCommit()) {
-            cleanUncommitted(Sets.newHashSet(saved.allManifests(ops.io())));
-          }
-
-          // also clean up unused manifest lists created by multiple attempts
-          for (String manifestList : manifestLists) {
-            if (!saved.manifestListLocation().equals(manifestList)) {
-              deleteFile(manifestList);
-            }
-          }
-        } else {
-          // saved may not be present if the latest metadata couldn't be loaded due to eventual
-          // consistency problems in refresh. in that case, don't clean up.
-          LOG.warn("Failed to load committed snapshot, skipping manifest clean-up");
-        }
+        cleanupAfterSuccessfulCommit(newSnapshotId.get());
       } catch (Throwable e) {
         LOG.warn(
             "Failed to load committed table metadata or during cleanup, skipping further cleanup",
@@ -613,6 +593,65 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
     manifestLists.clear();
     cleanUncommitted(EMPTY_SET);
+  }
+
+  /**
+   * Cleans up staged files for a snapshot that was committed. Manifests and the manifest list
+   * referenced by the committed snapshot are kept; everything else staged by this producer is
+   * deleted.
+   */
+  private void cleanupAfterSuccessfulCommit(long snapshotId) {
+    // the commit must have succeeded at this point. after a refresh, the snapshot is loaded by
+    // id in case another commit was added between this commit and the refresh. it might not be
+    // known which commit attempt succeeded in some cases, so this only cleans up the one that
+    // actually did succeed.
+    Snapshot saved = ops.refresh().snapshot(snapshotId);
+    if (saved != null) {
+      if (cleanupAfterCommit()) {
+        cleanUncommitted(Sets.newHashSet(saved.allManifests(ops.io())));
+      }
+
+      // also clean up unused manifest lists created by multiple attempts
+      for (String manifestList : manifestLists) {
+        if (!saved.manifestListLocation().equals(manifestList)) {
+          deleteFile(manifestList);
+        }
+      }
+    } else {
+      // saved may not be present if the latest metadata couldn't be loaded due to eventual
+      // consistency problems in refresh. in that case, don't clean up.
+      LOG.warn("Failed to load committed snapshot, skipping manifest clean-up");
+    }
+  }
+
+  /**
+   * Cleans up after a commit attempt that the client observed as failed. A failure observed by the
+   * client does not mean the commit was not applied: a catalog may apply a commit and still report
+   * it as failed. Deleting the staged files in that case would delete files referenced by a
+   * committed snapshot, so this refreshes first and, when the staged snapshot is on the table,
+   * cleans up as a committed snapshot instead of deleting everything.
+   */
+  private void cleanAfterFailedCommit(long snapshotId, RuntimeException commitFailure) {
+    if (snapshotId != -1L) {
+      try {
+        if (ops.refresh().snapshot(snapshotId) != null) {
+          LOG.info(
+              "Snapshot {} is on the table despite the commit failure, cleaning up as committed",
+              snapshotId);
+          cleanupAfterSuccessfulCommit(snapshotId);
+          return;
+        }
+      } catch (RuntimeException refreshFailure) {
+        // the table state could not be determined. skip cleanup rather than risk deleting files
+        // referenced by a committed snapshot.
+        LOG.warn(
+            "Failed to refresh table while cleaning up after failed commit, skipping cleanup",
+            refreshFailure);
+        return;
+      }
+    }
+
+    Exceptions.suppressAndThrow(commitFailure, this::cleanAll);
   }
 
   protected void deleteFile(String path) {

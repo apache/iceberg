@@ -30,8 +30,10 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.junit.jupiter.api.Test;
@@ -275,5 +277,58 @@ public class TestSnapshotProducer extends TestBase {
     } finally {
       executor.shutdownNow();
     }
+  }
+
+  @TestTemplate
+  public void committedSnapshotFilesSurviveFailedCommitCleanup() {
+    // Simulates a catalog that applies a commit but reports it as failed, followed by a retry
+    // that fails validation because the snapshot is already on the table. The failure-path
+    // cleanup must not delete the manifest list or manifests of the committed snapshot.
+    String tableName = "apply-but-report-failure";
+    AtomicLong appliedSnapshotId = new AtomicLong(-1L);
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations(tableName, tableDir) {
+          private boolean firstCommit = true;
+
+          @Override
+          public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+            super.commit(base, updatedMetadata);
+            if (base != null && firstCommit) {
+              firstCommit = false;
+              appliedSnapshotId.set(current().currentSnapshot().snapshotId());
+              throw new CommitFailedException("Injected apply-but-report-failure");
+            }
+          }
+        };
+    TestTables.TestTable commitTable =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
+
+    SnapshotUpdate<?> append =
+        commitTable
+            .newAppend()
+            .appendFile(FILE_A)
+            .validateWith(
+                baseSnapshots ->
+                    Streams.stream(baseSnapshots)
+                        .mapToLong(Snapshot::snapshotId)
+                        .noneMatch(id -> id == appliedSnapshotId.get()));
+
+    assertThatThrownBy(append::commit).isInstanceOf(ValidationException.class);
+
+    Snapshot committed = commitTable.currentSnapshot();
+    assertThat(committed).isNotNull();
+    assertThat(committed.snapshotId()).isEqualTo(appliedSnapshotId.get());
+
+    assertThat(commitTable.io().newInputFile(committed.manifestListLocation()).exists())
+        .as("Manifest list of the committed snapshot must not be deleted")
+        .isTrue();
+    assertThat(committed.allManifests(commitTable.io()))
+        .isNotEmpty()
+        .allSatisfy(
+            manifest ->
+                assertThat(commitTable.io().newInputFile(manifest.path()).exists())
+                    .as("Manifest of the committed snapshot must not be deleted")
+                    .isTrue());
   }
 }
