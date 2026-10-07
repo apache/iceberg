@@ -20,12 +20,6 @@ title: "View Spec"
 
 # Iceberg View Spec
 
-## Format Versioning
-
-| Version | Status  | Adopted    | Vote | Changes since adoption |
-|---------|---------|------------|------|------------------------|
-| 1       | Adopted | 2022-04-03 | -    | -                      |
-
 ## Background and Motivation
 
 Most compute engines (e.g. Trino and Apache Spark) support views. A view is a logical table that can be referenced by future queries. Views do not contain any data. Instead, the query stored by the view is executed every time the view is referenced by another query.

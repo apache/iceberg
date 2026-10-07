@@ -24,12 +24,9 @@ This is a specification for the Iceberg table format that is designed to manage 
 
 ## Format Versioning
 
-| Version | Status         | Adopted    | Vote                                                                     | Changes since adoption                            |
-|---------|----------------|------------|--------------------------------------------------------------------------|---------------------------------------------------|
-| 4       | In development |            |                                                                          |                                                   |
-| 3       | Adopted        | 2025-05-23 | [vote](https://lists.apache.org/thread/9oncq0j0222nrm6scvm89xdq3gozg24p) | [Changes since adoption](#changes-since-adoption) |
-| 2       | Adopted        | 2021-08-02 | [vote](https://lists.apache.org/thread/ws2gg52d124p7bx9jgrn3kctrtfgtltp) | [Changes since adoption](#changes-since-adoption) |
-| 1       | Adopted        | -          | -                                                                        | -                                                 |
+Versions 1, 2 and 3 of the Iceberg spec are complete and adopted by the community.
+
+**Version 4 is under active development and has not been formally adopted.**
 
 The format version number is incremented when new features are added that will break forward-compatibility---that is, when older readers would not read newer table features correctly. Tables may continue to be written with an older version of the spec to ensure compatibility by not using features that are not yet implemented by processing engines.
 
@@ -2154,27 +2151,3 @@ The Geometry and Geography class hierarchy and its Well-known text (WKT) and Wel
 Points are always defined by the coordinates X, Y, Z (optional), and M (optional), in this order. X is the longitude/easting, Y is the latitude/northing, and Z is usually the height, or elevation. M is a fourth optional dimension, for example a linear reference value (e.g., highway milepost value), a timestamp, or some other value as defined by the CRS.
 
 The version of the OGC standard first used here is 1.2.1, but future versions may also be used if the WKB representation remains wire-compatible.
-
-## Changes since adoption
-
-Each change is listed under the most recent version it affects.
-
-### Version 3
-
-| Date       | Change                                                              | Pull request                                           | Vote                                                                     |
-|------------|---------------------------------------------------------------------|--------------------------------------------------------|--------------------------------------------------------------------------|
-| 2026-08-19 | Clarify content file uniqueness within a snapshot                   | [#17198](https://github.com/apache/iceberg/pull/17198) | [vote](https://lists.apache.org/thread/orwny91fqyfmzx7w7p6wj7cgmndvd8r3) |
-| 2026-06-13 | Clarify the result type of the day partition transform in manifests | [#16446](https://github.com/apache/iceberg/pull/16446) | [vote](https://lists.apache.org/thread/gz432tvboxvno2v7g3l17c8tbtxckxrb) |
-| 2026-05-18 | Clarify conventions for non-default CRS in geospatial types         | [#15834](https://github.com/apache/iceberg/pull/15834) | [vote](https://lists.apache.org/thread/8z0kc8vz1379lghwlcwl0jmsoym6shd7) |
-| 2025-10-14 | Clarify restrictions for geometry types                             | [#14250](https://github.com/apache/iceberg/pull/14250) | [vote](https://lists.apache.org/thread/v96xj6kxwclyl52d97dkcvzxytfypyp3) |
-| 2025-09-18 | Bring back `added-rows` in snapshot fields                          | [#14048](https://github.com/apache/iceberg/pull/14048) | [vote](https://lists.apache.org/thread/5gff76hvqy7r1lksrt9ld9h3pdp03nb5) |
-| 2025-07-31 | Correct the type of `snapshot-id` in table statistics               | [#13513](https://github.com/apache/iceberg/pull/13513) | [vote](https://lists.apache.org/thread/z6loky5225j1vszorm199ywwncjwf6qz) |
-
-### Version 2
-
-| Date       | Change                                              | Pull request                                           | Vote                                                                     |
-|------------|-----------------------------------------------------|--------------------------------------------------------|--------------------------------------------------------------------------|
-| 2025-09-15 | Deprecate position delete files with row data       | [#14045](https://github.com/apache/iceberg/pull/14045) | [vote](https://lists.apache.org/thread/tfy96bqmz1bmdxr73x17w3xxj3yzs606) |
-| 2025-03-06 | Add an implementation note on `current-snapshot-id` | [#12334](https://github.com/apache/iceberg/pull/12334) | [vote](https://lists.apache.org/thread/54r4nm7qmr4vxhdpwmbx5rntynspskl7) |
-| 2025-01-24 | Document optional snapshot summary fields           | [#11660](https://github.com/apache/iceberg/pull/11660) | [vote](https://lists.apache.org/thread/mz01jwt69osqxhx9d3dd9xzncv9yncd0) |
-| 2024-08-04 | Clarify file system tables                          | [#10833](https://github.com/apache/iceberg/pull/10833) | [vote](https://lists.apache.org/thread/1jm9zd6rtgjsvly3x099wvgdbohjn29v) |

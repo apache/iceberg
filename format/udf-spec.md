@@ -20,12 +20,6 @@ title: "SQL UDF Spec"
 
 # Iceberg UDF Spec
 
-## Format Versioning
-
-| Version | Status  | Adopted    | Vote                                                                     | Changes since adoption                            |
-|---------|---------|------------|--------------------------------------------------------------------------|---------------------------------------------------|
-| 1       | Adopted | 2026-02-05 | [vote](https://lists.apache.org/thread/whbgoc325o99vm4b599f0g1owhgww2kx) | [Changes since adoption](#changes-since-adoption) |
-
 ## Background and Motivation
 
 A SQL user-defined function (UDF or UDTF) is a callable routine that accepts input parameters and executes a function body.
@@ -381,9 +375,3 @@ RETURN SELECT name, color FROM fruits WHERE color = c;
   "secure": false
 }
 ```
-
-## Changes since adoption
-
-| Date       | Change                                                   | Pull request                                           | Vote                                                                     |
-|------------|----------------------------------------------------------|--------------------------------------------------------|--------------------------------------------------------------------------|
-| 2026-07-01 | Add optional `specific-name` to the UDF definition model | [#16727](https://github.com/apache/iceberg/pull/16727) | [vote](https://lists.apache.org/thread/75xs4trcgcpog8b2zoxpknf8bq6vfk4c) |

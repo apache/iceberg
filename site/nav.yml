@@ -98,15 +98,7 @@ nav:
         - Starrocks: https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog
         - Tinybird: https://www.tinybird.co/docs/forward/get-data-in/table-functions/iceberg
         - Trino: https://trino.io/docs/current/connector/iceberg.html
-  - Releases:
-    - Java: releases.md
-    - REST catalog spec: /rest-catalog-spec/#format-versioning
-    - Table spec: /spec/#format-versioning
-    - View spec: /view-spec/#format-versioning
-    - Puffin spec: /puffin-spec/#format-versioning
-    - AES GCM stream spec: /gcm-stream-spec/#format-versioning
-    - SQL UDF spec: /udf-spec/#format-versioning
-    - Mumbling bitmap spec: /mumbling-spec/#format-versioning
+  - Releases: releases.md
   - Project:
     - Contributing: contribute.md
     - Multi-engine support: multi-engine-support.md

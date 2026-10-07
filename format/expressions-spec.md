@@ -24,12 +24,6 @@ This document defines the structure and behavior of expressions for use in Icebe
 
 Stored expressions are needed for use cases like data validations (`CHECK` constraints) and default values (for instance, `current_timestamp()`). Expressions are exchanged in use cases like server-side scan planning in the catalog protocol.
 
-## Format Versioning
-
-| Version | Status  | Adopted    | Vote                                                                     | Changes since adoption |
-|---------|---------|------------|--------------------------------------------------------------------------|------------------------|
-| 1       | Adopted | 2026-06-30 | [vote](https://lists.apache.org/thread/6wfmjhgthlykwbk3f7df4zgcm40xtm2o) | -                      |
-
 
 ## Overview
 

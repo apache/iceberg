@@ -28,12 +28,6 @@ This spec is for version 1.
 
 [roaring]: https://roaringbitmap.org/
 
-## Format Versioning
-
-| Version | Status | Adopted | Vote | Changes since adoption |
-|---------|--------|---------|------|------------|
-| 1       | Draft  |         |      |            |
-
 ## Overview
 
 Mumbling bitmaps are based on the same idea as Roaring bitmaps: a bitmap is
