@@ -29,18 +29,21 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.hadoop.util.ConfigurationUtil;
 
 /**
- * This class implements a codec factory that is used when writing Parquet. It adds a workaround to
- * cache codecs by name and level, not just by name, and also honors the legacy
- * "io.compression.codec.zstd.level" property. This can be removed when this change is made to
- * Parquet.
+ * A codec factory that caches codecs by compression level as well as by name, so that requests for
+ * the same codec at different levels do not share an instance.
  */
 public class ParquetCodecFactory extends CodecFactory {
 
+  /**
+   * @deprecated since 1.13.0; this class is internal to {@link Parquet}
+   *     and should not be constructed directly.
+   */
+  @Deprecated
   public ParquetCodecFactory(Configuration configuration, int pageSize) {
     this(new HadoopParquetConfiguration(configuration), pageSize);
   }
 
-  public ParquetCodecFactory(ParquetConfiguration configuration, int pageSize) {
+  ParquetCodecFactory(ParquetConfiguration configuration, int pageSize) {
     super(configuration, pageSize);
   }
 
@@ -65,11 +68,10 @@ public class ParquetCodecFactory extends CodecFactory {
       try {
         codecClass = Class.forName(codecClassName);
       } catch (ClassNotFoundException e) {
-        // Try to load the class using the job classloader
-        codecClass = new Configuration(false).getClassLoader().loadClass(codecClassName);
+        // Try to load the class using the configuration's classloader
+        codecClass = conf.getClassByName(codecClassName);
       }
-      // Hadoop codecs are Configurable, so instantiation needs a Hadoop Configuration. For a
-      // non-Hadoop conf this builds one, but only here on a cache miss: once per codec and level.
+      // Hadoop codecs are Configurable, so instantiation needs a Hadoop Configuration
       codec =
           (CompressionCodec)
               ReflectionUtils.newInstance(

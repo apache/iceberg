@@ -27,12 +27,12 @@ import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.junit.jupiter.api.Test;
 
-public class TestParquetCodecFactory {
+final class TestParquetCodecFactory {
 
   private static final int PAGE_SIZE = 1024 * 1024;
 
   @Test
-  public void testCachesCodecsByLevelWithoutHadoopConfiguration() {
+  void testCachesCodecsByLevelWithoutHadoopConfiguration() {
     PlainParquetConfiguration level3 = new PlainParquetConfiguration();
     level3.set("parquet.compression.codec.zstd.level", "3");
     PlainParquetConfiguration level5 = new PlainParquetConfiguration();
@@ -47,7 +47,7 @@ public class TestParquetCodecFactory {
   }
 
   @Test
-  public void testLegacyZstdLevelPropertyIsPartOfTheCacheKey() {
+  void testLegacyZstdLevelPropertyIsPartOfTheCacheKey() {
     PlainParquetConfiguration legacy = new PlainParquetConfiguration();
     legacy.set("io.compression.codec.zstd.level", "7");
     PlainParquetConfiguration current = new PlainParquetConfiguration();
@@ -58,7 +58,8 @@ public class TestParquetCodecFactory {
   }
 
   @Test
-  public void testHadoopConfigurationStillAccepted() {
+  @SuppressWarnings("deprecation")
+  void testHadoopConfigurationStillAccepted() {
     Configuration conf = new Configuration(false);
     conf.set("zlib.compress.level", "BEST_COMPRESSION");
     ParquetCodecFactory factory = new ParquetCodecFactory(conf, PAGE_SIZE);

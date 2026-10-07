@@ -191,8 +191,6 @@ public class Parquet {
         this.conf =
             new HadoopParquetConfiguration(new Configuration(((HadoopOutputFile) file).getConf()));
       } else {
-        // A Hadoop Configuration would load core-default.xml from the class path on first use, a
-        // parse that repeats for every file written. Nothing on this path needs those defaults.
         this.conf = new PlainParquetConfiguration();
       }
     }

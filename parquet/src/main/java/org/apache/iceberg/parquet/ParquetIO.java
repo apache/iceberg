@@ -85,7 +85,6 @@ class ParquetIO {
     if (file instanceof HadoopOutputFile) {
       HadoopOutputFile hfile = (HadoopOutputFile) file;
       try {
-        // Only Hadoop output files need a Hadoop Configuration, and for them conf wraps one.
         return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(
             hfile.getPath(), ConfigurationUtil.createHadoopConfiguration(conf));
       } catch (IOException e) {
