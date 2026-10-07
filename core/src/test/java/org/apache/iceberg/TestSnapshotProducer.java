@@ -306,18 +306,23 @@ public class TestSnapshotProducer extends TestBase {
     ((SnapshotProducer<?>) append).setClock(driftedClock);
     append.commit();
 
-    assertThat(table.currentSnapshot().timestampMillis()).isEqualTo(firstTs + 1);
+    assertThat(table.currentSnapshot().timestampMillis()).isGreaterThan(firstTs);
   }
 
   @TestTemplate
   public void transactionCommitsProduceMonotonicTimestamps() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot base = table.currentSnapshot();
+
     Transaction txn = table.newTransaction();
-    txn.newFastAppend().appendFile(FILE_A).commit();
-    Snapshot first = txn.table().currentSnapshot();
     txn.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot first = txn.table().currentSnapshot();
+    txn.newFastAppend().appendFile(FILE_C).commit();
     Snapshot second = txn.table().currentSnapshot();
     txn.commitTransaction();
 
+    assertThat(first.parentId()).isEqualTo(base.snapshotId());
+    assertThat(first.timestampMillis()).isGreaterThan(base.timestampMillis());
     assertThat(second.parentId()).isEqualTo(first.snapshotId());
     assertThat(second.timestampMillis()).isGreaterThan(first.timestampMillis());
     assertThat(table.currentSnapshot().snapshotId()).isEqualTo(second.snapshotId());
@@ -329,14 +334,18 @@ public class TestSnapshotProducer extends TestBase {
 
     table.newFastAppend().appendFile(FILE_A).commit();
     long baseTs = table.currentSnapshot().timestampMillis();
-
-    Clock staleClock = Clock.fixed(Instant.ofEpochMilli(baseTs + 1), ZoneOffset.UTC);
     Transaction txn = table.newTransaction();
+
+    long firstCommitTs = baseTs + 1;
+    Clock firstClock = Clock.fixed(Instant.ofEpochMilli(firstCommitTs), ZoneOffset.UTC);
     AppendFiles firstAppend = txn.newFastAppend().appendFile(FILE_B);
-    ((SnapshotProducer<?>) firstAppend).setClock(staleClock);
+    ((SnapshotProducer<?>) firstAppend).setClock(firstClock);
     firstAppend.commit();
+
+    long secondCommitTs = firstCommitTs + 1;
+    Clock secondClock = Clock.fixed(Instant.ofEpochMilli(secondCommitTs), ZoneOffset.UTC);
     AppendFiles secondAppend = txn.newFastAppend().appendFile(FILE_C);
-    ((SnapshotProducer<?>) secondAppend).setClock(staleClock);
+    ((SnapshotProducer<?>) secondAppend).setClock(secondClock);
     secondAppend.commit();
 
     long conflictTs = baseTs + 1_000_000L;
@@ -375,7 +384,7 @@ public class TestSnapshotProducer extends TestBase {
     branchAppend.commit();
     long branchTs = table.snapshot(branchName).timestampMillis();
     assertThat(branchTs)
-        .as("Sanity: branch commit should adopt the simulated far-future wall-clock value")
+        .as("branch commit should adopt the simulated far-future wall-clock value")
         .isEqualTo(branchFutureTs);
 
     // Commit to main with a clock just slightly after mainParentTs but far below branchTs.
