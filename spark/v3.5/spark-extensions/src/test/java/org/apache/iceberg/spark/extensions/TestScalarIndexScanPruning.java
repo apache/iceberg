@@ -285,4 +285,26 @@ public class TestScalarIndexScanPruning extends ExtensionsTestBase {
     assertThat(result).hasSize(1);
     assertThat(result.get(0)[0]).isEqualTo("neg");
   }
+
+  @TestTemplate
+  public void testCompositeZorderIndexEqualityReturnsCorrectRow() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    // Separate INSERTs so the rows land in separate data files -- otherwise there is nothing for
+    // the index to prune between.
+    sql("INSERT INTO TABLE %s VALUES (1, 'aaa')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'bbb')", tableName);
+    sql("INSERT INTO TABLE %s VALUES (3, 'ccc')", tableName);
+
+    sql(
+        "CALL %s.system.build_scalar_index(table => '%s', columns => array('id', 'data'),"
+            + " transform => 'ZORDER')",
+        catalogName, tableIdent);
+
+    // Both key columns are constrained, so the composite index resolves a bounding Z-range; the
+    // residual (id = 2 AND data = 'bbb') re-check must still return exactly the matching row.
+    List<Object[]> result = sql("SELECT id, data FROM %s WHERE id = 2 AND data = 'bbb'", tableName);
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)[0]).isEqualTo(2L);
+    assertThat(result.get(0)[1]).isEqualTo("bbb");
+  }
 }

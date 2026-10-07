@@ -57,9 +57,11 @@ import org.apache.iceberg.index.LeafFileEntry;
 import org.apache.iceberg.index.LeafFileReader;
 import org.apache.iceberg.index.TrackingFileEntry;
 import org.apache.iceberg.index.TrackingFileReader;
+import org.apache.iceberg.index.TransformFunction;
 import org.apache.iceberg.index.TransformFunctions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -281,21 +283,7 @@ public class SparkScanBuilder
       return;
     }
 
-    Map<String, List<UnboundPredicate<?>>> candidatesByColumn = Maps.newLinkedHashMap();
-    for (Expression expr : filterExpressions) {
-      if (!(expr instanceof UnboundPredicate) || !SCALAR_INDEX_PRUNABLE_OPS.contains(expr.op())) {
-        continue;
-      }
-
-      UnboundPredicate<?> predicate = (UnboundPredicate<?>) expr;
-      if (!(predicate.term() instanceof NamedReference)) {
-        continue;
-      }
-
-      String columnName = ((NamedReference<?>) predicate.term()).name();
-      candidatesByColumn.computeIfAbsent(columnName, c -> Lists.newArrayList()).add(predicate);
-    }
-
+    Map<String, List<UnboundPredicate<?>>> candidatesByColumn = candidatePredicatesByColumn();
     if (candidatesByColumn.isEmpty()) {
       return;
     }
@@ -320,11 +308,50 @@ public class SparkScanBuilder
       return;
     }
 
+    // Try composite (multi-column) indexes first, then single-column indexes per constrained
+    // column.
+    if (tryPruneUsingCompositeIndexes(availableIndexes, candidatesByColumn)) {
+      return;
+    }
+
     for (Map.Entry<String, List<UnboundPredicate<?>>> entry : candidatesByColumn.entrySet()) {
       if (tryPruneUsingScalarIndex(availableIndexes, entry.getKey(), entry.getValue())) {
         return;
       }
     }
+  }
+
+  /** Groups the pushable predicates (EQ/IN/range on a named column) by column name. */
+  private Map<String, List<UnboundPredicate<?>>> candidatePredicatesByColumn() {
+    Map<String, List<UnboundPredicate<?>>> candidatesByColumn = Maps.newLinkedHashMap();
+    for (Expression expr : filterExpressions) {
+      if (!(expr instanceof UnboundPredicate) || !SCALAR_INDEX_PRUNABLE_OPS.contains(expr.op())) {
+        continue;
+      }
+
+      UnboundPredicate<?> predicate = (UnboundPredicate<?>) expr;
+      if (!(predicate.term() instanceof NamedReference)) {
+        continue;
+      }
+
+      String columnName = ((NamedReference<?>) predicate.term()).name();
+      candidatesByColumn.computeIfAbsent(columnName, c -> Lists.newArrayList()).add(predicate);
+    }
+    return candidatesByColumn;
+  }
+
+  /** Tries each composite (multi-column) SCALAR index whose key columns are all constrained. */
+  private boolean tryPruneUsingCompositeIndexes(
+      List<IndexMetadata> availableIndexes,
+      Map<String, List<UnboundPredicate<?>>> candidatesByColumn) {
+    for (IndexMetadata metadata : availableIndexes) {
+      if ("SCALAR".equals(metadata.type())
+          && metadata.keyColumnIds().size() > 1
+          && tryPruneUsingCompositeIndex(metadata, candidatesByColumn)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -365,7 +392,7 @@ public class SparkScanBuilder
       List<TrackingFileEntry> trackedLeafFiles =
           TrackingFileReader.readAll(table.io().newInputFile(indexSnapshot.trackingFile()));
 
-      if (keyTypePromoted(trackedLeafFiles, keyField, columnName)) {
+      if (keyTypePromoted(trackedLeafFiles, ImmutableList.of(keyField), columnName)) {
         return false;
       }
 
@@ -387,7 +414,7 @@ public class SparkScanBuilder
       }
 
       return resolveAndSetFilePaths(
-          trackedLeafFiles, resolved, keyField, columnName, uncoveredFilePaths);
+          trackedLeafFiles, resolved, ImmutableList.of(keyField), columnName, uncoveredFilePaths);
     } catch (Exception e) {
       LOG.warn(
           "Failed to use SCALAR index on column {}, falling back to normal planning: {}",
@@ -395,6 +422,176 @@ public class SparkScanBuilder
           e.getMessage());
       return false;
     }
+  }
+
+  /**
+   * Attempts to resolve a composite (multi-column) SCALAR index: every key column must be
+   * constrained by the query. Builds a single bounding transform-value range from the predicate
+   * box's corners -- correct because the composite transform (Z-order) is monotonic under the
+   * componentwise product order, so every matching key's transform value lies within it -- and
+   * applies the AND of the per-column predicates as the exact residual re-check.
+   */
+  private boolean tryPruneUsingCompositeIndex(
+      IndexMetadata metadata, Map<String, List<UnboundPredicate<?>>> candidatesByColumn) {
+    if (table.currentSnapshot() == null) {
+      return false;
+    }
+
+    List<Types.NestedField> keyFields =
+        Lists.newArrayListWithExpectedSize(metadata.keyColumnIds().size());
+    List<String> columnNames = Lists.newArrayList();
+    List<Object> lowerCorner = Lists.newArrayList();
+    List<Object> upperCorner = Lists.newArrayList();
+    List<Expression> residualPredicates = Lists.newArrayList();
+    for (int fieldId : metadata.keyColumnIds()) {
+      Types.NestedField keyField = schema.findField(fieldId);
+      if (keyField == null) {
+        return false;
+      }
+      List<UnboundPredicate<?>> predicates = candidatesByColumn.get(keyField.name());
+      if (predicates == null || predicates.isEmpty()) {
+        return false;
+      }
+      ColumnBound bound = columnBound(predicates);
+      if (bound == null) {
+        return false;
+      }
+      keyFields.add(keyField);
+      columnNames.add(keyField.name());
+      lowerCorner.add(bound.lower);
+      upperCorner.add(bound.upper);
+      residualPredicates.addAll(predicates);
+    }
+
+    String label = String.join(",", columnNames);
+    try {
+      IndexSnapshot indexSnapshot = metadata.currentSnapshot();
+      if (indexSnapshot == null) {
+        return false;
+      }
+
+      List<TrackingFileEntry> trackedLeafFiles =
+          TrackingFileReader.readAll(table.io().newInputFile(indexSnapshot.trackingFile()));
+      if (keyTypePromoted(trackedLeafFiles, keyFields, label)) {
+        return false;
+      }
+
+      long currentTableSnapshotId = table.currentSnapshot().snapshotId();
+      Set<String> uncoveredFilePaths = ImmutableSet.of();
+      if (indexSnapshot.sourceTableSnapshotId() != currentTableSnapshotId) {
+        uncoveredFilePaths =
+            uncoveredFilePathsSince(indexSnapshot.sourceTableSnapshotId(), currentTableSnapshotId);
+      }
+
+      TransformFunction transform =
+          TransformFunctions.forName(metadata.transformFunction(), metadata.properties());
+      long cornerA = transform.transform(lowerCorner);
+      long cornerB = transform.transform(upperCorner);
+      TransformValueRange bounding =
+          new TransformValueRange(Math.min(cornerA, cornerB), Math.max(cornerA, cornerB));
+      ResolvedPredicate resolved =
+          new ResolvedPredicate(
+              ImmutableList.of(bounding), combinePredicates(residualPredicates), columnNames);
+      return resolveAndSetFilePaths(
+          trackedLeafFiles, resolved, keyFields, label, uncoveredFilePaths);
+    } catch (Exception e) {
+      LOG.warn(
+          "Failed to use composite SCALAR index on {}, falling back to normal planning: {}",
+          label,
+          e.getMessage());
+      return false;
+    }
+  }
+
+  /** The bounded [lower, upper] value range for one key column of a composite query box. */
+  private static final class ColumnBound {
+    private final Object lower;
+    private final Object upper;
+
+    ColumnBound(Object lower, Object upper) {
+      this.lower = lower;
+      this.upper = upper;
+    }
+  }
+
+  /**
+   * Derives a bounded {@code [lower, upper]} for one key column from its predicates, or {@code
+   * null} if the column is not bounded on both sides (so a finite box corner cannot be formed).
+   */
+  private static ColumnBound columnBound(List<UnboundPredicate<?>> predicates) {
+    ColumnBound eq = equalityBound(predicates);
+    if (eq != null) {
+      return eq;
+    }
+    ColumnBound in = inBound(predicates);
+    if (in != null) {
+      return in;
+    }
+    return rangeBound(predicates);
+  }
+
+  private static ColumnBound equalityBound(List<UnboundPredicate<?>> predicates) {
+    for (UnboundPredicate<?> predicate : predicates) {
+      if (predicate.op() == Expression.Operation.EQ) {
+        Object value = predicate.literal().value();
+        return new ColumnBound(value, value);
+      }
+    }
+    return null;
+  }
+
+  private static ColumnBound inBound(List<UnboundPredicate<?>> predicates) {
+    for (UnboundPredicate<?> predicate : predicates) {
+      if (predicate.op() != Expression.Operation.IN) {
+        continue;
+      }
+      Object min = null;
+      Object max = null;
+      for (Literal<?> literal : predicate.literals()) {
+        Object value = literal.value();
+        if (min == null || compareValues(value, min) < 0) {
+          min = value;
+        }
+        if (max == null || compareValues(value, max) > 0) {
+          max = value;
+        }
+      }
+      return min == null ? null : new ColumnBound(min, max);
+    }
+    return null;
+  }
+
+  private static ColumnBound rangeBound(List<UnboundPredicate<?>> predicates) {
+    Object lower = null;
+    Object upper = null;
+    for (UnboundPredicate<?> predicate : predicates) {
+      switch (predicate.op()) {
+        case GT:
+        case GT_EQ:
+          lower = predicate.literal().value();
+          break;
+        case LT:
+        case LT_EQ:
+          upper = predicate.literal().value();
+          break;
+        default:
+          break;
+      }
+    }
+    return (lower == null || upper == null) ? null : new ColumnBound(lower, upper);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static int compareValues(Object left, Object right) {
+    return ((Comparable<Object>) left).compareTo(right);
+  }
+
+  private static Expression combinePredicates(List<Expression> predicates) {
+    Expression combined = null;
+    for (Expression predicate : predicates) {
+      combined = combined == null ? predicate : Expressions.and(combined, predicate);
+    }
+    return combined;
   }
 
   /**
@@ -406,8 +603,8 @@ public class SparkScanBuilder
   private boolean resolveAndSetFilePaths(
       List<TrackingFileEntry> trackedLeafFiles,
       ResolvedPredicate resolved,
-      Types.NestedField keyField,
-      String columnName,
+      List<Types.NestedField> keyFields,
+      String label,
       Set<String> uncoveredFilePaths) {
     // Dedupe by location: an IN predicate's separate target ranges can resolve to the same leaf
     // file (e.g. two IN values landing in the same HASH bucket), and reading it twice would just
@@ -428,7 +625,7 @@ public class SparkScanBuilder
       LOG.info(
           "SCALAR index on {} resolved to {} candidate leaf file(s), exceeding the planning-cost"
               + " bound of {} ({}) -- falling back to normal planning",
-          columnName,
+          label,
           candidateLeafFiles.size(),
           maxCandidateLeafFiles,
           MAX_CANDIDATE_LEAF_FILES_PROPERTY);
@@ -439,7 +636,7 @@ public class SparkScanBuilder
     for (TrackingFileEntry leaf : candidateLeafFiles) {
       matches.addAll(
           LeafFileReader.readMatching(
-              table.io().newInputFile(leaf.location()), keyField, resolved.leafFilter));
+              table.io().newInputFile(leaf.location()), keyFields, resolved.leafFilter));
     }
 
     if (matches.isEmpty() && uncoveredFilePaths.isEmpty()) {
@@ -457,7 +654,7 @@ public class SparkScanBuilder
     LOG.info(
         "SCALAR index on {} resolved {} to {} file(s) ({} covered match(es), {} uncovered"
             + " file(s)): {}",
-        columnName,
+        label,
         resolved.literalValueForLog,
         resolvedPaths.size(),
         matches.size(),
@@ -467,32 +664,32 @@ public class SparkScanBuilder
   }
 
   private boolean keyTypePromoted(
-      List<TrackingFileEntry> trackedLeafFiles, Types.NestedField keyField, String columnName) {
-    // If the key column was promoted (e.g. int -> long) since the index was built, a HASH
-    // transform value computed from the current type no longer matches the buckets stored in the
-    // leaf files. On its own that would just miss matches, but combined with a stale index
-    // (uncovered files present) it could prune away covered rows that do match -- a wrong (empty)
-    // result. Detect it by comparing the type physically stored in a leaf file against the current
-    // key type; the predicate itself is still applied downstream, so results stay correct.
+      List<TrackingFileEntry> trackedLeafFiles, List<Types.NestedField> keyFields, String label) {
+    // If a key column was promoted (e.g. int -> long) since the index was built, a transform value
+    // computed from the current type no longer matches what is stored in the leaf files. On its own
+    // that would just miss matches, but combined with a stale index (uncovered files present) it
+    // could prune away covered rows that do match -- a wrong (empty) result. Detect it by comparing
+    // the type physically stored in a leaf file against each current key type; the predicate itself
+    // is still applied downstream, so results stay correct.
     if (trackedLeafFiles.isEmpty()) {
       return false;
     }
 
-    Type storedKeyType =
-        LeafFileReader.storedKeyType(
-            table.io().newInputFile(trackedLeafFiles.get(0).location()), keyField);
-    if (keyField.type().equals(storedKeyType)) {
-      return false;
+    InputFile leafFile = table.io().newInputFile(trackedLeafFiles.get(0).location());
+    for (Types.NestedField keyField : keyFields) {
+      Type storedKeyType = LeafFileReader.storedKeyType(leafFile, keyField);
+      if (!keyField.type().equals(storedKeyType)) {
+        LOG.warn(
+            "SCALAR index on {} was built for key column {} of type {} but the current schema has "
+                + "{} -- falling back to normal planning; rebuild the index to re-enable pruning",
+            label,
+            keyField.name(),
+            storedKeyType,
+            keyField.type());
+        return true;
+      }
     }
-
-    LOG.warn(
-        "SCALAR index on {} was built for key type {} but the current schema has {} (the column "
-            + "was changed since the index was built) -- falling back to normal planning; rebuild "
-            + "the index to re-enable pruning",
-        columnName,
-        storedKeyType,
-        keyField.type());
-    return true;
+    return false;
   }
 
   private ResolvedPredicate resolvePredicates(
