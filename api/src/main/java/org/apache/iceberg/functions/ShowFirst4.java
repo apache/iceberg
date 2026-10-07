@@ -18,21 +18,30 @@
  */
 package org.apache.iceberg.functions;
 
+import java.io.ObjectStreamException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
-/** Preserves the first 4 code points of a string, redacts the rest via mask-alphanum rules. */
-public final class ShowFirst4 extends BaseFunction<String, String> {
-  static final String NAME = "show-first-4";
+/** Preserves the first 4 code points of a string, redacts the rest via mask_alphanum rules. */
+final class ShowFirst4 implements IcebergFunction<CharSequence, CharSequence> {
+  static final String NAME = "show_first_4";
 
-  ShowFirst4(int fieldId) {
-    super(fieldId);
+  private static final ShowFirst4 INSTANCE = new ShowFirst4();
+
+  static ShowFirst4 get() {
+    return INSTANCE;
   }
 
+  private ShowFirst4() {}
+
   @Override
-  public String name() {
+  public String toString() {
     return NAME;
+  }
+
+  Object writeReplace() throws ObjectStreamException {
+    return SerializationProxies.ShowFirst4Proxy.get();
   }
 
   @Override
@@ -41,24 +50,24 @@ public final class ShowFirst4 extends BaseFunction<String, String> {
   }
 
   @Override
-  public SerializableFunction<String, String> bind(Type type) {
-    Preconditions.checkArgument(canBind(type), "show-first-4 requires STRING type, got %s", type);
+  public SerializableFunction<CharSequence, CharSequence> bind(Type type) {
+    Preconditions.checkArgument(canBind(type), "show_first_4 requires STRING type, got %s", type);
     return ShowFirst4Fn.INSTANCE;
   }
 
-  private static final class ShowFirst4Fn extends NullSafeFunction<String, String> {
+  private static final class ShowFirst4Fn extends NullSafeFunction<CharSequence, CharSequence> {
     static final ShowFirst4Fn INSTANCE = new ShowFirst4Fn();
 
     @Override
-    protected String applyNonNull(String input) {
-      if (input.codePointCount(0, input.length()) <= 4) {
+    protected CharSequence applyNonNull(CharSequence input) {
+      if (Character.codePointCount(input, 0, input.length()) <= 4) {
         return input;
       }
       StringBuilder sb = new StringBuilder(input.length());
       int cpIndex = 0;
       int offset = 0;
       while (offset < input.length()) {
-        int cp = input.codePointAt(offset);
+        int cp = Character.codePointAt(input, offset);
         sb.appendCodePoint(cpIndex < 4 ? cp : MaskAlphanum.maskCodePoint(cp));
         offset += Character.charCount(cp);
         cpIndex++;

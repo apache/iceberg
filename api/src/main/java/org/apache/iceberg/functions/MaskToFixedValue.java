@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.functions;
 
+import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -37,7 +38,7 @@ import org.apache.iceberg.util.SerializableFunction;
 import org.apache.iceberg.variants.Variant;
 
 /** Returns a spec-defined fixed value for the column's type. */
-public final class MaskToFixedValue extends BaseFunction<Object, Object> {
+final class MaskToFixedValue<T> implements IcebergFunction<T, T> {
 
   private static final Integer INT_DEFAULT = 0;
   private static final Long LONG_DEFAULT = 0L;
@@ -53,7 +54,7 @@ public final class MaskToFixedValue extends BaseFunction<Object, Object> {
   private static final Long TIMESTAMP_DEFAULT_NANOS =
       DateTimeUtil.nanosFromTimestamp(LocalDateTime.of(1970, 1, 1, 0, 0));
   private static final UUID UUID_DEFAULT = UUID.fromString("00000000-0000-0000-0000-000000000000");
-  private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
+  private static final byte[] EMPTY_BYTES = new byte[0];
 
   // Empty Variant: V1 metadata with no entries + empty object value.
   private static final Variant EMPTY_VARIANT =
@@ -61,15 +62,24 @@ public final class MaskToFixedValue extends BaseFunction<Object, Object> {
           ByteBuffer.wrap(new byte[] {0x01, 0x00, 0x00, 0x02, 0x00, 0x00})
               .order(ByteOrder.LITTLE_ENDIAN));
 
-  static final String NAME = "mask-to-fixed-value";
+  static final String NAME = "mask_to_fixed_value";
 
-  MaskToFixedValue(int fieldId) {
-    super(fieldId);
+  private static final MaskToFixedValue<?> INSTANCE = new MaskToFixedValue<>();
+
+  @SuppressWarnings("unchecked")
+  static <T> MaskToFixedValue<T> get() {
+    return (MaskToFixedValue<T>) INSTANCE;
   }
 
+  private MaskToFixedValue() {}
+
   @Override
-  public String name() {
+  public String toString() {
     return NAME;
+  }
+
+  Object writeReplace() throws ObjectStreamException {
+    return SerializationProxies.MaskToFixedValueProxy.get();
   }
 
   @Override
@@ -92,21 +102,24 @@ public final class MaskToFixedValue extends BaseFunction<Object, Object> {
       case VARIANT:
       case LIST:
       case MAP:
-      case STRUCT:
         return true;
+      case STRUCT:
+        return type.asStructType().fields().stream().allMatch(field -> canBind(field.type()));
       default:
         return false;
     }
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public SerializableFunction<Object, Object> bind(Type type) {
+  public SerializableFunction<T, T> bind(Type type) {
     Preconditions.checkArgument(
-        canBind(type), "mask-to-fixed-value is not supported for type: %s", type);
+        canBind(type), "mask_to_fixed_value is not supported for type: %s", type);
     Object defaultValue = defaultValueFor(type);
-    return defaultValue instanceof ByteBuffer
-        ? new ConstantByteBufferFn((ByteBuffer) defaultValue)
-        : new ConstantFn(defaultValue);
+    return (SerializableFunction<T, T>)
+        (defaultValue instanceof byte[] bytes
+            ? new ConstantByteBufferFn(bytes)
+            : new ConstantFn(defaultValue));
   }
 
   private static Object defaultValueFor(Type type) {
@@ -133,10 +146,11 @@ public final class MaskToFixedValue extends BaseFunction<Object, Object> {
         return TIMESTAMP_DEFAULT_NANOS;
       case UUID:
         return UUID_DEFAULT;
+        // ByteBuffer is not serializable, so binary values are held as bytes and wrapped on access
       case FIXED:
-        return ByteBuffer.allocate(((Types.FixedType) type).length()).asReadOnlyBuffer();
+        return new byte[((Types.FixedType) type).length()];
       case BINARY:
-        return EMPTY_BUFFER;
+        return EMPTY_BYTES;
       case DECIMAL:
         return new BigDecimal(BigInteger.ZERO, ((Types.DecimalType) type).scale());
       case VARIANT:
@@ -174,16 +188,20 @@ public final class MaskToFixedValue extends BaseFunction<Object, Object> {
     }
   }
 
-  private static final class ConstantByteBufferFn implements SerializableFunction<Object, Object> {
-    private final ByteBuffer constant;
+  private static ByteBuffer toBuffer(byte[] bytes) {
+    return ByteBuffer.wrap(bytes).asReadOnlyBuffer();
+  }
 
-    ConstantByteBufferFn(ByteBuffer constant) {
+  private static final class ConstantByteBufferFn implements SerializableFunction<Object, Object> {
+    private final byte[] constant;
+
+    ConstantByteBufferFn(byte[] constant) {
       this.constant = constant;
     }
 
     @Override
     public Object apply(Object value) {
-      return constant.duplicate();
+      return toBuffer(constant);
     }
   }
 
@@ -202,7 +220,8 @@ public final class MaskToFixedValue extends BaseFunction<Object, Object> {
     @SuppressWarnings("unchecked")
     @Override
     public <T> T get(int pos, Class<T> javaClass) {
-      return (T) values[pos];
+      Object value = values[pos];
+      return (T) (value instanceof byte[] bytes ? toBuffer(bytes) : value);
     }
 
     @Override

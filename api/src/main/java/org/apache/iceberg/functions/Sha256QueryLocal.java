@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.functions;
 
+import java.io.ObjectStreamException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
@@ -27,17 +28,25 @@ import org.apache.iceberg.util.SerializableFunction;
  * #bind(Type, byte[])}; the no-salt variant fails fast so callers can't accidentally strip the
  * query-local randomness.
  */
-public final class Sha256QueryLocal extends BaseFunction<Object, Object>
-    implements SaltedFunction<Object, Object> {
-  static final String NAME = "sha-256-query-local";
+final class Sha256QueryLocal<T> implements SaltedFunction<T, T> {
+  static final String NAME = "sha_256_query_local";
 
-  Sha256QueryLocal(int fieldId) {
-    super(fieldId);
+  private static final Sha256QueryLocal<?> INSTANCE = new Sha256QueryLocal<>();
+
+  @SuppressWarnings("unchecked")
+  static <T> Sha256QueryLocal<T> get() {
+    return (Sha256QueryLocal<T>) INSTANCE;
   }
 
+  private Sha256QueryLocal() {}
+
   @Override
-  public String name() {
+  public String toString() {
     return NAME;
+  }
+
+  Object writeReplace() throws ObjectStreamException {
+    return SerializationProxies.Sha256QueryLocalProxy.get();
   }
 
   @Override
@@ -46,16 +55,17 @@ public final class Sha256QueryLocal extends BaseFunction<Object, Object>
   }
 
   @Override
-  public SerializableFunction<Object, Object> bind(Type type) {
+  public SerializableFunction<T, T> bind(Type type) {
     throw new IllegalArgumentException(
-        "sha-256-query-local requires a salt; call bind(Type, byte[]) instead");
+        "sha_256_query_local requires a salt; call bind(Type, byte[]) instead");
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public SerializableFunction<Object, Object> bind(Type type, byte[] salt) {
+  public SerializableFunction<T, T> bind(Type type, byte[] salt) {
     Preconditions.checkArgument(canBind(type), "sha-256 is not supported for type: %s", type);
     Preconditions.checkArgument(
-        salt != null && salt.length >= 16, "sha-256-query-local salt must be >= 16 bytes");
-    return Sha256.forType(type, salt);
+        salt != null && salt.length >= 16, "sha_256_query_local salt must be >= 16 bytes");
+    return (SerializableFunction<T, T>) Sha256.forType(type, salt);
   }
 }
