@@ -46,6 +46,8 @@ public class TransformFunctions {
                 properties.getOrDefault(
                     HASH_NUM_BUCKETS, Integer.toString(DEFAULT_HASH_NUM_BUCKETS)));
         return new HashTransform(numBuckets);
+      case "ZORDER":
+        return new ZorderTransform();
       default:
         throw new IllegalArgumentException("Unsupported transform function: " + name);
     }
