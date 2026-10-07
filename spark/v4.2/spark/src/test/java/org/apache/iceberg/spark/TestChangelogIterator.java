@@ -25,18 +25,28 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.IntFunction;
+import java.util.stream.Stream;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
+import org.apache.spark.sql.catalyst.CatalystTypeConverters;
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestChangelogIterator extends SparkTestHelperBase {
+
+  private static final DataType BINARY_ARRAY = DataTypes.createArrayType(DataTypes.BinaryType);
   private static final String DELETE = ChangelogOperation.DELETE.name();
   private static final String INSERT = ChangelogOperation.INSERT.name();
   private static final String UPDATE_BEFORE = ChangelogOperation.UPDATE_BEFORE.name();
@@ -355,5 +365,136 @@ public class TestChangelogIterator extends SparkTestHelperBase {
     List<Row> result = Lists.newArrayList(iterator);
 
     assertEquals("Rows should match.", expectedRows, rowsToJava(result));
+  }
+
+  static Stream<Arguments> values() {
+    StructType struct =
+        new StructType().add("patch", DataTypes.BinaryType).add("number", DataTypes.IntegerType);
+    return Stream.of(
+        Arguments.of(
+            DataTypes.BinaryType, (IntFunction<Object>) value -> new byte[] {(byte) value}),
+        Arguments.of(
+            BINARY_ARRAY,
+            (IntFunction<Object>) value -> Arrays.asList(new byte[] {(byte) value}, null)),
+        Arguments.of(
+            DataTypes.createArrayType(BINARY_ARRAY),
+            (IntFunction<Object>) value -> List.of(List.of(new byte[] {(byte) value}))),
+        Arguments.of(
+            struct, (IntFunction<Object>) value -> RowFactory.create(new byte[] {(byte) value}, 7)),
+        Arguments.of(
+            DataTypes.createArrayType(struct),
+            (IntFunction<Object>)
+                value -> List.of(RowFactory.create(new byte[] {(byte) value}, 7))),
+        Arguments.of(
+            new StructType().add("patches", BINARY_ARRAY),
+            (IntFunction<Object>) value -> RowFactory.create(List.of(new byte[] {(byte) value}))),
+        Arguments.of(
+            DataTypes.createArrayType(DataTypes.IntegerType),
+            (IntFunction<Object>) value -> Arrays.asList(value, null)));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("values")
+  public void testRemoveNetChangesWithEqualValues(DataType type, IntFunction<Object> values) {
+    Row insert = row(type, values.apply(1), INSERT, 0);
+    Row delete = row(type, values.apply(1), DELETE, 1);
+    Row latest = row(type, values.apply(2), INSERT, 1);
+    Iterator<Row> result =
+        ChangelogIterator.removeNetCarryovers(
+            List.of(insert, delete, latest).iterator(), schema(type));
+    assertThat(result).toIterable().containsExactly(latest);
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("values")
+  public void testRemoveCarryoversWithEqualValues(DataType type, IntFunction<Object> values) {
+    assertRemoved(
+        type,
+        List.of(row(type, values.apply(1), DELETE, 0), row(type, values.apply(1), INSERT, 0)));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("values")
+  public void testRetainChangesWithDifferentValues(DataType type, IntFunction<Object> values) {
+    assertRetained(
+        type,
+        List.of(row(type, values.apply(1), DELETE, 0), row(type, values.apply(2), INSERT, 0)));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("values")
+  public void testDistinguishNullFromNonNull(DataType type, IntFunction<Object> values) {
+    assertRetained(
+        type, List.of(row(type, null, DELETE, 0), row(type, values.apply(1), INSERT, 0)));
+    assertRetained(
+        type, List.of(row(type, values.apply(1), DELETE, 0), row(type, null, INSERT, 0)));
+    assertRemoved(type, List.of(row(type, null, DELETE, 0), row(type, null, INSERT, 0)));
+  }
+
+  @Test
+  public void testRetainChangesWithDifferentArrayLengths() {
+    assertRetained(
+        BINARY_ARRAY,
+        List.of(
+            row(BINARY_ARRAY, List.of(new byte[] {1}), DELETE, 0),
+            row(BINARY_ARRAY, List.of(new byte[] {1}, new byte[] {1}), INSERT, 0)));
+  }
+
+  @Test
+  public void testRetainChangesWithDifferentArrayOrder() {
+    assertRetained(
+        BINARY_ARRAY,
+        List.of(
+            row(BINARY_ARRAY, List.of(new byte[] {1}, new byte[] {2}), DELETE, 0),
+            row(BINARY_ARRAY, List.of(new byte[] {2}, new byte[] {1}), INSERT, 0)));
+  }
+
+  @Test
+  public void testRetainChangesWithDifferentSignedZerosInArrays() {
+    DataType type = DataTypes.createArrayType(DataTypes.DoubleType);
+    assertRetained(
+        type, List.of(row(type, List.of(-0.0), DELETE, 0), row(type, List.of(0.0), INSERT, 0)));
+  }
+
+  @Test
+  public void testRetainChangesWithDifferentSignedZerosInStructs() {
+    StructType type =
+        new StructType().add("binary", DataTypes.BinaryType).add("number", DataTypes.DoubleType);
+    assertRetained(
+        type,
+        List.of(
+            row(type, RowFactory.create(new byte[] {1}, -0.0), DELETE, 0),
+            row(type, RowFactory.create(new byte[] {1}, 0.0), INSERT, 0)));
+  }
+
+  private static void assertRemoved(DataType type, List<Row> rows) {
+    assertThat(ChangelogIterator.removeCarryovers(rows.iterator(), schema(type))).isExhausted();
+    assertThat(ChangelogIterator.removeNetCarryovers(rows.iterator(), schema(type))).isExhausted();
+  }
+
+  private static void assertRetained(DataType type, List<Row> rows) {
+    assertThat(ChangelogIterator.removeCarryovers(rows.iterator(), schema(type)))
+        .toIterable()
+        .containsExactlyElementsOf(rows);
+    assertThat(ChangelogIterator.removeNetCarryovers(rows.iterator(), schema(type)))
+        .toIterable()
+        .containsExactlyElementsOf(rows);
+  }
+
+  private static StructType schema(DataType type) {
+    return new StructType()
+        .add("id", DataTypes.IntegerType)
+        .add("value", type)
+        .add(MetadataColumns.CHANGE_TYPE.name(), DataTypes.StringType)
+        .add(MetadataColumns.CHANGE_ORDINAL.name(), DataTypes.IntegerType)
+        .add(MetadataColumns.COMMIT_SNAPSHOT_ID.name(), DataTypes.LongType);
+  }
+
+  private static Row row(DataType type, Object value, String operation, int ordinal) {
+    // round-trip to get Spark's external representation (ArraySeq, GenericRowWithSchema); a plain
+    // java.util.List would not exercise the Seq branch of the comparison
+    Object internal = CatalystTypeConverters.createToCatalystConverter(type).apply(value);
+    Object external = CatalystTypeConverters.createToScalaConverter(type).apply(internal);
+    return RowFactory.create(1, external, operation, ordinal, (long) ordinal);
   }
 }
