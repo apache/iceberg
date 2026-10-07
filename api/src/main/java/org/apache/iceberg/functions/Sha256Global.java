@@ -18,21 +18,31 @@
  */
 package org.apache.iceberg.functions;
 
+import java.io.ObjectStreamException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Hashes values with SHA-256 using a fixed (unsalted) digest. Output is deterministic. */
-public final class Sha256Global extends BaseFunction<Object, Object> {
-  static final String NAME = "sha-256-global";
+final class Sha256Global<T> implements IcebergFunction<T, T> {
+  static final String NAME = "sha_256_global";
 
-  Sha256Global(int fieldId) {
-    super(fieldId);
+  private static final Sha256Global<?> INSTANCE = new Sha256Global<>();
+
+  @SuppressWarnings("unchecked")
+  static <T> Sha256Global<T> get() {
+    return (Sha256Global<T>) INSTANCE;
   }
 
+  private Sha256Global() {}
+
   @Override
-  public String name() {
+  public String toString() {
     return NAME;
+  }
+
+  Object writeReplace() throws ObjectStreamException {
+    return SerializationProxies.Sha256GlobalProxy.get();
   }
 
   @Override
@@ -40,9 +50,10 @@ public final class Sha256Global extends BaseFunction<Object, Object> {
     return Sha256.isSupported(type);
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public SerializableFunction<Object, Object> bind(Type type) {
+  public SerializableFunction<T, T> bind(Type type) {
     Preconditions.checkArgument(canBind(type), "sha-256 is not supported for type: %s", type);
-    return Sha256.forType(type, null);
+    return (SerializableFunction<T, T>) Sha256.forType(type, null);
   }
 }

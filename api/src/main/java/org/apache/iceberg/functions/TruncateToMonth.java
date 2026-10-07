@@ -18,21 +18,31 @@
  */
 package org.apache.iceberg.functions;
 
+import java.io.ObjectStreamException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Truncates date or timestamp values to the first instant of their month. */
-public final class TruncateToMonth extends BaseFunction<Object, Object> {
-  static final String NAME = "truncate-to-month";
+final class TruncateToMonth<T> implements IcebergFunction<T, T> {
+  static final String NAME = "truncate_to_month";
 
-  TruncateToMonth(int fieldId) {
-    super(fieldId);
+  private static final TruncateToMonth<?> INSTANCE = new TruncateToMonth<>();
+
+  @SuppressWarnings("unchecked")
+  static <T> TruncateToMonth<T> get() {
+    return (TruncateToMonth<T>) INSTANCE;
   }
 
+  private TruncateToMonth() {}
+
   @Override
-  public String name() {
+  public String toString() {
     return NAME;
+  }
+
+  Object writeReplace() throws ObjectStreamException {
+    return SerializationProxies.TruncateToMonthProxy.get();
   }
 
   @Override
@@ -47,10 +57,11 @@ public final class TruncateToMonth extends BaseFunction<Object, Object> {
     }
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public SerializableFunction<Object, Object> bind(Type type) {
+  public SerializableFunction<T, T> bind(Type type) {
     Preconditions.checkArgument(
-        canBind(type), "truncate-to-month is not supported for type: %s", type);
-    return TruncateTemporal.forType(TruncateTemporal.Unit.MONTH, type);
+        canBind(type), "truncate_to_month is not supported for type: %s", type);
+    return (SerializableFunction<T, T>) TruncateTemporal.forType(TruncateTemporal.Unit.MONTH, type);
   }
 }

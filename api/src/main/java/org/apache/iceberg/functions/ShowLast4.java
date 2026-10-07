@@ -18,21 +18,30 @@
  */
 package org.apache.iceberg.functions;
 
+import java.io.ObjectStreamException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
-/** Redacts all but the last 4 code points of a string via mask-alphanum rules. */
-public final class ShowLast4 extends BaseFunction<String, String> {
-  static final String NAME = "show-last-4";
+/** Redacts all but the last 4 code points of a string via mask_alphanum rules. */
+final class ShowLast4 implements IcebergFunction<CharSequence, CharSequence> {
+  static final String NAME = "show_last_4";
 
-  ShowLast4(int fieldId) {
-    super(fieldId);
+  private static final ShowLast4 INSTANCE = new ShowLast4();
+
+  static ShowLast4 get() {
+    return INSTANCE;
   }
 
+  private ShowLast4() {}
+
   @Override
-  public String name() {
+  public String toString() {
     return NAME;
+  }
+
+  Object writeReplace() throws ObjectStreamException {
+    return SerializationProxies.ShowLast4Proxy.get();
   }
 
   @Override
@@ -41,16 +50,16 @@ public final class ShowLast4 extends BaseFunction<String, String> {
   }
 
   @Override
-  public SerializableFunction<String, String> bind(Type type) {
-    Preconditions.checkArgument(canBind(type), "show-last-4 requires STRING type, got %s", type);
+  public SerializableFunction<CharSequence, CharSequence> bind(Type type) {
+    Preconditions.checkArgument(canBind(type), "show_last_4 requires STRING type, got %s", type);
     return ShowLast4Fn.INSTANCE;
   }
 
-  private static final class ShowLast4Fn extends NullSafeFunction<String, String> {
+  private static final class ShowLast4Fn extends NullSafeFunction<CharSequence, CharSequence> {
     static final ShowLast4Fn INSTANCE = new ShowLast4Fn();
 
     @Override
-    protected String applyNonNull(String input) {
+    protected CharSequence applyNonNull(CharSequence input) {
       // Single pass: walk the string while remembering the last 4 code-point start offsets.
       // When done, everything before the oldest remembered offset is masked; everything from
       // that offset onward is kept verbatim.
@@ -59,7 +68,7 @@ public final class ShowLast4 extends BaseFunction<String, String> {
       int offset = 0;
       while (offset < input.length()) {
         lastFourStarts[count % 4] = offset;
-        int cp = input.codePointAt(offset);
+        int cp = Character.codePointAt(input, offset);
         offset += Character.charCount(cp);
         count++;
       }
@@ -70,7 +79,7 @@ public final class ShowLast4 extends BaseFunction<String, String> {
       StringBuilder sb = new StringBuilder(input.length());
       int maskOffset = 0;
       while (maskOffset < keepFromOffset) {
-        int cp = input.codePointAt(maskOffset);
+        int cp = Character.codePointAt(input, maskOffset);
         sb.appendCodePoint(MaskAlphanum.maskCodePoint(cp));
         maskOffset += Character.charCount(cp);
       }

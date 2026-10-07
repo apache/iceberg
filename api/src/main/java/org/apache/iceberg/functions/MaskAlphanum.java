@@ -18,21 +18,30 @@
  */
 package org.apache.iceberg.functions;
 
+import java.io.ObjectStreamException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
-/** Redacts every Unicode code point in a string per the mask-alphanum rules. */
-public final class MaskAlphanum extends BaseFunction<String, String> {
-  static final String NAME = "mask-alphanum";
+/** Redacts every Unicode code point in a string per the mask_alphanum rules. */
+final class MaskAlphanum implements IcebergFunction<CharSequence, CharSequence> {
+  static final String NAME = "mask_alphanum";
 
-  MaskAlphanum(int fieldId) {
-    super(fieldId);
+  private static final MaskAlphanum INSTANCE = new MaskAlphanum();
+
+  static MaskAlphanum get() {
+    return INSTANCE;
   }
 
+  private MaskAlphanum() {}
+
   @Override
-  public String name() {
+  public String toString() {
     return NAME;
+  }
+
+  Object writeReplace() throws ObjectStreamException {
+    return SerializationProxies.MaskAlphanumProxy.get();
   }
 
   @Override
@@ -41,13 +50,13 @@ public final class MaskAlphanum extends BaseFunction<String, String> {
   }
 
   @Override
-  public SerializableFunction<String, String> bind(Type type) {
-    Preconditions.checkArgument(canBind(type), "mask-alphanum requires STRING type, got %s", type);
+  public SerializableFunction<CharSequence, CharSequence> bind(Type type) {
+    Preconditions.checkArgument(canBind(type), "mask_alphanum requires STRING type, got %s", type);
     return MaskAlphanumFn.INSTANCE;
   }
 
   /**
-   * Maps a code point through the mask-alphanum rules; also used by {@link ShowFirst4} and {@link
+   * Maps a code point through the mask_alphanum rules; also used by {@link ShowFirst4} and {@link
    * ShowLast4} on the code points outside their preserved windows:
    *
    * <ul>
@@ -66,15 +75,15 @@ public final class MaskAlphanum extends BaseFunction<String, String> {
     }
   }
 
-  private static final class MaskAlphanumFn extends NullSafeFunction<String, String> {
+  private static final class MaskAlphanumFn extends NullSafeFunction<CharSequence, CharSequence> {
     static final MaskAlphanumFn INSTANCE = new MaskAlphanumFn();
 
     @Override
-    protected String applyNonNull(String input) {
+    protected CharSequence applyNonNull(CharSequence input) {
       StringBuilder sb = new StringBuilder(input.length());
       int offset = 0;
       while (offset < input.length()) {
-        int cp = input.codePointAt(offset);
+        int cp = Character.codePointAt(input, offset);
         sb.appendCodePoint(maskCodePoint(cp));
         offset += Character.charCount(cp);
       }
