@@ -28,6 +28,7 @@ import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.in;
 import static org.apache.iceberg.expressions.Expressions.isNaN;
+import static org.apache.iceberg.expressions.Expressions.isNull;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
@@ -310,9 +311,10 @@ public class TestResiduals {
 
     // both children of an OR are evaluated, so startsWith still sees the null partition value
     ResidualEvaluator orEval =
-        ResidualEvaluator.of(
-            spec, or(Expressions.isNull("category"), startsWith("category", "a")), true);
-    assertThat(orEval.residualFor(Row.of((Object) null))).isEqualTo(alwaysTrue());
+        ResidualEvaluator.of(spec, or(isNull("category"), startsWith("category", "a")), true);
+    assertThat(orEval.residualFor(Row.of((Object) null)))
+        .as("null is null or starts with a => true")
+        .isEqualTo(alwaysTrue());
   }
 
   @Test
