@@ -33,12 +33,6 @@ import org.apache.iceberg.util.SerializableFunction;
  */
 public interface IcebergFunction<S, T> extends Serializable {
 
-  /** Returns the name of this Iceberg function. */
-  String name();
-
-  /** The field id of the column this function applies to. */
-  int fieldId();
-
   /**
    * Returns a function that applies this projection to values of the given {@link Type}.
    *

@@ -18,26 +18,36 @@
  */
 package org.apache.iceberg.functions;
 
+import java.io.ObjectStreamException;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /**
  * Returns null for every non-null input. Works for any type.
  *
- * <p>Per spec, replace-with-null is only valid for optional (nullable) fields. Callers must
+ * <p>Per spec, replace_with_null is only valid for optional (nullable) fields. Callers must
  * validate that the target field is optional before binding; this function cannot check nullability
  * because {@link org.apache.iceberg.types.Type} does not carry the field's required/optional flag.
  */
-public final class ReplaceWithNull extends BaseFunction<Object, Object> {
-  static final String NAME = "replace-with-null";
+final class ReplaceWithNull<T> implements IcebergFunction<T, T> {
+  static final String NAME = "replace_with_null";
 
-  ReplaceWithNull(int fieldId) {
-    super(fieldId);
+  private static final ReplaceWithNull<?> INSTANCE = new ReplaceWithNull<>();
+
+  @SuppressWarnings("unchecked")
+  static <T> ReplaceWithNull<T> get() {
+    return (ReplaceWithNull<T>) INSTANCE;
   }
 
+  private ReplaceWithNull() {}
+
   @Override
-  public String name() {
+  public String toString() {
     return NAME;
+  }
+
+  Object writeReplace() throws ObjectStreamException {
+    return SerializationProxies.ReplaceWithNullProxy.get();
   }
 
   @Override
@@ -45,9 +55,10 @@ public final class ReplaceWithNull extends BaseFunction<Object, Object> {
     return true;
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public SerializableFunction<Object, Object> bind(Type type) {
-    return ReplaceWithNullFn.INSTANCE;
+  public SerializableFunction<T, T> bind(Type type) {
+    return (SerializableFunction<T, T>) ReplaceWithNullFn.INSTANCE;
   }
 
   private static final class ReplaceWithNullFn implements SerializableFunction<Object, Object> {

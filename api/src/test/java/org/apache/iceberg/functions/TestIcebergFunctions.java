@@ -27,6 +27,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SerializableFunction;
@@ -36,38 +37,60 @@ public class TestIcebergFunctions {
 
   @Test
   public void maskAlphanumSpecExample() {
-    SerializableFunction<String, String> fn = new MaskAlphanum(1).bind(Types.StringType.get());
+    SerializableFunction<CharSequence, CharSequence> fn =
+        IcebergFunctions.maskAlphanum().bind(Types.StringType.get());
     assertThat(fn.apply("prashant010696@gmail.com")).isEqualTo("xxxxxxxxnnnnnn@xxxxx.xxx");
   }
 
   @Test
   public void maskAlphanumPreservedPunctuation() {
-    SerializableFunction<String, String> fn = new MaskAlphanum(1).bind(Types.StringType.get());
+    SerializableFunction<CharSequence, CharSequence> fn =
+        IcebergFunctions.maskAlphanum().bind(Types.StringType.get());
     assertThat(fn.apply("(555) 123-4567")).isEqualTo("(nnn)xnnn-nnnn");
     assertThat(fn.apply("a.b,c")).isEqualTo("x.x,x");
   }
 
   @Test
   public void maskAlphanumNullInNullOut() {
-    SerializableFunction<String, String> fn = new MaskAlphanum(1).bind(Types.StringType.get());
+    SerializableFunction<CharSequence, CharSequence> fn =
+        IcebergFunctions.maskAlphanum().bind(Types.StringType.get());
     assertThat(fn.apply(null)).isNull();
   }
 
   @Test
   public void maskAlphanumEmptyString() {
-    SerializableFunction<String, String> fn = new MaskAlphanum(1).bind(Types.StringType.get());
+    SerializableFunction<CharSequence, CharSequence> fn =
+        IcebergFunctions.maskAlphanum().bind(Types.StringType.get());
     assertThat(fn.apply("")).isEqualTo("");
   }
 
   @Test
+  public void stringFunctionsAcceptAnyCharSequence() {
+    CharSequence email = new StringBuilder("iceberg16@apache.org");
+    assertThat(IcebergFunctions.maskAlphanum().bind(Types.StringType.get()).apply(email))
+        .hasToString("xxxxxxxnn@xxxxxx.xxx");
+    assertThat(IcebergFunctions.showFirst4().bind(Types.StringType.get()).apply(email))
+        .hasToString("icebxxxnn@xxxxxx.xxx");
+    assertThat(IcebergFunctions.showLast4().bind(Types.StringType.get()).apply(email))
+        .hasToString("xxxxxxxnn@xxxxxx.org");
+    assertThat(IcebergFunctions.sha256Global().bind(Types.StringType.get()).apply(email))
+        .isEqualTo(
+            IcebergFunctions.sha256Global()
+                .bind(Types.StringType.get())
+                .apply("iceberg16@apache.org"));
+  }
+
+  @Test
   public void showFirst4SpecExample() {
-    SerializableFunction<String, String> fn = new ShowFirst4(1).bind(Types.StringType.get());
+    SerializableFunction<CharSequence, CharSequence> fn =
+        IcebergFunctions.showFirst4().bind(Types.StringType.get());
     assertThat(fn.apply("prashant010696@gmail.com")).isEqualTo("prasxxxxnnnnnn@xxxxx.xxx");
   }
 
   @Test
   public void showFirst4FourOrFewerReturnedUnchanged() {
-    SerializableFunction<String, String> fn = new ShowFirst4(1).bind(Types.StringType.get());
+    SerializableFunction<CharSequence, CharSequence> fn =
+        IcebergFunctions.showFirst4().bind(Types.StringType.get());
     assertThat(fn.apply("abcd")).isEqualTo("abcd");
     assertThat(fn.apply("ab")).isEqualTo("ab");
     assertThat(fn.apply("")).isEqualTo("");
@@ -75,55 +98,63 @@ public class TestIcebergFunctions {
 
   @Test
   public void showLast4SpecExample() {
-    SerializableFunction<String, String> fn = new ShowLast4(1).bind(Types.StringType.get());
+    SerializableFunction<CharSequence, CharSequence> fn =
+        IcebergFunctions.showLast4().bind(Types.StringType.get());
     assertThat(fn.apply("4111-1111-1111-4444")).isEqualTo("nnnn-nnnn-nnnn-4444");
   }
 
   @Test
   public void showLast4FourOrFewerReturnedUnchanged() {
-    SerializableFunction<String, String> fn = new ShowLast4(1).bind(Types.StringType.get());
+    SerializableFunction<CharSequence, CharSequence> fn =
+        IcebergFunctions.showLast4().bind(Types.StringType.get());
     assertThat(fn.apply("abcd")).isEqualTo("abcd");
     assertThat(fn.apply("ab")).isEqualTo("ab");
   }
 
   @Test
   public void replaceWithNullAlwaysReturnsNull() {
-    SerializableFunction<Object, Object> fn = new ReplaceWithNull(1).bind(Types.IntegerType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.replaceWithNull().bind(Types.IntegerType.get());
     assertThat(fn.apply(42)).isNull();
     assertThat(fn.apply(null)).isNull();
 
     SerializableFunction<Object, Object> strFn =
-        new ReplaceWithNull(1).bind(Types.StringType.get());
+        IcebergFunctions.replaceWithNull().bind(Types.StringType.get());
     assertThat(strFn.apply("hello")).isNull();
   }
 
   @Test
   public void maskToFixedValueString() {
-    SerializableFunction<Object, Object> fn = new MaskToFixedValue(1).bind(Types.StringType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.maskToFixedValue().bind(Types.StringType.get());
     assertThat(fn.apply("anything")).isEqualTo("XXXXXXXX");
   }
 
   @Test
   public void maskToFixedValueInt() {
-    SerializableFunction<Object, Object> fn = new MaskToFixedValue(1).bind(Types.IntegerType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.maskToFixedValue().bind(Types.IntegerType.get());
     assertThat(fn.apply(42)).isEqualTo(0);
   }
 
   @Test
   public void maskToFixedValueLong() {
-    SerializableFunction<Object, Object> fn = new MaskToFixedValue(1).bind(Types.LongType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.maskToFixedValue().bind(Types.LongType.get());
     assertThat(fn.apply(42L)).isEqualTo(0L);
   }
 
   @Test
   public void maskToFixedValueDouble() {
-    SerializableFunction<Object, Object> fn = new MaskToFixedValue(1).bind(Types.DoubleType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.maskToFixedValue().bind(Types.DoubleType.get());
     assertThat(fn.apply(3.14)).isEqualTo(0.0d);
   }
 
   @Test
   public void maskToFixedValueBoolean() {
-    SerializableFunction<Object, Object> fn = new MaskToFixedValue(1).bind(Types.BooleanType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.maskToFixedValue().bind(Types.BooleanType.get());
     assertThat(fn.apply(true)).isEqualTo(false);
   }
 
@@ -131,7 +162,8 @@ public class TestIcebergFunctions {
   public void maskToFixedValueDate() {
     int input = DateTimeUtil.daysFromDate(LocalDate.of(2024, 7, 15));
     int expected = DateTimeUtil.daysFromDate(LocalDate.of(1970, 1, 1));
-    SerializableFunction<Object, Object> fn = new MaskToFixedValue(1).bind(Types.DateType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.maskToFixedValue().bind(Types.DateType.get());
     assertThat(fn.apply(input)).isEqualTo(expected);
   }
 
@@ -141,29 +173,72 @@ public class TestIcebergFunctions {
         LocalDateTime.of(2024, 7, 15, 13, 45, 30).toEpochSecond(ZoneOffset.UTC) * 1_000_000L;
     long expected = LocalDateTime.of(1970, 1, 1, 0, 0).toEpochSecond(ZoneOffset.UTC) * 1_000_000L;
     SerializableFunction<Object, Object> fn =
-        new MaskToFixedValue(1).bind(Types.TimestampType.withZone());
+        IcebergFunctions.maskToFixedValue().bind(Types.TimestampType.withZone());
     assertThat(fn.apply(input)).isEqualTo(expected);
   }
 
   @Test
   public void maskToFixedValueBinary() {
-    SerializableFunction<Object, Object> fn = new MaskToFixedValue(1).bind(Types.BinaryType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.maskToFixedValue().bind(Types.BinaryType.get());
     ByteBuffer result = (ByteBuffer) fn.apply(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(result.remaining()).isEqualTo(0);
   }
 
   @Test
+  public void maskToFixedValueStructWithBinaryField() {
+    Types.StructType struct =
+        Types.StructType.of(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "payload", Types.BinaryType.get()));
+    SerializableFunction<Object, Object> fn = IcebergFunctions.maskToFixedValue().bind(struct);
+    StructLike result = (StructLike) fn.apply(null);
+    assertThat(result.get(0, Integer.class)).isEqualTo(0);
+    assertThat(result.get(1, ByteBuffer.class).remaining()).isEqualTo(0);
+  }
+
+  @Test
   public void maskToFixedValueDecimal() {
     SerializableFunction<Object, Object> fn =
-        new MaskToFixedValue(1).bind(Types.DecimalType.of(10, 2));
+        IcebergFunctions.maskToFixedValue().bind(Types.DecimalType.of(10, 2));
     BigDecimal result = (BigDecimal) fn.apply(new BigDecimal("12.34"));
     assertThat(result.compareTo(BigDecimal.ZERO)).isEqualTo(0);
     assertThat(result.scale()).isEqualTo(2);
   }
 
   @Test
+  public void maskToFixedValueCanBindStructOfSupportedTypes() {
+    Types.StructType struct =
+        Types.StructType.of(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(
+                2,
+                "address",
+                Types.StructType.of(
+                    Types.NestedField.optional(3, "city", Types.StringType.get()))));
+    assertThat(IcebergFunctions.maskToFixedValue().canBind(struct)).isTrue();
+  }
+
+  @Test
+  public void maskToFixedValueCannotBindStructWithUnsupportedNestedField() {
+    Types.StructType struct =
+        Types.StructType.of(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(
+                2,
+                "address",
+                Types.StructType.of(
+                    Types.NestedField.optional(3, "location", Types.GeometryType.crs84()))));
+    assertThat(IcebergFunctions.maskToFixedValue().canBind(struct)).isFalse();
+    assertThatThrownBy(() -> IcebergFunctions.maskToFixedValue().bind(struct))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("mask_to_fixed_value is not supported for type: " + struct);
+  }
+
+  @Test
   public void maskToFixedValueNullReturnsFixedValue() {
-    SerializableFunction<Object, Object> fn = new MaskToFixedValue(1).bind(Types.IntegerType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.maskToFixedValue().bind(Types.IntegerType.get());
     assertThat(fn.apply(null)).isEqualTo(0);
   }
 
@@ -171,7 +246,8 @@ public class TestIcebergFunctions {
   public void truncateToYearDate() {
     int input = (int) LocalDate.of(2024, 7, 15).toEpochDay();
     int expected = (int) LocalDate.of(2024, 1, 1).toEpochDay();
-    SerializableFunction<Object, Object> fn = new TruncateToYear(1).bind(Types.DateType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.truncateToYear().bind(Types.DateType.get());
     assertThat(fn.apply(input)).isEqualTo(expected);
   }
 
@@ -179,7 +255,8 @@ public class TestIcebergFunctions {
   public void truncateToMonthDate() {
     int input = (int) LocalDate.of(2024, 7, 15).toEpochDay();
     int expected = (int) LocalDate.of(2024, 7, 1).toEpochDay();
-    SerializableFunction<Object, Object> fn = new TruncateToMonth(1).bind(Types.DateType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.truncateToMonth().bind(Types.DateType.get());
     assertThat(fn.apply(input)).isEqualTo(expected);
   }
 
@@ -190,7 +267,7 @@ public class TestIcebergFunctions {
     long expectedMicros =
         LocalDateTime.of(2024, 1, 1, 0, 0, 0).toEpochSecond(ZoneOffset.UTC) * 1_000_000L;
     SerializableFunction<Object, Object> fn =
-        new TruncateToYear(1).bind(Types.TimestampType.withZone());
+        IcebergFunctions.truncateToYear().bind(Types.TimestampType.withZone());
     assertThat(fn.apply(inputMicros)).isEqualTo(expectedMicros);
   }
 
@@ -201,7 +278,7 @@ public class TestIcebergFunctions {
     long expectedMicros =
         LocalDateTime.of(2024, 7, 1, 0, 0, 0).toEpochSecond(ZoneOffset.UTC) * 1_000_000L;
     SerializableFunction<Object, Object> fn =
-        new TruncateToMonth(1).bind(Types.TimestampType.withZone());
+        IcebergFunctions.truncateToMonth().bind(Types.TimestampType.withZone());
     assertThat(fn.apply(inputMicros)).isEqualTo(expectedMicros);
   }
 
@@ -212,7 +289,7 @@ public class TestIcebergFunctions {
     long expectedNanos =
         LocalDateTime.of(2024, 1, 1, 0, 0, 0).toEpochSecond(ZoneOffset.UTC) * 1_000_000_000L;
     SerializableFunction<Object, Object> fn =
-        new TruncateToYear(1).bind(Types.TimestampNanoType.withZone());
+        IcebergFunctions.truncateToYear().bind(Types.TimestampNanoType.withZone());
     assertThat(fn.apply(inputNanos)).isEqualTo(expectedNanos);
   }
 
@@ -223,13 +300,14 @@ public class TestIcebergFunctions {
     long expectedNanos =
         LocalDateTime.of(2024, 7, 1, 0, 0, 0).toEpochSecond(ZoneOffset.UTC) * 1_000_000_000L;
     SerializableFunction<Object, Object> fn =
-        new TruncateToMonth(1).bind(Types.TimestampNanoType.withZone());
+        IcebergFunctions.truncateToMonth().bind(Types.TimestampNanoType.withZone());
     assertThat(fn.apply(inputNanos)).isEqualTo(expectedNanos);
   }
 
   @Test
   public void sha256GlobalStringIsDeterministic() {
-    SerializableFunction<Object, Object> fn = new Sha256Global(1).bind(Types.StringType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.sha256Global().bind(Types.StringType.get());
     String first = (String) fn.apply("hello");
     String second = (String) fn.apply("hello");
     assertThat(first).isEqualTo(second);
@@ -238,14 +316,16 @@ public class TestIcebergFunctions {
 
   @Test
   public void sha256GlobalBinaryReturns32Bytes() {
-    SerializableFunction<Object, Object> fn = new Sha256Global(1).bind(Types.BinaryType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.sha256Global().bind(Types.BinaryType.get());
     ByteBuffer result = (ByteBuffer) fn.apply(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(result.remaining()).isEqualTo(32);
   }
 
   @Test
   public void sha256GlobalIntegerDeterministic() {
-    SerializableFunction<Object, Object> fn = new Sha256Global(1).bind(Types.IntegerType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.sha256Global().bind(Types.IntegerType.get());
     Object first = fn.apply(42);
     Object second = fn.apply(42);
     assertThat(first).isEqualTo(second);
@@ -254,11 +334,11 @@ public class TestIcebergFunctions {
 
   @Test
   public void sha256GlobalLongDeterministic() {
-    SerializableFunction<Object, Object> fn = new Sha256Global(1).bind(Types.LongType.get());
-    Object first = fn.apply(42L);
-    Object second = fn.apply(42L);
+    IcebergFunction<Long, Long> sha256 = IcebergFunctions.sha256Global();
+    SerializableFunction<Long, Long> fn = sha256.bind(Types.LongType.get());
+    Long first = fn.apply(42L);
+    Long second = fn.apply(42L);
     assertThat(first).isEqualTo(second);
-    assertThat(first).isInstanceOf(Long.class);
   }
 
   @Test
@@ -268,133 +348,134 @@ public class TestIcebergFunctions {
     Arrays.fill(saltA, (byte) 1);
     Arrays.fill(saltB, (byte) 2);
     SerializableFunction<Object, Object> fnA =
-        new Sha256QueryLocal(1).bind(Types.StringType.get(), saltA);
+        IcebergFunctions.sha256QueryLocal().bind(Types.StringType.get(), saltA);
     SerializableFunction<Object, Object> fnB =
-        new Sha256QueryLocal(1).bind(Types.StringType.get(), saltB);
+        IcebergFunctions.sha256QueryLocal().bind(Types.StringType.get(), saltB);
     assertThat(fnA.apply("hello")).isNotEqualTo(fnB.apply("hello"));
   }
 
   @Test
   public void sha256QueryLocalSaltMustBeAtLeast16Bytes() {
-    assertThatThrownBy(() -> new Sha256QueryLocal(1).bind(Types.StringType.get(), new byte[15]))
+    assertThatThrownBy(
+            () -> IcebergFunctions.sha256QueryLocal().bind(Types.StringType.get(), new byte[15]))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("16 bytes");
   }
 
   @Test
   public void bindRejectsMaskAlphanumOnNonString() {
-    assertThatThrownBy(() -> new MaskAlphanum(1).bind(Types.IntegerType.get()))
+    assertThatThrownBy(() -> IcebergFunctions.maskAlphanum().bind(Types.IntegerType.get()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("STRING");
   }
 
   @Test
   public void bindRejectsTruncateOnUnsupportedType() {
-    assertThatThrownBy(() -> new TruncateToYear(1).bind(Types.StringType.get()))
+    assertThatThrownBy(() -> IcebergFunctions.truncateToYear().bind(Types.StringType.get()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("not supported for type");
   }
 
   @Test
   public void bindFailsClosedOnUnknownFunction() {
-    assertThatThrownBy(() -> new UnknownFunction(1, "future-mask-v2").bind(Types.StringType.get()))
+    assertThatThrownBy(() -> new UnknownFunction("future-mask-v2").bind(Types.StringType.get()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("future-mask-v2");
   }
 
   @Test
   public void sha256NullInNullOut() {
-    SerializableFunction<Object, Object> fn = new Sha256Global(1).bind(Types.StringType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.sha256Global().bind(Types.StringType.get());
     assertThat(fn.apply(null)).isNull();
   }
 
   @Test
   public void truncateNullInNullOut() {
-    SerializableFunction<Object, Object> fn = new TruncateToYear(1).bind(Types.DateType.get());
+    SerializableFunction<Object, Object> fn =
+        IcebergFunctions.truncateToYear().bind(Types.DateType.get());
     assertThat(fn.apply(null)).isNull();
   }
 
   @Test
-  public void factoryMethodsUseSpecWireNames() {
-    assertThat(IcebergFunctions.maskAlphanum(1).name()).isEqualTo("mask-alphanum");
-    assertThat(IcebergFunctions.maskToFixedValue(1).name()).isEqualTo("mask-to-fixed-value");
-    assertThat(IcebergFunctions.replaceWithNull(1).name()).isEqualTo("replace-with-null");
-    assertThat(IcebergFunctions.showFirst4(1).name()).isEqualTo("show-first-4");
-    assertThat(IcebergFunctions.showLast4(1).name()).isEqualTo("show-last-4");
-    assertThat(IcebergFunctions.truncateToYear(1).name()).isEqualTo("truncate-to-year");
-    assertThat(IcebergFunctions.truncateToMonth(1).name()).isEqualTo("truncate-to-month");
-    assertThat(IcebergFunctions.sha256Global(1).name()).isEqualTo("sha-256-global");
-    assertThat(IcebergFunctions.sha256QueryLocal(1).name()).isEqualTo("sha-256-query-local");
+  public void toStringReturnsFunctionName() {
+    assertThat(IcebergFunctions.maskAlphanum().toString()).isEqualTo("mask_alphanum");
+    assertThat(IcebergFunctions.maskToFixedValue().toString()).isEqualTo("mask_to_fixed_value");
+    assertThat(IcebergFunctions.replaceWithNull().toString()).isEqualTo("replace_with_null");
+    assertThat(IcebergFunctions.showFirst4().toString()).isEqualTo("show_first_4");
+    assertThat(IcebergFunctions.showLast4().toString()).isEqualTo("show_last_4");
+    assertThat(IcebergFunctions.truncateToYear().toString()).isEqualTo("truncate_to_year");
+    assertThat(IcebergFunctions.truncateToMonth().toString()).isEqualTo("truncate_to_month");
+    assertThat(IcebergFunctions.sha256Global().toString()).isEqualTo("sha_256_global");
+    assertThat(IcebergFunctions.sha256QueryLocal().toString()).isEqualTo("sha_256_query_local");
   }
 
   @Test
   public void fromStringRoundTripsEveryFunction() {
     IcebergFunction<?, ?>[] functions =
         new IcebergFunction<?, ?>[] {
-          IcebergFunctions.maskAlphanum(1),
-          IcebergFunctions.maskToFixedValue(1),
-          IcebergFunctions.replaceWithNull(1),
-          IcebergFunctions.showFirst4(1),
-          IcebergFunctions.showLast4(1),
-          IcebergFunctions.truncateToYear(1),
-          IcebergFunctions.truncateToMonth(1),
-          IcebergFunctions.sha256Global(1),
-          IcebergFunctions.sha256QueryLocal(1)
+          IcebergFunctions.maskAlphanum(),
+          IcebergFunctions.maskToFixedValue(),
+          IcebergFunctions.replaceWithNull(),
+          IcebergFunctions.showFirst4(),
+          IcebergFunctions.showLast4(),
+          IcebergFunctions.truncateToYear(),
+          IcebergFunctions.truncateToMonth(),
+          IcebergFunctions.sha256Global(),
+          IcebergFunctions.sha256QueryLocal()
         };
 
     for (IcebergFunction<?, ?> expected : functions) {
-      assertThat(IcebergFunctions.fromString(expected.name(), 1)).isEqualTo(expected);
+      assertThat(IcebergFunctions.fromString(expected.toString())).isSameAs(expected);
     }
   }
 
   @Test
   public void fromStringPreservesUnknownFunction() {
-    IcebergFunction<?, ?> function = IcebergFunctions.fromString("future-mask-v2", 3);
+    IcebergFunction<?, ?> function = IcebergFunctions.fromString("future-mask-v2");
     assertThat(function).isInstanceOf(UnknownFunction.class);
-    assertThat(function.name()).isEqualTo("future-mask-v2");
-    assertThat(function.fieldId()).isEqualTo(3);
+    assertThat(function.toString()).isEqualTo("future-mask-v2");
     assertThat(function.canBind(Types.StringType.get())).isFalse();
   }
 
   @Test
   public void fromStringReturnsSaltedFunctionForQueryLocalSha256() {
-    assertThat(IcebergFunctions.fromString("sha-256-query-local", 1))
+    assertThat(IcebergFunctions.fromString("sha_256_query_local"))
         .isInstanceOf(SaltedFunction.class);
-    assertThat(IcebergFunctions.fromString("sha-256-global", 1))
-        .isNotInstanceOf(SaltedFunction.class);
+    assertThat(IcebergFunctions.fromString("sha_256_global")).isNotInstanceOf(SaltedFunction.class);
   }
 
   @Test
-  public void equalIfSameFunctionAndFieldId() {
-    assertThat(IcebergFunctions.maskAlphanum(1))
-        .isEqualTo(IcebergFunctions.maskAlphanum(1))
-        .hasSameHashCodeAs(IcebergFunctions.maskAlphanum(1));
-  }
-
-  @Test
-  public void notEqualIfFieldIdDiffers() {
-    assertThat(IcebergFunctions.maskAlphanum(1)).isNotEqualTo(IcebergFunctions.maskAlphanum(2));
+  public void factoryMethodsReturnSingletons() {
+    assertThat(IcebergFunctions.maskAlphanum()).isSameAs(IcebergFunctions.maskAlphanum());
   }
 
   @Test
   public void notEqualIfFunctionDiffers() {
-    assertThat(IcebergFunctions.maskAlphanum(1)).isNotEqualTo(IcebergFunctions.showLast4(1));
+    assertThat(IcebergFunctions.maskAlphanum()).isNotEqualTo(IcebergFunctions.showLast4());
   }
 
   @Test
   public void equalsIsSymmetricAcrossFunctionTypes() {
     // An unknown function reporting a known name must not compare equal to that known function in
     // either direction: equality is by class, not by the reported name.
-    IcebergFunction<?, ?> known = IcebergFunctions.maskAlphanum(1);
-    IcebergFunction<?, ?> spoofed = new UnknownFunction(1, known.name());
-    assertThat(spoofed.name()).isEqualTo(known.name());
+    IcebergFunction<?, ?> known = IcebergFunctions.maskAlphanum();
+    IcebergFunction<?, ?> spoofed = new UnknownFunction(known.toString());
+    assertThat(spoofed.toString()).isEqualTo(known.toString());
     assertThat(spoofed).isNotEqualTo(known);
     assertThat(known).isNotEqualTo(spoofed);
   }
 
   @Test
+  public void unknownFunctionsWithTheSameNameAreEqual() {
+    assertThat(IcebergFunctions.fromString("future-a"))
+        .isEqualTo(IcebergFunctions.fromString("future-a"))
+        .hasSameHashCodeAs(IcebergFunctions.fromString("future-a"));
+  }
+
+  @Test
   public void unknownFunctionsDifferByName() {
-    assertThat(IcebergFunctions.fromString("future-a", 1))
-        .isNotEqualTo(IcebergFunctions.fromString("future-b", 1));
+    assertThat(IcebergFunctions.fromString("future-a"))
+        .isNotEqualTo(IcebergFunctions.fromString("future-b"));
   }
 }

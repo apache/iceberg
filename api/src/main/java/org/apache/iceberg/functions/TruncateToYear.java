@@ -18,21 +18,31 @@
  */
 package org.apache.iceberg.functions;
 
+import java.io.ObjectStreamException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 /** Truncates date or timestamp values to the first instant of their year. */
-public final class TruncateToYear extends BaseFunction<Object, Object> {
-  static final String NAME = "truncate-to-year";
+final class TruncateToYear<T> implements IcebergFunction<T, T> {
+  static final String NAME = "truncate_to_year";
 
-  TruncateToYear(int fieldId) {
-    super(fieldId);
+  private static final TruncateToYear<?> INSTANCE = new TruncateToYear<>();
+
+  @SuppressWarnings("unchecked")
+  static <T> TruncateToYear<T> get() {
+    return (TruncateToYear<T>) INSTANCE;
   }
 
+  private TruncateToYear() {}
+
   @Override
-  public String name() {
+  public String toString() {
     return NAME;
+  }
+
+  Object writeReplace() throws ObjectStreamException {
+    return SerializationProxies.TruncateToYearProxy.get();
   }
 
   @Override
@@ -47,10 +57,11 @@ public final class TruncateToYear extends BaseFunction<Object, Object> {
     }
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public SerializableFunction<Object, Object> bind(Type type) {
+  public SerializableFunction<T, T> bind(Type type) {
     Preconditions.checkArgument(
-        canBind(type), "truncate-to-year is not supported for type: %s", type);
-    return TruncateTemporal.forType(TruncateTemporal.Unit.YEAR, type);
+        canBind(type), "truncate_to_year is not supported for type: %s", type);
+    return (SerializableFunction<T, T>) TruncateTemporal.forType(TruncateTemporal.Unit.YEAR, type);
   }
 }

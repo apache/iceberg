@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.functions;
 
+import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
@@ -28,18 +29,12 @@ import org.apache.iceberg.util.SerializableFunction;
  * (engine-side rules) must fail closed when they encounter this — silent skipping would leak
  * unmasked data.
  */
-public final class UnknownFunction extends BaseFunction<Object, Object> {
+public final class UnknownFunction implements IcebergFunction<Object, Object> {
   private final String functionName;
 
-  UnknownFunction(int fieldId, String functionName) {
-    super(fieldId);
+  UnknownFunction(String functionName) {
     Preconditions.checkArgument(functionName != null, "Invalid function name: null");
     this.functionName = functionName;
-  }
-
-  @Override
-  public String name() {
-    return functionName;
   }
 
   @Override
@@ -54,5 +49,27 @@ public final class UnknownFunction extends BaseFunction<Object, Object> {
             + functionName
             + "': this client does not recognize the function. Upgrade the client or remove the "
             + "function from the server-side policy.");
+  }
+
+  @Override
+  public String toString() {
+    return functionName;
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    } else if (!(other instanceof UnknownFunction)) {
+      return false;
+    }
+
+    UnknownFunction that = (UnknownFunction) other;
+    return functionName.equals(that.functionName);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(functionName);
   }
 }

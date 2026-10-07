@@ -43,7 +43,7 @@ final class Sha256 extends NullSafeFunction<Object, Object> {
     STRING {
       @Override
       void update(MessageDigest md, Object value) {
-        md.update(((String) value).getBytes(StandardCharsets.UTF_8));
+        md.update(value.toString().getBytes(StandardCharsets.UTF_8));
       }
 
       @Override
