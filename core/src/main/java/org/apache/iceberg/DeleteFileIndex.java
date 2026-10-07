@@ -495,6 +495,8 @@ class DeleteFileIndex {
       // read all of the matching delete manifests in parallel and accumulate the matching files in
       // a queue
       Queue<DeleteFile> files = new ConcurrentLinkedQueue<>();
+      // share one location instance across deletes that reference the same data file
+      Map<String, String> referencedDataFiles = Maps.newConcurrentMap();
       Tasks.foreach(deleteManifestReaders())
           .stopOnFailure()
           .throwFailureWhenFinished()
@@ -504,7 +506,7 @@ class DeleteFileIndex {
                 try (CloseableIterable<ManifestEntry<DeleteFile>> reader = deleteFile) {
                   for (ManifestEntry<DeleteFile> entry : reader) {
                     if (entry.dataSequenceNumber() > minSequenceNumber) {
-                      files.add(copyWithMinStats(entry.file()));
+                      files.add(copyWithMinStats(entry.file(), referencedDataFiles));
                     }
                   }
                 } catch (IOException e) {
@@ -514,7 +516,8 @@ class DeleteFileIndex {
       return files;
     }
 
-    private static DeleteFile copyWithMinStats(DeleteFile file) {
+    private static DeleteFile copyWithMinStats(
+        DeleteFile file, Map<String, String> referencedDataFiles) {
       if (file.content() == FileContent.EQUALITY_DELETES) {
         // copy with stats for better filtering against data file stats
         return file.copyWithStats(Set.copyOf(file.equalityFieldIds()));
@@ -528,7 +531,8 @@ class DeleteFileIndex {
       String referencedDataFile = ContentFileUtil.referencedDataFileLocation(file);
       if (referencedDataFile != null && file instanceof GenericDeleteFile genericFile) {
         // a file-scoped position delete is matched by location and needs no stats
-        return genericFile.copyAsFileScoped(referencedDataFile);
+        String location = referencedDataFiles.computeIfAbsent(referencedDataFile, key -> key);
+        return genericFile.copyAsFileScoped(location);
       }
 
       // keep the file_path bounds for position deletes that span multiple data files and for
