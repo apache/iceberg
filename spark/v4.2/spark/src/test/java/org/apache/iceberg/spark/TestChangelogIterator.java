@@ -95,73 +95,6 @@ public class TestChangelogIterator extends SparkTestHelperBase {
     }
   }
 
-  private void validate(Object[] permutation) {
-    List<Row> rows = Lists.newArrayList();
-    List<Object[]> expectedRows = Lists.newArrayList();
-    for (int i = 0; i < permutation.length; i++) {
-      rows.addAll(toOriginalRows((RowType) permutation[i], i));
-      expectedRows.addAll(toExpectedRows((RowType) permutation[i], i));
-    }
-
-    Iterator<Row> iterator =
-        ChangelogIterator.computeUpdates(rows.iterator(), SCHEMA, IDENTIFIER_FIELDS);
-    List<Row> result = Lists.newArrayList(iterator);
-    assertEquals("Rows should match", expectedRows, rowsToJava(result));
-  }
-
-  private List<Row> toOriginalRows(RowType rowType, int index) {
-    switch (rowType) {
-      case DELETED:
-        return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {index, "b", "data", DELETE, 0, 0}, null));
-      case INSERTED:
-        return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {index, "c", "data", INSERT, 0, 0}, null));
-      case CARRY_OVER:
-        return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {index, "d", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {index, "d", "data", INSERT, 0, 0}, null));
-      case UPDATED:
-        return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {index, "a", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {index, "a", "new_data", INSERT, 0, 0}, null));
-      default:
-        throw new IllegalArgumentException("Unknown row type: " + rowType);
-    }
-  }
-
-  private List<Object[]> toExpectedRows(RowType rowType, int order) {
-    switch (rowType) {
-      case DELETED:
-        List<Object[]> rows = Lists.newArrayList();
-        rows.add(new Object[] {order, "b", "data", DELETE, 0, 0});
-        return rows;
-      case INSERTED:
-        List<Object[]> insertedRows = Lists.newArrayList();
-        insertedRows.add(new Object[] {order, "c", "data", INSERT, 0, 0});
-        return insertedRows;
-      case CARRY_OVER:
-        return Lists.newArrayList();
-      case UPDATED:
-        return Lists.newArrayList(
-            new Object[] {order, "a", "data", UPDATE_BEFORE, 0, 0},
-            new Object[] {order, "a", "new_data", UPDATE_AFTER, 0, 0});
-      default:
-        throw new IllegalArgumentException("Unknown row type: " + rowType);
-    }
-  }
-
-  private void permute(List<RowType> arr, int start, List<Object[]> pm) {
-    for (int i = start; i < arr.size(); i++) {
-      Collections.swap(arr, i, start);
-      permute(arr, start + 1, pm);
-      Collections.swap(arr, start, i);
-    }
-    if (start == arr.size() - 1) {
-      pm.add(arr.toArray());
-    }
-  }
-
   @Test
   public void testRowsWithNullValue() {
     final List<Row> rowsWithNull =
@@ -317,19 +250,6 @@ public class TestChangelogIterator extends SparkTestHelperBase {
     validateIterators(rowsWithDuplication, expectedRows);
   }
 
-  private void validateIterators(List<Row> rowsWithDuplication, List<Object[]> expectedRows) {
-    Iterator<Row> iterator =
-        ChangelogIterator.removeCarryovers(rowsWithDuplication.iterator(), SCHEMA);
-    List<Row> result = Lists.newArrayList(iterator);
-
-    assertEquals("Rows should match.", expectedRows, rowsToJava(result));
-
-    iterator = ChangelogIterator.removeNetCarryovers(rowsWithDuplication.iterator(), SCHEMA);
-    result = Lists.newArrayList(iterator);
-
-    assertEquals("Rows should match.", expectedRows, rowsToJava(result));
-  }
-
   @Test
   public void testRemoveNetCarryovers() {
     List<Row> rowsWithDuplication =
@@ -365,32 +285,6 @@ public class TestChangelogIterator extends SparkTestHelperBase {
     List<Row> result = Lists.newArrayList(iterator);
 
     assertEquals("Rows should match.", expectedRows, rowsToJava(result));
-  }
-
-  static Stream<Arguments> values() {
-    StructType struct =
-        new StructType().add("patch", DataTypes.BinaryType).add("number", DataTypes.IntegerType);
-    return Stream.of(
-        Arguments.of(
-            DataTypes.BinaryType, (IntFunction<Object>) value -> new byte[] {(byte) value}),
-        Arguments.of(
-            BINARY_ARRAY,
-            (IntFunction<Object>) value -> Arrays.asList(new byte[] {(byte) value}, null)),
-        Arguments.of(
-            DataTypes.createArrayType(BINARY_ARRAY),
-            (IntFunction<Object>) value -> List.of(List.of(new byte[] {(byte) value}))),
-        Arguments.of(
-            struct, (IntFunction<Object>) value -> RowFactory.create(new byte[] {(byte) value}, 7)),
-        Arguments.of(
-            DataTypes.createArrayType(struct),
-            (IntFunction<Object>)
-                value -> List.of(RowFactory.create(new byte[] {(byte) value}, 7))),
-        Arguments.of(
-            new StructType().add("patches", BINARY_ARRAY),
-            (IntFunction<Object>) value -> RowFactory.create(List.of(new byte[] {(byte) value}))),
-        Arguments.of(
-            DataTypes.createArrayType(DataTypes.IntegerType),
-            (IntFunction<Object>) value -> Arrays.asList(value, null)));
   }
 
   @ParameterizedTest(name = "{0}")
@@ -465,6 +359,112 @@ public class TestChangelogIterator extends SparkTestHelperBase {
         List.of(
             row(type, RowFactory.create(new byte[] {1}, -0.0), DELETE, 0),
             row(type, RowFactory.create(new byte[] {1}, 0.0), INSERT, 0)));
+  }
+
+  static Stream<Arguments> values() {
+    StructType struct =
+        new StructType().add("patch", DataTypes.BinaryType).add("number", DataTypes.IntegerType);
+    return Stream.of(
+        Arguments.of(
+            DataTypes.BinaryType, (IntFunction<Object>) value -> new byte[] {(byte) value}),
+        Arguments.of(
+            BINARY_ARRAY,
+            (IntFunction<Object>) value -> Arrays.asList(new byte[] {(byte) value}, null)),
+        Arguments.of(
+            DataTypes.createArrayType(BINARY_ARRAY),
+            (IntFunction<Object>) value -> List.of(List.of(new byte[] {(byte) value}))),
+        Arguments.of(
+            struct, (IntFunction<Object>) value -> RowFactory.create(new byte[] {(byte) value}, 7)),
+        Arguments.of(
+            DataTypes.createArrayType(struct),
+            (IntFunction<Object>)
+                value -> List.of(RowFactory.create(new byte[] {(byte) value}, 7))),
+        Arguments.of(
+            new StructType().add("patches", BINARY_ARRAY),
+            (IntFunction<Object>) value -> RowFactory.create(List.of(new byte[] {(byte) value}))),
+        Arguments.of(
+            DataTypes.createArrayType(DataTypes.IntegerType),
+            (IntFunction<Object>) value -> Arrays.asList(value, null)));
+  }
+
+  private void validate(Object[] permutation) {
+    List<Row> rows = Lists.newArrayList();
+    List<Object[]> expectedRows = Lists.newArrayList();
+    for (int i = 0; i < permutation.length; i++) {
+      rows.addAll(toOriginalRows((RowType) permutation[i], i));
+      expectedRows.addAll(toExpectedRows((RowType) permutation[i], i));
+    }
+
+    Iterator<Row> iterator =
+        ChangelogIterator.computeUpdates(rows.iterator(), SCHEMA, IDENTIFIER_FIELDS);
+    List<Row> result = Lists.newArrayList(iterator);
+    assertEquals("Rows should match", expectedRows, rowsToJava(result));
+  }
+
+  private List<Row> toOriginalRows(RowType rowType, int index) {
+    switch (rowType) {
+      case DELETED:
+        return Lists.newArrayList(
+            new GenericRowWithSchema(new Object[] {index, "b", "data", DELETE, 0, 0}, null));
+      case INSERTED:
+        return Lists.newArrayList(
+            new GenericRowWithSchema(new Object[] {index, "c", "data", INSERT, 0, 0}, null));
+      case CARRY_OVER:
+        return Lists.newArrayList(
+            new GenericRowWithSchema(new Object[] {index, "d", "data", DELETE, 0, 0}, null),
+            new GenericRowWithSchema(new Object[] {index, "d", "data", INSERT, 0, 0}, null));
+      case UPDATED:
+        return Lists.newArrayList(
+            new GenericRowWithSchema(new Object[] {index, "a", "data", DELETE, 0, 0}, null),
+            new GenericRowWithSchema(new Object[] {index, "a", "new_data", INSERT, 0, 0}, null));
+      default:
+        throw new IllegalArgumentException("Unknown row type: " + rowType);
+    }
+  }
+
+  private List<Object[]> toExpectedRows(RowType rowType, int order) {
+    switch (rowType) {
+      case DELETED:
+        List<Object[]> rows = Lists.newArrayList();
+        rows.add(new Object[] {order, "b", "data", DELETE, 0, 0});
+        return rows;
+      case INSERTED:
+        List<Object[]> insertedRows = Lists.newArrayList();
+        insertedRows.add(new Object[] {order, "c", "data", INSERT, 0, 0});
+        return insertedRows;
+      case CARRY_OVER:
+        return Lists.newArrayList();
+      case UPDATED:
+        return Lists.newArrayList(
+            new Object[] {order, "a", "data", UPDATE_BEFORE, 0, 0},
+            new Object[] {order, "a", "new_data", UPDATE_AFTER, 0, 0});
+      default:
+        throw new IllegalArgumentException("Unknown row type: " + rowType);
+    }
+  }
+
+  private void permute(List<RowType> arr, int start, List<Object[]> pm) {
+    for (int i = start; i < arr.size(); i++) {
+      Collections.swap(arr, i, start);
+      permute(arr, start + 1, pm);
+      Collections.swap(arr, start, i);
+    }
+    if (start == arr.size() - 1) {
+      pm.add(arr.toArray());
+    }
+  }
+
+  private void validateIterators(List<Row> rowsWithDuplication, List<Object[]> expectedRows) {
+    Iterator<Row> iterator =
+        ChangelogIterator.removeCarryovers(rowsWithDuplication.iterator(), SCHEMA);
+    List<Row> result = Lists.newArrayList(iterator);
+
+    assertEquals("Rows should match.", expectedRows, rowsToJava(result));
+
+    iterator = ChangelogIterator.removeNetCarryovers(rowsWithDuplication.iterator(), SCHEMA);
+    result = Lists.newArrayList(iterator);
+
+    assertEquals("Rows should match.", expectedRows, rowsToJava(result));
   }
 
   private static void assertRemoved(DataType type, List<Row> rows) {
