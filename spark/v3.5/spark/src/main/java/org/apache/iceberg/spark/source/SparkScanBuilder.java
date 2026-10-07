@@ -50,7 +50,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.UnboundPredicate;
-import org.apache.iceberg.index.HashTransform;
 import org.apache.iceberg.index.IndexCatalog;
 import org.apache.iceberg.index.IndexMetadata;
 import org.apache.iceberg.index.IndexSnapshot;
@@ -58,6 +57,7 @@ import org.apache.iceberg.index.LeafFileEntry;
 import org.apache.iceberg.index.LeafFileReader;
 import org.apache.iceberg.index.TrackingFileEntry;
 import org.apache.iceberg.index.TrackingFileReader;
+import org.apache.iceberg.index.TransformFunctions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
@@ -542,10 +542,11 @@ public class SparkScanBuilder
 
   private ResolvedPredicate resolveRangePredicates(
       IndexMetadata metadata, String columnName, List<UnboundPredicate<?>> predicates) {
-    // No equality or IN predicate in this group -- only IDENTITY preserves enough order for a
-    // range comparison to map to a contiguous transform-value range; HASH scatters values across
-    // buckets, so a range on the original column tells us nothing about which buckets to look in.
-    if (!"IDENTITY".equals(metadata.transformFunction())) {
+    // Range comparisons only map to a contiguous transform-value range for order-preserving
+    // transforms (IDENTITY, Hilbert); HASH scatters values across buckets, so a range on the
+    // original column tells us nothing about which buckets to look in.
+    if (!TransformFunctions.forName(metadata.transformFunction(), metadata.properties())
+        .supportsRangePredicates()) {
       return null;
     }
 
@@ -659,12 +660,8 @@ public class SparkScanBuilder
   }
 
   private static long transformValue(IndexMetadata metadata, Object literalValue) {
-    if ("HASH".equals(metadata.transformFunction())) {
-      int numBuckets =
-          Integer.parseInt(metadata.properties().getOrDefault("hash.num-buckets", "256"));
-      return new HashTransform(numBuckets).apply(literalValue);
-    }
-    return ((Number) literalValue).longValue();
+    return TransformFunctions.forName(metadata.transformFunction(), metadata.properties())
+        .transform(ImmutableList.of(literalValue));
   }
 
   /**

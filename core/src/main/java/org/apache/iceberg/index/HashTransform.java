@@ -19,6 +19,7 @@
 package org.apache.iceberg.index;
 
 import java.io.Serializable;
+import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -37,13 +38,32 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * non-distributed execution) -- see {@code BuildScalarIndexProcedure}, the actual reason this is
  * needed in practice.
  */
-public class HashTransform implements Serializable {
+public class HashTransform implements TransformFunction, Serializable {
 
   private final int numBuckets;
 
   public HashTransform(int numBuckets) {
     Preconditions.checkArgument(numBuckets > 0, "numBuckets must be positive, got: %s", numBuckets);
     this.numBuckets = numBuckets;
+  }
+
+  @Override
+  public String name() {
+    return "HASH";
+  }
+
+  @Override
+  public long transform(List<Object> keyValues) {
+    Preconditions.checkArgument(
+        keyValues.size() == 1,
+        "HASH transform requires exactly one key column, got: %s",
+        keyValues.size());
+    return apply(keyValues.get(0));
+  }
+
+  @Override
+  public boolean supportsRangePredicates() {
+    return false;
   }
 
   public int numBuckets() {

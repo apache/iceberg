@@ -24,6 +24,7 @@ import static org.apache.spark.sql.functions.monotonically_increasing_id;
 import static org.apache.spark.sql.functions.row_number;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -34,7 +35,6 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.index.HashTransform;
 import org.apache.iceberg.index.IndexCatalog;
 import org.apache.iceberg.index.IndexIdentifier;
 import org.apache.iceberg.index.IndexMetadata;
@@ -45,6 +45,8 @@ import org.apache.iceberg.index.LeafFileWriter;
 import org.apache.iceberg.index.ScalarIndexCommitter;
 import org.apache.iceberg.index.TrackingFileEntry;
 import org.apache.iceberg.index.TrackingFileReader;
+import org.apache.iceberg.index.TransformFunction;
+import org.apache.iceberg.index.TransformFunctions;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -500,22 +502,29 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     // by the time this runs, the original column name no longer exists in the DataFrame's schema.
 
     if ("HASH".equals(upperTransform)) {
-      int numBuckets = Integer.parseInt(options.getOrDefault("hash.num-buckets", "256"));
-      HashTransform transform = new HashTransform(numBuckets);
+      TransformFunction transform = TransformFunctions.forName(upperTransform, options);
       UserDefinedFunction udf;
       switch (keyType.typeId()) {
         case STRING:
-          udf = functions.udf((UDF1<String, Long>) transform::apply, DataTypes.LongType);
+          udf =
+              functions.udf(
+                  (UDF1<String, Long>)
+                      v -> transform.transform(Collections.singletonList((Object) v)),
+                  DataTypes.LongType);
           break;
         case LONG:
           udf =
               functions.udf(
-                  (UDF1<Long, Long>) v -> transform.apply(v.longValue()), DataTypes.LongType);
+                  (UDF1<Long, Long>)
+                      v -> transform.transform(Collections.singletonList((Object) v)),
+                  DataTypes.LongType);
           break;
         case INTEGER:
           udf =
               functions.udf(
-                  (UDF1<Integer, Long>) v -> transform.apply(v.intValue()), DataTypes.LongType);
+                  (UDF1<Integer, Long>)
+                      v -> transform.transform(Collections.singletonList((Object) v)),
+                  DataTypes.LongType);
           break;
         default:
           throw new IllegalArgumentException(
@@ -541,7 +550,7 @@ class BuildScalarIndexProcedure extends BaseProcedure {
       String leafDataLocation,
       long rowGroupSizeBytes) {
     if (!rows.hasNext()) {
-      return java.util.Collections.emptyIterator();
+      return Collections.emptyIterator();
     }
 
     String path = leafDataLocation + "/leaf-" + UUID.randomUUID() + ".parquet";
@@ -573,7 +582,7 @@ class BuildScalarIndexProcedure extends BaseProcedure {
     }
 
     long sizeBytes = io.newInputFile(path).getLength();
-    return java.util.Collections.singletonList(
+    return Collections.singletonList(
             new LeafFileWriteResult(path, recordCount, sizeBytes, tvMin, tvMax))
         .iterator();
   }
