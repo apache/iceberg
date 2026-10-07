@@ -22,12 +22,12 @@ import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 /**
  * In-memory implementation of {@link IndexCatalog}.
@@ -41,7 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 public class InMemoryIndexCatalog implements IndexCatalog {
 
   // Maps IndexIdentifier → current IndexMetadata
-  private final Map<IndexIdentifier, IndexMetadata> store = new ConcurrentHashMap<>();
+  private final Map<IndexIdentifier, IndexMetadata> store = Maps.newConcurrentMap();
 
   @Override
   public void createIndex(IndexIdentifier identifier, IndexMetadata metadata) {

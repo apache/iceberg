@@ -21,13 +21,13 @@ package org.apache.iceberg.index;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.google.common.collect.ImmutableList;
 import java.util.ConcurrentModificationException;
 import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -39,7 +39,7 @@ public class TestInMemoryIndexCatalog {
   private InMemoryIndexCatalog catalog;
 
   @BeforeEach
-  void setup() {
+  void before() {
     catalog = new InMemoryIndexCatalog();
   }
 
@@ -126,7 +126,9 @@ public class TestInMemoryIndexCatalog {
 
     catalog.dropIndex(IDX);
     assertThat(catalog.indexExists(IDX)).isFalse();
-    assertThatThrownBy(() -> catalog.loadIndex(IDX)).isInstanceOf(NoSuchTableException.class);
+    assertThatThrownBy(() -> catalog.loadIndex(IDX))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("does not exist");
   }
 
   @Test

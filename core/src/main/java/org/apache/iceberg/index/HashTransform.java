@@ -79,10 +79,18 @@ public class HashTransform implements Serializable {
    * @throws IllegalArgumentException if the type is not supported
    */
   public long apply(Object value) {
-    if (value == null) return 0;
-    if (value instanceof String) return apply((String) value);
-    if (value instanceof Long) return apply((long) (Long) value);
-    if (value instanceof Integer) return apply((int) (Integer) value);
+    if (value == null) {
+      return 0;
+    }
+    if (value instanceof String) {
+      return apply((String) value);
+    }
+    if (value instanceof Long) {
+      return apply((long) (Long) value);
+    }
+    if (value instanceof Integer) {
+      return apply((int) (Integer) value);
+    }
     throw new IllegalArgumentException(
         "Unsupported type for HASH transform: " + value.getClass().getName());
   }

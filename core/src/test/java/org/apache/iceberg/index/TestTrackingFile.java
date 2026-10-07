@@ -116,16 +116,20 @@ public class TestTrackingFile {
 
         @Override
         public int read() throws IOException {
-          int b = delegate.read();
-          if (b >= 0) pos++;
-          return b;
+          int nextByte = delegate.read();
+          if (nextByte >= 0) {
+            pos++;
+          }
+          return nextByte;
         }
 
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
-          int n = delegate.read(b, off, len);
-          if (n > 0) pos += n;
-          return n;
+          int count = delegate.read(b, off, len);
+          if (count > 0) {
+            pos += count;
+          }
+          return count;
         }
       };
     }
@@ -164,14 +168,14 @@ public class TestTrackingFile {
     List<TrackingFileEntry> restored = writeAndRead(List.of(entry));
 
     assertThat(restored).hasSize(1);
-    TrackingFileEntry r = restored.get(0);
-    assertThat(r.location()).isEqualTo(entry.location());
-    assertThat(r.fileFormat()).isEqualTo("parquet");
-    assertThat(r.recordCount()).isEqualTo(1000L);
-    assertThat(r.fileSizeInBytes()).isEqualTo(204800L);
-    assertThat(r.transformValueLowerBound()).isEqualTo(0L);
-    assertThat(r.transformValueUpperBound()).isEqualTo(63L);
-    assertThat(r.keyMetadata()).isNull();
+    TrackingFileEntry restoredEntry = restored.get(0);
+    assertThat(restoredEntry.location()).isEqualTo(entry.location());
+    assertThat(restoredEntry.fileFormat()).isEqualTo("parquet");
+    assertThat(restoredEntry.recordCount()).isEqualTo(1000L);
+    assertThat(restoredEntry.fileSizeInBytes()).isEqualTo(204800L);
+    assertThat(restoredEntry.transformValueLowerBound()).isEqualTo(0L);
+    assertThat(restoredEntry.transformValueUpperBound()).isEqualTo(63L);
+    assertThat(restoredEntry.keyMetadata()).isNull();
   }
 
   @Test

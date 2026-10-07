@@ -21,13 +21,10 @@ package org.apache.iceberg.index;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ConcurrentModificationException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
@@ -38,6 +35,9 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.io.SeekableInputStream;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -55,7 +55,7 @@ public class TestScalarIndexBuild {
   private ScalarIndexCommitter committer;
 
   @BeforeEach
-  void setup() {
+  void before() {
     catalog = new InMemoryIndexCatalog();
     fileIO = new InMemoryFileIO();
     committer = new ScalarIndexCommitter(catalog, fileIO);
@@ -67,27 +67,27 @@ public class TestScalarIndexBuild {
 
   @Test
   void hashTransformStringDeterministic() {
-    HashTransform t = new HashTransform(256);
+    HashTransform transform = new HashTransform(256);
     // Same value always produces same bucket
-    assertThat(t.apply("D7D598CD99978BD012A87A76A7C891B7"))
-        .isEqualTo(t.apply("D7D598CD99978BD012A87A76A7C891B7"));
+    assertThat(transform.apply("D7D598CD99978BD012A87A76A7C891B7"))
+        .isEqualTo(transform.apply("D7D598CD99978BD012A87A76A7C891B7"));
   }
 
   @Test
   void hashTransformBucketsInRange() {
-    HashTransform t = new HashTransform(256);
+    HashTransform transform = new HashTransform(256);
     for (String val : List.of("medallion1", "medallion2", "hello", "world", "abc123")) {
-      long bucket = t.apply(val);
+      long bucket = transform.apply(val);
       assertThat(bucket).isBetween(0L, 255L);
     }
   }
 
   @Test
   void hashTransformDistributesEvenly() {
-    HashTransform t = new HashTransform(256);
+    HashTransform transform = new HashTransform(256);
     long[] counts = new long[256];
     for (int i = 0; i < 10_000; i++) {
-      counts[(int) t.apply("medallion_" + i)]++;
+      counts[(int) transform.apply("medallion_" + i)]++;
     }
     // Each bucket should have roughly 10000/256 ≈ 39 entries
     // Check no bucket has more than 3x the average (basic sanity)
@@ -354,7 +354,8 @@ public class TestScalarIndexBuild {
                     ImmutableList.of(3),
                     INDEX_LOCATION,
                     sampleLeafFiles()))
-        .isInstanceOf(AlreadyExistsException.class);
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("already exists");
   }
 
   // ------------------------------------------------------------------
@@ -426,12 +427,14 @@ public class TestScalarIndexBuild {
    * by the committer.
    */
   static class InMemoryFileIO implements FileIO {
-    final Map<String, byte[]> files = new HashMap<>();
+    final Map<String, byte[]> files = Maps.newHashMap();
 
     @Override
     public InputFile newInputFile(String path) {
       byte[] data = files.get(path);
-      if (data == null) throw new RuntimeException("File not found: " + path);
+      if (data == null) {
+        throw new RuntimeException("File not found: " + path);
+      }
       return new InMemInput(path, data);
     }
 
@@ -474,23 +477,23 @@ public class TestScalarIndexBuild {
 
     private PositionOutputStream pos() {
       return new PositionOutputStream() {
-        private long p = 0;
+        private long offset = 0;
 
         @Override
         public long getPos() {
-          return p;
+          return offset;
         }
 
         @Override
         public void write(int b) throws IOException {
           buf.write(b);
-          p++;
+          offset++;
         }
 
         @Override
         public void write(byte[] b, int off, int len) throws IOException {
           buf.write(b, off, len);
-          p += len;
+          offset += len;
         }
 
         @Override
@@ -544,16 +547,20 @@ public class TestScalarIndexBuild {
 
         @Override
         public int read() throws IOException {
-          int b = in.read();
-          if (b >= 0) pos++;
-          return b;
+          int nextByte = in.read();
+          if (nextByte >= 0) {
+            pos++;
+          }
+          return nextByte;
         }
 
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
-          int n = in.read(b, off, len);
-          if (n > 0) pos += n;
-          return n;
+          int count = in.read(b, off, len);
+          if (count > 0) {
+            pos += count;
+          }
+          return count;
         }
       };
     }

@@ -20,7 +20,7 @@ package org.apache.iceberg.index;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.Test;
 
 public class TestGenericIndexMetadata {

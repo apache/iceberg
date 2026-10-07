@@ -50,7 +50,7 @@ public class TestSparkScanBuilderCandidateLeafFiles {
   private String trackingFileLocation;
 
   @BeforeEach
-  public void setup() {
+  public void before() {
     this.io = new HadoopFileIO(new Configuration());
     this.trackingFileLocation = new File(dir, "tracking.avro").toURI().toString();
   }

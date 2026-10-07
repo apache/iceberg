@@ -55,7 +55,7 @@ public class TestDurableIndexCatalog {
   private String tableLocation;
 
   @BeforeEach
-  void setup() {
+  void before() {
     this.io = new HadoopFileIO(new Configuration());
     this.tableLocation = tableDir.toURI().toString();
   }
@@ -122,7 +122,8 @@ public class TestDurableIndexCatalog {
     DurableIndexCatalog differentTable = newCatalog("22222222-2222-2222-2222-222222222222");
     assertThat(differentTable.indexExists(IDX)).isFalse();
     assertThatThrownBy(() -> differentTable.loadIndex(IDX))
-        .isInstanceOf(NoSuchTableException.class);
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("does not exist");
   }
 
   @Test
@@ -185,12 +186,16 @@ public class TestDurableIndexCatalog {
 
     catalog.dropIndex(IDX);
     assertThat(catalog.indexExists(IDX)).isFalse();
-    assertThatThrownBy(() -> catalog.loadIndex(IDX)).isInstanceOf(NoSuchTableException.class);
+    assertThatThrownBy(() -> catalog.loadIndex(IDX))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("does not exist");
   }
 
   @Test
   void dropNonExistentThrows() {
-    assertThatThrownBy(() -> newCatalog().dropIndex(IDX)).isInstanceOf(NoSuchTableException.class);
+    assertThatThrownBy(() -> newCatalog().dropIndex(IDX))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("does not exist");
   }
 
   @Test

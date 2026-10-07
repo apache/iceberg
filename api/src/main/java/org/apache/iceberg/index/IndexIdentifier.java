@@ -25,7 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 /**
  * Identifies a secondary index by its source table and index name.
  *
- * <p>Format: {@code <namespace>.<table>.<indexName>}
+ * <p>Format: {@code namespace.table.indexName}
  *
  * <p>Example: {@code db.orders.order_id_idx}
  */
@@ -55,8 +55,12 @@ public class IndexIdentifier {
 
   @Override
   public boolean equals(Object o) {
-    if (this == o) return true;
-    if (!(o instanceof IndexIdentifier)) return false;
+    if (this == o) {
+      return true;
+    }
+    if (!(o instanceof IndexIdentifier)) {
+      return false;
+    }
     IndexIdentifier that = (IndexIdentifier) o;
     return Objects.equals(tableIdentifier, that.tableIdentifier) && Objects.equals(name, that.name);
   }
