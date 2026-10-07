@@ -47,7 +47,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 
-public class TestHiveTableEncryption {
+public class TestHiveTableKmsKeyGeneration {
   private static final String DB_NAME = "hivedb";
   private static final String TABLE_NAME = "encrypted_tbl";
   private static final TableIdentifier TABLE_ID = TableIdentifier.of(DB_NAME, TABLE_NAME);
