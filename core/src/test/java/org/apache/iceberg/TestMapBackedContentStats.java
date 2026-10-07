@@ -236,7 +236,6 @@ class TestMapBackedContentStats {
   void fieldWithoutStatsIsExcluded() {
     MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(FILE_WITH_STATS);
 
-    assertThat(stats.containsFieldInMaps(5)).isFalse();
     assertThat(stats.type().field(StatsUtil.toBaseId(5))).isNull();
     assertThat(stats.statsFor(5)).isNull();
     assertThat(stats.fieldStats())
@@ -256,7 +255,6 @@ class TestMapBackedContentStats {
             ImmutableMap.of());
     MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(file);
 
-    assertThat(stats.containsFieldInMaps(99)).isTrue();
     assertThat(stats.statsFor(99)).isNull();
     assertThat(stats.type().fields()).isEmpty();
     assertThat(stats.fieldStats()).isEmpty();
