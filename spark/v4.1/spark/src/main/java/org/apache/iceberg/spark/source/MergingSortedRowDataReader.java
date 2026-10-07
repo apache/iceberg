@@ -125,7 +125,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
         expectedOrderId,
         table.name());
 
-    Schema mergeReadSchema = mergeReadSchema(projection, sortOrder, table);
+    Schema mergeReadSchema = buildMergeReadSchema(projection, sortOrder, table);
     this.projectingRow = buildProjectingRow(projection);
     UnsafeProjection deepCopyProjection =
         UnsafeProjection.create(SparkSchemaUtil.convert(mergeReadSchema));
@@ -205,8 +205,8 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
     public boolean hasNext() {
       if (!advanced) {
         try {
-          hasNext = reader.next();
-          advanced = true;
+          this.hasNext = reader.next();
+          this.advanced = true;
         } catch (IOException e) {
           throw new UncheckedIOException("Failed to advance reader", e);
         }
@@ -220,7 +220,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
         throw new NoSuchElementException();
       }
 
-      advanced = false;
+      this.advanced = false;
       // the next row from this file is read before this one is returned, and readers reuse row
       // containers, including the structs inside arrays and maps, so a shallow copy is not enough
       InternalRow deepCopy = deepCopyProjection.apply(reader.get()).copy();
@@ -299,7 +299,7 @@ class MergingSortedRowDataReader implements PartitionReader<InternalRow> {
    * Returns the requested {@code projection} with any sort key columns it lacks appended after it,
    * so the merge comparator can read every sort key.
    */
-  private static Schema mergeReadSchema(Schema projection, SortOrder sortOrder, Table table) {
+  private static Schema buildMergeReadSchema(Schema projection, SortOrder sortOrder, Table table) {
     Schema tableSchema = table.schema();
     validateSortKeys(sortOrder, projection, tableSchema, table.name());
 
