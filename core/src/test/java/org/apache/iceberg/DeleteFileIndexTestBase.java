@@ -643,6 +643,10 @@ public abstract class DeleteFileIndexTestBase<
       assertThat(deleteFile.lowerBounds()).isNull();
       assertThat(deleteFile.upperBounds()).isNull();
     }
+
+    // verify delete files that reference the same data file share one location instance
+    assertThat(task.deletes().get(0).referencedDataFile())
+        .isSameAs(task.deletes().get(1).referencedDataFile());
   }
 
   @TestTemplate
