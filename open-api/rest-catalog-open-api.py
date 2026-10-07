@@ -1394,6 +1394,161 @@ class RemoteSigningConfig(BaseModel):
     )
 
 
+class IndexIdentifier(BaseModel):
+    """
+    Identifies an index within a catalog, scoped to a namespace. An index is addressable by namespace and name without a table name; the indexed table is referenced by `table-uuid` in the index metadata. Index names are not stored in index metadata; the catalog maps each identifier to its current metadata file.
+    """
+
+    namespace: Namespace
+    name: str = Field(..., description='The index name, unique within the namespace')
+
+
+class IndexType(RootModel[str]):
+    root: str = Field(
+        ...,
+        description='The logical index type, which defines the class of queries the index accelerates. The index specification defines `scalar`; future specifications may define additional types. Writers MUST send the type in lower case, and readers MUST match it case-insensitively. Clients MUST ignore indexes whose type they do not support. Servers MUST preserve types they do not implement.',
+        examples=['scalar'],
+    )
+
+
+class IndexSummary(BaseModel):
+    """
+    Summary of an index for query planning, derived from the current index metadata and the table identifier stored by the catalog.
+
+    """
+
+    identifier: IndexIdentifier
+    table: TableIdentifier = Field(..., description='Identifier of the indexed table')
+    index_type: IndexType = Field(..., alias='index-type')
+    source_ids: list[int] = Field(
+        ..., alias='source-ids', description='The `source-id`s of `identity-fields`'
+    )
+    ordering_source_ids: list[int] = Field(
+        ...,
+        alias='ordering-source-ids',
+        description='The `source-id`s that the ordering key is computed from, in `ordering-key` order and without duplicates. A derived column contributes the `source-id`s of the identity columns it is computed from.\n',
+    )
+    source_table_snapshot_ids: list[int] = Field(
+        ...,
+        alias='source-table-snapshot-ids',
+        description='IDs of the source table snapshots that have an extract in the index',
+    )
+
+
+class IdentityField(BaseModel):
+    """
+    Maps a source table field or metadata column to an identity column of the extract schema, whose values are copied as is from the indexed row.
+    """
+
+    source_id: int = Field(
+        ...,
+        alias='source-id',
+        description='ID of the source table field or metadata column',
+    )
+    field_id: int = Field(
+        ...,
+        alias='field-id',
+        description='Extract schema field ID of the identity column',
+    )
+
+
+class IndexExtract(BaseModel):
+    """
+    An immutable version of the index data generated from a specific source table snapshot. Engines locate index data by matching `source-table-snapshot-id`; more than one extract may reference the same source table snapshot.
+    """
+
+    extract_id: int = Field(
+        ...,
+        alias='extract-id',
+        description="Extract identifier, unique within the index's `extracts`",
+    )
+    source_table_snapshot_id: int = Field(
+        ...,
+        alias='source-table-snapshot-id',
+        description='The source table snapshot this extract indexes',
+    )
+    extract_schema_id: int = Field(
+        ...,
+        alias='extract-schema-id',
+        description='ID of the extract schema in `schemas` that the region files of this extract use',
+    )
+    timestamp_ms: int = Field(
+        ...,
+        alias='timestamp-ms',
+        description='Timestamp when the extract was created (ms from epoch)',
+    )
+    tracking_file: str = Field(
+        ...,
+        alias='tracking-file',
+        description='Location of the tracking file that lists the region files of this extract',
+    )
+    tracking_file_size_in_bytes: int = Field(
+        ...,
+        alias='tracking-file-size-in-bytes',
+        description='Total size of the tracking file in bytes',
+    )
+    properties: dict[str, str] | None = Field(
+        None, description='Properties specific to this extract'
+    )
+    key_id: str | None = Field(
+        None,
+        alias='key-id',
+        description="ID of the entry in the index's `encryption-keys` that holds the key metadata of the tracking file",
+    )
+
+
+class RenameIndexRequest(BaseModel):
+    """
+    Request to rename an index
+    """
+
+    destination: IndexIdentifier
+
+
+class RegisterIndexRequest(BaseModel):
+    """
+    Request to register an existing index by metadata file location
+    """
+
+    name: str = Field(..., description='The name to register the index under')
+    table: TableIdentifier = Field(
+        ...,
+        description='Identifier of the indexed table, which may be in another namespace',
+    )
+    metadata_location: str = Field(
+        ...,
+        alias='metadata-location',
+        description='Location of the index metadata file',
+    )
+
+
+class AssertIndexUUID(BaseModel):
+    """
+    The index UUID must match the requirement's `uuid`
+    """
+
+    type: Literal['assert-index-uuid']
+    uuid: UUID
+
+
+class AddIndexExtractUpdate(BaseUpdate):
+    """
+    Adds an extract to the index. The server MUST reject the commit if `extract-id` is already used by an extract of the index, if `key-id` does not reference an entry in the index's `encryption-keys`, or if `extract-schema-id` does not reference an extract schema. The server does not validate `source-table-snapshot-id` against the indexed table. `extract-schema-id` may be -1 for the extract schema added by an earlier `add-schema` of the same commit.
+    """
+
+    action: Literal['add-extract']
+    extract: IndexExtract
+
+
+class RemoveIndexExtractsUpdate(BaseUpdate):
+    """
+    Removes extracts from the index. IDs that do not match an extract of the index are ignored. The server does not delete index files. After the commit, the client should delete the files of the removed extracts that no extract of the committed metadata in the response references.
+    """
+
+    action: Literal['remove-extracts']
+    extract_ids: list[int] = Field(..., alias='extract-ids')
+
+
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: dict[str, str] | None = Field(
@@ -1574,6 +1729,10 @@ class FetchScanTasksRequest(BaseModel):
     plan_task: PlanTask = Field(..., alias='plan-task')
 
 
+class IndexRequirement(RootModel[AssertIndexUUID]):
+    root: AssertIndexUUID = Field(..., discriminator='type')
+
+
 class Term(RootModel[TermReference | TransformTerm]):
     root: TermReference | TransformTerm = Field(
         ...,
@@ -1625,6 +1784,17 @@ class StructField(BaseModel):
     doc: str | None = None
     initial_default: PrimitiveTypeValue | None = Field(None, alias='initial-default')
     write_default: PrimitiveTypeValue | None = Field(None, alias='write-default')
+    derived: DerivedColumn | None = None
+
+
+class DerivedColumn(BaseModel):
+    """
+    A column computed by a deterministic expression. `generated-always` columns are stored, `virtual` columns are not. Defined by the derived column proposal, which this definition follows; used by index extract schemas.
+
+    """
+
+    kind: Literal['generated-always', 'virtual']
+    expr: ValueExpression
 
 
 class StructType(BaseModel):
@@ -2005,6 +2175,10 @@ class LoadTableResult(BaseModel):
     )
     read_restrictions: ReadRestrictions | None = Field(None, alias='read-restrictions')
     labels: Labels | None = None
+    indexes: list[LoadIndexResult] | None = Field(
+        None,
+        description='The indexes of this table, returned only when the client requests them with the `include-indexes` query parameter on the load-table endpoint. Each entry is the same result that the loadIndex endpoint returns for that index, so a planner does not need a second round-trip. Clients that do not understand indexes MUST ignore this field.',
+    )
 
 
 class ScanTasks(BaseModel):
@@ -2328,6 +2502,134 @@ class FileScanTask(BaseModel):
     )
 
 
+class IndexMetadata(BaseModel):
+    """
+    Index metadata as defined by the index specification. The index definition (`table-uuid`, `index-type`, `identity-fields`, and `ordering-key`) is fixed when the index is created and does not change. Extract schemas may evolve only as the index specification allows. A missing optional list is read as an empty list.
+    """
+
+    format_version: int = Field(
+        ...,
+        alias='format-version',
+        description='Index format version; must be `1`',
+        ge=1,
+        le=1,
+    )
+    index_uuid: UUID = Field(
+        ...,
+        alias='index-uuid',
+        description='Stable UUID assigned to the index at creation',
+    )
+    table_uuid: UUID = Field(
+        ..., alias='table-uuid', description='UUID of the indexed table'
+    )
+    location: str = Field(..., description='Index root location')
+    last_updated_ms: int = Field(
+        ...,
+        alias='last-updated-ms',
+        description='Timestamp when the index was last updated (ms from epoch)',
+    )
+    index_type: IndexType = Field(..., alias='index-type')
+    identity_fields: list[IdentityField] = Field(
+        ...,
+        alias='identity-fields',
+        description='Non-empty list mapping source fields to the identity columns of the extract schema',
+    )
+    schemas: list[Schema] = Field(
+        ...,
+        description='Extract schemas. Each field is either an identity column listed in `identity-fields` or a derived column with a `derived` definition.',
+    )
+    ordering_key: list[int] = Field(
+        ...,
+        alias='ordering-key',
+        description='Non-empty list of extract schema field IDs, each of a primitive type, whose values in list order form the ordering key',
+        examples=[[1]],
+        min_length=1,
+    )
+    properties: dict[str, str] | None = Field(
+        None, description='Index properties applicable to every extract'
+    )
+    extracts: list[IndexExtract] | None = Field(
+        None,
+        description='The extracts of the index; an index that has not been built yet has none',
+    )
+    metadata_log: MetadataLog | None = Field(None, alias='metadata-log')
+    encryption_keys: list[EncryptedKey] | None = Field(
+        None, alias='encryption-keys', description='Encryption keys used by the index'
+    )
+
+
+class CreateIndexRequest(BaseModel):
+    """
+    Request to create a new index. The request carries the full index definition, which cannot be changed after creation. The server assigns `index-uuid` and `last-updated-ms`. A new index has no extracts.
+    """
+
+    name: str = Field(
+        ...,
+        description='The name for the new index, unique within the namespace',
+        examples=['customer_id_index'],
+    )
+    table: TableIdentifier = Field(
+        ...,
+        description='Identifier of the indexed table, which may be in another namespace',
+    )
+    table_uuid: UUID = Field(
+        ..., alias='table-uuid', description='UUID of the table to index'
+    )
+    index_type: IndexType = Field(..., alias='index-type')
+    identity_fields: list[IdentityField] = Field(..., alias='identity-fields')
+    schema_: Schema = Field(
+        ...,
+        alias='schema',
+        description='The first extract schema. Its field IDs are preserved.',
+    )
+    ordering_key: list[int] = Field(
+        ..., alias='ordering-key', examples=[[1]], min_length=1
+    )
+    location: str | None = Field(
+        None,
+        description='Optional index root location; if omitted, the server chooses one',
+    )
+    properties: dict[str, str] | None = Field(None, description='Index properties')
+
+
+class CommitIndexRequest(BaseModel):
+    """
+    Request to commit updates to an index
+    """
+
+    identifier: IndexIdentifier | None = Field(
+        None, description='If present, must match the index in the path'
+    )
+    base_metadata_location: str = Field(
+        ...,
+        alias='base-metadata-location',
+        description='The `metadata-location` of the index metadata that the updates are based on. The server MUST reject the commit if it is not the current metadata location of the index.\n',
+    )
+    requirements: list[IndexRequirement] = Field(
+        ..., description='Requirements that must be met before applying updates'
+    )
+    updates: list[IndexUpdate] = Field(..., description='Updates to apply to the index')
+
+
+class LoadIndexResult(BaseModel):
+    """
+    Result for loading an index. Configuration and storage credentials for reading index files follow the same rules as `LoadTableResult`, including the `X-Iceberg-Access-Delegation` header.
+    """
+
+    metadata_location: str = Field(
+        ...,
+        alias='metadata-location',
+        description='The location of the index metadata file',
+    )
+    metadata: IndexMetadata
+    config: dict[str, str] | None = None
+    storage_credentials: list[StorageCredential] | None = Field(
+        None,
+        alias='storage-credentials',
+        description='Credentials for accessing the index files',
+    )
+
+
 class Schema(StructType):
     schema_id: int | None = Field(None, alias='schema-id')
     identifier_field_ids: list[int] | None = Field(None, alias='identifier-field-ids')
@@ -2446,6 +2748,35 @@ class ViewUpdate(
     )
 
 
+class IndexUpdate(
+    RootModel[
+        AddSchemaUpdate
+        | RemoveSchemasUpdate
+        | SetLocationUpdate
+        | AddIndexExtractUpdate
+        | RemoveIndexExtractsUpdate
+        | SetPropertiesUpdate
+        | RemovePropertiesUpdate
+        | AddEncryptionKeyUpdate
+        | RemoveEncryptionKeyUpdate
+    ]
+):
+    root: (
+        AddSchemaUpdate
+        | RemoveSchemasUpdate
+        | SetLocationUpdate
+        | AddIndexExtractUpdate
+        | RemoveIndexExtractsUpdate
+        | SetPropertiesUpdate
+        | RemovePropertiesUpdate
+        | AddEncryptionKeyUpdate
+        | RemoveEncryptionKeyUpdate
+    ) = Field(
+        ...,
+        description='An update to apply to an index. The index definition cannot be updated; a different definition requires a new index. The server MUST reject the commit if `add-schema` breaks the extract schema evolution rules of the index specification, if `remove-schemas` removes the latest extract schema, or if a removed extract schema is used by an extract.',
+    )
+
+
 class CompletedPlanningResult(ScanTasks):
     """
     Completed server-side planning result
@@ -2526,6 +2857,7 @@ class PlanTableScanResult(
 
 
 StructField.model_rebuild()
+DerivedColumn.model_rebuild()
 ListType.model_rebuild()
 MapType.model_rebuild()
 AndOrPredicate.model_rebuild()
@@ -2538,6 +2870,7 @@ TableMetadata.model_rebuild()
 ViewMetadata.model_rebuild()
 AddSchemaUpdate.model_rebuild()
 ReadRestrictions.model_rebuild()
+LoadTableResult.model_rebuild()
 ScanTasks.model_rebuild()
 CommitTableRequest.model_rebuild()
 CommitViewRequest.model_rebuild()
@@ -2554,6 +2887,9 @@ FunctionStructType.model_rebuild()
 FunctionStructField.model_rebuild()
 PlanTableScanRequest.model_rebuild()
 FileScanTask.model_rebuild()
+IndexMetadata.model_rebuild()
+CreateIndexRequest.model_rebuild()
+CommitIndexRequest.model_rebuild()
 CompletedPlanningResult.model_rebuild()
 FetchScanTasksResult.model_rebuild()
 ReportMetricsRequest1.model_rebuild()
