@@ -95,15 +95,6 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
     Previously, default instances printed the bare type name (`geometry` / `geography`).
     - The default AWS SDK HTTP client migrated to Apache HttpClient 5. Users who provide AWS dependencies separately must switch from `software.amazon.awssdk:apache-client` to `software.amazon.awssdk:apache5-client` ([\#18195](https://github.com/apache/iceberg/pull/18195)).
     - The REST client now retries POST requests carrying an `Idempotency-Key` on retriable errors (408, 500, 502, 503, 504) ([\#17947](https://github.com/apache/iceberg/pull/17947)).
-* Spec
-    - Add spec for expressions ([\#16652](https://github.com/apache/iceberg/pull/16652))
-    - Add finer grained read restrictions as part of loadTable ([\#13879](https://github.com/apache/iceberg/pull/13879))
-    - Add relative paths to the v4 spec ([\#15630](https://github.com/apache/iceberg/pull/15630))
-    - Add content stats to the spec ([\#14234](https://github.com/apache/iceberg/pull/14234))
-    - Add optional specific-name to UDF definition model ([\#16727](https://github.com/apache/iceberg/pull/16727))
-    - Clarify variant type classification and primitive type scoping ([\#16836](https://github.com/apache/iceberg/pull/16836))
-    - Clarify decimal type serialization ([\#16798](https://github.com/apache/iceberg/pull/16798))
-    - Clarify content file uniqueness within a snapshot ([\#17198](https://github.com/apache/iceberg/pull/17198))
 * API
     - Single-value binary serialization for geometry and geography ([\#16607](https://github.com/apache/iceberg/pull/16607))
     - Define `RepairTable` action interface ([\#17399](https://github.com/apache/iceberg/pull/17399))
@@ -146,6 +137,7 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
     - Preserve manifest content pruning when ignoring residuals ([\#17443](https://github.com/apache/iceberg/pull/17443))
     - Fix `SerializableTable.sortOrders()` throwing on historical sort orders with dropped fields ([\#16521](https://github.com/apache/iceberg/pull/16521))
     - Fix `RESTMetricsReporter.report()` blocking the calling thread ([\#16695](https://github.com/apache/iceberg/pull/16695))
+    - Fix REST path segment encoding to use RFC 3986 percent-encoding ([\#15989](https://github.com/apache/iceberg/pull/15989))
     - Read catalog labels on the load table and view responses ([\#18045](https://github.com/apache/iceberg/pull/18045))
     - Expose catalog labels on the loaded table via `SupportsLabels` ([\#18046](https://github.com/apache/iceberg/pull/18046))
     - Add `max-file-group-input-files` to valid rewrite options ([\#17544](https://github.com/apache/iceberg/pull/17544))
@@ -237,16 +229,6 @@ The 1.12.0 release contains bug fixes and new features. For full release notes v
     - Track control topic offsets as a high-water mark ([\#17933](https://github.com/apache/iceberg/pull/17933))
     - Add metric for partial commit failures ([\#16433](https://github.com/apache/iceberg/pull/16433))
     - Fix coordinator committing files from a prior commit in certain rebalance scenarios ([\#17713](https://github.com/apache/iceberg/pull/17713))
-* Open API / REST
-    - Add VariantType to the REST catalog spec ([\#17256](https://github.com/apache/iceberg/pull/17256))
-    - Add unregister table endpoint ([\#16400](https://github.com/apache/iceberg/pull/16400))
-    - Add list and load function endpoints to the OpenAPI spec ([\#15180](https://github.com/apache/iceberg/pull/15180))
-    - Formalize remote signing configuration ([\#16822](https://github.com/apache/iceberg/pull/16822))
-    - Update REST spec expressions to match the new expressions spec ([\#17138](https://github.com/apache/iceberg/pull/17138))
-    - Fix path segment encoding to use RFC 3986 percent-encoding ([\#15989](https://github.com/apache/iceberg/pull/15989))
-    - Fix schema of data-access object in REST spec ([\#16594](https://github.com/apache/iceberg/pull/16594))
-    - Add specific-name to UDF definition ([\#17364](https://github.com/apache/iceberg/pull/17364))
-    - Add a `labels` field for catalog metadata enrichment ([\#15750](https://github.com/apache/iceberg/pull/15750))
 * Vendor integrations
     - AWS: Use assumed-role credentials for REST SigV4 signing ([\#16794](https://github.com/apache/iceberg/pull/16794))
     - AWS: Handle duplicate column names in IcebergToGlueConverter comment map ([\#16853](https://github.com/apache/iceberg/pull/16853))
