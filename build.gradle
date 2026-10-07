@@ -1263,9 +1263,13 @@ project(':iceberg-bom') {
         "4.0": ["2.13"],
         "4.1": ["2.13"],
       ]
+      // Declared in settings.gradle, beside the include that registers each such project. See the
+      // comment there for why this cannot be read from the projects themselves.
+      def unpublishedProjects = gradle.ext.unpublishedProjects
       rootProject.allprojects.forEach {
         // Do not include ':iceberg-spark', the bom itself and the root project.
-        if (it.name != 'iceberg-bom' && it != rootProject && it.childProjects.isEmpty()) {
+        if (it.name != 'iceberg-bom' && it != rootProject && it.childProjects.isEmpty()
+            && !unpublishedProjects.contains(it.name)) {
           if (it.name.startsWith("iceberg-spark-")) {
             def sparkScalaMatcher = sparkScalaPattern.matcher(it.name)
             if (!sparkScalaMatcher.find()) {
