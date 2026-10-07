@@ -185,6 +185,7 @@ public class TestSparkCopyOnWriteScanConcurrency extends TestBaseWithCatalog {
           readConf,
           projection,
           filters,
+          Collections.emptyList(),
           scanReportSupplier);
       this.enteredResetTasks = enteredResetTasks;
       this.releaseFilter = releaseFilter;
