@@ -38,7 +38,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-class TestChangelogBinaryValues {
+public class TestChangelogBinaryValues {
   private static final String DELETE = ChangelogOperation.DELETE.name();
   private static final String INSERT = ChangelogOperation.INSERT.name();
 
@@ -59,14 +59,19 @@ class TestChangelogBinaryValues {
             DataTypes.createArrayType(struct),
             (IntFunction<Object>)
                 value -> List.of(RowFactory.create(new byte[] {(byte) value}, 7))),
+        // the only struct shape Row.equals gets wrong: array fields use Scala's Seq equality,
+        // which compares byte[] elements by reference
+        Arguments.of(
+            new StructType().add("patches", array),
+            (IntFunction<Object>) value -> RowFactory.create(List.of(new byte[] {(byte) value}))),
         Arguments.of(
             DataTypes.createArrayType(DataTypes.IntegerType),
             (IntFunction<Object>) value -> Arrays.asList(value, null)));
   }
 
-  @ParameterizedTest
+  @ParameterizedTest(name = "{0}")
   @MethodSource("values")
-  void removesNetChangesWithEqualValues(DataType type, IntFunction<Object> values) {
+  public void testRemoveNetChangesWithEqualValues(DataType type, IntFunction<Object> values) {
     Row insert = row(type, values.apply(1), INSERT, 0);
     Row delete = row(type, values.apply(1), DELETE, 1);
     Row latest = row(type, values.apply(2), INSERT, 1);
@@ -76,25 +81,25 @@ class TestChangelogBinaryValues {
     assertThat(result).toIterable().containsExactly(latest);
   }
 
-  @ParameterizedTest
+  @ParameterizedTest(name = "{0}")
   @MethodSource("values")
-  void removesCarryoversWithEqualValues(DataType type, IntFunction<Object> values) {
+  public void testRemoveCarryoversWithEqualValues(DataType type, IntFunction<Object> values) {
     assertRemoved(
         type,
         List.of(row(type, values.apply(1), DELETE, 0), row(type, values.apply(1), INSERT, 0)));
   }
 
-  @ParameterizedTest
+  @ParameterizedTest(name = "{0}")
   @MethodSource("values")
-  void retainsChangesWithDifferentValues(DataType type, IntFunction<Object> values) {
+  public void testRetainChangesWithDifferentValues(DataType type, IntFunction<Object> values) {
     assertRetained(
         type,
         List.of(row(type, values.apply(1), DELETE, 0), row(type, values.apply(2), INSERT, 0)));
   }
 
-  @ParameterizedTest
+  @ParameterizedTest(name = "{0}")
   @MethodSource("values")
-  void distinguishesNullFromNonNull(DataType type, IntFunction<Object> values) {
+  public void testDistinguishNullFromNonNull(DataType type, IntFunction<Object> values) {
     assertRetained(
         type, List.of(row(type, null, DELETE, 0), row(type, values.apply(1), INSERT, 0)));
     assertRetained(
@@ -103,7 +108,7 @@ class TestChangelogBinaryValues {
   }
 
   @Test
-  void retainsChangesWithDifferentArrayLengths() {
+  public void testRetainChangesWithDifferentArrayLengths() {
     DataType type = DataTypes.createArrayType(DataTypes.BinaryType);
     assertRetained(
         type,
@@ -113,7 +118,7 @@ class TestChangelogBinaryValues {
   }
 
   @Test
-  void retainsChangesWithDifferentArrayOrder() {
+  public void testRetainChangesWithDifferentArrayOrder() {
     DataType type = DataTypes.createArrayType(DataTypes.BinaryType);
     assertRetained(
         type,
@@ -123,14 +128,14 @@ class TestChangelogBinaryValues {
   }
 
   @Test
-  void retainsChangesWithDifferentSignedZerosInArrays() {
+  public void testRetainChangesWithDifferentSignedZerosInArrays() {
     DataType type = DataTypes.createArrayType(DataTypes.DoubleType);
     assertRetained(
         type, List.of(row(type, List.of(-0.0), DELETE, 0), row(type, List.of(0.0), INSERT, 0)));
   }
 
   @Test
-  void retainsChangesWithDifferentSignedZerosInStructs() {
+  public void testRetainChangesWithDifferentSignedZerosInStructs() {
     StructType type =
         new StructType().add("binary", DataTypes.BinaryType).add("number", DataTypes.DoubleType);
     assertRetained(
@@ -164,6 +169,8 @@ class TestChangelogBinaryValues {
   }
 
   private static Row row(DataType type, Object value, String operation, int ordinal) {
+    // round-trip to get Spark's external representation (ArraySeq, GenericRowWithSchema); a plain
+    // java.util.List would not exercise the Seq branch of the comparison
     Object internal = CatalystTypeConverters.createToCatalystConverter(type).apply(value);
     Object external = CatalystTypeConverters.createToScalaConverter(type).apply(internal);
     return RowFactory.create(1, external, operation, ordinal, (long) ordinal);

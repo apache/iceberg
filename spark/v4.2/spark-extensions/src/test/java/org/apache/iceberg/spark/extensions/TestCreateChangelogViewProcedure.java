@@ -614,17 +614,18 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  void removesNetChangesWithBinaryValues() {
+  public void testNetChangesWithBinaryValues() {
     sql("CREATE TABLE %s (id INT, data BINARY) USING iceberg", tableName);
     assertBinaryNetChanges("X'01'", "X'02'", "hex(data)");
   }
 
   @TestTemplate
-  void removesNetChangesWithNestedBinaryValues() {
+  public void testNetChangesWithNestedBinaryValues() {
     sql("CREATE TABLE %s (id INT, data ARRAY<ARRAY<BINARY>>) USING iceberg", tableName);
     assertBinaryNetChanges("array(array(X'01'))", "array(array(X'02'))", "hex(data[0][0])");
   }
 
+  /** The initial and updated values must encode 0x01 and 0x02 respectively. */
   private void assertBinaryNetChanges(String initial, String updated, String projection) {
     sql("INSERT INTO %s VALUES (1, %s), (2, %s)", tableName, initial, initial);
     sql("INSERT OVERWRITE %s VALUES (1, %s), (2, %s)", tableName, updated, initial);

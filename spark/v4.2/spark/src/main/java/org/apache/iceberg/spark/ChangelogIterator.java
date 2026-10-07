@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark;
 
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
@@ -29,7 +28,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
 import scala.collection.Seq;
-import scala.jdk.javaapi.CollectionConverters;
 
 /** An iterator that transforms rows from changelog tables within a single Spark task. */
 public abstract class ChangelogIterator implements Iterator<Row> {
@@ -116,30 +114,28 @@ public abstract class ChangelogIterator implements Iterator<Row> {
   }
 
   /**
-   * Compares values the way {@link Objects#equals} does, except that binary values are compared by
-   * content at any depth within arrays and structs.
+   * Compares values the way {@link Objects#deepEquals} does, which compares binary values by
+   * content, except that arrays and structs are also traversed so that binary values nested within
+   * them are compared by content too.
    */
   private static boolean valuesEqual(Object left, Object right) {
-    if (left instanceof byte[] leftBytes && right instanceof byte[] rightBytes) {
-      return Arrays.equals(leftBytes, rightBytes);
-    } else if (left instanceof Seq<?> leftSeq && right instanceof Seq<?> rightSeq) {
+    if (left instanceof Seq<?> leftSeq && right instanceof Seq<?> rightSeq) {
       return seqsEqual(leftSeq, rightSeq);
     } else if (left instanceof Row leftRow && right instanceof Row rightRow) {
       return rowsEqual(leftRow, rightRow);
     }
 
-    return Objects.equals(left, right);
+    return Objects.deepEquals(left, right);
   }
 
   private static boolean seqsEqual(Seq<?> left, Seq<?> right) {
-    if (left.size() != right.size()) {
+    int length = left.length();
+    if (length != right.length()) {
       return false;
     }
 
-    Iterator<?> leftValues = CollectionConverters.asJava(left).iterator();
-    Iterator<?> rightValues = CollectionConverters.asJava(right).iterator();
-    while (leftValues.hasNext()) {
-      if (!valuesEqual(leftValues.next(), rightValues.next())) {
+    for (int index = 0; index < length; index++) {
+      if (!valuesEqual(left.apply(index), right.apply(index))) {
         return false;
       }
     }
@@ -148,11 +144,12 @@ public abstract class ChangelogIterator implements Iterator<Row> {
   }
 
   private static boolean rowsEqual(Row left, Row right) {
-    if (left.size() != right.size()) {
+    int size = left.size();
+    if (size != right.size()) {
       return false;
     }
 
-    for (int index = 0; index < left.size(); index++) {
+    for (int index = 0; index < size; index++) {
       if (!valuesEqual(left.get(index), right.get(index))) {
         return false;
       }
