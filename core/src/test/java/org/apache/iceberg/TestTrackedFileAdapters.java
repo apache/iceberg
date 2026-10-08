@@ -102,7 +102,7 @@ class TestTrackedFileAdapters {
           SNAPSHOT_ID,
           DATA_SEQUENCE_NUMBER,
           FILE_SEQUENCE_NUMBER,
-          null, // dvSnapshotId
+          null, // modifiedSnapshotId
           FIRST_ROW_ID,
           null, // deletedPositions
           null); // replacedPositions
