@@ -29,8 +29,14 @@ abstract class BaseSnapshotUpdateSparkAction<ThisT> extends BaseSparkAction<This
   private final Map<String, String> summary = Maps.newHashMap();
 
   protected BaseSnapshotUpdateSparkAction(SparkSession spark) {
+    this(spark, ImmutableMap.of());
+  }
+
+  protected BaseSnapshotUpdateSparkAction(
+      SparkSession spark, Map<String, String> snapshotProperties) {
     super(spark);
     summary.putAll(SparkUtil.sessionSnapshotProperties(spark));
+    summary.putAll(snapshotProperties);
   }
 
   public ThisT snapshotProperty(String property, String value) {
