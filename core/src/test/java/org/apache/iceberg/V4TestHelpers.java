@@ -51,6 +51,25 @@ class V4TestHelpers {
     return dataFile(ADDED_TRACKING, location, null, null, null, dv);
   }
 
+  private static TrackedFile dataFile(
+      Tracking tracking,
+      String location,
+      Integer specId,
+      PartitionData partition,
+      ContentStats stats,
+      DeletionVector dv) {
+    return trackedFile(
+        tracking,
+        FileContent.DATA,
+        location,
+        specId,
+        partition,
+        stats,
+        dv,
+        null, // manifestInfo
+        null); // equalityIds
+  }
+
   static TrackedFile deleteFile(
       FileContent content,
       String location,
@@ -58,7 +77,15 @@ class V4TestHelpers {
       PartitionData partition,
       List<Integer> equalityIds) {
     return trackedFile(
-        ADDED_TRACKING, content, location, specId, partition, null, null, null, equalityIds);
+        ADDED_TRACKING,
+        content,
+        location,
+        specId,
+        partition,
+        null, // stats
+        null, // dv
+        null, // manifestInfo
+        equalityIds);
   }
 
   static TrackedFile manifestRef(FileContent content, String location, ManifestInfo manifestInfo) {
@@ -68,7 +95,44 @@ class V4TestHelpers {
   static TrackedFile manifestRefWithStats(
       FileContent content, String location, ContentStats stats, ManifestInfo manifestInfo) {
     return trackedFile(
-        ADDED_TRACKING, content, location, null, null, stats, null, manifestInfo, null);
+        ADDED_TRACKING,
+        content,
+        location,
+        null, // specId
+        null, // partition
+        stats,
+        null, // dv
+        manifestInfo,
+        null); // equalityIds
+  }
+
+  private static TrackedFile trackedFile(
+      Tracking tracking,
+      FileContent content,
+      String location,
+      Integer specId,
+      PartitionData partition,
+      ContentStats stats,
+      DeletionVector dv,
+      ManifestInfo manifestInfo,
+      List<Integer> equalityIds) {
+    return new TrackedFileStruct(
+        tracking,
+        content,
+        FORMAT_VERSION_V4,
+        location,
+        FileFormat.fromFileName(location),
+        RECORD_COUNT,
+        FILE_SIZE_IN_BYTES,
+        specId,
+        partition,
+        stats,
+        null, // sortOrderId
+        dv,
+        manifestInfo,
+        null, // keyMetadata
+        null, // splitOffsets
+        equalityIds);
   }
 
   static DeletionVector deletionVector(String location) {
@@ -111,45 +175,5 @@ class V4TestHelpers {
     }
 
     return out;
-  }
-
-  private static TrackedFile dataFile(
-      Tracking tracking,
-      String location,
-      Integer specId,
-      PartitionData partition,
-      ContentStats stats,
-      DeletionVector dv) {
-    return trackedFile(
-        tracking, FileContent.DATA, location, specId, partition, stats, dv, null, null);
-  }
-
-  private static TrackedFile trackedFile(
-      Tracking tracking,
-      FileContent content,
-      String location,
-      Integer specId,
-      PartitionData partition,
-      ContentStats stats,
-      DeletionVector dv,
-      ManifestInfo manifestInfo,
-      List<Integer> equalityIds) {
-    return new TrackedFileStruct(
-        tracking,
-        content,
-        FORMAT_VERSION_V4,
-        location,
-        FileFormat.fromFileName(location),
-        RECORD_COUNT,
-        FILE_SIZE_IN_BYTES,
-        specId,
-        partition,
-        stats,
-        null, // sortOrderId
-        dv,
-        manifestInfo,
-        null, // keyMetadata
-        null, // splitOffsets
-        equalityIds);
   }
 }

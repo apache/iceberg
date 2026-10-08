@@ -24,6 +24,14 @@ import static org.apache.iceberg.V4TestHelpers.FORMAT_VERSION_V4;
 import static org.apache.iceberg.V4TestHelpers.RECORD_COUNT;
 import static org.apache.iceberg.V4TestHelpers.SNAPSHOT_ID;
 import static org.apache.iceberg.V4TestHelpers.dataFile;
+import static org.apache.iceberg.V4TestHelpers.dataFileWithDV;
+import static org.apache.iceberg.V4TestHelpers.dataFileWithStats;
+import static org.apache.iceberg.V4TestHelpers.deleteFile;
+import static org.apache.iceberg.V4TestHelpers.deletionVector;
+import static org.apache.iceberg.V4TestHelpers.manifestRef;
+import static org.apache.iceberg.V4TestHelpers.manifestRefWithStats;
+import static org.apache.iceberg.V4TestHelpers.partition;
+import static org.apache.iceberg.V4TestHelpers.writeTrackedFiles;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -71,7 +79,7 @@ class TestV4ManifestReader {
   }
 
   private static final long MANIFEST_SEQ = 309L;
-  private static final DeletionVector DV = V4TestHelpers.deletionVector("s3://bucket/dv.puffin");
+  private static final DeletionVector DV = deletionVector("s3://bucket/dv.puffin");
 
   private static final ManifestInfo MANIFEST_INFO =
       new ManifestInfoStruct(49, 51, 0, 0, 1, 4_900L, 5_100L, 0L, 0L, 100L, 1L, null);
@@ -128,7 +136,7 @@ class TestV4ManifestReader {
   private static final TrackedFile FILE_B =
       idPartitionedDataFileWithoutStats("s3://bucket/table/id=2/file-b.parquet", idPartition(2));
   private static final TrackedFile FILE_C =
-      V4TestHelpers.dataFileWithStats("s3://bucket/table/file-c.parquet", CONTENT_STATS);
+      dataFileWithStats("s3://bucket/table/file-c.parquet", CONTENT_STATS);
   private static final TrackedFile FILE_D =
       unpartitionedFileWithoutStats("s3://bucket/table/file-d.parquet");
   private static final TrackedFile EQ_DELETES_A =
@@ -143,7 +151,10 @@ class TestV4ManifestReader {
       manifestRefWithoutStats(FileContent.DELETE_MANIFEST, "s3://bucket/table/delete-leaf.parquet");
   private static final TrackedFile DATA_MANIFEST_WITH_STATS_REF =
       manifestRefWithStats(
-          FileContent.DATA_MANIFEST, "s3://bucket/table/metadata/data-leaf-stats.parquet");
+          FileContent.DATA_MANIFEST,
+          "s3://bucket/table/metadata/data-leaf-stats.parquet",
+          CONTENT_STATS,
+          MANIFEST_INFO);
 
   private static final List<FileFormat> MANIFEST_FORMATS =
       ImmutableList.of(FileFormat.AVRO, FileFormat.PARQUET);
@@ -1378,7 +1389,7 @@ class TestV4ManifestReader {
             10,
             100L,
             bucketSpec.specId(),
-            V4TestHelpers.partition(bucketSpec, fileBucketNum),
+            partition(bucketSpec, fileBucketNum),
             CONTENT_STATS,
             SortOrder.unsorted().orderId(),
             null, // dv
@@ -1834,7 +1845,7 @@ class TestV4ManifestReader {
 
   private static TrackedFile idPartitionedDeleteFileWithoutStats(
       String location, PartitionData partition) {
-    return V4TestHelpers.deleteFile(
+    return deleteFile(
         FileContent.EQUALITY_DELETES,
         location,
         ID_PARTITIONED.specId(),
@@ -1843,19 +1854,15 @@ class TestV4ManifestReader {
   }
 
   private static TrackedFile unpartitionedDataFileWithDV(String location, String dvLocation) {
-    return V4TestHelpers.dataFileWithDV(location, V4TestHelpers.deletionVector(dvLocation));
+    return dataFileWithDV(location, deletionVector(dvLocation));
   }
 
   private static TrackedFile manifestRefWithoutStats(FileContent content, String location) {
-    return V4TestHelpers.manifestRef(content, location, MANIFEST_INFO);
-  }
-
-  private static TrackedFile manifestRefWithStats(FileContent content, String location) {
-    return V4TestHelpers.manifestRefWithStats(content, location, CONTENT_STATS, MANIFEST_INFO);
+    return manifestRef(content, location, MANIFEST_INFO);
   }
 
   private static PartitionData idPartition(int id) {
-    return V4TestHelpers.partition(ID_PARTITIONED, id);
+    return partition(ID_PARTITIONED, id);
   }
 
   private ManifestFile writeManifest(
@@ -1866,7 +1873,7 @@ class TestV4ManifestReader {
   private ManifestFile writeManifest(
       FileFormat format, Types.StructType partitionType, List<TrackedFile> files)
       throws IOException {
-    OutputFile out = V4TestHelpers.writeTrackedFiles(IO, format, partitionType, STATS_TYPE, files);
+    OutputFile out = writeTrackedFiles(IO, format, partitionType, STATS_TYPE, files);
     return v4Manifest(out.location());
   }
 
