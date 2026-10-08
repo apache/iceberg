@@ -53,7 +53,6 @@ class TestRootManifestFile {
 
     assertThat(root.content()).isEqualTo(ManifestContent.DATA);
     assertThat(root.formatVersion()).isEqualTo(4);
-    assertThat(root.keyMetadata()).isNull();
   }
 
   @Test

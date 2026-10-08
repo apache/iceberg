@@ -104,7 +104,7 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void rootWithOnlyDataFiles(FileFormat format) throws IOException {
-    InputFile root =
+    ManifestFile root =
         writeManifest(
             format,
             EMPTY_PARTITION,
@@ -121,15 +121,15 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void rootWithOnlyLeafManifests(FileFormat format) throws IOException {
-    InputFile leafA =
+    ManifestFile leafA =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(unpartitionedDataFile(FILE_A)));
-    InputFile leafB =
+    ManifestFile leafB =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(unpartitionedDataFile(FILE_B)));
-    InputFile root =
+    ManifestFile root =
         writeManifest(
             format,
             EMPTY_PARTITION,
-            ImmutableList.of(dataManifest(leafA.location()), dataManifest(leafB.location())));
+            ImmutableList.of(dataManifest(leafA.path()), dataManifest(leafB.path())));
 
     List<FileScanTask> tasks = plan(root, UNPARTITIONED_SPECS);
 
@@ -142,18 +142,18 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void rootWithMixedDataAndLeafManifests(FileFormat format) throws IOException {
-    InputFile leaf1 =
+    ManifestFile leaf1 =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(unpartitionedDataFile(FILE_C)));
-    InputFile leaf2 =
+    ManifestFile leaf2 =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(unpartitionedDataFile(FILE_D)));
-    InputFile root =
+    ManifestFile root =
         writeManifest(
             format,
             EMPTY_PARTITION,
             ImmutableList.of(
                 unpartitionedDataFile(FILE_A),
-                dataManifest(leaf1.location()),
-                dataManifest(leaf2.location())));
+                dataManifest(leaf1.path()),
+                dataManifest(leaf2.path())));
 
     List<FileScanTask> tasks = plan(root, UNPARTITIONED_SPECS);
 
@@ -166,7 +166,7 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void filterSkipsAndMatchesRootDataFiles(FileFormat format) throws IOException {
-    InputFile root =
+    ManifestFile root =
         writeManifest(
             format,
             EMPTY_PARTITION,
@@ -186,21 +186,21 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void filterSkipsAndMatchesRootDataFilesAndManifests(FileFormat format) throws IOException {
-    InputFile matchedLeaf =
+    ManifestFile matchedLeaf =
         writeManifest(
             format,
             EMPTY_PARTITION,
             ImmutableList.of(
                 dataFileWithStats(FILE_C, idStats(0, 99)),
                 dataFileWithStats(FILE_D, idStats(100, 199))));
-    InputFile root =
+    ManifestFile root =
         writeManifest(
             format,
             EMPTY_PARTITION,
             ImmutableList.of(
                 dataFileWithStats(FILE_A, idStats(0, 99)),
                 dataFileWithStats(FILE_B, idStats(100, 199)),
-                dataManifestWithStats(matchedLeaf.location(), idStats(0, 199)),
+                dataManifestWithStats(matchedLeaf.path(), idStats(0, 199)),
                 dataManifestWithStats(
                     "s3://bucket/db/table/pruned-leaf.parquet", idStats(100, 199))));
 
@@ -217,15 +217,15 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void filterSkipsAndMatchesLeafDataFiles(FileFormat format) throws IOException {
-    InputFile leaf =
+    ManifestFile leaf =
         writeManifest(
             format,
             EMPTY_PARTITION,
             ImmutableList.of(
                 dataFileWithStats(FILE_C, idStats(0, 99)),
                 dataFileWithStats(FILE_D, idStats(100, 199))));
-    InputFile root =
-        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location(), 2)));
+    ManifestFile root =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.path(), 2)));
 
     List<FileScanTask> tasks =
         plan(root, UNPARTITIONED_SPECS, planner -> planner.filterData(Expressions.equal("id", 50)));
@@ -238,21 +238,21 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void filterHonorsCaseSensitivity(FileFormat format) throws IOException {
-    InputFile leaf =
+    ManifestFile leaf =
         writeManifest(
             format,
             EMPTY_PARTITION,
             ImmutableList.of(
                 dataFileWithStats(FILE_C, idStats(0, 99)),
                 dataFileWithStats(FILE_D, idStats(100, 199))));
-    InputFile root =
+    ManifestFile root =
         writeManifest(
             format,
             EMPTY_PARTITION,
             ImmutableList.of(
                 dataFileWithStats(FILE_A, idStats(0, 99)),
                 dataFileWithStats(FILE_B, idStats(100, 199)),
-                dataManifestWithStats(leaf.location(), idStats(0, 199))));
+                dataManifestWithStats(leaf.path(), idStats(0, 199))));
 
     List<FileScanTask> tasks =
         plan(
@@ -281,7 +281,7 @@ class TestFilePlanner {
     TrackedFile fileWithDV =
         unpartitionedDataFileWithDV("s3://bucket/db/table/with-dv.parquet", DV);
     TrackedFile fileWithoutDV = unpartitionedDataFile(FILE_A);
-    InputFile root =
+    ManifestFile root =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(fileWithDV, fileWithoutDV));
 
     List<FileScanTask> tasks = plan(root, UNPARTITIONED_SPECS);
@@ -307,7 +307,20 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void taskExposesFileSchemaAndSpec(FileFormat format) throws IOException {
-    InputFile root = mixedPartitionedAndUnpartitionedRoot(format);
+    Types.StructType unionType = Partitioning.unionPartitionTypes(MIXED_SPECS.values());
+    ManifestFile root =
+        writeManifest(
+            format,
+            unionType,
+            ImmutableList.of(
+                dataFile(
+                    PARTITIONED_FILE, BY_ID_SPEC.specId(), idPartition(unionType, 1), null, null),
+                dataFile(
+                    UNPARTITIONED_FILE,
+                    UNPARTITIONED_WITH_SCHEMA.specId(),
+                    idPartition(unionType, null),
+                    null,
+                    null)));
 
     List<FileScanTask> tasks = plan(root, MIXED_SPECS);
 
@@ -333,7 +346,20 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void residualForMixedPartitionedAndUnpartitioned(FileFormat format) throws IOException {
-    InputFile root = mixedPartitionedAndUnpartitionedRoot(format);
+    Types.StructType unionType = Partitioning.unionPartitionTypes(MIXED_SPECS.values());
+    ManifestFile root =
+        writeManifest(
+            format,
+            unionType,
+            ImmutableList.of(
+                dataFile(
+                    PARTITIONED_FILE, BY_ID_SPEC.specId(), idPartition(unionType, 1), null, null),
+                dataFile(
+                    UNPARTITIONED_FILE,
+                    UNPARTITIONED_WITH_SCHEMA.specId(),
+                    idPartition(unionType, null),
+                    null,
+                    null)));
 
     Expression filter = Expressions.and(Expressions.equal("id", 1), Expressions.equal("data", "x"));
     List<FileScanTask> tasks = plan(root, MIXED_SPECS, planner -> planner.filterData(filter));
@@ -350,7 +376,20 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void ignoreResidualsProducesAlwaysTrueResidual(FileFormat format) throws IOException {
-    InputFile root = mixedPartitionedAndUnpartitionedRoot(format);
+    Types.StructType unionType = Partitioning.unionPartitionTypes(MIXED_SPECS.values());
+    ManifestFile root =
+        writeManifest(
+            format,
+            unionType,
+            ImmutableList.of(
+                dataFile(
+                    PARTITIONED_FILE, BY_ID_SPEC.specId(), idPartition(unionType, 1), null, null),
+                dataFile(
+                    UNPARTITIONED_FILE,
+                    UNPARTITIONED_WITH_SCHEMA.specId(),
+                    idPartition(unionType, null),
+                    null,
+                    null)));
 
     Expression filter = Expressions.and(Expressions.equal("id", 1), Expressions.equal("data", "x"));
     List<FileScanTask> tasks =
@@ -365,15 +404,15 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void tableLocationForwardedToRootAndLeafReaders(FileFormat format) throws IOException {
-    InputFile leaf =
+    ManifestFile leaf =
         writeManifest(
             format, EMPTY_PARTITION, ImmutableList.of(unpartitionedDataFile("leaf-data.parquet")));
-    InputFile root =
+    ManifestFile root =
         writeManifest(
             format,
             EMPTY_PARTITION,
             ImmutableList.of(
-                unpartitionedDataFile("root-data.parquet"), dataManifest(leaf.location())));
+                unpartitionedDataFile("root-data.parquet"), dataManifest(leaf.path())));
 
     List<FileScanTask> tasks = plan(root, UNPARTITIONED_SPECS);
 
@@ -387,19 +426,19 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void closingWithoutIteratingOpensOnlyRoot(FileFormat format) throws IOException {
-    InputFile leaf =
+    ManifestFile leaf =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(unpartitionedDataFile(FILE_A)));
-    InputFile root =
-        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
+    ManifestFile root =
+        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.path())));
 
     RecordingFileIO recordingIO = new RecordingFileIO(fileIO);
     FilePlanner planner =
-        new FilePlanner(recordingIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
+        new FilePlanner(recordingIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS)
             .tableLocation(TABLE_LOCATION);
     planner.planFiles().close();
 
-    assertThat(recordingIO.opened(root.location())).as("the root is read eagerly").isTrue();
-    assertThat(recordingIO.opened(leaf.location()))
+    assertThat(recordingIO.opened(root.path())).as("the root is read eagerly").isTrue();
+    assertThat(recordingIO.opened(leaf.path()))
         .as("leaf readers open lazily, so closing without iterating leaves them unopened")
         .isFalse();
   }
@@ -407,44 +446,42 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void leafOpenedOnlyWhenPrecedingLeafExhausted(FileFormat format) throws IOException {
-    InputFile leaf1 =
+    ManifestFile leaf1 =
         writeManifest(
             format,
             EMPTY_PARTITION,
             ImmutableList.of(unpartitionedDataFile(FILE_A), unpartitionedDataFile(FILE_B)));
-    InputFile leaf2 =
+    ManifestFile leaf2 =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(unpartitionedDataFile(FILE_C)));
-    InputFile root =
+    ManifestFile root =
         writeManifest(
             format,
             EMPTY_PARTITION,
-            ImmutableList.of(dataManifest(leaf1.location(), 2), dataManifest(leaf2.location())));
+            ImmutableList.of(dataManifest(leaf1.path()), dataManifest(leaf2.path())));
 
     RecordingFileIO recordingIO = new RecordingFileIO(fileIO);
     FilePlanner planner =
-        new FilePlanner(recordingIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
+        new FilePlanner(recordingIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS)
             .tableLocation(TABLE_LOCATION)
             .planWith(null);
 
-    try (CloseableIterable<FileScanTask> plan = planner.planFiles();
-        CloseableIterator<FileScanTask> tasks = plan.iterator()) {
+    try (CloseableIterable<FileScanTask> plan = planner.planFiles()) {
+      CloseableIterator<FileScanTask> tasks = plan.iterator();
       assertThat(tasks.next().file().location()).isEqualTo(FILE_A);
-      assertThat(recordingIO.opened(leaf1.location()))
+      assertThat(recordingIO.opened(leaf1.path()))
           .as("leaf1 opens to produce the first task")
           .isTrue();
-      assertThat(recordingIO.opened(leaf2.location()))
+      assertThat(recordingIO.opened(leaf2.path()))
           .as("leaf2 stays closed until leaf1 is exhausted")
           .isFalse();
 
       assertThat(tasks.next().file().location()).isEqualTo(FILE_B);
-      assertThat(recordingIO.opened(leaf2.location()))
+      assertThat(recordingIO.opened(leaf2.path()))
           .as("reading the last file in leaf1 does not open leaf2")
           .isFalse();
 
       assertThat(tasks.next().file().location()).isEqualTo(FILE_C);
-      assertThat(recordingIO.opened(leaf2.location()))
-          .as("leaf2 opens once leaf1 is drained")
-          .isTrue();
+      assertThat(recordingIO.opened(leaf2.path())).as("leaf2 opens once leaf1 is drained").isTrue();
       assertThat(tasks).isExhausted();
     }
   }
@@ -452,14 +489,14 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void deleteManifestInRootUnsupported(FileFormat format) throws IOException {
-    InputFile root =
+    ManifestFile root =
         writeManifest(
             format,
             EMPTY_PARTITION,
             ImmutableList.of(deleteManifest("s3://bucket/db/table/deletes.avro")));
 
     FilePlanner planner =
-        new FilePlanner(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
+        new FilePlanner(fileIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS)
             .tableLocation(TABLE_LOCATION);
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
@@ -488,10 +525,10 @@ class TestFilePlanner {
             null, // keyMetadata
             null, // splitOffsets
             null); // equalityIds
-    InputFile root = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(v3Leaf));
+    ManifestFile root = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(v3Leaf));
 
     FilePlanner planner =
-        new FilePlanner(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
+        new FilePlanner(fileIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS)
             .tableLocation(TABLE_LOCATION);
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
@@ -501,21 +538,21 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void scanMetricsForComplexFilteredPlan(FileFormat format) throws IOException {
-    InputFile matchedLeaf =
+    ManifestFile matchedLeaf =
         writeManifest(
             format,
             EMPTY_PARTITION,
             ImmutableList.of(
                 dataFileWithStats(FILE_C, idStats(0, 99)),
                 dataFileWithStats(FILE_D, idStats(100, 199))));
-    InputFile root =
+    ManifestFile root =
         writeManifest(
             format,
             EMPTY_PARTITION,
             ImmutableList.of(
                 dataFileWithStats(FILE_A, idStats(0, 99), DV),
                 dataFileWithStats(FILE_B, idStats(100, 199)),
-                dataManifestWithStats(matchedLeaf.location(), idStats(0, 199)),
+                dataManifestWithStats(matchedLeaf.path(), idStats(0, 199)),
                 dataManifestWithStats(
                     "s3://bucket/db/table/pruned-leaf.parquet", idStats(100, 199))));
 
@@ -550,31 +587,22 @@ class TestFilePlanner {
         .isEqualTo(0L);
   }
 
-  private List<FileScanTask> plan(InputFile root, Map<Integer, PartitionSpec> specsById)
+  private List<FileScanTask> plan(ManifestFile root, Map<Integer, PartitionSpec> specsById)
       throws IOException {
     return plan(root, specsById, UnaryOperator.identity());
   }
 
   private List<FileScanTask> plan(
-      InputFile root, Map<Integer, PartitionSpec> specsById, UnaryOperator<FilePlanner> configure)
+      ManifestFile root,
+      Map<Integer, PartitionSpec> specsById,
+      UnaryOperator<FilePlanner> configure)
       throws IOException {
     FilePlanner planner =
         configure.apply(
-            new FilePlanner(fileIO, asManifest(root), TABLE_SCHEMA, specsById)
-                .tableLocation(TABLE_LOCATION));
+            new FilePlanner(fileIO, root, TABLE_SCHEMA, specsById).tableLocation(TABLE_LOCATION));
     try (CloseableIterable<FileScanTask> tasks = planner.planFiles()) {
       return Lists.newArrayList(tasks);
     }
-  }
-
-  private static ManifestFile asManifest(InputFile file) {
-    return new RootManifestFile(
-        file.location(),
-        file.getLength(),
-        SNAPSHOT_ID,
-        SEQUENCE_NUMBER,
-        FIRST_ROW_ID,
-        /* keyMetadata= */ null);
   }
 
   private static TrackedFile unpartitionedDataFile(String location) {
@@ -648,7 +676,7 @@ class TestFilePlanner {
     return partition;
   }
 
-  private InputFile writeManifest(
+  private ManifestFile writeManifest(
       FileFormat format, Types.StructType partitionType, Iterable<TrackedFile> files)
       throws IOException {
     OutputFile out =
@@ -658,22 +686,15 @@ class TestFilePlanner {
                 + System.nanoTime()
                 + "."
                 + format.name().toLowerCase(Locale.ROOT));
-    return writeTrackedFiles(out, format, partitionType, STATS_TYPE, files).toInputFile();
-  }
-
-  private InputFile mixedPartitionedAndUnpartitionedRoot(FileFormat format) throws IOException {
-    Types.StructType unionType = Partitioning.unionPartitionTypes(MIXED_SPECS.values());
-    return writeManifest(
-        format,
-        unionType,
-        ImmutableList.of(
-            dataFile(PARTITIONED_FILE, BY_ID_SPEC.specId(), idPartition(unionType, 1), null, null),
-            dataFile(
-                UNPARTITIONED_FILE,
-                UNPARTITIONED_WITH_SCHEMA.specId(),
-                idPartition(unionType, null),
-                null,
-                null)));
+    InputFile written =
+        writeTrackedFiles(out, format, partitionType, STATS_TYPE, files).toInputFile();
+    return new RootManifestFile(
+        written.location(),
+        written.getLength(),
+        SNAPSHOT_ID,
+        SEQUENCE_NUMBER,
+        FIRST_ROW_ID,
+        /* keyMetadata= */ null);
   }
 
   private static class RecordingFileIO implements FileIO {
