@@ -117,6 +117,8 @@ import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
+import org.apache.parquet.conf.HadoopParquetConfiguration;
+import org.apache.parquet.conf.ParquetConfiguration;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
@@ -169,7 +171,7 @@ public class Parquet {
 
   public static class WriteBuilder implements InternalData.WriteBuilder {
     private final OutputFile file;
-    private final Configuration conf;
+    private final ParquetConfiguration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private Schema schema = null;
@@ -186,9 +188,10 @@ public class Parquet {
     private WriteBuilder(OutputFile file) {
       this.file = file;
       if (file instanceof HadoopOutputFile) {
-        this.conf = new Configuration(((HadoopOutputFile) file).getConf());
+        this.conf =
+            new HadoopParquetConfiguration(new Configuration(((HadoopOutputFile) file).getConf()));
       } else {
-        this.conf = new Configuration();
+        this.conf = new PlainParquetConfiguration();
       }
     }
 
