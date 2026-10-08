@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -66,6 +65,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
 import org.apache.iceberg.deletes.DVFileWriter;
+import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -1018,22 +1018,70 @@ public class TestRepairTableAction extends TestBase {
     assertThat(onlyDataFile(table).recordCount())
         .as("a failed repair must not correct any stats")
         .isEqualTo(corrupt.recordCount());
-    assertThat(repairedManifestPaths())
+    assertThat(manifestPaths())
+        .filteredOn(path -> new File(path).getName().startsWith("repaired-m-"))
         .as("the manifests written by a failed repair must be deleted")
         .isEmpty();
   }
 
   @TestTemplate
+  void repairCleansUpManifestsOnWriteFailure() throws IOException {
+    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
+
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+    appendRecords(table, records(2));
+    table.rewriteManifests().clusterBy(file -> "").commit();
+
+    List<ManifestFile> manifests = table.currentSnapshot().dataManifests(table.io());
+    assertThat(manifests).hasSize(1);
+    List<DataFile> files = readDataFiles(table, manifests.get(0));
+    assertThat(files).hasSize(2);
+    String failingPath = files.get(1).location();
+    corruptStats(table, manifests.get(0), failingPath, true, false);
+
+    String metadataBefore =
+        ((HasTableOperations) table).operations().current().metadataFileLocation();
+    Set<String> manifestsBefore = manifestPaths();
+    FileIO failingIO = new FailingMetricsReadFileIO(failingPath);
+    Table repairTable =
+        new BaseTable(((HasTableOperations) table).operations(), table.name()) {
+          @Override
+          public FileIO io() {
+            return failingIO;
+          }
+        };
+
+    try {
+      assertThatThrownBy(
+              () -> SparkActions.get().repairTable(repairTable).repairFileMetrics().execute())
+          .hasMessageContaining("Injected metrics read failure")
+          .hasRootCauseInstanceOf(MetricsReadFailure.class);
+      assertThat(FailingMetricsReadFileIO.manifestCreated).isTrue();
+    } finally {
+      FailingMetricsReadFileIO.manifestCreated = false;
+    }
+
+    table.refresh();
+    assertThat(((HasTableOperations) table).operations().current().metadataFileLocation())
+        .isEqualTo(metadataBefore);
+    assertThat(manifestPaths())
+        .as("the partial manifest from the failed task must be deleted")
+        .isEqualTo(manifestsBefore);
+  }
+
+  @TestTemplate
   void repairCleansUpManifestsOnSnapshotTotalsFailure() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
+    table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "false").commit();
     appendRecords(table, records(4));
     DataFile original = onlyDataFile(table);
     replaceManifestWithCorruptRecordCount(table, original);
     table.refresh();
 
-    long snapshotId = table.currentSnapshot().snapshotId();
-    Set<String> manifestsBefore = repairedManifestPaths();
-    assertThat(manifestsBefore).isEmpty();
+    String metadataBefore =
+        ((HasTableOperations) table).operations().current().metadataFileLocation();
+    Set<String> manifestsBefore = manifestPaths();
     FileIO failingIO = new FailingManifestReadFileIO();
     // Format v1 staging must still be able to read replacement manifests on the driver.
     Table repairTable =
@@ -1044,15 +1092,19 @@ public class TestRepairTableAction extends TestBase {
           }
         };
 
-    Throwable failure =
-        catchThrowable(
-            () -> SparkActions.get().repairTable(repairTable).repairFileMetrics().execute());
+    assertThatThrownBy(
+            () -> SparkActions.get().repairTable(repairTable).repairFileMetrics().execute())
+        .isInstanceOf(CleanableFailure.class)
+        .hasMessage("Cannot update snapshot totals during repair")
+        .hasRootCauseInstanceOf(SnapshotTotalsReadFailure.class)
+        .cause()
+        .hasMessageContaining("Injected snapshot totals failure");
 
-    assertThat(failure).hasRootCauseInstanceOf(SnapshotTotalsReadFailure.class);
     table.refresh();
-    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(snapshotId);
-    assertThat(repairedManifestPaths())
-        .as("the manifests written before the snapshot totals job failed must be deleted")
+    assertThat(((HasTableOperations) table).operations().current().metadataFileLocation())
+        .isEqualTo(metadataBefore);
+    assertThat(manifestPaths())
+        .as("replacement manifests and staged copies must be deleted after totals fail")
         .isEqualTo(manifestsBefore);
   }
 
@@ -1105,14 +1157,15 @@ public class TestRepairTableAction extends TestBase {
     DataFile original = onlyDataFile(table);
     replaceManifestWithCorruptStats(table, original);
     table.refresh();
+    Set<String> manifestsBefore = manifestPaths();
 
     RepairTable.Result result =
         SparkActions.get().repairTable(table).repairFileMetrics().dryRun().execute();
 
     assertThat(result.repairedEntryCount()).isEqualTo(1);
-    assertThat(repairedManifestPaths())
+    assertThat(manifestPaths())
         .as("a dry run must not leave the manifests it wrote behind")
-        .isEmpty();
+        .isEqualTo(manifestsBefore);
   }
 
   /**
@@ -1131,21 +1184,13 @@ public class TestRepairTableAction extends TestBase {
     return SparkActions.get().repairTable(spyTable).repairFileMetrics().execute();
   }
 
-  /**
-   * Returns the manifests written by the repair action that are still present in the metadata
-   * directory.
-   *
-   * <p>Only the manifests the action itself wrote are considered. A failed commit can also leave
-   * behind a copy of a manifest made by the format version 1 staging path, which is written and
-   * owned by the core rewrite manifests operation rather than by this action.
-   */
-  private Set<String> repairedManifestPaths() throws IOException {
+  private Set<String> manifestPaths() throws IOException {
     Set<String> paths = Sets.newHashSet();
     File metadataDir = new File(tableDir, "metadata");
     File[] files = metadataDir.listFiles();
     if (files != null) {
       for (File file : files) {
-        if (file.getName().startsWith("repaired-m-")) {
+        if (file.getName().endsWith(".avro")) {
           paths.add(file.getCanonicalPath());
         }
       }
@@ -1189,6 +1234,67 @@ public class TestRepairTableAction extends TestBase {
     assertThat(repaired.partition().size())
         .as("an unpartitioned file's partition data must still have zero fields after repair")
         .isEqualTo(0);
+  }
+
+  @TestTemplate
+  void repairAfterDroppingPartitionSourceColumn() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    Table table = createTable(PartitionSpec.builderFor(SCHEMA).bucket("c1", 16).build());
+    appendRecords(table, records(8));
+    table.rewriteManifests().clusterBy(file -> "").commit();
+
+    List<ManifestFile> manifests = table.currentSnapshot().dataManifests(table.io());
+    assertThat(manifests).hasSize(1);
+    ManifestFile manifest = manifests.get(0);
+    List<DataFile> files = readDataFiles(table, manifest);
+    assertThat(files.size()).isGreaterThan(1);
+    Map<String, DataFile> originals = Maps.newHashMap();
+    for (DataFile file : files) {
+      assertThat(file.partition().get(0, Integer.class)).isNotNull();
+      originals.put(file.location(), file);
+    }
+
+    List<Row> lineageBefore = entryLineage();
+    table.updateSpec().removeField("c1_bucket").addField("c2").commit();
+    table.updateSchema().deleteColumn("c1").commit();
+    List<Row> rowsBefore = spark.read().format("iceberg").load(tableLocation).collectAsList();
+    corruptStats(table, manifest, files.get(0).location());
+
+    String metadataBefore =
+        ((HasTableOperations) table).operations().current().metadataFileLocation();
+    Set<String> manifestsBefore = manifestPaths();
+    RepairTable.Result dryRun =
+        SparkActions.get().repairTable(table).repairFileMetrics().dryRun().execute();
+
+    assertThat(dryRun.repairedEntryCount()).isEqualTo(1);
+    assertThat(dryRun.repairedManifests()).hasSize(1);
+    table.refresh();
+    assertThat(((HasTableOperations) table).operations().current().metadataFileLocation())
+        .isEqualTo(metadataBefore);
+    assertThat(manifestPaths()).isEqualTo(manifestsBefore);
+
+    RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
+
+    assertThat(result.repairedEntryCount()).isEqualTo(1);
+    assertThat(result.repairedManifests()).hasSize(1);
+    table.refresh();
+    assertThat(dataFiles(table))
+        .hasSize(originals.size())
+        .allSatisfy(
+            repaired -> {
+              DataFile original = originals.get(repaired.location());
+              assertThat(original).isNotNull();
+              assertThat(repaired.specId()).isEqualTo(original.specId());
+              assertThat(repaired.partition().size()).isEqualTo(original.partition().size());
+              assertThat(repaired.partition().get(0, Integer.class))
+                  .isEqualTo(original.partition().get(0, Integer.class));
+              assertThat(repaired.recordCount()).isEqualTo(original.recordCount());
+              assertThat(repaired.fileSizeInBytes()).isEqualTo(original.fileSizeInBytes());
+            });
+    assertThat(entryLineage()).containsExactlyInAnyOrderElementsOf(lineageBefore);
+    assertThat(spark.read().format("iceberg").load(tableLocation).collectAsList())
+        .containsExactlyInAnyOrderElementsOf(rowsBefore);
   }
 
   private List<DataFile> dataFiles(Table table) throws IOException {
@@ -1434,6 +1540,40 @@ public class TestRepairTableAction extends TestBase {
         .putDouble(xCoord)
         .putDouble(yCoord)
         .flip();
+  }
+
+  private static class FailingMetricsReadFileIO extends HadoopFileIO {
+    private static volatile boolean manifestCreated = false;
+    private final String failingPath;
+
+    FailingMetricsReadFileIO(String failingPath) {
+      this.failingPath = failingPath;
+    }
+
+    @Override
+    public InputFile newInputFile(String path, long length) {
+      if (manifestCreated && path.equals(failingPath)) {
+        throw new MetricsReadFailure(path);
+      }
+
+      return super.newInputFile(path, length);
+    }
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      OutputFile output = super.newOutputFile(path);
+      if (path.contains("/repaired-m-")) {
+        manifestCreated = true;
+      }
+
+      return output;
+    }
+  }
+
+  private static class MetricsReadFailure extends RuntimeException {
+    MetricsReadFailure(String path) {
+      super("Injected metrics read failure reading " + path);
+    }
   }
 
   private static class FailingManifestReadFileIO extends HadoopFileIO {

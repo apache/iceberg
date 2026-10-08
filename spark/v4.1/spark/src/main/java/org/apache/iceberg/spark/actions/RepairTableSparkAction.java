@@ -32,11 +32,9 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.GenericManifestFile;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.ManifestContent;
@@ -66,6 +64,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -79,6 +78,7 @@ import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.ScanTaskUtil;
+import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
 import org.apache.spark.broadcast.Broadcast;
@@ -284,7 +284,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
           // below, whereas recomputing it would re-read every file.
           Dataset<Row> verdicts =
               df.mapPartitions(
-                      newCheckStatsFunc(content, specId),
+                      new CheckStats(newRepairContext(content)),
                       Encoders.tuple(Encoders.STRING(), Encoders.STRING()))
                   .toDF("manifest", "path")
                   .cache();
@@ -315,8 +315,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
             Dataset<Row> entriesToRewrite =
                 df.filter(df.col("manifest").isin(manifestsToRewrite.toArray()));
             Dataset<Row> markedEntries = markEntriesToRepair(entriesToRewrite, verdicts);
-            List<ManifestFile> written =
-                writeManifests(content, specId, markedEntries, rewritten.size());
+            List<ManifestFile> written = writeManifests(content, specId, markedEntries, rewritten);
 
             return RepairedManifests.of(rewritten, written, repairedCount);
           } finally {
@@ -339,13 +338,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
             "left")
         .withColumn("repair", functions.col("repaired_path").isNotNull())
         .drop("repaired_path")
-        .select(
-            "manifest",
-            "snapshot_id",
-            "sequence_number",
-            "file_sequence_number",
-            "data_file",
-            "repair");
+        .select("manifest", "snapshot_id", "data_file.file_path", "repair");
   }
 
   /**
@@ -361,50 +354,37 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     Dataset<Row> entryDF =
         loadMetadataTable(table, ENTRIES)
             .filter("status < 2") // select only live entries
-            .selectExpr(
-                "input_file_name() as manifest",
-                "snapshot_id",
-                "sequence_number",
-                "file_sequence_number",
-                "data_file");
+            .selectExpr("input_file_name() as manifest", "snapshot_id", "data_file");
 
     return entryDF.join(
         manifestDF, manifestDF.col("manifest").equalTo(entryDF.col("manifest")), "left_semi");
   }
 
   private List<ManifestFile> writeManifests(
-      ManifestContent content, int specId, Dataset<Row> entryDF, int numManifests) {
-    StructType sparkType = (StructType) entryDF.schema().apply("data_file").dataType();
-    Types.StructType combinedFileType = DataFile.getType(Partitioning.partitionType(table));
-    Types.StructType fileType = DataFile.getType(table.specs().get(specId).partitionType());
+      ManifestContent content, int specId, Dataset<Row> entryDF, List<ManifestFile> manifests) {
     ManifestWriterFactory writers = manifestWriters(specId);
-    RepairContext context = newRepairContext(content, specId);
+    RepairContext context = newRepairContext(content);
 
     WriteManifests<?> writeFunc =
         content == ManifestContent.DATA
-            ? new WriteDataManifests(writers, combinedFileType, fileType, sparkType, context)
-            : new WriteDeleteManifests(writers, combinedFileType, fileType, sparkType, context);
+            ? new WriteDataManifests(writers, manifests, context)
+            : new WriteDeleteManifests(writers, manifests, context);
 
     // repartition by manifest so the entries of each manifest are written together and the layout
     // of the table is preserved, rather than scattered round robin as a plain repartition(n) would.
     // this produces about as many manifests as are being replaced.
     return writeFunc
-        .apply(entryDF.repartition(numManifests, entryDF.col("manifest")))
+        .apply(entryDF.repartition(manifests.size(), entryDF.col("manifest")))
         .collectAsList();
   }
 
-  private CheckStats newCheckStatsFunc(ManifestContent content, int specId) {
-    return new CheckStats(newRepairContext(content, specId));
-  }
-
-  private RepairContext newRepairContext(ManifestContent content, int specId) {
+  private RepairContext newRepairContext(ManifestContent content) {
     boolean repairColumnMetrics =
         PropertyUtil.propertyAsBoolean(
             options(), REPAIR_COLUMN_METRICS, REPAIR_COLUMN_METRICS_DEFAULT);
     return new RepairContext(
         sparkContext().broadcast(SerializableTableWithSize.copyOf(table)),
         content,
-        specId,
         repairColumnMetrics);
   }
 
@@ -444,13 +424,10 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
             try {
               updateSnapshotTotals(rewriteManifests, manifests);
             } catch (Exception e) {
-              // The totals Spark job runs during validation, before the metadata commit, so a
-              // failure here (for example a SparkException) is not a CleanableFailure and would
-              // bypass the cleanup below. BaseRewriteManifests also leaves caller-supplied
-              // manifests untouched, so delete the manifests already written for this repair before
-              // propagating, otherwise they are left as orphans in the metadata directory.
-              deleteFiles(Iterables.transform(addedManifests, ManifestFile::path));
-              throw e;
+              // Validation runs before the new metadata is published, so the failure is cleanable.
+              // This lets core delete its staged copies of the replacement manifests and the
+              // handler below delete the replacement manifests themselves.
+              throw new SnapshotTotalsFailure(e);
             }
 
             return true;
@@ -470,6 +447,12 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
       }
 
       throw e;
+    }
+  }
+
+  private static class SnapshotTotalsFailure extends RuntimeException implements CleanableFailure {
+    SnapshotTotalsFailure(Exception cause) {
+      super("Cannot update snapshot totals during repair", cause);
     }
   }
 
@@ -634,7 +617,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
   private static class RepairContext implements Serializable {
     private final Broadcast<Table> tableBroadcast;
     private final ManifestContent content;
-    private final int specId;
     private final boolean repairColumnMetrics;
 
     private transient EncryptingFileIO lazyEncryptingIO = null;
@@ -643,13 +625,9 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     private transient boolean nameMappingResolved = false;
 
     RepairContext(
-        Broadcast<Table> tableBroadcast,
-        ManifestContent content,
-        int specId,
-        boolean repairColumnMetrics) {
+        Broadcast<Table> tableBroadcast, ManifestContent content, boolean repairColumnMetrics) {
       this.tableBroadcast = tableBroadcast;
       this.content = content;
-      this.specId = specId;
       this.repairColumnMetrics = repairColumnMetrics;
     }
 
@@ -670,29 +648,12 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     }
 
     InputFile newInputFile(ContentFile<?> file, long fileSizeInBytes) {
-      // The file overloads use the stored size to read the footer, so use the physical size.
-      // Input creation does not need the record count, which may also be incorrect.
-      if (file.content() == FileContent.DATA) {
-        DataFile dataFile =
-            DataFiles.builder(spec(file.specId()))
-                .copy((DataFile) file)
-                .withRecordCount(0L)
-                .withFileSizeInBytes(fileSizeInBytes)
-                .build();
-        return encryptingIO().newInputFile(dataFile);
+      if (file.keyMetadata() != null) {
+        return encryptingIO()
+            .newDecryptingInputFile(file.location(), fileSizeInBytes, file.keyMetadata());
       }
 
-      DeleteFile deleteFile =
-          FileMetadata.deleteFileBuilder(spec(file.specId()))
-              .copy((DeleteFile) file)
-              .withRecordCount(0L)
-              .withFileSizeInBytes(fileSizeInBytes)
-              .build();
-      return encryptingIO().newInputFile(deleteFile);
-    }
-
-    ManifestContent content() {
-      return content;
+      return encryptingIO().newInputFile(file.location(), fileSizeInBytes);
     }
 
     boolean repairColumnMetrics() {
@@ -727,10 +688,9 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     }
 
     SparkContentFile<?> newFileWrapper(Types.StructType combinedFileType, StructType sparkType) {
-      Types.StructType fileType = DataFile.getType(spec(specId).partitionType());
       return content == ManifestContent.DATA
-          ? new SparkDataFile(combinedFileType, fileType, sparkType)
-          : new SparkDeleteFile(combinedFileType, fileType, sparkType);
+          ? new SparkDataFile(combinedFileType, sparkType)
+          : new SparkDeleteFile(combinedFileType, sparkType);
     }
   }
 
@@ -756,7 +716,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
       while (rows.hasNext()) {
         Row row = rows.next();
         String manifest = row.getString(0);
-        Row fileRow = row.getStruct(4);
+        Row fileRow = row.getStruct(2);
         if (fileWrapper == null) {
           fileWrapper = context.newFileWrapper(combinedFileType, (StructType) fileRow.schema());
         }
@@ -797,17 +757,13 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
 
   private static class WriteDataManifests extends WriteManifests<DataFile> {
     WriteDataManifests(
-        ManifestWriterFactory writers,
-        Types.StructType combinedFileType,
-        Types.StructType fileType,
-        StructType sparkFileType,
-        RepairContext context) {
-      super(writers, combinedFileType, fileType, sparkFileType, context);
+        ManifestWriterFactory writers, List<ManifestFile> manifests, RepairContext context) {
+      super(writers, manifests, context);
     }
 
     @Override
-    protected SparkContentFile<DataFile> newFileWrapper() {
-      return new SparkDataFile(combinedFileType(), fileType(), sparkFileType());
+    protected ManifestReader<DataFile> readManifest(ManifestFile manifest, Table table) {
+      return ManifestFiles.read(manifest, table.io(), table.specs());
     }
 
     @Override
@@ -818,17 +774,13 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
 
   private static class WriteDeleteManifests extends WriteManifests<DeleteFile> {
     WriteDeleteManifests(
-        ManifestWriterFactory writers,
-        Types.StructType combinedFileType,
-        Types.StructType fileType,
-        StructType sparkFileType,
-        RepairContext context) {
-      super(writers, combinedFileType, fileType, sparkFileType, context);
+        ManifestWriterFactory writers, List<ManifestFile> manifests, RepairContext context) {
+      super(writers, manifests, context);
     }
 
     @Override
-    protected SparkContentFile<DeleteFile> newFileWrapper() {
-      return new SparkDeleteFile(combinedFileType(), fileType(), sparkFileType());
+    protected ManifestReader<DeleteFile> readManifest(ManifestFile manifest, Table table) {
+      return ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs());
     }
 
     @Override
@@ -852,25 +804,17 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
         Encoders.javaSerialization(ManifestFile.class);
 
     private final ManifestWriterFactory writers;
-    private final Types.StructType combinedFileType;
-    private final Types.StructType fileType;
-    private final StructType sparkFileType;
+    private final List<ManifestFile> manifests;
     private final RepairContext context;
 
     WriteManifests(
-        ManifestWriterFactory writers,
-        Types.StructType combinedFileType,
-        Types.StructType fileType,
-        StructType sparkFileType,
-        RepairContext context) {
+        ManifestWriterFactory writers, List<ManifestFile> manifests, RepairContext context) {
       this.writers = writers;
-      this.combinedFileType = combinedFileType;
-      this.fileType = fileType;
-      this.sparkFileType = sparkFileType;
+      this.manifests = manifests;
       this.context = context;
     }
 
-    protected abstract SparkContentFile<F> newFileWrapper();
+    protected abstract ManifestReader<F> readManifest(ManifestFile manifest, Table table);
 
     protected abstract RollingManifestWriter<F> newManifestWriter();
 
@@ -881,30 +825,54 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     @Override
     @SuppressWarnings("unchecked")
     public Iterator<ManifestFile> call(Iterator<Row> rows) throws Exception {
-      SparkContentFile<F> fileWrapper = newFileWrapper();
+      Map<String, Map<String, Row>> entriesByManifest = Maps.newHashMap();
+      rows.forEachRemaining(
+          row ->
+              entriesByManifest
+                  .computeIfAbsent(row.getString(0), path -> Maps.newHashMap())
+                  .put(row.getString(2), row));
       RollingManifestWriter<F> writer = newManifestWriter();
 
-      try {
-        while (rows.hasNext()) {
-          Row row = rows.next();
-          long snapshotId = row.getLong(1);
-          long sequenceNumber = row.getLong(2);
-          Long fileSequenceNumber = row.isNullAt(3) ? null : row.getLong(3);
-          Row fileRow = row.getStruct(4);
-          boolean repair = row.getBoolean(5);
-
-          F file = fileWrapper.wrap(fileRow);
-          if (repair) {
-            file = (F) repairStats(file);
+      try (writer) {
+        for (ManifestFile manifest : manifests) {
+          Map<String, Row> entries = entriesByManifest.get(manifest.path());
+          if (entries == null) {
+            continue;
           }
 
-          writer.existing(file, snapshotId, sequenceNumber, fileSequenceNumber);
+          // the files are read from the original manifest rather than the entries metadata table,
+          // which omits partition fields whose source column was dropped, so every entry keeps its
+          // original partition tuple
+          try (ManifestReader<F> reader = readManifest(manifest, context.table())) {
+            for (F file : reader) {
+              Row row = entries.get(file.location());
+              Preconditions.checkState(
+                  row != null, "Cannot find entry for %s in %s", file.location(), manifest.path());
+              F repaired = row.getBoolean(3) ? (F) repairStats(file) : file;
+              writer.existing(
+                  repaired, row.getLong(1), file.dataSequenceNumber(), file.fileSequenceNumber());
+            }
+          }
         }
-      } finally {
-        writer.close();
+      } catch (Exception e) {
+        // a failed task attempt never returns its manifests to the driver, so delete them here
+        deleteManifests(writer, e);
+        throw e;
       }
 
       return writer.toManifestFiles().iterator();
+    }
+
+    private void deleteManifests(RollingManifestWriter<F> writer, Exception failure) {
+      try {
+        Tasks.foreach(writer.toManifestFiles())
+            .suppressFailureWhenFinished()
+            .onFailure((manifest, exc) -> failure.addSuppressed(exc))
+            .run(manifest -> context.io().deleteFile(manifest.path()));
+      } catch (RuntimeException e) {
+        // the writer did not close, so the manifests it wrote are unknown
+        failure.addSuppressed(e);
+      }
     }
 
     /** Rebuilds the file with the statistics read from the file itself. */
@@ -928,18 +896,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
 
     protected ManifestWriterFactory writers() {
       return writers;
-    }
-
-    protected Types.StructType combinedFileType() {
-      return combinedFileType;
-    }
-
-    protected Types.StructType fileType() {
-      return fileType;
-    }
-
-    protected StructType sparkFileType() {
-      return sparkFileType;
     }
   }
 
