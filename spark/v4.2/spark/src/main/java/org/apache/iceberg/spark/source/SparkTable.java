@@ -108,7 +108,7 @@ public class SparkTable extends BaseSparkTable
           TableCapability.OVERWRITE_DYNAMIC);
 
   private final Schema schema; // effective schema (not necessarily current table schema)
-  private Set<Integer> mapKeyFieldIds;
+  private volatile Set<Integer> mapKeyFieldIds;
   private final Snapshot snapshot; // always set unless table is empty
   private final String branch; // set if table is loaded for specific branch
   private final TimeTravel timeTravel; // set if table is loaded for time travel
@@ -181,11 +181,12 @@ public class SparkTable extends BaseSparkTable
 
     if (change instanceof TableChange.AddColumn) {
       TableChange.AddColumn add = (TableChange.AddColumn) change;
+      if (!add.isNullable() || add.defaultValue() != null) {
+        return false;
+      }
+
       Type type = tryConvert(add.dataType());
-      return add.isNullable()
-          && add.defaultValue() == null
-          && type != null
-          && isSupportedAtFormatVersion(type);
+      return type != null && isSupportedAtFormatVersion(type);
     } else if (change instanceof TableChange.UpdateColumnType) {
       return supportsTypeUpdate((TableChange.UpdateColumnType) change);
     } else if (change instanceof TableChange.UpdateColumnNullability) {
@@ -240,10 +241,9 @@ public class SparkTable extends BaseSparkTable
 
     Type newType = tryConvert(update.newDataType());
     return newType != null
-        && isSupportedAtFormatVersion(newType)
         && newType.isPrimitiveType()
-        && SparkSchemaUtil.convert(newType).equals(update.newDataType())
-        && TypeUtil.isPromotionAllowed(field.type(), newType.asPrimitiveType());
+        && TypeUtil.isPromotionAllowed(field.type(), newType.asPrimitiveType())
+        && SparkSchemaUtil.convert(newType).equals(update.newDataType());
   }
 
   private boolean supportsNullabilityUpdate(TableChange.UpdateColumnNullability update) {
