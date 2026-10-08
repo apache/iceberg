@@ -1377,6 +1377,16 @@ class RemoteSignResult(BaseModel):
 
     uri: str
     headers: MultiValuedMap
+    url_expiration_timestamp_ms: int | None = Field(
+        None,
+        alias='url-expiration-timestamp-ms',
+        description='The time after which the signed `uri` is no longer valid, as milliseconds since the Unix epoch. Servers MUST include this field when `signing-mechanism` is `pre-signed-urls`. Clients SHOULD obtain a fresh signature before this time elapses.\n',
+    )
+    signing_mechanism: Literal['remote-signing', 'pre-signed-urls'] | None = Field(
+        None,
+        alias='signing-mechanism',
+        description='The access delegation mechanism the server used to sign this request. With `remote-signing` the signature is returned in `headers`. With `pre-signed-urls` the returned `uri` is fully signed, `headers` is empty, and `url-expiration-timestamp-ms` is set. Servers returning a pre-signed URL MUST set this field. For backwards compatibility, if this is not specified, the mechanism is assumed to be `remote-signing`.\n',
+    )
 
 
 class RemoteSigningConfig(BaseModel):
