@@ -82,7 +82,7 @@ public class TestCoordinator extends ChannelTestBase {
             Optional.empty(),
             "client",
             "localhost",
-            new MemberAssignment(Set.of(new TopicPartition("topic", 1))));
+            new MemberAssignment(Set.of(new TopicPartition(SRC_TOPIC_NAME, 1))));
     describeConsumerGroup(ConsumerGroupState.STABLE, List.of(member));
   }
 
@@ -333,7 +333,7 @@ public class TestCoordinator extends ChannelTestBase {
         new Event(
             config.connectGroupId(),
             new DataComplete(
-                commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, null))));
+                commitId, ImmutableList.of(new TopicPartitionOffset(SRC_TOPIC_NAME, 1, 1L, null))));
     bytes = AvroUtil.encode(commitReady);
     consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, nextOffset++, "key", bytes));
 
@@ -552,7 +552,7 @@ public class TestCoordinator extends ChannelTestBase {
         new Event(
             config.connectGroupId(),
             new DataComplete(
-                commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, ts))));
+                commitId, ImmutableList.of(new TopicPartitionOffset(SRC_TOPIC_NAME, 1, 1L, ts))));
     bytes = AvroUtil.encode(commitReady);
     consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", bytes));
 
