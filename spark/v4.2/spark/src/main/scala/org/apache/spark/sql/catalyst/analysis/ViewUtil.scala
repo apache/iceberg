@@ -27,7 +27,6 @@ import org.apache.iceberg.spark.SparkSupportsLoadContext
 import org.apache.iceberg.spark.source.HasIcebergCatalog
 import org.apache.iceberg.spark.source.SparkView
 import org.apache.iceberg.view.{View => IcebergView}
-import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.Table
@@ -152,53 +151,25 @@ object ViewUtil {
       catalog: CatalogPlugin,
       ident: Identifier,
       context: LoadContext,
-      timeTravelVersion: Option[String] = None,
-      timeTravelTimestamp: Option[Expression] = None): Table = {
+      timeTravelSpec: Option[TimeTravelSpec] = None): Table = {
     catalog match {
       case supportsLoadContext: SparkSupportsLoadContext =>
-        loadTableWithTimeTravel(
-          supportsLoadContext,
-          ident,
-          context,
-          timeTravelVersion,
-          timeTravelTimestamp)
-      case c if c.asTableCatalog.isInstanceOf[SparkSupportsLoadContext] =>
-        loadTableWithTimeTravel(
-          c.asTableCatalog.asInstanceOf[SparkSupportsLoadContext],
-          ident,
-          context,
-          timeTravelVersion,
-          timeTravelTimestamp)
+        timeTravelSpec match {
+          case Some(AsOfVersion(version)) => supportsLoadContext.loadTable(ident, version, context)
+          case Some(AsOfTimestamp(micros)) => supportsLoadContext.loadTable(ident, micros, context)
+          case None => supportsLoadContext.loadTable(ident, context)
+        }
       case _ =>
-        (timeTravelVersion, timeTravelTimestamp) match {
-          case (Some(version), _) =>
-            catalog.asTableCatalog.loadTable(ident, version)
-          case (_, Some(timestamp)) =>
-            catalog.asTableCatalog.loadTable(ident, timestamp.eval().asInstanceOf[Long])
-          case _ =>
-            catalog.asTableCatalog.loadTable(ident)
+        timeTravelSpec match {
+          case Some(AsOfVersion(version)) => catalog.asTableCatalog.loadTable(ident, version)
+          case Some(AsOfTimestamp(micros)) => catalog.asTableCatalog.loadTable(ident, micros)
+          case None => catalog.asTableCatalog.loadTable(ident)
         }
     }
   }
 
   def isIcebergViewCatalog(catalog: CatalogPlugin): Boolean = {
     catalog.isInstanceOf[ViewCatalog] && catalog.isInstanceOf[HasIcebergCatalog]
-  }
-
-  private def loadTableWithTimeTravel(
-      supportsLoadContext: SparkSupportsLoadContext,
-      ident: Identifier,
-      context: LoadContext,
-      timeTravelVersion: Option[String],
-      timeTravelTimestamp: Option[Expression]): Table = {
-    (timeTravelVersion, timeTravelTimestamp) match {
-      case (Some(version), _) =>
-        supportsLoadContext.loadTable(ident, version, context)
-      case (_, Some(timestamp)) =>
-        supportsLoadContext.loadTable(ident, timestamp.eval().asInstanceOf[Long], context)
-      case _ =>
-        supportsLoadContext.loadTable(ident, context)
-    }
   }
 
   private def isIcebergView(view: View): Boolean = {
