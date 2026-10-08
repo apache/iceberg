@@ -118,17 +118,15 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
       return StreamingOffset.START_OFFSET;
     }
 
-    // Only a new stream starts from the timestamp. A resumed stream continues from its offset.
-    if (startOffset.equals(StreamingOffset.START_OFFSET)
-        && table().currentSnapshot().timestampMillis() < fromTimestamp) {
-      return StreamingOffset.START_OFFSET;
-    }
-
     // end offset can expand to multiple snapshots
     StreamingOffset startingOffset = startOffset;
 
+    // Only a new stream starts from the timestamp. A resumed stream continues from its offset.
     if (startOffset.equals(StreamingOffset.START_OFFSET)) {
       startingOffset = MicroBatchUtils.determineStartingOffset(table(), fromTimestamp);
+      if (startingOffset.equals(StreamingOffset.START_OFFSET)) {
+        return StreamingOffset.START_OFFSET;
+      }
     }
 
     Snapshot curSnapshot = table().snapshot(startingOffset.snapshotId());
