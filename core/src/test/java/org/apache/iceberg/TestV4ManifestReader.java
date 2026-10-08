@@ -517,20 +517,22 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  public void inheritanceDVSnapshotIdNotInherited(FileFormat format) throws IOException {
-    TrackedFile withDVSnapshotId =
+  public void inheritanceModifiedSnapshotIdNotInherited(FileFormat format) throws IOException {
+    TrackedFile withModifiedSnapshotId =
         unpartitionedDataFile(
             new TrackingStruct(
                 EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, 1234567L, 5_000L, null, null),
             "s3://bucket/table/file-b.parquet");
-    TrackedFile withoutDVSnapshotId =
+    TrackedFile withoutModifiedSnapshotId =
         unpartitionedDataFile(
             new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 5_100L, null, null),
             "s3://bucket/table/file-a.parquet");
 
     ManifestFile manifest =
         writeManifest(
-            format, UNPARTITIONED_TYPE, ImmutableList.of(withDVSnapshotId, withoutDVSnapshotId));
+            format,
+            UNPARTITIONED_TYPE,
+            ImmutableList.of(withModifiedSnapshotId, withoutModifiedSnapshotId));
 
     when(manifest.firstRowId()).thenReturn(10_000L);
     when(manifest.snapshotId()).thenReturn(34L);
