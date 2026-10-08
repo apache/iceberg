@@ -339,7 +339,8 @@ class TestBigQueryMetastoreClientImpl {
         new BigQueryMetastoreClientImpl(optionsWithDefaults(), transport);
 
     assertThatThrownBy(() -> client.create(testDataset()))
-        .isInstanceOf(AlreadyExistsException.class);
+        .isInstanceOf(AlreadyExistsException.class)
+        .hasMessageContaining("Namespace already exists");
   }
 
   @Test
