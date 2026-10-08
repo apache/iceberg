@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.List;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -66,16 +65,11 @@ class V4TestHelpers {
         partition,
         stats,
         dv,
-        null, // manifestInfo
-        null); // equalityIds
+        null /* manifestInfo */);
   }
 
   static TrackedFile deleteFile(
-      FileContent content,
-      String location,
-      Integer specId,
-      PartitionData partition,
-      List<Integer> equalityIds) {
+      FileContent content, String location, Integer specId, PartitionData partition) {
     return trackedFile(
         ADDED_TRACKING,
         content,
@@ -84,8 +78,7 @@ class V4TestHelpers {
         partition,
         null, // stats
         null, // dv
-        null, // manifestInfo
-        equalityIds);
+        null); // manifestInfo
   }
 
   static TrackedFile manifestRef(FileContent content, String location, ManifestInfo manifestInfo) {
@@ -102,8 +95,7 @@ class V4TestHelpers {
         null, // partition
         stats,
         null, // dv
-        manifestInfo,
-        null); // equalityIds
+        manifestInfo);
   }
 
   private static TrackedFile trackedFile(
@@ -114,8 +106,7 @@ class V4TestHelpers {
       PartitionData partition,
       ContentStats stats,
       DeletionVector dv,
-      ManifestInfo manifestInfo,
-      List<Integer> equalityIds) {
+      ManifestInfo manifestInfo) {
     return new TrackedFileStruct(
         tracking,
         content,
@@ -130,8 +121,7 @@ class V4TestHelpers {
         dv,
         manifestInfo,
         null, // keyMetadata
-        null, // splitOffsets
-        equalityIds);
+        null); // splitOffsets
   }
 
   static DeletionVector deletionVector(String location) {

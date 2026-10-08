@@ -179,8 +179,7 @@ class TestV4ManifestReader {
             DV,
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            ImmutableList.of(50L, 100L),
-            null); // equality field IDs
+            ImmutableList.of(50L, 100L));
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -210,8 +209,7 @@ class TestV4ManifestReader {
             DV,
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            ImmutableList.of(50L, 100L),
-            null); // equality field IDs
+            ImmutableList.of(50L, 100L));
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -243,8 +241,7 @@ class TestV4ManifestReader {
             DV,
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            ImmutableList.of(50L, 100L),
-            null); // equality field IDs
+            ImmutableList.of(50L, 100L));
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -278,8 +275,7 @@ class TestV4ManifestReader {
             null, // dv
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            null, // split offsets
-            ImmutableList.of(1, 2));
+            null); // split offsets
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, delete);
 
@@ -309,8 +305,7 @@ class TestV4ManifestReader {
             null, // dv
             MANIFEST_INFO,
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            null, // split offsets
-            ImmutableList.of(1, 2));
+            null); // split offsets
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, manifestRef);
 
@@ -1169,8 +1164,7 @@ class TestV4ManifestReader {
             null,
             null,
             null,
-            List.of(4L),
-            null);
+            List.of(4L));
 
     ManifestFile manifest =
         writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(emptyTrackedFile, FILE_D));
@@ -1205,8 +1199,7 @@ class TestV4ManifestReader {
             null,
             null,
             null,
-            List.of(4L),
-            null);
+            List.of(4L));
 
     ManifestFile manifest =
         writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(invalidRecordCountFile, FILE_D));
@@ -1389,8 +1382,7 @@ class TestV4ManifestReader {
             null, // dv
             null, // manifest info
             null, // key metadata
-            List.of(4L),
-            null); // eq delete ids
+            List.of(4L));
 
     ManifestFile manifest =
         writeManifest(
@@ -1839,12 +1831,7 @@ class TestV4ManifestReader {
 
   private static TrackedFile idPartitionedDeleteFileWithoutStats(
       String location, PartitionData partition) {
-    return deleteFile(
-        FileContent.EQUALITY_DELETES,
-        location,
-        ID_PARTITIONED.specId(),
-        partition,
-        ImmutableList.of(1));
+    return deleteFile(FileContent.EQUALITY_DELETES, location, ID_PARTITIONED.specId(), partition);
   }
 
   private static TrackedFile unpartitionedDataFileWithDV(String location, String dvLocation) {
