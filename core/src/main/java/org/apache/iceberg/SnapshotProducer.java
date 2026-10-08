@@ -537,7 +537,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         throw commitStateUnknownException;
       } catch (RuntimeException e) {
         if (!strictCleanup || e instanceof CleanableFailure) {
-          cleanAfterFailedCommit(newSnapshotId.get(), e);
+          if (cleanAfterFailedCommit(newSnapshotId.get(), e)) {
+            // The snapshot is on the table: the commit was applied despite the observed
+            // failure, so there is no failure to report.
+            return;
+          }
         }
 
         throw e;
@@ -630,16 +634,23 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    * it as failed. Deleting the staged files in that case would delete files referenced by a
    * committed snapshot, so this refreshes first and, when the staged snapshot is on the table,
    * cleans up as a committed snapshot instead of deleting everything.
+   *
+   * @return true if the snapshot is on the table, meaning the commit was applied despite the
+   *     observed failure and the failure must not be reported
    */
-  private void cleanAfterFailedCommit(long snapshotId, RuntimeException commitFailure) {
-    if (snapshotId != -1L) {
+  private boolean cleanAfterFailedCommit(long snapshotId, RuntimeException commitFailure) {
+    // A snapshot ID already present in the base metadata is a rollback target, not a newly
+    // committed snapshot: its presence after a refresh says nothing about whether the branch
+    // update was applied, so the failure must still be reported.
+    boolean isNewSnapshot = snapshotId != -1L && base.snapshot(snapshotId) == null;
+    if (isNewSnapshot) {
       try {
         if (ops.refresh().snapshot(snapshotId) != null) {
           LOG.info(
               "Snapshot {} is on the table despite the commit failure, cleaning up as committed",
               snapshotId);
           cleanupAfterSuccessfulCommit(snapshotId);
-          return;
+          return true;
         }
       } catch (RuntimeException refreshFailure) {
         // the table state could not be determined. skip cleanup rather than risk deleting files
@@ -647,11 +658,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         LOG.warn(
             "Failed to refresh table while cleaning up after failed commit, skipping cleanup",
             refreshFailure);
-        return;
+        return false;
       }
     }
 
     Exceptions.suppressAndThrow(commitFailure, this::cleanAll);
+    return false;
   }
 
   protected void deleteFile(String path) {

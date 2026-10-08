@@ -283,7 +283,8 @@ public class TestSnapshotProducer extends TestBase {
   public void committedSnapshotFilesSurviveFailedCommitCleanup() {
     // Simulates a catalog that applies a commit but reports it as failed, followed by a retry
     // that fails validation because the snapshot is already on the table. The failure-path
-    // cleanup must not delete the manifest list or manifests of the committed snapshot.
+    // cleanup must not delete the manifest list or manifests of the committed snapshot. Because
+    // the snapshot is on the table, the reported failure is not propagated to the caller.
     String tableName = "apply-but-report-failure";
     AtomicLong appliedSnapshotId = new AtomicLong(-1L);
     TestTables.TestTableOperations ops =
@@ -314,7 +315,9 @@ public class TestSnapshotProducer extends TestBase {
                         .mapToLong(Snapshot::snapshotId)
                         .noneMatch(id -> id == appliedSnapshotId.get()));
 
-    assertThatThrownBy(append::commit).isInstanceOf(ValidationException.class);
+    // The snapshot was committed despite the reported failure, so commit returns normally
+    // instead of throwing the stale validation failure.
+    append.commit();
 
     Snapshot committed = commitTable.currentSnapshot();
     assertThat(committed).isNotNull();
