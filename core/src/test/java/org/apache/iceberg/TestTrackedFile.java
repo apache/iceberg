@@ -61,7 +61,8 @@ public class TestTrackedFile {
             "manifest_info",
             "key_metadata",
             "split_offsets",
-            "equality_ids");
+            "equality_ids",
+            "column_files");
   }
 
   @Test
@@ -72,7 +73,7 @@ public class TestTrackedFile {
     assertThat(fields)
         .extracting(Types.NestedField::fieldId)
         .containsExactly(
-            147, 134, 157, 100, 101, 103, 104, 141, 102, 146, 140, 148, 150, 131, 132, 135);
+            147, 134, 157, 100, 101, 103, 104, 141, 102, 146, 140, 148, 150, 131, 132, 135, 158);
   }
 
   @Test

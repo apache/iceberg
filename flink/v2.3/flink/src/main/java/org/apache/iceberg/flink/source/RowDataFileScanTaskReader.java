@@ -35,7 +35,7 @@ import org.apache.iceberg.flink.FlinkSourceFilter;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.RowDataProjection;
 import org.apache.iceberg.flink.data.RowDataUtil;
-import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.DataFileReadBuilder;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -105,8 +105,7 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
       throw new UnsupportedOperationException("Cannot read data task.");
     } else {
       ReadBuilder<RowData, RowType> builder =
-          FormatModelRegistry.readBuilder(
-              task.file().format(), RowData.class, inputFilesDecryptor.getInputFile(task));
+          DataFileReadBuilder.read(task.file(), RowData.class, inputFilesDecryptor::getInputFile);
 
       if (nameMapping != null) {
         builder.withNameMapping(NameMappingParser.fromJson(nameMapping));

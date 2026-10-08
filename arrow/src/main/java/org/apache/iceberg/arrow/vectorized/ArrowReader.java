@@ -39,7 +39,7 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedInputFile;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.formats.FormatModelRegistry;
+import org.apache.iceberg.formats.DataFileReadBuilder;
 import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
@@ -302,7 +302,7 @@ public class ArrowReader extends CloseableGroup {
         }
       } catch (IOException | RuntimeException e) {
         if (currentTask != null && !currentTask.isDataTask()) {
-          LOG.error("Error reading file: {}", getInputFile(currentTask).location(), e);
+          LOG.error("Error reading file: {}", currentTask.file().location(), e);
         }
         ExceptionUtil.castAndThrow(e, RuntimeException.class);
         return false;
@@ -320,11 +320,10 @@ public class ArrowReader extends CloseableGroup {
 
     CloseableIterator<ColumnarBatch> open(FileScanTask task) {
       CloseableIterable<ColumnarBatch> iter;
-      InputFile location = getInputFile(task);
-      Preconditions.checkNotNull(location, "Could not find InputFile associated with FileScanTask");
+      Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
       if (task.file().format() == FileFormat.PARQUET) {
         ReadBuilder<ColumnarBatch, ?> builder =
-            FormatModelRegistry.readBuilder(FileFormat.PARQUET, ColumnarBatch.class, location);
+            DataFileReadBuilder.read(task.file(), ColumnarBatch.class, inputFiles::get);
 
         if (reuseContainers) {
           builder.reuseContainers();
@@ -357,11 +356,6 @@ public class ArrowReader extends CloseableGroup {
       while (fileItr.hasNext()) {
         fileItr.next();
       }
-    }
-
-    private InputFile getInputFile(FileScanTask task) {
-      Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
-      return inputFiles.get(task.file().location());
     }
 
     /**
