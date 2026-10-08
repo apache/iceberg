@@ -1167,7 +1167,7 @@ class RemoteSignRequest(BaseModel):
     plan_id: str | None = Field(
         None,
         alias='plan-id',
-        description='Optional identifier of the scan plan, supplied for audit and correlation. A server MUST NOT fail a request because the referenced plan is unknown, expired, or cancelled.\n',
+        description='Optional identifier of the server side scan plan, supplied for audit and correlation. A server MUST NOT fail a request because the referenced plan is unknown, expired, or cancelled.\n',
     )
 
 
@@ -1181,7 +1181,7 @@ class RemoteSignResult(BaseModel):
     signing_mechanism: Literal['remote-signing', 'remote-presigning'] | None = Field(
         None,
         alias='signing-mechanism',
-        description='The form of the returned signature. With `remote-signing`, `headers` carries the signature. With `remote-presigning`, `uri` carries the signature. When absent, the form is `remote-signing`.\n',
+        description='The mechanism that produced the returned signature. With `remote-signing`, `headers` carries the signature. With `remote-presigning`, `uri` carries the signature. When absent, the mechanism is `remote-signing`.\n',
     )
     expiration_timestamp_ms: int | None = Field(
         None,

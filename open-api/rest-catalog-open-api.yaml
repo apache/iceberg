@@ -1411,20 +1411,23 @@ paths:
         Signs a request to object storage on the client's behalf.
 
 
-        `RemoteSignResult` takes one of two forms, reported in `signing-mechanism`. With
-        `remote-signing`, `headers` carries the signature. With `remote-presigning`, `uri`
-        carries the signature.
+        `RemoteSignResult` reports the mechanism that produced the signature in
+        `signing-mechanism`. With `remote-signing`, `headers` carries the signature. With
+        `remote-presigning`, `uri` carries the signature.
 
 
-        `X-Iceberg-Access-Delegation` on this operation is not a capability negotiation.
-        When used, the values are the forms the client can consume for this request, and the
-        server SHOULD answer in one of them. A server that implements none of the listed
-        modes SHOULD respond with 406 rather than answer in another form.
+        On this operation `X-Iceberg-Access-Delegation` lists the access delegation mechanisms
+        the client supports for this request: `remote-signing`, `remote-presigning`, or both.
+        Other values, such as `vended-credentials`, are not supported on this operation and do
+        not count as listed mechanisms. The server SHOULD answer with one of the listed
+        mechanisms, and chooses when both are listed. The server SHOULD respond with 406, rather
+        than answer with another mechanism, when the header lists no mechanism the server
+        implements. For example, `vended-credentials` lists no mechanism, and
+        `vended-credentials,remote-signing` lists only `remote-signing`.
 
 
-        Only `remote-signing` and `remote-presigning` are evaluated on this operation. A
-        request that lists both accepts either form and the server chooses. When no mode is
-        present the request is treated as `remote-signing`.
+        For backwards compatibility, a request without the header is treated as
+        `remote-signing`.
       requestBody:
         description: The request to be signed
         content:
@@ -2170,11 +2173,6 @@ components:
 
         Specific properties and handling for `vended-credentials` and `remote-signing`
         are documented in the `LoadTableResult` schema section of this spec document.
-
-
-        On `signRequest` the header lists the forms the client can consume for that
-        request, `remote-signing` or `remote-presigning`, as documented in the `signRequest`
-        operation. Other values are ignored on that operation.
 
       required: false
       schema:
@@ -5503,9 +5501,9 @@ components:
             - remote-signing
             - remote-presigning
           description: >
-            The form of the returned signature. With `remote-signing`, `headers` carries the
-            signature. With `remote-presigning`, `uri` carries the signature. When absent, the form
-            is `remote-signing`.
+            The mechanism that produced the returned signature. With `remote-signing`,
+            `headers` carries the signature. With `remote-presigning`, `uri` carries the
+            signature. When absent, the mechanism is `remote-signing`.
         expiration-timestamp-ms:
           type: integer
           format: int64
