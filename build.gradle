@@ -28,7 +28,7 @@ buildscript {
   dependencies {
     classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.11'
     classpath 'com.palantir.baseline:gradle-baseline-java:6.90.0'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:8.10.1'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:8.10.2'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.3'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
@@ -142,7 +142,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.11.0"
+      oldVersion = "1.12.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -540,7 +540,7 @@ project(':iceberg-aws') {
     compileOnly(platform(libs.awssdk.bom))
     compileOnly(libs.awssdk.s3accessgrants)
     compileOnly("software.amazon.awssdk:url-connection-client")
-    compileOnly("software.amazon.awssdk:apache-client")
+    compileOnly("software.amazon.awssdk:apache5-client")
     compileOnly("software.amazon.awssdk:auth")
     compileOnly("software.amazon.awssdk:http-auth-aws-crt")
     compileOnly("software.amazon.awssdk:s3")
@@ -570,7 +570,6 @@ project(':iceberg-aws') {
     testImplementation libs.sqlite.jdbc
     testImplementation libs.testcontainers
     testImplementation libs.testcontainers.junit.jupiter
-    testImplementation libs.testcontainers.minio
     testImplementation libs.httpcomponents.httpclient5
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
@@ -1258,8 +1257,11 @@ project(':iceberg-bom') {
       // only contain artifacts for that single Scala version. The following code ensures that
       // the BOM references the artifacts for all Scala versions.
       def sparkScalaPattern = ~"(.*)-([0-9][.][0-9]+)_([0-9][.][0-9]+)"
+      // Only include Spark versions published in binary releases.
       def sparkScalaVersions = [
         "3.5": ["2.12", "2.13"],
+        "4.0": ["2.13"],
+        "4.1": ["2.13"],
       ]
       rootProject.allprojects.forEach {
         // Do not include ':iceberg-spark', the bom itself and the root project.

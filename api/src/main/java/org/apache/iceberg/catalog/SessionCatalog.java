@@ -197,6 +197,21 @@ public interface SessionCatalog {
   }
 
   /**
+   * Unregister a table without deleting its data or metadata files.
+   *
+   * <p>The returned table is fixed at the last metadata file registered with the catalog and cannot
+   * be modified.
+   *
+   * @param context session context
+   * @param ident a table identifier
+   * @return a read-only table fixed at the metadata current when it was unregistered
+   * @throws NoSuchTableException if the table does not exist
+   */
+  default Table unregisterTable(SessionContext context, TableIdentifier ident) {
+    throw new UnsupportedOperationException("Unregistering tables is not supported");
+  }
+
+  /**
    * Check whether table exists.
    *
    * @param context session context

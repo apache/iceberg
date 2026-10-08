@@ -43,6 +43,7 @@ import org.apache.spark.sql.connector.catalog.SupportsDeleteV2;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.catalog.TableSummary;
 import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
@@ -390,17 +391,26 @@ public class TestSparkSessionCatalog extends TestBase {
     SparkSessionCatalog<?> catalog = catalogWithViews(icebergCatalog, sessionCatalog);
     StructType schema = new StructType();
     Transform[] partitions = new Transform[0];
+    TableInfo tableInfo =
+        new TableInfo.Builder()
+            .withSchema(schema)
+            .withPartitions(partitions)
+            .withProperties(Collections.emptyMap())
+            .build();
+    TableInfo parquetTableInfo =
+        new TableInfo.Builder()
+            .withSchema(schema)
+            .withPartitions(partitions)
+            .withProperties(Collections.singletonMap("provider", "parquet"))
+            .build();
 
-    assertThatThrownBy(() -> catalog.createTable(ident, schema, partitions, Collections.emptyMap()))
+    assertThatThrownBy(() -> catalog.createTable(ident, tableInfo))
         .isInstanceOf(TableAlreadyExistsException.class)
         .hasMessageContaining(ident.name());
-    assertThatThrownBy(() -> catalog.stageCreate(ident, schema, partitions, Collections.emptyMap()))
+    assertThatThrownBy(() -> catalog.stageCreate(ident, tableInfo))
         .isInstanceOf(TableAlreadyExistsException.class)
         .hasMessageContaining(ident.name());
-    assertThatThrownBy(
-            () ->
-                catalog.stageCreateOrReplace(
-                    ident, schema, partitions, Collections.singletonMap("provider", "parquet")))
+    assertThatThrownBy(() -> catalog.stageCreateOrReplace(ident, parquetTableInfo))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage(
             "Cannot create or replace table %s: a view with the same name already exists", ident);

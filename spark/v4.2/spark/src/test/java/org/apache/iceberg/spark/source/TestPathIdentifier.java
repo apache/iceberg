@@ -33,9 +33,10 @@ import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
-import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,11 +68,12 @@ public class TestPathIdentifier extends TestBase {
   }
 
   @Test
-  public void testPathIdentifier() throws TableAlreadyExistsException, NoSuchTableException {
-    SparkTable table =
-        (SparkTable)
-            sparkCatalog.createTable(
-                identifier, SparkSchemaUtil.convert(SCHEMA), new Transform[0], ImmutableMap.of());
+  public void testPathIdentifier()
+      throws TableAlreadyExistsException, NoSuchTableException, NoSuchNamespaceException {
+    TableInfo tableInfo =
+        new TableInfo.Builder().withSchema(SparkSchemaUtil.convert(SCHEMA)).build();
+
+    SparkTable table = (SparkTable) sparkCatalog.createTable(identifier, tableInfo);
 
     assertThat(tableLocation.getAbsolutePath()).isEqualTo(table.table().location());
     assertThat(table.table()).isInstanceOf(BaseTable.class);

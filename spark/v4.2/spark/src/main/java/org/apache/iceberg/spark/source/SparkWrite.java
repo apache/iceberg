@@ -79,10 +79,13 @@ import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.write.BatchWrite;
 import org.apache.spark.sql.connector.write.DataWriter;
 import org.apache.spark.sql.connector.write.DataWriterFactory;
+import org.apache.spark.sql.connector.write.DeleteSummary;
+import org.apache.spark.sql.connector.write.InsertSummary;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.MergeSummary;
 import org.apache.spark.sql.connector.write.PhysicalWriteInfo;
 import org.apache.spark.sql.connector.write.RequiresDistributionAndOrdering;
+import org.apache.spark.sql.connector.write.UpdateSummary;
 import org.apache.spark.sql.connector.write.Write;
 import org.apache.spark.sql.connector.write.WriteSummary;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
@@ -251,6 +254,12 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
 
     if (summary instanceof MergeSummary) {
       setMergeSummaryProperties(operation, (MergeSummary) summary);
+    } else if (summary instanceof UpdateSummary) {
+      setUpdateSummaryProperties(operation, (UpdateSummary) summary);
+    } else if (summary instanceof DeleteSummary) {
+      setDeleteSummaryProperties(operation, (DeleteSummary) summary);
+    } else if (summary instanceof InsertSummary) {
+      setInsertSummaryProperties(operation, (InsertSummary) summary);
     }
 
     if (wapEnabled && wapId != null) {
@@ -331,6 +340,11 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
   private class BatchAppend extends BaseBatchWrite {
     @Override
     public void commit(WriterCommitMessage[] messages) {
+      commit(messages, null);
+    }
+
+    @Override
+    public void commit(WriterCommitMessage[] messages, WriteSummary summary) {
       AppendFiles append = table.newAppend();
 
       int numFiles = 0;
@@ -340,7 +354,7 @@ abstract class SparkWrite extends BaseSparkWrite implements Write, RequiresDistr
       }
 
       commitOperation(
-          append, String.format(Locale.ROOT, "append with %d new data files", numFiles));
+          append, String.format(Locale.ROOT, "append with %d new data files", numFiles), summary);
     }
   }
 

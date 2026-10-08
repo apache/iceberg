@@ -462,7 +462,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_400, "data", dataStats));
 
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(ImmutableMap.of(), schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(ImmutableMap.of(), schema));
 
     assertSameStructure(expected, actual);
   }
@@ -499,7 +499,7 @@ public class TestStatsUtil {
     Map<String, String> properties =
         ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data", "none");
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(properties, schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(properties, schema));
 
     assertSameStructure(expected, actual);
   }
@@ -541,7 +541,7 @@ public class TestStatsUtil {
     Map<String, String> properties =
         ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "none");
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(properties, schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(properties, schema));
 
     assertSameStructure(expected, actual);
   }
@@ -559,7 +559,7 @@ public class TestStatsUtil {
                 Types.MapType.ofOptional(4, 5, Types.StringType.get(), Types.StringType.get())));
 
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(ImmutableMap.of(), schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(ImmutableMap.of(), schema));
 
     assertThat(actual.fields()).isEmpty();
   }

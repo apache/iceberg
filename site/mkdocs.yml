@@ -111,8 +111,8 @@ markdown_extensions:
       permalink: 🔗
 
 extra:
-  icebergVersion: '1.11.0'
-  nessieVersion: '0.105.3'
+  icebergVersion: '1.12.0'
+  nessieVersion: '0.108.8'
   flinkVersion: '2.3.0'
   flinkVersionMajor: '2.3'
   sparkVersionMajor: '4.1_2.13'

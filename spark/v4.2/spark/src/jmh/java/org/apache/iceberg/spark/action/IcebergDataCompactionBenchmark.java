@@ -24,7 +24,6 @@ import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.concat;
 import static org.apache.spark.sql.functions.lit;
 
-import java.util.Collections;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.actions.SizeBasedFileRewritePlanner;
 import org.apache.iceberg.spark.Spark3Util;
@@ -35,7 +34,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Param;
@@ -92,8 +91,10 @@ public class IcebergDataCompactionBenchmark extends IcebergCompactionBenchmark {
           (SparkSessionCatalog<?>)
               Spark3Util.catalogAndIdentifier(spark(), "spark_catalog").catalog();
       catalog.dropTable(IDENT);
-      catalog.createTable(
-          IDENT, SparkSchemaUtil.convert(schema), new Transform[0], Collections.emptyMap());
+
+      TableInfo tableInfo =
+          new TableInfo.Builder().withSchema(SparkSchemaUtil.convert(schema)).build();
+      catalog.createTable(IDENT, tableInfo);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }

@@ -49,7 +49,6 @@ import org.apache.iceberg.puffin.PuffinReader;
 import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -403,50 +402,6 @@ public class RewriteTablePathUtil {
   /**
    * Rewrite a delete manifest, replacing path references.
    *
-   * @param manifestFile source delete manifest to rewrite
-   * @param snapshotIds snapshot ids for filtering returned delete manifest entries
-   * @param outputFile output file to rewrite manifest file to
-   * @param io file io
-   * @param format format of the manifest file
-   * @param specsById map of partition specs by id
-   * @param sourcePrefix source prefix that will be replaced
-   * @param targetPrefix target prefix that will replace it
-   * @param stagingLocation staging location for rewritten files (referred delete file will be
-   *     rewritten here)
-   * @return a copy plan of content files in the manifest that was rewritten
-   * @deprecated since 1.12.0, will be removed in 1.13.0; use the overload that accepts the map of
-   *     rewritten position delete file sizes. This overload records the original {@code
-   *     file_size_in_bytes}, which can be inconsistent with the rewritten file size on disk once
-   *     embedded data file paths change length.
-   */
-  @Deprecated
-  public static RewriteResult<DeleteFile> rewriteDeleteManifest(
-      ManifestFile manifestFile,
-      Set<Long> snapshotIds,
-      OutputFile outputFile,
-      FileIO io,
-      int format,
-      Map<Integer, PartitionSpec> specsById,
-      String sourcePrefix,
-      String targetPrefix,
-      String stagingLocation)
-      throws IOException {
-    return rewriteDeleteManifest(
-        manifestFile,
-        snapshotIds,
-        outputFile,
-        io,
-        format,
-        specsById,
-        sourcePrefix,
-        targetPrefix,
-        stagingLocation,
-        ImmutableMap.of());
-  }
-
-  /**
-   * Rewrite a delete manifest, replacing path references.
-   *
    * <p>This is a metadata-only operation: position delete file content is rewritten separately (see
    * {@link #rewritePositionDelete}). The actual sizes of those rewritten files are supplied via
    * {@code rewrittenDeleteFileSizes} and recorded in the manifest so that {@code
@@ -686,34 +641,6 @@ public class RewriteTablePathUtil {
     PositionDeleteWriter<Record> writer(
         OutputFile outputFile, FileFormat format, PartitionSpec spec, StructLike partition)
         throws IOException;
-  }
-
-  /**
-   * Rewrite a position delete file, replacing path references.
-   *
-   * @param deleteFile source delete file to be rewritten
-   * @param outputFile output file to rewrite delete file to
-   * @param io file io
-   * @param spec spec of delete file
-   * @param sourcePrefix source prefix that will be replaced
-   * @param targetPrefix target prefix to replace it
-   * @param posDeleteReaderWriter class to read and write position delete files
-   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link #rewritePositionDelete} which
-   *     returns the size of the rewritten file so callers can record an accurate {@code
-   *     file_size_in_bytes}.
-   */
-  @Deprecated
-  public static void rewritePositionDeleteFile(
-      DeleteFile deleteFile,
-      OutputFile outputFile,
-      FileIO io,
-      PartitionSpec spec,
-      String sourcePrefix,
-      String targetPrefix,
-      PositionDeleteReaderWriter posDeleteReaderWriter)
-      throws IOException {
-    rewritePositionDelete(
-        deleteFile, outputFile, io, spec, sourcePrefix, targetPrefix, posDeleteReaderWriter);
   }
 
   /**

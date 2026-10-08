@@ -107,7 +107,11 @@ Notes:
 Types are based on the [Iceberg Type](https://iceberg.apache.org/spec/#schemas-and-data-types).
 
 Primitive and semi-structured type strings are encoded based on [Iceberg Type JSON Representation][iceberg-type-json]
-(e.g., `int`, `string`, `timestamp`, `decimal(9,2)`, `variant`). Type strings must contain no spaces or quote characters.
+(e.g., `int`, `string`, `timestamp`, `decimal(9, 2)`, `variant`). Type strings must contain no quote characters.
+
+Readers should accept optional whitespace around parameters and separators in parameterized type strings, as
+described in [Appendix C][iceberg-type-json]. Such whitespace must not affect type equality. However, whitespace within
+parameter values, such as the space in the CRS value for `geometry(srid: 3857)`, is significant and must be preserved.
 
 Nested types (`struct`, `list`, `map`) use the [Iceberg Type JSON Representation][iceberg-type-json] with the
 following fields required. Any other fields must be ignored.
@@ -118,19 +122,26 @@ following fields required. Any other fields must be ignored.
   e.g., `{ "type": "struct", "fields": [ { "name": "id", "type": "int" }, { "name": "name", "type": "string" } ] }`
 
 #### Definition ID
-The `definition-id` is a canonical string derived from the parameter types, formatted as a comma-separated list with no
-spaces. Each type uses the following string representation:
+The `definition-id` is a canonical string derived from the parameter types in parameter order, formatted as a
+comma-separated list. No additional spaces may be inserted after commas separating function parameters, map key and
+value types, or struct fields, or after colons separating struct field names from their types. Embedded type strings
+may contain spaces as described in the [Types](#types) section. Each type uses the following string representation:
 
 * Primitives and semi-structured: the type name (e.g., `int`, `variant`)
 * List: `list<element-type>` (e.g., `list<int>`)
 * Map: `map<key-type,value-type>` (e.g., `map<string,int>`)
 * Struct: `struct<name1:type1,name2:type2,...>` with field names and types (e.g., `struct<id:int,name:string>`)
 
+In a struct field name, `\`, `:`, `,`, `<`, and `>` must be prefixed with `\`.
+
 Examples of complete definition-id signatures:
 
 * `int` – single int parameter
 * `int,string` – two parameters: int and string
 * `int,list<int>,struct<id:int,name:string>` – three parameters: an int, a list and a struct
+* `decimal(9, 2),geometry(srid: 3857)` – two parameterized parameters, each keeping its own spaces
+* `geometry(OGC:CRS84)` – a geometry parameter declared as `geometry`, since canonical form always carries a CRS
+* `struct<a\:int\,b:int>` – one field named `a:int,b` of type int, distinct from `struct<a:int,b:int>`, which is two fields
 
 #### Specific Name
 

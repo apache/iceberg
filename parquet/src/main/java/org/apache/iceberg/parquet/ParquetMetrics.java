@@ -31,7 +31,6 @@ import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
-import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -65,6 +64,14 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 class ParquetMetrics {
+  /**
+   * Sentinel for a null count that could not be determined. Parquet's {@link
+   * Statistics#getNumNulls()} returns -1 when {@code null_count} is missing from the footer, so the
+   * count must be reported as unknown rather than summed. {@link FieldMetrics} uses negative counts
+   * to mean unknown.
+   */
+  private static final long UNKNOWN_NULL_COUNT = -1L;
+
   private ParquetMetrics() {}
 
   static Iterable<FieldMetrics<?>> fieldMetrics(
@@ -85,7 +92,7 @@ class ParquetMetrics {
         fields.collect(Collectors.toMap(FieldMetrics::id, Function.identity()));
 
     return TypeWithSchemaVisitor.visit(
-        schema.asStruct(), type, new MetricsVisitor(schema, metricsConfig, metricsById, columns));
+        schema.asStruct(), type, new MetricsVisitor(metricsConfig, metricsById, columns));
   }
 
   private static long rowCount(ParquetMetadata metadata) {
@@ -98,7 +105,7 @@ class ParquetMetrics {
   }
 
   private static Map<Integer, Long> columnSizes(
-      Schema schema, MessageType type, ParquetMetadata metadata, MetricsConfig metricsConfig) {
+      MessageType type, ParquetMetadata metadata, MetricsConfig metricsConfig) {
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     for (BlockMetaData block : metadata.getBlocks()) {
       for (ColumnChunkMetaData column : block.getColumns()) {
@@ -106,7 +113,7 @@ class ParquetMetrics {
             type.getColumnDescription(column.getPath().toArray()).getPrimitiveType().getId();
         if (id != null) {
           int fieldId = id.intValue();
-          MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+          MetricsModes.MetricsMode mode = metricsConfig.columnMode(fieldId);
           if (mode != MetricsModes.None.get()) {
             columnSizes.put(fieldId, columnSizes.getOrDefault(fieldId, 0L) + column.getTotalSize());
           }
@@ -124,7 +131,7 @@ class ParquetMetrics {
       ParquetMetadata metadata,
       Stream<FieldMetrics<?>> fields) {
     long rowCount = rowCount(metadata);
-    Map<Integer, Long> columnSizes = columnSizes(schema, type, metadata, metricsConfig);
+    Map<Integer, Long> columnSizes = columnSizes(type, metadata, metricsConfig);
 
     Map<Integer, Long> valueCounts = Maps.newHashMap();
     Map<Integer, Long> nullValueCounts = Maps.newHashMap();
@@ -182,17 +189,14 @@ class ParquetMetrics {
   }
 
   private static class MetricsVisitor extends TypeWithSchemaVisitor<Iterable<FieldMetrics<?>>> {
-    private final Schema schema;
     private final MetricsConfig metricsConfig;
     private final Map<Integer, FieldMetrics<?>> metricsById;
     private final Multimap<ColumnPath, ColumnChunkMetaData> columns;
 
     private MetricsVisitor(
-        Schema schema,
         MetricsConfig metricsConfig,
         Map<Integer, FieldMetrics<?>> metricsById,
         Multimap<ColumnPath, ColumnChunkMetaData> columns) {
-      this.schema = schema;
       this.metricsConfig = metricsConfig;
       this.metricsById = metricsById;
       this.columns = columns;
@@ -238,7 +242,7 @@ class ParquetMetrics {
       }
       int fieldId = id.intValue();
 
-      MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+      MetricsModes.MetricsMode mode = metricsConfig.columnMode(fieldId);
       if (mode == MetricsModes.None.get()) {
         return ImmutableList.of();
       }
@@ -321,7 +325,7 @@ class ParquetMetrics {
           return null;
         }
 
-        nullCount += stats.getNumNulls();
+        nullCount = addNullCount(nullCount, stats);
         valueCount += column.getValueCount();
       }
 
@@ -350,7 +354,7 @@ class ParquetMetrics {
           return null;
         }
 
-        nullCount += stats.getNumNulls();
+        nullCount = addNullCount(nullCount, stats);
         valueCount += column.getValueCount();
 
         if (stats.hasNonNullValue()) {
@@ -389,7 +393,7 @@ class ParquetMetrics {
       }
       int fieldId = id.intValue();
 
-      MetricsModes.MetricsMode mode = MetricsUtil.metricsMode(schema, metricsConfig, fieldId);
+      MetricsModes.MetricsMode mode = metricsConfig.columnMode(fieldId);
       if (mode == MetricsModes.None.get()) {
         return ImmutableList.of();
       }
@@ -409,7 +413,7 @@ class ParquetMetrics {
             new FieldMetrics<>(fieldId, metadataCounts.valueCount(), metadataCounts.nullCount()));
       }
 
-      Set<String> fieldNames = Sets.newTreeSet();
+      Set<String> fieldNames = Sets.newTreeSet(VariantMetadata.FIELD_NAME_ORDER);
       for (ParquetVariantUtil.VariantMetrics result : results.subList(1, results.size())) {
         if (result.lowerBound() != null || result.upperBound() != null) {
           fieldNames.add(result.fieldName());
@@ -585,7 +589,12 @@ class ParquetMetrics {
           }
 
           valueCount += column.getValueCount();
-          nullCount += hasOnlyNullVariants ? column.getValueCount() : stats.getNumNulls();
+          if (hasOnlyNullVariants) {
+            // every value is a null variant, so the count does not depend on footer null counts
+            nullCount = addKnownNullCount(nullCount, column.getValueCount());
+          } else {
+            nullCount = addNullCount(nullCount, stats);
+          }
         }
 
         return new ParquetVariantUtil.VariantMetrics(valueCount, nullCount);
@@ -613,7 +622,7 @@ class ParquetMetrics {
             return null;
           }
 
-          nullCount += stats.getNumNulls();
+          nullCount = addNullCount(nullCount, stats);
           valueCount += column.getValueCount();
 
           if (stats.hasNonNullValue()) {
@@ -643,6 +652,35 @@ class ParquetMetrics {
         }
       }
     }
+  }
+
+  /**
+   * Adds a column chunk's null count to a running total, propagating unknown.
+   *
+   * <p>A chunk that is missing {@code null_count} makes the total unknown because the nulls in that
+   * chunk cannot be counted. Note this is not caught by {@link Statistics#isEmpty()}, which is
+   * false whenever min/max are present.
+   */
+  private static long addNullCount(long nullCount, Statistics<?> stats) {
+    if (!stats.isNumNullsSet()) {
+      // the count is missing from the footer, so getNumNulls would return -1
+      return UNKNOWN_NULL_COUNT;
+    }
+
+    return addKnownNullCount(nullCount, stats.getNumNulls());
+  }
+
+  /**
+   * Adds a known null count to a running total, which may already be unknown because an earlier
+   * chunk was missing its count. Keeping the total unknown makes the result independent of the
+   * order in which chunks are visited.
+   */
+  private static long addKnownNullCount(long nullCount, long numNulls) {
+    if (nullCount == UNKNOWN_NULL_COUNT) {
+      return UNKNOWN_NULL_COUNT;
+    }
+
+    return nullCount + numNulls;
   }
 
   private static int truncateLength(MetricsModes.MetricsMode mode) {

@@ -26,9 +26,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.lang.reflect.Field;
 import java.time.OffsetDateTime;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -55,12 +56,12 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.jupiter.api.Test;
 
@@ -324,8 +325,6 @@ public class TestCoordinator extends ChannelTestBase {
   public void testCommitConsumerOffsetsDoesNotRewind() {
     Coordinator coordinator = startCoordinator();
 
-    TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
-
     long healthyWatermark = 100L;
     coordinator.controlTopicOffsets().put(0, healthyWatermark);
     coordinator.commitConsumerOffsets();
@@ -333,39 +332,62 @@ public class TestCoordinator extends ChannelTestBase {
     coordinator.controlTopicOffsets().put(0, 5L);
     coordinator.commitConsumerOffsets();
 
-    OffsetAndMetadata committedOffsetAndMetadata =
-        consumer.committed(ImmutableSet.of(ctl)).get(ctl);
-    long committed = committedOffsetAndMetadata == null ? 0L : committedOffsetAndMetadata.offset();
-
-    assertThat(committed)
-        .as("commitConsumerOffsets should not rewind the shared -coord consumer group offsets")
+    assertThat(lastCommittedOffset(0))
+        .as("commitConsumerOffsets should not rewind the -coord consumer group offsets")
         .isEqualTo(healthyWatermark);
   }
 
   @Test
-  public void testCommitConsumerDuplicateDoesNotCommit() {
+  public void testFencedCoordinatorCannotCommitOffsets() {
     Coordinator coordinator = startCoordinator();
-
-    TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
-
-    long healthyWatermark = 100L;
-    coordinator.controlTopicOffsets().put(0, healthyWatermark);
-    coordinator.commitConsumerOffsets();
-
-    long nextWatermark = healthyWatermark + 5;
-    consumer.commitSync(ImmutableMap.of(ctl, new OffsetAndMetadata(nextWatermark)));
 
     coordinator.controlTopicOffsets().put(0, 100L);
     coordinator.commitConsumerOffsets();
 
-    OffsetAndMetadata committedOffsetAndMetadata =
-        consumer.committed(ImmutableSet.of(ctl)).get(ctl);
-    long committed = committedOffsetAndMetadata == null ? 0L : committedOffsetAndMetadata.offset();
+    producer.fenceProducer();
 
-    assertThat(committed)
-        .as(
-            "commitConsumerOffsets should not commit offsets when offset has not changed relative to local cache")
-        .isEqualTo(nextWatermark);
+    coordinator.controlTopicOffsets().put(0, 150L);
+    assertThatThrownBy(coordinator::commitConsumerOffsets)
+        .as("a fenced coordinator must not be able to commit offsets")
+        .isInstanceOf(ProducerFencedException.class)
+        .hasMessageContaining("fenced");
+
+    assertThat(lastCommittedOffset(0))
+        .as("the fenced coordinator's offset must never reach the offset store")
+        .isEqualTo(100L);
+  }
+
+  @Test
+  public void testFencedCoordinatorThreadIsClearedByCommitterWithoutFailingTask()
+      throws InterruptedException, NoSuchFieldException, IllegalAccessException {
+    when(config.commitIntervalMs()).thenReturn(0);
+    when(config.commitTimeoutMs()).thenReturn(Integer.MAX_VALUE);
+
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    Coordinator coordinator =
+        new Coordinator(catalog, config, ImmutableList.of(), clientFactory, context);
+
+    producer.fenceProducer();
+
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
+    coordinatorThread.start();
+    coordinatorThread.join(5000);
+
+    assertThat(coordinatorThread.isTerminated()).isTrue();
+    assertThat(coordinatorThread.isFenced())
+        .as("a real coordinator whose producer was fenced must report as fenced")
+        .isTrue();
+
+    CommitterImpl committer = new CommitterImpl();
+    Field field = CommitterImpl.class.getDeclaredField("coordinatorThread");
+    field.setAccessible(true);
+    field.set(committer, coordinatorThread);
+
+    committer.save(Collections.emptyList());
+
+    assertThat(field.get(committer))
+        .as("committer must clear a fenced coordinator instead of failing the task")
+        .isNull();
   }
 
   @Test
@@ -373,17 +395,10 @@ public class TestCoordinator extends ChannelTestBase {
     Coordinator coordinator = startCoordinator();
 
     long newWatermark = 5L;
-
-    TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
     coordinator.controlTopicOffsets().put(0, newWatermark);
-
     coordinator.commitConsumerOffsets();
 
-    OffsetAndMetadata committedOffsetAndMetadata =
-        consumer.committed(ImmutableSet.of(ctl)).get(ctl);
-    long committed = committedOffsetAndMetadata == null ? 0L : committedOffsetAndMetadata.offset();
-
-    assertThat(committed)
+    assertThat(lastCommittedOffset(0))
         .as("commitConsumerOffsets should advance offsets on its first commit")
         .isEqualTo(newWatermark);
   }
@@ -393,8 +408,6 @@ public class TestCoordinator extends ChannelTestBase {
     Coordinator coordinator = startCoordinator();
 
     long healthyWatermark = 100L;
-    TopicPartition ctl = new TopicPartition(CTL_TOPIC_NAME, 0);
-
     coordinator.controlTopicOffsets().put(0, healthyWatermark);
     coordinator.commitConsumerOffsets();
 
@@ -402,11 +415,7 @@ public class TestCoordinator extends ChannelTestBase {
     coordinator.controlTopicOffsets().put(0, watermarkToCommit);
     coordinator.commitConsumerOffsets();
 
-    OffsetAndMetadata committedOffsetAndMetadata =
-        consumer.committed(ImmutableSet.of(ctl)).get(ctl);
-    long committed = committedOffsetAndMetadata == null ? 0L : committedOffsetAndMetadata.offset();
-
-    assertThat(committed)
+    assertThat(lastCommittedOffset(0))
         .as("commitConsumerOffsets should advance offsets when its value is greater")
         .isEqualTo(watermarkToCommit);
   }
@@ -433,19 +442,23 @@ public class TestCoordinator extends ChannelTestBase {
     coordinator.controlTopicOffsets().put(1, watermarkToSkip);
     coordinator.commitConsumerOffsets();
 
-    Map<TopicPartition, OffsetAndMetadata> committedOffsetAndMetadata =
-        consumer.committed(ImmutableSet.of(ctl0, ctl1));
-
-    OffsetAndMetadata committed0 = committedOffsetAndMetadata.get(ctl0);
-    OffsetAndMetadata committed1 = committedOffsetAndMetadata.get(ctl1);
-
-    assertThat(committed0 == null ? 0L : committed0.offset())
+    assertThat(lastCommittedOffset(0))
         .as("commitConsumerOffsets should advance the consumer group offsets")
         .isEqualTo(watermarkToCommit);
 
-    assertThat(committed1 == null ? 0L : committed1.offset())
+    assertThat(lastCommittedOffset(1))
         .as("commitConsumerOffsets should not rewind consumer group offsets")
         .isEqualTo(healthWatermark1);
+  }
+
+  private Long lastCommittedOffset(int partition) {
+    String groupId = consumer.groupMetadata().groupId();
+    OffsetAndMetadata metadata =
+        committedGroupOffsets(groupId).get(new TopicPartition(CTL_TOPIC_NAME, partition));
+    assertThat(metadata)
+        .as("expected a committed offset for partition %s in group %s", partition, groupId)
+        .isNotNull();
+    return metadata.offset();
   }
 
   private Coordinator startCoordinator() {
