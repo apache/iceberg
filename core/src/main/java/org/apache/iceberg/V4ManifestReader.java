@@ -27,6 +27,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveStatsEvaluator;
 import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -40,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.RestoreColumns;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -69,6 +71,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final ManifestFile manifest;
   private final ManifestBitmap dv;
   private final FileIO io;
+  private final Schema tableSchema;
   private final Schema readSchema;
   private final String tableLocation;
   private final InclusiveStatsEvaluator statsFilter;
@@ -83,6 +86,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private V4ManifestReader(
       ManifestFile manifest,
       FileIO io,
+      Schema tableSchema,
       Schema readSchema,
       String tableLocation,
       InclusiveStatsEvaluator statsFilter,
@@ -94,6 +98,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     this.manifest = manifest;
     this.dv = manifest.manifestDeletionVector();
     this.io = io;
+    this.tableSchema = tableSchema;
     this.readSchema = readSchema;
     this.tableLocation = tableLocation;
     this.statsFilter = statsFilter;
@@ -240,12 +245,37 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       readBuilder.setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsStruct.class);
       for (Types.NestedField fieldStats : statsField.type().asStructType().fields()) {
         readBuilder.setCustomType(fieldStats.fieldId(), FieldStatsStruct.class);
+        registerGeospatialFieldStatsBounds(readBuilder, fieldStats);
       }
     }
 
     CloseableIterable<TrackedFile> reader = readBuilder.build();
     addCloseable(reader);
     return reader;
+  }
+
+  private void registerGeospatialFieldStatsBounds(
+      InternalData.ReadBuilder readBuilder, Types.NestedField fieldStats) {
+    Types.NestedField tableField = tableSchema.findField(StatsUtil.toFieldId(fieldStats.fieldId()));
+    if (tableField == null) {
+      return;
+    }
+
+    Type.TypeID typeId = tableField.type().typeId();
+    if (typeId != Type.TypeID.GEOMETRY && typeId != Type.TypeID.GEOGRAPHY) {
+      return;
+    }
+
+    Types.StructType struct = fieldStats.type().asStructType();
+    setGeospatialBoundCustomType(readBuilder, struct.field(StatsUtil.LOWER_BOUND_NAME));
+    setGeospatialBoundCustomType(readBuilder, struct.field(StatsUtil.UPPER_BOUND_NAME));
+  }
+
+  private static void setGeospatialBoundCustomType(
+      InternalData.ReadBuilder readBuilder, Types.NestedField boundField) {
+    if (boundField != null) {
+      readBuilder.setCustomType(boundField.fieldId(), GeospatialBound.class);
+    }
   }
 
   // resolves stored locations against the table location
@@ -427,6 +457,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return new V4ManifestReader(
           manifest,
           io,
+          tableSchema,
           readSchema(!partitionFilters.isEmpty()),
           tableLocation,
           statsFilter(),
