@@ -158,6 +158,7 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
           branch,
           alreadyCommitted.keySet());
     }
+
     alreadyCommitted.values().forEach(CommitRequest::signalAlreadyCommitted);
     NavigableMap<Long, CommitRequest<IcebergCommittable>> uncommitted =
         commitRequestMap.tailMap(maxCommittedCheckpointId, false);
