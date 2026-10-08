@@ -21,7 +21,9 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -287,6 +289,17 @@ public class TestMetricsConfig {
     assertThat(config.columnMode(DATA))
         .as("non-partition column should keep the default mode")
         .isEqualTo(MetricsModes.Truncate.withLength(16));
+  }
+
+  @Test
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
+  void metricsFieldIdsCannotBeModified() {
+    MetricsConfig config = MetricsTestUtil.from(ImmutableMap.of(), SCHEMA);
+    Iterator<Integer> fieldIds = config.metricsFieldIds().iterator();
+
+    assertThat(fieldIds.next()).isEqualTo(ID);
+    assertThatThrownBy(fieldIds::remove).isInstanceOf(UnsupportedOperationException.class);
+    assertThat(config.metricsFieldIds()).containsExactly(ID, EVENT_TIME, CATEGORY, DATA);
   }
 
   @Test
