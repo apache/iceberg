@@ -966,7 +966,7 @@ A snapshot consists of the following fields:
     |            |            | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
     |            |            | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata |
 
-In format version 4 and above, a snapshot's `timestamp-ms` must be strictly greater than the `timestamp-ms` of its parent snapshot on the same branch. The requirement applies only to snapshots committed while the table is at format version 4 or higher; snapshots with no parent, and snapshots that existed before a table was upgraded to v4, are not constrained.
+When committed while the table is at version 4 or higher, a snapshot's `timestamp-ms` must be strictly greater than its parent snapshot's `timestamp-ms` on the same branch. Snapshots with no parent, and snapshots that were committed before a table was upgraded to v4 or higher, do not have this requirement.
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
@@ -1922,8 +1922,7 @@ Reading v4 metadata:
 
 Snapshot timestamp changes:
 
-* A snapshot's `timestamp-ms` must be strictly greater than the `timestamp-ms` of its parent snapshot on the same branch.
-* The requirement applies only to snapshots committed while the table is at format version 4 or higher.
+* When committed while the table is at version 4 or higher, a snapshot's `timestamp-ms` must be strictly greater than its parent snapshot's `timestamp-ms` on the same branch.
 * Snapshots with no parent and snapshots that existed before a table was upgraded to v4 are not constrained.
 
 Equality deletes are prohibited in v4.
