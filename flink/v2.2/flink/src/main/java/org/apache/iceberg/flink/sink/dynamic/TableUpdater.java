@@ -107,8 +107,11 @@ class TableUpdater {
       try {
         table.manageSnapshots().createBranch(branch).commit();
         LOG.info("Branch {} for {} created", branch, identifier);
-      } catch (CommitFailedException e) {
-        table.refresh();
+      } catch (CommitFailedException | IllegalArgumentException e) {
+        if (!table.refs().containsKey(branch)) {
+          table.refresh();
+        }
+
         if (table.refs().containsKey(branch)) {
           LOG.debug("Branch {} concurrently created for {}.", branch, identifier);
         } else {
