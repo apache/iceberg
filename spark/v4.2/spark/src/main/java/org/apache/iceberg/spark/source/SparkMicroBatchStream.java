@@ -96,7 +96,8 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
             sparkContext.hadoopConfiguration(),
             () -> {
               table.refresh();
-              return MicroBatchUtils.determineStartingOffset(table, fromTimestamp);
+              return MicroBatchUtils.determineInitialOffset(
+                  table, fromTimestamp, readConf.streamFromSnapshot());
             });
     this.initialOffset = initialOffsetStore.initialOffset();
   }
@@ -127,7 +128,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
         "Invalid start offset: %s is not a StreamingOffset",
         start);
 
-    if (end.equals(StreamingOffset.START_OFFSET)) {
+    if (end.equals(StreamingOffset.START_OFFSET) || end.equals(start)) {
       return new InputPartition[0];
     }
 
@@ -244,8 +245,9 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   public void prepareForTriggerAvailableNow() {
     LOG.info("The streaming query reports to use Trigger.AvailableNow");
 
-    lastOffsetForTriggerAvailableNow =
-        (StreamingOffset) latestOffset(initialOffset, ReadLimit.allAvailable());
+    StreamingOffset cap = (StreamingOffset) latestOffset(initialOffset, ReadLimit.allAvailable());
+    // null when nothing lies past the initial offset
+    this.lastOffsetForTriggerAvailableNow = cap != null ? cap : initialOffset;
 
     LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow.json());
 

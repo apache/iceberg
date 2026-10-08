@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.List;
 import java.util.Locale;
 import org.apache.iceberg.DataOperations;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MicroBatches;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -115,6 +118,15 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
       nextSnapshot = SnapshotUtil.snapshotAfter(table, nextSnapshot.snapshotId());
     }
     return nextSnapshot;
+  }
+
+  protected List<FileScanTask> planFullScan(
+      Snapshot snapshot, long startFileIndex, long endFileIndex) {
+    return MicroBatches.from(snapshot, table.io())
+        .caseSensitive(readConf.caseSensitive())
+        .specsById(table.specs())
+        .schemasById(table.schemas())
+        .planFullScan(startFileIndex, endFileIndex);
   }
 
   static class UnpackedLimits {
