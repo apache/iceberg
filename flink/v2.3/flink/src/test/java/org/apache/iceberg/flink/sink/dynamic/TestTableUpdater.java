@@ -128,7 +128,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
 
     // This writer's cache while the branch genuinely does not exist yet.
-    cache.branch(tableIdentifier, "myBranch");
+    assertThat(cache.branch(tableIdentifier, "myBranch")).isNull();
 
     // Simulate another writer subtask committing the branch
     catalog.loadTable(tableIdentifier).manageSnapshots().createBranch("myBranch").commit();
@@ -136,6 +136,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     // Must not throw: a branch concurrently created by another writer must be treated success
     tableUpdater.update(
         tableIdentifier, "myBranch", SCHEMA, PartitionSpec.unpartitioned(), TableCreator.DEFAULT);
+    assertThat(cache.branch(tableIdentifier, "myBranch")).isNotNull();
   }
 
   @Test
