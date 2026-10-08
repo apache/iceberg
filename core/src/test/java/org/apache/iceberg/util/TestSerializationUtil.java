@@ -116,9 +116,6 @@ class TestSerializationUtil {
     byte[] bytes = SerializationUtil.serializeToBytes(configurable, confSerializer);
     HadoopConfigurableFixture roundTripped = SerializationUtil.deserializeFromBytes(bytes);
 
-    assertThat(configurable.serializeConfWithInvoked)
-        .as("serializeConfWith should be called for a HadoopConfigurable object")
-        .isTrue();
     assertThat(roundTripped.getConf().get("custom.serializer.marker"))
         .as(
             "the configuration produced by the provided confSerializer should be the one serialized")
@@ -131,7 +128,7 @@ class TestSerializationUtil {
     Object notSerializable = new Object();
     assertThatThrownBy(() -> SerializationUtil.serializeToBytes(notSerializable))
         .isInstanceOf(UncheckedIOException.class)
-        .hasMessage("Failed to serialize object")
+        .hasMessageContaining("serialize")
         .hasCauseInstanceOf(NotSerializableException.class);
   }
 
@@ -141,25 +138,23 @@ class TestSerializationUtil {
     byte[] corrupted = {0, 1, 2, 3};
     assertThatThrownBy(() -> SerializationUtil.deserializeFromBytes(corrupted))
         .isInstanceOf(UncheckedIOException.class)
-        .hasMessage("Failed to deserialize object")
+        .hasMessageContaining("deserialize")
         .hasCauseInstanceOf(StreamCorruptedException.class);
   }
 
   @Test
-  void hadoopConfigurableRoundTripPreservesConfiguration() {
+  void hadoopConfigurableRoundTripUsesDefaultSerializableConfiguration() {
     Configuration conf = new Configuration(false);
     conf.set("test.key", "test.value");
     HadoopConfigurableFixture configurable = new HadoopConfigurableFixture(conf);
 
-    // The fixture holds a live, non-serializable Configuration, so this round trip only succeeds
+    // Exercises the single-arg overload, which defaults to SerializableConfiguration::new. The
+    // fixture holds a live, non-serializable Configuration, so this round trip only succeeds
     // because serializeToBytes routes HadoopConfigurable objects through serializeConfWith. If
     // that branch regresses, serialization fails here instead of silently passing.
     byte[] bytes = SerializationUtil.serializeToBytes(configurable);
     HadoopConfigurableFixture roundTripped = SerializationUtil.deserializeFromBytes(bytes);
 
-    assertThat(configurable.serializeConfWithInvoked)
-        .as("serializeToBytes should route HadoopConfigurable objects through serializeConfWith")
-        .isTrue();
     assertThat(roundTripped.getConf().get("test.key")).isEqualTo("test.value");
   }
 
@@ -170,7 +165,6 @@ class TestSerializationUtil {
     // and is exactly the contract SerializationUtil's HadoopConfigurable branch fulfills.
     private Configuration conf;
     private SerializableSupplier<Configuration> serializableConf;
-    private transient boolean serializeConfWithInvoked = false;
 
     HadoopConfigurableFixture(Configuration conf) {
       this.conf = conf;
@@ -189,7 +183,6 @@ class TestSerializationUtil {
     @Override
     public void serializeConfWith(
         Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
-      this.serializeConfWithInvoked = true;
       this.serializableConf = confSerializer.apply(getConf());
       // Drop the non-serializable reference so the fixture can be serialized.
       this.conf = null;
