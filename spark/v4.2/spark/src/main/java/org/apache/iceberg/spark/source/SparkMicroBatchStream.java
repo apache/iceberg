@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.source;
 import java.util.List;
 import java.util.function.Supplier;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
@@ -33,7 +32,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
@@ -256,10 +254,11 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
     StreamingOffset lastOffset =
         (StreamingOffset) latestOffset(initialOffset, ReadLimit.allAvailable());
     // START_OFFSET means that no snapshot matched stream-from-timestamp. A new stream has nothing
-    // to read in this run, but a resumed stream continues from its offset and needs an actual cap.
+    // to read in this run. A resumed stream continues from its offset and is capped at the latest
+    // snapshot the planner reads, since a cap at a skipped snapshot is never reached.
     this.noSnapshotMatchedForTriggerAvailableNow = StreamingOffset.START_OFFSET.equals(lastOffset);
     this.lastOffsetForTriggerAvailableNow =
-        noSnapshotMatchedForTriggerAvailableNow ? latestAppendOffset() : lastOffset;
+        noSnapshotMatchedForTriggerAvailableNow ? planner.latestValidSnapshotOffset() : lastOffset;
 
     LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow);
 
@@ -268,17 +267,5 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
       planner.stop();
       planner = null;
     }
-  }
-
-  // The planners only read append snapshots. A cap at any other snapshot is never reached.
-  private StreamingOffset latestAppendOffset() {
-    for (Snapshot snapshot : SnapshotUtil.currentAncestors(table)) {
-      if (DataOperations.APPEND.equals(snapshot.operation())) {
-        return new StreamingOffset(
-            snapshot.snapshotId(), MicroBatchUtils.addedFilesCount(table, snapshot), false);
-      }
-    }
-
-    return null;
   }
 }

@@ -696,6 +696,43 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
+  void availableNowReadsNothingFromEmptyTable() {
+    SparkMicroBatchStream stream =
+        newMicroBatchStream(ImmutableMap.of(), "available-now-empty-table-checkpoint");
+
+    try {
+      stream.prepareForTriggerAvailableNow();
+
+      assertThat(stream.latestOffset(stream.initialOffset(), stream.getDefaultReadLimit()))
+          .isEqualTo(StreamingOffset.START_OFFSET);
+    } finally {
+      stream.stop();
+    }
+  }
+
+  @TestTemplate
+  void availableNowCapRejectsDeleteSnapshotWithoutSkipOption() {
+    table.updateSpec().removeField("id_bucket").addField(ref("id")).commit();
+    appendData(List.of(new SimpleRecord(1, "one")));
+    table.newDelete().deleteFromRowFilter(Expressions.equal("id", 1)).commit();
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.DELETE);
+    SparkMicroBatchStream stream =
+        newMicroBatchStream(
+            ImmutableMap.of(
+                SparkReadOptions.STREAM_FROM_TIMESTAMP,
+                Long.toString(timestampAfterCurrentSnapshot())),
+            "available-now-delete-checkpoint");
+
+    try {
+      assertThatThrownBy(stream::prepareForTriggerAvailableNow)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageStartingWith("Cannot process delete snapshot");
+    } finally {
+      stream.stop();
+    }
+  }
+
+  @TestTemplate
   public void testReadStreamOnIcebergThenAddData() throws Exception {
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
 
