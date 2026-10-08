@@ -57,6 +57,22 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
     sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
   }
 
+  /** The initial and updated values must encode 0x01 and 0x02 respectively. */
+  private void assertBinaryNetChanges(String initial, String updated, String projection) {
+    sql("INSERT INTO %s VALUES (1, %s), (2, %s)", tableName, initial, initial);
+    sql("INSERT OVERWRITE %s VALUES (1, %s), (2, %s)", tableName, updated, initial);
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', net_changes => true)",
+            catalogName, tableName);
+    String viewName = (String) result.get(0)[0];
+    assertEquals(
+        "Net changes should contain only the final rows",
+        ImmutableList.of(row(1, "02", INSERT), row(2, "01", INSERT)),
+        sql("SELECT id, %s, _change_type FROM %s ORDER BY id", projection, viewName));
+  }
+
   private void createTableWithIdentifierField() {
     sql("CREATE TABLE %s (id INT NOT NULL, data STRING) USING iceberg", tableName);
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
@@ -611,6 +627,18 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
             row(2, "d", 11, INSERT, 1, snap2.snapshotId()),
             row(3, "c", 13, INSERT, 1, snap2.snapshotId())),
         sql("select * from %s order by _change_ordinal, id, data", viewName));
+  }
+
+  @TestTemplate
+  public void testNetChangesWithBinaryValues() {
+    sql("CREATE TABLE %s (id INT, data BINARY) USING iceberg", tableName);
+    assertBinaryNetChanges("X'01'", "X'02'", "hex(data)");
+  }
+
+  @TestTemplate
+  public void testNetChangesWithNestedBinaryValues() {
+    sql("CREATE TABLE %s (id INT, data ARRAY<ARRAY<BINARY>>) USING iceberg", tableName);
+    assertBinaryNetChanges("array(array(X'01'))", "array(array(X'02'))", "hex(data[0][0])");
   }
 
   @TestTemplate

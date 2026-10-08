@@ -27,9 +27,13 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -275,5 +279,128 @@ public class TestSnapshotProducer extends TestBase {
     } finally {
       executor.shutdownNow();
     }
+  }
+
+  @TestTemplate
+  public void snapshotTimestampsAreMonotonicallyIncreasing() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot first = table.currentSnapshot();
+
+    table.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot second = table.currentSnapshot();
+    assertThat(second.timestampMillis()).isGreaterThan(first.timestampMillis());
+
+    table.newFastAppend().appendFile(FILE_C).commit();
+    Snapshot third = table.currentSnapshot();
+    assertThat(third.timestampMillis()).isGreaterThan(second.timestampMillis());
+  }
+
+  @TestTemplate
+  public void lamportClockFastForwardsDriftedClock() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long firstTs = table.currentSnapshot().timestampMillis();
+
+    long driftedTime = firstTs - TimeUnit.MINUTES.toMillis(2);
+    Clock driftedClock = Clock.fixed(Instant.ofEpochMilli(driftedTime), ZoneOffset.UTC);
+    AppendFiles append = table.newFastAppend().appendFile(FILE_B);
+    ((SnapshotProducer<?>) append).setClock(driftedClock);
+    append.commit();
+
+    assertThat(table.currentSnapshot().timestampMillis()).isGreaterThan(firstTs);
+  }
+
+  @TestTemplate
+  public void transactionCommitsProduceMonotonicTimestamps() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot base = table.currentSnapshot();
+
+    Transaction txn = table.newTransaction();
+    txn.newFastAppend().appendFile(FILE_B).commit();
+    Snapshot first = txn.table().currentSnapshot();
+    txn.newFastAppend().appendFile(FILE_C).commit();
+    Snapshot second = txn.table().currentSnapshot();
+    txn.commitTransaction();
+
+    assertThat(first.parentId()).isEqualTo(base.snapshotId());
+    assertThat(first.timestampMillis()).isGreaterThan(base.timestampMillis());
+    assertThat(second.parentId()).isEqualTo(first.snapshotId());
+    assertThat(second.timestampMillis()).isGreaterThan(first.timestampMillis());
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(second.snapshotId());
+  }
+
+  @TestTemplate
+  public void transactionRetryFastForwardsTimestampsPastConflictingSnapshot() {
+    table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "1").commit();
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long baseTs = table.currentSnapshot().timestampMillis();
+    Transaction txn = table.newTransaction();
+
+    long firstCommitTs = baseTs + 1;
+    Clock firstClock = Clock.fixed(Instant.ofEpochMilli(firstCommitTs), ZoneOffset.UTC);
+    AppendFiles firstAppend = txn.newFastAppend().appendFile(FILE_B);
+    ((SnapshotProducer<?>) firstAppend).setClock(firstClock);
+    firstAppend.commit();
+
+    long secondCommitTs = firstCommitTs + 1;
+    Clock secondClock = Clock.fixed(Instant.ofEpochMilli(secondCommitTs), ZoneOffset.UTC);
+    AppendFiles secondAppend = txn.newFastAppend().appendFile(FILE_C);
+    ((SnapshotProducer<?>) secondAppend).setClock(secondClock);
+    secondAppend.commit();
+
+    long conflictTs = baseTs + 1_000_000L;
+    AppendFiles conflictAppend = table.newFastAppend().appendFile(FILE_D);
+    ((SnapshotProducer<?>) conflictAppend)
+        .setClock(Clock.fixed(Instant.ofEpochMilli(conflictTs), ZoneOffset.UTC));
+    conflictAppend.commit();
+    Snapshot conflict = table.currentSnapshot();
+    assertThat(conflict.timestampMillis()).isEqualTo(conflictTs);
+    assertThat(txn.table().currentSnapshot().timestampMillis()).isLessThan(conflictTs);
+
+    txn.commitTransaction();
+
+    Snapshot retriedSecond = table.currentSnapshot();
+    Snapshot retriedFirst = table.snapshot(retriedSecond.parentId());
+    assertThat(retriedFirst.parentId()).isEqualTo(conflict.snapshotId());
+    assertThat(retriedFirst.timestampMillis()).isGreaterThan(conflict.timestampMillis());
+    assertThat(retriedSecond.timestampMillis()).isGreaterThan(retriedFirst.timestampMillis());
+  }
+
+  @TestTemplate
+  public void monotonicityIsScopedToTargetBranch() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long mainParentTs = table.currentSnapshot().timestampMillis();
+
+    // Create a branch pointing at the current main head.
+    String branchName = "test-branch";
+    table.manageSnapshots().createBranch(branchName).commit();
+
+    // Commit to the branch with a clock far in the future so the branch head's
+    // timestamp-ms is much higher than main's head timestamp-ms.
+    long branchFutureTs = mainParentTs + 1_000_000L;
+    Clock branchClock = Clock.fixed(Instant.ofEpochMilli(branchFutureTs), ZoneOffset.UTC);
+    AppendFiles branchAppend = table.newFastAppend().appendFile(FILE_B).toBranch(branchName);
+    ((SnapshotProducer<?>) branchAppend).setClock(branchClock);
+    branchAppend.commit();
+    long branchTs = table.snapshot(branchName).timestampMillis();
+    assertThat(branchTs)
+        .as("branch commit should adopt the simulated far-future wall-clock value")
+        .isEqualTo(branchFutureTs);
+
+    // Commit to main with a clock just slightly after mainParentTs but far below branchTs.
+    // The spec requires monotonicity "on the same branch", so main's new timestamp must be
+    // constrained only by main's previous head, not by the unrelated future timestamp on
+    // the other branch.
+    long mainNewTs = mainParentTs + 5;
+    Clock mainClock = Clock.fixed(Instant.ofEpochMilli(mainNewTs), ZoneOffset.UTC);
+    AppendFiles mainAppend = table.newFastAppend().appendFile(FILE_C);
+    ((SnapshotProducer<?>) mainAppend).setClock(mainClock);
+    mainAppend.commit();
+
+    long actualMainTs = table.currentSnapshot().timestampMillis();
+    assertThat(actualMainTs)
+        .as("Main's monotonicity must be relative to main's parent, not the branch head")
+        .isEqualTo(mainNewTs)
+        .isLessThan(branchTs);
   }
 }
