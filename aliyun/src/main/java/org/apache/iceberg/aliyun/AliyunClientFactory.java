@@ -37,7 +37,10 @@ public interface AliyunClientFactory extends Serializable {
    *
    * @return kms client.
    */
-  Client newKmsClient();
+  default Client newKmsClient() {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not support creating a KMS client");
+  }
 
   /**
    * Initialize Aliyun client factory from catalog properties.
