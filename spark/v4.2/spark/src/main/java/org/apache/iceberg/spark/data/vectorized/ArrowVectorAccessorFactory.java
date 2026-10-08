@@ -25,7 +25,7 @@ import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarCharVector;
-import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.ViewVarCharVector;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.Dictionary;
@@ -79,6 +79,34 @@ final class ArrowVectorAccessorFactory
     }
 
     @Override
+    public UTF8String ofRow(ViewVarCharVector vector, int rowId) {
+      int length = vector.getValueLength(rowId);
+      // values of exactly INLINE_SIZE bytes are still stored inline
+      if (length <= ViewVarCharVector.INLINE_SIZE) {
+        int start = rowId * ViewVarCharVector.ELEMENT_SIZE + ViewVarCharVector.LENGTH_WIDTH;
+        return UTF8String.fromAddress(null, vector.getDataBuffer().memoryAddress() + start, length);
+      } else {
+        int bufIndex =
+            vector
+                .getDataBuffer()
+                .getInt(
+                    ((long) rowId * ViewVarCharVector.ELEMENT_SIZE)
+                        + ViewVarCharVector.LENGTH_WIDTH
+                        + ViewVarCharVector.PREFIX_WIDTH);
+        int dataOffset =
+            vector
+                .getDataBuffer()
+                .getInt(
+                    ((long) rowId * ViewVarCharVector.ELEMENT_SIZE)
+                        + ViewVarCharVector.LENGTH_WIDTH
+                        + ViewVarCharVector.PREFIX_WIDTH
+                        + ViewVarCharVector.BUF_INDEX_WIDTH);
+        ArrowBuf dataBuf = vector.getDataBuffers().get(bufIndex);
+        return UTF8String.fromAddress(null, dataBuf.memoryAddress() + dataOffset, length);
+      }
+    }
+
+    @Override
     public UTF8String ofRow(FixedSizeBinaryVector vector, int rowId) {
       return UTF8String.fromString(UUIDUtil.convert(vector.get(rowId)).toString());
     }
@@ -116,12 +144,8 @@ final class ArrowVectorAccessorFactory
     }
 
     @Override
-    public ColumnarArray ofRow(ValueVector vector, ArrowColumnVector childData, int rowId) {
-      ArrowBuf offsets = vector.getOffsetBuffer();
-      int index = rowId * ListVector.OFFSET_WIDTH;
-      int start = offsets.getInt(index);
-      int end = offsets.getInt(index + ListVector.OFFSET_WIDTH);
-      return new ColumnarArray(childData, start, end - start);
+    public ColumnarArray ofRow(ArrowColumnVector childData, int elementStart, int numElements) {
+      return new ColumnarArray(childData, elementStart, numElements);
     }
   }
 
