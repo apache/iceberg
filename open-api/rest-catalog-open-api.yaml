@@ -48,10 +48,14 @@ info:
     - It is not a capability negotiation mechanism: clients do not advertise
       the protocol features they support through this header, and servers do
       not use it to select features or vary response content.
-    - Servers MAY refuse specific operations for client versions known to be
-      incompatible or unsafe, for example a library version known to emit
-      corrupt statistics. This is a coarse, defensive safeguard, not an
-      access-control or capability-negotiation mechanism.
+    - Servers MAY refuse specific operations when the header identifies a
+      client version known to be incompatible or unsafe, for example a library
+      version known to emit corrupt statistics. This applies only to a header
+      that names such a version. It is not an exception to the first rule: a
+      header that is absent, incomplete, or malformed is still not a reason to
+      refuse a request. Because the value is client-asserted, this is a
+      coarse, best-effort safeguard, not an access-control or
+      capability-negotiation mechanism.
 servers:
   - url: "{scheme}://{host}/{basePath}"
     description: Server URL when the port can be inferred from the scheme
@@ -2224,8 +2228,10 @@ components:
         HTTP library, the language runtime, or the operating system. These
         context items SHOULD be grouped into a single comment placed after all
         product tokens rather than interleaved between them, and separated by
-        `; ` when there is more than one, for example `(jvm 17.0.9; ubuntu
-        26.04)`. Everything inside the parentheses is a free-form comment
+        `; ` when there is more than one. The same format applies to any number
+        of items, for example `(jvm 17.0.9; ubuntu 26.04)` with two items or
+        `(cpython 3.11.4; urllib3 2.2.1; macos 15.1)` with three. Everything
+        inside the parentheses is a free-form comment
         rather than a `product/version` token; servers SHOULD treat it as
         opaque and MUST NOT depend on its contents.
 
@@ -2238,6 +2244,10 @@ components:
 
         `Trino/438 iceberg-java/1.9.0 (jvm 17.0.9)` — an engine embedding the
         Iceberg Java library.
+
+
+        `Trino/438 iceberg-java/1.9.0 (jvm 17.0.9; ubuntu 26.04)` — the same
+        engine reporting both the language runtime and the operating system.
 
 
         `Spark/4.0.0 iceberg-spark/1.9.0 iceberg-java/1.9.0 (scala 2.13.16)` —
