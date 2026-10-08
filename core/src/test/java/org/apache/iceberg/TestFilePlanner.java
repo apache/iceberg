@@ -35,7 +35,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -48,7 +47,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.LocationUtil;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
@@ -56,12 +54,18 @@ class TestFilePlanner {
   private static final long SNAPSHOT_ID = 42L;
   private static final long SEQUENCE_NUMBER = 7L;
   private static final long FIRST_ROW_ID = 1000L;
-  private static final int WRITER_FORMAT_VERSION = 4;
   private static final long RECORD_COUNT = 100L;
   private static final long FILE_SIZE_IN_BYTES = 1024L;
   private static final String TABLE_LOCATION = "s3://bucket/db/table";
   private static final DeletionVector DV =
-      deletionVector("s3://bucket/db/table/dv.puffin", 100L, 50L, 5L);
+      V4TestHelpers.deletionVector("s3://bucket/db/table/dv.puffin", 100L, 50L, 5L);
+
+  private static final String FILE_A = "s3://bucket/db/table/file-a.parquet";
+  private static final String FILE_B = "s3://bucket/db/table/file-b.parquet";
+  private static final String FILE_C = "s3://bucket/db/table/file-c.parquet";
+  private static final String FILE_D = "s3://bucket/db/table/file-d.parquet";
+  private static final String PARTITIONED_FILE = "s3://bucket/db/table/partitioned.parquet";
+  private static final String UNPARTITIONED_FILE = "s3://bucket/db/table/unpartitioned.parquet";
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
@@ -101,15 +105,14 @@ class TestFilePlanner {
             format,
             EMPTY_PARTITION,
             ImmutableList.of(
-                dataFile("a.parquet", EMPTY_PARTITION_DATA),
-                dataFile("b.parquet", EMPTY_PARTITION_DATA)));
+                dataFile(FILE_A, EMPTY_PARTITION_DATA), dataFile(FILE_B, EMPTY_PARTITION_DATA)));
 
     List<FileScanTask> tasks = plan(root, UNPARTITIONED_SPECS);
 
     assertThat(tasks)
         .hasSize(2)
         .extracting(task -> task.file().location())
-        .containsExactlyInAnyOrder(resolved("a.parquet"), resolved("b.parquet"));
+        .containsExactlyInAnyOrder(FILE_A, FILE_B);
   }
 
   @ParameterizedTest
@@ -117,14 +120,10 @@ class TestFilePlanner {
   void rootWithOnlyLeafManifests(FileFormat format) throws IOException {
     InputFile leafA =
         writeManifest(
-            format,
-            EMPTY_PARTITION,
-            ImmutableList.of(dataFile("leaf-a.parquet", EMPTY_PARTITION_DATA)));
+            format, EMPTY_PARTITION, ImmutableList.of(dataFile(FILE_A, EMPTY_PARTITION_DATA)));
     InputFile leafB =
         writeManifest(
-            format,
-            EMPTY_PARTITION,
-            ImmutableList.of(dataFile("leaf-b.parquet", EMPTY_PARTITION_DATA)));
+            format, EMPTY_PARTITION, ImmutableList.of(dataFile(FILE_B, EMPTY_PARTITION_DATA)));
     InputFile root =
         writeManifest(
             format,
@@ -136,7 +135,7 @@ class TestFilePlanner {
     assertThat(tasks)
         .hasSize(2)
         .extracting(task -> task.file().location())
-        .containsExactlyInAnyOrder(resolved("leaf-a.parquet"), resolved("leaf-b.parquet"));
+        .containsExactlyInAnyOrder(FILE_A, FILE_B);
   }
 
   @ParameterizedTest
@@ -144,20 +143,16 @@ class TestFilePlanner {
   void rootWithMixedDataAndLeafManifests(FileFormat format) throws IOException {
     InputFile leaf1 =
         writeManifest(
-            format,
-            EMPTY_PARTITION,
-            ImmutableList.of(dataFile("leaf-file-1.parquet", EMPTY_PARTITION_DATA)));
+            format, EMPTY_PARTITION, ImmutableList.of(dataFile(FILE_C, EMPTY_PARTITION_DATA)));
     InputFile leaf2 =
         writeManifest(
-            format,
-            EMPTY_PARTITION,
-            ImmutableList.of(dataFile("leaf-file-2.parquet", EMPTY_PARTITION_DATA)));
+            format, EMPTY_PARTITION, ImmutableList.of(dataFile(FILE_D, EMPTY_PARTITION_DATA)));
     InputFile root =
         writeManifest(
             format,
             EMPTY_PARTITION,
             ImmutableList.of(
-                dataFile("root-data-file.parquet", EMPTY_PARTITION_DATA),
+                dataFile(FILE_A, EMPTY_PARTITION_DATA),
                 dataManifest(leaf1.location()),
                 dataManifest(leaf2.location())));
 
@@ -166,16 +161,29 @@ class TestFilePlanner {
     assertThat(tasks)
         .hasSize(3)
         .extracting(task -> task.file().location())
-        .containsExactlyInAnyOrder(
-            resolved("root-data-file.parquet"),
-            resolved("leaf-file-1.parquet"),
-            resolved("leaf-file-2.parquet"));
+        .containsExactlyInAnyOrder(FILE_A, FILE_C, FILE_D);
   }
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void filterSkipsAndMatchesRootDataFilesAndManifests(FileFormat format) throws IOException {
-    InputFile root = filterableRoot(format);
+    InputFile matchedLeaf =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFileWithStats(FILE_C, idStats(0, 99)),
+                dataFileWithStats(FILE_D, idStats(100, 199))));
+    InputFile root =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFileWithStats(FILE_A, idStats(0, 99)),
+                dataFileWithStats(FILE_B, idStats(100, 199)),
+                dataManifestWithStats(matchedLeaf.location(), idStats(0, 199)),
+                dataManifestWithStats(
+                    "s3://bucket/db/table/pruned-leaf.parquet", idStats(100, 199))));
 
     List<FileScanTask> tasks =
         plan(root, UNPARTITIONED_SPECS, planner -> planner.filterData(Expressions.equal("id", 50)));
@@ -183,8 +191,8 @@ class TestFilePlanner {
     assertThat(tasks)
         .extracting(task -> task.file().location())
         .as(
-            "matched root data file and the file in the matched leaf survive; pruned data file and leaf do not")
-        .containsExactlyInAnyOrder(resolved("root-keep.parquet"), resolved("leaf-file.parquet"));
+            "the matched root data file and the file in the matched leaf survive; the pruned data file and leaf do not")
+        .containsExactlyInAnyOrder(FILE_A, FILE_C);
   }
 
   @ParameterizedTest
@@ -195,8 +203,8 @@ class TestFilePlanner {
             format,
             EMPTY_PARTITION,
             ImmutableList.of(
-                dataFileWithStats("leaf-keep.parquet", idStats(0, 99)),
-                dataFileWithStats("leaf-prune.parquet", idStats(100, 199))));
+                dataFileWithStats(FILE_C, idStats(0, 99)),
+                dataFileWithStats(FILE_D, idStats(100, 199))));
     InputFile root =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location(), 2)));
 
@@ -205,13 +213,19 @@ class TestFilePlanner {
 
     assertThat(Iterables.getOnlyElement(tasks).file().location())
         .as("only the leaf file whose stats match the filter survives")
-        .isEqualTo(resolved("leaf-keep.parquet"));
+        .isEqualTo(FILE_C);
   }
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void filterHonorsCaseSensitivity(FileFormat format) throws IOException {
-    InputFile root = filterableRoot(format);
+    InputFile root =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFileWithStats(FILE_A, idStats(0, 99)),
+                dataFileWithStats(FILE_B, idStats(100, 199))));
 
     List<FileScanTask> tasks =
         plan(
@@ -220,8 +234,8 @@ class TestFilePlanner {
             planner -> planner.filterData(Expressions.equal("ID", 50)).caseSensitive(false));
     assertThat(tasks)
         .extracting(task -> task.file().location())
-        .as("a case-insensitive filter resolves \"ID\" to \"id\" everywhere the filter is applied")
-        .containsExactlyInAnyOrder(resolved("root-keep.parquet"), resolved("leaf-file.parquet"));
+        .as("a case-insensitive filter resolves \"ID\" to \"id\" so the matching file survives")
+        .containsExactlyInAnyOrder(FILE_A);
 
     assertThatThrownBy(
             () ->
@@ -237,8 +251,9 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void taskAttachesColocatedDV(FileFormat format) throws IOException {
-    TrackedFile fileWithDv = dataFile("with-dv.parquet", EMPTY_PARTITION_DATA, DV);
-    InputFile root = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(fileWithDv));
+    TrackedFile fileWithDV =
+        dataFile("s3://bucket/db/table/with-dv.parquet", EMPTY_PARTITION_DATA, DV);
+    InputFile root = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(fileWithDV));
 
     List<FileScanTask> tasks = plan(root, UNPARTITIONED_SPECS);
 
@@ -261,8 +276,8 @@ class TestFilePlanner {
         .as(
             "the id predicate drops out of the partitioned file's residual but not the unpartitioned")
         .containsExactlyInAnyOrder(
-            tuple(resolved("partitioned.parquet"), Expressions.equal("data", "x").toString()),
-            tuple(resolved("unpartitioned.parquet"), filter.toString()));
+            tuple(PARTITIONED_FILE, Expressions.equal("data", "x").toString()),
+            tuple(UNPARTITIONED_FILE, filter.toString()));
   }
 
   @ParameterizedTest
@@ -283,6 +298,8 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void tableLocationForwardedToRootAndLeafReaders(FileFormat format) throws IOException {
+    // the only test that uses relative paths: it verifies the reader relativizes them against the
+    // table location in both the root and the lazily-opened leaf
     InputFile leaf =
         writeManifest(
             format,
@@ -301,8 +318,8 @@ class TestFilePlanner {
     assertThat(tasks)
         .extracting(task -> task.file().location())
         .as("relative paths resolve against the table location in both the root and leaf readers")
-        .allSatisfy(location -> assertThat(location).startsWith(TABLE_LOCATION))
-        .containsExactlyInAnyOrder(resolved("root-data.parquet"), resolved("leaf-data.parquet"));
+        .containsExactlyInAnyOrder(
+            "s3://bucket/db/table/root-data.parquet", "s3://bucket/db/table/leaf-data.parquet");
   }
 
   @ParameterizedTest
@@ -310,9 +327,7 @@ class TestFilePlanner {
   void closingWithoutIteratingOpensOnlyRoot(FileFormat format) throws IOException {
     InputFile leaf =
         writeManifest(
-            format,
-            EMPTY_PARTITION,
-            ImmutableList.of(dataFile("leaf.parquet", EMPTY_PARTITION_DATA)));
+            format, EMPTY_PARTITION, ImmutableList.of(dataFile(FILE_A, EMPTY_PARTITION_DATA)));
     InputFile root =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.location())));
 
@@ -336,13 +351,10 @@ class TestFilePlanner {
             format,
             EMPTY_PARTITION,
             ImmutableList.of(
-                dataFile("leaf1-a.parquet", EMPTY_PARTITION_DATA),
-                dataFile("leaf1-b.parquet", EMPTY_PARTITION_DATA)));
+                dataFile(FILE_A, EMPTY_PARTITION_DATA), dataFile(FILE_B, EMPTY_PARTITION_DATA)));
     InputFile leaf2 =
         writeManifest(
-            format,
-            EMPTY_PARTITION,
-            ImmutableList.of(dataFile("leaf2.parquet", EMPTY_PARTITION_DATA)));
+            format, EMPTY_PARTITION, ImmutableList.of(dataFile(FILE_C, EMPTY_PARTITION_DATA)));
     InputFile root =
         writeManifest(
             format,
@@ -357,7 +369,7 @@ class TestFilePlanner {
 
     try (CloseableIterable<FileScanTask> plan = planner.planFiles();
         CloseableIterator<FileScanTask> tasks = plan.iterator()) {
-      assertThat(tasks.next().file().location()).isEqualTo(resolved("leaf1-a.parquet"));
+      assertThat(tasks.next().file().location()).isEqualTo(FILE_A);
       assertThat(recordingIO.opened(leaf1.location()))
           .as("leaf1 opens to produce the first task")
           .isTrue();
@@ -365,12 +377,12 @@ class TestFilePlanner {
           .as("leaf2 stays closed until leaf1 is exhausted")
           .isFalse();
 
-      assertThat(tasks.next().file().location()).isEqualTo(resolved("leaf1-b.parquet"));
+      assertThat(tasks.next().file().location()).isEqualTo(FILE_B);
       assertThat(recordingIO.opened(leaf2.location()))
           .as("reading the last file in leaf1 does not open leaf2")
           .isFalse();
 
-      assertThat(tasks.next().file().location()).isEqualTo(resolved("leaf2.parquet"));
+      assertThat(tasks.next().file().location()).isEqualTo(FILE_C);
       assertThat(recordingIO.opened(leaf2.location()))
           .as("leaf2 opens once leaf1 is drained")
           .isTrue();
@@ -382,7 +394,10 @@ class TestFilePlanner {
   @FieldSource("MANIFEST_FORMATS")
   void deleteManifestInRootUnsupported(FileFormat format) throws IOException {
     InputFile root =
-        writeManifest(format, EMPTY_PARTITION, ImmutableList.of(deleteManifest("deletes.avro")));
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(deleteManifest("s3://bucket/db/table/deletes.avro")));
 
     FilePlanner planner =
         new FilePlanner(fileIO, asManifest(root), TABLE_SCHEMA, UNPARTITIONED_SPECS)
@@ -395,10 +410,10 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void v3ManifestLeafUnsupported(FileFormat format) throws IOException {
-    String leafLocation = "v3-leaf." + format.name().toLowerCase(Locale.ROOT);
+    String leafLocation = "s3://bucket/db/table/v3-leaf." + format.name().toLowerCase(Locale.ROOT);
     TrackedFile v3Leaf =
         new TrackedFileStruct(
-            addedTracking(),
+            V4TestHelpers.ADDED_TRACKING,
             FileContent.DATA_MANIFEST,
             3, // format version the v4 reader rejects
             leafLocation,
@@ -427,7 +442,23 @@ class TestFilePlanner {
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
   void scanMetricsForComplexFilteredPlan(FileFormat format) throws IOException {
-    InputFile root = filterableRoot(format, DV);
+    InputFile matchedLeaf =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFileWithStats(FILE_C, idStats(0, 99)),
+                dataFileWithStats(FILE_D, idStats(100, 199))));
+    InputFile root =
+        writeManifest(
+            format,
+            EMPTY_PARTITION,
+            ImmutableList.of(
+                dataFileWithStats(FILE_A, idStats(0, 99), DV),
+                dataFileWithStats(FILE_B, idStats(100, 199)),
+                dataManifestWithStats(matchedLeaf.location(), idStats(0, 199)),
+                dataManifestWithStats(
+                    "s3://bucket/db/table/pruned-leaf.parquet", idStats(100, 199))));
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     List<FileScanTask> tasks =
@@ -438,7 +469,7 @@ class TestFilePlanner {
 
     assertThat(tasks)
         .extracting(task -> task.file().location())
-        .containsExactlyInAnyOrder(resolved("root-keep.parquet"), resolved("leaf-file.parquet"));
+        .containsExactlyInAnyOrder(FILE_A, FILE_C);
     assertThat(metrics.resultDataFiles().value()).isEqualTo(2L);
     assertThat(metrics.totalFileSizeInBytes().value()).isEqualTo(2 * FILE_SIZE_IN_BYTES);
     assertThat(metrics.scannedDataManifests().value())
@@ -488,16 +519,11 @@ class TestFilePlanner {
   }
 
   private static TrackedFile dataFile(String location, PartitionData partition) {
-    return dataFile(location, specId(partition), partition, null);
+    return V4TestHelpers.dataFile(location, specId(partition), partition, null, null);
   }
 
   private static TrackedFile dataFile(String location, PartitionData partition, DeletionVector dv) {
-    return dataFile(location, specId(partition), partition, dv);
-  }
-
-  private static TrackedFile dataFile(
-      String location, Integer specId, PartitionData partition, DeletionVector dv) {
-    return trackedFile(addedTracking(), FileContent.DATA, location, specId, partition, dv, null);
+    return V4TestHelpers.dataFile(location, specId(partition), partition, null, dv);
   }
 
   private static TrackedFile dataFileWithStats(String location, ContentStats stats) {
@@ -506,15 +532,8 @@ class TestFilePlanner {
 
   private static TrackedFile dataFileWithStats(
       String location, ContentStats stats, DeletionVector dv) {
-    return trackedFile(
-        addedTracking(),
-        FileContent.DATA,
-        location,
-        specId(EMPTY_PARTITION_DATA),
-        EMPTY_PARTITION_DATA,
-        stats,
-        dv,
-        null); // manifestInfo
+    return V4TestHelpers.dataFile(
+        location, specId(EMPTY_PARTITION_DATA), EMPTY_PARTITION_DATA, stats, dv);
   }
 
   private static TrackedFile dataManifest(String location) {
@@ -522,26 +541,13 @@ class TestFilePlanner {
   }
 
   private static TrackedFile dataManifest(String location, int addedFiles) {
-    return trackedFile(
-        addedTracking(),
-        FileContent.DATA_MANIFEST,
-        location,
-        null, // specId
-        null, // partition
-        null, // dv
-        dataManifestInfo(addedFiles));
+    return V4TestHelpers.manifestRef(
+        FileContent.DATA_MANIFEST, location, dataManifestInfo(addedFiles));
   }
 
   private static TrackedFile dataManifestWithStats(String location, ContentStats stats) {
-    return trackedFile(
-        addedTracking(),
-        FileContent.DATA_MANIFEST,
-        location,
-        null, // specId
-        null, // partition
-        stats,
-        null, // dv
-        dataManifestInfo(1));
+    return V4TestHelpers.manifestRefWithStats(
+        FileContent.DATA_MANIFEST, location, stats, dataManifestInfo(1));
   }
 
   private static ContentStats idStats(int lower, int upper) {
@@ -577,59 +583,7 @@ class TestFilePlanner {
   }
 
   private static TrackedFile deleteManifest(String location) {
-    return trackedFile(
-        addedTracking(), FileContent.DELETE_MANIFEST, location, null, null, null, null);
-  }
-
-  private static TrackedFile trackedFile(
-      TrackingStruct tracking,
-      FileContent contentType,
-      String location,
-      Integer specId,
-      PartitionData partition,
-      DeletionVector dv,
-      ManifestInfo manifestInfo) {
-    return trackedFile(tracking, contentType, location, specId, partition, null, dv, manifestInfo);
-  }
-
-  private static TrackedFile trackedFile(
-      TrackingStruct tracking,
-      FileContent contentType,
-      String location,
-      Integer specId,
-      PartitionData partition,
-      ContentStats contentStats,
-      DeletionVector dv,
-      ManifestInfo manifestInfo) {
-    return new TrackedFileStruct(
-        tracking,
-        contentType,
-        WRITER_FORMAT_VERSION,
-        location,
-        FileFormat.fromFileName(location),
-        RECORD_COUNT,
-        FILE_SIZE_IN_BYTES,
-        specId,
-        partition,
-        contentStats,
-        null, // sortOrderId
-        dv, // deletionVector
-        manifestInfo,
-        null, // keyMetadata
-        null, // splitOffsets
-        null); // equalityIds
-  }
-
-  private static TrackingStruct addedTracking() {
-    return new TrackingStruct(
-        EntryStatus.ADDED,
-        SNAPSHOT_ID,
-        null, // dataSequenceNumber
-        null, // fileSequenceNumber
-        null, // dvSnapshotId
-        null, // firstRowId
-        null, // deletedPositions
-        null); // replacedPositions
+    return V4TestHelpers.manifestRef(FileContent.DELETE_MANIFEST, location, null);
   }
 
   private static Integer specId(PartitionData partition) {
@@ -643,24 +597,9 @@ class TestFilePlanner {
     return partition;
   }
 
-  private static String resolved(String location) {
-    return LocationUtil.resolveLocation(TABLE_LOCATION, location);
-  }
-
-  private static DeletionVector deletionVector(
-      String location, long offset, long sizeInBytes, long cardinality) {
-    return DeletionVectorStruct.builder()
-        .location(location)
-        .offset(offset)
-        .sizeInBytes(sizeInBytes)
-        .cardinality(cardinality)
-        .build();
-  }
-
   private InputFile writeManifest(
       FileFormat format, Types.StructType partitionType, Iterable<TrackedFile> files)
       throws IOException {
-    Schema writeSchema = TrackedFile.schema(partitionType, STATS_TYPE);
     OutputFile out =
         fileIO.newOutputFile(
             TABLE_LOCATION
@@ -668,37 +607,8 @@ class TestFilePlanner {
                 + System.nanoTime()
                 + "."
                 + format.name().toLowerCase(Locale.ROOT));
-    try (FileAppender<StructLike> appender =
-        InternalData.write(format, out).schema(writeSchema).named("tracked_file").build()) {
-      for (TrackedFile file : files) {
-        appender.add((StructLike) file);
-      }
-    }
-
-    return out.toInputFile();
-  }
-
-  private InputFile filterableRoot(FileFormat format) throws IOException {
-    return filterableRoot(format, null);
-  }
-
-  private InputFile filterableRoot(FileFormat format, DeletionVector dv) throws IOException {
-    InputFile matchedLeaf =
-        writeManifest(
-            format,
-            EMPTY_PARTITION,
-            ImmutableList.of(
-                dataFileWithStats("leaf-file.parquet", idStats(0, 99)),
-                dataFileWithStats("leaf-prune.parquet", idStats(100, 199))));
-    return writeManifest(
-        format,
-        EMPTY_PARTITION,
-        ImmutableList.of(
-            dataFileWithStats("root-keep.parquet", idStats(0, 99), dv),
-            dataFileWithStats("root-prune.parquet", idStats(100, 199)),
-            dataManifestWithStats(matchedLeaf.location(), idStats(0, 199)),
-            dataManifestWithStats(
-                "pruned-leaf." + format.name().toLowerCase(Locale.ROOT), idStats(100, 199))));
+    return V4TestHelpers.writeTrackedFiles(out, format, partitionType, STATS_TYPE, files)
+        .toInputFile();
   }
 
   private InputFile mixedPartitionedAndUnpartitionedRoot(FileFormat format) throws IOException {
@@ -707,11 +617,13 @@ class TestFilePlanner {
         format,
         unionType,
         ImmutableList.of(
-            dataFile("partitioned.parquet", BY_ID_SPEC.specId(), idPartition(unionType, 1), null),
-            dataFile(
-                "unpartitioned.parquet",
+            V4TestHelpers.dataFile(
+                PARTITIONED_FILE, BY_ID_SPEC.specId(), idPartition(unionType, 1), null, null),
+            V4TestHelpers.dataFile(
+                UNPARTITIONED_FILE,
                 UNPARTITIONED_WITH_SCHEMA.specId(),
                 idPartition(unionType, null),
+                null,
                 null)));
   }
 
