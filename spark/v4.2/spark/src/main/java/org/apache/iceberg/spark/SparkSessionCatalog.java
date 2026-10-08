@@ -264,9 +264,9 @@ public class SparkSessionCatalog<
     if (useIceberg(provider)) {
       return icebergCatalog.createTableLike(ident, tableInfo, sourceTable);
     } else {
-      Map<String, String> properties = Maps.newHashMap(sourceTable.properties());
-      properties.remove(TableCatalog.PROP_LOCATION);
-      properties.putAll(tableInfo.properties());
+      // like Spark's CREATE TABLE LIKE, copy only the schema and partitioning of the source. Its
+      // properties, such as location and external, describe the source and are not carried over.
+      Map<String, String> properties = Maps.newHashMap(tableInfo.properties());
       properties.put(TableCatalog.PROP_PROVIDER, provider);
       TableInfo targetInfo =
           new TableInfo.Builder()

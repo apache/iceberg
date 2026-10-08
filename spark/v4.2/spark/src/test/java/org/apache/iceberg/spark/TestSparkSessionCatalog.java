@@ -30,7 +30,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
+import java.nio.file.Path;
 import java.util.Collections;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -55,6 +57,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -63,6 +66,8 @@ public class TestSparkSessionCatalog extends TestBase {
   private final String envHmsUriKey = "spark.hadoop." + METASTOREURIS.varname;
   private final String catalogHmsUriKey = "spark.sql.catalog.spark_catalog.uri";
   private final String hmsUri = hiveConf.get(METASTOREURIS.varname);
+
+  @TempDir private Path temp;
 
   @BeforeAll
   public static void setUpCatalog() {
@@ -154,6 +159,43 @@ public class TestSparkSessionCatalog extends TestBase {
             assertThat(spark.table(targetName).schema())
                 .isEqualTo(spark.table(sourceName).schema());
             assertThat(sql("SELECT * FROM %s", targetName)).isEmpty();
+          } finally {
+            sql("DROP TABLE IF EXISTS %s", targetName);
+            sql("DROP TABLE IF EXISTS %s", sourceName);
+            spark.sessionState().catalogManager().reset();
+          }
+        });
+  }
+
+  @Test
+  void createTableLikeUsingParquetFromExternalIcebergSource() {
+    String sourceName = "spark_catalog.default.like_external_iceberg_source";
+    String targetName = "spark_catalog.default.like_managed_parquet_target";
+    String sourceLocation = temp.resolve("like_external_iceberg_source").toUri().toString();
+
+    withSQLConf(
+        Collections.singletonMap("spark.sql.catalog.spark_catalog.parquet-enabled", "false"),
+        () -> {
+          spark.sessionState().catalogManager().reset();
+          try {
+            sql(
+                "CREATE EXTERNAL TABLE %s (id BIGINT, data STRING) USING iceberg LOCATION '%s'",
+                sourceName, sourceLocation);
+            assertThat(
+                    catalog
+                        .loadTable(TableIdentifier.of("default", "like_external_iceberg_source"))
+                        .properties())
+                .containsEntry(TableCatalog.PROP_EXTERNAL, "true");
+
+            // the target has no LOCATION, so it must be created as a managed table rather than
+            // inheriting external=true from the source, which Spark rejects without a location
+            sql("CREATE TABLE %s LIKE %s USING parquet", targetName, sourceName);
+
+            assertThat(sql("DESCRIBE TABLE EXTENDED %s", targetName))
+                .anySatisfy(row -> assertThat(row).startsWith("Provider", "parquet"))
+                .anySatisfy(row -> assertThat(row).startsWith("Type", "MANAGED"));
+            assertThat(spark.table(targetName).schema())
+                .isEqualTo(spark.table(sourceName).schema());
           } finally {
             sql("DROP TABLE IF EXISTS %s", targetName);
             sql("DROP TABLE IF EXISTS %s", sourceName);
