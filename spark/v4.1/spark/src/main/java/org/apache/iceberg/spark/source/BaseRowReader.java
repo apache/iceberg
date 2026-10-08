@@ -31,8 +31,23 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.types.StructType;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
+  private final StructType engineReadSchema;
+
+  BaseRowReader(
+      Table table,
+      FileIO fileIO,
+      ScanTaskGroup<T> taskGroup,
+      Schema expectedSchema,
+      StructType engineReadSchema,
+      boolean caseSensitive,
+      boolean cacheDeleteFilesOnExecutors) {
+    super(table, fileIO, taskGroup, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
+    this.engineReadSchema = engineReadSchema;
+  }
+
   BaseRowReader(
       Table table,
       FileIO fileIO,
@@ -40,7 +55,12 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Schema expectedSchema,
       boolean caseSensitive,
       boolean cacheDeleteFilesOnExecutors) {
-    super(table, fileIO, taskGroup, expectedSchema, caseSensitive, cacheDeleteFilesOnExecutors);
+    this(
+        table, fileIO, taskGroup, expectedSchema, null, caseSensitive, cacheDeleteFilesOnExecutors);
+  }
+
+  protected StructType engineReadSchema() {
+    return engineReadSchema;
   }
 
   protected CloseableIterable<InternalRow> newIterable(
@@ -51,11 +71,18 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Expression residual,
       Schema projection,
       Map<Integer, ?> idToConstant) {
-    ReadBuilder<InternalRow, ?> reader =
-        FormatModelRegistry.readBuilder(format, InternalRow.class, file);
+    // FormatModelRegistry always returns a ReadBuilder parameterised for InternalRow; the
+    // wildcard on the engine-schema type is erased at runtime so this cast is safe.
+    @SuppressWarnings("unchecked")
+    ReadBuilder<InternalRow, Object> reader =
+        (ReadBuilder<InternalRow, Object>)
+            FormatModelRegistry.readBuilder(format, InternalRow.class, file);
+    reader = reader.project(projection).idToConstant(idToConstant);
+    if (engineReadSchema != null) {
+      reader = reader.engineProjection(engineReadSchema);
+    }
+
     return reader
-        .project(projection)
-        .idToConstant(idToConstant)
         .reuseContainers()
         .split(start, length)
         .caseSensitive(caseSensitive())
