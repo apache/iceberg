@@ -48,6 +48,11 @@ public class SparkSQLProperties {
   // Controls write distribution mode
   public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
 
+  // Controls the row-level operation mode (copy-on-write or merge-on-read) for DELETE/UPDATE/MERGE.
+  // When set, it takes precedence over the write.delete.mode, write.update.mode and
+  // write.merge.mode table properties.
+  public static final String ROW_LEVEL_OPERATION_MODE = "spark.sql.iceberg.row-level-mode";
+
   // Controls the WAP ID used for write-audit-publish workflow.
   // When set, new snapshots will be staged with this ID in snapshot summary.
   public static final String WAP_ID = "spark.wap.id";
