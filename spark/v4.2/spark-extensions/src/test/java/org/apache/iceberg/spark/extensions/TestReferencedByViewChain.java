@@ -18,19 +18,24 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.apache.iceberg.TestHelpers.waitUntilAfter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.net.InetAddress;
+import java.nio.file.Path;
+import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
@@ -38,6 +43,7 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.SparkTestHelperBase;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -51,6 +57,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestReferencedByViewChain extends SparkTestHelperBase {
 
@@ -62,6 +69,11 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   private static final String OTHER_TABLE_NAME = "other_table";
   private static final String VIEW_DEFAULT_TABLE_NAME = "view_default_table";
   private static final String VIEW_DEFAULT_VIEW_NAME = "view_default_view";
+  private static final String SESSION_CATALOG_NAME = "spark_catalog";
+  private static final String PARQUET_TABLE_NAME = "parquet_table";
+  private static final String PARQUET_VIEW_NAME = "parquet_view";
+
+  @TempDir private static Path warehouse;
 
   private static SparkSession spark;
 
@@ -136,6 +148,13 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
                 ContextTrackingCatalog.class.getName())
             .config("spark.sql.catalog." + OTHER_CATALOG_NAME + ".default-namespace", "default")
             .config("spark.sql.catalog." + OTHER_CATALOG_NAME + ".cache-enabled", "true")
+            .config(
+                "spark.sql.catalog." + SESSION_CATALOG_NAME, SparkSessionCatalog.class.getName())
+            .config(
+                "spark.sql.catalog." + SESSION_CATALOG_NAME + "." + CatalogProperties.CATALOG_IMPL,
+                InMemoryCatalog.class.getName())
+            .config("spark.sql.catalog." + SESSION_CATALOG_NAME + ".cache-enabled", "false")
+            .config("spark.sql.warehouse.dir", warehouse.toString())
             .config("spark.sql.defaultCatalog", CATALOG_NAME)
             .getOrCreate();
 
@@ -144,6 +163,8 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
         String.format(
             "CREATE NAMESPACE IF NOT EXISTS %s.%s", CATALOG_NAME, VIEW_DEFAULT_NAMESPACE));
     spark.sql(String.format("CREATE NAMESPACE IF NOT EXISTS %s.%s", OTHER_CATALOG_NAME, NAMESPACE));
+    ((SupportsNamespaces) Spark3Util.loadIcebergCatalog(spark, SESSION_CATALOG_NAME))
+        .createNamespace(NAMESPACE);
   }
 
   @AfterAll
@@ -184,6 +205,10 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     spark.sql(
         String.format(
             "DROP TABLE IF EXISTS %s.%s.%s", OTHER_CATALOG_NAME, NAMESPACE, OTHER_TABLE_NAME));
+    viewCatalog(SESSION_CATALOG_NAME).dropView(TableIdentifier.of(NAMESPACE, PARQUET_VIEW_NAME));
+    spark.sql(
+        String.format(
+            "DROP TABLE IF EXISTS %s.%s.%s", SESSION_CATALOG_NAME, NAMESPACE, PARQUET_TABLE_NAME));
     ContextTrackingCatalog.clearCaptured();
   }
 
@@ -217,15 +242,32 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   @Test
   public void singleViewPassesViewIdentifierInContext() {
     createView("simple_view", String.format("SELECT id FROM %s", TABLE_NAME));
+    spark.sql(String.format("REFRESH TABLE %s", TABLE_NAME));
     ContextTrackingCatalog.clearCaptured();
 
     List<Row> result = spark.sql("SELECT * FROM simple_view").collectAsList();
     assertThat(result).hasSize(5);
 
-    assertThat(ContextTrackingCatalog.CAPTURED)
-        .filteredOn(captured -> !captured.referencedBy.isEmpty())
-        .hasSize(1);
-    assertCapturedTableChain(ContextTrackingCatalog.CAPTURED, TABLE_NAME, "simple_view");
+    assertThat(capturedLoadsOf(TableIdentifier.of(NAMESPACE, TABLE_NAME)))
+        .isNotEmpty()
+        .allSatisfy(
+            captured ->
+                assertThat(captured.referencedBy)
+                    .containsExactly(TableIdentifier.of(NAMESPACE, "simple_view")));
+  }
+
+  @Test
+  public void viewBodyResolvesTableQualifiedColumns() {
+    createView("view_a", String.format("SELECT %s.id FROM %s", TABLE_NAME, TABLE_NAME));
+    createView(
+        "view_b",
+        String.format(
+            "SELECT %s.%s.%s.id FROM %s.%s.%s",
+            CATALOG_NAME, NAMESPACE, TABLE_NAME, CATALOG_NAME, NAMESPACE, TABLE_NAME));
+    ContextTrackingCatalog.clearCaptured();
+
+    assertThat(spark.sql("SELECT * FROM view_a").collectAsList()).hasSize(5);
+    assertThat(spark.sql("SELECT * FROM view_b").collectAsList()).hasSize(5);
   }
 
   @Test
@@ -320,12 +362,103 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
         .hasMessageContaining(OTHER_CATALOG_NAME);
   }
 
+  @Test
+  public void versionTimeTravelViewReadsPinnedSnapshot() throws Exception {
+    long snapshotId = Spark3Util.loadIcebergTable(spark, TABLE_NAME).currentSnapshot().snapshotId();
+    createView(
+        "time_travel_view",
+        String.format("SELECT id FROM %s VERSION AS OF %d", TABLE_NAME, snapshotId));
+    appendRecords(TABLE_NAME);
+    ContextTrackingCatalog.clearCaptured();
+
+    List<Row> result = spark.sql("SELECT * FROM time_travel_view").collectAsList();
+    assertThat(result).hasSize(5);
+  }
+
+  @Test
+  public void timestampStringTimeTravelView() throws Exception {
+    long asOfMillis = waitUntilAfter(currentSnapshotMillis());
+    String asOf = new Timestamp(asOfMillis).toString();
+    createView(
+        "time_travel_view",
+        String.format("SELECT id FROM %s TIMESTAMP AS OF '%s'", TABLE_NAME, asOf));
+    waitUntilAfter(asOfMillis);
+    appendRecords(TABLE_NAME);
+    ContextTrackingCatalog.clearCaptured();
+
+    List<Row> result = spark.sql("SELECT * FROM time_travel_view").collectAsList();
+    assertThat(result).hasSize(5);
+
+    assertCapturedTableChain(ContextTrackingCatalog.CAPTURED, TABLE_NAME, "time_travel_view");
+  }
+
+  @Test
+  public void timestampSecondsTimeTravelView() throws Exception {
+    long asOfSeconds = TimeUnit.MILLISECONDS.toSeconds(currentSnapshotMillis()) + 1;
+    createView(
+        "time_travel_view",
+        String.format("SELECT id FROM %s TIMESTAMP AS OF %d", TABLE_NAME, asOfSeconds));
+    waitUntilAfter(TimeUnit.SECONDS.toMillis(asOfSeconds));
+    appendRecords(TABLE_NAME);
+    ContextTrackingCatalog.clearCaptured();
+
+    List<Row> result = spark.sql("SELECT * FROM time_travel_view").collectAsList();
+    assertThat(result).hasSize(5);
+
+    assertCapturedTableChain(ContextTrackingCatalog.CAPTURED, TABLE_NAME, "time_travel_view");
+  }
+
+  @Test
+  public void directReadOfNonIcebergTableInSessionCatalog() {
+    String parquetTable = createSessionCatalogParquetTable();
+
+    assertThat(spark.sql(String.format("SELECT * FROM %s", parquetTable)).count()).isEqualTo(3);
+  }
+
+  @Test
+  public void viewReadsNonIcebergTableInSessionCatalog() {
+    String parquetTable = createSessionCatalogParquetTable();
+    createView(
+        SESSION_CATALOG_NAME, PARQUET_VIEW_NAME, String.format("SELECT id FROM %s", parquetTable));
+
+    assertThat(
+            spark
+                .sql(
+                    String.format(
+                        "SELECT * FROM %s.%s.%s",
+                        SESSION_CATALOG_NAME, NAMESPACE, PARQUET_VIEW_NAME))
+                .count())
+        .isEqualTo(3);
+  }
+
+  private String createSessionCatalogParquetTable() {
+    String parquetTable =
+        String.format("%s.%s.%s", SESSION_CATALOG_NAME, NAMESPACE, PARQUET_TABLE_NAME);
+    spark.sql(String.format("CREATE TABLE %s (id INT) USING parquet", parquetTable));
+    spark.sql(String.format("INSERT INTO %s VALUES (1), (2), (3)", parquetTable));
+    return parquetTable;
+  }
+
+  private long currentSnapshotMillis() throws Exception {
+    return Spark3Util.loadIcebergTable(spark, TABLE_NAME).currentSnapshot().timestampMillis();
+  }
+
+  private List<ContextTrackingCatalog.CapturedContext> capturedLoadsOf(TableIdentifier ident) {
+    return ContextTrackingCatalog.CAPTURED.stream()
+        .filter(captured -> captured.tableIdentifier.equals(ident))
+        .collect(Collectors.toList());
+  }
+
   private void createView(String viewName, String sql) {
-    viewCatalog()
+    createView(CATALOG_NAME, viewName, sql);
+  }
+
+  private void createView(String catalogName, String viewName, String sql) {
+    viewCatalog(catalogName)
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
         .withQuery("spark", sql)
         .withDefaultNamespace(NAMESPACE)
-        .withDefaultCatalog(CATALOG_NAME)
+        .withDefaultCatalog(catalogName)
         .withSchema(SparkSchemaUtil.convert(spark.sql(sql).schema()))
         .create();
   }
@@ -384,7 +517,11 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   private ViewCatalog viewCatalog() {
-    CatalogPlugin catalogPlugin = spark.sessionState().catalogManager().catalog(CATALOG_NAME);
+    return viewCatalog(CATALOG_NAME);
+  }
+
+  private ViewCatalog viewCatalog(String catalogName) {
+    CatalogPlugin catalogPlugin = spark.sessionState().catalogManager().catalog(catalogName);
     assertThat(catalogPlugin).isInstanceOf(HasIcebergCatalog.class);
     ViewCatalog viewCatalog = ((HasIcebergCatalog) catalogPlugin).icebergViewCatalog();
     assertThat(viewCatalog).isNotNull();

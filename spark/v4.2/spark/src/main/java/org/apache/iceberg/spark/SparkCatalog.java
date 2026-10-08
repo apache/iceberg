@@ -76,7 +76,6 @@ import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.ViewUtil;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
-import org.apache.spark.sql.connector.catalog.Relation;
 import org.apache.spark.sql.connector.catalog.StagedTable;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -209,20 +208,6 @@ public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContex
   public Table loadTable(Identifier ident, long timestampMicros, LoadContext context)
       throws NoSuchTableException {
     return load(ident, TimeTravel.timestampMicros(timestampMicros), context);
-  }
-
-  @Override
-  public Relation loadRelation(Identifier ident) throws NoSuchTableException {
-    try {
-      return loadTable(ident);
-    } catch (NoSuchTableException e) {
-      try {
-        return loadView(ident);
-      } catch (NoSuchViewException viewException) {
-        e.addSuppressed(viewException);
-        throw e;
-      }
-    }
   }
 
   @Override

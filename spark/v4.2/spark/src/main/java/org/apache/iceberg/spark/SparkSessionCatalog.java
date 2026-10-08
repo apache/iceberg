@@ -47,7 +47,6 @@ import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
-import org.apache.spark.sql.connector.catalog.Relation;
 import org.apache.spark.sql.connector.catalog.StagedTable;
 import org.apache.spark.sql.connector.catalog.StagingTableCatalog;
 import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
@@ -258,20 +257,6 @@ public class SparkSessionCatalog<
       return icebergCatalog.loadTable(ident, timestamp);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, timestamp);
-    }
-  }
-
-  @Override
-  public Relation loadRelation(Identifier ident) throws NoSuchTableException {
-    try {
-      return loadTable(ident);
-    } catch (NoSuchTableException e) {
-      try {
-        return loadView(ident);
-      } catch (NoSuchViewException viewException) {
-        e.addSuppressed(viewException);
-        throw e;
-      }
     }
   }
 
