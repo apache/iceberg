@@ -225,7 +225,7 @@ class TestDataFileRewriteRunner extends OperatorTestBase {
                   .poll()
                   .getValue()
                   .getMessage())
-          .contains("File does not exist: ");
+          .contains("Failed to open input stream for file: ");
     }
   }
 

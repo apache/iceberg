@@ -33,11 +33,11 @@ class TestTrackingBuilder {
 
   // Tests aren't expected to change these fields
   private static final Tracking SOURCE_TRACKING_ADDED =
-      new TrackingStruct(EntryStatus.ADDED, 42L, 10L, 10L, 43L, 1000L, null, null);
+      new TrackingStruct(EntryStatus.ADDED, 42L, 10L, 10L, 43L, 1000L, null, null, 19L);
   private static final Tracking SOURCE_TRACKING_EXISTING =
-      new TrackingStruct(EntryStatus.EXISTING, 42L, 10L, 10L, 43L, 1000L, null, null);
+      new TrackingStruct(EntryStatus.EXISTING, 42L, 10L, 10L, 43L, 1000L, null, null, 19L);
   private static final Tracking SOURCE_TRACKING_MODIFIED =
-      new TrackingStruct(EntryStatus.MODIFIED, 42L, 10L, 10L, 43L, 1000L, null, null);
+      new TrackingStruct(EntryStatus.MODIFIED, 42L, 10L, 10L, 43L, 1000L, null, null, 19L);
 
   @Test
   void addedWithSameCommitDvStaysAdded() {
@@ -64,6 +64,8 @@ class TestTrackingBuilder {
     assertThat(existing.fileSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.fileSequenceNumber());
     assertThat(existing.dvSnapshotId()).isEqualTo(SOURCE_TRACKING_ADDED.dvSnapshotId());
     assertThat(existing.firstRowId()).isEqualTo(SOURCE_TRACKING_ADDED.firstRowId());
+    assertThat(existing.latestColumnFileSnapshotId())
+        .isEqualTo(SOURCE_TRACKING_ADDED.latestColumnFileSnapshotId());
   }
 
   @Test
@@ -76,6 +78,8 @@ class TestTrackingBuilder {
     assertThat(deleted.fileSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.fileSequenceNumber());
     assertThat(deleted.dvSnapshotId()).isEqualTo(SOURCE_TRACKING_ADDED.dvSnapshotId());
     assertThat(deleted.firstRowId()).isEqualTo(SOURCE_TRACKING_ADDED.firstRowId());
+    assertThat(deleted.latestColumnFileSnapshotId())
+        .isEqualTo(SOURCE_TRACKING_ADDED.latestColumnFileSnapshotId());
   }
 
   @Test
@@ -88,13 +92,23 @@ class TestTrackingBuilder {
     assertThat(replaced.fileSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.fileSequenceNumber());
     assertThat(replaced.dvSnapshotId()).isEqualTo(SOURCE_TRACKING_ADDED.dvSnapshotId());
     assertThat(replaced.firstRowId()).isEqualTo(SOURCE_TRACKING_ADDED.firstRowId());
+    assertThat(replaced.latestColumnFileSnapshotId())
+        .isEqualTo(SOURCE_TRACKING_ADDED.latestColumnFileSnapshotId());
   }
 
   @Test
   void sourceDvPositionsAreNotCarriedForward() {
     Tracking source =
         new TrackingStruct(
-            EntryStatus.ADDED, 42L, 10L, 10L, 43L, 1000L, new byte[] {1, 2}, new byte[] {3, 4});
+            EntryStatus.ADDED,
+            42L,
+            10L,
+            10L,
+            43L,
+            1000L,
+            new byte[] {1, 2},
+            new byte[] {3, 4},
+            null);
 
     Tracking existing = TrackingBuilder.from(source, 1L).build();
     assertThat(existing.deletedPositions()).isNull();
@@ -180,7 +194,7 @@ class TestTrackingBuilder {
         .hasMessage("Invalid tracking source: data sequence number is null");
 
     TrackingStruct missingFileSeq =
-        new TrackingStruct(EntryStatus.ADDED, 42L, 10L, null, null, null, null, null);
+        new TrackingStruct(EntryStatus.ADDED, 42L, 10L, null, null, null, null, null, null);
 
     assertThatThrownBy(() -> TrackingBuilder.from(missingFileSeq, 1L))
         .isInstanceOf(IllegalArgumentException.class)
@@ -212,7 +226,7 @@ class TestTrackingBuilder {
   @MethodSource("terminalTransitionCases")
   void rejectsTransitionsFromTerminalStatus(
       EntryStatus sourceStatus, Consumer<Tracking> factoryCall) {
-    Tracking source = new TrackingStruct(sourceStatus, 42L, 10L, 10L, 43L, 1000L, null, null);
+    Tracking source = new TrackingStruct(sourceStatus, 42L, 10L, 10L, 43L, 1000L, null, null, 19L);
 
     assertThatThrownBy(() -> factoryCall.accept(source))
         .isInstanceOf(IllegalStateException.class)
@@ -263,6 +277,8 @@ class TestTrackingBuilder {
     assertThat(carried.fileSequenceNumber())
         .isEqualTo(SOURCE_TRACKING_MODIFIED.fileSequenceNumber());
     assertThat(carried.firstRowId()).isEqualTo(SOURCE_TRACKING_MODIFIED.firstRowId());
+    assertThat(carried.latestColumnFileSnapshotId())
+        .isEqualTo(SOURCE_TRACKING_MODIFIED.latestColumnFileSnapshotId());
   }
 
   @Test
@@ -278,5 +294,34 @@ class TestTrackingBuilder {
         .isNotEqualTo(999L);
     assertThat(modified.dvSnapshotId()).isEqualTo(999L);
     assertThat(modified.deletedPositions()).isEqualTo(deletedBytes);
+  }
+
+  @Test
+  void manifestPositionsWithColumnFilesUpdated() {
+    ByteBuffer deletedBytes = ByteBuffer.wrap(new byte[] {1});
+    Tracking withDeletedPositions =
+        TrackingBuilder.from(SOURCE_TRACKING_ADDED, 999L)
+            .columnFilesUpdated()
+            .deletedPositions(deletedBytes)
+            .build();
+
+    assertThat(withDeletedPositions.status()).isEqualTo(EntryStatus.MODIFIED);
+    assertThat(withDeletedPositions.latestColumnFileSnapshotId()).isEqualTo(999L);
+    assertThat(withDeletedPositions.dvSnapshotId()).isEqualTo(999L);
+    assertThat(withDeletedPositions.deletedPositions()).isEqualTo(deletedBytes);
+    assertThat(withDeletedPositions.dataSequenceNumber()).isNull();
+
+    ByteBuffer replacedBytes = ByteBuffer.wrap(new byte[] {2});
+    Tracking withReplacedPositions =
+        TrackingBuilder.from(SOURCE_TRACKING_ADDED, 999L)
+            .columnFilesUpdated()
+            .replacedPositions(replacedBytes)
+            .build();
+
+    assertThat(withReplacedPositions.status()).isEqualTo(EntryStatus.MODIFIED);
+    assertThat(withReplacedPositions.latestColumnFileSnapshotId()).isEqualTo(999L);
+    assertThat(withReplacedPositions.dvSnapshotId()).isEqualTo(999L);
+    assertThat(withReplacedPositions.replacedPositions()).isEqualTo(replacedBytes);
+    assertThat(withReplacedPositions.dataSequenceNumber()).isNull();
   }
 }
