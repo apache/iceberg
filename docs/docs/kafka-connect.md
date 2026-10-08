@@ -94,6 +94,38 @@ If `iceberg.tables.dynamic-enabled` is `false` (the default) then you must speci
 `iceberg.tables.dynamic-enabled` is `true` then you must specify `iceberg.tables.route-field` which will
 contain the name of the table.
 
+### Missing or replaced tables during commit
+
+If a table cannot be found when the coordinator commits buffered files, or its
+UUID no longer matches the UUID recorded in the response, the commit cycle
+fails. The coordinator retains the buffered responses, does not advance its
+control-topic consumer checkpoint, and does not publish `CommitComplete`.
+A UUID mismatch is not resolved by writing the files into the replacement
+table. Other tables may already have committed successfully; those Iceberg
+commits are not rolled back.
+
+These failures count toward `iceberg.control.commit.max-consecutive-failures`,
+including failures in timed-out partial commits. The default is `1`, which
+terminates the coordinator on the first failure. A higher value permits retries
+in later commit cycles. A successful full commit resets the consecutive-failure
+count. Partial table-lookup failures also increment the partial-commit failure
+counter.
+
+For temporary table unavailability, restore the original table under the
+expected identifier and with its original UUID before the retry limit is
+reached. If the coordinator has already failed, resolve the table lookup before
+restarting the affected task. Recovery by control-topic replay requires the
+relevant records to remain retained and a suitable consumer starting offset;
+retaining the in-memory buffer does not by itself guarantee recovery after a
+restart.
+
+A deliberately dropped or permanently replaced table requires operator
+intervention. Increasing the retry limit cannot reconcile responses for
+different table UUIDs under the same name. The connector does not automatically
+discard those responses or migrate them to the replacement table. This policy
+applies to buffered file commits, not the initial missing-table behavior of
+dynamic routing described below.
+
 ### Kafka configuration
 
 By default the connector will attempt to use Kafka client config from the worker properties for connecting to
