@@ -1408,7 +1408,7 @@ paths:
       summary: Remotely signs requests to object storage
       operationId: signRequest
       description: >
-        Signs one request to object storage on the client's behalf.
+        Signs a request to object storage on the client's behalf.
 
 
         `RemoteSignResult` takes one of two forms, reported in `signing-mechanism`. With
@@ -5483,7 +5483,7 @@ components:
         plan-id:
           type: string
           description: >
-            Optional identifier of the scan plan, supplied for audit and correlation. A server
+            Optional identifier of the server side scan plan, supplied for audit and correlation. A server
             MUST NOT fail a request because the referenced plan is unknown, expired, or cancelled.
 
     RemoteSignResult:
