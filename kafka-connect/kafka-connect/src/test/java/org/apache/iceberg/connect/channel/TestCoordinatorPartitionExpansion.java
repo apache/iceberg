@@ -33,7 +33,6 @@ import static org.mockito.Mockito.when;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -141,7 +140,7 @@ class TestCoordinatorPartitionExpansion extends ChannelTestBase {
     writeFile(partialCommitId, partialFile, 3L);
     ready(partialCommitId, LATER_TIMESTAMP, 4L, FIRST_PARTITION, SECOND_PARTITION);
     coordinator.process();
-    assertPending(3L, 1);
+    assertPending(1);
 
     when(config.commitTimeoutMs()).thenReturn(-1);
     coordinator.process();
@@ -329,7 +328,6 @@ class TestCoordinatorPartitionExpansion extends ChannelTestBase {
         .assignmentChanged();
     coordinator.start();
     initConsumer();
-    consumer.commitSync(Map.of(CONTROL_PARTITION, new OffsetAndMetadata(1L)));
     return committer;
   }
 
@@ -341,7 +339,6 @@ class TestCoordinatorPartitionExpansion extends ChannelTestBase {
         new Coordinator(catalog, config, members, clientFactory, mock(SinkTaskContext.class));
     coordinator.start();
     initConsumer();
-    consumer.commitSync(Map.of(CONTROL_PARTITION, new OffsetAndMetadata(1L)));
   }
 
   private UUID startCommit() {
@@ -407,17 +404,16 @@ class TestCoordinatorPartitionExpansion extends ChannelTestBase {
   }
 
   private void assertPending() {
-    assertPending(1L, 0);
+    assertPending(0);
   }
 
-  private void assertPending(long committedOffset, int snapshotCount) {
+  private void assertPending(int snapshotCount) {
     table.refresh();
     assertThat(table.snapshots()).hasSize(snapshotCount);
     assertThat(producer.history())
         .extracting(record -> AvroUtil.decode(record.value()).type())
         .containsExactly(PayloadType.START_COMMIT);
-    assertThat(consumer.committed(Set.of(CONTROL_PARTITION)))
-        .containsEntry(CONTROL_PARTITION, new OffsetAndMetadata(committedOffset));
+    assertThat(committedControlOffset()).isNull();
   }
 
   private void assertCompleted(
@@ -458,7 +454,12 @@ class TestCoordinatorPartitionExpansion extends ChannelTestBase {
               assertThat(complete.commitId()).isEqualTo(commitId);
               assertThat(complete.validThroughTs()).isEqualTo(timestamp);
             });
-    assertThat(consumer.committed(Set.of(CONTROL_PARTITION)))
-        .containsEntry(CONTROL_PARTITION, new OffsetAndMetadata(committedOffset));
+    assertThat(committedControlOffset()).isEqualTo(committedOffset);
+  }
+
+  private Long committedControlOffset() {
+    OffsetAndMetadata committed =
+        committedGroupOffsets(consumer.groupMetadata().groupId()).get(CONTROL_PARTITION);
+    return committed != null ? committed.offset() : null;
   }
 }
