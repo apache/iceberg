@@ -2052,6 +2052,30 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
+  void snapshotPropertyAppliedToRemoveDanglingDeletesCommit() {
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            SPEC,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(1, null, "AAAA")));
+    writeEqDeleteRecord(table, "c1", 2, "c3", "CCCC");
+    table.refresh();
+
+    Result ignored =
+        basicRewrite(table)
+            .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
+            .snapshotProperty("key", "value")
+            .execute();
+
+    table.refresh();
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.REMOVED_EQ_DELETE_FILES_PROP, "1")
+        .containsEntry("key", "value");
+  }
+
+  @TestTemplate
   public void testBinPackRewriterWithSpecificUnparitionedOutputSpec() {
     Table table = createTable(10);
     shouldHaveFiles(table, 10);

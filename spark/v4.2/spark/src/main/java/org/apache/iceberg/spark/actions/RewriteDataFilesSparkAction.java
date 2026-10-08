@@ -486,8 +486,10 @@ public class RewriteDataFilesSparkAction
 
   private RewriteDataFiles.Result executeRemoveDanglingDeletes(
       ImmutableRewriteDataFiles.Result rewriteResult) {
-    RemoveDanglingDeletesSparkAction.Result result =
-        new RemoveDanglingDeletesSparkAction(spark(), table).toBranch(branch).execute();
+    RemoveDanglingDeletesSparkAction removeDanglingDeletesAction =
+        new RemoveDanglingDeletesSparkAction(spark(), table).toBranch(branch);
+    commitSummary().forEach(removeDanglingDeletesAction::snapshotProperty);
+    RemoveDanglingDeletesSparkAction.Result result = removeDanglingDeletesAction.execute();
     return rewriteResult.withRemovedDeleteFilesCount(
         rewriteResult.removedDeleteFilesCount() + Iterables.size(result.removedDeleteFiles()));
   }

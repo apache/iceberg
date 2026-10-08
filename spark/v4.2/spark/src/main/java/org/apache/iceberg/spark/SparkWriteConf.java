@@ -60,7 +60,6 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.collection.JavaConverters;
 
 /**
  * A class for common Iceberg configs for Spark writes.
@@ -282,10 +281,7 @@ public class SparkWriteConf {
     Map<String, String> extraSnapshotMetadata = Maps.newHashMap();
 
     // Add session configuration properties with SNAPSHOT_PROPERTY_PREFIX if necessary
-    extraSnapshotMetadata.putAll(
-        PropertyUtil.propertiesWithPrefix(
-            JavaConverters.mapAsJavaMap(sessionConf.getAll()),
-            SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX));
+    extraSnapshotMetadata.putAll(SparkUtil.sessionSnapshotProperties(spark));
 
     // Add write options, overriding session configuration if necessary
     extraSnapshotMetadata.putAll(
