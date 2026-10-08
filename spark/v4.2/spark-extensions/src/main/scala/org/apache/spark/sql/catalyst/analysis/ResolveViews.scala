@@ -20,6 +20,7 @@ package org.apache.spark.sql.catalyst.analysis
 
 import org.apache.iceberg.catalog.LoadContext
 import org.apache.iceberg.spark.SparkSQLProperties
+import org.apache.iceberg.spark.SparkSupportsLoadContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
 import org.apache.spark.sql.catalyst.expressions.Alias
@@ -37,12 +38,25 @@ import org.apache.spark.sql.catalyst.trees.CurrentOrigin
 import org.apache.spark.sql.catalyst.trees.Origin
 import org.apache.spark.sql.connector.catalog.CatalogManager
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
+import org.apache.spark.sql.connector.catalog.DelegatingTable
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.LookupCatalog
+import org.apache.spark.sql.connector.catalog.TableCatalog
+import org.apache.spark.sql.connector.catalog.V1Table
 import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 
+/**
+ * Resolves Iceberg views referenced by commands that use `UnresolvedTableOrView`.
+ *
+ * In Spark 4.2, view relations are expanded through `RelationCatalog.loadRelation`, so Spark owns
+ * query parsing, identifier resolution, and schema-mode application. This rule only converts the
+ * remaining command targets to `ResolvedV2View` for Iceberg command planning.
+ *
+ * When referenced-by is enabled, this rule also expands Iceberg views itself so that tables they
+ * read are loaded with the referencing view chain.
+ */
 case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
 
   import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
@@ -74,13 +88,38 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
           options,
           isStreaming,
           timeTravelVersion,
-          timeTravelTimestamp) =>
+          timeTravelTimestamp) if timeTravelTimestamp.forall(_.resolved) =>
       val referencedBy = ViewUtil.buildReferencedByChain(viewChain, catalog.name())
       val context = LoadContext.builder().referencedBy(referencedBy).build()
+      val timeTravelSpec =
+        TimeTravelSpec.create(timeTravelTimestamp, timeTravelVersion, conf.sessionLocalTimeZone)
       try {
-        val table =
-          ViewUtil.loadTable(catalog, tableIdent, context, timeTravelVersion, timeTravelTimestamp)
-        DataSourceV2Relation.create(table, Some(catalog), Some(tableIdent), options)
+        val table = ViewUtil.loadTable(catalog, tableIdent, context, timeTravelSpec)
+        table match {
+          case _: V1Table | _: DelegatingTable =>
+            val relation = UnresolvedRelation(tableParts, options, isStreaming)
+            if (timeTravelSpec.isEmpty) {
+              relation
+            } else {
+              RelationTimeTravel(relation, timeTravelTimestamp, timeTravelVersion)
+            }
+
+          case _ =>
+            val relationCatalog = catalog match {
+              case contextual: TableCatalog with SparkSupportsLoadContext
+                  if timeTravelSpec.isEmpty =>
+                LoadContextTableCatalog(contextual, context)
+              case _ => catalog
+            }
+            SubqueryAlias(
+              tableIdent.toQualifiedNameParts(catalog),
+              DataSourceV2Relation.create(
+                table,
+                Some(relationCatalog),
+                Some(tableIdent),
+                options,
+                timeTravelSpec))
+        }
       } catch {
         case _: NoSuchTableException =>
           ViewUtil
