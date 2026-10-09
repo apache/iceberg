@@ -250,6 +250,11 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       }
 
       @Override
+      protected boolean cacheEqualityDeleteSets() {
+        return cache != null && cache.equalityDeleteSetsEnabled();
+      }
+
+      @Override
       protected <V> V getOrLoad(String key, Supplier<V> valueSupplier, long valueSize) {
         return cache.getOrLoad(table().name(), key, valueSupplier, valueSize);
       }

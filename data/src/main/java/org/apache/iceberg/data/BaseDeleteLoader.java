@@ -20,6 +20,7 @@ package org.apache.iceberg.data;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
@@ -47,6 +48,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.hash.Hasher;
+import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.ContentFileUtil;
@@ -102,33 +105,49 @@ public class BaseDeleteLoader implements DeleteLoader {
   }
 
   /**
+   * Checks if the merged equality delete set of a group of files may be cached as one entry.
+   *
+   * <p>Disabled by default. When enabled, and the merged set passes {@link #canCache(long)}, the
+   * set is cached under a key for the exact group of files, so tasks whose data files reference the
+   * same delete files share one set instead of each building it again. This pays off when many
+   * tasks reference the same group of delete files. It costs memory and reads when groups only
+   * partially overlap: a delete file shared by several different groups is read and held once per
+   * group, while the per-file entries used otherwise hold it once.
+   *
+   * <p>Implementations that support caching may override this method to enable it.
+   */
+  protected boolean cacheEqualityDeleteSets() {
+    return false;
+  }
+
+  /**
    * Loads the equality deletes of the given files, projected on the given schema, into one set.
    *
-   * <p>Every scan task calls this with the equality delete files that apply to its data file, so
-   * the tasks of a scan over a table with equality deletes typically ask for the same files over
-   * and over. The rows of each file are cached individually (see {@link #canCache(long)}), but
-   * merging them is not free: it inserts every delete row into a new {@link StructLikeSet}, a hash
-   * set of wrapped rows, and for a large set that insertion dominates the task. When the merged set
-   * may be cached, it is cached itself under a key naming the exact files and the projection, so it
-   * is built once per executor for every group of tasks that share the same delete files; its files
-   * are then read directly, not through their per-file entries, which it supersedes. The returned
-   * set is only read afterwards; {@link StructLikeSet#contains} is safe for concurrent readers.
+   * <p>Every scan task calls this with the equality delete files that apply to its data file. By
+   * default the rows of each file are cached individually (see {@link #canCache(long)}) and merged
+   * into a new {@link StructLikeSet} per call. When {@link #cacheEqualityDeleteSets()} is enabled
+   * and the merged set may be cached, the merged set itself is cached under a key for the exact
+   * files and the projection; its files are then read directly, not through their per-file entries,
+   * which it supersedes. The returned set is only read afterwards; {@link StructLikeSet#contains}
+   * is safe for concurrent readers.
    */
   @Override
   public StructLikeSet loadEqualityDeletes(Iterable<DeleteFile> deleteFiles, Schema projection) {
     List<DeleteFile> files = Lists.newArrayList(deleteFiles);
-    long estimatedSize = estimateEqDeletesSize(files, projection);
-    if (canCache(estimatedSize)) {
-      // the loader reads the files directly rather than through their own cache entries: a cache
-      // load must not start other cache loads (the delete worker threads would wait on the same
-      // cache while this load holds it), and the merged set supersedes the per-file entries
-      String cacheKey = eqDeleteSetKey(files, projection);
-      return getOrLoad(
-          cacheKey,
-          () ->
-              buildEqDeleteSet(
-                  files, projection, deleteFile -> readEqDeletes(deleteFile, projection)),
-          estimatedSize);
+    if (cacheEqualityDeleteSets()) {
+      long estimatedSize = estimateEqDeletesSize(files, projection);
+      if (canCache(estimatedSize)) {
+        // the loader reads the files directly rather than through their own cache entries: a
+        // cache load must not start other cache loads (the delete worker threads would wait on the
+        // same cache while this load holds it), and the merged set supersedes the per-file entries
+        String cacheKey = eqDeleteSetKey(files, projection);
+        return getOrLoad(
+            cacheKey,
+            () ->
+                buildEqDeleteSet(
+                    files, projection, deleteFile -> readEqDeletes(deleteFile, projection)),
+            estimatedSize);
+      }
     }
 
     return buildEqDeleteSet(
@@ -145,8 +164,10 @@ public class BaseDeleteLoader implements DeleteLoader {
     return deleteSet;
   }
 
-  // the key of a merged equality delete set: the projection and the sorted file locations; a task
-  // whose delete files differ in any file (sequence numbers can exclude some) gets its own set
+  // the key of a merged equality delete set: a SHA-256 digest of the projection and the sorted file
+  // locations, so its length does not grow with the number of files; a task whose delete files
+  // differ in any file (sequence numbers can exclude some) gets its own set. A cryptographic digest
+  // because two groups sharing a key would apply one group's deletes to the other's data.
   private static String eqDeleteSetKey(List<DeleteFile> deleteFiles, Schema projection) {
     List<String> locations = Lists.newArrayListWithCapacity(deleteFiles.size());
     for (DeleteFile deleteFile : deleteFiles) {
@@ -154,7 +175,18 @@ public class BaseDeleteLoader implements DeleteLoader {
     }
 
     Collections.sort(locations);
-    return EQ_DELETE_SET_KEY_PREFIX + projection.asStruct() + "|" + String.join("|", locations);
+    Hasher hasher = Hashing.sha256().newHasher();
+    putString(hasher, projection.asStruct().toString());
+    for (String location : locations) {
+      putString(hasher, location);
+    }
+
+    return EQ_DELETE_SET_KEY_PREFIX + locations.size() + "|" + hasher.hash();
+  }
+
+  // length-prefixed, so that no two different sequences of strings hash the same input
+  private static void putString(Hasher hasher, String value) {
+    hasher.putInt(value.length()).putString(value, StandardCharsets.UTF_8);
   }
 
   private Iterable<StructLike> getOrReadEqDeletes(DeleteFile deleteFile, Schema projection) {

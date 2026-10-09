@@ -80,6 +80,12 @@ public class SparkSQLProperties {
   public static final String EXECUTOR_CACHE_DELETE_FILES_ENABLED =
       "spark.sql.iceberg.executor-cache.delete-files.enabled";
   public static final boolean EXECUTOR_CACHE_DELETE_FILES_ENABLED_DEFAULT = true;
+  // Controls whether the merged equality delete set of a group of delete files is cached as one
+  // entry; pays off when many tasks reference the same delete files, duplicates shared files when
+  // the groups only partially overlap
+  public static final String EXECUTOR_CACHE_EQUALITY_DELETE_SETS_ENABLED =
+      "spark.sql.iceberg.executor-cache.equality-delete-sets.enabled";
+  public static final boolean EXECUTOR_CACHE_EQUALITY_DELETE_SETS_ENABLED_DEFAULT = false;
 
   public static final String EXECUTOR_CACHE_TIMEOUT = "spark.sql.iceberg.executor-cache.timeout";
   public static final Duration EXECUTOR_CACHE_TIMEOUT_DEFAULT = Duration.ofMinutes(10);

@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.DeleteFile;
@@ -149,6 +150,44 @@ public class TestBaseDeleteLoaderEqualityDeleteCache {
     assertThat(loader.fileLoads()).as("per-file entries read once each").isEqualTo(2);
   }
 
+  @Test
+  public void mergedSetsAreNotCachedByDefault() throws IOException {
+    DeleteFile first = eqDeletes("first", 1L, 2L);
+    DeleteFile second = eqDeletes("second", 3L);
+    BaseDeleteLoader defaults =
+        new BaseDeleteLoader(deleteFile -> table.io().newInputFile(deleteFile.location()));
+    assertThat(defaults.cacheEqualityDeleteSets()).as("opt-in").isFalse();
+
+    // a caching loader that does not opt in keeps today's behavior: one entry per file
+    CountingLoader loader = new CountingLoader(true, false, Long.MAX_VALUE);
+    StructLikeSet set1 = loader.loadEqualityDeletes(ImmutableList.of(first, second), idSchema);
+    StructLikeSet set2 = loader.loadEqualityDeletes(ImmutableList.of(first, second), idSchema);
+
+    assertThat(set2).isNotSameAs(set1).isEqualTo(set1);
+    assertThat(ids(set1)).containsExactlyInAnyOrder(1L, 2L, 3L);
+    assertThat(loader.mergedLoads()).isZero();
+    assertThat(loader.fileLoads()).as("per-file entries read once each").isEqualTo(2);
+  }
+
+  @Test
+  public void mergedSetKeyLengthDoesNotGrowWithTheNumberOfFiles() throws IOException {
+    List<DeleteFile> one = ImmutableList.of(eqDeletes("single", 1L));
+    List<DeleteFile> many = Lists.newArrayList();
+    for (int i = 0; i < 50; i++) {
+      many.add(eqDeletes("file-with-a-long-object-store-like-name-" + i, i));
+    }
+
+    CountingLoader loader = new CountingLoader(true);
+    loader.loadEqualityDeletes(one, idSchema);
+    loader.loadEqualityDeletes(many, idSchema);
+
+    assertThat(loader.keys()).hasSize(2);
+    int oneKey = loader.keys().stream().mapToInt(String::length).min().getAsInt();
+    int manyKey = loader.keys().stream().mapToInt(String::length).max().getAsInt();
+    assertThat(manyKey - oneKey).as("only the file count's digits differ").isEqualTo(1);
+    assertThat(manyKey).isLessThan(100);
+  }
+
   private DeleteFile eqDeletes(String name, long... ids) throws IOException {
     Record template = GenericRecord.create(idSchema);
     List<Record> deletes = Lists.newArrayList();
@@ -181,24 +220,35 @@ public class TestBaseDeleteLoaderEqualityDeleteCache {
   /** A loader with an in-memory cache that counts per-file and merged-set loads by key shape. */
   private class CountingLoader extends BaseDeleteLoader {
     private final boolean cacheEnabled;
+    private final boolean cacheSets;
     private final long maxEntrySize;
     private final Map<String, Object> cache = Maps.newConcurrentMap();
     private final AtomicInteger fileLoads = new AtomicInteger();
     private final AtomicInteger mergedLoads = new AtomicInteger();
 
     CountingLoader(boolean cacheEnabled) {
-      this(cacheEnabled, Long.MAX_VALUE);
+      this(cacheEnabled, true, Long.MAX_VALUE);
     }
 
     CountingLoader(boolean cacheEnabled, long maxEntrySize) {
+      this(cacheEnabled, true, maxEntrySize);
+    }
+
+    CountingLoader(boolean cacheEnabled, boolean cacheSets, long maxEntrySize) {
       super(deleteFile -> table.io().newInputFile(deleteFile.location()));
       this.cacheEnabled = cacheEnabled;
+      this.cacheSets = cacheSets;
       this.maxEntrySize = maxEntrySize;
     }
 
     @Override
     protected boolean canCache(long size) {
       return cacheEnabled && size <= maxEntrySize;
+    }
+
+    @Override
+    protected boolean cacheEqualityDeleteSets() {
+      return cacheSets;
     }
 
     @Override
@@ -216,6 +266,10 @@ public class TestBaseDeleteLoaderEqualityDeleteCache {
 
                 return valueSupplier.get();
               });
+    }
+
+    Set<String> keys() {
+      return cache.keySet();
     }
 
     int fileLoads() {

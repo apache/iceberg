@@ -57,12 +57,14 @@ public class SparkExecutorCache {
   private final Duration timeout;
   private final long maxEntrySize;
   private final long maxTotalSize;
+  private final boolean equalityDeleteSetsEnabled;
   private volatile Cache<String, CacheValue> state;
 
   private SparkExecutorCache(Conf conf) {
     this.timeout = conf.timeout();
     this.maxEntrySize = conf.maxEntrySize();
     this.maxTotalSize = conf.maxTotalSize();
+    this.equalityDeleteSetsEnabled = conf.equalityDeleteSetsEnabled();
   }
 
   /**
@@ -93,6 +95,11 @@ public class SparkExecutorCache {
   /** Returns the max entry size in bytes that will be considered for caching. */
   public long maxEntrySize() {
     return maxEntrySize;
+  }
+
+  /** Returns whether merged equality delete sets may be cached as one entry per group of files. */
+  public boolean equalityDeleteSetsEnabled() {
+    return equalityDeleteSetsEnabled;
   }
 
   /**
@@ -222,6 +229,14 @@ public class SparkExecutorCache {
           .longConf()
           .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_MAX_TOTAL_SIZE)
           .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_MAX_TOTAL_SIZE_DEFAULT)
+          .parse();
+    }
+
+    public boolean equalityDeleteSetsEnabled() {
+      return confParser
+          .booleanConf()
+          .sessionConf(SparkSQLProperties.EXECUTOR_CACHE_EQUALITY_DELETE_SETS_ENABLED)
+          .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_EQUALITY_DELETE_SETS_ENABLED_DEFAULT)
           .parse();
     }
   }
