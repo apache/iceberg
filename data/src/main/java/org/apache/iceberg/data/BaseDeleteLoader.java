@@ -20,6 +20,8 @@ package org.apache.iceberg.data;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -44,6 +46,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.ContentFileUtil;
@@ -57,6 +60,8 @@ public class BaseDeleteLoader implements DeleteLoader {
 
   private static final Logger LOG = LoggerFactory.getLogger(BaseDeleteLoader.class);
   private static final Schema POS_DELETE_SCHEMA = DeleteSchemaUtil.pathPosSchema();
+  // distinguishes merged equality delete sets from the per-file entries keyed by a file location
+  private static final String EQ_DELETE_SET_KEY_PREFIX = "eq-delete-set|";
 
   private final Function<DeleteFile, InputFile> loadInputFile;
   private final ExecutorService workerPool;
@@ -96,13 +101,76 @@ public class BaseDeleteLoader implements DeleteLoader {
     throw new UnsupportedOperationException(getClass().getName() + " does not support caching");
   }
 
+  /**
+   * Checks if the merged equality delete set of a group of files may be cached as one entry.
+   *
+   * <p>Disabled by default. When enabled, and the merged set passes {@link #canCache(long)}, the
+   * set is cached under a key for the exact group of files, so tasks whose data files reference the
+   * same delete files share one set instead of each building it again. This pays off when many
+   * tasks reference the same group of delete files. It costs memory and reads when groups only
+   * partially overlap: a delete file shared by several different groups is read and held once per
+   * group, while the per-file entries used otherwise hold it once.
+   *
+   * <p>Implementations that support caching may override this method to enable it.
+   */
+  protected boolean cacheEqualityDeleteSets() {
+    return false;
+  }
+
+  /**
+   * Loads the equality deletes of the given files, projected on the given schema, into one set.
+   *
+   * <p>Every scan task calls this with the equality delete files that apply to its data file. By
+   * default the rows of each file are cached individually (see {@link #canCache(long)}) and merged
+   * into a new {@link StructLikeSet} per call. When {@link #cacheEqualityDeleteSets()} is enabled
+   * and the merged set may be cached, the merged set itself is cached under a key for the exact
+   * files and the projection; its files are then read directly, not through their per-file entries,
+   * which it supersedes. The returned set is only read afterwards; {@link StructLikeSet#contains}
+   * is safe for concurrent readers.
+   */
   @Override
   public StructLikeSet loadEqualityDeletes(Iterable<DeleteFile> deleteFiles, Schema projection) {
-    Iterable<Iterable<StructLike>> deletes =
-        execute(deleteFiles, deleteFile -> getOrReadEqDeletes(deleteFile, projection));
+    List<DeleteFile> files = Lists.newArrayList(deleteFiles);
+    if (cacheEqualityDeleteSets()) {
+      long estimatedSize = estimateEqDeletesSize(files, projection);
+      if (canCache(estimatedSize)) {
+        // the loader reads the files directly rather than through their own cache entries: a
+        // cache load must not start other cache loads (the delete worker threads would wait on the
+        // same cache while this load holds it), and the merged set supersedes the per-file entries
+        String cacheKey = eqDeleteSetKey(files, projection);
+        return getOrLoad(
+            cacheKey,
+            () ->
+                buildEqDeleteSet(
+                    files, projection, deleteFile -> readEqDeletes(deleteFile, projection)),
+            estimatedSize);
+      }
+    }
+
+    return buildEqDeleteSet(
+        files, projection, deleteFile -> getOrReadEqDeletes(deleteFile, projection));
+  }
+
+  private StructLikeSet buildEqDeleteSet(
+      List<DeleteFile> deleteFiles,
+      Schema projection,
+      Function<DeleteFile, Iterable<StructLike>> readFile) {
+    Iterable<Iterable<StructLike>> deletes = execute(deleteFiles, readFile);
     StructLikeSet deleteSet = StructLikeSet.create(projection.asStruct());
     Iterables.addAll(deleteSet, Iterables.concat(deletes));
     return deleteSet;
+  }
+
+  // the key of a merged equality delete set: the projection and the sorted file locations; a task
+  // whose delete files differ in any file (sequence numbers can exclude some) gets its own set
+  private static String eqDeleteSetKey(List<DeleteFile> deleteFiles, Schema projection) {
+    List<String> locations = Lists.newArrayListWithCapacity(deleteFiles.size());
+    for (DeleteFile deleteFile : deleteFiles) {
+      locations.add(deleteFile.location());
+    }
+
+    Collections.sort(locations);
+    return EQ_DELETE_SET_KEY_PREFIX + projection.asStruct() + "|" + String.join("|", locations);
   }
 
   private Iterable<StructLike> getOrReadEqDeletes(DeleteFile deleteFile, Schema projection) {
@@ -246,6 +314,21 @@ public class BaseDeleteLoader implements DeleteLoader {
     // the space consumption highly depends on the nature of deleted positions (sparse vs compact)
     // testing shows Roaring bitmaps require around 8 bits (1 byte) per value on average
     return deleteFile.recordCount();
+  }
+
+  // estimates the memory required to cache the merged equality deletes of several files (in bytes)
+  private long estimateEqDeletesSize(List<DeleteFile> deleteFiles, Schema projection) {
+    long size = 0;
+    for (DeleteFile deleteFile : deleteFiles) {
+      long fileSize = estimateEqDeletesSize(deleteFile, projection);
+      if (fileSize == Long.MAX_VALUE || size > Long.MAX_VALUE - fileSize) {
+        return Long.MAX_VALUE;
+      }
+
+      size += fileSize;
+    }
+
+    return size;
   }
 
   // estimates the memory required to cache equality deletes (in bytes)

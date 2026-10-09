@@ -186,6 +186,18 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testEqualityDeleteSetsConfig() {
+    assertThat(new Conf().equalityDeleteSetsEnabled()).as("disabled by default").isFalse();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.EXECUTOR_CACHE_EQUALITY_DELETE_SETS_ENABLED, "true"),
+        () -> {
+          Conf conf = new Conf();
+          assertThat(conf.equalityDeleteSetsEnabled()).isTrue();
+        });
+  }
+
+  @TestTemplate
   public void testDeleteFilesCacheDisabledConfig() throws Exception {
     createAndInitTable(TableProperties.DELETE_MODE, COPY_ON_WRITE);
     Table table = validationCatalog.loadTable(targetTableIdent);
