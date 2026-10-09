@@ -20,7 +20,6 @@ package org.apache.iceberg.data;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
@@ -48,8 +47,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.hash.Hasher;
-import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.ContentFileUtil;
@@ -164,10 +161,8 @@ public class BaseDeleteLoader implements DeleteLoader {
     return deleteSet;
   }
 
-  // the key of a merged equality delete set: a SHA-256 digest of the projection and the sorted file
-  // locations, so its length does not grow with the number of files; a task whose delete files
-  // differ in any file (sequence numbers can exclude some) gets its own set. A cryptographic digest
-  // because two groups sharing a key would apply one group's deletes to the other's data.
+  // the key of a merged equality delete set: the projection and the sorted file locations; a task
+  // whose delete files differ in any file (sequence numbers can exclude some) gets its own set
   private static String eqDeleteSetKey(List<DeleteFile> deleteFiles, Schema projection) {
     List<String> locations = Lists.newArrayListWithCapacity(deleteFiles.size());
     for (DeleteFile deleteFile : deleteFiles) {
@@ -175,18 +170,7 @@ public class BaseDeleteLoader implements DeleteLoader {
     }
 
     Collections.sort(locations);
-    Hasher hasher = Hashing.sha256().newHasher();
-    putString(hasher, projection.asStruct().toString());
-    for (String location : locations) {
-      putString(hasher, location);
-    }
-
-    return EQ_DELETE_SET_KEY_PREFIX + locations.size() + "|" + hasher.hash();
-  }
-
-  // length-prefixed, so that no two different sequences of strings hash the same input
-  private static void putString(Hasher hasher, String value) {
-    hasher.putInt(value.length()).putString(value, StandardCharsets.UTF_8);
+    return EQ_DELETE_SET_KEY_PREFIX + projection.asStruct() + "|" + String.join("|", locations);
   }
 
   private Iterable<StructLike> getOrReadEqDeletes(DeleteFile deleteFile, Schema projection) {

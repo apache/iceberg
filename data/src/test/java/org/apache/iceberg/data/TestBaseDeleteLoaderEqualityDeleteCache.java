@@ -24,7 +24,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.apache.iceberg.DeleteFile;
@@ -169,25 +168,6 @@ public class TestBaseDeleteLoaderEqualityDeleteCache {
     assertThat(loader.fileLoads()).as("per-file entries read once each").isEqualTo(2);
   }
 
-  @Test
-  public void mergedSetKeyLengthDoesNotGrowWithTheNumberOfFiles() throws IOException {
-    List<DeleteFile> one = ImmutableList.of(eqDeletes("single", 1L));
-    List<DeleteFile> many = Lists.newArrayList();
-    for (int i = 0; i < 50; i++) {
-      many.add(eqDeletes("file-with-a-long-object-store-like-name-" + i, i));
-    }
-
-    CountingLoader loader = new CountingLoader(true);
-    loader.loadEqualityDeletes(one, idSchema);
-    loader.loadEqualityDeletes(many, idSchema);
-
-    assertThat(loader.keys()).hasSize(2);
-    int oneKey = loader.keys().stream().mapToInt(String::length).min().getAsInt();
-    int manyKey = loader.keys().stream().mapToInt(String::length).max().getAsInt();
-    assertThat(manyKey - oneKey).as("only the file count's digits differ").isEqualTo(1);
-    assertThat(manyKey).isLessThan(100);
-  }
-
   private DeleteFile eqDeletes(String name, long... ids) throws IOException {
     Record template = GenericRecord.create(idSchema);
     List<Record> deletes = Lists.newArrayList();
@@ -266,10 +246,6 @@ public class TestBaseDeleteLoaderEqualityDeleteCache {
 
                 return valueSupplier.get();
               });
-    }
-
-    Set<String> keys() {
-      return cache.keySet();
     }
 
     int fileLoads() {
