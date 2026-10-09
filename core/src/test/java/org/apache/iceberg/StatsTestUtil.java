@@ -29,7 +29,6 @@ class StatsTestUtil {
     return new TrackedFileStruct(
         null,
         FileContent.DATA,
-        4,
         location,
         FileFormat.fromFileName(location),
         recordCount,

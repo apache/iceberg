@@ -123,6 +123,7 @@ class TestTrackedFileAdapters {
           .modifiedRowsCount(0L)
           .minSequenceNumber(7L)
           .dv(ByteBuffer.wrap(MumblingTestUtil.onlyFirstBitSetBytes()))
+          .formatVersion(FORMAT_VERSION_V4)
           .build();
 
   @Test
@@ -145,7 +146,6 @@ class TestTrackedFileAdapters {
         new TrackedFileStruct(
             tracking,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             DATA_FILE_LOCATION,
             FileFormat.PARQUET,
             100L,
@@ -225,7 +225,6 @@ class TestTrackedFileAdapters {
         new TrackedFileStruct(
             tracking,
             FileContent.EQUALITY_DELETES,
-            FORMAT_VERSION_V4,
             "s3://bucket/eq-delete.avro",
             FileFormat.AVRO,
             50L,
@@ -314,7 +313,6 @@ class TestTrackedFileAdapters {
         new TrackedFileStruct(
             tracking,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             DATA_FILE_LOCATION,
             FileFormat.PARQUET,
             100L,
@@ -446,7 +444,6 @@ class TestTrackedFileAdapters {
     return new TrackedFileStruct(
         tracking,
         FileContent.DATA,
-        FORMAT_VERSION_V4,
         DATA_FILE_LOCATION,
         FileFormat.PARQUET,
         100L, // recordCount
@@ -490,7 +487,6 @@ class TestTrackedFileAdapters {
         new TrackedFileStruct(
             MANIFEST_TRACKING,
             contentType,
-            FORMAT_VERSION_V4,
             MANIFEST_LOCATION,
             FileFormat.PARQUET,
             10L, // recordCount
@@ -597,7 +593,6 @@ class TestTrackedFileAdapters {
         new TrackedFileStruct(
             null,
             FileContent.DATA,
-            0,
             null,
             null,
             0L,
@@ -651,7 +646,6 @@ class TestTrackedFileAdapters {
         new TrackedFileStruct(
             null,
             FileContent.DATA,
-            0,
             null,
             null,
             0L,
@@ -695,7 +689,6 @@ class TestTrackedFileAdapters {
     return new TrackedFileStruct(
         null,
         contentType,
-        FORMAT_VERSION_V4,
         DATA_FILE_LOCATION,
         FileFormat.PARQUET,
         1L,

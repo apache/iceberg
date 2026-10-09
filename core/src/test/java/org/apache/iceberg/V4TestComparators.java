@@ -55,7 +55,6 @@ class V4TestComparators {
     return Comparator.nullsFirst(
         Comparator.comparing(TrackedFile::tracking, trackingComparator)
             .thenComparing(TrackedFile::contentType, natural())
-            .thenComparingInt(TrackedFile::formatVersion)
             .thenComparing(TrackedFile::location, natural())
             .thenComparing(TrackedFile::fileFormat, natural())
             .thenComparingLong(TrackedFile::recordCount)
@@ -121,7 +120,8 @@ class V4TestComparators {
               .thenComparingLong(ManifestInfo::replacedRowsCount)
               .thenComparingLong(ManifestInfo::modifiedRowsCount)
               .thenComparingLong(ManifestInfo::minSequenceNumber)
-              .thenComparing(ManifestInfo::manifestDeletionVector, BITMAPS));
+              .thenComparing(ManifestInfo::manifestDeletionVector, BITMAPS)
+              .thenComparingInt(ManifestInfo::formatVersion));
 
   private static final Comparator<ContentStats> CONTENT_STATS =
       Comparator.nullsFirst(new ContentStatsComparator());

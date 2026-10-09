@@ -82,7 +82,7 @@ class TestV4ManifestReader {
   private static final DeletionVector DV = deletionVector("s3://bucket/dv.puffin");
 
   private static final ManifestInfo MANIFEST_INFO =
-      new ManifestInfoStruct(49, 51, 0, 0, 1, 4_900L, 5_100L, 0L, 0L, 100L, 1L, null);
+      new ManifestInfoStruct(49, 51, 0, 0, 1, 4_900L, 5_100L, 0L, 0L, 100L, 1L, null, 4);
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
@@ -168,7 +168,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
             RECORD_COUNT,
@@ -200,7 +199,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
             RECORD_COUNT,
@@ -234,7 +232,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
             RECORD_COUNT,
@@ -270,7 +267,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.EQUALITY_DELETES,
-            FORMAT_VERSION_V4,
             "s3://bucket/eq-delete.parquet",
             FileFormat.PARQUET,
             RECORD_COUNT,
@@ -302,7 +298,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA_MANIFEST,
-            FORMAT_VERSION_V4,
             "s3://bucket/leaf-manifest.parquet",
             FileFormat.PARQUET,
             RECORD_COUNT,
@@ -1163,7 +1158,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/table/empty-file.parquet",
             FileFormat.PARQUET,
             0, // file contains no records
@@ -1200,7 +1194,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/table/very-old.avro",
             FileFormat.AVRO,
             -1, // mimic invalid record count in old Avro metadata
@@ -1385,7 +1378,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/table/bucket=7/data-file.parquet",
             FileFormat.AVRO,
             10,

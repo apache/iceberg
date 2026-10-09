@@ -119,7 +119,6 @@ class V4TestHelpers {
     return new TrackedFileStruct(
         tracking,
         content,
-        FORMAT_VERSION_V4,
         location,
         FileFormat.fromFileName(location),
         RECORD_COUNT,

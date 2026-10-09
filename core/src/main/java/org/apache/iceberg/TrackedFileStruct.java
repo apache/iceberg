@@ -40,7 +40,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       Types.StructType.of(
           TrackedFile.TRACKING,
           TrackedFile.CONTENT_TYPE,
-          TrackedFile.FORMAT_VERSION,
           TrackedFile.LOCATION,
           TrackedFile.FILE_FORMAT,
           TrackedFile.RECORD_COUNT,
@@ -64,7 +63,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
           TrackedFile.EQUALITY_IDS);
 
   private FileContent contentType = null;
-  private int formatVersion = -1;
   private String location = null;
   private FileFormat fileFormat = null;
   private Tracking tracking = null;
@@ -97,7 +95,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   TrackedFileStruct(
       Tracking tracking,
       FileContent contentType,
-      int formatVersion,
       String location,
       FileFormat fileFormat,
       long recordCount,
@@ -114,7 +111,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     super(BASE_TYPE.fields().size());
     this.tracking = tracking;
     this.contentType = contentType;
-    this.formatVersion = formatVersion;
     this.location = location;
     this.fileFormat = fileFormat;
     this.recordCount = recordCount;
@@ -134,7 +130,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private TrackedFileStruct(TrackedFileStruct toCopy, Set<Integer> statsIds) {
     super(toCopy);
     this.contentType = toCopy.contentType;
-    this.formatVersion = toCopy.formatVersion;
     this.location = toCopy.location;
     this.fileFormat = toCopy.fileFormat;
     this.recordCount = toCopy.recordCount;
@@ -175,11 +170,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   @Override
   public FileContent contentType() {
     return contentType;
-  }
-
-  @Override
-  public int formatVersion() {
-    return formatVersion;
   }
 
   @Override
@@ -286,20 +276,19 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     return switch (pos) {
       case 0 -> tracking;
       case 1 -> contentType != null ? contentType.id() : null;
-      case 2 -> formatVersion;
-      case 3 -> location;
-      case 4 -> fileFormat != null ? fileFormat.toString() : null;
-      case 5 -> recordCount;
-      case 6 -> fileSizeInBytes;
-      case 7 -> specId;
-      case 8 -> partition;
-      case 9 -> contentStats;
-      case 10 -> sortOrderId;
-      case 11 -> deletionVector;
-      case 12 -> manifestInfo;
-      case 13 -> keyMetadata();
-      case 14 -> splitOffsets();
-      case 15 -> equalityIds();
+      case 2 -> location;
+      case 3 -> fileFormat != null ? fileFormat.toString() : null;
+      case 4 -> recordCount;
+      case 5 -> fileSizeInBytes;
+      case 6 -> specId;
+      case 7 -> partition;
+      case 8 -> contentStats;
+      case 9 -> sortOrderId;
+      case 10 -> deletionVector;
+      case 11 -> manifestInfo;
+      case 12 -> keyMetadata();
+      case 13 -> splitOffsets();
+      case 14 -> equalityIds();
       default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     };
   }
@@ -309,22 +298,21 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     switch (pos) {
       case 0 -> this.tracking = (Tracking) value;
       case 1 -> this.contentType = FileContent.fromId((Integer) value);
-      case 2 -> this.formatVersion = (int) value;
-      case 3 ->
+      case 2 ->
           // always coerce to String for Serializable
           this.location = value.toString();
-      case 4 -> this.fileFormat = FileFormat.fromString(value.toString());
-      case 5 -> this.recordCount = (long) value;
-      case 6 -> this.fileSizeInBytes = (long) value;
-      case 7 -> this.specId = (Integer) value;
-      case 8 -> this.partition = (StructLike) value;
-      case 9 -> this.contentStats = (ContentStats) value;
-      case 10 -> this.sortOrderId = (Integer) value;
-      case 11 -> this.deletionVector = (DeletionVector) value;
-      case 12 -> this.manifestInfo = (ManifestInfo) value;
-      case 13 -> this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
-      case 14 -> this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
-      case 15 -> this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
+      case 3 -> this.fileFormat = FileFormat.fromString(value.toString());
+      case 4 -> this.recordCount = (long) value;
+      case 5 -> this.fileSizeInBytes = (long) value;
+      case 6 -> this.specId = (Integer) value;
+      case 7 -> this.partition = (StructLike) value;
+      case 8 -> this.contentStats = (ContentStats) value;
+      case 9 -> this.sortOrderId = (Integer) value;
+      case 10 -> this.deletionVector = (DeletionVector) value;
+      case 11 -> this.manifestInfo = (ManifestInfo) value;
+      case 12 -> this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
+      case 13 -> this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
+      case 14 -> this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
       default -> {
         // ignore the object, it must be from a newer version of the format
       }
@@ -335,7 +323,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("content", contentType != null ? contentType.lowerCaseName() : null)
-        .add("format_version", formatVersion)
         .add("location", location)
         .add("file_format", fileFormat)
         .add("record_count", recordCount)
