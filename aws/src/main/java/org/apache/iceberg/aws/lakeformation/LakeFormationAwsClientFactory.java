@@ -18,10 +18,17 @@
  */
 package org.apache.iceberg.aws.lakeformation;
 
+import java.time.Instant;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.iceberg.aws.AssumeRoleAwsClientFactory;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -35,6 +42,8 @@ import software.amazon.awssdk.services.lakeformation.model.GetTemporaryGlueTable
 import software.amazon.awssdk.services.lakeformation.model.GetTemporaryGlueTableCredentialsResponse;
 import software.amazon.awssdk.services.lakeformation.model.PermissionType;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.utils.cache.CachedSupplier;
+import software.amazon.awssdk.utils.cache.RefreshResult;
 
 /**
  * This implementation of AwsClientFactory is used by default if {@link
@@ -51,27 +60,43 @@ import software.amazon.awssdk.services.s3.S3Client;
 public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
 
   public static final String LF_AUTHORIZED_CALLER = "LakeFormationAuthorizedCaller";
+  private static final long CREDENTIAL_PREFETCH_SECONDS = 60L;
+  private static final ConcurrentMap<CredentialCacheKey, CredentialCacheEntry> CREDENTIAL_CACHES =
+      Maps.newConcurrentMap();
 
   private String dbName;
   private String tableName;
   private String glueCatalogId;
   private String glueAccountId;
+  private Map<String, String> catalogProperties;
+  private long credentialCacheExpirationMs;
 
   public LakeFormationAwsClientFactory() {}
 
   @Override
-  public void initialize(Map<String, String> catalogProperties) {
-    super.initialize(catalogProperties);
+  public void initialize(Map<String, String> properties) {
+    super.initialize(properties);
+    this.catalogProperties = Maps.newHashMap(properties);
     Preconditions.checkArgument(
         awsProperties().stsClientAssumeRoleTags().stream()
             .anyMatch(t -> LF_AUTHORIZED_CALLER.equals(t.key())),
         "STS assume role session tag %s must be set using %s to use LakeFormation client factory",
         LF_AUTHORIZED_CALLER,
         AwsProperties.CLIENT_ASSUME_ROLE_TAGS_PREFIX);
-    this.dbName = catalogProperties.get(AwsProperties.LAKE_FORMATION_DB_NAME);
-    this.tableName = catalogProperties.get(AwsProperties.LAKE_FORMATION_TABLE_NAME);
-    this.glueCatalogId = catalogProperties.get(AwsProperties.GLUE_CATALOG_ID);
-    this.glueAccountId = catalogProperties.get(AwsProperties.GLUE_ACCOUNT_ID);
+    this.dbName = properties.get(AwsProperties.LAKE_FORMATION_DB_NAME);
+    this.tableName = properties.get(AwsProperties.LAKE_FORMATION_TABLE_NAME);
+    this.glueCatalogId = properties.get(AwsProperties.GLUE_CATALOG_ID);
+    this.glueAccountId = properties.get(AwsProperties.GLUE_ACCOUNT_ID);
+    long credentialCacheExpirationSeconds =
+        PropertyUtil.propertyAsLong(
+            properties,
+            AwsProperties.LAKE_FORMATION_CREDENTIAL_CACHE_EXPIRATION_SECONDS,
+            AwsProperties.LAKE_FORMATION_CREDENTIAL_CACHE_EXPIRATION_SECONDS_DEFAULT);
+    Preconditions.checkArgument(
+        credentialCacheExpirationSeconds > 0,
+        "Invalid Lake Formation credential cache expiration: %s",
+        credentialCacheExpirationSeconds);
+    this.credentialCacheExpirationMs = TimeUnit.SECONDS.toMillis(credentialCacheExpirationSeconds);
   }
 
   @Override
@@ -83,8 +108,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
           .applyMutation(s3FileIOProperties()::applyEndpointConfigurations)
           .applyMutation(s3FileIOProperties()::applyServiceConfigurations)
           .applyMutation(s3FileIOProperties()::applyRetryConfigurations)
-          .credentialsProvider(
-              new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
+          .credentialsProvider(lakeFormationCredentialsProvider())
           .region(Region.of(region()))
           .build();
     } else {
@@ -98,8 +122,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
       return KmsClient.builder()
           .applyMutation(httpClientProperties()::applyHttpClientConfigurations)
           .applyMutation(awsClientProperties()::applyRetryConfigurations)
-          .credentialsProvider(
-              new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn()))
+          .credentialsProvider(lakeFormationCredentialsProvider())
           .region(Region.of(region()))
           .build();
     } else {
@@ -124,7 +147,7 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
     return response.table().isRegisteredWithLakeFormation();
   }
 
-  private String buildTableArn() {
+  protected String buildTableArn() {
     Preconditions.checkArgument(
         glueAccountId != null && !glueAccountId.isEmpty(),
         "%s can not be empty",
@@ -134,11 +157,44 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
         "arn:%s:glue:%s:%s:table/%s/%s", partitionName, region(), glueAccountId, dbName, tableName);
   }
 
-  private LakeFormationClient lakeFormation() {
+  protected LakeFormationClient lakeFormation() {
     return LakeFormationClient.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(httpClientProperties()::applyHttpClientConfigurations)
         .build();
+  }
+
+  /**
+   * Returns the provider used by S3 and KMS clients for tables registered with Lake Formation.
+   * Subclasses can override this method to use {@link #directLakeFormationCredentialsProvider()} or
+   * another provider with a different caching policy.
+   */
+  protected AwsCredentialsProvider lakeFormationCredentialsProvider() {
+    return cachedCredentialsProvider(
+        buildTableArn(), catalogProperties, credentialCacheExpirationMs, this::lakeFormation);
+  }
+
+  /** Returns a provider that requests Lake Formation credentials for every resolution. */
+  protected AwsCredentialsProvider directLakeFormationCredentialsProvider() {
+    return new LakeFormationCredentialsProvider(lakeFormation(), buildTableArn());
+  }
+
+  @VisibleForTesting
+  static void clearCredentialCaches() {
+    CREDENTIAL_CACHES.values().forEach(CredentialCacheEntry::close);
+    CREDENTIAL_CACHES.clear();
+  }
+
+  @VisibleForTesting
+  static AwsCredentialsProvider cachedCredentialsProvider(
+      String tableArn,
+      Map<String, String> properties,
+      long idleTimeoutMs,
+      Supplier<LakeFormationClient> clientSupplier) {
+    return new CachedLakeFormationCredentialsProvider(
+        new CredentialCacheKey(tableArn, Maps.newHashMap(properties)),
+        idleTimeoutMs,
+        clientSupplier);
   }
 
   static class LakeFormationCredentialsProvider implements AwsCredentialsProvider {
@@ -152,18 +208,145 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
 
     @Override
     public AwsCredentials resolveCredentials() {
-      GetTemporaryGlueTableCredentialsRequest getTemporaryGlueTableCredentialsRequest =
-          GetTemporaryGlueTableCredentialsRequest.builder()
-              .tableArn(tableArn)
-              // Now only two permission types (COLUMN_PERMISSION and CELL_FILTER_PERMISSION) are
-              // supported
-              // and Iceberg only supports COLUMN_PERMISSION at this time
-              .supportedPermissionTypes(PermissionType.COLUMN_PERMISSION)
-              .build();
+      return refreshCredentials().value();
+    }
+
+    RefreshResult<AwsCredentials> refreshCredentials() {
       GetTemporaryGlueTableCredentialsResponse response =
-          client.getTemporaryGlueTableCredentials(getTemporaryGlueTableCredentialsRequest);
-      return AwsSessionCredentials.create(
-          response.accessKeyId(), response.secretAccessKey(), response.sessionToken());
+          client.getTemporaryGlueTableCredentials(
+              GetTemporaryGlueTableCredentialsRequest.builder()
+                  .tableArn(tableArn)
+                  // Now only two permission types (COLUMN_PERMISSION and CELL_FILTER_PERMISSION)
+                  // are supported and Iceberg only supports COLUMN_PERMISSION at this time
+                  .supportedPermissionTypes(PermissionType.COLUMN_PERMISSION)
+                  .build());
+      Instant expiration = response.expiration();
+      AwsCredentials credentials =
+          AwsSessionCredentials.builder()
+              .accessKeyId(response.accessKeyId())
+              .secretAccessKey(response.secretAccessKey())
+              .sessionToken(response.sessionToken())
+              .expirationTime(expiration)
+              .build();
+      return RefreshResult.builder(credentials)
+          .staleTime(expiration)
+          .prefetchTime(expiration.minusSeconds(CREDENTIAL_PREFETCH_SECONDS))
+          .build();
+    }
+  }
+
+  private static class CachedLakeFormationCredentialsProvider implements AwsCredentialsProvider {
+    private final CredentialCacheKey cacheKey;
+    private final long idleTimeoutMs;
+    private final Supplier<LakeFormationClient> clientSupplier;
+
+    private CachedLakeFormationCredentialsProvider(
+        CredentialCacheKey cacheKey,
+        long idleTimeoutMs,
+        Supplier<LakeFormationClient> clientSupplier) {
+      this.cacheKey = cacheKey;
+      this.idleTimeoutMs = idleTimeoutMs;
+      this.clientSupplier = clientSupplier;
+    }
+
+    @Override
+    public AwsCredentials resolveCredentials() {
+      long now = System.currentTimeMillis();
+      evictIdleCredentialCaches(now);
+      CredentialCacheEntry entry =
+          CREDENTIAL_CACHES.compute(
+              cacheKey,
+              (ignored, existing) -> {
+                if (existing == null || existing.isIdle(now, idleTimeoutMs)) {
+                  if (existing != null) {
+                    existing.close();
+                  }
+
+                  return new CredentialCacheEntry(
+                      clientSupplier.get(), cacheKey.tableArn, idleTimeoutMs, now);
+                }
+
+                existing.access(now);
+                return existing;
+              });
+      return entry.resolveCredentials();
+    }
+  }
+
+  private static void evictIdleCredentialCaches(long now) {
+    CREDENTIAL_CACHES.forEach(
+        (cacheKey, entry) -> {
+          if (entry.isIdle(now) && CREDENTIAL_CACHES.remove(cacheKey, entry)) {
+            entry.close();
+          }
+        });
+  }
+
+  private static class CredentialCacheEntry {
+    private final LakeFormationClient client;
+    private final CachedSupplier<AwsCredentials> credentialCache;
+    private final long idleTimeoutMs;
+    private long lastAccessTimeMs;
+
+    private CredentialCacheEntry(
+        LakeFormationClient client, String tableArn, long idleTimeoutMs, long now) {
+      this.client = client;
+      this.credentialCache =
+          CachedSupplier.builder(
+                  new LakeFormationCredentialsProvider(client, tableArn)::refreshCredentials)
+              .cachedValueName(LakeFormationCredentialsProvider.class.getName())
+              .build();
+      this.idleTimeoutMs = idleTimeoutMs;
+      this.lastAccessTimeMs = now;
+    }
+
+    private synchronized AwsCredentials resolveCredentials() {
+      this.lastAccessTimeMs = System.currentTimeMillis();
+      return credentialCache.get();
+    }
+
+    private synchronized void access(long now) {
+      this.lastAccessTimeMs = now;
+    }
+
+    private synchronized boolean isIdle(long now) {
+      return isIdle(now, idleTimeoutMs);
+    }
+
+    private synchronized boolean isIdle(long now, long timeoutMs) {
+      return now - lastAccessTimeMs >= timeoutMs;
+    }
+
+    private synchronized void close() {
+      credentialCache.close();
+      client.close();
+    }
+  }
+
+  private static class CredentialCacheKey {
+    private final String tableArn;
+    private final Map<String, String> properties;
+
+    private CredentialCacheKey(String tableArn, Map<String, String> properties) {
+      this.tableArn = tableArn;
+      this.properties = properties;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      } else if (other == null || getClass() != other.getClass()) {
+        return false;
+      }
+
+      CredentialCacheKey that = (CredentialCacheKey) other;
+      return tableArn.equals(that.tableArn) && properties.equals(that.properties);
+    }
+
+    @Override
+    public int hashCode() {
+      return 31 * tableArn.hashCode() + properties.hashCode();
     }
   }
 }
