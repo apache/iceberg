@@ -1208,7 +1208,7 @@ Manifests that contain no matching files, determined using file counts, partitio
 
 Using content stats, a manifest is filtered by evaluating scan predicates against the column bounds and counts of each tracked file. The same filter logic can be used for both data and delete files because both store metrics of the rows either inserted or deleted. If metrics show that a delete file has no rows that match a scan predicate, it may be ignored just as a data file would be ignored [1].
 
-Before content stats were introduced in v4, each manifest was filtered using scan predicates converted to partition predicates, which filter partition tuples. These partition predicates are used to select relevant data files, delete files, and deletion vector metadata. Conversion uses the partition spec that was used to write the manifest file regardless of the current partition spec. Column bounds and counts stored by field id in metrics maps are used in the same way as content stats.
+v1-v3 manifest are filtered using scan predicates converted to partition predicates, which filter partition tuples. These partition predicates are used to select relevant data files, delete files, and deletion vector metadata. Conversion uses the partition spec that was used to write the manifest file regardless of the current partition spec. Column bounds and counts stored by field id in metrics maps are used in the same way as content stats.
 
 Scan predicates are converted to partition predicates using an _inclusive projection_: if a scan predicate matches a row, then the partition predicate must match that row’s partition. This is called _inclusive_ [2] because rows that do not match the scan predicate may be included in the scan by the partition predicate.
 
