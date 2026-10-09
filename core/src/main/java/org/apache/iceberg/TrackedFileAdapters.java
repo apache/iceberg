@@ -588,11 +588,6 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public int formatVersion() {
-      throw new IllegalStateException("Format version is assigned at write time");
-    }
-
-    @Override
     public String location() {
       return file.location();
     }
@@ -713,11 +708,6 @@ class TrackedFileAdapters {
     @Override
     public FileContent contentType() {
       return contentType;
-    }
-
-    @Override
-    public int formatVersion() {
-      return manifest.formatVersion();
     }
 
     @Override
@@ -868,6 +858,11 @@ class TrackedFileAdapters {
     @Override
     public ManifestBitmap manifestDeletionVector() {
       return manifest.manifestDeletionVector();
+    }
+
+    @Override
+    public int formatVersion() {
+      return manifest.formatVersion();
     }
 
     @Override
