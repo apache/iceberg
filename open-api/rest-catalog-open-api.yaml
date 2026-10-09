@@ -1410,12 +1410,34 @@ paths:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
+      - $ref: '#/components/parameters/data-access'
 
     post:
       tags:
         - Catalog API
       summary: Remotely signs requests to object storage
       operationId: signRequest
+      description: >
+        Signs a request to object storage on the client's behalf.
+
+
+        `RemoteSignResult` reports the mechanism that produced the signature in
+        `signing-mechanism`. With `remote-signing`, `headers` carries the signature. With
+        `remote-presigning`, `uri` carries the signature.
+
+
+        On this operation `X-Iceberg-Access-Delegation` lists the access delegation mechanisms
+        the client supports for this request: `remote-signing`, `remote-presigning`, or both.
+        Other values, such as `vended-credentials`, are not supported on this operation and do
+        not count as listed mechanisms. The server SHOULD answer with one of the listed
+        mechanisms, and chooses when both are listed. The server SHOULD respond with 406, rather
+        than answer with another mechanism, when the header lists no mechanism the server
+        implements. For example, `vended-credentials` lists no mechanism, and
+        `vended-credentials,remote-signing` lists only `remote-signing`.
+
+
+        For backwards compatibility, a request without the header is treated as
+        `remote-signing`.
       requestBody:
         description: The request to be signed
         content:
@@ -1432,6 +1454,8 @@ paths:
           $ref: '#/components/responses/UnauthorizedResponse'
         403:
           $ref: '#/components/responses/ForbiddenResponse'
+        406:
+          $ref: '#/components/responses/UnsupportedOperationResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -2168,6 +2192,7 @@ components:
           enum:
             - vended-credentials
             - remote-signing
+            - remote-presigning
       style: simple
       explode: false
       example: "vended-credentials,remote-signing"
@@ -5841,6 +5866,11 @@ components:
           description: The storage provider for which the request is to be signed. The provider should correspond to
             the scheme used for a storage native URI. For example `s3` for AWS S3 paths. For backwards compatibility,
             if this is not specified, the provider is assumed to be `s3`.
+        plan-id:
+          type: string
+          description: >
+            Optional identifier of the server side scan plan, supplied for audit and correlation. A server
+            MUST NOT fail a request because the referenced plan is unknown, expired, or cancelled.
 
     RemoteSignResult:
       description: The result of a remote request signing operation.
@@ -5853,6 +5883,21 @@ components:
           type: string
         headers:
           $ref: '#/components/schemas/MultiValuedMap'
+        signing-mechanism:
+          type: string
+          enum:
+            - remote-signing
+            - remote-presigning
+          description: >
+            The mechanism that produced the returned signature. With `remote-signing`,
+            `headers` carries the signature. With `remote-presigning`, `uri` carries the
+            signature. When absent, the mechanism is `remote-signing`.
+        expiration-timestamp-ms:
+          type: integer
+          format: int64
+          description: >
+            The time after which the returned signature is no longer valid, as milliseconds since
+            the Unix epoch.
 
     RemoteSigningConfig:
       description: Configuration for the remote signer client.
