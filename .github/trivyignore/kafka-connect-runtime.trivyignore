@@ -21,7 +21,7 @@
 # aligned to the project version (2.22.x). The remaining findings come from
 # parquet-jackson, which ships its own shaded copy of jackson-core /
 # jackson-databind (relocated under shaded.parquet.*). That copy cannot be
-# upgraded independently of Apache Parquet, and 1.17.1 still bundles
+# upgraded independently of Apache Parquet, and 1.18.1 still bundles
 # vulnerable versions.
 #
 # jackson-databind CVEs shaded into parquet-jackson, only fixed in jackson
@@ -31,13 +31,8 @@ CVE-2026-54513
 # jackson-core CVE shaded into parquet-jackson, only fixed in jackson
 # >= 2.18.8 / 2.21.4 / 2.22.1.
 CVE-2026-68494
-# jackson-databind CVE shaded into parquet-jackson 1.17.1, only fixed in
-# jackson >= 2.18.10 / 2.21.6 / 2.22.2. Resolved once Apache Parquet is
-# bumped to 1.18.1 (apache/iceberg#17321).
-CVE-2026-68497
-# jackson-databind CVEs shaded into parquet-jackson 1.17.1, only fixed in
-# jackson >= 2.18.11 / 2.21.7 / 2.22.3. Resolved once Apache Parquet is
-# bumped to 1.18.1 (apache/iceberg#17321).
+# jackson-databind CVEs shaded into parquet-jackson 1.18.1 (jackson 2.22.2),
+# only fixed in jackson >= 2.18.11 / 2.21.7 / 2.22.3.
 CVE-2026-91776
 CVE-2026-91777
 # jackson-core CVEs shaded into parquet-jackson 1.17.1, only fixed in jackson
