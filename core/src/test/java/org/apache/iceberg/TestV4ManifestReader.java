@@ -110,10 +110,10 @@ class TestV4ManifestReader {
 
   private static final FieldStatsStruct<Integer> ID_STATS =
       new FieldStatsStruct<>(
-          STATS_TYPE.fieldType("id").asStructType(), 0, 99, true, RECORD_COUNT, 0, 0, null);
+          STATS_TYPE.fieldType("id").asStructType(), 0, 99, true, RECORD_COUNT, 0, 0, 0L);
   private static final FieldStatsStruct<String> DATA_STATS =
       new FieldStatsStruct<>(
-          STATS_TYPE.fieldType("data").asStructType(), "a", "z", false, RECORD_COUNT, 20, 0, null);
+          STATS_TYPE.fieldType("data").asStructType(), "a", "z", false, RECORD_COUNT, 20, 0, 2L);
   private static final ContentStatsStruct CONTENT_STATS = new ContentStatsStruct(STATS_TYPE);
 
   static {

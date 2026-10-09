@@ -176,7 +176,8 @@ class V4TestComparators {
             comparator.thenComparing(
                 fs -> fs.hasNanValueCount() ? fs.nanValueCount() : null, natural());
       } else if (type.typeId() == Type.TypeID.STRING || type.typeId() == Type.TypeID.BINARY) {
-        comparator = comparator.thenComparing(FieldStats::avgValueSizeInBytes, natural());
+        comparator =
+            comparator.thenComparing(fs -> fs.hasTotalBytes() ? fs.totalBytes() : null, natural());
       }
     }
 
