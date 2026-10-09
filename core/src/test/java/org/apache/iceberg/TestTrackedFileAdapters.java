@@ -734,9 +734,6 @@ class TestTrackedFileAdapters {
 
     assertThat(result.tracking()).isNull();
     assertWrappedDataFileMatchesFileFields(result, DATA_FILE);
-    assertThatThrownBy(result::formatVersion)
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Format version is assigned at write time");
   }
 
   @Test
@@ -860,7 +857,7 @@ class TestTrackedFileAdapters {
     TrackedFile result = TrackedFileAdapters.forManifestFile().wrap(manifest);
 
     assertThat(result.contentType()).isEqualTo(expectedContent);
-    assertThat(result.formatVersion()).isZero();
+    assertThat(result.manifestInfo().formatVersion()).isZero();
     assertThat(result.location()).isEqualTo(MANIFEST_LOCATION);
     assertThat(result.fileFormat()).isEqualTo(FileFormat.AVRO);
     assertThat(result.tracking().status()).isEqualTo(EntryStatus.EXISTING);
@@ -1018,10 +1015,6 @@ class TestTrackedFileAdapters {
 
   /** Minimal file for the rejection and null-tracking tests. */
   private static TrackedFileStruct trackedFile(FileContent contentType) {
-    return trackedFile(contentType, FORMAT_VERSION_V4);
-  }
-
-  private static TrackedFileStruct trackedFile(FileContent contentType, int formatVersion) {
     return new TrackedFileStruct(
         null,
         contentType,
