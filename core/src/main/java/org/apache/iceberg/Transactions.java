@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.function.UnaryOperator;
 import org.apache.iceberg.BaseTransaction.TransactionType;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -36,6 +37,16 @@ public final class Transactions {
         tableName, ops, TransactionType.CREATE_OR_REPLACE_TABLE, start, reporter);
   }
 
+  static Transaction createOrReplaceTableTransaction(
+      String tableName,
+      TableOperations ops,
+      TableMetadata start,
+      MetricsReporter reporter,
+      UnaryOperator<TableMetadata> replacement) {
+    return new BaseTransaction(
+        tableName, ops, TransactionType.CREATE_OR_REPLACE_TABLE, start, replacement, reporter);
+  }
+
   public static Transaction replaceTableTransaction(
       String tableName, TableOperations ops, TableMetadata start) {
     return new BaseTransaction(tableName, ops, TransactionType.REPLACE_TABLE, start);
@@ -44,6 +55,16 @@ public final class Transactions {
   public static Transaction replaceTableTransaction(
       String tableName, TableOperations ops, TableMetadata start, MetricsReporter reporter) {
     return new BaseTransaction(tableName, ops, TransactionType.REPLACE_TABLE, start, reporter);
+  }
+
+  static Transaction replaceTableTransaction(
+      String tableName,
+      TableOperations ops,
+      TableMetadata start,
+      MetricsReporter reporter,
+      UnaryOperator<TableMetadata> replacement) {
+    return new BaseTransaction(
+        tableName, ops, TransactionType.REPLACE_TABLE, start, replacement, reporter);
   }
 
   public static Transaction createTableTransaction(
