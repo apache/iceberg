@@ -27,8 +27,10 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -81,6 +83,16 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
             "false", // Spark will delete tables using v1, leaving the cache out of sync
             "use-nullable-query-schema",
             Boolean.toString(USE_NULLABLE_QUERY_SCHEMA)),
+      },
+      {
+        // HiveCatalog with list-all-tables=true returns views from listTables.
+        "testhive_list_all",
+        SparkCatalog.class.getName(),
+        ImmutableMap.of(
+            "type", "hive",
+            "default-namespace", "default",
+            "list-all-tables", "true",
+            "use-nullable-query-schema", Boolean.toString(USE_NULLABLE_QUERY_SCHEMA))
       }
     };
   }
@@ -120,6 +132,33 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
         .as(
             "Adding a property to a table should return the updated table with the new property with the new correct value")
         .containsEntry(propsKey, propsValue);
+  }
+
+  @TestTemplate
+  void listTablesExcludesViews() throws NoSuchNamespaceException {
+    BaseCatalog catalog = (BaseCatalog) spark.sessionState().catalogManager().catalog(catalogName);
+    boolean supportsViews =
+        catalog instanceof SparkCatalog && validationCatalog instanceof ViewCatalog;
+    if (!supportsViews) {
+      return;
+    }
+
+    String[] namespace = tableIdent.namespace().levels();
+    TableIdentifier viewIdent = TableIdentifier.of(tableIdent.namespace(), "list_tables_view");
+    ((ViewCatalog) validationCatalog)
+        .buildView(viewIdent)
+        .withSchema(new Schema(Types.NestedField.optional(1, "id", Types.LongType.get())))
+        .withDefaultNamespace(tableIdent.namespace())
+        .withQuery("spark", "SELECT id FROM " + tableIdent.name())
+        .create();
+
+    try {
+      assertThat(catalog.listTables(namespace))
+          .contains(Identifier.of(namespace, tableIdent.name()))
+          .doesNotContain(Identifier.of(namespace, viewIdent.name()));
+    } finally {
+      ((ViewCatalog) validationCatalog).dropView(viewIdent);
+    }
   }
 
   @TestTemplate
