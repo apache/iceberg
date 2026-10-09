@@ -39,7 +39,12 @@ class Years<T> extends TimeTransform<T> {
   @Override
   protected Transform<T, Integer> toEnum(Type type) {
     return (Transform<T, Integer>)
-        fromSourceType(type, Dates.YEAR, Timestamps.MICROS_TO_YEAR, Timestamps.NANOS_TO_YEAR);
+        fromSourceType(
+            type,
+            Dates.YEAR,
+            Timestamps.MICROS_TO_YEAR,
+            Timestamps.NANOS_TO_YEAR,
+            UUIDv7Timestamps.UUID_TO_YEAR);
   }
 
   @Override
