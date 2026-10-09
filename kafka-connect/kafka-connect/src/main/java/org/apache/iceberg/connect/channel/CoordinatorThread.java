@@ -80,6 +80,10 @@ class CoordinatorThread extends Thread {
         || error instanceof InvalidProducerEpochException;
   }
 
+  void assignmentChanged() {
+    coordinator.assignmentChanged();
+  }
+
   void terminate() {
     this.terminated = true;
     coordinator.terminate();
