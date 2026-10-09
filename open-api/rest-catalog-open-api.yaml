@@ -3732,8 +3732,8 @@ components:
         ref:
           type: string
         snapshot-id:
-          type: integer
-          format: [ int64, "null" ]
+          type: [ integer, "null" ]
+          format: int64
 
     AssertLastAssignedFieldId:
       description:
