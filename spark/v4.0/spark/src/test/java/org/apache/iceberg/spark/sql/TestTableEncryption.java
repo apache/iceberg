@@ -446,6 +446,16 @@ public class TestTableEncryption extends CatalogTestBase {
         .allSatisfy(filePath -> assertThat(localInput(filePath).exists()).isFalse());
   }
 
+  @TestTemplate
+  public void testComputeTableStats() {
+    validationCatalog.initialize(catalogName, catalogConfig);
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    assertThatThrownBy(() -> SparkActions.get().computeTableStats(table).execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot compute table statistics for an encrypted table: " + table.name());
+  }
+
   private void checkMetadataFileEncryption(InputFile file) throws IOException {
     SeekableInputStream stream = file.newStream();
     byte[] magic = new byte[4];
