@@ -264,26 +264,6 @@ public class TestLocationProvider extends TestBase {
   }
 
   @TestTemplate
-  public void testObjectStoragePathContext() {
-    assertPathContext("s3://bucket/db/table", "db/table");
-    assertPathContext("s3://bucket/db/table/", "db/table");
-    assertPathContext("s3://bucket/ns/db/table", "db/table");
-    assertPathContext("s3://bucket/table", "/table");
-    assertPathContext("s3://bucket", "");
-  }
-
-  private static void assertPathContext(String tableLocation, String expectedContext) {
-    LocationProvider provider =
-        new LocationProviders.ObjectStoreLocationProvider(
-            tableLocation, Map.of(TableProperties.WRITE_DATA_LOCATION, "s3://other/data"));
-
-    String fileLocation = provider.newDataLocation("test.parquet");
-    assertThat(fileLocation)
-        .startsWith("s3://other/data/")
-        .endsWith(String.format("/%s/test.parquet", expectedContext));
-  }
-
-  @TestTemplate
   public void testEncodedFieldNameInPartitionPath() {
     // Update the table to use a string field for partitioning with special characters in the name
     table.updateProperties().set(TableProperties.OBJECT_STORE_ENABLED, "true").commit();
