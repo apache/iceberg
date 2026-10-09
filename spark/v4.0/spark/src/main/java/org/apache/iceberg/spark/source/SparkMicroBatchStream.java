@@ -251,8 +251,20 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   public void prepareForTriggerAvailableNow() {
     LOG.info("The streaming query reports to use Trigger.AvailableNow");
 
-    lastOffsetForTriggerAvailableNow =
-        (StreamingOffset) latestOffset(initialOffset, ReadLimit.allAvailable());
+    try {
+      lastOffsetForTriggerAvailableNow =
+          (StreamingOffset) latestOffset(initialOffset, ReadLimit.allAvailable());
+    } catch (IllegalStateException e) {
+      // The snapshot referenced by the initial offset may have been expired after the checkpoint
+      // has advanced to a newer, still available snapshot. Fall back to the current snapshot so
+      // that Trigger.AvailableNow can resume from a valid position instead of failing.
+      LOG.warn(
+          "Failed to compute the Trigger.AvailableNow end offset from the initial offset {}, "
+              + "falling back to the latest snapshots",
+          initialOffset,
+          e);
+      lastOffsetForTriggerAvailableNow = (StreamingOffset) latestOffset();
+    }
 
     LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow.json());
 
