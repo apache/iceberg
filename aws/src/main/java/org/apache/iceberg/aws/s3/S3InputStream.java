@@ -186,7 +186,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   public int readTail(byte[] buffer, int offset, int length) throws IOException {
     Preconditions.checkPositionIndexes(offset, offset + length, buffer.length);
 
-    String range = String.format("bytes=-%s", length);
+    String range = String.format("bytes=-%s", length == 0 ? 1 : length);
 
     try (InputStream rangeStream = readRange(range)) {
       int bytesRead = IOUtil.readRemaining(rangeStream, buffer, offset, length);
