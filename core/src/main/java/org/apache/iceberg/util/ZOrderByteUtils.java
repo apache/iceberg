@@ -44,7 +44,39 @@ public class ZOrderByteUtils {
 
   public static final int PRIMITIVE_BUFFER_SIZE = 8;
 
+  /**
+   * The most columns the table based interleaving supports. Interleaving N columns spreads the 8
+   * bits of a source byte over 8 * N bits, which has to fit in the long holding one output group.
+   */
+  private static final int MAX_TABLE_COLUMNS = Long.SIZE / Byte.SIZE;
+
+  /**
+   * SPREAD[n][b] holds the bits of the byte b spread n positions apart, the highest order bit of b
+   * first, so that OR-ing the spread bytes of n columns interleaves them. Only the low order n
+   * bytes are used.
+   */
+  private static final long[][] SPREAD = buildSpreadTables();
+
   private ZOrderByteUtils() {}
+
+  private static long[][] buildSpreadTables() {
+    long[][] tables = new long[MAX_TABLE_COLUMNS + 1][];
+    for (int numColumns = 1; numColumns <= MAX_TABLE_COLUMNS; numColumns += 1) {
+      long[] table = new long[1 << Byte.SIZE];
+      for (int value = 0; value < table.length; value += 1) {
+        long spread = 0L;
+        for (int bit = 0; bit < Byte.SIZE; bit += 1) {
+          if ((value & (1 << (Byte.SIZE - 1 - bit))) != 0) {
+            spread |= 1L << (Byte.SIZE * numColumns - 1 - bit * numColumns);
+          }
+        }
+        table[value] = spread;
+      }
+      tables[numColumns] = table;
+    }
+
+    return tables;
+  }
 
   static ByteBuffer allocatePrimitiveBuffer() {
     return ByteBuffer.allocate(PRIMITIVE_BUFFER_SIZE);
@@ -155,21 +187,116 @@ public class ZOrderByteUtils {
   }
 
   /**
-   * Interleave bits using a naive loop. Variable length inputs are allowed but to get a consistent
-   * ordering it is required that every column contribute the same number of bytes in each
-   * invocation. Bits are interleaved from all columns that have a bit available at that position.
-   * Once a Column has no more bits to produce it is skipped in the interleaving.
+   * Interleave bits from the given columns. Variable length inputs are allowed but to get a
+   * consistent ordering it is required that every column contribute the same number of bytes in
+   * each invocation. Bits are interleaved from all columns that have a bit available at that
+   * position. Once a Column has no more bits to produce it is skipped in the interleaving.
+   *
+   * <p>When every column contributes the same number of bytes, which is what all callers of this
+   * method produce, the interleaving is a fixed permutation of the source bits and is computed a
+   * byte at a time through {@link #SPREAD}. Any other input falls back to interleaving one bit at a
+   * time.
    *
    * @param columnsBinary an array of ordered byte representations of the columns being ZOrdered
    * @param interleavedSize the number of bytes to use in the output
    * @return the columnbytes interleaved
    */
-  // NarrowingCompoundAssignment is intended here. See
-  // https://github.com/apache/iceberg/pull/5200#issuecomment-1176226163
-  @SuppressWarnings({"ByteBufferBackingArray", "NarrowingCompoundAssignment"})
+  @SuppressWarnings("ByteBufferBackingArray")
   public static byte[] interleaveBits(
       byte[][] columnsBinary, int interleavedSize, ByteBuffer reuse) {
     byte[] interleavedBytes = reuse.array();
+    int uniformColumnLength = uniformColumnLength(columnsBinary);
+    if (uniformColumnLength > 0 && interleavedSize <= uniformColumnLength * columnsBinary.length) {
+      return interleaveUniformColumns(columnsBinary, interleavedSize, interleavedBytes);
+    }
+
+    return interleaveBitwise(columnsBinary, interleavedSize, interleavedBytes);
+  }
+
+  /**
+   * Returns the shared length of the given columns if the table based interleaving applies to them,
+   * and 0 otherwise. It applies when there is at least one column and at most {@link
+   * #MAX_TABLE_COLUMNS} of them, and all of them are of the same non-zero length.
+   */
+  private static int uniformColumnLength(byte[][] columnsBinary) {
+    if (columnsBinary.length < 1 || columnsBinary.length > MAX_TABLE_COLUMNS) {
+      return 0;
+    }
+
+    int columnLength = columnsBinary[0].length;
+    for (int column = 1; column < columnsBinary.length; column += 1) {
+      if (columnsBinary[column].length != columnLength) {
+        return 0;
+      }
+    }
+
+    return columnLength;
+  }
+
+  /**
+   * Interleave columns that all contribute the same number of bytes.
+   *
+   * <p>With N columns, the N bytes of output starting at offset {@code index * N} are produced
+   * entirely from byte {@code index} of each column: bit {@code bit} of that source byte, counted
+   * from the most significant one, lands at bit {@code bit * N + column} of that output group. That
+   * permutation depends only on the source byte and on N, so it is read from {@link #SPREAD} rather
+   * than being applied a bit at a time. Shifting the spread bits right by the column index puts
+   * each column at its offset within the group.
+   *
+   * <p>Every output byte is written, so unlike {@link #interleaveBitwise} this does not need to
+   * zero the output first. An interleavedSize smaller than the full interleaving truncates the last
+   * group: no column is exhausted before another one here, so the leading bytes of the interleaving
+   * do not depend on where it is cut off.
+   */
+  private static byte[] interleaveUniformColumns(
+      byte[][] columnsBinary, int interleavedSize, byte[] interleavedBytes) {
+    int numColumns = columnsBinary.length;
+    long[] spread = SPREAD[numColumns];
+    int completeGroups = interleavedSize / numColumns;
+
+    int interleaveByte = 0;
+    for (int sourceByte = 0; sourceByte < completeGroups; sourceByte += 1) {
+      long group = interleaveGroup(columnsBinary, spread, sourceByte);
+      for (int groupByte = numColumns - 1; groupByte >= 0; groupByte -= 1) {
+        interleavedBytes[interleaveByte] = (byte) (group >>> (Byte.SIZE * groupByte));
+        interleaveByte += 1;
+      }
+    }
+
+    // The output can end in the middle of a group, in which case only its leading bytes are kept
+    if (interleaveByte < interleavedSize) {
+      long group = interleaveGroup(columnsBinary, spread, completeGroups);
+      for (int groupByte = numColumns - 1; interleaveByte < interleavedSize; groupByte -= 1) {
+        interleavedBytes[interleaveByte] = (byte) (group >>> (Byte.SIZE * groupByte));
+        interleaveByte += 1;
+      }
+    }
+
+    return interleavedBytes;
+  }
+
+  /**
+   * Interleaves the given byte of every column into a single group of {@code columnsBinary.length}
+   * bytes, held in the low order bytes of the returned long.
+   */
+  private static long interleaveGroup(byte[][] columnsBinary, long[] spread, int sourceByte) {
+    long group = 0L;
+    for (int column = 0; column < columnsBinary.length; column += 1) {
+      group |= spread[columnsBinary[column][sourceByte] & 0xFF] >>> column;
+    }
+
+    return group;
+  }
+
+  /**
+   * Interleave bits using a naive loop, one output bit at a time. This handles columns of differing
+   * lengths, where a column that has run out of bytes is skipped by the interleaving.
+   */
+  // NarrowingCompoundAssignment is intended here. See
+  // https://github.com/apache/iceberg/pull/5200#issuecomment-1176226163
+  @SuppressWarnings("NarrowingCompoundAssignment")
+  private static byte[] interleaveBitwise(
+      byte[][] columnsBinary, int interleavedSize, byte[] interleavedBytes) {
     Arrays.fill(interleavedBytes, 0, interleavedSize, (byte) 0x00);
 
     int sourceColumn = 0;
