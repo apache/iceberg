@@ -26,7 +26,6 @@ import static org.apache.iceberg.V4TestHelpers.SNAPSHOT_ID;
 import static org.apache.iceberg.V4TestHelpers.dataFile;
 import static org.apache.iceberg.V4TestHelpers.dataFileWithDV;
 import static org.apache.iceberg.V4TestHelpers.dataFileWithStats;
-import static org.apache.iceberg.V4TestHelpers.deleteFile;
 import static org.apache.iceberg.V4TestHelpers.deletionVector;
 import static org.apache.iceberg.V4TestHelpers.manifestRef;
 import static org.apache.iceberg.V4TestHelpers.manifestRefWithStats;
@@ -139,12 +138,6 @@ class TestV4ManifestReader {
       dataFileWithStats("s3://bucket/table/file-c.parquet", CONTENT_STATS);
   private static final TrackedFile FILE_D =
       unpartitionedFileWithoutStats("s3://bucket/table/file-d.parquet");
-  private static final TrackedFile EQ_DELETES_A =
-      idPartitionedDeleteFileWithoutStats(
-          "s3://bucket/table/id=1/eq-deletes-a.parquet", idPartition(1));
-  private static final TrackedFile EQ_DELETES_B =
-      idPartitionedDeleteFileWithoutStats(
-          "s3://bucket/table/id=2/eq-deletes-b.parquet", idPartition(2));
   private static final TrackedFile DATA_MANIFEST_REF =
       manifestRefWithoutStats(FileContent.DATA_MANIFEST, "s3://bucket/table/data-leaf.parquet");
   private static final TrackedFile DELETE_MANIFEST_REF =
@@ -255,36 +248,6 @@ class TestV4ManifestReader {
     assertThat(actual)
         .usingComparator(FILE_COMPARATOR)
         .isEqualTo(file.copyWithStats(Set.of(idFieldId)));
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
-  public void readEqualityDelete(FileFormat format) throws IOException {
-    TrackedFile delete =
-        new TrackedFileStruct(
-            ADDED_TRACKING,
-            FileContent.EQUALITY_DELETES,
-            "s3://bucket/eq-delete.parquet",
-            FileFormat.PARQUET,
-            RECORD_COUNT,
-            FILE_SIZE_IN_BYTES,
-            ID_PARTITIONED.specId(),
-            idPartition(7),
-            CONTENT_STATS,
-            SortOrder.unsorted().orderId(),
-            null, // dv
-            null, // manifest info
-            ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            null); // split offsets
-
-    ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, delete);
-
-    V4ManifestReader.Builder builder =
-        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
-            .metricsConfig(METRICS_CONFIG);
-    TrackedFile actual = readOne(builder);
-
-    assertThat(actual).usingComparator(FILE_COMPARATOR).isEqualTo(delete);
   }
 
   @ParameterizedTest
@@ -1415,13 +1378,7 @@ class TestV4ManifestReader {
         writeManifest(
             format,
             ID_PARTITIONED_TYPE,
-            ImmutableList.of(
-                FILE_A,
-                FILE_B,
-                EQ_DELETES_A,
-                EQ_DELETES_B,
-                DATA_MANIFEST_REF,
-                DELETE_MANIFEST_REF));
+            ImmutableList.of(FILE_A, FILE_B, DATA_MANIFEST_REF, DELETE_MANIFEST_REF));
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     V4ManifestReader.Builder builder =
@@ -1432,14 +1389,14 @@ class TestV4ManifestReader {
 
     assertThat(read(builder))
         .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
-        .containsExactly(FILE_A, EQ_DELETES_A, DATA_MANIFEST_REF, DELETE_MANIFEST_REF);
+        .containsExactly(FILE_A, DATA_MANIFEST_REF, DELETE_MANIFEST_REF);
 
     assertThat(metrics.skippedDataFiles().value())
         .as("one data file is pruned by the partition filter")
         .isEqualTo(1L);
     assertThat(metrics.skippedDeleteFiles().value())
-        .as("one delete file is pruned by the partition filter")
-        .isEqualTo(1L);
+        .as("no delete files are present")
+        .isEqualTo(0L);
     assertThat(metrics.skippedDataManifests().value())
         .as("manifests have no partition and are not pruned")
         .isEqualTo(0L);
@@ -1827,11 +1784,6 @@ class TestV4ManifestReader {
   private static TrackedFile idPartitionedDataFileWithoutStats(
       String location, PartitionData partition) {
     return dataFile(location, ID_PARTITIONED.specId(), partition);
-  }
-
-  private static TrackedFile idPartitionedDeleteFileWithoutStats(
-      String location, PartitionData partition) {
-    return deleteFile(FileContent.EQUALITY_DELETES, location, ID_PARTITIONED.specId(), partition);
   }
 
   private static TrackedFile unpartitionedDataFileWithDV(String location, String dvLocation) {

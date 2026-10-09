@@ -68,19 +68,6 @@ class V4TestHelpers {
         null /* manifestInfo */);
   }
 
-  static TrackedFile deleteFile(
-      FileContent content, String location, Integer specId, PartitionData partition) {
-    return trackedFile(
-        ADDED_TRACKING,
-        content,
-        location,
-        specId,
-        partition,
-        null, // stats
-        null, // dv
-        null); // manifestInfo
-  }
-
   static TrackedFile manifestRef(FileContent content, String location, ManifestInfo manifestInfo) {
     return manifestRefWithStats(content, location, null, manifestInfo);
   }
