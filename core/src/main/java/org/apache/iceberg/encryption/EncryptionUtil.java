@@ -40,6 +40,7 @@ public class EncryptionUtil {
       ImmutableSet.<String>builder()
           .add(TableProperties.ENCRYPTION_TABLE_KEY)
           .add(TableProperties.ENCRYPTION_DEK_LENGTH)
+          .add(TableProperties.ENCRYPTION_KMS_KEY_GENERATION_ENABLED)
           .build();
 
   private EncryptionUtil() {}
@@ -119,7 +120,14 @@ public class EncryptionUtil {
         "Invalid data key length: %s (must be 16, 24, or 32)",
         dataKeyLength);
 
-    return new StandardEncryptionManager(keys, tableKeyId, dataKeyLength, kmsClient);
+    boolean kmsKeyGenerationEnabled =
+        PropertyUtil.propertyAsBoolean(
+            tableProperties,
+            TableProperties.ENCRYPTION_KMS_KEY_GENERATION_ENABLED,
+            TableProperties.ENCRYPTION_KMS_KEY_GENERATION_ENABLED_DEFAULT);
+
+    return new StandardEncryptionManager(
+        keys, tableKeyId, dataKeyLength, kmsClient, kmsKeyGenerationEnabled);
   }
 
   public static EncryptedOutputFile plainAsEncryptedOutput(OutputFile encryptingOutputFile) {
