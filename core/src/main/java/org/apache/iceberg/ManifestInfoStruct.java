@@ -395,7 +395,7 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
 
     Builder formatVersion(int version) {
       Preconditions.checkArgument(
-          version == 0 || version == 4, "Invalid format version: %s (must be 0 or 4)", version);
+          version == 0 || version >= 4, "Invalid format version: %s (must be 0 or >= 4)", version);
       this.formatVersion = version;
       return this;
     }
