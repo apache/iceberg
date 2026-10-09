@@ -1067,7 +1067,7 @@ The data sequence number is inherited only if the entry status is ADDED, or MODI
 
 Inheriting sequence numbers through the metadata tree allows writing a new manifest without a known sequence number, so that a manifest can be written once and reused in commit retries. To change a sequence number for a retry, only the snapshot root file must be rewritten.
 
-Inheritance does not apply to v1, which does not have sequence numbers. When reading v1 manifests with no sequence number column, sequence numbers for all files must default to 0.
+Inheritance does not apply to v1, which does not have inherited fields like sequence number. When reading v1 manifests with no sequence number column, sequence numbers for all files must default to 0.
 
 ##### First Row ID Inheritance
 
