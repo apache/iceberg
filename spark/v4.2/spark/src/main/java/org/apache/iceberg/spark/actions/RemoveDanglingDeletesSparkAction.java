@@ -37,7 +37,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.ClosingIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.source.SerializableTableWithSize;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.broadcast.Broadcast;
@@ -54,10 +53,6 @@ class RemoveDanglingDeletesSparkAction
 
   private final Table table;
   private final RemoveDanglingDeleteFilesAction action;
-
-  protected RemoveDanglingDeletesSparkAction(SparkSession spark, Table table) {
-    this(spark, table, ImmutableMap.of());
-  }
 
   RemoveDanglingDeletesSparkAction(
       SparkSession spark, Table table, Map<String, String> snapshotProperties) {

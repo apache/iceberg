@@ -287,3 +287,17 @@ CommitMetadata.withCommitProperties(properties,
         },
         RuntimeException.class);
 ```
+
+Custom metadata can also be added to snapshot summaries for an entire Spark session by setting properties with the `spark.sql.iceberg.snapshot-property.` prefix. The prefix is removed from each property. These properties apply to writes and to the `rewrite_data_files`, `rewrite_position_delete_files`, and `rewrite_manifests` procedures. Session properties act as defaults. A property set explicitly, through a write option, `CommitMetadata`, or `snapshotProperty()` on a Spark action, overrides a session property with the same key. Here is an example:
+
+```sql
+SET spark.sql.iceberg.snapshot-property.created-by=maintenance-job;
+CALL catalog.system.rewrite_data_files(table => 'db.sample');
+```
+
+```java
+SparkActions.get(spark)
+    .rewriteDataFiles(table)
+    .snapshotProperty("created-by", "backfill-job")
+    .execute();
+```
