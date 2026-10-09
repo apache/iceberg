@@ -23,9 +23,20 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
 import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.inmemory.InMemoryOutputFile;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -124,6 +135,25 @@ class TestFormatModelRegistry {
     }
   }
 
+  @Test
+  void equalityDeleteWriterRejectsMissingEqualityFieldId() {
+    FormatModelRegistry.register(new DummyParquetFormatModel(Object.class, Object.class));
+    EncryptedOutputFile outputFile =
+        EncryptedFiles.encryptedOutput(new InMemoryOutputFile(), EncryptionKeyMetadata.EMPTY);
+    Schema schema = new Schema(Types.NestedField.required(1, "id", Types.LongType.get()));
+
+    assertThatThrownBy(
+            () ->
+                FormatModelRegistry.equalityDeleteWriteBuilder(
+                        FileFormat.PARQUET, Object.class, outputFile)
+                    .schema(schema)
+                    .spec(PartitionSpec.unpartitioned())
+                    .equalityFieldIds(99)
+                    .build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid equality delete field ID: 99");
+  }
+
   private static class DummyParquetFormatModel implements FormatModel<Object, Object> {
     private final Class<?> type;
     private final Class<?> schemaType;
@@ -152,12 +182,82 @@ class TestFormatModelRegistry {
 
     @Override
     public ModelWriteBuilder<Object, Object> writeBuilder(EncryptedOutputFile outputFile) {
-      return null;
+      return new DummyModelWriteBuilder();
     }
 
     @Override
     public ReadBuilder<Object, Object> readBuilder(InputFile inputFile) {
       return null;
     }
+  }
+
+  private static class DummyModelWriteBuilder implements ModelWriteBuilder<Object, Object> {
+    @Override
+    public ModelWriteBuilder<Object, Object> schema(Schema schema) {
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<Object, Object> engineSchema(Object schema) {
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<Object, Object> set(String property, String value) {
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<Object, Object> meta(String property, String value) {
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<Object, Object> content(FileContent content) {
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<Object, Object> metricsConfig(MetricsConfig metricsConfig) {
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<Object, Object> overwrite() {
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<Object, Object> withFileEncryptionKey(ByteBuffer encryptionKey) {
+      return this;
+    }
+
+    @Override
+    public ModelWriteBuilder<Object, Object> withAADPrefix(ByteBuffer aadPrefix) {
+      return this;
+    }
+
+    @Override
+    public FileAppender<Object> build() {
+      return new NoOpFileAppender();
+    }
+  }
+
+  private static class NoOpFileAppender implements FileAppender<Object> {
+    @Override
+    public void add(Object datum) {}
+
+    @Override
+    public Metrics metrics() {
+      return null;
+    }
+
+    @Override
+    public long length() {
+      return 0;
+    }
+
+    @Override
+    public void close() {}
   }
 }
