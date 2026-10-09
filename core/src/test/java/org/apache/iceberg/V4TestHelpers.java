@@ -43,6 +43,15 @@ class V4TestHelpers {
     return dataFile(ADDED_TRACKING, location, specId, partition, null, null);
   }
 
+  static TrackedFile dataFile(
+      String location,
+      Integer specId,
+      PartitionData partition,
+      ContentStats stats,
+      DeletionVector dv) {
+    return dataFile(ADDED_TRACKING, location, specId, partition, stats, dv);
+  }
+
   static TrackedFile dataFileWithStats(String location, ContentStats stats) {
     return dataFile(ADDED_TRACKING, location, null, null, stats, null);
   }
@@ -164,8 +173,18 @@ class V4TestHelpers {
       Types.StructType statsType,
       Iterable<TrackedFile> files)
       throws IOException {
-    Schema writeSchema = TrackedFile.schema(partitionType, statsType);
     OutputFile out = io.newOutputFile(format.addExtension("manifest." + System.nanoTime()));
+    return writeTrackedFiles(out, format, partitionType, statsType, files);
+  }
+
+  static OutputFile writeTrackedFiles(
+      OutputFile out,
+      FileFormat format,
+      Types.StructType partitionType,
+      Types.StructType statsType,
+      Iterable<TrackedFile> files)
+      throws IOException {
+    Schema writeSchema = TrackedFile.schema(partitionType, statsType);
     try (FileAppender<StructLike> appender =
         InternalData.write(format, out).schema(writeSchema).named("tracked_file").build()) {
       for (TrackedFile file : files) {
