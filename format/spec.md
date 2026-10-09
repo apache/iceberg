@@ -364,6 +364,8 @@ Valid primitive type promotions are:
 | `float`          | `double`                     | `double`                     | |
 | `decimal(P, S)`  | `decimal(P', S)` if `P' > P` | `decimal(P', S)` if `P' > P` | Widen precision only |
 
+Readers must accept a data file column whose type is either the field's type or a type that can be promoted to the field's type according to the valid type promotions for the table's format version, regardless of whether the field's type was evolved.
+
 Iceberg's Avro manifest format does not store the type of lower and upper bounds, and type promotion does not rewrite existing bounds. For example, when a `float` is promoted to `double`, existing data file bounds are encoded as 4 little-endian bytes rather than 8 little-endian bytes for `double`. To correctly decode the value, the original type at the time the file was written must be inferred according to the following table:
 
 | Current type     | Length of bounds | Inferred type at write time |
