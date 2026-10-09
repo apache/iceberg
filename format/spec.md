@@ -2085,6 +2085,8 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 
 #### Metrics
 
+These fields are informational only. Writers are not required to guarantee the accuracy of persisted values.
+
 | Field                               | Description                                                                                                                         |
 |-------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
 | **`added-data-files`**              | Number of data files added in the snapshot                                                                                          |
