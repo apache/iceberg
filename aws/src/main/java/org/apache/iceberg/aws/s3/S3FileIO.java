@@ -193,8 +193,10 @@ public class S3FileIO
   /**
    * Deletes the given paths in a batched manner.
    *
-   * <p>The paths are grouped by bucket, and deletion is triggered when we either reach the
-   * configured batch size or have a final remainder batch for each bucket.
+   * <p>The paths are grouped by the S3 client of their storage prefix and by bucket, and deletion
+   * is triggered when we either reach the configured batch size or have a final remainder batch for
+   * each group. Every batch is deleted with the client of its storage prefix, so that the storage
+   * credentials configured for that prefix are used.
    *
    * @param paths paths to delete
    */
@@ -220,14 +222,17 @@ public class S3FileIO
     }
 
     if (s3FileIOProperties.isDeleteEnabled()) {
-      SetMultimap<String, String> bucketToObjects =
-          Multimaps.newSetMultimap(Maps.newHashMap(), Sets::newHashSet);
+      // group by client as well as bucket, so each batch uses the credentials of its prefix
+      Map<PrefixedS3Client, SetMultimap<String, String>> objectsByClient = Maps.newHashMap();
       List<Future<List<String>>> deletionTasks = Lists.newArrayList();
       for (String path : paths) {
         PrefixedS3Client client = clientForStoragePath(path);
         S3URI location = new S3URI(path, client.s3FileIOProperties().bucketToAccessPointMapping());
         String bucket = location.bucket();
         String objectKey = location.key();
+        SetMultimap<String, String> bucketToObjects =
+            objectsByClient.computeIfAbsent(
+                client, c -> Multimaps.newSetMultimap(Maps.newHashMap(), Sets::newHashSet));
         bucketToObjects.get(bucket).add(objectKey);
         if (bucketToObjects.get(bucket).size() == client.s3FileIOProperties().deleteBatchSize()) {
           Set<String> keys = Sets.newHashSet(bucketToObjects.get(bucket));
@@ -239,14 +244,17 @@ public class S3FileIO
       }
 
       // Delete the remainder
-      for (Map.Entry<String, Collection<String>> bucketToObjectsEntry :
-          bucketToObjects.asMap().entrySet()) {
-        String bucket = bucketToObjectsEntry.getKey();
-        Collection<String> keys = bucketToObjectsEntry.getValue();
-        Future<List<String>> deletionTask =
-            executorService()
-                .submit(() -> deleteBatch(clientForStoragePath("s3://" + bucket), bucket, keys));
-        deletionTasks.add(deletionTask);
+      for (Map.Entry<PrefixedS3Client, SetMultimap<String, String>> clientToObjectsEntry :
+          objectsByClient.entrySet()) {
+        PrefixedS3Client client = clientToObjectsEntry.getKey();
+        for (Map.Entry<String, Collection<String>> bucketToObjectsEntry :
+            clientToObjectsEntry.getValue().asMap().entrySet()) {
+          String bucket = bucketToObjectsEntry.getKey();
+          Collection<String> keys = bucketToObjectsEntry.getValue();
+          Future<List<String>> deletionTask =
+              executorService().submit(() -> deleteBatch(client, bucket, keys));
+          deletionTasks.add(deletionTask);
+        }
       }
 
       int totalFailedDeletions = 0;
