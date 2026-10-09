@@ -227,7 +227,7 @@ public class ADLSFileIO implements DelegateFileIO {
             .map(
                 pathItem ->
                     new FileInfo(
-                        pathItem.getName(),
+                        fullyQualifiedLocation(location, pathItem.getName()),
                         pathItem.getContentLength(),
                         pathItem.getCreationTime().toInstant().toEpochMilli()))
             .iterator();
@@ -265,5 +265,14 @@ public class ADLSFileIO implements DelegateFileIO {
     }
 
     DelegateFileIO.super.close();
+  }
+
+  private static String fullyQualifiedLocation(ADLSLocation location, String path) {
+    return location
+        .container()
+        .map(
+            container ->
+                String.format("%s://%s@%s/%s", location.scheme(), container, location.host(), path))
+        .orElseGet(() -> String.format("%s://%s/%s", location.scheme(), location.host(), path));
   }
 }
