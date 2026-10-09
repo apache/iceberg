@@ -80,6 +80,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     private String defaultCatalog = null;
     private Schema schema = null;
     private String location = null;
+    private TableIdentifier storageTableIdentifier = null;
 
     protected BaseViewBuilder(TableIdentifier identifier) {
       Preconditions.checkArgument(
@@ -160,6 +161,12 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     }
 
     @Override
+    public ViewBuilder withStorageTableIdentifier(TableIdentifier newStorageTableIdentifier) {
+      this.storageTableIdentifier = newStorageTableIdentifier;
+      return this;
+    }
+
+    @Override
     public View create() {
       return create(newViewOps(identifier));
     }
@@ -190,7 +197,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
       Preconditions.checkState(
           null != defaultNamespace, "Cannot create view without specifying a default namespace");
 
-      ViewVersion viewVersion =
+      ImmutableViewVersion.Builder versionBuilder =
           ImmutableViewVersion.builder()
               .versionId(1)
               .schemaId(schema.schemaId())
@@ -198,8 +205,13 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .defaultNamespace(defaultNamespace)
               .defaultCatalog(defaultCatalog)
               .timestampMillis(System.currentTimeMillis())
-              .putAllSummary(EnvironmentContext.get())
-              .build();
+              .putAllSummary(EnvironmentContext.get());
+
+      if (storageTableIdentifier != null) {
+        versionBuilder.storageTable(storageTableIdentifier);
+      }
+
+      ViewVersion viewVersion = versionBuilder.build();
 
       properties.putAll(viewOverrideProperties());
 
@@ -241,7 +253,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .max(Integer::compareTo)
               .orElseGet(metadata::currentVersionId);
 
-      ViewVersion viewVersion =
+      ImmutableViewVersion.Builder versionBuilder =
           ImmutableViewVersion.builder()
               .versionId(maxVersionId + 1)
               .schemaId(schema.schemaId())
@@ -249,8 +261,13 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .defaultNamespace(defaultNamespace)
               .defaultCatalog(defaultCatalog)
               .timestampMillis(System.currentTimeMillis())
-              .putAllSummary(EnvironmentContext.get())
-              .build();
+              .putAllSummary(EnvironmentContext.get());
+
+      if (storageTableIdentifier != null) {
+        versionBuilder.storageTable(storageTableIdentifier);
+      }
+
+      ViewVersion viewVersion = versionBuilder.build();
 
       properties.putAll(viewOverrideProperties());
 

@@ -36,6 +36,7 @@ import org.apache.spark.sql.catalyst.plans.logical.DropPartitionField
 import org.apache.spark.sql.catalyst.plans.logical.DropTag
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.plans.logical.OrderAwareCoalesce
+import org.apache.spark.sql.catalyst.plans.logical.RefreshMaterializedViewStatement
 import org.apache.spark.sql.catalyst.plans.logical.RenameTable
 import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
@@ -138,11 +139,41 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
           columnAliases,
           columnComments,
           comment,
+          _,
+          properties,
+          allowExisting,
+          replace,
+          _,
+          Some(materializedViewOptions),
+          _,
+          _) =>
+      CreateMaterializedViewExec(
+        catalog = viewCatalog,
+        ident = ident,
+        queryText = queryText,
+        columnAliases = columnAliases,
+        columnComments = columnComments,
+        queryColumnNames = query.schema.fieldNames.toIndexedSeq,
+        viewSchema = query.schema,
+        comment = comment,
+        properties = properties,
+        allowExisting = allowExisting,
+        replace = replace,
+        storageTableIdentifier = materializedViewOptions.storageTableIdentifier) :: Nil
+
+    case CreateIcebergView(
+          ResolvedIdentifier(viewCatalog: ViewCatalog, ident),
+          queryText,
+          query,
+          columnAliases,
+          columnComments,
+          comment,
           collation,
           properties,
           allowExisting,
           replace,
           viewSchemaMode,
+          None,
           _,
           _) =>
       CreateV2ViewExec(
@@ -181,6 +212,9 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
 
     case UnsetViewProperties(ResolvedV2View(catalog, ident, _), propertyKeys, ifExists) =>
       IcebergAlterV2ViewUnsetPropertiesExec(catalog, ident, propertyKeys, ifExists) :: Nil
+
+    case RefreshMaterializedViewStatement(catalog, ident) =>
+      RefreshMaterializedViewExec(catalog, ident) :: Nil
 
     case _ => Nil
   }
