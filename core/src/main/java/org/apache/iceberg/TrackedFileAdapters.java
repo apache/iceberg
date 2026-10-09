@@ -951,8 +951,7 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public Long dvSnapshotId() {
-      // dvSnapshotId is null because this wrapper has no DV entry
+    public Long modifiedSnapshotId() {
       return null;
     }
 
@@ -1018,7 +1017,7 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public Long dvSnapshotId() {
+    public Long modifiedSnapshotId() {
       return null;
     }
 
