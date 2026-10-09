@@ -148,7 +148,15 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
 
   @Override
   public void processWatermark(Watermark mark) throws Exception {
-    if (planResult == null || mark.getTimestamp() < planResult.doneTimestamp()) {
+    if (planResult == null) {
+      // No conversion cycle is active: forward the watermark. It may originate from another
+      // task's trigger sharing the maintenance lock, and holding it back would stall lock
+      // release for that task.
+      super.processWatermark(mark);
+      return;
+    }
+
+    if (mark.getTimestamp() < planResult.doneTimestamp()) {
       // Hold back watermarks until the cycle commits so the LockRemover keeps the maintenance lock
       // for the whole cycle. Forwarding the planner's mid-cycle phase watermarks will release the
       // lock early and could let the next trigger run a concurrent cycle on the same staging

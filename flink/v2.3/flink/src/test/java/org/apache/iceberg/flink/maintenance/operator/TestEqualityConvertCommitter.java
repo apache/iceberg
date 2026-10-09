@@ -134,6 +134,24 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
   }
 
   @Test
+  void forwardsWatermarkWithoutActiveCycle() throws Exception {
+    Table table = createTable(3, FileFormat.PARQUET);
+    insert(table, 1, "a");
+
+    try (TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger> harness =
+        createHarness()) {
+      harness.open();
+
+      // No plan was received, so no conversion cycle is active. A watermark here originates
+      // from another task's trigger sharing the maintenance lock; dropping it would stall
+      // the unioned watermark and the lock would never be released.
+      long markTs = System.currentTimeMillis();
+      harness.processBothWatermarks(new Watermark(markTs));
+      assertThat(watermarks(harness)).containsExactly(new Watermark(markTs));
+    }
+  }
+
+  @Test
   void skipsCommitForEmptyCycle() throws Exception {
     Table table = createTable(3, FileFormat.PARQUET);
 
