@@ -874,7 +874,7 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
 
     When a file is deleted from the dataset, the deletion must be recorded in the snapshot that deletes the file with a DELETED entry that sets `snapshot_id` to the snapshot in which the file was deleted. The DELETED entry can be produced by setting its position in the leaf manifest's `tracking.deleted_positions` and [`manifest_info.dv`](#manifest-deletion-vectors) and updating the leaf manifest's `tracking.modified_snapshot_id` to the new snapshot ID.
 
-    A leaf manifest whose `manifest_info.dv` changed must have status MODIFIED. `tracking.deleted_positions` and `tracking.replaced_positions` should only be set in the snapshot that changes `manifest_info.dv`.
+    A leaf manifest whose `manifest_info.dv` changed must have status MODIFIED and records the snapshot in its `modified_snapshot_id`. When new positions are set in `manifest_info.dv`, those positions must be set in either `tracking.deleted_positions` or `tracking.replaced_positions` to record what the entry's state changed to in the snapshot identified by `modified_snapshot_id`. Deleted and replaced bitmaps may be removed when the manifest metadata is copied to a new root.
 
 ##### Field-level Metrics and Statistics
 
