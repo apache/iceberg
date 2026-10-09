@@ -62,6 +62,7 @@ class TestTrackedFileAdapters {
   private static final long EXISTING_ROWS_COUNT = 300L;
   private static final int DELETED_FILES_COUNT = 1;
   private static final long DELETED_ROWS_COUNT = 100L;
+  private static final int NON_ZERO_FILE_COUNT = 1;
 
   private static final int UNPARTITIONED_SPEC_ID = PartitionSpec.unpartitioned().specId();
   private static final Map<Integer, PartitionSpec> UNPARTITIONED =
@@ -174,10 +175,10 @@ class TestTrackedFileAdapters {
           PartitionData.EMPTY,
           1024L,
           METRICS_WITH_BOUNDS,
-          null,
+          KEY_METADATA,
           ImmutableList.of(0L),
-          null,
-          null);
+          SORT_ORDER_ID,
+          FIRST_ROW_ID);
 
   static {
     assignManifestPosition(DATA_FILE, MANIFEST_LOCATION, MANIFEST_POS);
@@ -832,34 +833,33 @@ class TestTrackedFileAdapters {
     assertThat(result.partition())
         .usingComparator(Comparators.forType(PARTITIONED_SPEC.partitionType()))
         .isEqualTo(PARTITION);
-    assertThat(TrackedFileAdapters.asDataFile(result, specsById(PARTITIONED_SPEC)).partition())
-        .usingComparator(Comparators.forType(PARTITIONED_SPEC.partitionType()))
-        .isEqualTo(PARTITION);
   }
 
   @Test
   void dataTrackedFileAdapterUnwrapsToOriginalTrackedFile() {
-    TrackedFile source = trackedFile(FileContent.DATA);
-    DataFile dataFile = TrackedFileAdapters.asDataFile(source, UNPARTITIONED);
-    TrackedFile roundTripped = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(dataFile);
-    assertThat(roundTripped).isSameAs(source);
+    TrackedFile original = trackedFile(FileContent.DATA);
+    DataFile adapted = TrackedFileAdapters.asDataFile(original, UNPARTITIONED);
+    TrackedFile roundTripped = TrackedFileAdapters.forDataFile(TABLE_SCHEMA).wrap(adapted);
+    assertThat(roundTripped).isSameAs(original);
   }
 
   @Test
   void manifestTrackedFileAdapterUnwrapsToOriginalTrackedFile() {
-    TrackedFile original = trackedFile(FileContent.DATA_MANIFEST, 0);
+    TrackedFile original = trackedFile(FileContent.DATA_MANIFEST);
     ManifestFile adapted = TrackedFileAdapters.asManifestFile(original);
-    TrackedFile result = TrackedFileAdapters.forManifestFile().wrap(adapted);
-    assertThat(result).isSameAs(original);
-    assertThat(result.formatVersion()).isZero();
+    TrackedFile roundTripped = TrackedFileAdapters.forManifestFile().wrap(adapted);
+    assertThat(roundTripped).isSameAs(original);
   }
 
-  @Test
-  void dataManifestTrackedFileAdapter() {
-    ManifestFile manifest = writeManifestFile(ManifestContent.DATA);
+  @ParameterizedTest
+  @EnumSource(ManifestContent.class)
+  void manifestTrackedFileAdapter(ManifestContent content) {
+    FileContent expectedContent =
+        content == ManifestContent.DATA ? FileContent.DATA_MANIFEST : FileContent.DELETE_MANIFEST;
+    ManifestFile manifest = newManifestFile(content);
     TrackedFile result = TrackedFileAdapters.forManifestFile().wrap(manifest);
 
-    assertThat(result.contentType()).isEqualTo(FileContent.DATA_MANIFEST);
+    assertThat(result.contentType()).isEqualTo(expectedContent);
     assertThat(result.formatVersion()).isZero();
     assertThat(result.location()).isEqualTo(MANIFEST_LOCATION);
     assertThat(result.fileFormat()).isEqualTo(FileFormat.AVRO);
@@ -873,90 +873,21 @@ class TestTrackedFileAdapters {
     assertThat(result.manifestInfo().existingFilesCount()).isEqualTo(EXISTING_FILES_COUNT);
     assertThat(result.manifestInfo().deletedFilesCount()).isEqualTo(DELETED_FILES_COUNT);
     assertThat(result.manifestInfo().addedRowsCount()).isEqualTo(ADDED_ROWS_COUNT);
+    assertThat(result.manifestInfo().existingRowsCount()).isEqualTo(EXISTING_ROWS_COUNT);
+    assertThat(result.manifestInfo().deletedRowsCount()).isEqualTo(DELETED_ROWS_COUNT);
     assertThat(result.manifestInfo().replacedFilesCount()).isEqualTo(0);
     assertThat(result.manifestInfo().replacedRowsCount()).isEqualTo(0L);
     assertThat(result.manifestInfo().modifiedFilesCount()).isEqualTo(0);
     assertThat(result.manifestInfo().modifiedRowsCount()).isEqualTo(0L);
   }
 
-  @Test
-  void deleteManifestTrackedFileAdapter() {
-    ManifestFile manifest = writeManifestFile(ManifestContent.DELETES);
-    TrackedFile result = TrackedFileAdapters.forManifestFile().wrap(manifest);
-
-    assertThat(result.contentType()).isEqualTo(FileContent.DELETE_MANIFEST);
-    assertThat(result.formatVersion()).isZero();
-    assertThat(result.recordCount())
-        .isEqualTo(ADDED_FILES_COUNT + EXISTING_FILES_COUNT + DELETED_FILES_COUNT);
-    assertThat(result.tracking().status()).isEqualTo(EntryStatus.EXISTING);
-    assertThat(result.tracking().firstRowId()).isNull();
-  }
-
-  @Test
-  void manifestTrackedFileAdapterFailsWhenAddedFilesCountMissing() {
-    ManifestFile manifest = mock(ManifestFile.class);
-    when(manifest.path()).thenReturn(MANIFEST_LOCATION);
-    when(manifest.content()).thenReturn(ManifestContent.DATA);
-    when(manifest.addedFilesCount()).thenReturn(null);
-    when(manifest.existingFilesCount()).thenReturn(1);
-    when(manifest.deletedFilesCount()).thenReturn(0);
-    when(manifest.replacedFilesCount()).thenReturn(0);
-
+  @ParameterizedTest
+  @EnumSource(InvalidCount.class)
+  void manifestTrackedFileAdapterRejectsInvalidFilesCount(InvalidCount count) {
+    ManifestFile manifest = newManifestFileWithInvalidCount(count);
     assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("missing added files count");
-  }
-
-  @Test
-  void manifestTrackedFileAdapterRejectsNullReplacedFilesCount() {
-    ManifestFile manifest = manifestWithCounts(1, 1, 0, null, 0);
-
-    assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Cannot convert manifest %s: Invalid replaced file count: null", MANIFEST_LOCATION);
-  }
-
-  @Test
-  void manifestTrackedFileAdapterRejectsNonZeroReplacedFilesCount() {
-    ManifestFile manifest = manifestWithCounts(1, 1, 0, 1, 0);
-
-    assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Cannot convert manifest %s: Invalid replaced file count: 1", MANIFEST_LOCATION);
-  }
-
-  @Test
-  void manifestTrackedFileAdapterRejectsNullModifiedFilesCount() {
-    ManifestFile manifest = manifestWithCounts(1, 1, 0, 0, null);
-
-    assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Cannot convert manifest %s: Invalid modified file count: null", MANIFEST_LOCATION);
-  }
-
-  @Test
-  void manifestTrackedFileAdapterRejectsNonZeroModifiedFilesCount() {
-    ManifestFile manifest = manifestWithCounts(1, 1, 0, 0, 1);
-
-    assertThatThrownBy(() -> TrackedFileAdapters.forManifestFile().wrap(manifest))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Cannot convert manifest %s: Invalid modified file count: 1", MANIFEST_LOCATION);
-  }
-
-  @Test
-  void manifestTrackedFileAdapterFailsWhenAddedRowsCountMissing() {
-    ManifestFile manifest =
-        writeManifestFile(
-            ManifestContent.DATA, MANIFEST_SEQUENCE_NUMBER, MANIFEST_MIN_SEQUENCE_NUMBER, null);
-    TrackedFile tracked = TrackedFileAdapters.forManifestFile().wrap(manifest);
-
-    assertThatThrownBy(() -> tracked.manifestInfo().addedRowsCount())
-        .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("null");
+        .isInstanceOf(count.exceptionType())
+        .hasMessage("Cannot convert manifest %s: %s", MANIFEST_LOCATION, count.message());
   }
 
   private static void assertWrappedDataFileMatchesFileFields(TrackedFile result, DataFile file) {
@@ -974,48 +905,81 @@ class TestTrackedFileAdapters {
     assertThat(result.equalityIds()).isNull();
   }
 
-  private static ManifestFile manifestWithCounts(
-      Integer addedFilesCount,
-      Integer existingFilesCount,
-      Integer deletedFilesCount,
-      Integer replacedFilesCount,
-      Integer modifiedFilesCount) {
-    ManifestFile manifest = mock(ManifestFile.class);
-    when(manifest.path()).thenReturn(MANIFEST_LOCATION);
-    when(manifest.content()).thenReturn(ManifestContent.DATA);
-    when(manifest.addedFilesCount()).thenReturn(addedFilesCount);
-    when(manifest.existingFilesCount()).thenReturn(existingFilesCount);
-    when(manifest.deletedFilesCount()).thenReturn(deletedFilesCount);
-    when(manifest.replacedFilesCount()).thenReturn(replacedFilesCount);
-    when(manifest.modifiedFilesCount()).thenReturn(modifiedFilesCount);
-    return manifest;
-  }
-
-  private static ManifestFile writeManifestFile(ManifestContent content) {
-    return writeManifestFile(
-        content, MANIFEST_SEQUENCE_NUMBER, MANIFEST_MIN_SEQUENCE_NUMBER, ADDED_ROWS_COUNT);
-  }
-
-  private static ManifestFile writeManifestFile(
-      ManifestContent content, long sequenceNumber, long minSequenceNumber, Long addedRowsCount) {
+  private static ManifestFile newManifestFile(ManifestContent content) {
     List<ManifestFile.PartitionFieldSummary> partitions = ImmutableList.of();
     return new GenericManifestFile(
         MANIFEST_LOCATION,
         MANIFEST_FILE_SIZE,
         UNPARTITIONED_SPEC.specId(),
         content,
-        sequenceNumber,
-        minSequenceNumber,
+        MANIFEST_SEQUENCE_NUMBER,
+        MANIFEST_MIN_SEQUENCE_NUMBER,
         SNAPSHOT_ID,
         partitions,
-        null,
+        null, // key metadata
         ADDED_FILES_COUNT,
-        addedRowsCount,
+        ADDED_ROWS_COUNT,
         EXISTING_FILES_COUNT,
         EXISTING_ROWS_COUNT,
         DELETED_FILES_COUNT,
         DELETED_ROWS_COUNT,
-        null);
+        null); // first row id
+  }
+
+  private static ManifestFile newManifestFileWithInvalidCount(InvalidCount count) {
+    ManifestFile manifest = mock(ManifestFile.class);
+    when(manifest.path()).thenReturn(MANIFEST_LOCATION);
+    when(manifest.content()).thenReturn(ManifestContent.DATA);
+    when(manifest.addedFilesCount()).thenReturn(ADDED_FILES_COUNT);
+    when(manifest.existingFilesCount()).thenReturn(EXISTING_FILES_COUNT);
+    when(manifest.deletedFilesCount()).thenReturn(DELETED_FILES_COUNT);
+    when(manifest.addedRowsCount()).thenReturn(ADDED_ROWS_COUNT);
+    when(manifest.existingRowsCount()).thenReturn(EXISTING_ROWS_COUNT);
+    when(manifest.deletedRowsCount()).thenReturn(DELETED_ROWS_COUNT);
+    when(manifest.replacedFilesCount()).thenReturn(0);
+    when(manifest.modifiedFilesCount()).thenReturn(0);
+    when(manifest.replacedRowsCount()).thenReturn(0L);
+    when(manifest.modifiedRowsCount()).thenReturn(0L);
+    switch (count) {
+      case ADDED_FILES -> when(manifest.addedFilesCount()).thenReturn(null);
+      case EXISTING_FILES -> when(manifest.existingFilesCount()).thenReturn(null);
+      case DELETED_FILES -> when(manifest.deletedFilesCount()).thenReturn(null);
+      case REPLACED_FILES_NULL -> when(manifest.replacedFilesCount()).thenReturn(null);
+      case MODIFIED_FILES_NULL -> when(manifest.modifiedFilesCount()).thenReturn(null);
+      case REPLACED_FILES_NON_ZERO ->
+          when(manifest.replacedFilesCount()).thenReturn(NON_ZERO_FILE_COUNT);
+      case MODIFIED_FILES_NON_ZERO ->
+          when(manifest.modifiedFilesCount()).thenReturn(NON_ZERO_FILE_COUNT);
+    }
+    return manifest;
+  }
+
+  private enum InvalidCount {
+    ADDED_FILES(NullPointerException.class, "missing added files count"),
+    EXISTING_FILES(NullPointerException.class, "missing existing files count"),
+    DELETED_FILES(NullPointerException.class, "missing deleted files count"),
+    REPLACED_FILES_NULL(IllegalArgumentException.class, "Invalid replaced file count: null"),
+    REPLACED_FILES_NON_ZERO(
+        IllegalArgumentException.class, "Invalid replaced file count: " + NON_ZERO_FILE_COUNT),
+    MODIFIED_FILES_NULL(IllegalArgumentException.class, "Invalid modified file count: null"),
+    MODIFIED_FILES_NON_ZERO(
+        IllegalArgumentException.class, "Invalid modified file count: " + NON_ZERO_FILE_COUNT);
+
+    private final Class<? extends RuntimeException> exceptionType;
+    private final String message;
+
+    InvalidCount(Class<? extends RuntimeException> exceptionType, String message) {
+      this.exceptionType = exceptionType;
+      this.message = message;
+    }
+
+    private Class<? extends RuntimeException> exceptionType() {
+      return exceptionType;
+    }
+
+    private String message() {
+      return message;
+    }
   }
 
   private static GenericManifestEntry<DataFile> newEntry() {

@@ -87,30 +87,6 @@ class TestMapBackedContentStats {
             StatsUtil.statsReadSchema(SCHEMA, List.of(1, 2, 3, 4)).fields());
   }
 
-  @Test
-  void wrapInvalidatesType() {
-    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(FILE_WITH_STATS);
-    Types.StructType firstType = stats.type();
-    assertThat(firstType.fields())
-        .containsExactlyInAnyOrderElementsOf(
-            StatsUtil.statsReadSchema(SCHEMA, List.of(1, 2, 3, 4)).fields());
-
-    DataFile file2 =
-        dataFile(
-            100L,
-            ImmutableMap.of(1, 50L),
-            ImmutableMap.of(),
-            ImmutableMap.of(),
-            ImmutableMap.of(1, buf(Types.IntegerType.get(), 500)),
-            ImmutableMap.of(1, buf(Types.IntegerType.get(), 5000)));
-    stats.wrap(file2);
-
-    assertThat(stats.type().fields())
-        .containsExactlyInAnyOrderElementsOf(
-            StatsUtil.statsReadSchema(SCHEMA, List.of(1)).fields());
-    assertThat(stats.type()).isNotEqualTo(firstType);
-  }
-
   @ParameterizedTest
   @MethodSource("typesAndBounds")
   void boundDecodingPerType(Type type, Object lower, Object upper) {
@@ -127,8 +103,8 @@ class TestMapBackedContentStats {
     FieldStats<?> stats = new MapBackedContentStats(schema).wrap(file).statsFor(fieldId);
 
     Comparator<Object> comparator = Comparators.forType(type.asPrimitiveType());
-    assertThat(comparator.compare(stats.lowerBound(), lower)).isZero();
-    assertThat(comparator.compare(stats.upperBound(), upper)).isZero();
+    assertThat(stats.lowerBound()).usingComparator(comparator).isEqualTo(lower);
+    assertThat(stats.upperBound()).usingComparator(comparator).isEqualTo(upper);
   }
 
   private static Stream<Arguments> typesAndBounds() {
@@ -267,13 +243,12 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void reuseRebindsFields() {
-    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA);
-
-    stats.wrap(FILE_WITH_STATS);
-    assertThat(stats.statsFor(1).lowerBound()).isEqualTo(1);
-    assertThat(stats.statsFor(1).upperBound()).isEqualTo(1000);
-    assertThat(stats.statsFor(1).valueCount()).isEqualTo(100L);
+  void wrapInvalidatesType() {
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(FILE_WITH_STATS);
+    Types.StructType firstType = stats.type();
+    assertThat(firstType.fields())
+        .containsExactlyInAnyOrderElementsOf(
+            StatsUtil.statsReadSchema(SCHEMA, List.of(1, 2, 3, 4)).fields());
 
     DataFile file2 =
         dataFile(
@@ -285,40 +260,44 @@ class TestMapBackedContentStats {
             ImmutableMap.of(1, buf(Types.IntegerType.get(), 5000)));
     stats.wrap(file2);
 
+    assertThat(stats.type().fields())
+        .containsExactlyInAnyOrderElementsOf(
+            StatsUtil.statsReadSchema(SCHEMA, List.of(1)).fields());
+    assertThat(stats.type()).isNotEqualTo(firstType);
+  }
+
+  @Test
+  void reuseRebindsFields() {
+    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA);
+
+    stats.wrap(FILE_WITH_STATS);
+    assertThat(stats.statsFor(1).lowerBound()).isEqualTo(1);
+    assertThat(stats.statsFor(1).upperBound()).isEqualTo(1000);
+    assertThat(stats.statsFor(1).valueCount()).isEqualTo(100L);
+    assertThat(stats.statsFor(2)).isNotNull();
+    assertThat(stats.statsFor(5)).isNull();
+
+    DataFile file2 =
+        dataFile(
+            100L,
+            ImmutableMap.of(1, 50L, 5, 40L),
+            ImmutableMap.of(),
+            ImmutableMap.of(),
+            ImmutableMap.of(
+                1, buf(Types.IntegerType.get(), 500), 5, buf(Types.BooleanType.get(), false)),
+            ImmutableMap.of(
+                1, buf(Types.IntegerType.get(), 5000), 5, buf(Types.BooleanType.get(), true)));
+    stats.wrap(file2);
+
     assertThat(stats.statsFor(1).lowerBound()).isEqualTo(500);
     assertThat(stats.statsFor(1).upperBound()).isEqualTo(5000);
     assertThat(stats.statsFor(1).valueCount()).isEqualTo(50L);
     assertThat(stats.statsFor(2)).isNull();
-  }
-
-  @Test
-  void absentIdIsRereadWhenPresentAgain() {
-    MapBackedContentStats stats = new MapBackedContentStats(SCHEMA);
-    stats.wrap(FILE_WITH_STATS);
-    assertThat(stats.statsFor(1)).isNotNull();
-
-    stats.wrap(
-        dataFile(
-            100L,
-            ImmutableMap.of(2, 10L),
-            ImmutableMap.of(),
-            ImmutableMap.of(),
-            ImmutableMap.of(2, buf(Types.FloatType.get(), 0.0f)),
-            ImmutableMap.of(2, buf(Types.FloatType.get(), 1.0f))));
-    assertThat(stats.statsFor(1)).isNull();
-
-    stats.wrap(
-        dataFile(
-            100L,
-            ImmutableMap.of(1, 7L),
-            ImmutableMap.of(),
-            ImmutableMap.of(),
-            ImmutableMap.of(1, buf(Types.IntegerType.get(), 42)),
-            ImmutableMap.of(1, buf(Types.IntegerType.get(), 43))));
-    FieldStats<?> id = stats.statsFor(1);
-    assertThat(id.lowerBound()).isEqualTo(42);
-    assertThat(id.upperBound()).isEqualTo(43);
-    assertThat(id.valueCount()).isEqualTo(7L);
+    FieldStats<?> flag = stats.statsFor(5);
+    assertThat(flag).isNotNull();
+    assertThat(flag.lowerBound()).isEqualTo(false);
+    assertThat(flag.upperBound()).isEqualTo(true);
+    assertThat(flag.valueCount()).isEqualTo(40L);
   }
 
   @Test
