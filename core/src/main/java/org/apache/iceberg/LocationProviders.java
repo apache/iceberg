@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.io.LocationProvider;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.hash.HashCode;
 import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
@@ -197,35 +196,27 @@ public class LocationProviders {
     }
 
     private static String pathContext(String tableLocation) {
-      // strip the scheme and authority (e.g. "s3://bucket") so only path segments remain
-      String path = tableLocation;
-      int schemeEnd = path.indexOf("://");
-      if (schemeEnd >= 0) {
-        int authorityEnd = path.indexOf('/', schemeEnd + 3);
-        path = authorityEnd < 0 ? "" : path.substring(authorityEnd);
+      String path = LocationUtil.stripTrailingSlash(tableLocation);
+      if (LocationUtil.hasScheme(path)) {
+        path = path.substring(path.indexOf(':') + 1);
+        if (path.startsWith("//")) {
+          int authorityEnd = path.indexOf('/', 2);
+          path = authorityEnd < 0 ? "" : path.substring(authorityEnd);
+        }
       }
 
-      if (path.isEmpty()) {
-        return "";
-      }
-
-      path = LocationUtil.stripTrailingSlash(path);
-
-      String resolvedContext;
       int lastSlash = path.lastIndexOf('/');
-      if (lastSlash <= 0) {
-        resolvedContext = path;
-      } else {
-        int parentSlash = path.lastIndexOf('/', lastSlash - 1);
-        String parentName = path.substring(parentSlash + 1, lastSlash);
-        String name = path.substring(lastSlash + 1);
-        resolvedContext = String.format("%s/%s", parentName, name);
+      String name = path.substring(lastSlash + 1);
+      if (name.isEmpty()) {
+        return null;
       }
 
-      Preconditions.checkState(
-          !resolvedContext.endsWith("/"), "Path context must not end with a slash.");
+      if (lastSlash <= 0) {
+        return name;
+      }
 
-      return resolvedContext;
+      String parentName = path.substring(path.lastIndexOf('/', lastSlash - 1) + 1, lastSlash);
+      return parentName.isEmpty() ? name : String.format("%s/%s", parentName, name);
     }
 
     private String computeHash(String fileName) {
