@@ -30,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.RESTCatalogProperties;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -168,9 +169,11 @@ public class GCPProperties implements Serializable {
     }
 
     gcsOauth2RefreshCredentialsEndpoint =
-        RESTUtil.resolveEndpoint(
-            properties.get(CatalogProperties.URI),
-            properties.get(GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT));
+        properties.containsKey(RESTCatalogProperties.CREDENTIALS_ENDPOINT)
+            ? properties.get(RESTCatalogProperties.CREDENTIALS_ENDPOINT)
+            : RESTUtil.resolveEndpoint(
+                properties.get(CatalogProperties.URI),
+                properties.get(GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT));
     gcsOauth2RefreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED, true);
     gcsNoAuth = Boolean.parseBoolean(properties.getOrDefault(GCS_NO_AUTH, "false"));

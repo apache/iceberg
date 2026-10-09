@@ -43,6 +43,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockserver.integration.ClientAndServer;
 import org.mockserver.model.HttpRequest;
 import org.mockserver.model.HttpResponse;
@@ -72,8 +74,9 @@ class TestGCSFileIOCredentialRefresh {
     mockServer.reset();
   }
 
-  @Test
-  void credentialRefreshSchedulesNextRefresh() {
+  @ParameterizedTest
+  @ValueSource(strings = {"rest.credentials.endpoint", "gcs.oauth2.refresh-credentials-endpoint"})
+  void credentialRefreshSchedulesNextRefresh(String endpointProperty) {
     String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
 
     StorageCredential initialCredential =
@@ -132,11 +135,7 @@ class TestGCSFileIOCredentialRefresh {
                 .withStatusCode(200));
 
     Map<String, String> properties =
-        ImmutableMap.of(
-            GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
-            credentialsUri,
-            CatalogProperties.URI,
-            catalogUri);
+        ImmutableMap.of(endpointProperty, credentialsUri, CatalogProperties.URI, catalogUri);
 
     try (GCSFileIO fileIO = new GCSFileIO()) {
       fileIO.initialize(properties);
