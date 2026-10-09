@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -25,11 +26,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.ChangelogIterator;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
@@ -39,6 +43,7 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.api.java.UDF1;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.OrderUtils;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -46,6 +51,10 @@ import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
 import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
 import org.apache.spark.sql.connector.read.Scan;
+import org.apache.spark.sql.expressions.UserDefinedFunction;
+import org.apache.spark.sql.expressions.Window;
+import org.apache.spark.sql.expressions.WindowSpec;
+import org.apache.spark.sql.functions;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -103,6 +112,8 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
       optionalInParameter("identifier_columns", STRING_ARRAY);
   private static final ProcedureParameter NET_CHANGES =
       optionalInParameter("net_changes", DataTypes.BooleanType);
+  private static final ProcedureParameter SCD_TYPE2_PARAM =
+      optionalInParameter("scd_type2", DataTypes.BooleanType);
 
   private static final ProcedureParameter[] PARAMETERS =
       new ProcedureParameter[] {
@@ -112,7 +123,12 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         COMPUTE_UPDATES_PARAM,
         IDENTIFIER_COLUMNS_PARAM,
         NET_CHANGES,
+        SCD_TYPE2_PARAM,
       };
+
+  private static final String VALID_FROM_COL = "_valid_from";
+  private static final String VALID_TO_COL = "_valid_to";
+  private static final String IS_CURRENT_COL = "_is_current";
 
   private static final StructType OUTPUT_TYPE =
       new StructType(
@@ -154,6 +170,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     Dataset<Row> df = loadRows(changelogTableIdent, options(input));
 
     boolean netChanges = input.asBoolean(NET_CHANGES, false);
+    boolean scdType2 = input.asBoolean(SCD_TYPE2_PARAM, false);
     String[] identifierColumns = identifierColumns(input, tableIdent);
     Set<String> unorderableColumnNames =
         Arrays.stream(df.schema().fields())
@@ -166,7 +183,13 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
         "Identifier field is required as table contains unorderable columns: %s",
         unorderableColumnNames);
 
-    if (shouldComputeUpdateImages(input)) {
+    if (scdType2) {
+      Preconditions.checkArgument(!netChanges, "Cannot use net_changes with scd_type2");
+      Preconditions.checkArgument(
+          identifierColumns.length > 0, "SCD Type-2 requires identifier columns to be set");
+      Table table = loadSparkTable(tableIdent).table();
+      df = computeScdType2(identifierColumns, df, table);
+    } else if (shouldComputeUpdateImages(input)) {
       Preconditions.checkArgument(!netChanges, "Not support net changes with update images");
       df = computeUpdateImages(identifierColumns, df);
     } else {
@@ -193,6 +216,71 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
             .map(df::col)
             .toArray(Column[]::new);
     return applyChangelogIterator(df, repartitionSpec, identifierFields);
+  }
+
+  private Dataset<Row> computeScdType2(String[] identifierColumns, Dataset<Row> df, Table table) {
+    // withColumn replaces a column of the same name, so a table already carrying one of the
+    // generated names would lose it from the view without any warning
+    for (String generated : new String[] {VALID_FROM_COL, VALID_TO_COL, IS_CURRENT_COL}) {
+      Preconditions.checkArgument(
+          !Arrays.asList(df.columns()).contains(generated),
+          "Cannot generate an SCD Type 2 view: table already has a column named %s",
+          generated);
+    }
+
+    // Step 1: compute update images (UPDATE_BEFORE / UPDATE_AFTER)
+    Dataset<Row> withUpdates = computeUpdateImages(identifierColumns, df);
+
+    // Step 2: filter out UPDATE_BEFORE rows — they are intermediate artifacts
+    String changeTypeCol = MetadataColumns.CHANGE_TYPE.name();
+    Dataset<Row> withoutUpdateBefore =
+        withUpdates.filter(
+            withUpdates.col(changeTypeCol).notEqual(ChangelogOperation.UPDATE_BEFORE.name()));
+
+    // Step 3: build a Map<snapshotId, committedAt (epoch ms)> from table metadata
+    Map<Long, Long> snapshotTimestamps = Maps.newHashMap();
+    for (Snapshot snapshot : table.snapshots()) {
+      snapshotTimestamps.put(snapshot.snapshotId(), snapshot.timestampMillis());
+    }
+
+    // Step 4: resolve _valid_from via a UDF. It is applied directly rather than registered by name,
+    // so concurrent calls of this procedure cannot overwrite each other's snapshot timestamps and
+    // no
+    // function of that name is left behind in the session.
+    UserDefinedFunction snapshotTimestamp =
+        functions.udf(
+            (UDF1<Long, Timestamp>)
+                snapshotId -> {
+                  Long tsMs = snapshotTimestamps.get(snapshotId);
+                  return tsMs != null ? new Timestamp(tsMs) : null;
+                },
+            DataTypes.TimestampType);
+
+    String snapshotIdCol = MetadataColumns.COMMIT_SNAPSHOT_ID.name();
+    Dataset<Row> dfWithValidFrom =
+        withoutUpdateBefore.withColumn(
+            VALID_FROM_COL, snapshotTimestamp.apply(withoutUpdateBefore.col(snapshotIdCol)));
+
+    // Step 5: compute _valid_to = LEAD(_valid_from) OVER (PARTITION BY id_cols ORDER BY
+    // _change_ordinal)
+    String changeOrdinalCol = MetadataColumns.CHANGE_ORDINAL.name();
+    Column[] partitionCols =
+        Arrays.stream(identifierColumns)
+            .map(c -> dfWithValidFrom.col(delimitedName(c)))
+            .toArray(Column[]::new);
+    WindowSpec window =
+        Window.partitionBy(partitionCols).orderBy(dfWithValidFrom.col(changeOrdinalCol).asc());
+    Dataset<Row> dfWithValidTo =
+        dfWithValidFrom.withColumn(
+            VALID_TO_COL, functions.lead(dfWithValidFrom.col(VALID_FROM_COL), 1).over(window));
+
+    // Step 6: compute _is_current = (_valid_to IS NULL AND _change_type != 'DELETE')
+    return dfWithValidTo.withColumn(
+        IS_CURRENT_COL,
+        dfWithValidTo
+            .col(VALID_TO_COL)
+            .isNull()
+            .and(dfWithValidTo.col(changeTypeCol).notEqual(ChangelogOperation.DELETE.name())));
   }
 
   private boolean shouldComputeUpdateImages(ProcedureInput input) {
