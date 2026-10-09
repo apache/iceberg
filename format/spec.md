@@ -348,11 +348,11 @@ Statistics for `file` are tracked using separate field stats for each sub-field.
 
 A `file` column is subject to the following restrictions:
 
-* No type promotion to or from `file` is defined.
 * Equality, ordering, and hashing are not defined for `file` objects
-* A `file` column cannot be an identifier field or a source for partition or sort transforms.
+* A `file` column's `field-id` cannot be an identifier field or a source for partition or sort transforms.
 * A `file` is not interchangeable with a `struct`; a `struct` with the same sub-fields is not equivalent to a `file`.
-* The behavior for a `file` entry that references a non-existent file is not defined.
+* A `file` column cannot be promoted from `struct` with the same sub-fields.
+* A `file` entry that references a `uri` does not guarantee its existence.
 
 #### Default values
 
