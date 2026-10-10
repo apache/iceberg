@@ -38,6 +38,7 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -118,7 +119,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog {
+public class SparkCatalog extends BaseCatalog implements SparkSupportsLoadContext {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkCatalog.class);
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
@@ -178,17 +179,34 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
-    return load(ident, null /* no time travel */);
+    return loadTable(ident, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, LoadContext context) throws NoSuchTableException {
+    return load(ident, null /* no time travel */, context);
   }
 
   @Override
   public Table loadTable(Identifier ident, String version) throws NoSuchTableException {
-    return load(ident, TimeTravel.version(version));
+    return loadTable(ident, version, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, String version, LoadContext context)
+      throws NoSuchTableException {
+    return load(ident, TimeTravel.version(version), context);
   }
 
   @Override
   public Table loadTable(Identifier ident, long timestampMicros) throws NoSuchTableException {
-    return load(ident, TimeTravel.timestampMicros(timestampMicros));
+    return loadTable(ident, timestampMicros, LoadContext.empty());
+  }
+
+  @Override
+  public Table loadTable(Identifier ident, long timestampMicros, LoadContext context)
+      throws NoSuchTableException {
+    return load(ident, TimeTravel.timestampMicros(timestampMicros), context);
   }
 
   @Override
@@ -558,9 +576,15 @@ public class SparkCatalog extends BaseCatalog {
 
   @Override
   public View loadView(Identifier ident) throws NoSuchViewException {
+    return loadView(ident, LoadContext.empty());
+  }
+
+  @Override
+  public View loadView(Identifier ident, LoadContext context) throws NoSuchViewException {
     if (null != asViewCatalog) {
       try {
-        org.apache.iceberg.view.View icebergView = asViewCatalog.loadView(buildIdentifier(ident));
+        org.apache.iceberg.view.View icebergView =
+            asViewCatalog.loadView(buildIdentifier(ident), context);
         return SparkView.toView(catalogName, icebergView);
       } catch (org.apache.iceberg.exceptions.NoSuchViewException e) {
         throw new NoSuchViewException(ident);
@@ -922,13 +946,14 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
-  private Table load(Identifier ident, TimeTravel timeTravel) throws NoSuchTableException {
+  private Table load(Identifier ident, TimeTravel timeTravel, LoadContext context)
+      throws NoSuchTableException {
     if (isPathIdentifier(ident)) {
       return loadPath((PathIdentifier) ident, timeTravel);
     }
 
     try {
-      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident));
+      org.apache.iceberg.Table table = icebergCatalog.loadTable(buildIdentifier(ident), context);
       return SparkTable.create(table, timeTravel);
 
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -941,7 +966,7 @@ public class SparkCatalog extends BaseCatalog {
       TableIdentifier namespaceAsIdent = buildIdentifier(namespaceToIdentifier(ident.namespace()));
       org.apache.iceberg.Table table;
       try {
-        table = icebergCatalog.loadTable(namespaceAsIdent);
+        table = icebergCatalog.loadTable(namespaceAsIdent, context);
       } catch (Exception ignored) {
         // the namespace does not identify a table, so it cannot be a table with a snapshot selector
         // throw an exception for the original identifier
