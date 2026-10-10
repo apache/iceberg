@@ -44,6 +44,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.DateDayVector;
@@ -83,9 +85,11 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -116,6 +120,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 public class TestArrowReader {
 
   private static final int NUM_ROWS_PER_MONTH = 20;
+  private static final int NUM_DICT_ENCODED_ROWS = 100;
   private static final ImmutableList<String> ALL_COLUMNS =
       ImmutableList.of(
           "timestamp",
@@ -387,6 +392,40 @@ public class TestArrowReader {
     }
 
     assertThat(totalRowsRead).as("Should read all rows").isEqualTo(millisValues.size());
+  }
+
+  @Test
+  public void testReleasesDecodedVectorsWhenDictEncodedBatchIsMaterialized() throws Exception {
+    int rowsRead = 0;
+
+    try (RootAllocator allocator = new RootAllocator(Long.MAX_VALUE)) {
+      try (CloseableIterable<ColumnarBatch> batches = dictEncodedBatches(allocator)) {
+        for (ColumnarBatch batch : batches) {
+          VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+          // repeated calls must return the cached decoded vector
+          assertThat(batch.column(0).getArrowVector()).isSameAs(batch.column(0).getArrowVector());
+          rowsRead += root.getRowCount();
+        }
+      }
+
+      assertThat(rowsRead).isEqualTo(NUM_DICT_ENCODED_ROWS);
+      assertThat(allocator.getAllocatedMemory()).isZero();
+    }
+  }
+
+  @Test
+  public void testReleasesMemoryWhenDictEncodedBatchIsNotMaterialized() throws Exception {
+    int rowsRead = 0;
+    try (RootAllocator allocator = new RootAllocator(Long.MAX_VALUE)) {
+      try (CloseableIterable<ColumnarBatch> batches = dictEncodedBatches(allocator)) {
+        for (ColumnarBatch batch : batches) {
+          rowsRead += batch.numRows();
+        }
+      }
+
+      assertThat(rowsRead).isEqualTo(NUM_DICT_ENCODED_ROWS);
+      assertThat(allocator.getAllocatedMemory()).isZero();
+    }
   }
 
   /**
@@ -1495,6 +1534,44 @@ public class TestArrowReader {
       records.add(rec);
     }
     return records;
+  }
+
+  private CloseableIterable<ColumnarBatch> dictEncodedBatches(BufferAllocator allocator)
+      throws IOException {
+    Schema schema = new Schema(Types.NestedField.required(1, "s", Types.StringType.get()));
+
+    GenericRecord record = GenericRecord.create(schema);
+    List<Record> records = Lists.newArrayListWithExpectedSize(NUM_DICT_ENCODED_ROWS);
+    for (int i = 0; i < NUM_DICT_ENCODED_ROWS; i++) {
+      // few distinct values, so Parquet dictionary encodes the column
+      records.add(record.copy(ImmutableMap.of("s", "v" + (i % 4))));
+    }
+
+    File file = new File(tempDir, "dict-encoded.parquet");
+    try (FileAppender<Record> appender =
+        Parquet.write(Files.localOutput(file))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build()) {
+      appender.addAll(records);
+    }
+
+    return Parquet.read(localInput(file))
+        .project(schema)
+        .recordsPerBatch(1024)
+        .createBatchedReaderFunc(
+            fileSchema ->
+                TypeWithSchemaVisitor.visit(
+                    schema.asStruct(),
+                    fileSchema,
+                    new VectorizedReaderBuilder(
+                        schema,
+                        fileSchema,
+                        false,
+                        ImmutableMap.of(),
+                        ArrowBatchReader::new,
+                        allocator)))
+        .build();
   }
 
   private DataFile writeParquetFile(Table table, List<GenericRecord> records) throws IOException {
