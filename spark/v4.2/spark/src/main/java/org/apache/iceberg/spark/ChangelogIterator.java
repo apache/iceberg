@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.IntStream;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -39,14 +40,21 @@ import org.apache.spark.sql.catalyst.expressions.SortOrder;
 import org.apache.spark.sql.catalyst.optimizer.InsertMapSortExpression;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
+import scala.collection.immutable.Seq;
 import scala.jdk.javaapi.CollectionConverters;
 
 /**
  * An iterator that transforms rows from changelog tables within a single Spark task.
  *
- * <p>Rows retained across iterator advancement must be copied by the caller.
+ * <p>Returned rows may be backed by a reused buffer. Callers must copy any row they retain across a
+ * call to {@link #next()}.
  */
 public abstract class ChangelogIterator implements Iterator<InternalRow> {
+  private static final Seq<Expression> NO_SAME_ORDER_EXPRESSIONS =
+      CollectionConverters.asScala(List.<Expression>of()).toSeq();
+  private static final Seq<Attribute> NO_INPUT_ATTRIBUTES =
+      CollectionConverters.asScala(List.<Attribute>of()).toSeq();
+
   protected static final UTF8String DELETE =
       UTF8String.fromString(ChangelogOperation.DELETE.name());
   protected static final UTF8String INSERT =
@@ -80,6 +88,10 @@ public abstract class ChangelogIterator implements Iterator<InternalRow> {
     return changeType;
   }
 
+  /**
+   * Returns the underlying iterator. Rows it returns may be backed by a reused buffer, so they must
+   * be copied before being retained across a call to {@code hasNext()} or {@code next()} on it.
+   */
   protected Iterator<InternalRow> rowIterator() {
     return rowIterator;
   }
@@ -121,33 +133,34 @@ public abstract class ChangelogIterator implements Iterator<InternalRow> {
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
-  BaseOrdering ordering(int[] indices) {
+  protected BoundReference boundReference(int index) {
+    return new BoundReference(index, rowType.fields()[index].dataType(), true);
+  }
+
+  /**
+   * Builds an ordering over the given column indices. Two rows are the same record when the
+   * ordering compares them as equal, which applies Spark's own semantics for nested values,
+   * including normalizing map entry order.
+   */
+  protected BaseOrdering ordering(int[] indices) {
     List<SortOrder> sortOrders = Lists.newArrayListWithCapacity(indices.length);
     for (int index : indices) {
-      Expression field = new BoundReference(index, rowType.fields()[index].dataType(), true);
       sortOrders.add(
           new SortOrder(
-              InsertMapSortExpression.insertMapSortRecursively(field),
+              InsertMapSortExpression.insertMapSortRecursively(boundReference(index)),
               Ascending$.MODULE$,
               NullsFirst$.MODULE$,
-              CollectionConverters.asScala(List.<Expression>of()).toSeq()));
+              NO_SAME_ORDER_EXPRESSIONS));
     }
 
     return RowOrdering.create(
-        CollectionConverters.asScala(sortOrders).toSeq(),
-        CollectionConverters.asScala(List.<Attribute>of()).toSeq());
+        CollectionConverters.asScala(sortOrders).toSeq(), NO_INPUT_ATTRIBUTES);
   }
 
   protected static int[] generateIndicesToIdentifySameRow(
       int totalColumnCount, Set<Integer> metadataColumnIndices) {
-    int[] indices = new int[totalColumnCount - metadataColumnIndices.size()];
-
-    for (int i = 0, j = 0; i < totalColumnCount; i++) {
-      if (!metadataColumnIndices.contains(i)) {
-        indices[j] = i;
-        j++;
-      }
-    }
-    return indices;
+    return IntStream.range(0, totalColumnCount)
+        .filter(index -> !metadataColumnIndices.contains(index))
+        .toArray();
   }
 }

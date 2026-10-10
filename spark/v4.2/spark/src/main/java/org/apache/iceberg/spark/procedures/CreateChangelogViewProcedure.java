@@ -35,6 +35,7 @@ import org.apache.iceberg.spark.ChangelogIterator;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -251,36 +252,48 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
   private Dataset<Row> applyChangelogIterator(
       Dataset<Row> df, Column[] repartitionSpec, String[] identifierFields) {
-    Column[] sortSpec = sortSpec(df, repartitionSpec, false);
     StructType schema = df.schema();
-
-    JavaRDD<InternalRow> changes =
-        df.repartition(repartitionSpec)
-            .sortWithinPartitions(sortSpec)
-            .queryExecution()
-            .toRdd()
-            .toJavaRDD()
-            .mapPartitions(
-                rows -> ChangelogIterator.computeUpdates(rows, schema, identifierFields));
-    return spark().internalCreateDataFrame(changes.rdd(), schema, false);
+    return applyIterator(
+        df,
+        schema,
+        repartitionSpec,
+        sortSpec(df, repartitionSpec, false),
+        rows -> ChangelogIterator.computeUpdates(rows, schema, identifierFields));
   }
 
   private Dataset<Row> applyCarryoverRemoveIterator(
       Dataset<Row> df, Column[] repartitionSpec, boolean netChanges) {
-    Column[] sortSpec = sortSpec(df, repartitionSpec, netChanges);
     StructType schema = df.schema();
+    return applyIterator(
+        df,
+        schema,
+        repartitionSpec,
+        sortSpec(df, repartitionSpec, netChanges),
+        rows ->
+            netChanges
+                ? ChangelogIterator.removeNetCarryovers(rows, schema)
+                : ChangelogIterator.removeCarryovers(rows, schema));
+  }
+
+  /**
+   * Repartitions and sorts the rows, then transforms each partition with the given changelog
+   * iterator. The rows stay as {@link InternalRow} throughout to avoid converting them to and from
+   * {@link Row} on either side of the iterator.
+   */
+  private Dataset<Row> applyIterator(
+      Dataset<Row> df,
+      StructType schema,
+      Column[] repartitionSpec,
+      Column[] sortSpec,
+      FlatMapFunction<Iterator<InternalRow>, InternalRow> transform) {
     JavaRDD<InternalRow> changes =
         df.repartition(repartitionSpec)
             .sortWithinPartitions(sortSpec)
             .queryExecution()
             .toRdd()
             .toJavaRDD()
-            .mapPartitions(
-                rows ->
-                    netChanges
-                        ? ChangelogIterator.removeNetCarryovers(rows, schema)
-                        : ChangelogIterator.removeCarryovers(rows, schema));
-    return spark().internalCreateDataFrame(changes.rdd(), schema, false);
+            .mapPartitions(transform);
+    return spark().internalCreateDataFrame(changes.rdd(), schema, false /* isStreaming */);
   }
 
   /**

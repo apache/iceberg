@@ -31,7 +31,7 @@ import java.util.function.IntFunction;
 import java.util.stream.Stream;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
-import org.apache.iceberg.relocated.com.google.common.collect.AbstractIterator;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
@@ -48,6 +48,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import scala.Function1;
 
 public class TestChangelogIterator extends SparkTestHelperBase {
 
@@ -77,6 +78,11 @@ public class TestChangelogIterator extends SparkTestHelperBase {
                 Metadata.empty())
           });
   private static final String[] IDENTIFIER_FIELDS = new String[] {"id", "name"};
+  private static final Function1<Object, Object> TO_CATALYST =
+      CatalystTypeConverters.createToCatalystConverter(SCHEMA);
+  private static final Function1<Object, Object> TO_SCALA =
+      CatalystTypeConverters.createToScalaConverter(SCHEMA);
+  private static final UnsafeProjection SCHEMA_PROJECTION = UnsafeProjection.create(SCHEMA);
 
   private enum RowType {
     DELETED,
@@ -438,15 +444,9 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             row(2, "b", "after", INSERT, 0, 0L),
             row(3, "c", "insert", INSERT, 0, 0L),
             row(4, "d", "delete", DELETE, 0, 0L));
-    Iterator<InternalRow> input = rows.iterator();
+    // a projection reuses its output buffer, so every row it hands out invalidates the previous one
     UnsafeProjection projection = UnsafeProjection.create(SCHEMA);
-    Iterator<InternalRow> reused =
-        new AbstractIterator<>() {
-          @Override
-          protected InternalRow computeNext() {
-            return input.hasNext() ? projection.apply(input.next()) : endOfData();
-          }
-        };
+    Iterator<InternalRow> reused = Iterators.transform(rows.iterator(), projection::apply);
     Iterator<InternalRow> changes =
         switch (mode) {
           case "carryovers" -> ChangelogIterator.removeCarryovers(reused, SCHEMA);
@@ -454,16 +454,13 @@ public class TestChangelogIterator extends SparkTestHelperBase {
           case "updates" -> ChangelogIterator.computeUpdates(reused, SCHEMA, IDENTIFIER_FIELDS);
           default -> throw new IllegalArgumentException("Unknown mode: " + mode);
         };
-    List<InternalRow> result = Lists.newArrayList();
-    while (changes.hasNext()) {
-      assertThat(changes.hasNext()).isTrue();
-      result.add(changes.next().copy());
-    }
+    List<InternalRow> result = Lists.newArrayList(Iterators.transform(changes, InternalRow::copy));
 
+    boolean computesUpdates = mode.equals("updates");
     assertThat(result)
         .containsExactly(
-            row(2, "b", "before", mode.equals("updates") ? UPDATE_BEFORE : DELETE, 0, 0L),
-            row(2, "b", "after", mode.equals("updates") ? UPDATE_AFTER : INSERT, 0, 0L),
+            row(2, "b", "before", computesUpdates ? UPDATE_BEFORE : DELETE, 0, 0L),
+            row(2, "b", "after", computesUpdates ? UPDATE_AFTER : INSERT, 0, 0L),
             rows.get(4),
             rows.get(5));
   }
@@ -600,7 +597,9 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   }
 
   private static InternalRow row(Object... values) {
-    return internalRow(SCHEMA, RowFactory.create(values));
+    InternalRow internal = (InternalRow) TO_CATALYST.apply(RowFactory.create(values));
+    // the projection reuses its output buffer, so the row must be copied before it is returned
+    return SCHEMA_PROJECTION.apply(internal).copy();
   }
 
   private static InternalRow internalRow(StructType schema, Row row) {
@@ -612,7 +611,7 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   private List<Object[]> internalRowsToJava(List<InternalRow> rows) {
     List<Row> externalRows = Lists.newArrayList();
     for (InternalRow row : rows) {
-      externalRows.add((Row) CatalystTypeConverters.createToScalaConverter(SCHEMA).apply(row));
+      externalRows.add((Row) TO_SCALA.apply(row));
     }
     return rowsToJava(externalRows);
   }

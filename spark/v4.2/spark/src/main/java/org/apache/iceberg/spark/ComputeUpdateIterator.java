@@ -25,7 +25,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.BaseOrdering;
-import org.apache.spark.sql.catalyst.expressions.BoundReference;
 import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.Literal;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
@@ -117,12 +116,13 @@ public class ComputeUpdateIterator extends ChangelogIterator {
   }
 
   private UnsafeProjection updateProjection(UTF8String changeType) {
-    List<Expression> fields = Lists.newArrayListWithCapacity(rowType().size());
-    for (int index = 0; index < rowType().size(); index++) {
+    int fieldCount = rowType().size();
+    List<Expression> fields = Lists.newArrayListWithCapacity(fieldCount);
+    for (int index = 0; index < fieldCount; index++) {
       fields.add(
           index == changeTypeIndex()
               ? Literal.create(changeType, DataTypes.StringType)
-              : new BoundReference(index, rowType().fields()[index].dataType(), true));
+              : boundReference(index));
     }
 
     return UnsafeProjection.create(CollectionConverters.asScala(fields).toSeq());
