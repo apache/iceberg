@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -32,6 +33,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -45,9 +47,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.CommitMetadata;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableProperties;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkUtil;
@@ -55,13 +59,18 @@ import org.apache.iceberg.spark.SparkV2Filters;
 import org.apache.iceberg.spark.TimeTravel;
 import org.apache.iceberg.spark.TimeTravel.AsOfTimestamp;
 import org.apache.iceberg.spark.TimeTravel.AsOfVersion;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.connector.catalog.SupportsDeleteV2;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsRowLevelOperations;
+import org.apache.spark.sql.connector.catalog.SupportsSchemaEvolution;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.TableCapability;
+import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.constraints.Constraint;
 import org.apache.spark.sql.connector.catalog.constraints.Constraint.ValidationStatus;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
@@ -70,6 +79,7 @@ import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.RowLevelOperationBuilder;
 import org.apache.spark.sql.connector.write.RowLevelOperationInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,7 +90,11 @@ import org.slf4j.LoggerFactory;
  * <p>Note the table state (e.g. schema, snapshot) is pinned upon loading and must not change.
  */
 public class SparkTable extends BaseSparkTable
-    implements SupportsRead, SupportsWrite, SupportsDeleteV2, SupportsRowLevelOperations {
+    implements SupportsRead,
+        SupportsWrite,
+        SupportsDeleteV2,
+        SupportsRowLevelOperations,
+        SupportsSchemaEvolution {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkTable.class);
 
@@ -94,6 +108,7 @@ public class SparkTable extends BaseSparkTable
           TableCapability.OVERWRITE_DYNAMIC);
 
   private final Schema schema; // effective schema (not necessarily current table schema)
+  private volatile Set<Integer> mapKeyFieldIds;
   private final Snapshot snapshot; // always set unless table is empty
   private final String branch; // set if table is loaded for specific branch
   private final TimeTravel timeTravel; // set if table is loaded for time travel
@@ -156,6 +171,118 @@ public class SparkTable extends BaseSparkTable
   @Override
   public Set<TableCapability> capabilities() {
     return capabilities;
+  }
+
+  @Override
+  public boolean supportsColumnChange(TableChange.ColumnChange change) {
+    if (isMapKeyChange(change)) {
+      return false;
+    }
+
+    if (change instanceof TableChange.AddColumn) {
+      TableChange.AddColumn add = (TableChange.AddColumn) change;
+      if (!add.isNullable() || add.defaultValue() != null) {
+        return false;
+      }
+
+      Type type = tryConvert(add.dataType());
+      return type != null && isSupportedAtFormatVersion(type);
+    } else if (change instanceof TableChange.UpdateColumnType) {
+      return supportsTypeUpdate((TableChange.UpdateColumnType) change);
+    } else if (change instanceof TableChange.UpdateColumnNullability) {
+      return supportsNullabilityUpdate((TableChange.UpdateColumnNullability) change);
+    } else if (change instanceof TableChange.DeleteColumn) {
+      return supportsDeleteColumn((TableChange.DeleteColumn) change);
+    } else {
+      return change instanceof TableChange.RenameColumn
+          || change instanceof TableChange.UpdateColumnComment
+          || change instanceof TableChange.UpdateColumnPosition;
+    }
+  }
+
+  private Set<Integer> mapKeyFieldIds() {
+    if (mapKeyFieldIds == null) {
+      this.mapKeyFieldIds = mapKeyFieldIds(schema);
+    }
+
+    return mapKeyFieldIds;
+  }
+
+  private static Set<Integer> mapKeyFieldIds(Schema schema) {
+    Set<Integer> keyFieldIds = Sets.newHashSet();
+    for (Types.NestedField field : TypeUtil.indexById(schema.asStruct()).values()) {
+      if (field.type().isMapType()) {
+        Types.MapType map = field.type().asMapType();
+        keyFieldIds.addAll(TypeUtil.indexById(Types.StructType.of(map.fields().get(0))).keySet());
+      }
+    }
+
+    return keyFieldIds;
+  }
+
+  private boolean isMapKeyChange(TableChange.ColumnChange change) {
+    String[] fieldNames = change.fieldNames();
+    int pathLength =
+        change instanceof TableChange.AddColumn ? fieldNames.length - 1 : fieldNames.length;
+    if (pathLength == 0) {
+      return false;
+    }
+
+    Types.NestedField field =
+        schema.findField(String.join(".", Arrays.copyOf(fieldNames, pathLength)));
+    return field != null && mapKeyFieldIds().contains(field.fieldId());
+  }
+
+  private boolean supportsTypeUpdate(TableChange.UpdateColumnType update) {
+    Types.NestedField field = schema.findField(String.join(".", update.fieldNames()));
+    if (field == null) {
+      return false;
+    }
+
+    Type newType = tryConvert(update.newDataType());
+    return newType != null
+        && newType.isPrimitiveType()
+        && TypeUtil.isPromotionAllowed(field.type(), newType.asPrimitiveType())
+        && SparkSchemaUtil.convert(newType).equals(update.newDataType());
+  }
+
+  private boolean supportsNullabilityUpdate(TableChange.UpdateColumnNullability update) {
+    Types.NestedField field = schema.findField(String.join(".", update.fieldNames()));
+    return update.nullable() && field != null && !containsIdentifierField(field);
+  }
+
+  private boolean supportsDeleteColumn(TableChange.DeleteColumn delete) {
+    Types.NestedField field = schema.findField(String.join(".", delete.fieldNames()));
+    if (field == null) {
+      return false;
+    }
+
+    // Iceberg rejects dropping an identifier field or a field whose subtree contains one
+    return !containsIdentifierField(field);
+  }
+
+  private boolean containsIdentifierField(Types.NestedField field) {
+    Set<Integer> identifierFieldIds = schema.identifierFieldIds();
+    return TypeUtil.indexById(Types.StructType.of(field)).keySet().stream()
+        .anyMatch(identifierFieldIds::contains);
+  }
+
+  private boolean isSupportedAtFormatVersion(Type type) {
+    try {
+      Schema typeSchema = new Schema(Types.NestedField.optional(-1, "value", type));
+      Schema.checkCompatibility(typeSchema, TableUtil.formatVersion(table()));
+      return true;
+    } catch (IllegalArgumentException | IllegalStateException e) {
+      return false;
+    }
+  }
+
+  private Type tryConvert(DataType sparkType) {
+    try {
+      return SparkSchemaUtil.convert(sparkType);
+    } catch (IllegalArgumentException | UnsupportedOperationException e) {
+      return null;
+    }
   }
 
   @Override
