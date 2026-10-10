@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -315,6 +317,39 @@ public class Expressions {
    */
   public static <T> UnboundTerm<T> transform(String name, Transform<?, T> transform) {
     return new UnboundTransform<>(ref(name), transform);
+  }
+
+  /**
+   * Create a reference to a function by identifier, in the catalog of the referencing object.
+   *
+   * <p>Identifier parts are never split; a part containing dots is a single name.
+   *
+   * @param identifier namespace names followed by the function name
+   * @return a function reference
+   */
+  public static FunctionReference function(String... identifier) {
+    return new FunctionReference(null, Arrays.asList(identifier));
+  }
+
+  /**
+   * Create a reference to a function by identifier, in the catalog of the referencing object.
+   *
+   * @param identifier namespace names followed by the function name
+   * @return a function reference
+   */
+  public static FunctionReference function(List<String> identifier) {
+    return new FunctionReference(null, identifier);
+  }
+
+  /**
+   * Create a reference to a function in a specific catalog.
+   *
+   * @param catalog a catalog name
+   * @param identifier namespace names followed by the function name
+   * @return a function reference
+   */
+  public static FunctionReference function(String catalog, List<String> identifier) {
+    return new FunctionReference(catalog, identifier);
   }
 
   /**

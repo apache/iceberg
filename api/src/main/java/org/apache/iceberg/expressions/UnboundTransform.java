@@ -18,17 +18,49 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Types;
 
-public class UnboundTransform<S, T> implements UnboundTerm<T>, Term {
+public class UnboundTransform<S, T> extends UnboundApply<T> {
+  private static final Pattern HAS_WIDTH = Pattern.compile("(\\w+)\\[(\\d+)]");
+  private static final String ICEBERG_FUNCTIONS = "iceberg_functions";
+  // the expressions spec defines partition transforms as functions, other than void
+  private static final Set<String> ICEBERG_TRANSFORMS =
+      ImmutableSet.of("identity", "year", "month", "day", "hour", "bucket", "truncate");
+
   private final NamedReference<S> ref;
   private final Transform<S, T> transform;
 
   UnboundTransform(NamedReference<S> ref, Transform<S, T> transform) {
+    super(functionFor(transform), argumentsFor(transform, ref));
     this.ref = ref;
     this.transform = transform;
+  }
+
+  static FunctionReference functionFor(Transform<?, ?> transform) {
+    Matcher matcher = HAS_WIDTH.matcher(transform.toString());
+    String name = matcher.matches() ? matcher.group(1) : transform.toString();
+    if (ICEBERG_TRANSFORMS.contains(name)) {
+      return Expressions.function(ICEBERG_FUNCTIONS, ImmutableList.of(name));
+    }
+
+    return Expressions.function(name);
+  }
+
+  static List<Object> argumentsFor(Transform<?, ?> transform, Term ref) {
+    Matcher matcher = HAS_WIDTH.matcher(transform.toString());
+    if (matcher.matches()) {
+      return ImmutableList.of(Expressions.lit(Integer.parseInt(matcher.group(2))), ref);
+    }
+
+    return ImmutableList.of(ref);
   }
 
   @Override
