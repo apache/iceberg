@@ -19,9 +19,14 @@
 package org.apache.iceberg.gcp.gcs;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.Storage.BlobWriteOption;
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -30,7 +35,9 @@ import java.util.UUID;
 import java.util.stream.Stream;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.metrics.MetricsContext;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 public class TestGCSOutputStream {
   private static final String BUCKET = "test-bucket";
@@ -54,6 +61,21 @@ public class TestGCSOutputStream {
   }
 
   @Test
+  public void testWriteWithKmsKeyName() {
+    String kmsKeyName = "projects/p/locations/l/keyRings/r/cryptoKeys/k";
+    GCPProperties cmekProperties =
+        new GCPProperties(ImmutableMap.of(GCPProperties.GCS_KMS_KEY_NAME, kmsKeyName));
+    Storage spyStorage = spy(storage);
+    BlobId blobId = randomBlobId();
+
+    writeAndVerify(spyStorage, blobId, randomData(1024), true, cmekProperties);
+
+    ArgumentCaptor<BlobWriteOption> options = ArgumentCaptor.forClass(BlobWriteOption.class);
+    verify(spyStorage).writer(any(BlobInfo.class), options.capture());
+    assertThat(options.getAllValues()).contains(BlobWriteOption.kmsKeyName(kmsKeyName));
+  }
+
+  @Test
   public void testMultipleClose() throws IOException {
     GCSOutputStream stream =
         new GCSOutputStream(storage, randomBlobId(), properties, MetricsContext.nullMetrics());
@@ -62,8 +84,13 @@ public class TestGCSOutputStream {
   }
 
   private void writeAndVerify(Storage client, BlobId uri, byte[] data, boolean arrayWrite) {
+    writeAndVerify(client, uri, data, arrayWrite, properties);
+  }
+
+  private void writeAndVerify(
+      Storage client, BlobId uri, byte[] data, boolean arrayWrite, GCPProperties gcpProperties) {
     try (GCSOutputStream stream =
-        new GCSOutputStream(client, uri, properties, MetricsContext.nullMetrics())) {
+        new GCSOutputStream(client, uri, gcpProperties, MetricsContext.nullMetrics())) {
       if (arrayWrite) {
         stream.write(data);
         assertThat(stream.getPos()).isEqualTo(data.length);
