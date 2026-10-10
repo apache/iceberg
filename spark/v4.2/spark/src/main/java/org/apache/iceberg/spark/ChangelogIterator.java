@@ -19,28 +19,56 @@
 package org.apache.iceberg.spark;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.IntStream;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
-import org.apache.spark.sql.Row;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.Ascending$;
+import org.apache.spark.sql.catalyst.expressions.Attribute;
+import org.apache.spark.sql.catalyst.expressions.BaseOrdering;
+import org.apache.spark.sql.catalyst.expressions.BoundReference;
+import org.apache.spark.sql.catalyst.expressions.Expression;
+import org.apache.spark.sql.catalyst.expressions.NullsFirst$;
+import org.apache.spark.sql.catalyst.expressions.RowOrdering;
+import org.apache.spark.sql.catalyst.expressions.SortOrder;
+import org.apache.spark.sql.catalyst.optimizer.InsertMapSortExpression;
 import org.apache.spark.sql.types.StructType;
-import scala.collection.Seq;
+import org.apache.spark.unsafe.types.UTF8String;
+import scala.collection.immutable.Seq;
+import scala.jdk.javaapi.CollectionConverters;
 
-/** An iterator that transforms rows from changelog tables within a single Spark task. */
-public abstract class ChangelogIterator implements Iterator<Row> {
-  protected static final String DELETE = ChangelogOperation.DELETE.name();
-  protected static final String INSERT = ChangelogOperation.INSERT.name();
-  protected static final String UPDATE_BEFORE = ChangelogOperation.UPDATE_BEFORE.name();
-  protected static final String UPDATE_AFTER = ChangelogOperation.UPDATE_AFTER.name();
+/**
+ * An iterator that transforms rows from changelog tables within a single Spark task.
+ *
+ * <p>Returned rows may be backed by a reused buffer. Callers must copy any row they retain across a
+ * call to {@link #next()}.
+ */
+public abstract class ChangelogIterator implements Iterator<InternalRow> {
+  private static final Seq<Expression> NO_SAME_ORDER_EXPRESSIONS =
+      CollectionConverters.asScala(List.<Expression>of()).toSeq();
+  private static final Seq<Attribute> NO_INPUT_ATTRIBUTES =
+      CollectionConverters.asScala(List.<Attribute>of()).toSeq();
 
-  private final Iterator<Row> rowIterator;
+  protected static final UTF8String DELETE =
+      UTF8String.fromString(ChangelogOperation.DELETE.name());
+  protected static final UTF8String INSERT =
+      UTF8String.fromString(ChangelogOperation.INSERT.name());
+  protected static final UTF8String UPDATE_BEFORE =
+      UTF8String.fromString(ChangelogOperation.UPDATE_BEFORE.name());
+  protected static final UTF8String UPDATE_AFTER =
+      UTF8String.fromString(ChangelogOperation.UPDATE_AFTER.name());
+
+  private final Iterator<InternalRow> rowIterator;
   private final int changeTypeIndex;
   private final StructType rowType;
 
-  protected ChangelogIterator(Iterator<Row> rowIterator, StructType rowType) {
+  protected ChangelogIterator(Iterator<InternalRow> rowIterator, StructType rowType) {
     this.rowIterator = rowIterator;
     this.rowType = rowType;
     this.changeTypeIndex = rowType.fieldIndex(MetadataColumns.CHANGE_TYPE.name());
@@ -54,13 +82,17 @@ public abstract class ChangelogIterator implements Iterator<Row> {
     return rowType;
   }
 
-  protected String changeType(Row row) {
-    String changeType = row.getString(changeTypeIndex());
+  protected UTF8String changeType(InternalRow row) {
+    UTF8String changeType = row.getUTF8String(changeTypeIndex());
     Preconditions.checkNotNull(changeType, "Change type should not be null");
     return changeType;
   }
 
-  protected Iterator<Row> rowIterator() {
+  /**
+   * Returns the underlying iterator. Rows it returns may be backed by a reused buffer, so they must
+   * be copied before being retained across a call to {@code hasNext()} or {@code next()} on it.
+   */
+  protected Iterator<InternalRow> rowIterator() {
     return rowIterator;
   }
 
@@ -74,9 +106,9 @@ public abstract class ChangelogIterator implements Iterator<Row> {
    *     same
    * @return a new iterator instance
    */
-  public static Iterator<Row> computeUpdates(
-      Iterator<Row> rowIterator, StructType rowType, String[] identifierFields) {
-    Iterator<Row> carryoverRemoveIterator = removeCarryovers(rowIterator, rowType);
+  public static Iterator<InternalRow> computeUpdates(
+      Iterator<InternalRow> rowIterator, StructType rowType, String[] identifierFields) {
+    Iterator<InternalRow> carryoverRemoveIterator = removeCarryovers(rowIterator, rowType);
     ChangelogIterator changelogIterator =
         new ComputeUpdateIterator(carryoverRemoveIterator, rowType, identifierFields);
     return Iterators.filter(changelogIterator, Objects::nonNull);
@@ -89,85 +121,46 @@ public abstract class ChangelogIterator implements Iterator<Row> {
    * @param rowType the schema of the rows
    * @return a new iterator instance
    */
-  public static Iterator<Row> removeCarryovers(Iterator<Row> rowIterator, StructType rowType) {
+  public static Iterator<InternalRow> removeCarryovers(
+      Iterator<InternalRow> rowIterator, StructType rowType) {
     RemoveCarryoverIterator changelogIterator = new RemoveCarryoverIterator(rowIterator, rowType);
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
-  public static Iterator<Row> removeNetCarryovers(Iterator<Row> rowIterator, StructType rowType) {
+  public static Iterator<InternalRow> removeNetCarryovers(
+      Iterator<InternalRow> rowIterator, StructType rowType) {
     ChangelogIterator changelogIterator = new RemoveNetCarryoverIterator(rowIterator, rowType);
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
-  protected boolean isSameRecord(Row currentRow, Row nextRow, int[] indicesToIdentifySameRow) {
-    for (int idx : indicesToIdentifySameRow) {
-      if (isDifferentValue(currentRow, nextRow, idx)) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  protected boolean isDifferentValue(Row currentRow, Row nextRow, int idx) {
-    return !valuesEqual(currentRow.get(idx), nextRow.get(idx));
+  protected BoundReference boundReference(int index) {
+    return new BoundReference(index, rowType.fields()[index].dataType(), true);
   }
 
   /**
-   * Compares values the way {@link Objects#deepEquals} does, which compares binary values by
-   * content, except that arrays and structs are also traversed so that binary values nested within
-   * them are compared by content too.
+   * Builds an ordering over the given column indices. Two rows are the same record when the
+   * ordering compares them as equal, which applies Spark's own semantics for nested values,
+   * including normalizing map entry order.
    */
-  private static boolean valuesEqual(Object left, Object right) {
-    if (left instanceof Seq<?> leftSeq && right instanceof Seq<?> rightSeq) {
-      return seqsEqual(leftSeq, rightSeq);
-    } else if (left instanceof Row leftRow && right instanceof Row rightRow) {
-      return rowsEqual(leftRow, rightRow);
+  protected BaseOrdering ordering(int[] indices) {
+    List<SortOrder> sortOrders = Lists.newArrayListWithCapacity(indices.length);
+    for (int index : indices) {
+      sortOrders.add(
+          new SortOrder(
+              InsertMapSortExpression.insertMapSortRecursively(boundReference(index)),
+              Ascending$.MODULE$,
+              NullsFirst$.MODULE$,
+              NO_SAME_ORDER_EXPRESSIONS));
     }
 
-    return Objects.deepEquals(left, right);
-  }
-
-  private static boolean seqsEqual(Seq<?> left, Seq<?> right) {
-    int length = left.length();
-    if (length != right.length()) {
-      return false;
-    }
-
-    for (int index = 0; index < length; index++) {
-      if (!valuesEqual(left.apply(index), right.apply(index))) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  private static boolean rowsEqual(Row left, Row right) {
-    int size = left.size();
-    if (size != right.size()) {
-      return false;
-    }
-
-    for (int index = 0; index < size; index++) {
-      if (!valuesEqual(left.get(index), right.get(index))) {
-        return false;
-      }
-    }
-
-    return true;
+    return RowOrdering.create(
+        CollectionConverters.asScala(sortOrders).toSeq(), NO_INPUT_ATTRIBUTES);
   }
 
   protected static int[] generateIndicesToIdentifySameRow(
       int totalColumnCount, Set<Integer> metadataColumnIndices) {
-    int[] indices = new int[totalColumnCount - metadataColumnIndices.size()];
-
-    for (int i = 0, j = 0; i < indices.length; i++) {
-      if (!metadataColumnIndices.contains(i)) {
-        indices[j] = i;
-        j++;
-      }
-    }
-    return indices;
+    return IntStream.range(0, totalColumnCount)
+        .filter(index -> !metadataColumnIndices.contains(index))
+        .toArray();
   }
 }
