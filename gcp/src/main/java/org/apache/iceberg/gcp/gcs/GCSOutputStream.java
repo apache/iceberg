@@ -28,6 +28,8 @@ import java.io.OutputStream;
 import java.nio.channels.Channels;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.PositionOutputStream;
@@ -48,7 +50,7 @@ class GCSOutputStream extends PositionOutputStream {
 
   private final StackTraceElement[] createStack;
   private final Storage storage;
-  private final BlobId blobId;
+  private final BlobInfo blobInfo;
   private final GCPProperties gcpProperties;
 
   private OutputStream stream;
@@ -63,8 +65,8 @@ class GCSOutputStream extends PositionOutputStream {
       Storage storage, BlobId blobId, GCPProperties gcpProperties, MetricsContext metrics)
       throws IOException {
     this.storage = storage;
-    this.blobId = blobId;
     this.gcpProperties = gcpProperties;
+    this.blobInfo = buildBlobInfo(blobId, gcpProperties);
 
     createStack = Thread.currentThread().getStackTrace();
 
@@ -72,6 +74,38 @@ class GCSOutputStream extends PositionOutputStream {
     this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS);
 
     openStream();
+  }
+
+  /**
+   * Builds the {@link BlobInfo} used to initiate the resumable upload.
+   *
+   * <p>When {@code gcs.write.object-context.*} properties are present, builds an {@link
+   * BlobInfo.ObjectContexts} from them and sets it on the builder via {@code
+   * BlobInfo.Builder.setContexts()}. The SDK then includes the contexts in the {@code
+   * WriteObjectRequest} / {@code StartResumableWriteRequest} wire payload.
+   *
+   * <p>When no context properties are configured this method behaves identically to the original
+   * implementation — {@code setContexts} is never called and there is zero overhead.
+   */
+  private static BlobInfo buildBlobInfo(BlobId blobId, GCPProperties gcpProperties) {
+    BlobInfo.Builder builder = BlobInfo.newBuilder(blobId);
+
+    Map<String, String> writeContexts = gcpProperties.writeObjectContexts();
+    if (writeContexts != null && !writeContexts.isEmpty()) {
+      Map<String, BlobInfo.ObjectCustomContextPayload> payloads =
+          writeContexts.entrySet().stream()
+              .collect(
+                  Collectors.toMap(
+                      Map.Entry::getKey,
+                      e ->
+                          BlobInfo.ObjectCustomContextPayload.newBuilder()
+                              .setValue(e.getValue())
+                              .build()));
+
+      builder.setContexts(BlobInfo.ObjectContexts.newBuilder().setCustom(payloads).build());
+    }
+
+    return builder.build();
   }
 
   @Override
@@ -110,9 +144,7 @@ class GCSOutputStream extends PositionOutputStream {
         .userProject()
         .ifPresent(userProject -> writeOptions.add(BlobWriteOption.userProject(userProject)));
 
-    WriteChannel channel =
-        storage.writer(
-            BlobInfo.newBuilder(blobId).build(), writeOptions.toArray(new BlobWriteOption[0]));
+    WriteChannel channel = storage.writer(blobInfo, writeOptions.toArray(new BlobWriteOption[0]));
 
     gcpProperties.channelWriteChunkSize().ifPresent(channel::setChunkSize);
 
