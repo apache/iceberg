@@ -21,12 +21,18 @@ package org.apache.iceberg.spark;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.RowFactory;
-import org.apache.spark.sql.catalyst.expressions.GenericRow;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.BaseOrdering;
+import org.apache.spark.sql.catalyst.expressions.BoundReference;
+import org.apache.spark.sql.catalyst.expressions.Expression;
+import org.apache.spark.sql.catalyst.expressions.Literal;
+import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.unsafe.types.UTF8String;
+import scala.jdk.javaapi.CollectionConverters;
 
 /**
  * An iterator that finds delete/insert rows which represent an update, and converts them into
@@ -50,14 +56,19 @@ import org.apache.spark.sql.types.StructType;
 public class ComputeUpdateIterator extends ChangelogIterator {
 
   private final String[] identifierFields;
-  private final List<Integer> identifierFieldIdx;
+  private final BaseOrdering ordering;
+  private final UnsafeProjection updateBefore;
+  private final UnsafeProjection updateAfter;
 
-  private Row cachedRow = null;
+  private InternalRow cachedRow = null;
 
-  ComputeUpdateIterator(Iterator<Row> rowIterator, StructType rowType, String[] identifierFields) {
+  ComputeUpdateIterator(
+      Iterator<InternalRow> rowIterator, StructType rowType, String[] identifierFields) {
     super(rowIterator, rowType);
-    this.identifierFieldIdx =
-        Arrays.stream(identifierFields).map(rowType::fieldIndex).collect(Collectors.toList());
+    this.ordering =
+        ordering(Arrays.stream(identifierFields).mapToInt(rowType::fieldIndex).toArray());
+    this.updateBefore = updateProjection(UPDATE_BEFORE);
+    this.updateAfter = updateProjection(UPDATE_AFTER);
     this.identifierFields = identifierFields;
   }
 
@@ -70,71 +81,64 @@ public class ComputeUpdateIterator extends ChangelogIterator {
   }
 
   @Override
-  public Row next() {
+  public InternalRow next() {
     // if there is an updated cached row, return it directly
     if (cachedUpdateRecord()) {
-      Row row = cachedRow;
+      InternalRow row = cachedRow;
       cachedRow = null;
       return row;
     }
 
     // either a cached record which is not an UPDATE or the next record in the iterator.
-    Row currentRow = currentRow();
+    InternalRow currentRow = currentRow();
 
-    if (changeType(currentRow).equals(DELETE) && rowIterator().hasNext()) {
-      Row nextRow = rowIterator().next();
-      cachedRow = nextRow;
+    if (changeType(currentRow).equals(DELETE)) {
+      currentRow = currentRow.copy();
+      if (!rowIterator().hasNext()) {
+        return currentRow;
+      }
 
-      if (sameLogicalRow(currentRow, nextRow)) {
+      InternalRow nextRow = rowIterator().next();
+      if (ordering.compare(currentRow, nextRow) == 0) {
         Preconditions.checkState(
             changeType(nextRow).equals(INSERT),
             "Cannot compute updates because there are multiple rows with the same identifier"
                 + " fields([%s]). Please make sure the rows are unique.",
             String.join(",", identifierFields));
 
-        currentRow = modify(currentRow, changeTypeIndex(), UPDATE_BEFORE);
-        cachedRow = modify(nextRow, changeTypeIndex(), UPDATE_AFTER);
+        currentRow = updateBefore.apply(currentRow).copy();
+        cachedRow = updateAfter.apply(nextRow).copy();
+      } else {
+        cachedRow = nextRow.copy();
       }
     }
 
     return currentRow;
   }
 
-  private Row modify(Row row, int valueIndex, Object value) {
-    if (row instanceof GenericRow) {
-      GenericRow genericRow = (GenericRow) row;
-      genericRow.values()[valueIndex] = value;
-      return genericRow;
-    } else {
-      Object[] values = new Object[row.size()];
-      for (int index = 0; index < row.size(); index++) {
-        values[index] = row.get(index);
-      }
-      values[valueIndex] = value;
-      return RowFactory.create(values);
+  private UnsafeProjection updateProjection(UTF8String changeType) {
+    List<Expression> fields = Lists.newArrayListWithCapacity(rowType().size());
+    for (int index = 0; index < rowType().size(); index++) {
+      fields.add(
+          index == changeTypeIndex()
+              ? Literal.create(changeType, DataTypes.StringType)
+              : new BoundReference(index, rowType().fields()[index].dataType(), true));
     }
+
+    return UnsafeProjection.create(CollectionConverters.asScala(fields).toSeq());
   }
 
   private boolean cachedUpdateRecord() {
     return cachedRow != null && changeType(cachedRow).equals(UPDATE_AFTER);
   }
 
-  private Row currentRow() {
+  private InternalRow currentRow() {
     if (cachedRow != null) {
-      Row row = cachedRow;
+      InternalRow row = cachedRow;
       cachedRow = null;
       return row;
     } else {
       return rowIterator().next();
     }
-  }
-
-  private boolean sameLogicalRow(Row currentRow, Row nextRow) {
-    for (int idx : identifierFieldIdx) {
-      if (isDifferentValue(currentRow, nextRow, idx)) {
-        return false;
-      }
-    }
-    return true;
   }
 }

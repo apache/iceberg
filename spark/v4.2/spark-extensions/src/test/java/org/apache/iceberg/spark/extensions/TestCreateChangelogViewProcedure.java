@@ -707,6 +707,31 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  void computeUpdatesWithMapPayloads() {
+    sql("CREATE TABLE %s (id INT, data MAP<STRING,STRING>) USING iceberg", tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, map('a', 'same', 'b', 'value'))," + " (2, map('a', 'before'))",
+        tableName);
+    long startSnapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql(
+        "INSERT OVERWRITE %s VALUES (1, map('b', 'value', 'a', 'same')),"
+            + " (2, map('a', 'after'))",
+        tableName);
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s',"
+                + " identifier_columns => array('id'), options => map('start-snapshot-id', '%s'))",
+            catalogName, tableName, startSnapshotId);
+    String viewName = (String) result.get(0)[0];
+
+    assertEquals(
+        "Only changed map values should produce update images",
+        ImmutableList.of(row(2, "before", UPDATE_BEFORE), row(2, "after", UPDATE_AFTER)),
+        sql("SELECT id, data['a'], _change_type FROM %s ORDER BY id, _change_type DESC", viewName));
+  }
+
+  @TestTemplate
   public void testUpdateWithInComparableType() {
     sql(
         "CREATE TABLE %s (id INT NOT NULL, data MAP<STRING,STRING>, age INT) USING iceberg",

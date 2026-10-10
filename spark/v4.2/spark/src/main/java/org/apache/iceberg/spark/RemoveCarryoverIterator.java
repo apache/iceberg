@@ -21,7 +21,8 @@ package org.apache.iceberg.spark;
 import java.util.Iterator;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.BaseOrdering;
 import org.apache.spark.sql.types.StructType;
 
 /**
@@ -49,15 +50,15 @@ import org.apache.spark.sql.types.StructType;
  * </ul>
  */
 class RemoveCarryoverIterator extends ChangelogIterator {
-  private final int[] indicesToIdentifySameRow;
+  private final BaseOrdering ordering;
 
-  private Row cachedDeletedRow = null;
+  private InternalRow cachedDeletedRow = null;
   private long deletedRowCount = 0;
-  private Row cachedNextRecord = null;
+  private InternalRow cachedNextRecord = null;
 
-  RemoveCarryoverIterator(Iterator<Row> rowIterator, StructType rowType) {
+  RemoveCarryoverIterator(Iterator<InternalRow> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
-    this.indicesToIdentifySameRow = generateIndicesToIdentifySameRow();
+    this.ordering = ordering(generateIndicesToIdentifySameRow());
   }
 
   @Override
@@ -69,8 +70,8 @@ class RemoveCarryoverIterator extends ChangelogIterator {
   }
 
   @Override
-  public Row next() {
-    Row currentRow;
+  public InternalRow next() {
+    InternalRow currentRow;
 
     if (returnCachedDeleteRow()) {
       // Non-carryover delete rows found. One or more identical delete rows were seen followed by a
@@ -90,17 +91,23 @@ class RemoveCarryoverIterator extends ChangelogIterator {
     }
 
     // If the current row is a delete row, drain all identical delete rows
-    if (changeType(currentRow).equals(DELETE) && rowIterator().hasNext()) {
-      cachedDeletedRow = currentRow;
+    if (changeType(currentRow).equals(DELETE)) {
+      cachedDeletedRow = currentRow.copy();
+      if (!rowIterator().hasNext()) {
+        currentRow = cachedDeletedRow;
+        cachedDeletedRow = null;
+        return currentRow;
+      }
+
       deletedRowCount = 1;
 
-      Row nextRow = rowIterator().next();
+      InternalRow nextRow = rowIterator().next();
 
       // drain all identical delete rows when there is at least one cached delete row and the next
       // row is the same record
       while (nextRow != null
           && cachedDeletedRow != null
-          && isSameRecord(cachedDeletedRow, nextRow, indicesToIdentifySameRow)) {
+          && ordering.compare(cachedDeletedRow, nextRow) == 0) {
         if (changeType(nextRow).equals(INSERT)) {
           deletedRowCount--;
           if (deletedRowCount == 0) {
@@ -130,11 +137,11 @@ class RemoveCarryoverIterator extends ChangelogIterator {
    * not the same record or there is no next row.
    */
   private boolean returnCachedDeleteRow() {
-    return hitBoundary() && hasCachedDeleteRow();
+    return hasCachedDeleteRow() && hitBoundary();
   }
 
   private boolean hitBoundary() {
-    return !rowIterator().hasNext() || cachedNextRecord != null;
+    return cachedNextRecord != null || !rowIterator().hasNext();
   }
 
   private boolean hasCachedDeleteRow() {

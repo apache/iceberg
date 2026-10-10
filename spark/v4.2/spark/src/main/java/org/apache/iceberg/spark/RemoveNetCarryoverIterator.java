@@ -22,7 +22,8 @@ import java.util.Iterator;
 import java.util.Set;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.BaseOrdering;
 import org.apache.spark.sql.types.StructType;
 
 /**
@@ -38,15 +39,15 @@ import org.apache.spark.sql.types.StructType;
  */
 public class RemoveNetCarryoverIterator extends ChangelogIterator {
 
-  private final int[] indicesToIdentifySameRow;
+  private final BaseOrdering ordering;
 
-  private Row cachedNextRow;
-  private Row cachedRow;
+  private InternalRow cachedNextRow;
+  private InternalRow cachedRow;
   private long cachedRowCount;
 
-  protected RemoveNetCarryoverIterator(Iterator<Row> rowIterator, StructType rowType) {
+  protected RemoveNetCarryoverIterator(Iterator<InternalRow> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
-    this.indicesToIdentifySameRow = generateIndicesToIdentifySameRow();
+    this.ordering = ordering(generateIndicesToIdentifySameRow());
   }
 
   @Override
@@ -63,14 +64,14 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
   }
 
   @Override
-  public Row next() {
+  public InternalRow next() {
     // if there are cached rows, return one of them from the beginning
     if (cachedRowCount > 0) {
       cachedRowCount--;
       return cachedRow;
     }
 
-    cachedRow = getCurrentRow();
+    cachedRow = getCurrentRow().copy();
     // return it directly if there is no more rows
     if (!rowIterator().hasNext()) {
       return cachedRow;
@@ -80,7 +81,7 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
     cachedNextRow = rowIterator().next();
 
     // pull rows from the iterator until two consecutive rows are different
-    while (isSameRecord(cachedRow, cachedNextRow, indicesToIdentifySameRow)) {
+    while (ordering.compare(cachedRow, cachedNextRow) == 0) {
       if (oppositeChangeType(cachedRow, cachedNextRow)) {
         // two rows with opposite change types means no net changes, remove both
         cachedRowCount--;
@@ -102,8 +103,8 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
     return null;
   }
 
-  private Row getCurrentRow() {
-    Row currentRow;
+  private InternalRow getCurrentRow() {
+    InternalRow currentRow;
     if (cachedNextRow != null) {
       currentRow = cachedNextRow;
       cachedNextRow = null;
@@ -113,7 +114,7 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
     return currentRow;
   }
 
-  private boolean oppositeChangeType(Row currentRow, Row nextRow) {
+  private boolean oppositeChangeType(InternalRow currentRow, InternalRow nextRow) {
     return (changeType(nextRow).equals(INSERT) && changeType(currentRow).equals(DELETE))
         || (changeType(nextRow).equals(DELETE) && changeType(currentRow).equals(INSERT));
   }

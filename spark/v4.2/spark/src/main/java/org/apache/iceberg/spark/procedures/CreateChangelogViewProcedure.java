@@ -34,10 +34,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.ChangelogIterator;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.util.ArrayUtil;
-import org.apache.spark.api.java.function.MapPartitionsFunction;
+import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.OrderUtils;
@@ -255,29 +254,33 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     Column[] sortSpec = sortSpec(df, repartitionSpec, false);
     StructType schema = df.schema();
 
-    return df.repartition(repartitionSpec)
-        .sortWithinPartitions(sortSpec)
-        .mapPartitions(
-            (MapPartitionsFunction<Row, Row>)
-                rowIterator ->
-                    ChangelogIterator.computeUpdates(rowIterator, schema, identifierFields),
-            Encoders.row(schema));
+    JavaRDD<InternalRow> changes =
+        df.repartition(repartitionSpec)
+            .sortWithinPartitions(sortSpec)
+            .queryExecution()
+            .toRdd()
+            .toJavaRDD()
+            .mapPartitions(
+                rows -> ChangelogIterator.computeUpdates(rows, schema, identifierFields));
+    return spark().internalCreateDataFrame(changes.rdd(), schema, false);
   }
 
   private Dataset<Row> applyCarryoverRemoveIterator(
       Dataset<Row> df, Column[] repartitionSpec, boolean netChanges) {
     Column[] sortSpec = sortSpec(df, repartitionSpec, netChanges);
     StructType schema = df.schema();
-
-    return df.repartition(repartitionSpec)
-        .sortWithinPartitions(sortSpec)
-        .mapPartitions(
-            (MapPartitionsFunction<Row, Row>)
-                rowIterator ->
+    JavaRDD<InternalRow> changes =
+        df.repartition(repartitionSpec)
+            .sortWithinPartitions(sortSpec)
+            .queryExecution()
+            .toRdd()
+            .toJavaRDD()
+            .mapPartitions(
+                rows ->
                     netChanges
-                        ? ChangelogIterator.removeNetCarryovers(rowIterator, schema)
-                        : ChangelogIterator.removeCarryovers(rowIterator, schema),
-            Encoders.row(schema));
+                        ? ChangelogIterator.removeNetCarryovers(rows, schema)
+                        : ChangelogIterator.removeCarryovers(rows, schema));
+    return spark().internalCreateDataFrame(changes.rdd(), schema, false);
   }
 
   /**
