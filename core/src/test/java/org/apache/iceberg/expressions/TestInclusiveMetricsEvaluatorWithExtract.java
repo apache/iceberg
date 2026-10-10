@@ -612,7 +612,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract<F> {
   }
 
   @Test
-  public void testStringNotStartsWith() {
+  public void notStartsWithCannotSkipFilesWithExtractedFields() {
     assertThat(shouldRead(notStartsWith(extract("variant", "$.str", "string"), "a")))
         .as("Should read: matching bounds do not rule out a missing extracted field")
         .isTrue();
@@ -622,7 +622,7 @@ public class TestInclusiveMetricsEvaluatorWithExtract<F> {
         .isTrue();
 
     assertThat(shouldRead(notStartsWith(extract("variant", "$.str", "string"), "abcd")))
-        .as("Should skip: lower is prefix of value, some values do not match")
+        .as("Should read: lower is prefix of value, some values do not match")
         .isTrue();
 
     assertThat(shouldRead(notStartsWith(extract("variant", "$.str", "string"), "abd")))

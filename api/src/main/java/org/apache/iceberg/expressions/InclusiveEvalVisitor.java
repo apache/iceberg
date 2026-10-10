@@ -431,8 +431,9 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
   }
 
   /**
-   * Returns the column's single value if all rows contain the same value. Defined as a column with
-   * no nulls, no NaNs, and lower bound equals upper bound. Returns null otherwise.
+   * Returns the term's single value if the term is non-null preserving and all rows contain the
+   * same value. Requires no nulls, no NaNs, and equal lower and upper bounds. Returns null
+   * otherwise.
    */
   private <T> T uniqueValue(Bound<T> term) {
     int id = term.ref().fieldId();
