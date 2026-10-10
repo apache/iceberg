@@ -92,13 +92,13 @@ class RemoveCarryoverIterator extends ChangelogIterator {
 
     // If the current row is a delete row, drain all identical delete rows
     if (changeType(currentRow).equals(DELETE)) {
-      cachedDeletedRow = currentRow.copy();
+      // copy before probing the upstream iterator, which may invalidate the row it just returned
+      currentRow = currentRow.copy();
       if (!rowIterator().hasNext()) {
-        currentRow = cachedDeletedRow;
-        cachedDeletedRow = null;
         return currentRow;
       }
 
+      cachedDeletedRow = currentRow;
       deletedRowCount = 1;
 
       InternalRow nextRow = rowIterator().next();
@@ -140,6 +140,7 @@ class RemoveCarryoverIterator extends ChangelogIterator {
     return hasCachedDeleteRow() && hitBoundary();
   }
 
+  /** Checks the cached row first so the upstream iterator is only probed when it has to be. */
   private boolean hitBoundary() {
     return cachedNextRecord != null || !rowIterator().hasNext();
   }
