@@ -170,35 +170,28 @@ public interface Transform<S, T> extends Serializable {
       return "null";
     }
 
-    switch (type.typeId()) {
-      case DATE:
-        return TransformUtil.humanDay((Integer) value);
-      case TIME:
-        return TransformUtil.humanTime((Long) value);
-      case TIMESTAMP:
-        if (((Types.TimestampType) type).shouldAdjustToUTC()) {
-          return TransformUtil.humanTimestampWithZone((Long) value);
-        } else {
-          return TransformUtil.humanTimestampWithoutZone((Long) value);
-        }
-      case TIMESTAMP_NANO:
-        if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
-          return TransformUtil.humanTimestampNanoWithZone((Long) value);
-        } else {
-          return TransformUtil.humanTimestampNanoWithoutZone((Long) value);
-        }
-      case FIXED:
-      case BINARY:
+    return switch (type.typeId()) {
+      case DATE -> TransformUtil.humanDay((Integer) value);
+      case TIME -> TransformUtil.humanTime((Long) value);
+      case TIMESTAMP ->
+          ((Types.TimestampType) type).shouldAdjustToUTC()
+              ? TransformUtil.humanTimestampWithZone((Long) value)
+              : TransformUtil.humanTimestampWithoutZone((Long) value);
+      case TIMESTAMP_NANO ->
+          ((Types.TimestampNanoType) type).shouldAdjustToUTC()
+              ? TransformUtil.humanTimestampNanoWithZone((Long) value)
+              : TransformUtil.humanTimestampNanoWithoutZone((Long) value);
+      case FIXED, BINARY -> {
         if (value instanceof ByteBuffer) {
-          return TransformUtil.base64encode(((ByteBuffer) value).duplicate());
+          yield TransformUtil.base64encode(((ByteBuffer) value).duplicate());
         } else if (value instanceof byte[]) {
-          return TransformUtil.base64encode(ByteBuffer.wrap((byte[]) value));
+          yield TransformUtil.base64encode(ByteBuffer.wrap((byte[]) value));
         } else {
           throw new UnsupportedOperationException("Unsupported binary type: " + value.getClass());
         }
-      default:
-        return value.toString();
-    }
+      }
+      default -> value.toString();
+    };
   }
 
   /**
