@@ -258,6 +258,11 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     }
 
     @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidType) {
+      return Optional.of(Types.UUIDType.get());
+    }
+
+    @Override
     public Optional<Type> visit(LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
       // a null crs resolves to the Iceberg default in GeometryType.of
       return Optional.of(Types.GeometryType.of(geometryType.getCrs()));
