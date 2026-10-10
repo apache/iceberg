@@ -37,7 +37,6 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthManagers;
@@ -239,7 +239,7 @@ public class TestGoogleAuthManager {
     doReturn(credentials).when(spyManager).loadCredentials(any(), any(), any());
 
     AtomicInteger successfulInitializations = new AtomicInteger(0);
-    List<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
+    List<Exception> exceptions = Collections.synchronizedList(Lists.newArrayList());
     try {
       for (int i = 0; i < numThreads; i++) {
         executorService.submit(
