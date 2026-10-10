@@ -2547,8 +2547,6 @@ components:
     Predicate:
       oneOf:
         - type: boolean
-        - $ref: '#/components/schemas/TrueExpression'
-        - $ref: '#/components/schemas/FalseExpression'
         - $ref: '#/components/schemas/AndOrPredicate'
         - $ref: '#/components/schemas/NotPredicate'
         - $ref: '#/components/schemas/UnaryPredicate'
@@ -2585,30 +2583,6 @@ components:
         - $ref: '#/components/schemas/Literal'
         - $ref: '#/components/schemas/Reference'
         - $ref: '#/components/schemas/Apply'
-
-    TrueExpression:
-      deprecated: true
-      description: >
-        Deprecated. Use the bare boolean literal `true` as a predicate instead.
-      type: object
-      required:
-        - type
-      properties:
-        type:
-          $ref: '#/components/schemas/ExpressionType'
-          const: "true"
-
-    FalseExpression:
-      deprecated: true
-      description: >
-        Deprecated. Use the bare boolean literal `false` as a predicate instead.
-      type: object
-      required:
-        - type
-      properties:
-        type:
-          $ref: '#/components/schemas/ExpressionType'
-          const: "false"
 
     AndOrPredicate:
       type: object
