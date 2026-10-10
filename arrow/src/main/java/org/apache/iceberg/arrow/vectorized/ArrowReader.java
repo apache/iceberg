@@ -382,7 +382,7 @@ public class ArrowReader extends CloseableGroup {
                   fileSchema,
                   setArrowValidityVector,
                   ImmutableMap.of(),
-                  ArrowBatchReader::new));
+                  readers -> new ArrowBatchReader(readers, expectedSchema)));
     }
   }
 }
