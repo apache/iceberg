@@ -100,4 +100,10 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement repairTable");
   }
+
+  /** Instantiates an action to re-wrap the encryption keys of a table. */
+  default RewrapEncryptionKeys rewrapEncryptionKeys(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement rewrapEncryptionKeys");
+  }
 }
