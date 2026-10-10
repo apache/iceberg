@@ -106,7 +106,9 @@ public class RowDataFileScanTaskReader implements FileScanTaskReader<RowData> {
     } else {
       ReadBuilder<RowData, RowType> builder =
           FormatModelRegistry.readBuilder(
-              task.file().format(), RowData.class, inputFilesDecryptor.getInputFile(task));
+              task.file().format(),
+              RowData.class,
+              inputFilesDecryptor.getInputFile(task.file().location()));
 
       if (nameMapping != null) {
         builder.withNameMapping(NameMappingParser.fromJson(nameMapping));
