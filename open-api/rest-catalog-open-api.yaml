@@ -2465,6 +2465,9 @@ components:
           $ref: "#/components/schemas/PrimitiveTypeValue"
         write-default:
           $ref: "#/components/schemas/PrimitiveTypeValue"
+        collation:
+          type: string
+          description: Provider-qualified collation for a string field, e.g. icu.en_US-ci; absent means UTF-8 byte order
 
     StructType:
       type: object
@@ -2497,6 +2500,9 @@ components:
           $ref: '#/components/schemas/Type'
         element-required:
           type: boolean
+        element-collation:
+          type: string
+          description: Provider-qualified collation for a string element, e.g. icu.en_US-ci; absent means UTF-8 byte order
 
     MapType:
       type: object
@@ -2515,12 +2521,18 @@ components:
           type: integer
         key:
           $ref: '#/components/schemas/Type'
+        key-collation:
+          type: string
+          description: Provider-qualified collation for a string key, e.g. icu.en_US-ci; absent means UTF-8 byte order
         value-id:
           type: integer
         value:
           $ref: '#/components/schemas/Type'
         value-required:
           type: boolean
+        value-collation:
+          type: string
+          description: Provider-qualified collation for a string value, e.g. icu.en_US-ci; absent means UTF-8 byte order
 
     Type:
       # Keep VariantType first, or the generated client resolves `variant` as PrimitiveType.
