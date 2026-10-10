@@ -151,6 +151,7 @@ Version 4 of the Iceberg spec adds support for relative locations in metadata, e
 * **Delete file** -- A file that encodes rows of a table that are deleted by position or data values.
 * **Absolute path** -- A path string that includes a [URI](https://datatracker.ietf.org/doc/html/rfc3986#section-3.1) scheme and can be used directly.
 * **Relative path** -- A path string without a URI scheme that must be [resolved](#path-resolution) against the table location.
+* **Column file** -- (v4+) A file that stores the values of one or more fields for each row of another file.
 
 ### Writer requirements
 
@@ -547,7 +548,7 @@ Note that:
 
 ### Partitioning
 
-Data files are stored in manifests with a tuple of partition values that are used in scans to filter out files that cannot contain records that match the scan’s filter predicate. Partition values for a data file must be the same for all records stored in the data file. (Manifests store data files from any partition, as long as the partition spec is the same for the data files.)
+Data files are stored in manifests with a tuple of partition values that are used in scans to filter out files that cannot contain records that match the scan’s filter predicate. Partition values for a data file must be the same for all records stored in the data file. For a data file with column files and a partition tuple, this requirement applies to rows that are not deleted, using values read with its column files. (Manifests store data files from any partition, as long as the partition spec is the same for the data files.)
 
 Tables are configured with a **partition spec** that defines how to produce a tuple of partition values from a record. A partition spec has a list of fields that consist of:
 
@@ -701,7 +702,7 @@ When a file is added to the dataset, its manifest entry should store the snapsho
 When a file is replaced or deleted from the dataset, its manifest entry fields store the snapshot ID in which the file was deleted and status 2 (deleted). The file may be deleted from the file system when the snapshot in which it was deleted is garbage collected, assuming that older snapshots have also been garbage collected [1].
 
 Iceberg v2 adds data and file sequence numbers to the entry and makes the snapshot ID optional. Values for these fields are inherited from manifest metadata when `null`. That is, if the field is `null` for an entry, then the entry must inherit its value from the manifest file's metadata, stored in the manifest list.
-The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
+The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset, except when a [column update](#column-updates) adds a column file. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
 The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number.
 The data and file sequence numbers are inherited only if the entry status is 1 (added). If the entry status is 0 (existing) or 2 (deleted), the entry must include both sequence numbers explicitly.
 
@@ -932,7 +933,7 @@ Manifests track the sequence number when a data or delete file was added to the 
 When adding a new file, its data and file sequence numbers are set to `null` because the snapshot's sequence number is not assigned until the snapshot is successfully committed. When reading, sequence numbers are inherited by replacing `null` with the manifest's sequence number from the manifest list.
 It is also possible to add a new file with data that logically belongs to an older sequence number. In that case, the data sequence number must be provided explicitly and not inherited. However, the file sequence number must be always assigned when the snapshot is successfully committed.
 
-When writing an existing file to a new manifest or marking an existing file as deleted, the data and file sequence numbers must be non-null and set to the original values that were either inherited or provided at the commit time.
+When writing an existing file to a new manifest or marking an existing file as deleted, the data and file sequence numbers must be non-null and set to the original values that were either inherited or provided at the commit time. The exception is the data sequence number of a `MODIFIED` entry written by a [column update](#column-updates), which is the sequence number of the snapshot that commits the column update.
 
 Inheriting sequence numbers through the metadata tree allows writing a new manifest without a known sequence number, so that a manifest can be written once and reused in commit retries. To change a sequence number for a retry, only the manifest list must be rewritten.
 
@@ -1472,6 +1473,50 @@ If a delete column in an equality delete file is later dropped from the table, i
 
 Manifests hold the same statistics for delete files and data files. For delete files, the metrics describe the values that were deleted.
 
+### Column updates
+
+A column update changes the values of one or more fields in an existing data file without rewriting the data file. The new values are stored in column files that are tracked in the data file entry's `column_files` list (see [Manifests](#manifests)). In this section, the _prior entry_ is the data file's live entry before the column update.
+
+#### Column files
+
+A column file is a valid Iceberg data file: it must use a valid Iceberg format, schema, and column projection.
+
+A column file stores the fields whose IDs are listed in its `field_ids`. Each ID in `field_ids` must be a top-level field ID, and a column file stores the entire value of each listed field. A field ID must not be listed by more than one column file of a data file.
+
+A column file must contain the same number of rows as its data file's `record_count`. The row at position `i` in a column file stores values for the row at position `i` in the data file. For each listed field, a column file must store the current value of every row that is not deleted by the `MODIFIED` entry's deletion vector: the updated value for an updated row, and the value read from the prior entry for any other row.
+
+Rows that are deleted when a column file is written should be written as null. Each top-level field must be optional in the column file's schema, even if the field is required in the table schema. For a field that is required in the table schema, a column file must store a non-null value in every row that is not deleted by the `MODIFIED` entry's deletion vector.
+
+A column file must not contain the `_row_id` field. Readers must ignore top-level fields in a column file whose IDs are not listed in its `field_ids`.
+
+#### Reading column updates
+
+A reader must read each projected field from the column file whose `field_ids` contains the field's top-level field ID, and must read all other projected fields from the data file. Column files are read using the same [column projection](#column-projection) rules as data files.
+
+A row deleted by the data file's deletion vector is deleted regardless of the values in its column files. A null value in a column file does not indicate that a row is deleted.
+
+#### Writing column updates
+
+A column update replaces the prior entry with a `MODIFIED` entry, as described in [Manifests](#manifests). The `MODIFIED` entry and the `REPLACED` entry may be written in different manifests.
+
+A `REPLACED` entry must keep the values of the prior entry, including `tracking.snapshot_id`, except `tracking.status`. The `MODIFIED` entry must keep the values of the prior entry, with the following changes:
+
+* `tracking.status` is `MODIFIED`.
+* `column_files` is the prior entry's list, with each column file that stores an updated field removed and the new column files added. Each field of a removed column file that is not updated must be stored in a new column file.
+* `tracking.column_file_snapshot_id` is the ID of the snapshot that commits the column update.
+* `tracking.sequence_number` is the sequence number of the snapshot that commits the column update (see [Sequence Number Inheritance](#sequence-number-inheritance)).
+* `deletion_vector` must include the positions deleted by the prior entry's deletion vector and all deletes in delete manifests that apply to the prior entry, including equality deletes.
+* If `deletion_vector` changes, `tracking.dv_snapshot_id` is the ID of the snapshot that commits the column update.
+* `content_stats` for each field stored in a new column file, including its nested fields, must be computed from the values in the column file or omitted. Stats for other fields may be kept.
+* If an updated field is, or contains, the source of a field in the entry's partition spec, `partition` must be the partition values of the rows that are not deleted, or `spec_id` and `partition` must be null. `spec_id` and `partition` must be null if those rows do not share a single partition tuple.
+* If an updated field is, or contains, the source of a field in the entry's sort order, `sort_order_id` must be null.
+
+Fields of the prior entry with inherited values must be written explicitly in the `REPLACED` and `MODIFIED` entries, except the `MODIFIED` entry's `tracking.sequence_number`. Deletion vectors in delete manifests that reference the data file must be removed.
+
+#### Row lineage for column updates
+
+A column update does not change row IDs. `_row_id` is read from the data file, or assigned from `first_row_id` and the row's position when it is null, as described in [Row Lineage](#row-lineage).
+
 ## Appendix A: Format-specific Requirements
 
 ### Avro
@@ -1923,6 +1968,12 @@ Equality deletes are prohibited in v4.
 * Writers must not add equality delete files to v4 tables; equality deletes cannot be added as an entry to a v4 manifest
 * Upgrading a v2 or v3 table to v4 does not require rewriting data or delete files
 * Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
+
+Column updates are added in v4.
+
+* A data file entry may track column files that store the values of one or more fields, with one row for each row of the data file (see [Column updates](#column-updates))
+* A column update replaces the data file's entry with a `MODIFIED` entry whose data sequence number is the sequence number of the committing snapshot
+* Deletes in delete manifests that apply to a data file must be merged into its deletion vector when a column file is added
 
 ### Version 3
 
