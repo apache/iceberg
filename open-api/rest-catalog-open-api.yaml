@@ -1085,6 +1085,18 @@ paths:
             type: string
             enum: [ all, refs ]
         - $ref: '#/components/parameters/referenced-by'
+        - in: query
+          name: include-indexes
+          description:
+            If `true`, the catalog SHOULD populate the `indexes` field in the
+            LoadTableResult with the indexes of the table, avoiding a second
+            round-trip for query planning. Defaults to `false`. Catalogs that do not
+            support indexes MAY ignore this parameter, and clients that do not
+            understand indexes MUST ignore the `indexes` field if it is present.
+          required: false
+          schema:
+            type: boolean
+            default: false
       responses:
         200:
           $ref: '#/components/responses/LoadTableResponse'
@@ -1302,6 +1314,352 @@ paths:
               examples:
                 TableToLoadDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/indexes:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+
+    get:
+      tags:
+        - Index Catalog API
+      summary: List all indexes in a namespace, optionally filtered by type
+      operationId: listIndexes
+      description:
+        Return the identifiers of the indexes in the specified namespace. The list can
+        be filtered by index type(s) using the `types` query parameter. To find the
+        indexes of a specific table, use the `include-indexes` parameter of the
+        load-table endpoint.
+      parameters:
+        - name: types
+          in: query
+          description:
+            Optional comma-separated list of index types to filter by. If not
+            provided, all indexes are returned.
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/IndexType'
+          style: form
+          explode: false
+          example: "scalar"
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
+      responses:
+        200:
+          $ref: '#/components/responses/ListIndexesResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchNamespaceError:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    post:
+      tags:
+        - Index Catalog API
+      summary: Create an index on a table
+      operationId: createIndex
+      description:
+        Create a new index on the table identified by `table-uuid`. The request body
+        carries the full index definition, which cannot be changed after creation.
+        The new index has no extracts until index maintenance adds one.
+      parameters:
+        - $ref: '#/components/parameters/data-access'
+        - $ref: '#/components/parameters/idempotency-key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIndexRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/LoadIndexResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The table or namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchTableError:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NoSuchNamespaceError:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        409:
+          description: Conflict - An index with the same name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                IndexAlreadyExists:
+                  $ref: '#/components/examples/IndexAlreadyExistsError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/indexes/{index}:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/index'
+      - $ref: '#/components/parameters/data-access'
+
+    get:
+      tags:
+        - Index Catalog API
+      summary: Load an index from the catalog
+      operationId: loadIndex
+      description:
+        Load the full metadata for an index. The response contains the index
+        definition, its extracts, and the metadata log.
+      responses:
+        200:
+          $ref: '#/components/responses/LoadIndexResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The index or namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchIndexError:
+                  $ref: '#/components/examples/NoSuchIndexError'
+                NoSuchNamespaceError:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    post:
+      tags:
+        - Index Catalog API
+      summary: Commit updates to an index
+      operationId: updateIndex
+      description: >
+        Commit updates to an index: add or remove extracts, change index properties,
+        or add or remove encryption keys. The index definition cannot be updated. The
+        request includes requirements that must be met and updates to apply, and is
+        committed atomically, producing a new index metadata file.
+
+
+        An index may lag behind its table: an extract may reference a source table
+        snapshot that is no longer the table's current snapshot. Engines reconcile
+        the extract against the table snapshot they read.
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitIndexRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/LoadIndexResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The index or namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchIndexError:
+                  $ref: '#/components/examples/NoSuchIndexError'
+                NoSuchNamespaceError:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        409:
+          description: Conflict - CommitFailedException, one or more requirements failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        500:
+          description:
+            An unknown server-side problem occurred; the commit state is unknown.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              example: {
+                "error": {
+                  "message": "Internal Server Error",
+                  "type": "CommitStateUnknownException",
+                  "code": 500
+                }
+              }
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    delete:
+      tags:
+        - Index Catalog API
+      summary: Drop an index from the catalog
+      operationId: dropIndex
+      description:
+        Remove an index from the catalog. Index data and metadata files are deleted only
+        when `purgeRequested` is `true`.
+      parameters:
+        - $ref: '#/components/parameters/idempotency-key'
+        - name: purgeRequested
+          in: query
+          required: false
+          description: Whether the user requested to purge the underlying index's data and metadata
+          schema:
+            type: boolean
+            default: false
+      responses:
+        204:
+          description: Success, no content
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The index does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchIndexError:
+                  $ref: '#/components/examples/NoSuchIndexError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    head:
+      tags:
+        - Index Catalog API
+      summary: Check if an index exists
+      operationId: indexExists
+      description: Check if an index exists in a given namespace. The response does not contain a body.
+      responses:
+        204:
+          description: Success, no content - Index exists
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - Index not found
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/register-index:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+
+    post:
+      tags:
+        - Index Catalog API
+      summary: Register an index using a metadata file location
+      operationId: registerIndex
+      description:
+        Register an index in the catalog using a given metadata file location. This
+        allows importing an existing index from its metadata file.
+      parameters:
+        - $ref: '#/components/parameters/data-access'
+        - $ref: '#/components/parameters/idempotency-key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterIndexRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/LoadIndexResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description: Not Found - The table or namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                NoSuchTableError:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NoSuchNamespaceError:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        409:
+          description: Conflict - An index with the same identifier already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                IndexAlreadyExists:
+                  $ref: '#/components/examples/IndexAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -2258,6 +2616,15 @@ components:
         - Catalogs SHOULD NOT expire keys before the end of the advertised token lifetime.
         - If Idempotency-Key is used, clients MUST reuse the same key when retrying the same
           logical operation and MUST generate a new key for a different operation.
+
+    index:
+      name: index
+      in: path
+      description: An index name
+      required: true
+      schema:
+        type: string
+      example: "customer_id_index"
 
   ##############################
   # Application Schema Objects #
@@ -3267,6 +3634,8 @@ components:
           remove-schemas: '#/components/schemas/RemoveSchemasUpdate'
           add-encryption-key: '#/components/schemas/AddEncryptionKeyUpdate'
           remove-encryption-key: '#/components/schemas/RemoveEncryptionKeyUpdate'
+          add-extract: '#/components/schemas/AddIndexExtractUpdate'
+          remove-extracts: '#/components/schemas/RemoveIndexExtractsUpdate'
       type: object
       required:
         - action
@@ -4284,6 +4653,16 @@ components:
           $ref: '#/components/schemas/ReadRestrictions'
         labels:
           $ref: '#/components/schemas/Labels'
+        indexes:
+          type: array
+          description:
+            The indexes of this table, returned only when the client requests them with
+            the `include-indexes` query parameter on the load-table endpoint. Each entry
+            is the same result that the loadIndex endpoint returns for that index, so a
+            planner does not need a second round-trip. Clients that do not understand
+            indexes MUST ignore this field.
+          items:
+            $ref: '#/components/schemas/LoadIndexResult'
 
     ScanTasks:
       type: object
@@ -5872,6 +6251,376 @@ components:
             Static headers the signer client MUST include unchanged in every request to the signing
             endpoint.
 
+    IndexIdentifier:
+      type: object
+      description:
+        Identifies an index within a catalog, scoped to a namespace. An index is
+        addressable by namespace and name without a table name; the indexed table is
+        referenced by `table-uuid` in the index metadata. Index names are not stored in
+        index metadata; the catalog maps each identifier to its current metadata file.
+      required:
+        - namespace
+        - name
+      properties:
+        namespace:
+          $ref: '#/components/schemas/Namespace'
+        name:
+          type: string
+          description: The index name, unique within the namespace
+      example:
+        namespace: ["accounting", "tax"]
+        name: "customer_id_index"
+
+    IndexType:
+      type: string
+      description:
+        The logical index type, which defines the class of queries the index
+        accelerates. The index specification defines `scalar`; future specifications
+        may define additional types. Writers MUST send the type in lower case, and
+        readers MUST match it case-insensitively. Clients MUST ignore indexes whose
+        type they do not support.
+      example: "scalar"
+
+    IndexExpressionField:
+      type: object
+      description:
+        An index field whose value is produced by evaluating a value expression for an
+        indexed row of the source table. The same structure is used for materialized
+        fields, which are stored in region files, and non-materialized fields, which
+        keep only statistics in the tracking file.
+      required:
+        - field-id
+        - type
+        - data-type
+        - expr
+      properties:
+        field-id:
+          type: integer
+          description:
+            ID of the index field, unique across `identity-fields`,
+            `materialized-fields`, and `non-materialized-fields`. It MUST NOT be a
+            reserved field ID.
+        type:
+          type: string
+          const: "expr-value"
+        data-type:
+          $ref: '#/components/schemas/Type'
+        expr:
+          allOf:
+            - $ref: '#/components/schemas/ValueExpression'
+          description:
+            Deterministic value expression that produces `data-type`. It MUST contain
+            only ID references (`IdReference`) to source table fields or metadata
+            columns; named references MUST NOT be used.
+      example:
+        field-id: 105
+        type: "expr-value"
+        data-type: "string"
+        expr: {"type": "reference", "id": 2147483646}
+
+    IndexExtract:
+      type: object
+      description:
+        An immutable version of the index data generated from a specific source table
+        snapshot. Engines locate index data by matching `source-table-snapshot-id`;
+        more than one extract may reference the same source table snapshot.
+      required:
+        - extract-id
+        - source-table-snapshot-id
+        - timestamp-ms
+        - tracking-file
+        - tracking-file-size-in-bytes
+      properties:
+        extract-id:
+          type: integer
+          format: int64
+          description: Extract identifier, unique within the index's `extracts`
+        source-table-snapshot-id:
+          type: integer
+          format: int64
+          description: The source table snapshot this extract indexes
+        timestamp-ms:
+          type: integer
+          format: int64
+          description: Timestamp when the extract was created (ms from epoch)
+        tracking-file:
+          type: string
+          description: Location of the tracking file that lists the region files of this extract
+        tracking-file-size-in-bytes:
+          type: integer
+          format: int64
+          description: Total size of the tracking file in bytes
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+          description: Properties specific to this extract
+        key-id:
+          type: string
+          description:
+            ID of the entry in the index's `encryption-keys` that holds the key metadata
+            of the tracking file
+
+    IndexMetadata:
+      type: object
+      description:
+        Index metadata as defined by the index specification. The index definition
+        (`table-uuid`, `index-type`, `identity-fields`, `materialized-fields`,
+        `non-materialized-fields`, and `ordering-key`) is fixed when the index is
+        created and does not change. A missing optional list is read as an empty list.
+      required:
+        - format-version
+        - index-uuid
+        - table-uuid
+        - location
+        - last-updated-ms
+        - index-type
+        - identity-fields
+        - ordering-key
+      properties:
+        format-version:
+          type: integer
+          minimum: 1
+          maximum: 1
+          description: Index format version; must be `1`
+        index-uuid:
+          type: string
+          format: uuid
+          description: Stable UUID assigned to the index at creation
+        table-uuid:
+          type: string
+          format: uuid
+          description: UUID of the indexed table
+        location:
+          type: string
+          description: Index root location
+        last-updated-ms:
+          type: integer
+          format: int64
+          description: Timestamp when the index was last updated (ms from epoch)
+        index-type:
+          $ref: '#/components/schemas/IndexType'
+        identity-fields:
+          type: array
+          description:
+            Non-empty list of unique source table field IDs stored as is in region
+            files. Metadata columns are not allowed.
+          items:
+            type: integer
+          example: [1]
+        materialized-fields:
+          type: array
+          description: Expression fields whose values are stored in region files
+          items:
+            $ref: '#/components/schemas/IndexExpressionField'
+        non-materialized-fields:
+          type: array
+          description: Expression fields that keep only statistics in the tracking file
+          items:
+            $ref: '#/components/schemas/IndexExpressionField'
+        ordering-key:
+          type: array
+          description:
+            Non-empty list of index field IDs, from any of the three field lists, whose
+            values in list order form the ordering key
+          items:
+            type: integer
+          example: [1]
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+          description: Index properties applicable to every extract
+        extracts:
+          type: array
+          description: The extracts of the index; an index that has not been built yet has none
+          items:
+            $ref: '#/components/schemas/IndexExtract'
+        metadata-log:
+          $ref: '#/components/schemas/MetadataLog'
+        encryption-keys:
+          type: array
+          description: Encryption keys used by the index
+          items:
+            $ref: '#/components/schemas/EncryptedKey'
+
+    CreateIndexRequest:
+      type: object
+      description:
+        Request to create a new index. The request carries the full index definition,
+        which cannot be changed after creation. The server assigns `index-uuid` and
+        `last-updated-ms`. A new index has no extracts.
+      required:
+        - name
+        - table-uuid
+        - index-type
+        - identity-fields
+        - ordering-key
+      properties:
+        name:
+          type: string
+          description: The name for the new index, unique within the namespace
+          example: "customer_id_index"
+        table-uuid:
+          type: string
+          format: uuid
+          description: UUID of the table to index
+        index-type:
+          $ref: '#/components/schemas/IndexType'
+        identity-fields:
+          type: array
+          items:
+            type: integer
+          example: [1]
+        materialized-fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/IndexExpressionField'
+        non-materialized-fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/IndexExpressionField'
+        ordering-key:
+          type: array
+          items:
+            type: integer
+          example: [1]
+        location:
+          type: string
+          description: Optional index root location; if omitted, the server chooses one
+        properties:
+          type: object
+          additionalProperties:
+            type: string
+          description: Index properties
+
+    RegisterIndexRequest:
+      type: object
+      description: Request to register an existing index by metadata file location
+      required:
+        - name
+        - metadata-location
+      properties:
+        name:
+          type: string
+          description: The name to register the index under
+        metadata-location:
+          type: string
+          description: Location of the index metadata file
+
+    CommitIndexRequest:
+      type: object
+      description: Request to commit updates to an index
+      required:
+        - requirements
+        - updates
+      properties:
+        requirements:
+          type: array
+          description: Requirements that must be met before applying updates
+          items:
+            $ref: '#/components/schemas/IndexRequirement'
+        updates:
+          type: array
+          description: Updates to apply to the index
+          items:
+            $ref: '#/components/schemas/IndexUpdate'
+
+    IndexRequirement:
+      type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          assert-index-uuid: '#/components/schemas/AssertIndexUUID'
+      oneOf:
+        - $ref: '#/components/schemas/AssertIndexUUID'
+
+    AssertIndexUUID:
+      description: The index UUID must match the requirement's `uuid`
+      required:
+        - type
+        - uuid
+      properties:
+        type:
+          type: string
+          const: "assert-index-uuid"
+        uuid:
+          type: string
+          format: uuid
+
+    AddIndexExtractUpdate:
+      description:
+        Adds an extract to the index. The server MUST reject the commit if
+        `extract-id` is already used by an extract of the index, if
+        `source-table-snapshot-id` is not a snapshot of the indexed table, or if
+        `key-id` does not reference an entry in the index's `encryption-keys`.
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - action
+        - extract
+      properties:
+        action:
+          type: string
+          const: "add-extract"
+        extract:
+          $ref: '#/components/schemas/IndexExtract'
+
+    RemoveIndexExtractsUpdate:
+      description:
+        Removes extracts from the index. IDs that do not match an extract of the index
+        are ignored.
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - action
+        - extract-ids
+      properties:
+        action:
+          type: string
+          const: "remove-extracts"
+        extract-ids:
+          type: array
+          items:
+            type: integer
+            format: int64
+
+    IndexUpdate:
+      description:
+        An update to apply to an index. The index definition cannot be updated; a
+        different definition requires a new index.
+      anyOf:
+        - $ref: '#/components/schemas/AddIndexExtractUpdate'
+        - $ref: '#/components/schemas/RemoveIndexExtractsUpdate'
+        - $ref: '#/components/schemas/SetPropertiesUpdate'
+        - $ref: '#/components/schemas/RemovePropertiesUpdate'
+        - $ref: '#/components/schemas/AddEncryptionKeyUpdate'
+        - $ref: '#/components/schemas/RemoveEncryptionKeyUpdate'
+
+    LoadIndexResult:
+      type: object
+      description:
+        Result for loading an index. Configuration and storage credentials for reading
+        index files follow the same rules as `LoadTableResult`, including the
+        `X-Iceberg-Access-Delegation` header.
+      required:
+        - metadata
+      properties:
+        metadata-location:
+          type: string
+          description: The location of the index metadata file
+        metadata:
+          $ref: '#/components/schemas/IndexMetadata'
+        config:
+          type: object
+          additionalProperties:
+            type: string
+        storage-credentials:
+          type: array
+          description: Credentials for accessing the index files
+          items:
+            $ref: '#/components/schemas/StorageCredential'
+
   #############################
   # Reusable Response Objects #
   #############################
@@ -6188,6 +6937,28 @@ components:
           schema:
             $ref: '#/components/schemas/RemoteSignResult'
 
+    ListIndexesResponse:
+      description: A list of index identifiers
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              next-page-token:
+                $ref: '#/components/schemas/PageToken'
+              identifiers:
+                type: array
+                uniqueItems: true
+                items:
+                  $ref: '#/components/schemas/IndexIdentifier'
+
+    LoadIndexResponse:
+      description: The loaded index metadata
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/LoadIndexResult'
+
   #######################################
   # Common examples of different values #
   #######################################
@@ -6388,6 +7159,26 @@ components:
       value: {
         "removals": [ "foo", "bar" ],
         "updates": { "owner": "Raoul" }
+      }
+
+    NoSuchIndexError:
+      summary: The requested index does not exist
+      value: {
+        "error": {
+          "message": "Index does not exist: customer_id_index in accounting.sales",
+          "type": "NoSuchIndexException",
+          "code": 404
+        }
+      }
+
+    IndexAlreadyExistsError:
+      summary: An index with the same name already exists
+      value: {
+        "error": {
+          "message": "Index already exists: customer_id_index in accounting.sales",
+          "type": "AlreadyExistsException",
+          "code": 409
+        }
       }
 
   securitySchemes:
