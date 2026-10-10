@@ -37,6 +37,8 @@ import org.apache.spark.sql.catalyst.expressions.AttributeReference;
 import org.apache.spark.sql.catalyst.expressions.MetadataAttribute;
 import org.apache.spark.sql.catalyst.types.DataTypeUtils;
 import org.apache.spark.sql.catalyst.util.ResolveDefaultColumnsUtils$;
+import org.apache.spark.sql.connector.catalog.CatalogV2Util;
+import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.GeographyType;
@@ -99,6 +101,34 @@ public class TestSparkSchemaUtil {
             .isFalse();
       }
     }
+  }
+
+  @Test
+  public void testFieldIDsInSparkColumns() {
+    Schema schema =
+        new Schema(
+            optional(
+                10,
+                "location",
+                Types.StructType.of(
+                    optional(11, "latitude", Types.DoubleType.get()),
+                    optional(12, "longitude", Types.DoubleType.get()))));
+
+    StructType sparkSchema = SparkSchemaUtil.convert(schema);
+    StructField location = sparkSchema.apply("location");
+    StructType locationType = (StructType) location.dataType();
+
+    assertThat(location.id().get()).isEqualTo("10");
+    assertThat(locationType.apply("latitude").id().get()).isEqualTo("11");
+    assertThat(locationType.apply("longitude").id().get()).isEqualTo("12");
+
+    Column[] columns = CatalogV2Util.structTypeToV2Columns(sparkSchema, true);
+    assertThat(columns).hasSize(1);
+    assertThat(columns[0].id()).isEqualTo("10");
+
+    StructType columnType = (StructType) columns[0].dataType();
+    assertThat(columnType.apply("latitude").id().get()).isEqualTo("11");
+    assertThat(columnType.apply("longitude").id().get()).isEqualTo("12");
   }
 
   @Test

@@ -58,6 +58,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.util.SchemaUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -670,20 +671,25 @@ public class TestMetadataTablesWithPartitionEvolution extends CatalogTestBase {
       df = df.filter(filter);
     }
 
+    // the expected type is parsed from DDL and has no field IDs, so compare without them
     DataType expectedType = spark.sessionState().sqlParser().parseDataType(expectedTypeAsString);
     switch (tableType) {
       case PARTITIONS:
       case FILES:
       case ALL_DATA_FILES:
         DataType actualFilesType = df.schema().apply("partition").dataType();
-        assertThat(actualFilesType).as("Partition type must match").isEqualTo(expectedType);
+        assertThat(SchemaUtils.clearFieldIds(actualFilesType))
+            .as("Partition type must match")
+            .isEqualTo(expectedType);
         break;
 
       case ENTRIES:
       case ALL_ENTRIES:
         StructType dataFileType = (StructType) df.schema().apply("data_file").dataType();
         DataType actualEntriesType = dataFileType.apply("partition").dataType();
-        assertThat(actualEntriesType).as("Partition type must match").isEqualTo(expectedType);
+        assertThat(SchemaUtils.clearFieldIds(actualEntriesType))
+            .as("Partition type must match")
+            .isEqualTo(expectedType);
         break;
 
       default:
