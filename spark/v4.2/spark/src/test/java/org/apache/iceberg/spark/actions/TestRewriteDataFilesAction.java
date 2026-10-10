@@ -113,6 +113,7 @@ import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
@@ -2026,6 +2027,52 @@ public class TestRewriteDataFilesAction extends TestBase {
           SnapshotSummary.CHANGED_PARTITION_COUNT_PROP
         };
     assertThat(table.currentSnapshot().summary()).containsKeys(commitMetricsKeys);
+  }
+
+  @TestTemplate
+  void snapshotPropertyFromSessionConf() {
+    Table table = createTable(4);
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "key", "session-value"),
+        () -> {
+          Result ignored = basicRewrite(table).execute();
+          assertThat(table.currentSnapshot().summary()).containsEntry("key", "session-value");
+        });
+  }
+
+  @TestTemplate
+  void explicitSnapshotPropertyOverridesSessionConf() {
+    Table table = createTable(4);
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "key", "session-value"),
+        () -> {
+          Result ignored = basicRewrite(table).snapshotProperty("key", "explicit-value").execute();
+          assertThat(table.currentSnapshot().summary()).containsEntry("key", "explicit-value");
+        });
+  }
+
+  @TestTemplate
+  void snapshotPropertyAppliedToRemoveDanglingDeletesCommit() {
+    Table table =
+        TABLES.create(
+            SCHEMA,
+            SPEC,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
+    writeRecords(Lists.newArrayList(new ThreeColumnRecord(1, null, "AAAA")));
+    writeEqDeleteRecord(table, "c1", 2, "c3", "CCCC");
+    table.refresh();
+
+    Result ignored =
+        basicRewrite(table)
+            .option(RewriteDataFiles.REMOVE_DANGLING_DELETES, "true")
+            .snapshotProperty("key", "value")
+            .execute();
+
+    table.refresh();
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry(SnapshotSummary.REMOVED_EQ_DELETE_FILES_PROP, "1")
+        .containsEntry("key", "value");
   }
 
   @TestTemplate

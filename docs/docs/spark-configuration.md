@@ -206,6 +206,7 @@ val spark = SparkSession.builder()
 | spark.sql.iceberg.executor-cache.max-entry-size        | 67108864 (64MB)                                                | Max size per cache entry (bytes)                                                                                                |
 | spark.sql.iceberg.executor-cache.max-total-size        | 134217728 (128MB)                                              | Max total executor cache size (bytes)                                                                                           |
 | spark.sql.iceberg.executor-cache.locality.enabled      | false                                                          | Enables locality-aware executor cache usage                                                                                     |
+| spark.sql.iceberg.snapshot-property._custom-key_       | null                                                           | Adds an entry with custom-key and corresponding value to the summary of snapshots committed by writes and by the `rewrite_data_files`, `rewrite_position_delete_files`, and `rewrite_manifests` procedures. Write options and properties set on an action take precedence |
 | spark.sql.iceberg.merge-schema                         | false                                                          | Enables modifying the table schema to match the write schema. Only adds missing columns                                         |
 | spark.sql.iceberg.view.schema-binding-mode             | BINDING                                                        | Coercion applied to view columns: `BINDING` (widening only), `COMPENSATION` (any ANSI cast)                                     |
 | spark.sql.iceberg.report-column-stats                  | true                                                           | Report Puffin Table Statistics if available to Spark's Cost Based Optimizer. CBO must be enabled for this to be effective       |
@@ -285,4 +286,18 @@ CommitMetadata.withCommitProperties(properties,
             return 0;
         },
         RuntimeException.class);
+```
+
+Custom metadata can also be added to snapshot summaries for an entire Spark session by setting properties with the `spark.sql.iceberg.snapshot-property.` prefix. The prefix is removed from each property. These properties apply to writes and to the `rewrite_data_files`, `rewrite_position_delete_files`, and `rewrite_manifests` procedures. Session properties act as defaults. A property set explicitly, through a write option, `CommitMetadata`, or `snapshotProperty()` on a Spark action, overrides a session property with the same key. Here is an example:
+
+```sql
+SET spark.sql.iceberg.snapshot-property.created-by=maintenance-job;
+CALL catalog.system.rewrite_data_files(table => 'db.sample');
+```
+
+```java
+SparkActions.get(spark)
+    .rewriteDataFiles(table)
+    .snapshotProperty("created-by", "backfill-job")
+    .execute();
 ```

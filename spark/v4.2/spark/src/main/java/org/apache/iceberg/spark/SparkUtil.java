@@ -49,6 +49,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.SparkEnv;
 import org.apache.spark.scheduler.ExecutorCacheTaskLocation;
 import org.apache.spark.sql.SparkSession;
@@ -291,6 +292,19 @@ public class SparkUtil {
 
   public static boolean caseSensitive(SparkSession spark) {
     return Boolean.parseBoolean(spark.conf().get("spark.sql.caseSensitive"));
+  }
+
+  /**
+   * Returns the snapshot summary properties set in the session through {@link
+   * SparkSQLProperties#SNAPSHOT_PROPERTY_PREFIX}, with the prefix removed.
+   *
+   * @param spark a Spark session
+   * @return a map of snapshot summary property names to values
+   */
+  public static Map<String, String> sessionSnapshotProperties(SparkSession spark) {
+    return PropertyUtil.propertiesWithPrefix(
+        JavaConverters.mapAsJavaMap(spark.conf().getAll()),
+        SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX);
   }
 
   public static List<String> executorLocations() {
