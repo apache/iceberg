@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterators.concat;
 import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
@@ -36,6 +37,7 @@ import java.util.stream.Stream;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -164,6 +166,121 @@ public class TestMergeAppend extends TestBase {
         ids(snapshotId, snapshotId),
         files(FILE_A, FILE_B),
         statuses(Status.ADDED, Status.ADDED));
+  }
+
+  @TestTemplate
+  public void identityPartitionAcceptsFileBuiltBeforeSourcePromotion() {
+    createIdentityPromotionTable();
+    PartitionSpec specBeforePromotion = table.spec();
+    DataFile beforePromotion = promotionFile(specBeforePromotion, 5, "before.parquet");
+
+    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
+
+    assertThatCode(() -> table.newAppend().appendFile(beforePromotion).commit())
+        .doesNotThrowAnyException();
+    assertThat(table.currentSnapshot()).isNotNull();
+  }
+
+  @TestTemplate
+  public void manifestAcceptsFileBuiltAfterSourcePromotion() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
+    createIdentityPromotionTable();
+    PartitionSpec specBeforePromotion = table.spec();
+    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
+    DataFile afterPromotion = promotionFile(table.spec(), 5L, "after.parquet");
+
+    File manifestFile = temp.resolve("promotion-manifest.avro").toFile();
+    OutputFile outputFile = table.ops().io().newOutputFile(manifestFile.getCanonicalPath());
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(formatVersion, specBeforePromotion, outputFile, null);
+    try (writer) {
+      assertThatCode(() -> writer.add(afterPromotion)).doesNotThrowAnyException();
+    }
+    ManifestFile manifest = writer.toManifestFile();
+
+    assertThatCode(() -> table.newFastAppend().appendManifest(manifest).commit())
+        .doesNotThrowAnyException();
+    assertThat(table.currentSnapshot()).isNotNull();
+  }
+
+  @TestTemplate
+  public void mixedPromotionFilesCommitTogether() {
+    createIdentityPromotionTable();
+    PartitionSpec specBeforePromotion = table.spec();
+    DataFile beforePromotion = promotionFile(specBeforePromotion, 5, "before.parquet");
+
+    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
+    DataFile afterPromotion = promotionFile(table.spec(), 5L, "after.parquet");
+
+    assertThatCode(
+            () -> table.newAppend().appendFile(beforePromotion).appendFile(afterPromotion).commit())
+        .doesNotThrowAnyException();
+    assertThat(table.currentSnapshot()).isNotNull();
+  }
+
+  @TestTemplate
+  public void currentPromotionFileCommits() {
+    createIdentityPromotionTable();
+    table.updateSchema().updateColumn("region", Types.LongType.get()).commit();
+    DataFile afterPromotion = promotionFile(table.spec(), 5L, "current.parquet");
+
+    assertThatCode(() -> table.newAppend().appendFile(afterPromotion).commit())
+        .doesNotThrowAnyException();
+    assertThat(table.currentSnapshot()).isNotNull();
+  }
+
+  @TestTemplate
+  public void invalidPartitionTypeRemainsRejected() {
+    createIdentityPromotionTable();
+    PartitionData partition = new PartitionData(table.spec().partitionType());
+    partition.set(0, "not-a-number");
+
+    assertThatThrownBy(() -> partition.get(0, Long.class))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Wrong class");
+  }
+
+  @TestTemplate
+  public void promotedFloatValueIsAccepted() {
+    PartitionData partition =
+        new PartitionData(
+            Types.StructType.of(Types.NestedField.optional(1, "value", Types.FloatType.get())));
+    partition.set(0, 1.5F);
+
+    assertThat(partition.get(0, Double.class)).isEqualTo(1.5D);
+  }
+
+  @TestTemplate
+  public void outOfRangeNarrowingRemainsRejected() {
+    PartitionData partition =
+        new PartitionData(
+            Types.StructType.of(Types.NestedField.optional(1, "value", Types.LongType.get())));
+    partition.set(0, (long) Integer.MAX_VALUE + 1);
+
+    assertThatThrownBy(() -> partition.get(0, Integer.class))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Wrong class");
+  }
+
+  private void createIdentityPromotionTable() {
+    TestTables.clearTables();
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "region", Types.IntegerType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("region").build();
+    this.table = create(schema, spec);
+  }
+
+  private DataFile promotionFile(PartitionSpec spec, Object partitionValue, String fileName) {
+    PartitionData partition = new PartitionData(spec.partitionType());
+    partition.set(0, partitionValue);
+    return DataFiles.builder(spec)
+        .withPath("/" + fileName)
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .withPartition(partition)
+        .build();
   }
 
   @TestTemplate

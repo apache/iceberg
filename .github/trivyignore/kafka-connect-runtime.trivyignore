@@ -44,3 +44,6 @@ CVE-2026-91777
 # >= 2.18.11 / 2.21.7 / 2.22.3. Apache Parquet 1.18.1 still bundles 2.22.2.
 CVE-2026-89407
 CVE-2026-89425
+# jackson-core CVE shaded into parquet-jackson 1.17.1, only fixed in jackson
+# >= 2.18.8 / 2.21.4 / 2.22.1. Resolved once Apache Parquet is bumped to 1.18.1.
+CVE-2026-68494

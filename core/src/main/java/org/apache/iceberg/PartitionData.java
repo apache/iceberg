@@ -126,6 +126,21 @@ public class PartitionData
       return javaClass.cast(value);
     }
 
+    if (javaClass == Long.class && value instanceof Integer) {
+      return javaClass.cast(((Integer) value).longValue());
+    }
+
+    if (javaClass == Integer.class && value instanceof Long) {
+      long longValue = (Long) value;
+      if (longValue >= Integer.MIN_VALUE && longValue <= Integer.MAX_VALUE) {
+        return javaClass.cast((int) longValue);
+      }
+    }
+
+    if (javaClass == Double.class && value instanceof Float) {
+      return javaClass.cast(((Float) value).doubleValue());
+    }
+
     throw new IllegalArgumentException(
         String.format(
             "Wrong class, expected %s, but was %s, for object: %s",
