@@ -35,8 +35,14 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortField;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.UnboundPartitionSpec;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -44,6 +50,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -204,18 +211,107 @@ public class SparkCatalog extends BaseCatalog {
   public Table createTable(Identifier ident, TableInfo tableInfo)
       throws TableAlreadyExistsException, NoSuchNamespaceException {
     Schema icebergSchema = SparkSchemaUtil.convertWithDefaults(tableInfo);
+    return createTable(
+        ident,
+        icebergSchema,
+        Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions()),
+        tableInfo.properties(),
+        SortOrder.unsorted());
+  }
+
+  @Override
+  public Table createTableLike(Identifier ident, TableInfo tableInfo, Table sourceTable)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    // Spark intentionally excludes the source table's properties from tableInfo and leaves it to
+    // the connector to decide which to clone via sourceTable. Clone the source Iceberg table's
+    // schema, partition spec, properties and sort order, then let user-specified LIKE options (in
+    // tableInfo) take precedence.
+    Schema icebergSchema;
+    PartitionSpec spec;
+    Map<String, String> properties = Maps.newHashMap();
+    SortOrder sortOrder = SortOrder.unsorted();
+
+    if (sourceTable instanceof SparkTable sparkTable) {
+      org.apache.iceberg.Table sourceIcebergTable = sparkTable.table();
+      icebergSchema = sparkTable.icebergSchema();
+      spec = copyPartitionSpec(icebergSchema, sourceIcebergTable.spec());
+      properties.putAll(sourceIcebergTable.properties());
+      properties.remove(TableProperties.WRITE_METADATA_LOCATION);
+      properties.remove(TableProperties.WRITE_DATA_LOCATION);
+      properties.remove(TableProperties.OBJECT_STORE_PATH);
+      properties.remove(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+      properties.remove(TableProperties.DEFAULT_NAME_MAPPING);
+      properties.put(
+          TableProperties.FORMAT_VERSION,
+          String.valueOf(TableUtil.formatVersion(sourceIcebergTable)));
+      sortOrder = copySortOrder(icebergSchema, sourceIcebergTable.sortOrder());
+    } else {
+      icebergSchema = SparkSchemaUtil.convertWithDefaults(tableInfo);
+      spec = Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions());
+    }
+
+    String provider = tableInfo.properties().get(TableCatalog.PROP_PROVIDER);
+    if (provider != null && !"iceberg".equalsIgnoreCase(provider)) {
+      properties.remove(TableProperties.DEFAULT_FILE_FORMAT);
+    }
+
+    properties.putAll(tableInfo.properties());
+
+    return createTable(ident, icebergSchema, spec, properties, sortOrder);
+  }
+
+  private Table createTable(
+      Identifier ident,
+      Schema icebergSchema,
+      PartitionSpec spec,
+      Map<String, String> properties,
+      SortOrder sortOrder)
+      throws TableAlreadyExistsException {
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       org.apache.iceberg.Table icebergTable =
           builder
-              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions()))
-              .withLocation(tableInfo.properties().get("location"))
-              .withProperties(Spark3Util.rebuildCreateProperties(tableInfo.properties()))
+              .withPartitionSpec(spec)
+              .withSortOrder(sortOrder)
+              .withLocation(properties.get("location"))
+              .withProperties(Spark3Util.rebuildCreateProperties(properties))
               .create();
       return new SparkTable(icebergTable);
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
     }
+  }
+
+  private static PartitionSpec copyPartitionSpec(Schema schema, PartitionSpec sourceSpec) {
+    UnboundPartitionSpec spec = sourceSpec.toUnbound();
+    for (int index = sourceSpec.fields().size() - 1; index >= 0; index -= 1) {
+      if (schema.findField(sourceSpec.fields().get(index).sourceId()) == null) {
+        spec.fields().remove(index);
+      }
+    }
+
+    return spec.bind(schema);
+  }
+
+  private static SortOrder copySortOrder(Schema schema, SortOrder sourceSortOrder) {
+    if (sourceSortOrder.isUnsorted()) {
+      return SortOrder.unsorted();
+    }
+
+    SortOrder.Builder builder = SortOrder.builderFor(schema);
+    for (SortField field : sourceSortOrder.fields()) {
+      String sourceName = schema.findColumnName(field.sourceId());
+      if (sourceName == null) {
+        continue;
+      }
+
+      builder.sortBy(
+          Expressions.transform(sourceName, field.transform()),
+          field.direction(),
+          field.nullOrder());
+    }
+
+    return builder.build();
   }
 
   @Override
