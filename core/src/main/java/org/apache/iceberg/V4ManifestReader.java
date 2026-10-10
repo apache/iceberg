@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.expressions.Binder;
@@ -134,7 +135,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
           CloseableIterable.filter(
               this::incrementSkipCount,
               files,
-              file -> statsFilter.eval(file.contentStats(), file.recordCount()));
+              file -> statsFilter.eval(statsForFiltering(file), file.recordCount()));
     } else {
       files =
           CloseableIterable.filter(
@@ -179,6 +180,20 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   private boolean isDeletedByMDV(TrackedFile file) {
     return dv.isSet(Math.toIntExact(file.tracking().manifestPos()));
+  }
+
+  private static ContentStats statsForFiltering(TrackedFile file) {
+    ContentStats stats = file.contentStats();
+    if (stats == null || file.contentType() != FileContent.EQUALITY_DELETES) {
+      return stats;
+    }
+
+    List<Integer> equalityIds = file.equalityIds();
+    if (equalityIds == null || equalityIds.isEmpty()) {
+      return stats;
+    }
+
+    return stats.copy(Sets.newHashSet(equalityIds));
   }
 
   private boolean matchesPartition(TrackedFile trackedFile) {

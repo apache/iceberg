@@ -39,6 +39,7 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.jupiter.api.Test;
@@ -468,6 +469,59 @@ public class TestDeleteFiles extends TestBase {
             .collect(Collectors.toList());
 
     assertThat(afterDeletePartitions).containsExactly(partitionOne);
+  }
+
+  @TestTemplate
+  public void deleteFromRowFilterKeepsEqualityDeleteWithMisleadingNonKeyColumnStats() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(3, "id", Types.IntegerType.get()),
+            Types.NestedField.required(4, "data", Types.StringType.get()));
+    int eqDeleteFormatVersion = Math.min(Math.max(formatVersion, 2), 3);
+    Table eqDeleteTable =
+        TestTables.create(
+            tableDir,
+            "eq-delete-row-filter",
+            schema,
+            PartitionSpec.unpartitioned(),
+            eqDeleteFormatVersion);
+
+    int idFieldId = eqDeleteTable.schema().findField("id").fieldId();
+    int dataFieldId = eqDeleteTable.schema().findField("data").fieldId();
+
+    DeleteFile eqDeletes =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .ofEqualityDeletes(idFieldId)
+            .withPath("/path/to/eq-delete.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withMetrics(
+                new Metrics(
+                    1L,
+                    null, // no column sizes
+                    ImmutableMap.of(idFieldId, 1L, dataFieldId, 1L), // value counts
+                    ImmutableMap.of(idFieldId, 0L, dataFieldId, 0L), // null counts
+                    null, // no nan value counts
+                    ImmutableMap.of(
+                        dataFieldId, Conversions.toByteBuffer(Types.StringType.get(), "zzz")),
+                    ImmutableMap.of(
+                        dataFieldId, Conversions.toByteBuffer(Types.StringType.get(), "zzz"))))
+            .build();
+    eqDeleteTable.newRowDelta().addDeletes(eqDeletes).commit();
+    Snapshot addSnapshot = eqDeleteTable.currentSnapshot();
+
+    eqDeleteTable.newDelete().deleteFromRowFilter(Expressions.equal("data", "zzz")).commit();
+
+    // the delete manifest is untouched: the filter can only reach the non-key "data" stats,
+    Snapshot afterFilter = eqDeleteTable.currentSnapshot();
+    assertThat(afterFilter.deleteManifests(eqDeleteTable.io())).hasSize(1);
+    validateDeleteManifest(
+        afterFilter.deleteManifests(eqDeleteTable.io()).get(0),
+        null,
+        null,
+        ids(addSnapshot.snapshotId()),
+        files(eqDeletes),
+        statuses(Status.ADDED));
   }
 
   @TestTemplate
