@@ -918,6 +918,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       Map<String, String> currentSummary,
       String addedProperty,
       String deletedProperty) {
+    if (currentSummary.containsKey(totalProperty)) {
+      // An explicitly recomputed total takes precedence over totals inherited from the parent.
+      return;
+    }
+
     String totalStr = previousSummary.get(totalProperty);
     if (totalStr != null) {
       try {
