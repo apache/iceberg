@@ -61,7 +61,11 @@ class Worker extends Channel {
   }
 
   void process() {
+    // Connect calls put(), and so process(), about once per offset.flush.interval.ms on an idle
+    // task, which is longer than the default session timeout, so a group join must complete here.
+    // Poll first: a pending rejoin clears the stale assignment of an evicted member only in poll().
     consumeAvailable(Duration.ZERO);
+    awaitAssignment(Duration.ofMillis(config.commitTimeoutMs()));
   }
 
   @Override

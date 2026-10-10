@@ -42,6 +42,7 @@ public class TestContext {
 
   public static final ObjectMapper MAPPER = new ObjectMapper();
   public static final int CONNECT_PORT = 8083;
+  public static final int DEFAULT_FLUSH_CONNECT_PORT = 8084;
 
   private static final int S3_PORT = 9000;
   private static final int CATALOG_PORT = 8181;
@@ -62,17 +63,26 @@ public class TestContext {
         new ComposeContainer(new File("./docker/docker-compose.yml"))
             .withStartupTimeout(Duration.ofMinutes(2))
             .waitingFor("connect", Wait.forHttp("/connectors"))
+            .waitingFor("connect-default-flush", Wait.forHttp("/connectors"))
             .waitingFor("iceberg", Wait.forHealthcheck());
     container.start();
   }
 
   public void startConnector(KafkaConnectUtils.Config config) {
-    KafkaConnectUtils.startConnector(config);
-    KafkaConnectUtils.ensureConnectorRunning(config.getName());
+    startConnector(CONNECT_PORT, config);
+  }
+
+  public void startConnector(int port, KafkaConnectUtils.Config config) {
+    KafkaConnectUtils.startConnector(port, config);
+    KafkaConnectUtils.ensureConnectorRunning(port, config.getName());
   }
 
   public void stopConnector(String name) {
-    KafkaConnectUtils.stopConnector(name);
+    stopConnector(CONNECT_PORT, name);
+  }
+
+  public void stopConnector(int port, String name) {
+    KafkaConnectUtils.stopConnector(port, name);
   }
 
   public Catalog initLocalCatalog() {

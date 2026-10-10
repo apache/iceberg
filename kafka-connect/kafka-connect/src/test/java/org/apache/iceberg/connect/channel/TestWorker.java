@@ -24,6 +24,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -51,6 +52,85 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 
 public class TestWorker extends ChannelTestBase {
+
+  @Test
+  public void testProcessWaitsForControlTopicAssignment() {
+    when(config.commitTimeoutMs()).thenReturn(30_000);
+    SinkWriter sinkWriter = mock(SinkWriter.class);
+    when(sinkWriter.completeWrite())
+        .thenReturn(new SinkWriterResult(ImmutableList.of(), ImmutableMap.of()));
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(SRC_TOPIC_NAME, 0)));
+
+    // the group join completes on the third poll, after the start() poll and the first process()
+    // poll, and a commit request is waiting when it does
+    UUID commitId = UUID.randomUUID();
+    byte[] bytes = AvroUtil.encode(new Event(config.connectGroupId(), new StartCommit(commitId)));
+    consumer.schedulePollTask(() -> {});
+    consumer.schedulePollTask(() -> {});
+    consumer.schedulePollTask(
+        () -> {
+          initConsumer();
+          consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 0, "key", bytes));
+        });
+
+    Worker worker = new Worker(config, clientFactory, sinkWriter, context);
+    worker.start();
+    worker.process();
+
+    assertThat(consumer.assignment()).containsExactly(new TopicPartition(CTL_TOPIC_NAME, 0));
+    assertThat(producer.history()).hasSize(1);
+    Event event = AvroUtil.decode(producer.history().get(0).value());
+    assertThat(event.type()).isEqualTo(PayloadType.DATA_COMPLETE);
+    assertThat(((DataComplete) event.payload()).commitId()).isEqualTo(commitId);
+  }
+
+  @Test
+  public void testProcessRejoinsAfterEviction() {
+    when(config.commitTimeoutMs()).thenReturn(30_000);
+    SinkWriter sinkWriter = mock(SinkWriter.class);
+    when(sinkWriter.completeWrite())
+        .thenReturn(new SinkWriterResult(ImmutableList.of(), ImmutableMap.of()));
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(SRC_TOPIC_NAME, 0)));
+
+    // the member joins in start(), then is evicted: its assignment is still set until the next poll
+    // clears it, and the rejoin completes on the poll after that with a commit request waiting
+    UUID commitId = UUID.randomUUID();
+    byte[] bytes = AvroUtil.encode(new Event(config.connectGroupId(), new StartCommit(commitId)));
+    consumer.schedulePollTask(this::initConsumer);
+    consumer.schedulePollTask(() -> consumer.rebalance(ImmutableList.of()));
+    consumer.schedulePollTask(
+        () -> {
+          initConsumer();
+          consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 0, "key", bytes));
+        });
+
+    Worker worker = new Worker(config, clientFactory, sinkWriter, context);
+    worker.start();
+    worker.process();
+
+    assertThat(producer.history()).hasSize(1);
+    Event event = AvroUtil.decode(producer.history().get(0).value());
+    assertThat(event.type()).isEqualTo(PayloadType.DATA_COMPLETE);
+    assertThat(((DataComplete) event.payload()).commitId()).isEqualTo(commitId);
+  }
+
+  @Test
+  public void testProcessGivesUpWaitingForAssignmentAfterTimeout() {
+    when(config.commitTimeoutMs()).thenReturn(200);
+
+    Worker worker =
+        new Worker(config, clientFactory, mock(SinkWriter.class), mock(SinkTaskContext.class));
+    worker.start();
+
+    long start = System.nanoTime();
+    worker.process();
+    Duration elapsed = Duration.ofNanos(System.nanoTime() - start);
+
+    assertThat(consumer.assignment()).isEmpty();
+    assertThat(elapsed).isBetween(Duration.ofMillis(200), Duration.ofSeconds(10));
+  }
 
   @Test
   public void testSave() {

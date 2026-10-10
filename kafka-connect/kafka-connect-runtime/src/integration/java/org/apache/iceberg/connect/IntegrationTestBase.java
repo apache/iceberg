@@ -86,6 +86,10 @@ public abstract class IntegrationTestBase {
     return testTopic;
   }
 
+  protected int connectPort() {
+    return TestContext.CONNECT_PORT;
+  }
+
   @BeforeAll
   public static void baseBeforeAll() {
     context = TestContext.instance();
@@ -104,7 +108,7 @@ public abstract class IntegrationTestBase {
 
   @AfterEach
   public void baseAfter() {
-    context().stopConnector(connectorName());
+    context().stopConnector(connectPort(), connectorName());
     deleteTopic(testTopic());
     dropTables();
     ((SupportsNamespaces) catalog()).dropNamespace(Namespace.of(TEST_DB));
@@ -219,7 +223,7 @@ public abstract class IntegrationTestBase {
 
     extraConfig.forEach(connectorConfig::config);
 
-    context().startConnector(connectorConfig);
+    context().startConnector(connectPort(), connectorConfig);
 
     sendEvents(useSchema);
     flush();
