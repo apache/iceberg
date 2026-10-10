@@ -60,4 +60,35 @@ class DeltaLakeToIcebergMigrationSparkIntegration {
         .deltaLakeConfiguration(spark.sessionState().newHadoopConf())
         .icebergCatalog(Spark3Util.loadIcebergCatalog(spark, catalogAndIdent.catalog().name()));
   }
+
+  /**
+   * Example of how to use a {@link SparkSession}, a table identifier and a delta table location to
+   * construct an action for snapshotting the delta table to an iceberg table.
+   *
+   * @param spark a SparkSession with iceberg catalog configured.
+   * @param newTableIdentifier can be both 2 parts and 3 parts identifier, if it is 2 parts, the
+   *     default spark catalog will be used
+   * @param deltaTableLocation the location of the delta table
+   * @return an instance of snapshot delta lake table action.
+   */
+  static SnapshotDeltaLakeTable snapshotDeltaLakeKernelTable(
+      SparkSession spark, String newTableIdentifier, String deltaTableLocation) {
+    Preconditions.checkArgument(
+        spark != null, "The SparkSession cannot be null, please provide a valid SparkSession");
+    Preconditions.checkArgument(
+        newTableIdentifier != null,
+        "The table identifier cannot be null, please provide a valid table identifier for the new Iceberg table");
+    Preconditions.checkArgument(
+        deltaTableLocation != null,
+        "The  Delta Lake table location cannot be null, please provide a valid location of the Delta Lake table to be snapshot");
+
+    String ctx = " Delta Lake snapshot target";
+    CatalogPlugin defaultCatalog = spark.sessionState().catalogManager().currentCatalog();
+    Spark3Util.CatalogAndIdentifier catalogAndIdent =
+        Spark3Util.catalogAndIdentifier(ctx, spark, newTableIdentifier, defaultCatalog);
+    return new BaseSnapshotDeltaLakeKernelTableAction(deltaTableLocation)
+        .as(TableIdentifier.parse(catalogAndIdent.identifier().toString()))
+        .deltaLakeConfiguration(spark.sessionState().newHadoopConf())
+        .icebergCatalog(Spark3Util.loadIcebergCatalog(spark, catalogAndIdent.catalog().name()));
+  }
 }

@@ -145,9 +145,8 @@ class DeltaLakeTypeToType extends DeltaLakeDataTypeVisitor<Type> {
     } else if (atomic instanceof TimestampType) {
       return Types.TimestampType.withZone();
 
-    } else if (atomic instanceof DecimalType) {
-      return Types.DecimalType.of(
-          ((DecimalType) atomic).getPrecision(), ((DecimalType) atomic).getScale());
+    } else if (atomic instanceof DecimalType decimalType) {
+      return Types.DecimalType.of(decimalType.getPrecision(), decimalType.getScale());
     } else if (atomic instanceof BinaryType) {
       return Types.BinaryType.get();
     }
