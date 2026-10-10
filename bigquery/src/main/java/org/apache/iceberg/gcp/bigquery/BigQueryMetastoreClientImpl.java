@@ -25,6 +25,7 @@ import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpResponseException;
 import com.google.api.client.http.HttpStatusCodes;
+import com.google.api.client.http.HttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.client.util.Data;
 import com.google.api.services.bigquery.Bigquery;
@@ -47,6 +48,7 @@ import com.google.cloud.bigquery.BigQueryErrorMessages;
 import com.google.cloud.bigquery.BigQueryOptions;
 import com.google.cloud.bigquery.BigQueryRetryConfig;
 import com.google.cloud.bigquery.BigQueryRetryHelper;
+import com.google.cloud.http.HttpTransportOptions;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.Collections;
@@ -70,6 +72,7 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -121,21 +124,32 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
           .addInterceptors(EXCEPTION_HANDLER_INTERCEPTOR)
           .build();
 
-  /** Constructs a client of the Google BigQuery service. */
+  /** Constructs a BigQuery metastore client using the configured HTTP connect and read timeouts. */
   public BigQueryMetastoreClientImpl(BigQueryOptions options)
       throws IOException, GeneralSecurityException {
-    // Initialize client that will be used to send requests. This client only needs to be created
-    // once, and can be reused for multiple requests
+    this(options, GoogleNetHttpTransport.newTrustedTransport());
+  }
 
+  @VisibleForTesting
+  BigQueryMetastoreClientImpl(BigQueryOptions options, HttpTransport transport) {
     GoogleCredentials credentials = (GoogleCredentials) options.getCredentials();
     HttpCredentialsAdapter httpCredentialsAdapter = new HttpCredentialsAdapter(credentials);
+    HttpTransportOptions transportOptions = (HttpTransportOptions) options.getTransportOptions();
 
     this.client =
         new Bigquery.Builder(
-                GoogleNetHttpTransport.newTrustedTransport(),
+                transport,
                 GsonFactory.getDefaultInstance(),
                 httpRequest -> {
                   httpCredentialsAdapter.initialize(httpRequest);
+                  if (transportOptions.getConnectTimeout() >= 0) {
+                    httpRequest.setConnectTimeout(transportOptions.getConnectTimeout());
+                  }
+
+                  if (transportOptions.getReadTimeout() >= 0) {
+                    httpRequest.setReadTimeout(transportOptions.getReadTimeout());
+                  }
+
                   // Instead of throwing exceptions, analyze the HttpResponse object and inspect its
                   // status code. This will allow BigQuery API errors to be converted into Iceberg
                   // exceptions.
