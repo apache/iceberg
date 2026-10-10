@@ -251,8 +251,9 @@ public class TestExpressionUtil {
 
   @Test
   public void testSanitizeBoundDateIn() {
-    String lastWeek = LocalDate.now(ZoneOffset.UTC).minusWeeks(1).toString();
-    String twoWeeksAgo = LocalDate.now(ZoneOffset.UTC).minusWeeks(2).toString();
+    LocalDate currentDate = LocalDate.now(ZoneOffset.UTC);
+    String lastWeek = currentDate.minusWeeks(1).toString();
+    String twoWeeksAgo = currentDate.minusWeeks(2).toString();
     Expression in = Binder.bind(STRUCT, Expressions.in("date", lastWeek, twoWeeksAgo), true);
 
     assertThat(ExpressionUtil.toSanitizedString(in))
