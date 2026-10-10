@@ -966,6 +966,8 @@ A snapshot consists of the following fields:
     |            |            | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
     |            |            | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata |
 
+When committed while the table is at version 4 or higher, a snapshot's `timestamp-ms` must be strictly greater than its parent snapshot's `timestamp-ms` on the same branch. Snapshots with no parent, and snapshots that were committed before a table was upgraded to v4 or higher, do not have this requirement.
+
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
 * `append` -- Only data files were added and no files were removed.
@@ -1917,6 +1919,11 @@ Reading v4 metadata:
 * Readers must check whether location fields contain a URI scheme to determine if a path is absolute or relative
 * Relative paths must be resolved against the table location before use (see [Path Resolution](#path-resolution))
 * When `location` is omitted, the table location must be provided (see [Table Location Specification](#table-location-specification))
+
+Snapshot timestamp changes:
+
+* When committed while the table is at version 4 or higher, a snapshot's `timestamp-ms` must be strictly greater than its parent snapshot's `timestamp-ms` on the same branch.
+* Snapshots with no parent and snapshots that existed before a table was upgraded to v4 are not constrained.
 
 Equality deletes are prohibited in v4.
 
