@@ -21,7 +21,6 @@ package org.apache.iceberg.gcp.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -38,7 +37,9 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -235,32 +236,35 @@ public class TestGoogleAuthManager {
     CountDownLatch finishLatch = new CountDownLatch(numThreads);
 
     GoogleAuthManager spyManager = spy(authManager);
-    doReturn(credentials)
-        .when(spyManager)
-        .loadCredentials(anyBoolean(), any(), anyBoolean(), any(), any());
+    doReturn(credentials).when(spyManager).loadCredentials(any(), any(), any());
 
     AtomicInteger successfulInitializations = new AtomicInteger(0);
-    for (int i = 0; i < numThreads; i++) {
-      executorService.submit(
-          () -> {
-            try {
-              startLatch.await();
-              spyManager.catalogSession(restClient, Collections.emptyMap());
-              successfulInitializations.incrementAndGet();
-            } catch (Exception e) {
-              // ignore
-            } finally {
-              finishLatch.countDown();
-            }
-          });
+    List<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
+    try {
+      for (int i = 0; i < numThreads; i++) {
+        executorService.submit(
+            () -> {
+              try {
+                startLatch.await();
+                spyManager.catalogSession(restClient, Collections.emptyMap());
+                successfulInitializations.incrementAndGet();
+              } catch (Exception e) {
+                exceptions.add(e);
+              } finally {
+                finishLatch.countDown();
+              }
+            });
+      }
+
+      startLatch.countDown();
+      finishLatch.await(10, TimeUnit.SECONDS);
+    } finally {
+      executorService.shutdown();
     }
 
-    startLatch.countDown();
-    finishLatch.await(10, TimeUnit.SECONDS);
-    executorService.shutdown();
-
+    assertThat(exceptions).isEmpty();
     assertThat(successfulInitializations.get()).isEqualTo(numThreads);
-    verify(spyManager, times(1)).loadCredentials(anyBoolean(), any(), anyBoolean(), any(), any());
+    verify(spyManager, times(1)).loadCredentials(any(), any(), any());
   }
 
   @Test

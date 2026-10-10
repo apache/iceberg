@@ -66,8 +66,7 @@ public class GoogleAuthManager implements AuthManager {
   public static final String GCP_SCOPES_PROPERTY = "gcp.auth.scopes";
   private final String name;
 
-  private GoogleCredentials credentials;
-  private volatile boolean initialized = false;
+  private volatile GoogleCredentials credentials;
 
   public GoogleAuthManager(String managerName) {
     this.name = managerName;
@@ -78,52 +77,40 @@ public class GoogleAuthManager implements AuthManager {
   }
 
   private void initialize(Map<String, String> properties) {
-    if (initialized) {
+    if (credentials != null) {
       return;
     }
 
     synchronized (this) {
-      if (initialized) {
+      if (credentials != null) {
         return;
       }
 
       String credentialsPath = properties.get(GCP_CREDENTIALS_PATH_PROPERTY);
       String credentialsJson = properties.get(GCP_CREDENTIALS_JSON_PROPERTY);
-      boolean useCredentialsPath = credentialsPath != null && !credentialsPath.isEmpty();
-      boolean useCredentialsJson = credentialsJson != null && !credentialsJson.isEmpty();
-      if (useCredentialsPath && useCredentialsJson) {
-        throw new IllegalArgumentException(
-            String.format(
-                "Cannot specify both %s and %s",
-                GCP_CREDENTIALS_PATH_PROPERTY, GCP_CREDENTIALS_JSON_PROPERTY));
-      }
-
       String scopesString = properties.getOrDefault(GCP_SCOPES_PROPERTY, DEFAULT_SCOPES);
 
       try {
-        this.credentials =
-            loadCredentials(
-                useCredentialsPath,
-                credentialsPath,
-                useCredentialsJson,
-                credentialsJson,
-                scopesString);
+        this.credentials = loadCredentials(credentialsPath, credentialsJson, scopesString);
       } catch (IOException e) {
+        // credentials remains null here and treated as not-initialized. Retries are expected
         throw new UncheckedIOException("Failed to load Google credentials", e);
       }
-
-      this.initialized = true;
     }
   }
 
   @VisibleForTesting
   GoogleCredentials loadCredentials(
-      boolean useCredentialsPath,
-      String credentialsPath,
-      boolean useCredentialsJson,
-      String credentialsJson,
-      String scopesString)
-      throws IOException {
+      String credentialsPath, String credentialsJson, String scopesString) throws IOException {
+    boolean useCredentialsPath = credentialsPath != null && !credentialsPath.isEmpty();
+    boolean useCredentialsJson = credentialsJson != null && !credentialsJson.isEmpty();
+    if (useCredentialsPath && useCredentialsJson) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot specify both %s and %s",
+              GCP_CREDENTIALS_PATH_PROPERTY, GCP_CREDENTIALS_JSON_PROPERTY));
+    }
+
     List<String> scopes =
         Strings.isNullOrEmpty(scopesString)
             ? ImmutableList.of()
