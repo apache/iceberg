@@ -593,6 +593,6 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   private static TableMetadata newTableMetadata() {
     Schema schema = new Schema(required(1, "id", Types.LongType.get()));
     return TableMetadata.newTableMetadata(
-        schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), null, Map.of());
+        schema, PartitionSpec.unpartitioned(), SortOrder.unsorted(), "file:///tmp/table", Map.of());
   }
 }

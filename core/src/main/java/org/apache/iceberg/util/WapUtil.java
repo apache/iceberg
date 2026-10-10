@@ -50,10 +50,8 @@ public class WapUtil {
   public static String validateWapPublish(TableMetadata current, long wapSnapshotId) {
     Snapshot cherryPickSnapshot = current.snapshot(wapSnapshotId);
     String wapId = stagedWapId(cherryPickSnapshot);
-    if (wapId != null && !wapId.isEmpty()) {
-      if (WapUtil.isWapIdPublished(current, wapId)) {
-        throw new DuplicateWAPCommitException(wapId);
-      }
+    if (wapId != null && !wapId.isEmpty() && WapUtil.isWapIdPublished(current, wapId)) {
+      throw new DuplicateWAPCommitException(wapId);
     }
 
     return wapId;

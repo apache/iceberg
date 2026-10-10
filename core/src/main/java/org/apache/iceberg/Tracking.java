@@ -28,13 +28,13 @@ interface Tracking {
           0,
           "status",
           Types.IntegerType.get(),
-          "Entry status: 0=existing, 1=added, 2=deleted, 3=replaced");
+          "Entry status: 0=existing, 1=added, 2=deleted, 3=replaced, 4=modified");
   Types.NestedField SNAPSHOT_ID =
       Types.NestedField.optional(
           1,
           "snapshot_id",
           Types.LongType.get(),
-          "Snapshot ID where the file was added or deleted");
+          "Snapshot ID where the file was added, deleted, or replaced");
   Types.NestedField SEQUENCE_NUMBER =
       Types.NestedField.optional(
           3, "sequence_number", Types.LongType.get(), "Data sequence number of the file");
@@ -44,12 +44,12 @@ interface Tracking {
           "file_sequence_number",
           Types.LongType.get(),
           "File sequence number indicating when the file was added");
-  Types.NestedField DV_SNAPSHOT_ID =
+  Types.NestedField MODIFIED_SNAPSHOT_ID =
       Types.NestedField.optional(
           5,
-          "dv_snapshot_id",
+          "modified_snapshot_id",
           Types.LongType.get(),
-          "Snapshot ID where the DV was added; null if there is no DV");
+          "Snapshot ID where the file was last modified");
   Types.NestedField FIRST_ROW_ID =
       Types.NestedField.optional(
           142, "first_row_id", Types.LongType.get(), "ID of the first row in the data file");
@@ -72,7 +72,7 @@ interface Tracking {
         SNAPSHOT_ID,
         SEQUENCE_NUMBER,
         FILE_SEQUENCE_NUMBER,
-        DV_SNAPSHOT_ID,
+        MODIFIED_SNAPSHOT_ID,
         FIRST_ROW_ID,
         DELETED_POSITIONS,
         REPLACED_POSITIONS);
@@ -83,10 +83,10 @@ interface Tracking {
 
   /** Returns whether this entry is live. */
   default boolean isLive() {
-    return status() == EntryStatus.ADDED || status() == EntryStatus.EXISTING;
+    return status().isLive();
   }
 
-  /** Returns the snapshot ID where the file was added or deleted. */
+  /** Returns the snapshot ID where the file was added, deleted, or replaced. */
   Long snapshotId();
 
   /** Returns the data sequence number of the file. */
@@ -95,8 +95,8 @@ interface Tracking {
   /** Returns the file sequence number indicating when the file was added. */
   Long fileSequenceNumber();
 
-  /** Returns the snapshot ID where the DV was added; null if there is no DV. */
-  Long dvSnapshotId();
+  /** Returns the snapshot ID where the file was last modified. */
+  Long modifiedSnapshotId();
 
   /** Returns the ID of the first row in the data file. */
   Long firstRowId();
@@ -106,4 +106,13 @@ interface Tracking {
 
   /** Returns the bitmap of positions replaced in this snapshot. */
   ByteBuffer replacedPositions();
+
+  /** Returns the manifest location this entry was read from, or null. */
+  String manifestLocation();
+
+  /** Returns the ordinal position of this entry within the manifest. */
+  long manifestPos();
+
+  /** Copies this tracking information. */
+  Tracking copy();
 }

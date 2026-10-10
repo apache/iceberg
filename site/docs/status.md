@@ -49,11 +49,14 @@ This section lists the libraries that implement the Apache Iceberg specification
 | timestamptz    | Y    | Y         | Y    | Y  | Y   |
 | timestamp_ns   | Y    | Y         | Y    | Y  | N   |
 | timestamptz_ns | Y    | Y         | Y    | Y  | N   |
+| unknown        | Y    | Y         | N    | Y  | N   |
 | string         | Y    | Y         | Y    | Y  | Y   |
 | uuid           | Y    | Y         | Y    | Y  | N   |
 | fixed          | Y    | Y         | Y    | Y  | Y   |
 | binary         | Y    | Y         | Y    | Y  | Y   |
 | variant        | Y    | Y         | Y    | Y  | N   |
+| geometry       | Y    | N         | N    | N  | N   |
+| geography      | Y    | N         | N    | N  | N   |
 | list           | Y    | Y         | Y    | Y  | Y   |
 | map            | Y    | Y         | Y    | Y  | Y   |
 | struct         | Y    | Y         | Y    | Y  | Y   |

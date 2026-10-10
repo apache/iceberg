@@ -62,10 +62,14 @@ public class Endpoint {
       Endpoint.create("POST", ResourcePaths.V1_TABLE_RENAME);
   public static final Endpoint V1_REGISTER_TABLE =
       Endpoint.create("POST", ResourcePaths.V1_TABLE_REGISTER);
+  public static final Endpoint V1_UNREGISTER_TABLE =
+      Endpoint.create("POST", ResourcePaths.V1_TABLE_UNREGISTER);
   public static final Endpoint V1_REPORT_METRICS =
       Endpoint.create("POST", ResourcePaths.V1_TABLE_METRICS);
   public static final Endpoint V1_TABLE_CREDENTIALS =
       Endpoint.create("GET", ResourcePaths.V1_TABLE_CREDENTIALS);
+  public static final Endpoint V1_TABLE_REMOTE_SIGN =
+      Endpoint.create("POST", ResourcePaths.V1_TABLE_REMOTE_SIGN);
 
   // table scan plan endpoints
   public static final Endpoint V1_SUBMIT_TABLE_SCAN_PLAN =

@@ -34,6 +34,7 @@ import static org.apache.iceberg.TableProperties.ORC_COMPRESSION;
 import static org.apache.iceberg.TableProperties.ORC_COMPRESSION_STRATEGY;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_LEVEL;
+import static org.apache.iceberg.TableProperties.PARQUET_SHRED_VARIANTS;
 import static org.apache.iceberg.TableProperties.UPDATE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
@@ -54,6 +55,8 @@ import java.util.Map;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateProperties;
@@ -345,6 +348,8 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                     TableProperties.DELETE_PARQUET_COMPRESSION,
                     "snappy"),
                 ImmutableMap.of(
+                    PARQUET_SHRED_VARIANTS,
+                    "false",
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
                     PARQUET_COMPRESSION,
@@ -467,6 +472,8 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                     PARQUET_COMPRESSION_LEVEL,
                     "5"),
                 ImmutableMap.of(
+                    PARQUET_SHRED_VARIANTS,
+                    "false",
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
                     PARQUET_COMPRESSION,
@@ -538,6 +545,8 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
                     DELETE_PARQUET_COMPRESSION_LEVEL,
                     "6"),
                 ImmutableMap.of(
+                    PARQUET_SHRED_VARIANTS,
+                    "false",
                     DELETE_PARQUET_COMPRESSION,
                     "zstd",
                     PARQUET_COMPRESSION,
@@ -658,6 +667,30 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
     assertThat(writeConfNoOption.outputSortOrderId(SparkWriteRequirements.EMPTY)).isEqualTo(0);
   }
 
+  @TestTemplate
+  void sortOrderWriteConfWithUnsortedId() {
+    Schema schema = validationCatalog.loadTable(tableIdent).schema();
+    validationCatalog.dropTable(tableIdent);
+    Table table =
+        validationCatalog
+            .buildTable(tableIdent, schema)
+            .withSortOrder(SortOrder.builderFor(schema).asc("id").build())
+            .create();
+    assertThat(table.sortOrders()).doesNotContainKey(SortOrder.unsorted().orderId());
+
+    SparkWriteConf writeConf =
+        new SparkWriteConf(
+            spark,
+            table,
+            new CaseInsensitiveStringMap(
+                ImmutableMap.of(
+                    SparkWriteOptions.OUTPUT_SORT_ORDER_ID,
+                    String.valueOf(SortOrder.unsorted().orderId()))));
+
+    assertThat(writeConf.outputSortOrderId(SparkWriteRequirements.EMPTY))
+        .isEqualTo(SortOrder.unsorted().orderId());
+  }
+
   private void testWriteProperties(List<Map<String, String>> propertiesSuite) {
     withSQLConf(
         propertiesSuite.get(0),
@@ -697,5 +730,82 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
     assertThat(writeConf.positionDeltaDistributionMode(UPDATE)).isEqualTo(expectedMode);
     assertThat(writeConf.copyOnWriteDistributionMode(MERGE)).isEqualTo(expectedMode);
     assertThat(writeConf.positionDeltaDistributionMode(MERGE)).isEqualTo(expectedMode);
+  }
+
+  @TestTemplate
+  public void testShredVariantsDefault() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
+    assertThat(writeConf.shredVariants()).isFalse();
+  }
+
+  @TestTemplate
+  public void testVariantInferenceBufferSizeDefault() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
+    assertThat(writeConf.variantInferenceBufferSize())
+        .isEqualTo(TableProperties.PARQUET_VARIANT_BUFFER_SIZE_DEFAULT);
+  }
+
+  @TestTemplate
+  public void testVariantInferenceBufferSizeTableProperty() {
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    table.updateProperties().set(TableProperties.PARQUET_VARIANT_BUFFER_SIZE, "500").commit();
+
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
+    assertThat(writeConf.variantInferenceBufferSize()).isEqualTo(500);
+  }
+
+  @TestTemplate
+  public void testShredVariantsSessionOverridesTableProperty() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateProperties().set(TableProperties.PARQUET_SHRED_VARIANTS, "false").commit();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SHRED_VARIANTS, "true"),
+        () -> {
+          SparkWriteConf writeConf = new SparkWriteConf(spark, table);
+          assertThat(writeConf.shredVariants()).isTrue();
+        });
+  }
+
+  @TestTemplate
+  public void testShredVariantsWriteOptionOverridesSessionConf() {
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SHRED_VARIANTS, "false"),
+        () -> {
+          Table table = validationCatalog.loadTable(tableIdent);
+          SparkWriteConf writeConf =
+              new SparkWriteConf(
+                  spark,
+                  table,
+                  new CaseInsensitiveStringMap(
+                      ImmutableMap.of(SparkWriteOptions.SHRED_VARIANTS, "true")));
+          assertThat(writeConf.shredVariants()).isTrue();
+        });
+  }
+
+  @TestTemplate
+  public void testVariantInferenceBufferSizeSessionConf() {
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.VARIANT_INFERENCE_BUFFER_SIZE, "250"),
+        () -> {
+          Table table = validationCatalog.loadTable(tableIdent);
+          SparkWriteConf writeConf = new SparkWriteConf(spark, table);
+          assertThat(writeConf.variantInferenceBufferSize()).isEqualTo(250);
+        });
+  }
+
+  @TestTemplate
+  public void testWritePropertiesIncludeVariantShredding() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateProperties().set(TableProperties.PARQUET_SHRED_VARIANTS, "true").commit();
+    table.updateProperties().set(TableProperties.PARQUET_VARIANT_BUFFER_SIZE, "200").commit();
+
+    SparkWriteConf writeConf = new SparkWriteConf(spark, table);
+    Map<String, String> writeProperties = writeConf.writeProperties();
+    assertThat(writeProperties).containsEntry(PARQUET_SHRED_VARIANTS, "true");
+    assertThat(writeProperties).containsEntry(TableProperties.PARQUET_VARIANT_BUFFER_SIZE, "200");
   }
 }

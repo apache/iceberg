@@ -646,8 +646,6 @@ public class GenericOrcWriters {
           return pathTransformFunc.apply(delete.path());
         case 1:
           return delete.pos();
-        case 2:
-          return delete.row();
       }
       throw new IllegalArgumentException("Cannot get value for invalid index: " + index);
     }
@@ -655,9 +653,6 @@ public class GenericOrcWriters {
     @Override
     public void write(PositionDelete<T> row, VectorizedRowBatch output) throws IOException {
       Preconditions.checkArgument(row != null, "value must not be null");
-      Preconditions.checkArgument(
-          writers().size() == 2 || row.row() != null,
-          "The row in PositionDelete must not be null because it was set row schema in position delete.");
       writeRow(row, output);
     }
   }

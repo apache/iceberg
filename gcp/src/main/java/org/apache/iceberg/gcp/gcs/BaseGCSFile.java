@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
-import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
@@ -28,7 +27,9 @@ import org.apache.iceberg.metrics.MetricsContext;
 
 abstract class BaseGCSFile {
   private final Storage storage;
-  private final GcsFileSystem gcsFileSystem;
+  // Using AutoCloseable avoids a runtime dependency on gcs-analytics-core. Cast via
+  // AnalyticsCoreUtil.
+  private final AutoCloseable gcsFileSystem;
   private final GCPProperties gcpProperties;
   private final BlobId blobId;
   private Blob metadata;
@@ -36,7 +37,7 @@ abstract class BaseGCSFile {
 
   BaseGCSFile(
       Storage storage,
-      GcsFileSystem gcsFileSystem,
+      AutoCloseable gcsFileSystem,
       BlobId blobId,
       GCPProperties gcpProperties,
       MetricsContext metrics) {
@@ -55,7 +56,7 @@ abstract class BaseGCSFile {
     return storage;
   }
 
-  GcsFileSystem gcsFileSystem() {
+  AutoCloseable gcsFileSystem() {
     return gcsFileSystem;
   }
 

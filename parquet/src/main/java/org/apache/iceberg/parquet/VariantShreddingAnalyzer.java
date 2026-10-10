@@ -1,0 +1,525 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.parquet;
+
+import java.math.BigDecimal;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.Set;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.variants.PhysicalType;
+import org.apache.iceberg.variants.VariantArray;
+import org.apache.iceberg.variants.VariantObject;
+import org.apache.iceberg.variants.VariantValue;
+import org.apache.parquet.schema.GroupType;
+import org.apache.parquet.schema.LogicalTypeAnnotation;
+import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.Type;
+import org.apache.parquet.schema.Types;
+
+/**
+ * Analyzes variant data across buffered rows to determine an optimal shredding schema.
+ *
+ * <p>Determinism contract: for a given set of variant values (regardless of row arrival order),
+ * this analyzer produces the same shredded schema. When the number of distinct fields at any level
+ * exceeds {@code MAX_INTERMEDIATE_FIELDS}, field tracking becomes insertion-order dependent and
+ * determinism is not guaranteed.
+ *
+ * <ul>
+ *   <li>Object fields are emitted in alphabetical order in the shredded schema.
+ *   <li>A field is admitted only if all its observations fall into a single type family after
+ *       numeric widening. Integer types (INT8/16/32/64) widen within their family; decimal types
+ *       (DECIMAL4/8/16) widen within theirs. All other physical types - including {@code FLOAT} vs
+ *       {@code DOUBLE} and {@code TIMESTAMPTZ} vs {@code TIMESTAMPTZ_NANOS} - are treated as
+ *       separate families. Widening decides admission and the emitted typed_value type, not per-row
+ *       routing: the writer shreds a row only on an exact physical-type match, so narrower-width
+ *       rows fall to the residual value.
+ *   <li>When the top-level variant's own observations span multiple families, the whole variant is
+ *       written without any typed_value. When a nested field's observations are mixed, only that
+ *       field stays in the residual value; sibling fields still shred.
+ *   <li>Fields below {@code MIN_FIELD_FREQUENCY} are pruned. Above {@code MAX_SHREDDED_FIELDS}, the
+ *       most frequent are kept with alphabetical tie-breaking.
+ *   <li>Recursion into nested objects/arrays stops at {@code MAX_SHREDDING_DEPTH} (default 50).
+ *   <li>New struct fields are not tracked once a node reaches {@code MAX_INTERMEDIATE_FIELDS}
+ *       (default 1000) to bound memory during inference.
+ * </ul>
+ *
+ * <p>This contract holds within a single batch. Different batches with different distributions may
+ * produce different layouts; cross-batch stability requires schema pinning (not yet implemented).
+ *
+ * <p>Subclasses implement {@link #extractVariantValues} to convert engine-specific row types into
+ * {@link VariantValue} instances.
+ *
+ * @param <T> the engine-specific row type (e.g., Spark InternalRow, Flink RowData)
+ * @param <S> the engine-specific schema type (e.g., Spark StructType, Flink RowType)
+ */
+public abstract class VariantShreddingAnalyzer<T, S> {
+  private static final String TYPED_VALUE = "typed_value";
+  private static final String VALUE = "value";
+  private static final String ELEMENT = "element";
+  private static final double MIN_FIELD_FREQUENCY = 0.10;
+  private static final int MAX_SHREDDED_FIELDS = 300;
+  private static final int MAX_SHREDDING_DEPTH = 50;
+  private static final int MAX_INTERMEDIATE_FIELDS = 1000;
+
+  protected VariantShreddingAnalyzer() {}
+
+  /**
+   * Analyzes buffered variant values to determine the optimal shredding schema.
+   *
+   * @param bufferedRows the buffered rows to analyze
+   * @param variantFieldIndex the index of the variant field in the rows
+   * @return the shredded schema type, or null if no shredding should be performed
+   */
+  public Type analyzeAndCreateSchema(List<T> bufferedRows, int variantFieldIndex) {
+    List<VariantValue> variantValues = extractVariantValues(bufferedRows, variantFieldIndex);
+    if (variantValues.isEmpty()) {
+      return null;
+    }
+
+    PathNode root = buildPathTree(variantValues);
+    PhysicalType rootType = root.info.admittedType();
+    if (rootType == null) {
+      return null;
+    }
+
+    pruneInfrequentFields(root, root.info.observationCount);
+
+    return buildTypedValue(root, rootType);
+  }
+
+  protected abstract List<VariantValue> extractVariantValues(
+      List<T> bufferedRows, int variantFieldIndex);
+
+  /**
+   * Resolves a column name to its index in the engine-specific schema. Returns -1 if the column is
+   * not found.
+   */
+  protected abstract int resolveColumnIndex(S engineSchema, String columnName);
+
+  /**
+   * Analyzes all variant columns in the schema, resolving column indices via the engine-specific
+   * {@link #resolveColumnIndex} method.
+   *
+   * @param bufferedRows the buffered rows to analyze
+   * @param icebergSchema the Iceberg table schema
+   * @param engineSchema the engine-specific schema used to resolve column indices
+   * @return a map from Iceberg field ID to the shredded Parquet type for each variant column
+   */
+  public Map<Integer, Type> analyzeVariantColumns(
+      List<T> bufferedRows, Schema icebergSchema, S engineSchema) {
+    Map<Integer, Type> shreddedTypes = Maps.newHashMap();
+    for (NestedField col : icebergSchema.columns()) {
+      if (col.type().isVariantType()) {
+        int rowIndex = resolveColumnIndex(engineSchema, col.name());
+        if (rowIndex >= 0) {
+          Type typed = analyzeAndCreateSchema(bufferedRows, rowIndex);
+          if (typed != null) {
+            shreddedTypes.put(col.fieldId(), typed);
+          }
+        }
+      }
+    }
+
+    return shreddedTypes;
+  }
+
+  private static PathNode buildPathTree(List<VariantValue> variantValues) {
+    PathNode root = new PathNode(null);
+    root.info = new FieldInfo();
+
+    for (VariantValue value : variantValues) {
+      traverse(root, value, 0);
+    }
+
+    return root;
+  }
+
+  private static void pruneInfrequentFields(PathNode node, int totalRows) {
+    if (node.objectChildren.isEmpty() && node.arrayElement == null) {
+      return;
+    }
+
+    // Remove fields below frequency threshold
+    node.objectChildren
+        .entrySet()
+        .removeIf(
+            entry -> {
+              FieldInfo info = entry.getValue().info;
+              return info != null
+                  && ((double) info.observationCount / totalRows) < MIN_FIELD_FREQUENCY;
+            });
+
+    // Cap at MAX_SHREDDED_FIELDS, keep the most frequently observed
+    if (node.objectChildren.size() > MAX_SHREDDED_FIELDS) {
+      Comparator<Map.Entry<String, PathNode>> worstFirst =
+          Comparator.<Map.Entry<String, PathNode>>comparingInt(
+                  e -> e.getValue().info.observationCount)
+              .thenComparing(Map.Entry::getKey, Comparator.reverseOrder());
+      PriorityQueue<Map.Entry<String, PathNode>> topK =
+          new PriorityQueue<>(MAX_SHREDDED_FIELDS, worstFirst);
+      for (Map.Entry<String, PathNode> entry : node.objectChildren.entrySet()) {
+        if (topK.size() < MAX_SHREDDED_FIELDS) {
+          topK.offer(entry);
+        } else if (worstFirst.compare(entry, topK.peek()) > 0) {
+          topK.poll();
+          topK.offer(entry);
+        }
+      }
+      Set<String> keep = Sets.newHashSetWithExpectedSize(MAX_SHREDDED_FIELDS);
+      for (Map.Entry<String, PathNode> entry : topK) {
+        keep.add(entry.getKey());
+      }
+      node.objectChildren.entrySet().removeIf(entry -> !keep.contains(entry.getKey()));
+    }
+
+    // Recurse into remaining object children
+    for (PathNode child : node.objectChildren.values()) {
+      pruneInfrequentFields(child, totalRows);
+    }
+
+    // Recurse into array elements (arrays of objects need pruning too)
+    if (node.arrayElement != null) {
+      pruneInfrequentFields(node.arrayElement, totalRows);
+    }
+  }
+
+  private static void traverse(PathNode node, VariantValue value, int depth) {
+    if (value == null || value.type() == PhysicalType.NULL) {
+      return;
+    }
+
+    node.info.observe(value);
+
+    if (value.type() == PhysicalType.OBJECT && depth < MAX_SHREDDING_DEPTH) {
+      traverseObject(node, value.asObject(), depth);
+    } else if (value.type() == PhysicalType.ARRAY && depth < MAX_SHREDDING_DEPTH) {
+      traverseArray(node, value.asArray(), depth);
+    }
+  }
+
+  private static void traverseObject(PathNode node, VariantObject obj, int depth) {
+    for (String fieldName : obj.fieldNames()) {
+      VariantValue fieldValue = obj.get(fieldName);
+      if (fieldValue != null) {
+        PathNode childNode = node.objectChildren.get(fieldName);
+        if (childNode == null) {
+          if (node.objectChildren.size() >= MAX_INTERMEDIATE_FIELDS) {
+            continue;
+          }
+          childNode = new PathNode(fieldName);
+          childNode.info = new FieldInfo();
+          node.objectChildren.put(fieldName, childNode);
+        }
+        traverse(childNode, fieldValue, depth + 1);
+      }
+    }
+  }
+
+  // observationCount inside arrays counts per-element, not per-row, so fields in long arrays
+  // have inflated frequency and resist pruning.
+  private static void traverseArray(PathNode node, VariantArray array, int depth) {
+    int numElements = array.numElements();
+    if (node.arrayElement == null) {
+      node.arrayElement = new PathNode(null);
+      node.arrayElement.info = new FieldInfo();
+    }
+    for (int i = 0; i < numElements; i++) {
+      VariantValue element = array.get(i);
+      if (element != null) {
+        traverse(node.arrayElement, element, depth + 1);
+      }
+    }
+  }
+
+  private static Type buildFieldGroup(PathNode node) {
+    PhysicalType admittedType = node.info.admittedType();
+    if (admittedType == null) {
+      return null;
+    }
+
+    Type typedValue = buildTypedValue(node, admittedType);
+    if (typedValue == null) {
+      return null;
+    }
+
+    return Types.buildGroup(Type.Repetition.REQUIRED)
+        .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+        .named(VALUE)
+        .addField(typedValue)
+        .named(node.fieldName);
+  }
+
+  private static Type buildTypedValue(PathNode node, PhysicalType physicalType) {
+    return switch (physicalType) {
+      case ARRAY -> createArrayTypedValue(node);
+      case OBJECT -> createObjectTypedValue(node);
+      default -> createPrimitiveTypedValue(node.info, physicalType);
+    };
+  }
+
+  private static Type createObjectTypedValue(PathNode node) {
+    if (node.objectChildren.isEmpty()) {
+      return null;
+    }
+
+    Types.GroupBuilder<GroupType> builder = Types.buildGroup(Type.Repetition.OPTIONAL);
+    boolean hasFields = false;
+    // Sort by field name so the emitted schema field order is deterministic.
+    List<Map.Entry<String, PathNode>> sortedChildren =
+        Lists.newArrayList(node.objectChildren.entrySet());
+    sortedChildren.sort(Map.Entry.comparingByKey());
+    for (Map.Entry<String, PathNode> entry : sortedChildren) {
+      Type fieldType = buildFieldGroup(entry.getValue());
+      if (fieldType != null) {
+        builder.addField(fieldType);
+        hasFields = true;
+      }
+    }
+
+    return hasFields ? builder.named(TYPED_VALUE) : null;
+  }
+
+  private static Type createArrayTypedValue(PathNode node) {
+    PathNode elementNode = node.arrayElement;
+    if (elementNode == null) {
+      return null;
+    }
+    PhysicalType elementType = elementNode.info.admittedType();
+    if (elementType == null) {
+      return null;
+    }
+    Type elementTypedValue = buildTypedValue(elementNode, elementType);
+    if (elementTypedValue == null) {
+      return null;
+    }
+
+    GroupType elementGroup =
+        Types.buildGroup(Type.Repetition.REQUIRED)
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .named(VALUE)
+            .addField(elementTypedValue)
+            .named(ELEMENT);
+
+    return Types.optionalList().element(elementGroup).named(TYPED_VALUE);
+  }
+
+  private static class PathNode {
+    private final String fieldName;
+    private final Map<String, PathNode> objectChildren = Maps.newHashMap();
+    private PathNode arrayElement = null;
+    private FieldInfo info = null;
+
+    private PathNode(String fieldName) {
+      this.fieldName = fieldName;
+    }
+  }
+
+  /** Use DECIMAL with maximum precision and scale as the shredding type */
+  private static Type createDecimalTypedValue(FieldInfo info) {
+    int maxPrecision = Math.min(info.maxDecimalIntegerDigits + info.maxDecimalScale, 38);
+    int maxScale = Math.min(info.maxDecimalScale, Math.max(0, 38 - info.maxDecimalIntegerDigits));
+
+    if (maxPrecision <= 9) {
+      return Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
+          .as(LogicalTypeAnnotation.decimalType(maxScale, maxPrecision))
+          .named(TYPED_VALUE);
+    } else if (maxPrecision <= 18) {
+      return Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+          .as(LogicalTypeAnnotation.decimalType(maxScale, maxPrecision))
+          .named(TYPED_VALUE);
+    } else {
+      return Types.optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+          .length(TypeUtil.decimalRequiredBytes(maxPrecision))
+          .as(LogicalTypeAnnotation.decimalType(maxScale, maxPrecision))
+          .named(TYPED_VALUE);
+    }
+  }
+
+  private static Type createPrimitiveTypedValue(FieldInfo info, PhysicalType primitiveType) {
+    return switch (primitiveType) {
+      case BOOLEAN_TRUE, BOOLEAN_FALSE ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.BOOLEAN).named(TYPED_VALUE);
+      case INT8 ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
+              .as(LogicalTypeAnnotation.intType(8, true))
+              .named(TYPED_VALUE);
+      case INT16 ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
+              .as(LogicalTypeAnnotation.intType(16, true))
+              .named(TYPED_VALUE);
+      case INT32 ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
+              .as(LogicalTypeAnnotation.intType(32, true))
+              .named(TYPED_VALUE);
+      case INT64 ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+              .as(LogicalTypeAnnotation.intType(64, true))
+              .named(TYPED_VALUE);
+      case FLOAT -> Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).named(TYPED_VALUE);
+      case DOUBLE -> Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).named(TYPED_VALUE);
+      case STRING ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.BINARY)
+              .as(LogicalTypeAnnotation.stringType())
+              .named(TYPED_VALUE);
+      case BINARY -> Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).named(TYPED_VALUE);
+      case TIME ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+              .as(LogicalTypeAnnotation.timeType(false, LogicalTypeAnnotation.TimeUnit.MICROS))
+              .named(TYPED_VALUE);
+      case DATE ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT32)
+              .as(LogicalTypeAnnotation.dateType())
+              .named(TYPED_VALUE);
+      case TIMESTAMPTZ ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+              .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+              .named(TYPED_VALUE);
+      case TIMESTAMPNTZ ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+              .as(LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.MICROS))
+              .named(TYPED_VALUE);
+      case TIMESTAMPTZ_NANOS ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+              .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+              .named(TYPED_VALUE);
+      case TIMESTAMPNTZ_NANOS ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+              .as(LogicalTypeAnnotation.timestampType(false, LogicalTypeAnnotation.TimeUnit.NANOS))
+              .named(TYPED_VALUE);
+      case DECIMAL4, DECIMAL8, DECIMAL16 -> createDecimalTypedValue(info);
+      case UUID ->
+          Types.optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+              .length(16)
+              .as(LogicalTypeAnnotation.uuidType())
+              .named(TYPED_VALUE);
+      default ->
+          throw new UnsupportedOperationException(
+              "Unknown primitive physical type: " + primitiveType);
+    };
+  }
+
+  /** Tracks occurrence count and types for a single field. */
+  private static class FieldInfo {
+    private static final PhysicalType[] PHYSICAL_TYPES = PhysicalType.values();
+
+    private static final List<PhysicalType> INTEGER_TYPES =
+        List.of(PhysicalType.INT8, PhysicalType.INT16, PhysicalType.INT32, PhysicalType.INT64);
+
+    private static final List<PhysicalType> DECIMAL_TYPES =
+        List.of(PhysicalType.DECIMAL4, PhysicalType.DECIMAL8, PhysicalType.DECIMAL16);
+
+    private final int[] typeCounts = new int[PHYSICAL_TYPES.length];
+    private int maxDecimalScale = 0;
+    private int maxDecimalIntegerDigits = 0;
+    private int observationCount = 0;
+
+    void observe(VariantValue value) {
+      observationCount++;
+      // Use BOOLEAN_TRUE for both TRUE/FALSE values
+      PhysicalType type =
+          value.type() == PhysicalType.BOOLEAN_FALSE ? PhysicalType.BOOLEAN_TRUE : value.type();
+
+      typeCounts[type.ordinal()]++;
+
+      // Track max precision and scale for decimal types
+      if (DECIMAL_TYPES.contains(type) && value.asPrimitive().get() instanceof BigDecimal bd) {
+        maxDecimalIntegerDigits = Math.max(maxDecimalIntegerDigits, bd.precision() - bd.scale());
+        maxDecimalScale = Math.max(maxDecimalScale, bd.scale());
+      }
+    }
+
+    /**
+     * Returns the single type family that all observations fall into after numeric widening, or
+     * null if observations span multiple families.
+     */
+    PhysicalType admittedType() {
+      PhysicalType admitted = null;
+      for (int i = 0; i < typeCounts.length; i++) {
+        if (typeCounts[i] == 0) {
+          continue;
+        }
+        PhysicalType merged = mergeFamily(admitted, PHYSICAL_TYPES[i]);
+        if (merged == null) {
+          return null;
+        }
+
+        admitted = merged;
+      }
+      return admitted;
+    }
+
+    /**
+     * Widens {@code current} with {@code candidate}, or null if they belong to different families.
+     */
+    private static PhysicalType mergeFamily(PhysicalType current, PhysicalType candidate) {
+      if (current == null) {
+        return candidate;
+      }
+
+      if (current == candidate) {
+        return current;
+      }
+
+      List<PhysicalType> family = familyOf(current);
+      if (family == null) {
+        return null;
+      }
+
+      return widerOf(current, candidate, family);
+    }
+
+    /** Returns the widening family for {@code type}, or null if none applies. */
+    private static List<PhysicalType> familyOf(PhysicalType type) {
+      if (INTEGER_TYPES.contains(type)) {
+        return INTEGER_TYPES;
+      }
+
+      if (DECIMAL_TYPES.contains(type)) {
+        return DECIMAL_TYPES;
+      }
+
+      return null;
+    }
+
+    /**
+     * Returns the wider of {@code first} and {@code second} within {@code family}, or null when
+     * {@code second} is not in the family. {@code first} is always a member.
+     */
+    private static PhysicalType widerOf(
+        PhysicalType first, PhysicalType second, List<PhysicalType> family) {
+      int firstIdx = family.indexOf(first);
+      Preconditions.checkArgument(firstIdx >= 0, "Type is not a member of its family: %s", first);
+      int secondIdx = family.indexOf(second);
+      if (secondIdx < 0) {
+        return null;
+      }
+
+      return firstIdx >= secondIdx ? first : second;
+    }
+  }
+}

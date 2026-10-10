@@ -102,7 +102,7 @@ public class S3RequestUtil {
       Function<String, S3Request.Builder> customKeySetter,
       Function<String, S3Request.Builder> customMd5Setter) {
 
-    switch (s3FileIOProperties.sseType().toLowerCase(Locale.ENGLISH)) {
+    switch (s3FileIOProperties.sseType().toLowerCase(Locale.ROOT)) {
       case S3FileIOProperties.SSE_TYPE_NONE:
         break;
 

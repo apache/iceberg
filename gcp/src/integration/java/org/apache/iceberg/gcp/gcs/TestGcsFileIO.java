@@ -163,7 +163,7 @@ public class TestGcsFileIO {
       IOUtil.readFully(is, actual, 0, expected.length);
     }
 
-    assertThat(inputStream).isInstanceOf(GcsInputStreamWrapper.class);
+    assertThat(inputStream).isNotInstanceOf(GCSInputStream.class);
     assertThat(actual).isEqualTo(expected);
   }
 

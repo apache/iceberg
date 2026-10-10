@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
  *
  * <ul>
  *   <li>Adding new columns
- *   <li>Widening the type of existing columsn
+ *   <li>Widening the type of existing columns
  *   <li>Reordering columns
  *   <li>Dropping columns (when dropUnusedColumns is enabled)
  * </ul>
@@ -211,8 +211,12 @@ public class EvolveSchemaVisitor extends SchemaWithPartnerVisitor<Integer, Boole
     String existingColumnName = this.existingSchema.findColumnName(existingField.fieldId());
 
     boolean needsOptionalUpdate = targetField.isOptional() && existingField.isRequired();
+    boolean handledByDataConversion =
+        CompareSchemasVisitor.isDataConversionPossible(targetField.type(), existingField.type());
     boolean needsTypeUpdate =
-        targetField.type().isPrimitiveType() && !targetField.type().equals(existingField.type());
+        targetField.type().isPrimitiveType()
+            && !targetField.type().equals(existingField.type())
+            && !handledByDataConversion;
     boolean needsDocUpdate =
         targetField.doc() != null && !targetField.doc().equals(existingField.doc());
 

@@ -532,9 +532,6 @@ public class ValueReaders {
       // use the decoder's readString(Utf8) method because it may be a resolving decoder
       this.reusedTempUtf8.set(decoder.readString(reusedTempUtf8.get()));
       return reusedTempUtf8.get().toString();
-      //      int length = decoder.readInt();
-      //      byte[] bytes = new byte[length];
-      //      decoder.readFixed(bytes, 0, length);
     }
 
     @Override
@@ -556,9 +553,6 @@ public class ValueReaders {
       } else {
         return decoder.readString(null);
       }
-      //      int length = decoder.readInt();
-      //      byte[] bytes = new byte[length];
-      //      decoder.readFixed(bytes, 0, length);
     }
 
     @Override
@@ -669,10 +663,6 @@ public class ValueReaders {
       // a new buffer. since the usual case requires an allocation anyway to get the size right,
       // just allocate every time.
       return decoder.readBytes(null).array();
-      //      int length = decoder.readInt();
-      //      byte[] bytes = new byte[length];
-      //      decoder.readFixed(bytes, 0, length);
-      //      return bytes;
     }
 
     @Override
@@ -694,10 +684,6 @@ public class ValueReaders {
       } else {
         return decoder.readBytes(null);
       }
-      //      int length = decoder.readInt();
-      //      byte[] bytes = new byte[length];
-      //      decoder.readFixed(bytes, 0, length);
-      //      return bytes;
     }
 
     @Override

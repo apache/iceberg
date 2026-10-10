@@ -19,19 +19,18 @@
 package org.apache.iceberg.hadoop;
 
 import java.util.function.Function;
-import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.util.SerializableSupplier;
 
 /**
- * An interface that extends the Hadoop {@link Configurable} interface to offer better serialization
- * support for customizable Iceberg objects such as {@link org.apache.iceberg.io.FileIO}.
+ * An interface that extends {@link Configurable} to offer better serialization support for
+ * customizable Iceberg objects such as {@link org.apache.iceberg.io.FileIO}.
  *
  * <p>If an object is serialized and needs to use Hadoop configuration, it is recommended for the
  * object to implement this interface so that a serializable supplier of configuration can be
  * provided instead of an actual Hadoop configuration which is not serializable.
  */
-public interface HadoopConfigurable extends Configurable {
+public interface HadoopConfigurable extends Configurable<Configuration> {
 
   /**
    * Take a function that serializes Hadoop configuration into a supplier. An implementation is
@@ -43,4 +42,23 @@ public interface HadoopConfigurable extends Configurable {
    */
   void serializeConfWith(
       Function<Configuration, SerializableSupplier<Configuration>> confSerializer);
+
+  /**
+   * Set the configuration to be used by this object.
+   *
+   * @param conf configuration to be used
+   */
+  @Override
+  default void setConf(Configuration conf) {
+    throw new UnsupportedOperationException("setConf is not implemented");
+  }
+
+  /**
+   * Return the configuration used by this object.
+   *
+   * @return Configuration
+   */
+  default Configuration getConf() {
+    throw new UnsupportedOperationException("getConf is not implemented");
+  }
 }

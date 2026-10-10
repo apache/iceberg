@@ -32,11 +32,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InvalidProducerEpochException;
+import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,11 +55,12 @@ abstract class Channel {
   private final SinkTaskContext context;
   private final Admin admin;
   private final Map<Integer, Long> controlTopicOffsets = Maps.newHashMap();
+  private final Map<Integer, Long> committedOffsets = Maps.newHashMap();
   private final String producerId;
 
   Channel(
-      String name,
       String consumerGroupId,
+      String transactionalId,
       IcebergSinkConfig config,
       KafkaClientFactory clientFactory,
       SinkTaskContext context) {
@@ -64,7 +68,6 @@ abstract class Channel {
     this.connectGroupId = config.connectGroupId();
     this.context = context;
 
-    String transactionalId = config.transactionalPrefix() + name + config.transactionalSuffix();
     this.producer = clientFactory.createProducer(transactionalId);
     this.consumer = clientFactory.createConsumer(consumerGroupId);
     this.admin = clientFactory.createAdmin();
@@ -119,21 +122,31 @@ abstract class Channel {
   protected void consumeAvailable(Duration pollDuration) {
     ConsumerRecords<String, byte[]> records = consumer.poll(pollDuration);
     while (!records.isEmpty()) {
-      records.forEach(
-          record -> {
-            // the consumer stores the offsets that corresponds to the next record to consume,
-            // so increment the record offset by one
-            controlTopicOffsets.put(record.partition(), record.offset() + 1);
+      for (ConsumerRecord<String, byte[]> record : records) {
+        Long nextOffset = controlTopicOffsets.get(record.partition());
+        // A rebalance can rewind the consumer to the committed offset, which can lag the in-memory
+        // position. Skip already-processed records.
+        if (nextOffset != null && record.offset() < nextOffset) {
+          LOG.debug(
+              "Skipping already-consumed control topic offset {} for partition {}",
+              record.offset(),
+              record.partition());
+          continue;
+        }
 
-            Event event = AvroUtil.decode(record.value());
+        // The consumer stores the offset of the next record to consume, so increment the record
+        // offset by one and keep the highest position seen.
+        controlTopicOffsets.merge(record.partition(), record.offset() + 1, Long::max);
 
-            if (event.groupId().equals(connectGroupId)) {
-              LOG.debug("Received event of type: {}", event.type().name());
-              if (receive(new Envelope(event, record.partition(), record.offset()))) {
-                LOG.info("Handled event of type: {}", event.type().name());
-              }
-            }
-          });
+        Event event = AvroUtil.decode(record.value());
+
+        if (event.groupId().equals(connectGroupId)) {
+          LOG.debug("Received event of type: {}", event.type().name());
+          if (receive(new Envelope(event, record.partition(), record.offset()))) {
+            LOG.info("Handled event of type: {}", event.type().name());
+          }
+        }
+      }
       records = consumer.poll(pollDuration);
     }
   }
@@ -142,13 +155,74 @@ abstract class Channel {
     return controlTopicOffsets;
   }
 
+  /**
+   * Commits consumer offsets in a separate Kafka transaction on the coordinator's transactional
+   * producer, committing a partition's offset only when it advances past the last committed value.
+   * The producer uses a connector-stable {@code transactional.id}, so a newly elected coordinator's
+   * {@code initTransactions()} bumps the producer epoch and fences a superseded coordinator, whose
+   * offset commit then fails with a {@link org.apache.kafka.common.errors.ProducerFencedException}.
+   *
+   * <p>This transaction covers only the consumer offset commit, not the Iceberg table snapshot
+   * commit. The snapshot commit runs outside any Kafka transaction, so a stale coordinator can
+   * still land a snapshot in the window between the new coordinator's {@code initTransactions()}
+   * and its own fenced offset commit; that case is guarded separately at the Iceberg level by the
+   * {@code SnapshotAncestryValidator} offset validator, not by epoch fencing.
+   */
   protected void commitConsumerOffsets() {
     Map<TopicPartition, OffsetAndMetadata> offsetsToCommit = Maps.newHashMap();
+    Map<Integer, Long> skippedOffsets = Maps.newHashMap();
     controlTopicOffsets()
         .forEach(
-            (k, v) ->
-                offsetsToCommit.put(new TopicPartition(controlTopic, k), new OffsetAndMetadata(v)));
-    consumer.commitSync(offsetsToCommit);
+            (partition, offsetToCommit) -> {
+              Long lastCommittedOffset = committedOffsets.get(partition);
+              if (lastCommittedOffset == null || offsetToCommit > lastCommittedOffset) {
+                TopicPartition topicPartition = new TopicPartition(controlTopic, partition);
+                offsetsToCommit.put(topicPartition, new OffsetAndMetadata(offsetToCommit));
+              } else {
+                skippedOffsets.put(partition, offsetToCommit);
+              }
+            });
+
+    if (!skippedOffsets.isEmpty()) {
+      LOG.debug(
+          "Skipping consumer offset commit for partitions with non-increasing offsets; "
+              + "local offsets {} are less than or equal to committed offsets {}",
+          skippedOffsets,
+          committedOffsets);
+    }
+
+    if (!offsetsToCommit.isEmpty()) {
+      LOG.debug("Committing consumer offsets: {}", offsetsToCommit);
+      synchronized (producer) {
+        producer.beginTransaction();
+        try {
+          producer.sendOffsetsToTransaction(offsetsToCommit, consumer.groupMetadata());
+          producer.commitTransaction();
+        } catch (Exception e) {
+          // fenced producers are fatal and can't abort, so only non-fenced producers abort
+          if (!isProducerFenced(e)) {
+            abortTransaction();
+          }
+          throw e;
+        }
+      }
+      offsetsToCommit.forEach(
+          (topicPartition, metadata) ->
+              committedOffsets.put(topicPartition.partition(), metadata.offset()));
+    }
+  }
+
+  private static boolean isProducerFenced(Exception error) {
+    return error instanceof ProducerFencedException
+        || error instanceof InvalidProducerEpochException;
+  }
+
+  private void abortTransaction() {
+    try {
+      producer.abortTransaction();
+    } catch (Exception e) {
+      LOG.warn("Error aborting producer transaction", e);
+    }
   }
 
   void start() {

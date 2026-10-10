@@ -426,8 +426,10 @@ public class TestHadoopCommits extends HadoopTableTestBase {
             SCHEMA,
             SPEC,
             ImmutableMap.of(
+                // Use a high retry count so no committer exhausts its retries under the forced
+                // lock-step contention below (matches Test{Jdbc,Hive}TableConcurrency).
                 COMMIT_NUM_RETRIES,
-                String.valueOf(threadsCount),
+                "20",
                 COMMIT_MIN_RETRY_WAIT_MS,
                 "10",
                 COMMIT_MAX_RETRY_WAIT_MS,

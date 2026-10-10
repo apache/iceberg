@@ -24,17 +24,17 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.StagedTable;
-import org.apache.spark.sql.connector.catalog.SupportsDelete;
+import org.apache.spark.sql.connector.catalog.SupportsDeleteV2;
 import org.apache.spark.sql.connector.catalog.SupportsRead;
 import org.apache.spark.sql.connector.catalog.SupportsWrite;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCapability;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.expressions.Transform;
+import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.write.LogicalWriteInfo;
 import org.apache.spark.sql.connector.write.WriteBuilder;
-import org.apache.spark.sql.sources.Filter;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
@@ -58,7 +58,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  * #capabilities()}.
  */
 public class RollbackStagedTable
-    implements StagedTable, SupportsRead, SupportsWrite, SupportsDelete {
+    implements StagedTable, SupportsRead, SupportsWrite, SupportsDeleteV2 {
   private final TableCatalog catalog;
   private final Identifier ident;
   private final Table table;
@@ -106,8 +106,8 @@ public class RollbackStagedTable
   }
 
   @Override
-  public void deleteWhere(Filter[] filters) {
-    call(SupportsDelete.class, t -> t.deleteWhere(filters));
+  public void deleteWhere(Predicate[] predicates) {
+    call(SupportsDeleteV2.class, t -> t.deleteWhere(predicates));
   }
 
   @Override

@@ -268,6 +268,8 @@ public class RandomGenericData {
       Object result = randomValue(primitive, random);
       switch (primitive.typeId()) {
         case BINARY:
+        case GEOMETRY:
+        case GEOGRAPHY:
           return ByteBuffer.wrap((byte[]) result);
         case UUID:
           return UUID.nameUUIDFromBytes((byte[]) result);

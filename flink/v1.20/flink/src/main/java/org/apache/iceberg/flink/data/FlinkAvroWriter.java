@@ -132,7 +132,7 @@ public class FlinkAvroWriter implements MetricsAwareDatumWriter<RowData> {
             return FlinkValueWriters.decimal(decimal.getPrecision(), decimal.getScale());
 
           case "uuid":
-            return ValueWriters.uuids();
+            return FlinkValueWriters.uuids();
 
           default:
             throw new IllegalArgumentException("Unsupported logical type: " + logicalType);

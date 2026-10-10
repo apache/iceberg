@@ -19,12 +19,17 @@
 package org.apache.iceberg.connect.channel;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -35,7 +40,11 @@ import org.apache.kafka.clients.admin.ConsumerGroupDescription;
 import org.apache.kafka.clients.admin.MemberAssignment;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InvalidProducerEpochException;
+import org.apache.kafka.common.errors.ProducerFencedException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 
 public class TestCommitterImpl {
@@ -113,5 +122,83 @@ public class TestCommitterImpl {
       assertThat(committer.hasLeaderPartition(leaderAssignments)).isTrue();
       assertThat(committer.hasLeaderPartition(nonLeaderAssignments)).isFalse();
     }
+  }
+
+  @Test
+  public void testCommitFailurePropagatesAsNotRunningException()
+      throws NoSuchFieldException, IllegalAccessException {
+    RuntimeException cause = new RuntimeException("commit failed");
+    Coordinator coordinator = mock(Coordinator.class);
+    doThrow(cause).when(coordinator).process();
+
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
+    coordinatorThread.start();
+
+    // wait for the thread to catch the exception, set terminated, and call stop
+    verify(coordinator, timeout(1000)).stop();
+    assertThat(coordinatorThread.isTerminated()).isTrue();
+    assertThat(coordinatorThread.isFenced()).isFalse();
+
+    CommitterImpl committer = new CommitterImpl();
+    Field field = CommitterImpl.class.getDeclaredField("coordinatorThread");
+    field.setAccessible(true);
+    field.set(committer, coordinatorThread);
+
+    assertThatThrownBy(() -> committer.save(Collections.emptyList()))
+        .isInstanceOf(NotRunningException.class)
+        .hasMessageContaining("Coordinator unexpectedly terminated")
+        .cause()
+        .isSameAs(cause);
+  }
+
+  @Test
+  public void testStartFailurePropagatesAsNotRunningException()
+      throws NoSuchFieldException, IllegalAccessException {
+    Coordinator coordinator = mock(Coordinator.class);
+    doThrow(new RuntimeException("start failed")).when(coordinator).start();
+
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
+    coordinatorThread.start();
+
+    // wait for the thread to catch the exception, set terminated, and call stop
+    verify(coordinator, timeout(1000)).stop();
+    assertThat(coordinatorThread.isTerminated()).isTrue();
+
+    CommitterImpl committer = new CommitterImpl();
+    Field field = CommitterImpl.class.getDeclaredField("coordinatorThread");
+    field.setAccessible(true);
+    field.set(committer, coordinatorThread);
+
+    assertThatThrownBy(() -> committer.save(Collections.emptyList()))
+        .isInstanceOf(NotRunningException.class)
+        .hasMessageContaining("Coordinator unexpectedly terminated");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"ProducerFenced", "InvalidProducerEpoch"})
+  public void testFencedCoordinatorIsClearedWithoutFailingTask(String exceptionType)
+      throws NoSuchFieldException, IllegalAccessException {
+    RuntimeException fenceException =
+        "ProducerFenced".equals(exceptionType)
+            ? new ProducerFencedException("fenced by a newer coordinator")
+            : new InvalidProducerEpochException("producer epoch bumped by a newer coordinator");
+
+    Coordinator coordinator = mock(Coordinator.class);
+    doThrow(fenceException).when(coordinator).process();
+
+    CoordinatorThread coordinatorThread = new CoordinatorThread(coordinator);
+    coordinatorThread.start();
+
+    verify(coordinator, timeout(1000)).stop();
+    assertThat(coordinatorThread.isTerminated()).isTrue();
+    assertThat(coordinatorThread.isFenced()).isTrue();
+
+    CommitterImpl committer = new CommitterImpl();
+    Field field = CommitterImpl.class.getDeclaredField("coordinatorThread");
+    field.setAccessible(true);
+    field.set(committer, coordinatorThread);
+
+    committer.save(Collections.emptyList());
+    assertThat(field.get(committer)).isNull();
   }
 }

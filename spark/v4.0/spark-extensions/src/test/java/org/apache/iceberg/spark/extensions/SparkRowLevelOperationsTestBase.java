@@ -34,11 +34,11 @@ import static org.apache.iceberg.TableProperties.DELETE_PLANNING_MODE;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.ORC_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
-import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_HASH;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_NONE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE_RANGE;
+import static org.apache.iceberg.spark.SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
@@ -46,11 +46,10 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
@@ -82,8 +81,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase {
-
-  private static final Random RANDOM = ThreadLocalRandom.current();
 
   @Parameter(index = 3)
   protected FileFormat fileFormat;
@@ -135,67 +132,22 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
             "default-namespace", "default"),
         FileFormat.PARQUET,
         true,
-        WRITE_DISTRIBUTION_MODE_NONE,
+        WRITE_DISTRIBUTION_MODE_HASH,
         false,
-        "test",
+        null,
         DISTRIBUTED,
         2
-      },
-      {
-        "testhadoop",
-        SparkCatalog.class.getName(),
-        ImmutableMap.of("type", "hadoop"),
-        FileFormat.PARQUET,
-        RANDOM.nextBoolean(),
-        WRITE_DISTRIBUTION_MODE_HASH,
-        true,
-        null,
-        LOCAL,
-        2
-      },
-      {
-        "spark_catalog",
-        SparkSessionCatalog.class.getName(),
-        ImmutableMap.of(
-            "type", "hive",
-            "default-namespace", "default",
-            "clients", "1",
-            "parquet-enabled", "false",
-            "cache-enabled",
-                "false" // Spark will delete tables using v1, leaving the cache out of sync
-            ),
-        FileFormat.AVRO,
-        false,
-        WRITE_DISTRIBUTION_MODE_RANGE,
-        false,
-        "test",
-        DISTRIBUTED,
-        2
-      },
-      {
-        "testhadoop",
-        SparkCatalog.class.getName(),
-        ImmutableMap.of("type", "hadoop"),
-        FileFormat.PARQUET,
-        RANDOM.nextBoolean(),
-        WRITE_DISTRIBUTION_MODE_HASH,
-        true,
-        null,
-        LOCAL,
-        3
       },
       {
         "spark_catalog",
         SparkSessionCatalog.class.getName(),
         ImmutableMap.of(
             "type",
-            "hive",
+            "rest",
+            CatalogProperties.URI,
+            restCatalog.properties().get(CatalogProperties.URI),
             "default-namespace",
             "default",
-            "clients",
-            "1",
-            "parquet-enabled",
-            "false",
             "cache-enabled",
             "false" // Spark will delete tables using v1, leaving the cache out of sync
             ),
@@ -220,7 +172,7 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         fileFormat,
         WRITE_DISTRIBUTION_MODE,
         distributionMode,
-        SPARK_WRITE_PARTITIONED_FANOUT_ENABLED,
+        WRITE_PARTITIONED_FANOUT_ENABLED,
         String.valueOf(fanoutEnabled),
         DATA_PLANNING_MODE,
         planningMode.modeName(),

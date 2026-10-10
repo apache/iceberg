@@ -54,7 +54,7 @@ public enum DistributionMode {
   public static DistributionMode fromName(String modeName) {
     Preconditions.checkArgument(null != modeName, "Invalid distribution mode: null");
     try {
-      return DistributionMode.valueOf(modeName.toUpperCase(Locale.ENGLISH));
+      return DistributionMode.valueOf(modeName.toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(String.format("Invalid distribution mode: %s", modeName));
     }

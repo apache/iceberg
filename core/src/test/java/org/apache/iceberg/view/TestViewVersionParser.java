@@ -127,7 +127,7 @@ public class TestViewVersionParser {
                     "{\"version-id\":1,\"timestamp-ms\":12345,\"schema-id\":1,"
                         + "\"summary\":{\"operation\":\"create\"},\"representations\":[]}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing field: default-namespace");
+        .hasMessage("Cannot parse missing list: default-namespace");
   }
 
   @Test

@@ -27,6 +27,12 @@ import org.junit.jupiter.api.Test;
 
 public class TestDateTimeUtil {
   @Test
+  public void microsToMillis() {
+    assertThat(DateTimeUtil.microsToMillis(1510871468000001L)).isEqualTo(1510871468000L);
+    assertThat(DateTimeUtil.microsToMillis(-1510871468000001L)).isEqualTo(-1510871468001L);
+  }
+
+  @Test
   public void nanosToMicros() {
     assertThat(DateTimeUtil.nanosToMicros(1510871468000001001L)).isEqualTo(1510871468000001L);
     assertThat(DateTimeUtil.nanosToMicros(-1510871468000001001L)).isEqualTo(-1510871468000002L);
@@ -116,5 +122,16 @@ public class TestDateTimeUtil {
         .isEqualTo(-1510871468000L);
     assertThat(DateTimeUtil.millisFromTimestamp(LocalDateTime.parse("1970-01-01T00:00")))
         .isEqualTo(0L);
+  }
+
+  @Test
+  public void formatTimestampMillis() {
+    assertThat(DateTimeUtil.formatTimestampMillis(1510871468000L))
+        .isEqualTo("2017-11-16T22:31:08+00:00");
+    assertThat(DateTimeUtil.formatTimestampMillis(1510871468123L))
+        .isEqualTo("2017-11-16T22:31:08.123+00:00");
+    assertThat(DateTimeUtil.formatTimestampMillis(0L)).isEqualTo("1970-01-01T00:00:00+00:00");
+    assertThat(DateTimeUtil.formatTimestampMillis(-1510871468000L))
+        .isEqualTo("1922-02-15T01:28:52+00:00");
   }
 }

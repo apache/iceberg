@@ -19,7 +19,9 @@
 package org.apache.iceberg.aliyun;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.aliyun.kms20160120.Client;
 import com.aliyun.oss.OSS;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -135,6 +137,27 @@ public class TestAliyunClientFactories {
         .isFalse();
   }
 
+  @Test
+  public void testNewKmsClientResolvesEndpointFromRegion() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(AliyunProperties.CLIENT_REGION, "cn-hangzhou");
+    properties.put(AliyunProperties.CLIENT_ACCESS_KEY_ID, "key");
+    properties.put(AliyunProperties.CLIENT_ACCESS_KEY_SECRET, "secret");
+
+    Client kmsClient = AliyunClientFactories.from(properties).newKmsClient();
+    assertThat(kmsClient)
+        .as("KMS client should be created with an endpoint resolved from the region")
+        .isNotNull();
+  }
+
+  @Test
+  public void testNewKmsClientRequiresRegion() {
+    AliyunClientFactory factory = AliyunClientFactories.from(Maps.newHashMap());
+    assertThatThrownBy(factory::newKmsClient)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(AliyunProperties.CLIENT_REGION);
+  }
+
   public static class CustomFactory implements AliyunClientFactory {
 
     AliyunProperties aliyunProperties;
@@ -143,6 +166,11 @@ public class TestAliyunClientFactories {
 
     @Override
     public OSS newOSSClient() {
+      return null;
+    }
+
+    @Override
+    public Client newKmsClient() {
       return null;
     }
 

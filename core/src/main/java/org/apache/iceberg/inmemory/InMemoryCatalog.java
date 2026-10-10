@@ -29,8 +29,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.StaticTableOperations;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Namespace;
@@ -48,6 +51,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.BaseMetastoreViewCatalog;
 import org.apache.iceberg.view.BaseViewOperations;
 import org.apache.iceberg.view.ViewMetadata;
@@ -71,6 +76,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   private String catalogName;
   private String warehouseLocation;
   private CloseableGroup closeableGroup;
+  private boolean uniqueTableLocation;
   private Map<String, String> catalogProperties;
 
   public InMemoryCatalog() {
@@ -88,11 +94,17 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   public void initialize(String name, Map<String, String> properties) {
     this.catalogName = name != null ? name : InMemoryCatalog.class.getSimpleName();
     this.catalogProperties = ImmutableMap.copyOf(properties);
+    this.uniqueTableLocation =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            CatalogProperties.UNIQUE_TABLE_LOCATION,
+            CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT);
 
     String warehouse = properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "");
     this.warehouseLocation = warehouse.replaceAll("/*$", "");
     this.io = CatalogUtil.loadFileIO(InMemoryFileIO.class.getName(), properties, null);
     this.closeableGroup = new CloseableGroup();
+    closeableGroup.addCloseable(io);
     closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
   }
@@ -104,8 +116,8 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier tableIdentifier) {
-    return SLASH.join(
-        defaultNamespaceLocation(tableIdentifier.namespace()), tableIdentifier.name());
+    String tableLocation = LocationUtil.tableLocation(tableIdentifier, uniqueTableLocation);
+    return SLASH.join(defaultNamespaceLocation(tableIdentifier.namespace()), tableLocation);
   }
 
   private String defaultNamespaceLocation(Namespace namespace) {
@@ -114,6 +126,27 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     } else {
       return SLASH.join(warehouseLocation, SLASH.join(namespace.levels()));
     }
+  }
+
+  @Override
+  public Table unregisterTable(TableIdentifier tableIdentifier) {
+    TableOperations ops = newTableOps(tableIdentifier);
+    TableMetadata metadata;
+
+    synchronized (this) {
+      metadata = ops.current();
+      if (metadata == null) {
+        throw new NoSuchTableException("Table does not exist: %s", tableIdentifier);
+      }
+
+      if (tables.remove(tableIdentifier) == null) {
+        throw new NoSuchTableException("Table does not exist: %s", tableIdentifier);
+      }
+    }
+
+    StaticTableOperations staticOps =
+        new StaticTableOperations(metadata, ops.io(), ops.locationProvider());
+    return new BaseTable(staticOps, tableIdentifier.name(), metricsReporter());
   }
 
   @Override
@@ -209,6 +242,13 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     synchronized (this) {
       if (!namespaceExists(namespace)) {
         return false;
+      }
+
+      List<Namespace> childNamespaces = listNamespaces(namespace);
+      if (!childNamespaces.isEmpty()) {
+        throw new NamespaceNotEmptyException(
+            "Namespace %s is not empty. Contains %d child namespace(s).",
+            namespace, childNamespaces.size());
       }
 
       List<TableIdentifier> tableIdentifiers = listTables(namespace);
@@ -317,7 +357,9 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public void close() throws IOException {
-    closeableGroup.close();
+    if (closeableGroup != null) {
+      closeableGroup.close();
+    }
     namespaces.clear();
     tables.clear();
     views.clear();

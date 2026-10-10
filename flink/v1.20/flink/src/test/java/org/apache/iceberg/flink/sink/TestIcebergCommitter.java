@@ -23,6 +23,7 @@ import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommitt
 import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommittableWithLineage;
 import static org.apache.iceberg.flink.sink.SinkTestUtil.transformsToStreamElement;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -92,12 +93,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @ExtendWith(ParameterizedTestExtension.class)
 class TestIcebergCommitter extends TestBase {
-  private static final Logger LOG = LoggerFactory.getLogger(TestIcebergCommitter.class);
   public static final String OPERATOR_ID = "flink-sink";
   @TempDir File temporaryFolder;
 
@@ -170,6 +168,8 @@ class TestIcebergCommitter extends TestBase {
 
     String tablePath = warehouse.concat("/test");
     assertThat(new File(tablePath).mkdir()).as("Should create the table path correctly.").isTrue();
+    // v4 table metadata requires an absolute (scheme-qualified) location
+    String tableLocation = "file:" + tablePath;
 
     Map<String, String> props =
         ImmutableMap.of(
@@ -179,8 +179,8 @@ class TestIcebergCommitter extends TestBase {
             flinkManifestFolder.getAbsolutePath(),
             IcebergCommitter.MAX_CONTINUOUS_EMPTY_COMMITS,
             "1");
-    table = SimpleDataUtil.createTable(tablePath, props, false);
-    tableLoader = TableLoader.fromHadoopTable(tablePath);
+    table = SimpleDataUtil.createTable(tableLocation, props, false);
+    tableLoader = TableLoader.fromHadoopTable(tableLocation);
   }
 
   @TestTemplate
@@ -236,6 +236,56 @@ class TestIcebergCommitter extends TestBase {
           .containsEntry("flink.operator-id", OPERATOR_ID)
           .containsEntry("flink.job-id", "jobId");
     }
+  }
+
+  @TestTemplate
+  public void testCommitTxnAfterStatelessRestart() throws Exception {
+    RowData rowFromPreviousRun = SimpleDataUtil.createRowData(0, "hello0");
+    DataFile dataFileFromPreviousRun =
+        writeDataFile("data-previous-run", ImmutableList.of(rowFromPreviousRun));
+
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        preRestartHarness = getTestHarness()) {
+      preRestartHarness.open();
+      processElement(jobId, 5, preRestartHarness, 1, OPERATOR_ID, dataFileFromPreviousRun);
+      preRestartHarness.notifyOfCompletedCheckpoint(5);
+    }
+
+    assertSnapshotSize(1);
+    assertMaxCommittedCheckpointId(jobId, 5);
+
+    List<RowData> rows = Lists.newArrayList(rowFromPreviousRun);
+    // A stateless restart opens a fresh operator instance without restoring prior state, so
+    // IcebergSink#createCommitter must see an empty context.getRestoredCheckpointId().
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        afterRestartHarness = getTestHarness()) {
+      afterRestartHarness.open();
+
+      RowData rowAfterRestart = SimpleDataUtil.createRowData(1, "hello1");
+      DataFile dataFileAfterRestart =
+          writeDataFile("data-after-restart", ImmutableList.of(rowAfterRestart));
+      processElement(jobId, 1, afterRestartHarness, 1, OPERATOR_ID, dataFileAfterRestart);
+      afterRestartHarness.notifyOfCompletedCheckpoint(1);
+      rows.add(rowAfterRestart);
+      assertSnapshotSize(2);
+      assertMaxCommittedCheckpointId(jobId, 1);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.copyOf(rows), branch);
+    }
+  }
+
+  @TestTemplate
+  public void testCommitTxnSkipsAlreadyCommittedCheckpointAfterRestore() throws Exception {
+    RowData rowFromPreviousRun = SimpleDataUtil.createRowData(1, "hello1");
+    commitCheckpoint(getCommitter(), 5, "data-previous-run", rowFromPreviousRun);
+    assertMaxCommittedCheckpointId(jobId, 5);
+
+    commitCheckpoint(getCommitter(), 5, "data-replayed", SimpleDataUtil.createRowData(2, "hello2"));
+
+    assertSnapshotSize(1);
+    assertMaxCommittedCheckpointId(jobId, 5);
+    SimpleDataUtil.assertTableRows(table, ImmutableList.of(rowFromPreviousRun), branch);
   }
 
   @TestTemplate
@@ -1164,6 +1214,48 @@ class TestIcebergCommitter extends TestBase {
     }
   }
 
+  @TestTemplate
+  public void testCommitterSubtaskZeroCommits() throws Exception {
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        testHarness = getTestHarness(2, 0)) {
+      testHarness.open();
+
+      long checkpointId = 1L;
+      RowData row = SimpleDataUtil.createRowData(1, "subtask-zero");
+      DataFile dataFile = writeDataFile("data-subtask-zero", ImmutableList.of(row));
+      processElement(jobId, checkpointId, testHarness, 1, OPERATOR_ID, dataFile);
+
+      testHarness.notifyOfCompletedCheckpoint(checkpointId);
+
+      // subtask 0 loaded the table and performed the commit end-to-end.
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row), branch);
+      assertSnapshotSize(1);
+      assertMaxCommittedCheckpointId(jobId, checkpointId);
+    }
+  }
+
+  @TestTemplate
+  public void testCommitOnNonZeroSubtaskFailsFast() throws Exception {
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        testHarness = getTestHarness(2, 1)) {
+      testHarness.open();
+
+      long checkpointId = 1L;
+      RowData row = SimpleDataUtil.createRowData(1, "should-not-commit");
+      DataFile dataFile = writeDataFile("data-non-zero-subtask", ImmutableList.of(row));
+      processElement(jobId, checkpointId, testHarness, 1, OPERATOR_ID, dataFile);
+
+      assertThatThrownBy(() -> testHarness.notifyOfCompletedCheckpoint(checkpointId))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageContaining("only subtask 0 is expected to commit");
+
+      // No snapshot should have been produced because the commit failed fast.
+      assertSnapshotSize(0);
+    }
+  }
+
   private ManifestFile createTestingManifestFile(Path manifestPath, DataFile dataFile)
       throws IOException {
     ManifestWriter<DataFile> writer =
@@ -1291,6 +1383,12 @@ class TestIcebergCommitter extends TestBase {
   private OneInputStreamOperatorTestHarness<
           CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
       getTestHarness() throws Exception {
+    return getTestHarness(1, 0);
+  }
+
+  private OneInputStreamOperatorTestHarness<
+          CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+      getTestHarness(int parallelism, int subtaskIndex) throws Exception {
     IcebergSink sink =
         IcebergSink.forRowData(null).table(table).toBranch(branch).tableLoader(tableLoader).build();
 
@@ -1298,7 +1396,10 @@ class TestIcebergCommitter extends TestBase {
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
         testHarness =
             new OneInputStreamOperatorTestHarness<>(
-                new CommitterOperatorFactory<>(sink, !isStreamingMode, true));
+                new CommitterOperatorFactory<>(sink, !isStreamingMode, true),
+                parallelism,
+                parallelism,
+                subtaskIndex);
     testHarness.setup(committableMessageTypeSerializer);
     return testHarness;
   }
@@ -1306,6 +1407,10 @@ class TestIcebergCommitter extends TestBase {
   // ------------------------------- Utility Methods --------------------------------
 
   private IcebergCommitter getCommitter() {
+    return getCommitter(true);
+  }
+
+  private IcebergCommitter getCommitter(boolean isRestored) {
     IcebergFilesCommitterMetrics metric = mock(IcebergFilesCommitterMetrics.class);
     return new IcebergCommitter(
         tableLoader,
@@ -1315,7 +1420,18 @@ class TestIcebergCommitter extends TestBase {
         10,
         "sinkId",
         metric,
-        false);
+        false,
+        isRestored,
+        0);
+  }
+
+  private void commitCheckpoint(
+      IcebergCommitter committer, long checkpointId, String filename, RowData row)
+      throws IOException, InterruptedException {
+    WriteResult writeResult = of(writeDataFile(filename, ImmutableList.of(row)));
+    committer.commit(
+        Lists.newArrayList(
+            buildCommitRequestFor(jobId, checkpointId, Lists.newArrayList(writeResult))));
   }
 
   private Committer.CommitRequest<IcebergCommittable> buildCommitRequestFor(

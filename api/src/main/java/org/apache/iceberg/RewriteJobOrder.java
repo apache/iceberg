@@ -59,7 +59,7 @@ public enum RewriteJobOrder {
     // Replace the hyphen in order name with underscore to map to the enum value. For example:
     // bytes-asc to BYTES_ASC
     try {
-      return RewriteJobOrder.valueOf(orderName.replaceFirst("-", "_").toUpperCase(Locale.ENGLISH));
+      return RewriteJobOrder.valueOf(orderName.replaceFirst("-", "_").toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
           String.format("Invalid rewrite job order name: %s", orderName), e);

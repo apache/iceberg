@@ -80,6 +80,22 @@ public class TestTableSerialization extends HadoopTableTestBase {
   }
 
   @Test
+  public void testSerializableTableSortOrdersWithDroppedColumn()
+      throws IOException, ClassNotFoundException {
+    table.updateSchema().addColumn("ts", Types.LongType.get()).commit();
+    table.replaceSortOrder().asc("id").asc("ts").commit();
+
+    // historical sort order 1 still references "ts" after the column is dropped
+    table.replaceSortOrder().asc("id").commit();
+    table.updateSchema().deleteColumn("ts").commit();
+
+    TestHelpers.assertSerializedAndLoadedMetadata(table, TestHelpers.roundTripSerialize(table));
+    Table serializableTable = SerializableTable.copyOf(table);
+    TestHelpers.assertSerializedAndLoadedMetadata(
+        serializableTable, TestHelpers.KryoHelpers.roundTripSerialize(serializableTable));
+  }
+
+  @Test
   public void testSerializableTableWithSnapshot() throws IOException, ClassNotFoundException {
     table.newAppend().appendFile(FILE_A).commit();
     TestHelpers.assertSerializedAndLoadedMetadata(table, TestHelpers.roundTripSerialize(table));

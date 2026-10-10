@@ -26,12 +26,14 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
+import org.apache.iceberg.util.PartitionUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -723,6 +725,45 @@ public class TestRowLineageAssignment {
   }
 
   @Test
+  public void lastUpdatedAfterUpgrade(@TempDir File altLocation) throws IOException {
+    BaseTable upgradeTable =
+        TestTables.create(altLocation, "test_upgrade", SCHEMA, PartitionSpec.unpartitioned(), 2);
+
+    upgradeTable.newAppend().appendFile(FILE_A).commit();
+    Snapshot originalSnapshot = upgradeTable.currentSnapshot();
+    long originalSequenceNumber = originalSnapshot.sequenceNumber();
+
+    upgradeTable
+        .newRewrite()
+        .validateFromSnapshot(originalSnapshot.snapshotId())
+        .rewriteFiles(Set.of(FILE_A), Set.of(FILE_B), originalSequenceNumber)
+        .commit();
+
+    TestTables.upgrade(altLocation, "test_upgrade", 3);
+    upgradeTable.refresh();
+
+    // Assign row IDs to the upgraded metadata tree without rewriting the data file.
+    upgradeTable.newFastAppend().commit();
+
+    try (CloseableIterable<FileScanTask> tasks = upgradeTable.newScan().planFiles()) {
+      FileScanTask task = Iterables.getOnlyElement(tasks);
+
+      assertThat(task.file().location()).isEqualTo(FILE_B.location());
+      assertThat(task.file().dataSequenceNumber()).isEqualTo(originalSequenceNumber);
+      assertThat(task.file().fileSequenceNumber()).isGreaterThan(originalSequenceNumber);
+      assertThat(task.file().firstRowId()).isNotNull();
+
+      // Scan planning projects row lineage metadata columns through constantsMap.
+      // The upgraded data file is not rewritten, so validate the value readers see.
+      assertThat(
+              PartitionUtil.constantsMap(task)
+                  .get(MetadataColumns.LAST_UPDATED_SEQUENCE_NUMBER.fieldId()))
+          .as("Last updated should preserve the original data sequence after upgrade")
+          .isEqualTo(originalSequenceNumber);
+    }
+  }
+
+  @Test
   public void testUpgradeAssignmentWithManifestCompaction(@TempDir File altLocation) {
     // create a non-empty upgrade table with FILE_A
     BaseTable upgradeTable =
@@ -779,6 +820,33 @@ public class TestRowLineageAssignment {
         0L,
         FILE_C.recordCount(),
         FILE_C.recordCount() + FILE_B.recordCount());
+  }
+
+  @Test
+  public void testRewritePreservesExistingFileFirstRowIds() {
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    // FILE_A gets firstRowId=0, FILE_B gets firstRowId=FILE_A.recordCount()=125; assert before
+    // rewrite
+    ManifestFile preRewriteManifest =
+        Iterables.getOnlyElement(table.currentSnapshot().dataManifests(table.io()));
+    checkDataFileAssignment(table, preRewriteManifest, 0L, FILE_A.recordCount());
+
+    // set low to trigger an internal manifest merge during the rewrite
+    table.updateProperties().set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "1").commit();
+    // FILE_A and FILE_C must be removed and added in the same operation. Removing FILE_A creates
+    // an uncommitted manifest containing FILE_B as an existing entry. Adding FILE_C triggers the
+    // internal manifest merge to read that uncommitted manifest before its firstRowId is assigned.
+    table.newRewrite().deleteFile(FILE_A).addFile(FILE_C).commit();
+
+    // merged manifest live files: [FILE_C (added), FILE_B (existing)]
+    ManifestFile manifest =
+        Iterables.getOnlyElement(table.currentSnapshot().dataManifests(table.io()));
+    checkDataFileAssignment(
+        table,
+        manifest,
+        FILE_A.recordCount() + FILE_B.recordCount(), // FILE_C gets 225
+        FILE_A.recordCount()); // FILE_B must retain its original firstRowId (125)
   }
 
   private static ManifestContent content(int ordinal) {

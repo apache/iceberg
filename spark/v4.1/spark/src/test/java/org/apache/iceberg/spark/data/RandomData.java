@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.data;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -42,11 +41,11 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.RandomUtil;
-import org.apache.iceberg.variants.Variant;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
+import org.apache.spark.sql.catalyst.util.STUtils;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
@@ -55,6 +54,12 @@ public class RandomData {
 
   // Default percentage of number of values that are null for optional fields
   public static final float DEFAULT_NULL_PERCENTAGE = 0.05f;
+
+  // Exclusive upper bound on the number of elements generated for each list/map.
+  // Zero-length collections are in range, so this is a cap and not a minimum.
+  // Applied per nesting level, so deeply-nested schemas multiply quickly; keep
+  // this small enough to avoid combinatorial blow-up in heavily-nested tests.
+  private static final int COLLECTION_SIZE_BOUND = 10;
 
   private RandomData() {}
 
@@ -182,7 +187,7 @@ public class RandomData {
 
     @Override
     public Object list(Types.ListType list, Supplier<Object> elementResult) {
-      int numElements = random.nextInt(20);
+      int numElements = random.nextInt(COLLECTION_SIZE_BOUND);
 
       List<Object> result = Lists.newArrayListWithExpectedSize(numElements);
       for (int i = 0; i < numElements; i += 1) {
@@ -198,7 +203,7 @@ public class RandomData {
 
     @Override
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
-      int numEntries = random.nextInt(20);
+      int numEntries = random.nextInt(COLLECTION_SIZE_BOUND);
 
       Map<Object, Object> result = Maps.newLinkedHashMap();
       Set<Object> keySet = Sets.newHashSet();
@@ -294,7 +299,7 @@ public class RandomData {
 
     @Override
     public GenericArrayData list(Types.ListType list, Supplier<Object> elementResult) {
-      int numElements = random.nextInt(20);
+      int numElements = random.nextInt(COLLECTION_SIZE_BOUND);
       Object[] arr = new Object[numElements];
       GenericArrayData result = new GenericArrayData(arr);
 
@@ -311,7 +316,7 @@ public class RandomData {
 
     @Override
     public Object map(Types.MapType map, Supplier<Object> keyResult, Supplier<Object> valueResult) {
-      int numEntries = random.nextInt(20);
+      int numEntries = random.nextInt(COLLECTION_SIZE_BOUND);
 
       Object[] keysArr = new Object[numEntries];
       Object[] valuesArr = new Object[numEntries];
@@ -342,17 +347,7 @@ public class RandomData {
 
     @Override
     public VariantVal variant(Types.VariantType type) {
-      Variant variant = RandomVariants.randomVariant(random);
-
-      byte[] metadataBytes = new byte[variant.metadata().sizeInBytes()];
-      ByteBuffer metadataBuffer = ByteBuffer.wrap(metadataBytes).order(ByteOrder.LITTLE_ENDIAN);
-      variant.metadata().writeTo(metadataBuffer, 0);
-
-      byte[] valueBytes = new byte[variant.value().sizeInBytes()];
-      ByteBuffer valueBuffer = ByteBuffer.wrap(valueBytes).order(ByteOrder.LITTLE_ENDIAN);
-      variant.value().writeTo(valueBuffer, 0);
-
-      return new VariantVal(valueBytes, metadataBytes);
+      return SparkVariantTestUtil.toVariantVal(RandomVariants.randomVariant(random));
     }
 
     @Override
@@ -365,6 +360,11 @@ public class RandomData {
           return Decimal.apply((BigDecimal) obj);
         case UUID:
           return UTF8String.fromString(UUID.nameUUIDFromBytes((byte[]) obj).toString());
+        case GEOMETRY:
+          // Spark's GeometryVal is [SRID | WKB]; build it from the generated WKB.
+          return STUtils.stGeomFromWKB((byte[]) obj);
+        case GEOGRAPHY:
+          return STUtils.stGeogFromWKB((byte[]) obj);
         default:
           return obj;
       }

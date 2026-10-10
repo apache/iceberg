@@ -92,8 +92,8 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
         @Override
         public RetryResult beforeEval(Exception exception) {
-          if (exception instanceof BaseServiceException) {
-            boolean retriable = ((BaseServiceException) exception).isRetryable();
+          if (exception instanceof BaseServiceException serviceException) {
+            boolean retriable = serviceException.isRetryable();
             return retriable
                 ? ExceptionHandler.Interceptor.RetryResult.RETRY
                 : ExceptionHandler.Interceptor.RetryResult.CONTINUE_EVALUATION;
@@ -434,7 +434,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
 
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         String responseString = response.parseAsString();
-        if (responseString.toLowerCase(Locale.ENGLISH).contains("not found: connection")) {
+        if (responseString.toLowerCase(Locale.ROOT).contains("not found: connection")) {
           throw new BadRequestException("%s", responseString);
         }
 
@@ -553,32 +553,6 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
     }
   }
 
-  //  private Dataset internalUpdate(Dataset dataset) {
-  //    Preconditions.checkArgument(
-  //        dataset.getDatasetReference() != null, "Dataset Reference can not be null!");
-  //    Preconditions.checkArgument(
-  //        dataset.getDatasetReference().getDatasetId() != null, "Dataset Id can not be null!");
-  //
-  //    try {
-  //      HttpResponse response =
-  //          client
-  //              .datasets()
-  //              .update(
-  //                  dataset.getDatasetReference().getProjectId(),
-  //                  dataset.getDatasetReference().getDatasetId(),
-  //                  dataset)
-  //              .setRequestHeaders(new HttpHeaders().setIfMatch(dataset.getEtag()))
-  //              .executeUnparsed();
-  //      if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
-  //        throw new NoSuchNamespaceException("%s", response.getStatusMessage());
-  //      }
-  //
-  //      return convertExceptionIfUnsuccessful(response).parseAs(Dataset.class);
-  //    } catch (IOException e) {
-  //      throw new RuntimeIOException("%s", e);
-  //    }
-  //  }
-
   /**
    * Checks if the given table represents a BigQuery Metastore Iceberg table. A table is considered
    * an Iceberg table if it has ExternalCatalogTableOptions, a non-empty parameters map containing
@@ -594,8 +568,7 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       return false;
     }
 
-    java.util.Map<String, String> parameters =
-        table.getExternalCatalogTableOptions().getParameters();
+    Map<String, String> parameters = table.getExternalCatalogTableOptions().getParameters();
 
     if (!parameters.containsKey(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
         || !parameters.containsKey(BaseMetastoreTableOperations.TABLE_TYPE_PROP)) {
@@ -631,10 +604,10 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
             + (exception.getContent() != null ? "\n" + exception.getContent() : "");
 
     switch (response.getStatusCode()) {
-      case HttpStatusCodes.STATUS_CODE_UNAUTHORIZED:
-        throw new NotAuthorizedException(
-            "Not authorized to call the BigQuery API or access this resource: %s", errorMessage);
-      case HttpStatusCodes.STATUS_CODE_BAD_REQUEST:
+      case HttpStatusCodes.STATUS_CODE_UNAUTHORIZED ->
+          throw new NotAuthorizedException(
+              "Not authorized to call the BigQuery API or access this resource: %s", errorMessage);
+      case HttpStatusCodes.STATUS_CODE_BAD_REQUEST -> {
         GoogleJsonError errorDetails = exception.getDetails();
         if (errorDetails != null) {
           List<GoogleJsonError.ErrorInfo> errors = errorDetails.getErrors();
@@ -647,20 +620,20 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
           }
         }
         throw new BadRequestException("%s", errorMessage);
-      case HttpStatusCodes.STATUS_CODE_FORBIDDEN:
-        throw new ForbiddenException("%s", errorMessage);
-      case HttpStatusCodes.STATUS_CODE_PRECONDITION_FAILED:
-        throw new CommitFailedException("%s", errorMessage);
-      case HttpStatusCodes.STATUS_CODE_NOT_FOUND:
-        throw new IllegalArgumentException(errorMessage);
-      case HttpStatusCodes.STATUS_CODE_SERVER_ERROR:
-        throw new ServiceFailureException("%s", errorMessage);
-      case HttpStatusCodes.STATUS_CODE_SERVICE_UNAVAILABLE:
-        throw new ServiceUnavailableException("%s", errorMessage);
-      case HttpStatusCodes.STATUS_CODE_CONFLICT:
-        throw new AlreadyExistsException("%s", errorMessage);
-      default:
-        throw new HttpResponseException(response);
+      }
+      case HttpStatusCodes.STATUS_CODE_FORBIDDEN ->
+          throw new ForbiddenException("%s", errorMessage);
+      case HttpStatusCodes.STATUS_CODE_PRECONDITION_FAILED ->
+          throw new CommitFailedException("%s", errorMessage);
+      case HttpStatusCodes.STATUS_CODE_NOT_FOUND ->
+          throw new IllegalArgumentException(errorMessage);
+      case HttpStatusCodes.STATUS_CODE_SERVER_ERROR ->
+          throw new ServiceFailureException("%s", errorMessage);
+      case HttpStatusCodes.STATUS_CODE_SERVICE_UNAVAILABLE ->
+          throw new ServiceUnavailableException("%s", errorMessage);
+      case HttpStatusCodes.STATUS_CODE_CONFLICT ->
+          throw new AlreadyExistsException("%s", errorMessage);
+      default -> throw new HttpResponseException(response);
     }
   }
 
@@ -672,8 +645,8 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       BigQueryRetryHelper.BigQueryRetryHelperException retryException) {
     Throwable cause = retryException.getCause();
     String message = retryException.getMessage();
-    if (cause instanceof RuntimeException) {
-      throw (RuntimeException) cause;
+    if (cause instanceof RuntimeException runtimeException) {
+      throw runtimeException;
     } else {
       throw new RuntimeException(message, cause);
     }

@@ -43,6 +43,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.ExpressionVisitors;
+import org.apache.iceberg.expressions.Hilbert;
 import org.apache.iceberg.expressions.Term;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.expressions.UnboundTerm;
@@ -74,10 +75,13 @@ import org.apache.spark.sql.catalyst.parser.ParserInterface;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.CatalogV2Implicits;
+import org.apache.spark.sql.connector.catalog.CatalogV2Util;
+import org.apache.spark.sql.connector.catalog.Column;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.Literal;
@@ -108,6 +112,20 @@ public class Spark3Util {
   private static final String HIVE_NULL = "__HIVE_DEFAULT_PARTITION__";
 
   private Spark3Util() {}
+
+  static TableInfo tableInfo(
+      StructType schema, Transform[] transforms, Map<String, String> properties) {
+    return tableInfo(CatalogV2Util.structTypeToV2Columns(schema), transforms, properties);
+  }
+
+  public static TableInfo tableInfo(
+      Column[] columns, Transform[] transforms, Map<String, String> properties) {
+    return new TableInfo.Builder()
+        .withColumns(columns)
+        .withPartitions(transforms)
+        .withProperties(properties)
+        .build();
+  }
 
   public static Map<String, String> rebuildCreateProperties(Map<String, String> createProperties) {
     ImmutableMap.Builder<String, String> tableProperties = ImmutableMap.builder();
@@ -369,7 +387,9 @@ public class Spark3Util {
     if (expr instanceof Transform) {
       Transform transform = (Transform) expr;
       Preconditions.checkArgument(
-          "zorder".equals(transform.name()) || transform.references().length == 1,
+          "zorder".equals(transform.name())
+              || "hilbert".equals(transform.name())
+              || transform.references().length == 1,
           "Cannot convert transform with more than one column reference: %s",
           transform);
       String colName = DOT.join(transform.references()[0].fieldNames());
@@ -396,6 +416,12 @@ public class Spark3Util {
           return org.apache.iceberg.expressions.Expressions.truncate(colName, findWidth(transform));
         case "zorder":
           return new Zorder(
+              Stream.of(transform.references())
+                  .map(ref -> DOT.join(ref.fieldNames()))
+                  .map(org.apache.iceberg.expressions.Expressions::ref)
+                  .collect(Collectors.toList()));
+        case "hilbert":
+          return new Hilbert(
               Stream.of(transform.references())
                   .map(ref -> DOT.join(ref.fieldNames()))
                   .map(org.apache.iceberg.expressions.Expressions::ref)

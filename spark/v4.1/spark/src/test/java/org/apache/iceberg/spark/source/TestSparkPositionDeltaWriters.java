@@ -44,7 +44,6 @@ public class TestSparkPositionDeltaWriters extends TestPositionDeltaWriters<Inte
         .deleteFileFormat(format())
         .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
         .equalityDeleteRowSchema(equalityDeleteRowSchema)
-        .positionDeleteRowSchema(positionDeleteRowSchema)
         .build();
   }
 

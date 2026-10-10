@@ -479,20 +479,48 @@ public class TestEvolveSchemaVisitor {
   }
 
   @Test
-  public void testInvalidTypePromoteDoubleToFloat() {
+  public void testTypeNarrowDoubleToFloatIsLeftToConversion() {
     Schema currentSchema = new Schema(required(1, "aCol", DoubleType.get()));
     Schema targetSchema = new Schema(required(1, "aCol", FloatType.get()));
-    assertThatThrownBy(
-            () ->
-                EvolveSchemaVisitor.visit(
-                    TABLE,
-                    loadUpdateApi(currentSchema),
-                    currentSchema,
-                    targetSchema,
-                    true,
-                    PRESERVE_COLUMNS))
-        .hasMessage("Cannot change column type: aCol: double -> float")
-        .isInstanceOf(IllegalArgumentException.class);
+
+    UpdateSchema updateApi = loadUpdateApi(currentSchema);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    Schema applied = updateApi.apply();
+
+    assertThat(applied.findField("aCol").type()).isEqualTo(DoubleType.get());
+  }
+
+  @Test
+  public void testAddColumnWithResidualNarrowingDoesNotFail() {
+    Schema currentSchema = new Schema(required(1, "id", LongType.get()));
+    Schema targetSchema =
+        new Schema(required(1, "id", IntegerType.get()), optional(2, "age", IntegerType.get()));
+
+    UpdateSchema updateApi = loadUpdateApi(currentSchema);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    Schema applied = updateApi.apply();
+
+    assertThat(applied.findField("id").type()).isEqualTo(LongType.get());
+    assertThat(applied.findField("age")).isNotNull();
+    assertThat(applied.findField("age").type()).isEqualTo(IntegerType.get());
+  }
+
+  @Test
+  public void testAddColumnWithResidualDateToTimestampDoesNotFail() {
+    Schema currentSchema = new Schema(required(1, "ts", Types.TimestampType.withoutZone()));
+    Schema targetSchema =
+        new Schema(required(1, "ts", Types.DateType.get()), optional(2, "age", IntegerType.get()));
+
+    UpdateSchema updateApi = loadUpdateApi(currentSchema);
+    EvolveSchemaVisitor.visit(
+        TABLE, updateApi, currentSchema, targetSchema, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    Schema applied = updateApi.apply();
+
+    assertThat(applied.findField("ts").type()).isEqualTo(Types.TimestampType.withoutZone());
+    assertThat(applied.findField("age")).isNotNull();
+    assertThat(applied.findField("age").type()).isEqualTo(IntegerType.get());
   }
 
   @Test

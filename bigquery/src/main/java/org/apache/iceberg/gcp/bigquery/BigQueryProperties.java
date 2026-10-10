@@ -182,7 +182,7 @@ class BigQueryProperties implements Serializable {
           ImpersonatedCredentials.create(
               sourceCredentials, impersonateServiceAccount, delegates, scopes, lifetimeSeconds);
 
-      // refresh to validate credentials and get intial token
+      // refresh to validate credentials and get initial token
       impersonatedCredentials.refresh();
 
       LOG.debug(

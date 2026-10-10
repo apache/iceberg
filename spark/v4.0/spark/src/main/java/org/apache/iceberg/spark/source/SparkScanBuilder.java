@@ -40,6 +40,7 @@ import org.apache.iceberg.SparkDistributedDataScan;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundAggregate;
@@ -225,7 +226,7 @@ public class SparkScanBuilder
               aggregateFunc);
           return false;
         }
-      } catch (IllegalArgumentException e) {
+      } catch (IllegalArgumentException | ValidationException e) {
         LOG.info("Skipping aggregate pushdown: Bind failed for AggregateFunc {}", aggregateFunc, e);
         return false;
       }
@@ -307,16 +308,16 @@ public class SparkScanBuilder
                 colName);
             return false;
           }
-        } else if (mode instanceof MetricsModes.Truncate) {
-          // lower_bounds and upper_bounds may be truncated, so disable push down
-          if (aggregate.type().typeId() == Type.TypeID.STRING) {
-            if (aggregate.op() == Expression.Operation.MAX
-                || aggregate.op() == Expression.Operation.MIN) {
-              LOG.info(
-                  "Skipping aggregate pushdown: Cannot produce min or max from truncated values for column {}",
-                  colName);
-              return false;
-            }
+        } else if (aggregate.type().typeId() == Type.TypeID.STRING
+            || aggregate.type().typeId() == Type.TypeID.BINARY) {
+          // lower_bounds and upper_bounds may have been truncated before, so disable push down
+          // regardless of the current mode
+          if (aggregate.op() == Expression.Operation.MAX
+              || aggregate.op() == Expression.Operation.MIN) {
+            LOG.info(
+                "Skipping aggregate pushdown: Cannot produce min or max from truncated values for column {}",
+                colName);
+            return false;
           }
         }
       }
@@ -479,9 +480,7 @@ public class SparkScanBuilder
             .project(expectedSchema)
             .metricsReporter(metricsReporter);
 
-    if (withStats) {
-      scan = scan.includeColumnStats();
-    }
+    scan = includeStats(scan, expectedSchema, withStats);
 
     if (snapshotId != null) {
       scan = scan.useSnapshot(snapshotId);
@@ -513,15 +512,29 @@ public class SparkScanBuilder
             .project(expectedSchema)
             .metricsReporter(metricsReporter);
 
-    if (withStats) {
-      scan = scan.includeColumnStats();
-    }
+    scan = includeStats(scan, expectedSchema, withStats);
 
     if (endSnapshotId != null) {
       scan = scan.toSnapshot(endSnapshotId);
     }
 
     return configureSplitPlanning(scan);
+  }
+
+  private <S extends org.apache.iceberg.Scan<S, ?, ?>> S includeStats(
+      S scan, Schema projection, boolean withStats) {
+    if (withStats) {
+      return scan.includeColumnStats();
+    }
+    List<String> variantColumns = variantColumnNames(projection);
+    return variantColumns.isEmpty() ? scan : scan.includeColumnStats(variantColumns);
+  }
+
+  private List<String> variantColumnNames(Schema projection) {
+    return projection.columns().stream()
+        .filter(field -> field.type().isVariantType())
+        .map(Types.NestedField::name)
+        .collect(Collectors.toList());
   }
 
   @SuppressWarnings("CyclomaticComplexity")

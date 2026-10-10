@@ -47,8 +47,8 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    *
    * @param sourceName source column name in the table schema
    * @return this for method chaining
-   * @throws IllegalArgumentException If the an identity partition field for the source already
-   *     exists, or if this change conflicts with other additions, removals, or renames.
+   * @throws IllegalArgumentException If an identity partition field for the source already exists,
+   *     or if this change conflicts with other additions, removals, or renames.
    */
   UpdatePartitionSpec addField(String sourceName);
 
@@ -65,7 +65,7 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    *
    * @param term source column name in the table schema
    * @return this for method chaining
-   * @throws IllegalArgumentException If the a partition field for the transform and source already
+   * @throws IllegalArgumentException If a partition field for the transform and source already
    *     exists, or if this change conflicts with other additions, removals, or renames.
    */
   UpdatePartitionSpec addField(Term term);
@@ -83,7 +83,7 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    * @param name name for the partition field
    * @param term expression for the partition transform
    * @return this for method chaining
-   * @throws IllegalArgumentException If the a partition field for the transform and source already
+   * @throws IllegalArgumentException If a partition field for the transform and source already
    *     exists, if a partition field with the given name already exists, or if this change
    *     conflicts with other additions, removals, or renames.
    */
@@ -94,8 +94,8 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    *
    * @param name name of the partition field to remove
    * @return this for method chaining
-   * @throws IllegalArgumentException If the a partition field with the given name does not exist,
-   *     or if this change conflicts with other additions, removals, or renames.
+   * @throws IllegalArgumentException If a partition field with the given name does not exist, or if
+   *     this change conflicts with other additions, removals, or renames.
    */
   UpdatePartitionSpec removeField(String name);
 
@@ -107,8 +107,8 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    *
    * @param term expression for the partition transform to remove
    * @return this for method chaining
-   * @throws IllegalArgumentException If the a partition field with the given transform and source
-   *     does not exist, or if this change conflicts with other additions, removals, or renames.
+   * @throws IllegalArgumentException If a partition field with the given transform and source does
+   *     not exist, or if this change conflicts with other additions, removals, or renames.
    */
   UpdatePartitionSpec removeField(Term term);
 

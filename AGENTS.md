@@ -21,6 +21,12 @@
 
 Project conventions, architecture, and coding patterns synthesized from 58,000+ review comments across 4,300+ merged PRs.
 
+Reviewer attention is the project's scarcest resource. When a rule below is ambiguous, pick the option that produces less for a reviewer to read.
+
+## Security Model
+
+When assessing potential vulnerabilities or calibrating automated security findings, use [`SECURITY-THREAT-MODEL.md`](SECURITY-THREAT-MODEL.md) as the authoritative detailed description of Iceberg's security boundaries, trust assumptions, and non-boundaries.
+
 ## Architecture
 
 ### Module Boundaries
@@ -85,10 +91,55 @@ The `api/` module has the strongest stability guarantees — breaking changes ar
 - 2 spaces indent, 4 spaces continuation. Empty newline after control flow blocks.
 - Use `this.` for instance field assignment. `Preconditions` calls first in methods.
 - No `final` on locals. No one-argument-per-line unless necessary.
-- Magic numbers should be named constants. No personal pronouns in comments.
+- Magic numbers should be named constants.
 - `} else {` on same line. Minimize variable scope. `try-with-resources` for all `AutoCloseable`.
 - Prefer method references over lambdas. Wrap lines at the highest semantic level.
+- Prefer switch expressions (`case X -> ...`) over statement switches. Exhaustive enum switches need no `default`; others must have one.
 - Always use imports — never use fully-qualified class names inline.
+
+### Comments & Javadoc
+
+When writing new code, default to no comment and no Javadoc. Add one only when it states something the code does not. Leave existing comments and Javadoc as they are unless you are changing the code they describe or they have become wrong.
+
+**Check before adding:** if the comment or Javadoc you are about to write would need editing during a refactor that keeps behavior identical, it is describing internals — rewrite it or leave it out.
+
+**Comments**
+
+- Don't write a comment that restates the method name, the condition, or the next line.
+- Don't add commented-out code, section banners, or `// getter` / `// loop over files` narration.
+- No personal pronouns. Never describe how the code changed, what a PR did, or what the behavior used to be.
+
+**Javadoc**
+
+- Javadoc states the goal — what the method does for the caller — never how it does it. Strictest in `api/`.
+- Don't name internal fields, helper classes, data structures, caching, or algorithms. If you find yourself naming a type that isn't in the signature, you are documenting internals.
+- One sentence is usually enough. Longer is justified only by contract the caller must know: see `AppendFiles.appendManifest`, whose length is entirely about manifest lifecycle ownership on success and failure.
+- Document thrown exceptions, null behavior, and resource ownership (for example that a returned iterable must be closed).
+- Keep `@param` and `@return` tags in `api/` even when brief — `@return this for method chaining` is the established phrasing. Don't strip them.
+- Don't re-document an inherited contract; let overrides inherit unless they narrow or extend it.
+- Document `public` and `protected` members, interface methods, and anything designed to be overridden. `private` and package-private methods get none unless there is a caller obligation the signature can't express, such as a required lock or pre-sorted input.
+
+```java
+// Bad: documents the algorithm. The caller cannot rely on any of it.
+/**
+ * Plans files by opening each manifest in the current snapshot's manifest list, evaluating the
+ * filter expression against partition summaries to skip manifests, then reading the surviving
+ * manifests in parallel using the worker pool and wrapping each entry in a BaseFileScanTask.
+ *
+ * @return an iterable of scan tasks
+ */
+CloseableIterable<FileScanTask> planFiles();
+
+// Good: the goal, plus the one thing the caller must do.
+/**
+ * Plans the files that will be read by this scan.
+ *
+ * <p>The returned iterable holds open resources and must be closed by the caller.
+ *
+ * @return an iterable of scan tasks matching this scan's filters
+ */
+CloseableIterable<FileScanTask> planFiles();
+```
 
 ### Code Placement
 
@@ -130,11 +181,19 @@ The `api/` module has the strongest stability guarantees — breaking changes ar
 
 ### Testing
 
+**Write the test plan before the tests.** State in the PR description what behavior needs verifying and why each case matters — a few lines, not a document.
+
+- Test the behavior in the plan. Coverage is not a target.
+- Test the behavior this change adds or modifies. Don't assert the correctness of components this code merely calls.
+- One behavior per test method. No omnibus tests asserting several unrelated things.
+- A failing test must point to broken behavior. Don't add one that would fail only because an internal detail changed while the observable behavior is still correct.
+- Don't add tests for unreachable states, or tests that only restate the implementation.
 - Minimal test setup: `PartitionSpec.unpartitioned()` when partitioning isn't needed.
 - Test classes and methods should be package private unless required by inheritance.
 - Compute expected values, don't hardcode. Tests belong in the module that owns the code.
 - Write the most direct test for the bug. Parameterized tests for type variations.
-- JUnit 5 + AssertJ: `@Test` (no `test` prefix), `assertThat`, `assertThatThrownBy`.
+- JUnit 5 + AssertJ: `@Test`, `assertThat`, `assertThatThrownBy`.
+- Avoid using `test` prefixes for newly added tests.
 - `waitUntilAfter` for time-dependent tests. Separate tests over combined.
 
 ### REST / OpenAPI Spec
@@ -151,15 +210,53 @@ The `api/` module has the strongest stability guarantees — breaking changes ar
 - **Spark-versioned module:** `./gradlew :iceberg-spark:iceberg-spark-4.1_2.13:test --tests "org.apache.iceberg.spark.source.TestSparkReaderDeletes"`
 - **Format code:** `./gradlew spotlessApply`
 - **Check formatting:** `./gradlew spotlessCheck`
+- **Checkstyle (core module):** `./gradlew :iceberg-core:checkstyleMain :iceberg-core:checkstyleTest` (replace the module path for other modules).
 - **API compatibility:** `./gradlew revApiCheck`
 
 ## PR & Commit Conventions
 
+- **Never open a PR generated from an issue without a human in the loop.**
+- Search open PRs and issues for the same problem before starting. Don't add a duplicate.
 - PR titles follow `Module: Description` format (e.g., `Core: Fix ...`, `Spark: Add ...`, `Docs: Update ...`).
 - One concern per PR. Unrelated whitespace, import, or formatting changes go in separate PRs.
 - Keep first version of a PR minimal — defer recovery, optimization, and edge cases to follow-ups.
+- Before opening a PR, run `./gradlew spotlessApply`, run `checkstyleMain` and `checkstyleTest` for the modules you changed, and build and test those modules (see Commands). Never submit code you have not compiled and run.
+- PR description is one paragraph, under 120 words: the problem, the approach, and anything a reviewer would not guess from the diff. Plus the issue link, the test plan, and the AI Disclosure block. Nothing else.
+- Never restate the diff: no file-by-file walkthrough, no per-method summaries, no "Changes made" checklist, no "Summary", "Background", "Motivation", or "Testing" headings, no emoji.
 - Commit messages describe the *what* and *why*, not implementation details.
 - Apache License header required on all new files (enforced by spotless pre-commit hook).
+
+## AI-Generated PR Disclosure
+
+Pull requests that are authored or substantially generated by AI agents **must** disclose that in the PR description. Always include an AI Disclosure block at the bottom, using the template below.
+
+- Fill in the fields you know. For fields you cannot determine, use `[unknown - human to fill in]`.
+- **Never self-certify review.** An agent must not set Human Oversight to `fully reviewed` — leave that for the human to state what they actually reviewed.
+- Name the specific parts that are generated, not merely that AI was used (e.g. "the parser changes and their tests are generated; the spec interpretation is the author's").
+- **Never auto-generate replies to review comments.**
+- AI-generated review comments **must** be reviewed for accuracy before posting. Auto-posting unreviewed AI comments is discouraged.
+
+See the [ASF generative tooling guidelines](https://www.apache.org/legal/generative-tooling.html) for additional policy on AI-generated contributions. Generated files must still follow Iceberg's Apache License header and license check requirements unless explicitly excluded by project policy. For commits authored using generative AI tooling, include a `Generated-by: <tool>` token in the commit message.
+
+### Required Fields
+
+- **Model**: Set this to your model identifier and version (e.g., `Claude Opus 4.6`, `GPT-4o`, `Gemini 2.5 Pro`).
+- **Platform/Tool**: Set this to the tool or platform that orchestrated the generation (e.g., `GitHub Copilot`, `Cursor`, `Aider`, `Claude Code`, `custom script`).
+- **Human Oversight**: Set this to `fully reviewed`, `partially reviewed`, or `unreviewed`. If unknown, use `[unknown - human to fill in]`.
+- **Prompt Summary**: A brief description of the prompt or task given to the agent.
+
+### PR Description Template
+
+Add the following block at the bottom of PR descriptions:
+
+```
+---
+**AI Disclosure**
+- Model: [model name and version]
+- Platform/Tool: [tool or platform name]
+- Human Oversight: [fully reviewed | partially reviewed | unreviewed]
+- Prompt Summary: [brief description of the task]
+```
 
 ## Boundaries
 

@@ -95,6 +95,12 @@ public class TestSchemaConversions {
   }
 
   @Test
+  public void testAvroToIcebergUUIDTypeOnString() {
+    Schema uuidStringSchema = LogicalTypes.uuid().addToSchema(Schema.create(Schema.Type.STRING));
+    assertThat(AvroSchemaUtil.convert(uuidStringSchema)).isEqualTo(Types.UUIDType.get());
+  }
+
+  @Test
   public void testAvroToIcebergTimestampTypeWithoutAdjustToUTC() {
     // Not included in the primitives test because there is not a way to round trip the
     // avro<->iceberg conversion

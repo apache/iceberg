@@ -21,18 +21,29 @@ package org.apache.iceberg.parquet;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.parquet.conf.HadoopParquetConfiguration;
+import org.apache.parquet.conf.ParquetConfiguration;
 import org.apache.parquet.hadoop.BadConfigurationException;
 import org.apache.parquet.hadoop.CodecFactory;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.hadoop.util.ConfigurationUtil;
 
 /**
- * This class implements a codec factory that is used when reading from Parquet. It adds a
- * workaround to cache codecs by name and level, not just by name. This can be removed when this
- * change is made to Parquet.
+ * A codec factory that caches codecs by compression level as well as by name, so that requests for
+ * the same codec at different levels do not share an instance.
  */
 public class ParquetCodecFactory extends CodecFactory {
 
+  /**
+   * @deprecated since 1.13.0; this class is internal to {@link Parquet} and should not be
+   *     constructed directly.
+   */
+  @Deprecated
   public ParquetCodecFactory(Configuration configuration, int pageSize) {
+    this(new HadoopParquetConfiguration(configuration), pageSize);
+  }
+
+  ParquetCodecFactory(ParquetConfiguration configuration, int pageSize) {
     super(configuration, pageSize);
   }
 
@@ -57,10 +68,14 @@ public class ParquetCodecFactory extends CodecFactory {
       try {
         codecClass = Class.forName(codecClassName);
       } catch (ClassNotFoundException e) {
-        // Try to load the class using the job classloader
-        codecClass = configuration.getClassLoader().loadClass(codecClassName);
+        // Try to load the class using the configuration's classloader
+        codecClass = conf.getClassByName(codecClassName);
       }
-      codec = (CompressionCodec) ReflectionUtils.newInstance(codecClass, configuration);
+      // Hadoop codecs are Configurable, so instantiation needs a Hadoop Configuration
+      codec =
+          (CompressionCodec)
+              ReflectionUtils.newInstance(
+                  codecClass, ConfigurationUtil.createHadoopConfiguration(conf));
       CODEC_BY_NAME.put(cacheKey, codec);
       return codec;
     } catch (ClassNotFoundException e) {
@@ -73,16 +88,16 @@ public class ParquetCodecFactory extends CodecFactory {
     String level = null;
     switch (codecName) {
       case GZIP:
-        level = configuration.get("zlib.compress.level");
+        level = conf.get("zlib.compress.level");
         break;
       case BROTLI:
-        level = configuration.get("compression.brotli.quality");
+        level = conf.get("compression.brotli.quality");
         break;
       case ZSTD:
-        level = configuration.get("parquet.compression.codec.zstd.level");
+        level = conf.get("parquet.compression.codec.zstd.level");
         if (level == null) {
           // keep "io.compression.codec.zstd.level" for backwards compatibility
-          level = configuration.get("io.compression.codec.zstd.level");
+          level = conf.get("io.compression.codec.zstd.level");
         }
         break;
       default:

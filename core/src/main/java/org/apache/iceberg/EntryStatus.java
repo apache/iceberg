@@ -20,22 +20,32 @@ package org.apache.iceberg;
 
 /** Status of an entry in a manifest file. */
 enum EntryStatus {
-  EXISTING(0),
-  ADDED(1),
-  DELETED(2),
-  /** Indicates an entry that has been replaced by a column update or DV change. Added in v4. */
-  REPLACED(3);
+  EXISTING(0, true),
+  ADDED(1, true),
+  DELETED(2, false),
+  /**
+   * The old (replaced) state of an entry that has been modified. Paired with MODIFIED. Added in v4.
+   */
+  REPLACED(3, false),
+  /** The new (live) state of an entry that has been modified. Added in v4. */
+  MODIFIED(4, true);
 
   private static final EntryStatus[] VALUES = EntryStatus.values();
 
   private final int id;
+  private final boolean live;
 
-  EntryStatus(int id) {
+  EntryStatus(int id, boolean live) {
     this.id = id;
+    this.live = live;
   }
 
   public int id() {
     return id;
+  }
+
+  boolean isLive() {
+    return live;
   }
 
   static EntryStatus fromId(int id) {

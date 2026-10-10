@@ -24,6 +24,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class ByteBuffers {
 
+  private ByteBuffers() {}
+
   public static byte[] toByteArray(ByteBuffer buffer) {
     if (buffer == null) {
       return null;
@@ -73,5 +75,64 @@ public class ByteBuffers {
     return ByteBuffer.wrap(copyArray);
   }
 
-  private ByteBuffers() {}
+  public static void writeByte(ByteBuffer buffer, int value, int offset) {
+    buffer.put(buffer.position() + offset, (byte) (value & 0xFF));
+  }
+
+  public static void writeLittleEndianUnsigned(ByteBuffer buffer, int value, int offset, int size) {
+    int base = buffer.position() + offset;
+    switch (size) {
+      case 4:
+        buffer.putInt(base, value);
+        return;
+      case 3:
+        buffer.putShort(base, (short) (value & 0xFFFF));
+        buffer.put(base + 2, (byte) ((value >> 16) & 0xFF));
+        return;
+      case 2:
+        buffer.putShort(base, (short) (value & 0xFFFF));
+        return;
+      case 1:
+        buffer.put(base, (byte) (value & 0xFF));
+        return;
+    }
+
+    throw new IllegalArgumentException("Invalid size: " + size);
+  }
+
+  public static byte readLittleEndianInt8(ByteBuffer buffer, int offset) {
+    return buffer.get(buffer.position() + offset);
+  }
+
+  public static short readLittleEndianInt16(ByteBuffer buffer, int offset) {
+    return buffer.getShort(buffer.position() + offset);
+  }
+
+  public static int readByte(ByteBuffer buffer, int offset) {
+    return buffer.get(buffer.position() + offset) & 0xFF;
+  }
+
+  public static int readLittleEndianUnsigned(ByteBuffer buffer, int offset, int size) {
+    int base = buffer.position() + offset;
+    switch (size) {
+      case 4:
+        return buffer.getInt(base);
+      case 3:
+        return (((int) buffer.getShort(base)) & 0xFFFF) | ((buffer.get(base + 2) & 0xFF) << 16);
+      case 2:
+        return ((int) buffer.getShort(base)) & 0xFFFF;
+      case 1:
+        return buffer.get(base) & 0xFF;
+    }
+
+    throw new IllegalArgumentException("Invalid size: " + size);
+  }
+
+  public static int readLittleEndianInt32(ByteBuffer buffer, int offset) {
+    return buffer.getInt(buffer.position() + offset);
+  }
+
+  public static long readLittleEndianInt64(ByteBuffer buffer, int offset) {
+    return buffer.getLong(buffer.position() + offset);
+  }
 }

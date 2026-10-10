@@ -39,6 +39,7 @@ public class PlanTableScanResponseParser {
   private static final String PLAN_ID = "plan-id";
   private static final String PLAN_TASKS = "plan-tasks";
   private static final String STORAGE_CREDENTIALS = "storage-credentials";
+  private static final String ERROR = "error";
 
   private PlanTableScanResponseParser() {}
 
@@ -59,6 +60,10 @@ public class PlanTableScanResponseParser {
 
     gen.writeStartObject();
     gen.writeStringField(STATUS, response.planStatus().status());
+
+    if (response.errorResponse() != null) {
+      ErrorResponseParser.writeError(response.errorResponse(), gen);
+    }
 
     if (response.planId() != null) {
       gen.writeStringField(PLAN_ID, response.planId());
@@ -98,6 +103,11 @@ public class PlanTableScanResponseParser {
         "Cannot parse planTableScan response from empty or null object");
 
     PlanStatus planStatus = PlanStatus.fromName(JsonUtil.getString(STATUS, json));
+    ErrorResponse errorResponse = null;
+    if (json.has(ERROR) && json.get(ERROR).isObject()) {
+      errorResponse = ErrorResponseParser.fromJson(json);
+    }
+
     String planId = JsonUtil.getStringOrNull(PLAN_ID, json);
     List<String> planTasks = JsonUtil.getStringListOrNull(PLAN_TASKS, json);
     List<DeleteFile> deleteFiles = TableScanResponseParser.parseDeleteFiles(json, specsById);
@@ -108,6 +118,7 @@ public class PlanTableScanResponseParser {
         PlanTableScanResponse.builder()
             .withPlanId(planId)
             .withPlanStatus(planStatus)
+            .withErrorResponse(errorResponse)
             .withPlanTasks(planTasks)
             .withFileScanTasks(fileScanTasks)
             .withSpecsById(specsById);

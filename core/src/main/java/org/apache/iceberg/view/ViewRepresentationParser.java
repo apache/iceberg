@@ -33,7 +33,7 @@ class ViewRepresentationParser {
   static void toJson(ViewRepresentation representation, JsonGenerator generator)
       throws IOException {
     Preconditions.checkArgument(representation != null, "Invalid view representation: null");
-    switch (representation.type().toLowerCase(Locale.ENGLISH)) {
+    switch (representation.type().toLowerCase(Locale.ROOT)) {
       case ViewRepresentation.Type.SQL:
         SQLViewRepresentationParser.toJson((SQLViewRepresentation) representation, generator);
         break;
@@ -57,7 +57,7 @@ class ViewRepresentationParser {
     Preconditions.checkArgument(node != null, "Cannot parse view representation from null object");
     Preconditions.checkArgument(
         node.isObject(), "Cannot parse view representation from non-object: %s", node);
-    String type = JsonUtil.getString(TYPE, node).toLowerCase(Locale.ENGLISH);
+    String type = JsonUtil.getString(TYPE, node).toLowerCase(Locale.ROOT);
     switch (type) {
       case ViewRepresentation.Type.SQL:
         return SQLViewRepresentationParser.fromJson(node);

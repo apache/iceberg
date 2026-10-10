@@ -35,6 +35,8 @@ class UrlConnectionHttpClientConfigurations extends BaseHttpClientConfigurations
   private Long httpClientUrlConnectionConnectionTimeoutMs;
   private Long httpClientUrlConnectionSocketTimeoutMs;
   private String proxyEndpoint;
+  private Boolean proxyUseSystemPropertyValues;
+  private Boolean proxyUseEnvironmentVariableValues;
 
   private UrlConnectionHttpClientConfigurations() {}
 
@@ -56,6 +58,12 @@ class UrlConnectionHttpClientConfigurations extends BaseHttpClientConfigurations
     this.proxyEndpoint =
         PropertyUtil.propertyAsString(
             httpClientProperties, HttpClientProperties.PROXY_ENDPOINT, null);
+    this.proxyUseSystemPropertyValues =
+        PropertyUtil.propertyAsNullableBoolean(
+            httpClientProperties, HttpClientProperties.PROXY_USE_SYSTEM_PROPERTY_VALUES);
+    this.proxyUseEnvironmentVariableValues =
+        PropertyUtil.propertyAsNullableBoolean(
+            httpClientProperties, HttpClientProperties.PROXY_USE_ENVIRONMENT_VARIABLE_VALUES);
   }
 
   @VisibleForTesting
@@ -69,9 +77,26 @@ class UrlConnectionHttpClientConfigurations extends BaseHttpClientConfigurations
       urlConnectionHttpClientBuilder.socketTimeout(
           Duration.ofMillis(httpClientUrlConnectionSocketTimeoutMs));
     }
-    if (proxyEndpoint != null) {
-      urlConnectionHttpClientBuilder.proxyConfiguration(
-          ProxyConfiguration.builder().endpoint(URI.create(proxyEndpoint)).build());
+    configureProxy(urlConnectionHttpClientBuilder);
+  }
+
+  private void configureProxy(UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder) {
+    if (proxyEndpoint != null
+        || proxyUseSystemPropertyValues != null
+        || proxyUseEnvironmentVariableValues != null) {
+      ProxyConfiguration.Builder proxyBuilder = ProxyConfiguration.builder();
+
+      if (proxyEndpoint != null) {
+        proxyBuilder.endpoint(URI.create(proxyEndpoint));
+      }
+      if (proxyUseSystemPropertyValues != null) {
+        proxyBuilder.useSystemPropertyValues(proxyUseSystemPropertyValues);
+      }
+      if (proxyUseEnvironmentVariableValues != null) {
+        proxyBuilder.useEnvironmentVariablesValues(proxyUseEnvironmentVariableValues);
+      }
+
+      urlConnectionHttpClientBuilder.proxyConfiguration(proxyBuilder.build());
     }
   }
 
@@ -87,6 +112,8 @@ class UrlConnectionHttpClientConfigurations extends BaseHttpClientConfigurations
     keyComponents.put("connectionTimeoutMs", httpClientUrlConnectionConnectionTimeoutMs);
     keyComponents.put("socketTimeoutMs", httpClientUrlConnectionSocketTimeoutMs);
     keyComponents.put("proxyEndpoint", proxyEndpoint);
+    keyComponents.put("proxyUseSystemPropertyValues", proxyUseSystemPropertyValues);
+    keyComponents.put("proxyUseEnvironmentVariableValues", proxyUseEnvironmentVariableValues);
 
     return keyComponents.entrySet().stream()
         .map(entry -> entry.getKey() + "=" + Objects.toString(entry.getValue(), "null"))

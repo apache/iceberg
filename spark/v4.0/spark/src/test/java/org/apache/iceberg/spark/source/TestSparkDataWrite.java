@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
+import static org.apache.iceberg.spark.SparkTableProperties.WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -624,7 +624,7 @@ public class TestSparkDataWrite {
             .save(location.toString());
         break;
       case TABLE:
-        table.updateProperties().set(SPARK_WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
+        table.updateProperties().set(WRITE_PARTITIONED_FANOUT_ENABLED, "true").commit();
         df.select("id", "data")
             .write()
             .format("iceberg")

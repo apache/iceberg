@@ -35,6 +35,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -45,11 +46,9 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
-import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.StandardEncryptionManager.FileEncryptionKeys;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CleanableFailure;
@@ -67,13 +66,11 @@ import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.util.Exceptions;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
@@ -113,16 +110,22 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private final AtomicInteger attempt = new AtomicInteger(0);
   private final List<String> manifestLists = Lists.newArrayList();
   private final long targetManifestSizeBytes;
+  private final FileFormat manifestFormat;
   private final Map<String, String> manifestWriterProps;
   private MetricsReporter reporter = LoggingMetricsReporter.instance();
   private volatile Long snapshotId = null;
   private TableMetadata base;
+  // Encryption keys required by the manifest list written in the current commit attempt.
+  private FileEncryptionKeys manifestListEncryptionKeys;
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
   private SnapshotAncestryValidator snapshotAncestryValidator =
       SnapshotAncestryValidator.NON_VALIDATING;
 
+  private Clock clock = Clock.systemUTC();
   private ExecutorService workerPool;
+  private ExecutorService writePool;
+  private int writePoolParallelism = ThreadPools.WORKER_THREAD_POOL_SIZE;
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
 
@@ -142,6 +145,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     this.targetManifestSizeBytes =
         ops.current()
             .propertyAsLong(MANIFEST_TARGET_SIZE_BYTES, MANIFEST_TARGET_SIZE_BYTES_DEFAULT);
+    this.manifestFormat =
+        ops.current().formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS
+            ? FileFormat.PARQUET
+            : FileFormat.AVRO;
     this.manifestWriterProps = manifestWriterProperties(ops.current());
     boolean snapshotIdInheritanceEnabled =
         ops.current()
@@ -161,6 +168,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   public ThisT scanManifestsWith(ExecutorService executorService) {
     this.workerPool = executorService;
+    return self();
+  }
+
+  @Override
+  public ThisT writeManifestsWith(ExecutorService executorService, int parallelism) {
+    Preconditions.checkArgument(executorService != null, "Executor service cannot be null");
+    Preconditions.checkArgument(
+        parallelism > 0, "Parallelism must be greater than 0, but was: %s", parallelism);
+    this.writePool = executorService;
+    this.writePoolParallelism = parallelism;
     return self();
   }
 
@@ -220,6 +237,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
 
     return workerPool;
+  }
+
+  protected ExecutorService writePool() {
+    if (writePool == null) {
+      this.writePool = ThreadPools.getWorkerPool();
+    }
+
+    return writePool;
   }
 
   @Override
@@ -333,18 +358,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           replacedRecords);
     }
 
+    this.manifestListEncryptionKeys = writer.encryptionKeys();
+
     return new BaseSnapshot(
         sequenceNumber,
         snapshotId(),
         parentSnapshotId,
-        System.currentTimeMillis(),
+        snapshotTimestampMillis(parentSnapshot),
         operation(),
         summary(base),
         base.currentSchemaId(),
         manifestList.location(),
         nextRowId,
         assignedRows,
-        writer.toManifestListFile().encryptionKeyID());
+        manifestListEncryptionKeys != null ? manifestListEncryptionKeys.fileKey().keyId() : null);
   }
 
   private void runValidations(Snapshot parentSnapshot) {
@@ -478,10 +505,17 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   if (base.snapshot(newSnapshot.snapshotId()) != null) {
                     // this is a rollback operation
                     update.setBranchSnapshot(newSnapshot.snapshotId(), targetBranch);
-                  } else if (stageOnly) {
-                    update.addSnapshot(newSnapshot);
                   } else {
-                    update.setBranchSnapshot(newSnapshot, targetBranch);
+                    if (manifestListEncryptionKeys != null) {
+                      update.addEncryptionKey(manifestListEncryptionKeys.keyEncryptionKey());
+                      update.addEncryptionKey(manifestListEncryptionKeys.fileKey());
+                    }
+
+                    if (stageOnly) {
+                      update.addSnapshot(newSnapshot);
+                    } else {
+                      update.setBranchSnapshot(newSnapshot, targetBranch);
+                    }
                   }
 
                   TableMetadata updated = update.build();
@@ -603,9 +637,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected EncryptedOutputFile newManifestOutputFile() {
     String manifestFileLocation =
         ops.metadataFileLocation(
-            FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement()));
-    return EncryptingFileIO.combine(ops.io(), ops.encryption())
-        .newEncryptingOutputFile(manifestFileLocation);
+            manifestFormat.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement()));
+    OutputFile rawOutputFile = ops.io().newOutputFile(manifestFileLocation);
+    return ops.encryption().encrypt(rawOutputFile);
   }
 
   protected ManifestWriter<DataFile> newManifestWriter(PartitionSpec spec) {
@@ -662,6 +696,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return ManifestFiles.readDeleteManifest(manifest, ops.io(), ops.current().specsById());
   }
 
+  @VisibleForTesting
+  void setClock(Clock newClock) {
+    this.clock = newClock;
+  }
+
+  private long snapshotTimestampMillis(Snapshot parentSnapshot) {
+    long now = clock.millis();
+    if (parentSnapshot != null) {
+      return Math.max(now, parentSnapshot.timestampMillis() + 1);
+    }
+
+    return now;
+  }
+
   protected long snapshotId() {
     if (snapshotId == null) {
       synchronized (this) {
@@ -715,7 +763,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected List<ManifestFile> writeDataManifests(
       Collection<DataFile> files, Long dataSeq, PartitionSpec spec) {
-    return writeManifests(files, group -> writeDataFileGroup(group, dataSeq, spec));
+    int groupCount = manifestWriterCount(writePoolParallelism, files.size());
+    return ManifestFiles.writeParallel(
+        files, groupCount, writePool(), group -> writeDataFileGroup(group, dataSeq, spec));
   }
 
   // Deletes uncommitted manifests; clears list if clearManifests and any deleted.
@@ -753,7 +803,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected List<ManifestFile> writeDeleteManifests(
       Collection<DeleteFile> files, PartitionSpec spec) {
-    return writeManifests(files, group -> writeDeleteFileGroup(group, spec));
+    int groupCount = manifestWriterCount(writePoolParallelism, files.size());
+    return ManifestFiles.writeParallel(
+        files, groupCount, writePool(), group -> writeDeleteFileGroup(group, spec));
   }
 
   private List<ManifestFile> writeDeleteFileGroup(
@@ -775,47 +827,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return writer.toManifestFiles();
   }
 
-  private static <F> List<ManifestFile> writeManifests(
-      Collection<F> files, Function<List<F>, List<ManifestFile>> writeFunc) {
-    int parallelism = manifestWriterCount(ThreadPools.WORKER_THREAD_POOL_SIZE, files.size());
-    List<List<F>> groups = divide(files, parallelism);
-
-    // Create a new list pairing each group with its index
-    List<Pair<Integer, List<F>>> groupsWithIndex = Lists.newArrayList();
-    for (int i = 0; i < groups.size(); i++) {
-      groupsWithIndex.add(Pair.of(i, groups.get(i)));
-    }
-
-    AtomicReferenceArray<List<ManifestFile>> results = new AtomicReferenceArray<>(groups.size());
-
-    Tasks.foreach(groupsWithIndex)
-        .stopOnFailure()
-        .throwFailureWhenFinished()
-        .executeWith(ThreadPools.getWorkerPool())
-        .run(
-            indexedGroup -> {
-              int index = indexedGroup.first();
-              List<F> group = indexedGroup.second();
-              List<ManifestFile> groupResults = writeFunc.apply(group);
-              results.set(index, groupResults);
-            });
-
-    // Collect results in order
-    ImmutableList.Builder<ManifestFile> builder = ImmutableList.builder();
-    for (int i = 0; i < results.length(); i++) {
-      builder.addAll(results.get(i));
-    }
-    return builder.build();
-  }
-
-  private static <T> List<List<T>> divide(Collection<T> collection, int groupCount) {
-    List<T> list = Lists.newArrayList(collection);
-    int groupSize = IntMath.divide(list.size(), groupCount, RoundingMode.CEILING);
-    return Lists.partition(list, groupSize);
-  }
-
   /**
-   * Calculates how many manifest writers can be used to concurrently to handle the given number of
+   * Calculates how many manifest writers can be used concurrently to handle the given number of
    * files without creating too small manifests.
    *
    * @param workerPoolSize the size of the available worker pool

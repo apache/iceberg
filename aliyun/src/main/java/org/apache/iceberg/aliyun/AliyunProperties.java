@@ -76,11 +76,43 @@ public class AliyunProperties implements Serializable {
    */
   public static final String OSS_STAGING_DIRECTORY = "oss.staging-dir";
 
+  /**
+   * The region id used to derive a service endpoint, for example {@code cn-hangzhou}. Used by the
+   * Aliyun KMS client to resolve {@code kms.<region>.aliyuncs.com}.
+   */
+  public static final String CLIENT_REGION = "client.region";
+
+  /**
+   * Overrides the KMS endpoint. Defaults to the region-derived {@code kms.<region>.aliyuncs.com}.
+   * Set to a KMS Instance (DKMS) endpoint for keys that live in a KMS Instance.
+   */
+  public static final String CLIENT_KMS_ENDPOINT = "client.kms-endpoint";
+
+  /** Maximum number of attempts (including the first) for each KMS call. */
+  public static final String KMS_CLIENT_MAX_ATTEMPTS = "kms.client.aliyun.max.attempts";
+
+  public static final int KMS_CLIENT_MAX_ATTEMPTS_DEFAULT = 3;
+
+  /** Connect timeout in milliseconds for KMS calls. */
+  public static final String KMS_CLIENT_CONNECT_TIMEOUT_MS = "kms.client.aliyun.connect.timeout.ms";
+
+  public static final int KMS_CLIENT_CONNECT_TIMEOUT_MS_DEFAULT = 2_000;
+
+  /** Read timeout in milliseconds for KMS calls. */
+  public static final String KMS_CLIENT_READ_TIMEOUT_MS = "kms.client.aliyun.read.timeout.ms";
+
+  public static final int KMS_CLIENT_READ_TIMEOUT_MS_DEFAULT = 30_000;
+
   private final String ossEndpoint;
   private final String accessKeyId;
   private final String accessKeySecret;
   private final String securityToken;
   private final String ossStagingDirectory;
+  private final String region;
+  private final String kmsEndpoint;
+  private final int kmsClientMaxAttempts;
+  private final int kmsClientConnectTimeoutMs;
+  private final int kmsClientReadTimeoutMs;
 
   public AliyunProperties() {
     this(ImmutableMap.of());
@@ -96,6 +128,18 @@ public class AliyunProperties implements Serializable {
     this.ossStagingDirectory =
         PropertyUtil.propertyAsString(
             properties, OSS_STAGING_DIRECTORY, System.getProperty("java.io.tmpdir"));
+
+    this.region = properties.get(CLIENT_REGION);
+    this.kmsEndpoint = properties.get(CLIENT_KMS_ENDPOINT);
+    this.kmsClientMaxAttempts =
+        PropertyUtil.propertyAsInt(
+            properties, KMS_CLIENT_MAX_ATTEMPTS, KMS_CLIENT_MAX_ATTEMPTS_DEFAULT);
+    this.kmsClientConnectTimeoutMs =
+        PropertyUtil.propertyAsInt(
+            properties, KMS_CLIENT_CONNECT_TIMEOUT_MS, KMS_CLIENT_CONNECT_TIMEOUT_MS_DEFAULT);
+    this.kmsClientReadTimeoutMs =
+        PropertyUtil.propertyAsInt(
+            properties, KMS_CLIENT_READ_TIMEOUT_MS, KMS_CLIENT_READ_TIMEOUT_MS_DEFAULT);
   }
 
   public String ossEndpoint() {
@@ -116,5 +160,25 @@ public class AliyunProperties implements Serializable {
 
   public String ossStagingDirectory() {
     return ossStagingDirectory;
+  }
+
+  public String region() {
+    return region;
+  }
+
+  public String kmsEndpoint() {
+    return kmsEndpoint;
+  }
+
+  public int kmsClientMaxAttempts() {
+    return kmsClientMaxAttempts;
+  }
+
+  public int kmsClientConnectTimeoutMs() {
+    return kmsClientConnectTimeoutMs;
+  }
+
+  public int kmsClientReadTimeoutMs() {
+    return kmsClientReadTimeoutMs;
   }
 }

@@ -126,24 +126,33 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
     Preconditions.checkState(!closed, "Cannot read: already closed");
     singleByteBuffer.position(0);
 
-    pos += 1;
     try {
-      channel.read(singleByteBuffer);
+      int bytesRead = channel.read(singleByteBuffer);
+      if (bytesRead == -1) {
+        return -1;
+      }
+
+      pos += 1;
+      readBytes.increment();
+      readOperations.increment();
+
+      return singleByteBuffer.array()[0] & 0xFF;
     } catch (IOException e) {
       GCSExceptionUtil.throwNotFoundIfNotPresent(e, blobId);
       throw e;
     }
-    readBytes.increment();
-    readOperations.increment();
-
-    return singleByteBuffer.array()[0] & 0xFF;
   }
 
   @Override
   public int read(byte[] b, int off, int len) throws IOException {
     Preconditions.checkState(!closed, "Cannot read: already closed");
+    Preconditions.checkPositionIndexes(off, off + len, b.length);
     byteBuffer = byteBuffer != null && byteBuffer.array() == b ? byteBuffer : ByteBuffer.wrap(b);
     int bytesRead = read(channel, byteBuffer, off, len);
+    if (bytesRead == -1) {
+      return -1;
+    }
+
     pos += bytesRead;
     readBytes.increment(bytesRead);
     readOperations.increment();
@@ -160,6 +169,10 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
         throw new EOFException(
             "Reached the end of stream with " + (length - bytesRead) + " bytes left to read");
       }
+      if (bytesRead > 0) {
+        readBytes.increment(bytesRead);
+        readOperations.increment();
+      }
     }
   }
 
@@ -171,14 +184,19 @@ class GCSInputStream extends SeekableInputStream implements RangeReadable {
     long startPosition = Math.max(0, blobSize - length);
     try (ReadChannel readChannel = openChannel()) {
       readChannel.seek(startPosition);
-      return read(readChannel, ByteBuffer.wrap(buffer), offset, length);
+      int bytesRead = read(readChannel, ByteBuffer.wrap(buffer), offset, length);
+      if (bytesRead > 0) {
+        readBytes.increment(bytesRead);
+        readOperations.increment();
+      }
+      return bytesRead;
     }
   }
 
   private int read(ReadChannel readChannel, ByteBuffer buffer, int off, int len)
       throws IOException {
     buffer.position(off);
-    buffer.limit(Math.min(off + len, buffer.capacity()));
+    buffer.limit(off + len);
     try {
       return readChannel.read(buffer);
     } catch (IOException e) {

@@ -71,14 +71,14 @@ create_nightly () {
   echo " --> create nightly"
 
   # Remove any existing 'nightly' directory and recreate it
-  rm -rf docs/docs/nightly/
-  mkdir docs/docs/nightly/
+  rm -rf versioned-docs/nightly/
+  mkdir versioned-docs/nightly/
 
   # Create symbolic links and copy configuration files for the 'nightly' documentation
-  ln -s "../../../../docs/docs/" docs/docs/nightly/docs
-  cp "../docs/mkdocs.yml" docs/docs/nightly/
+  ln -s "../../../docs/docs/" versioned-docs/nightly/docs
+  cp "../docs/mkdocs.yml" versioned-docs/nightly/
 
-  cd docs/docs/
+  cd versioned-docs/
 
   # Update version information within the 'nightly' documentation
   update_version "nightly"  
@@ -118,14 +118,14 @@ create_latest () {
   echo "${ICEBERG_VERSION}"  
 
   # Remove any existing 'latest' directory and recreate it
-  rm -rf docs/docs/latest/
-  mkdir docs/docs/latest/
+  rm -rf versioned-docs/latest/
+  mkdir versioned-docs/latest/
 
   # Create symbolic links and copy configuration files for the 'latest' documentation
-  ln -s "../${ICEBERG_VERSION}/docs" docs/docs/latest/docs
-  cp "docs/docs/${ICEBERG_VERSION}/mkdocs.yml" docs/docs/latest/
+  ln -s "../${ICEBERG_VERSION}/docs" versioned-docs/latest/docs
+  cp "versioned-docs/${ICEBERG_VERSION}/mkdocs.yml" versioned-docs/latest/
 
-  cd docs/docs/
+  cd versioned-docs/
 
   # Update version information within the 'latest' documentation
   update_version "latest"  
@@ -188,15 +188,15 @@ pull_versioned_docs () {
     echo " --> This significantly reduces build time by skipping historical versions"
 
     # Create docs worktree with sparse checkout for latest version only
-    git worktree add --no-checkout -f docs/docs "${docs_branch}"
-    (cd docs/docs && git sparse-checkout init --cone && git sparse-checkout set "${latest_version}" && git checkout)
+    git worktree add --no-checkout -f versioned-docs "${docs_branch}"
+    (cd versioned-docs && git sparse-checkout init --cone && git sparse-checkout set "${latest_version}" && git checkout)
 
     # Create javadoc worktree with sparse checkout for latest version only
     git worktree add --no-checkout -f docs/javadoc "${javadoc_branch}"
     (cd docs/javadoc && git sparse-checkout init --cone && git sparse-checkout set "${latest_version}" && git checkout)
   else
     # Full checkout of all versions
-    git worktree add -f docs/docs "${docs_branch}"
+    git worktree add -f versioned-docs "${docs_branch}"
     git worktree add -f docs/javadoc "${javadoc_branch}"
   fi
   
@@ -229,14 +229,18 @@ clean () {
   set +e 
 
   # Remove temp directories and related Git worktrees
-  rm -rf docs/docs/latest &> /dev/null
-  rm -rf docs/docs/nightly &> /dev/null
+  rm -rf versioned-docs/latest &> /dev/null
+  rm -rf versioned-docs/nightly &> /dev/null
 
-  git worktree remove docs/docs &> /dev/null
+  git worktree remove versioned-docs &> /dev/null
   git worktree remove docs/javadoc &> /dev/null
 
+  # Clean up legacy layout (versioned docs used to live under docs/docs/)
+  rm -rf docs/docs/latest docs/docs/nightly &> /dev/null
+  git worktree remove docs/docs &> /dev/null
+
   # Remove any remaining artifacts
-  rm -rf docs/javadoc docs/docs docs/.asf.yaml site/
+  rm -rf docs/javadoc docs/docs versioned-docs docs/.asf.yaml site/
 
   set -e # Re-enable script exit on errors
 }

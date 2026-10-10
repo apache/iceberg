@@ -24,10 +24,13 @@ import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
 import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
@@ -37,9 +40,12 @@ import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.DeleteSchemaUtil;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -47,6 +53,35 @@ import org.apache.iceberg.util.Pair;
 
 public class FileHelpers {
   private FileHelpers() {}
+
+  public static DeleteFile testOnlyPosDeleteFileWithRow(
+      Table table, OutputFile out, StructLike partition, List<Record> posDeleteRecords)
+      throws IOException {
+    Schema posDeleteSchema = DeleteSchemaUtil.posDeleteSchema(table.schema());
+    FileAppender<Record> appender =
+        Parquet.write(out)
+            .schema(posDeleteSchema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .metricsConfig(MetricsConfig.forPositionDelete())
+            .overwrite()
+            .build();
+    try (Closeable ignored = appender) {
+      posDeleteRecords.forEach(appender::add);
+    }
+
+    FileMetadata.Builder builder =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withFormat(FileFormat.PARQUET)
+            .withPath(out.location())
+            .withFileSizeInBytes(appender.length())
+            .withMetrics(appender.metrics());
+    if (partition != null) {
+      builder.withPartition(partition);
+    }
+
+    return builder.build();
+  }
 
   public static Pair<DeleteFile, CharSequenceSet> writeDeleteFile(
       Table table, OutputFile out, List<Pair<CharSequence, Long>> deletes) throws IOException {
@@ -94,7 +129,7 @@ public class FileHelpers {
       PositionDelete<Record> posDelete = PositionDelete.create();
       try (Closeable toClose = writer) {
         for (Pair<CharSequence, Long> delete : deletes) {
-          writer.write(posDelete.set(delete.first(), delete.second(), null));
+          writer.write(posDelete.set(delete.first(), delete.second()));
         }
       }
 
@@ -186,10 +221,7 @@ public class FileHelpers {
 
       return Iterables.getOnlyElement(writer.result().deleteFiles());
     } else {
-      FileWriterFactory<Record> factory =
-          GenericFileWriterFactory.builderFor(table)
-              .positionDeleteRowSchema(table.schema())
-              .build();
+      FileWriterFactory<Record> factory = GenericFileWriterFactory.builderFor(table).build();
 
       PositionDeleteWriter<?> writer =
           factory.newPositionDeleteWriter(encrypt(out), table.spec(), partition);

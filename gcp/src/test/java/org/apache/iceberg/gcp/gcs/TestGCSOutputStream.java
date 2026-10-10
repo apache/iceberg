@@ -31,11 +31,8 @@ import java.util.stream.Stream;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class TestGCSOutputStream {
-  private static final Logger LOG = LoggerFactory.getLogger(TestGCSOutputStream.class);
   private static final String BUCKET = "test-bucket";
 
   private final GCPProperties properties = new GCPProperties();

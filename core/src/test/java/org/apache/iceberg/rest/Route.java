@@ -45,6 +45,7 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
+import org.apache.iceberg.rest.responses.UnregisterTableResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 
@@ -82,6 +83,11 @@ enum Route {
       ResourcePaths.V1_TABLE_REGISTER,
       RegisterTableRequest.class,
       LoadTableResponse.class),
+  UNREGISTER_TABLE(
+      HTTPRequest.HTTPMethod.POST,
+      ResourcePaths.V1_TABLE_UNREGISTER,
+      null,
+      UnregisterTableResponse.class),
   UPDATE_TABLE(
       HTTPRequest.HTTPMethod.POST,
       ResourcePaths.V1_TABLE,

@@ -226,6 +226,68 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
   }
 
   /**
+   * Integration test verifying that records with eventTime equal to the minimum timestamp of their
+   * split are correctly included in windows. The {@link
+   * org.apache.iceberg.flink.source.reader.WatermarkExtractorRecordEmitter} emits the watermark as
+   * {@code minSplitTs - 1}, so records at exactly {@code minSplitTs} are on-time rather than late.
+   *
+   * <p>The test writes 3 records at epoch (t=0). The split's column-stats lower-bound is 0, so the
+   * extracted watermark is 0ms and the emitted watermark is -1ms. Records at t=0 are strictly after
+   * that watermark and therefore belong to the [0, 5min) window. A later split is then appended to
+   * advance the watermark past the window boundary and trigger its evaluation.
+   */
+  @Test
+  public void testWindowingWithRecordsAtSplitMinTimestamp() throws Exception {
+    GenericAppenderHelper dataAppender = appender();
+
+    // File 1: 3 records at exactly t=0 (epoch). Extracted watermark = 0ms, emitted = -1ms.
+    List<Record> batch =
+        ImmutableList.of(
+            generateRecord(0, "file_1-recordTs_0_a"),
+            generateRecord(0, "file_1-recordTs_0_b"),
+            generateRecord(0, "file_1-recordTs_0_c"));
+    dataAppender.appendToTable(batch);
+
+    StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+    env.setParallelism(1);
+
+    DataStream<RowData> stream =
+        env.fromSource(
+            source(),
+            WatermarkStrategy.<RowData>noWatermarks()
+                .withTimestampAssigner(new RowDataTimestampAssigner()),
+            SOURCE_NAME,
+            TypeInformation.of(RowData.class));
+
+    stream
+        .windowAll(TumblingEventTimeWindows.of(Time.minutes(5)))
+        .apply(
+            new AllWindowFunction<RowData, RowData, TimeWindow>() {
+              @Override
+              public void apply(
+                  TimeWindow window, Iterable<RowData> values, Collector<RowData> out) {
+                AtomicInteger count = new AtomicInteger(0);
+                values.forEach(a -> count.incrementAndGet());
+                out.collect(row(window.getStart(), count.get()));
+                WINDOWS.put(window.getStart(), count.get());
+              }
+            });
+
+    WINDOWS.clear();
+    env.executeAsync("Iceberg Source Min Timestamp Windowing Test");
+
+    // Append a file with much later timestamps to advance the watermark past [0, 5min)
+    dataAppender.appendToTable(
+        dataAppender.writeFile(ImmutableList.of(generateRecord(1500, "last-record"))));
+
+    // The [0, 5min) window should fire with all 3 records written at epoch
+    Awaitility.await()
+        .pollInterval(Duration.ofMillis(10))
+        .atMost(30, TimeUnit.SECONDS)
+        .until(() -> Integer.valueOf(3).equals(WINDOWS.get(0L)));
+  }
+
+  /**
    * This is an integration test for watermark handling and throttling. Integration testing the
    * following:
    *

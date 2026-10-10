@@ -35,6 +35,7 @@ import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.StrictMetricsEvaluator;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -82,7 +83,6 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private long minSequenceNumber = 0;
   private boolean failAnyDelete = false;
   private boolean failMissingDeletePaths = false;
-  private int duplicateDeleteCount = 0;
   private boolean caseSensitive = true;
   private boolean allDeletesReferenceManifests = true;
   // this is only being used for the DeleteManifestFilterManager to detect orphaned DVs for removed
@@ -93,7 +93,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
 
   // tracking where files were deleted to validate retries quickly
-  private final Map<ManifestFile, Iterable<F>> filteredManifestToDeletedFiles =
+  private final Map<ManifestFile, Pair<Set<F>, Integer>> filteredManifestResults =
       Maps.newConcurrentMap();
 
   private final Supplier<ExecutorService> workerPoolSupplier;
@@ -229,6 +229,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
               filtered[index] = manifest;
             });
 
+    deleteFiles.addAll(deletedFiles(filtered));
+
     validateRequiredDeletes(filtered);
 
     return Arrays.asList(filtered);
@@ -250,21 +252,21 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
    * Creates a snapshot summary builder with the files deleted from the set of filtered manifests.
    *
    * @param manifests a set of filtered manifests
+   * @return a snapshot summary builder describing the files deleted from the filtered manifests
    */
   SnapshotSummary.Builder buildSummary(Iterable<ManifestFile> manifests) {
     SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
 
     for (ManifestFile manifest : manifests) {
       PartitionSpec manifestSpec = specsById.get(manifest.partitionSpecId());
-      Iterable<F> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
-      if (manifestDeletes != null) {
-        for (F file : manifestDeletes) {
+      Pair<Set<F>, Integer> result = filteredManifestResults.get(manifest);
+      if (result != null) {
+        for (F file : result.first()) {
           summaryBuilder.deletedFile(manifestSpec, file);
         }
+        summaryBuilder.incrementDuplicateDeletes(result.second());
       }
     }
-
-    summaryBuilder.incrementDuplicateDeletes(duplicateDeleteCount);
 
     return summaryBuilder;
   }
@@ -305,11 +307,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
     if (manifests != null) {
       for (ManifestFile manifest : manifests) {
-        Iterable<F> manifestDeletes = filteredManifestToDeletedFiles.get(manifest);
-        if (manifestDeletes != null) {
-          for (F file : manifestDeletes) {
-            deletedFiles.add(file);
-          }
+        Pair<Set<F>, Integer> result = filteredManifestResults.get(manifest);
+        if (result != null) {
+          deletedFiles.addAll(result.first());
         }
       }
     }
@@ -353,6 +353,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
         // remove the entry from the cache
         filteredManifests.remove(manifest);
+        filteredManifestResults.remove(filtered);
       }
     }
   }
@@ -455,36 +456,40 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
     boolean isDelete = reader.isDeleteManifestReader();
 
-    for (ManifestEntry<F> entry : reader.liveEntries()) {
-      F file = entry.file();
-      boolean markedForDelete =
-          deletePaths.contains(file.location())
-              || deleteFiles.contains(file)
-              || dropPartitions.contains(file.specId(), file.partition())
-              || (isDelete
-                  && entry.isLive()
-                  && entry.dataSequenceNumber() > 0
-                  && entry.dataSequenceNumber() < minSequenceNumber)
-              || (isDelete && isDanglingDV((DeleteFile) file));
+    try (CloseableIterable<ManifestEntry<F>> liveEntries = reader.liveEntries()) {
+      for (ManifestEntry<F> entry : liveEntries) {
+        F file = entry.file();
+        boolean markedForDelete =
+            deletePaths.contains(file.location())
+                || deleteFiles.contains(file)
+                || dropPartitions.contains(file.specId(), file.partition())
+                || (isDelete
+                    && entry.isLive()
+                    && entry.dataSequenceNumber() > 0
+                    && entry.dataSequenceNumber() < minSequenceNumber)
+                || (isDelete && isDanglingDV((DeleteFile) file));
 
-      if (markedForDelete || evaluator.rowsMightMatch(file)) {
-        boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
-        ValidationException.check(
-            allRowsMatch
-                || isDelete, // ignore delete files where some records may not match the expression
-            "Cannot delete file where some, but not all, rows match filter %s: %s",
-            this.deleteExpression,
-            file.location());
+        if (markedForDelete || evaluator.rowsMightMatch(file)) {
+          boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
+          ValidationException.check(
+              allRowsMatch || isDelete, // ignore delete files where some records may not match the
+              // expression
+              "Cannot delete file where some, but not all, rows match filter %s: %s",
+              this.deleteExpression,
+              file.location());
 
-        if (allRowsMatch) {
-          if (failAnyDelete) {
-            throw new DeleteException(reader.spec().partitionToPath(file.partition()));
+          if (allRowsMatch) {
+            if (failAnyDelete) {
+              throw new DeleteException(reader.spec().partitionToPath(file.partition()));
+            }
+
+            // as soon as a deleted file is detected, stop scanning
+            return true;
           }
-
-          // as soon as a deleted file is detected, stop scanning
-          return true;
         }
       }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to close manifest entries: %s", manifest);
     }
 
     return false;
@@ -501,61 +506,59 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     // when this point is reached, there is at least one file that will be deleted in the
     // manifest. produce a copy of the manifest with all deleted files removed.
     Set<F> deletedFiles = newFileSet();
+    AtomicInteger duplicateDeleteCount = new AtomicInteger(0);
 
     try {
       ManifestWriter<F> writer = newManifestWriter(reader.spec());
-      try {
-        reader
-            .liveEntries()
-            .forEach(
-                entry -> {
-                  F file = entry.file();
-                  boolean isDanglingDV = isDelete && isDanglingDV((DeleteFile) file);
-                  boolean markedForDelete =
-                      isDanglingDV
-                          || deletePaths.contains(file.location())
-                          || deleteFiles.contains(file)
-                          || dropPartitions.contains(file.specId(), file.partition())
-                          || (isDelete
-                              && entry.isLive()
-                              && entry.dataSequenceNumber() > 0
-                              && entry.dataSequenceNumber() < minSequenceNumber);
-                  if (markedForDelete || evaluator.rowsMightMatch(file)) {
-                    boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
-                    ValidationException.check(
-                        allRowsMatch
-                            || isDelete, // ignore delete files where some records may not match
-                        // the expression
-                        "Cannot delete file where some, but not all, rows match filter %s: %s",
-                        this.deleteExpression,
+      try (CloseableIterable<ManifestEntry<F>> liveEntries = reader.liveEntries()) {
+        liveEntries.forEach(
+            entry -> {
+              F file = entry.file();
+              boolean isDanglingDV = isDelete && isDanglingDV((DeleteFile) file);
+              boolean markedForDelete =
+                  isDanglingDV
+                      || deletePaths.contains(file.location())
+                      || deleteFiles.contains(file)
+                      || dropPartitions.contains(file.specId(), file.partition())
+                      || (isDelete
+                          && entry.isLive()
+                          && entry.dataSequenceNumber() > 0
+                          && entry.dataSequenceNumber() < minSequenceNumber);
+              if (markedForDelete || evaluator.rowsMightMatch(file)) {
+                boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
+                ValidationException.check(
+                    allRowsMatch
+                        || isDelete, // ignore delete files where some records may not match
+                    // the expression
+                    "Cannot delete file where some, but not all, rows match filter %s: %s",
+                    this.deleteExpression,
+                    file.location());
+
+                if (allRowsMatch) {
+                  writer.delete(entry);
+                  F fileCopy = file.copyWithoutStats();
+
+                  if (deletedFiles.contains(file)) {
+                    LOG.warn(
+                        "Deleting a duplicate path from manifest {}: {}",
+                        manifest.path(),
                         file.location());
-
-                    if (allRowsMatch) {
-                      writer.delete(entry);
-                      F fileCopy = file.copyWithoutStats();
-                      // add the file here in case it was deleted using an expression. The
-                      // DeleteManifestFilterManager will then remove its matching DV
-                      deleteFiles.add(fileCopy);
-
-                      if (deletedFiles.contains(file)) {
-                        LOG.warn(
-                            "Deleting a duplicate path from manifest {}: {}",
-                            manifest.path(),
-                            file.location());
-                        duplicateDeleteCount += 1;
-                      } else {
-                        // only add the file to deletes if it is a new delete
-                        // this keeps the snapshot summary accurate for non-duplicate data
-                        deletedFiles.add(fileCopy);
-                      }
-                    } else {
-                      writer.existing(entry);
-                    }
-
+                    duplicateDeleteCount.incrementAndGet();
                   } else {
-                    writer.existing(entry);
+                    // only add the file to deletes if it is a new delete
+                    // this keeps the snapshot summary accurate for non-duplicate data
+                    deletedFiles.add(fileCopy);
                   }
-                });
+                } else {
+                  writer.existing(entry);
+                }
+
+              } else {
+                writer.existing(entry);
+              }
+            });
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to close manifest entries: %s", manifest);
       } finally {
         writer.close();
       }
@@ -565,7 +568,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
       // update caches
       filteredManifests.put(manifest, filtered);
-      filteredManifestToDeletedFiles.put(filtered, deletedFiles);
+      filteredManifestResults.put(filtered, Pair.of(deletedFiles, duplicateDeleteCount.get()));
 
       return filtered;
 

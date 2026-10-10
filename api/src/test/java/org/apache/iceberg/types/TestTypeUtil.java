@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types.IntegerType;
@@ -571,7 +572,7 @@ public class TestTypeUtil {
   }
 
   @Test
-  public void testValidateSchemaViaIndexByName() {
+  public void testValidateSchemaViaByName() {
     Types.NestedField nestedType =
         Types.NestedField.required(
             1,
@@ -969,5 +970,201 @@ public class TestTypeUtil {
     assertThat(TypeUtil.ancestorFields(schema, pointsElement.fieldId())).containsExactly(points);
     assertThat(TypeUtil.ancestorFields(schema, 16)).containsExactly(pointsElement, points);
     assertThat(TypeUtil.ancestorFields(schema, 17)).containsExactly(pointsElement, points);
+  }
+
+  @Test
+  public void testIndexStatsNames() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "data", Types.StringType.get()),
+            optional(
+                3,
+                "location",
+                Types.StructType.of(
+                    required(10, "lat", Types.FloatType.get()),
+                    required(11, "long", Types.FloatType.get()))),
+            optional(4, "values", Types.ListType.ofOptional(12, IntegerType.get())),
+            optional(
+                5,
+                "points",
+                Types.ListType.ofRequired(
+                    13,
+                    Types.StructType.of(
+                        required(14, "x", IntegerType.get()),
+                        required(15, "y", IntegerType.get())))),
+            optional(
+                6,
+                "properties",
+                Types.MapType.ofOptional(16, 17, Types.StringType.get(), Types.StringType.get())),
+            optional(
+                7,
+                "addresses",
+                Types.MapType.ofRequired(
+                    18,
+                    19,
+                    Types.StringType.get(),
+                    Types.StructType.of(
+                        required(20, "street", Types.StringType.get()),
+                        optional(21, "city", Types.StringType.get()),
+                        optional(22, "state", Types.StringType.get()),
+                        required(23, "zip", Types.IntegerType.get()),
+                        required(24, "value", Types.IntegerType.get())))));
+
+    Map<Integer, String> statsNameIndex = TypeUtil.indexStatsNames(schema.asStruct());
+
+    assertThat(statsNameIndex)
+        .containsEntry(1, "id")
+        .containsEntry(2, "data")
+        .containsEntry(3, "location")
+        .containsEntry(10, "location_lat")
+        .containsEntry(11, "location_long")
+        .containsEntry(4, "values")
+        .containsEntry(12, "values_element")
+        .containsEntry(5, "points")
+        .containsEntry(13, "points_element")
+        .containsEntry(14, "points_x")
+        .containsEntry(15, "points_y")
+        .containsEntry(6, "properties")
+        .containsEntry(16, "properties_key")
+        .containsEntry(17, "properties_value")
+        .containsEntry(7, "addresses")
+        .containsEntry(18, "addresses_key")
+        .containsEntry(19, "addresses_value")
+        .containsEntry(20, "addresses_street")
+        .containsEntry(21, "addresses_city")
+        .containsEntry(22, "addresses_state")
+        .containsEntry(23, "addresses_zip")
+        .containsEntry(24, "addresses_value") // the leaf takes precedence
+        .hasSize(22);
+  }
+
+  @Test
+  public void testReplaceFieldTypes() {
+    Types.StructType replacement = Types.StructType.of(required(10, "x", IntegerType.get()));
+    Schema schema =
+        new Schema(
+            required(1, "id", IntegerType.get()),
+            required(2, "s", Types.StructType.of(required(3, "a", Types.LongType.get()))));
+
+    Schema result = TypeUtil.replaceFieldTypes(schema, ImmutableMap.of(2, replacement));
+
+    assertThat(result.findField(1).type()).isEqualTo(IntegerType.get());
+    assertThat(result.findField(2).type()).isEqualTo(replacement);
+  }
+
+  @Test
+  public void testReplaceFieldTypesPrimitive() {
+    Schema schema =
+        new Schema(required(1, "id", IntegerType.get()), required(2, "count", IntegerType.get()));
+
+    Schema result = TypeUtil.replaceFieldTypes(schema, ImmutableMap.of(2, Types.LongType.get()));
+
+    assertThat(result.findField(1).type()).isEqualTo(IntegerType.get());
+    assertThat(result.findField(2).type()).isEqualTo(Types.LongType.get());
+  }
+
+  @Test
+  public void testReplaceFieldTypesListElement() {
+    Schema schema =
+        new Schema(required(1, "list", Types.ListType.ofRequired(2, Types.StructType.of())));
+
+    Schema result =
+        TypeUtil.replaceFieldTypes(
+            schema, ImmutableMap.of(2, Types.StructType.of(required(3, "x", IntegerType.get()))));
+
+    Types.ListType list = (Types.ListType) result.findField(1).type();
+    assertThat(list.elementType().asStructType().field(3).name()).isEqualTo("x");
+    assertThat(list.isElementRequired()).isTrue();
+  }
+
+  @Test
+  public void testReplaceFieldTypesMapKeyAndValue() {
+    Schema schema =
+        new Schema(
+            required(1, "m", Types.MapType.ofRequired(2, 3, IntegerType.get(), IntegerType.get())));
+
+    Schema result =
+        TypeUtil.replaceFieldTypes(
+            schema, ImmutableMap.of(2, Types.LongType.get(), 3, Types.StringType.get()));
+
+    Types.MapType map = (Types.MapType) result.findField(1).type();
+    assertThat(map.keyType()).isEqualTo(Types.LongType.get());
+    assertThat(map.valueType()).isEqualTo(Types.StringType.get());
+    assertThat(map.isValueRequired()).isTrue();
+  }
+
+  @Test
+  public void testReplaceFieldTypesPreservesDefaultsOnCompatibleType() {
+    Types.NestedField field =
+        Types.NestedField.optional("count")
+            .withId(1)
+            .ofType(IntegerType.get())
+            .withInitialDefault(Literal.of(5))
+            .withWriteDefault(Literal.of(7))
+            .build();
+    Schema schema = new Schema(field);
+
+    Schema result = TypeUtil.replaceFieldTypes(schema, ImmutableMap.of(1, Types.LongType.get()));
+
+    Types.NestedField replaced = result.findField(1);
+    assertThat(replaced.type()).isEqualTo(Types.LongType.get());
+    assertThat(replaced.initialDefault()).isEqualTo(5L);
+    assertThat(replaced.writeDefault()).isEqualTo(7L);
+  }
+
+  @Test
+  public void testReplaceFieldTypesRejectsDefaultIncompatibleWithType() {
+    Types.NestedField field =
+        Types.NestedField.optional("count")
+            .withId(1)
+            .ofType(IntegerType.get())
+            .withInitialDefault(Literal.of(5))
+            .build();
+    Schema schema = new Schema(field);
+
+    assertThatThrownBy(
+            () -> TypeUtil.replaceFieldTypes(schema, ImmutableMap.of(1, Types.StringType.get())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot cast default value to string");
+  }
+
+  @Test
+  public void testReplaceFieldTypesPreservesIdentifierField() {
+    Schema schema =
+        new Schema(
+            Lists.newArrayList(
+                required(1, "id", IntegerType.get()), required(2, "data", Types.StringType.get())),
+            Sets.newHashSet(1));
+
+    Schema result = TypeUtil.replaceFieldTypes(schema, ImmutableMap.of(1, Types.LongType.get()));
+
+    assertThat(result.findField(1).type()).isEqualTo(Types.LongType.get());
+    assertThat(result.identifierFieldIds()).containsExactly(1);
+  }
+
+  @Test
+  public void testReplaceFieldTypesRejectsNonPrimitiveIdentifierField() {
+    Schema schema =
+        new Schema(
+            Lists.newArrayList(
+                required(1, "id", IntegerType.get()), required(2, "data", Types.StringType.get())),
+            Sets.newHashSet(1));
+
+    // an identifier field must be primitive, so replacing it with a struct is rejected
+    assertThatThrownBy(
+            () ->
+                TypeUtil.replaceFieldTypes(
+                    schema,
+                    ImmutableMap.of(1, Types.StructType.of(required(3, "x", IntegerType.get())))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not a primitive type field");
+  }
+
+  @Test
+  public void testReplaceFieldTypesNoMatchReturnsSameSchema() {
+    Schema schema = new Schema(required(1, "id", IntegerType.get()));
+    Schema result = TypeUtil.replaceFieldTypes(schema, ImmutableMap.of(99, Types.LongType.get()));
+    assertThat(result).isSameAs(schema);
   }
 }

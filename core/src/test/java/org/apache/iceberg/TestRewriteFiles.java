@@ -813,4 +813,314 @@ public class TestRewriteFiles extends TestBase {
         files(fileADeletes(), fileBDeletes()),
         statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
   }
+
+  @TestTemplate
+  public void testRewriteOfFileWithSuccessiveDVReplacementsRejectedAsConflict() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+    Snapshot s0 = latestSnapshot(table, branch);
+
+    DeleteFile dv1 = newDV(FILE_A);
+    commit(table, table.newRowDelta().addDeletes(dv1), branch);
+    Snapshot s1 = latestSnapshot(table, branch);
+
+    DeleteFile dv2 = newDV(FILE_A);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .removeDeletes(dv1)
+            .addDeletes(dv2)
+            .validateFromSnapshot(s1.snapshotId()),
+        branch);
+
+    assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newRewrite()
+                        .validateFromSnapshot(s0.snapshotId())
+                        .rewriteFiles(
+                            ImmutableSet.of(FILE_A),
+                            ImmutableSet.of(),
+                            ImmutableSet.of(FILE_B),
+                            ImmutableSet.of()),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, found new delete for replaced data file");
+  }
+
+  @TestTemplate
+  public void testRewriteOfUnrelatedFileSucceedsWithSuccessiveDVReplacements() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
+    Snapshot s0 = latestSnapshot(table, branch);
+
+    DeleteFile dv1 = newDV(FILE_A);
+    commit(table, table.newRowDelta().addDeletes(dv1), branch);
+    Snapshot s1 = latestSnapshot(table, branch);
+
+    DeleteFile dv2 = newDV(FILE_A);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .removeDeletes(dv1)
+            .addDeletes(dv2)
+            .validateFromSnapshot(s1.snapshotId()),
+        branch);
+    Snapshot dvSnapshot = latestSnapshot(table, branch);
+
+    commit(
+        table,
+        table
+            .newRewrite()
+            .validateFromSnapshot(s0.snapshotId())
+            .rewriteFiles(
+                ImmutableSet.of(FILE_B),
+                ImmutableSet.of(),
+                ImmutableSet.of(FILE_C),
+                ImmutableSet.of()),
+        branch);
+
+    Snapshot finalSnapshot = latestSnapshot(table, branch);
+    assertThat(finalSnapshot.operation()).isEqualTo(DataOperations.REPLACE);
+
+    List<ManifestFile> manifests = finalSnapshot.allManifests(table.io());
+    assertThat(manifests).hasSize(3);
+
+    long rewriteSnapshotId = finalSnapshot.snapshotId();
+    validateManifestEntries(
+        manifests.get(0), ids(rewriteSnapshotId), files(FILE_C), statuses(ADDED));
+    validateManifestEntries(
+        manifests.get(1),
+        ids(s0.snapshotId(), rewriteSnapshotId),
+        files(FILE_A, FILE_B),
+        statuses(EXISTING, DELETED));
+
+    validateDeleteManifest(
+        manifests.get(2),
+        dataSeqs(dvSnapshot.sequenceNumber()),
+        fileSeqs(dvSnapshot.sequenceNumber()),
+        ids(dvSnapshot.snapshotId()),
+        files(dv2),
+        statuses(ADDED));
+  }
+
+  @TestTemplate
+  public void testRewriteOfUnrelatedFileSucceedsWhenDVRemovedByReplaceSnapshot() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
+    Snapshot s0 = latestSnapshot(table, branch);
+
+    DeleteFile dv1 = newDV(FILE_A);
+    commit(table, table.newRowDelta().addDeletes(dv1), branch);
+
+    // VALIDATE_ADDED_DELETE_FILES_OPERATIONS excludes "replace", so the window never opens the
+    // manifest that records the removal of DV1 and DV1 keeps a live entry in it
+    DeleteFile dv1prime = newDV(FILE_A);
+    commit(
+        table,
+        table
+            .newRewrite()
+            .rewriteFiles(
+                ImmutableSet.of(),
+                ImmutableSet.of(dv1),
+                ImmutableSet.of(),
+                ImmutableSet.of(dv1prime)),
+        branch);
+    Snapshot s2 = latestSnapshot(table, branch);
+    assertThat(s2.operation()).isEqualTo(DataOperations.REPLACE);
+
+    DeleteFile dv2 = newDV(FILE_A);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .removeDeletes(dv1prime)
+            .addDeletes(dv2)
+            .validateFromSnapshot(s2.snapshotId()),
+        branch);
+    Snapshot dvSnapshot = latestSnapshot(table, branch);
+
+    commit(
+        table,
+        table
+            .newRewrite()
+            .validateFromSnapshot(s0.snapshotId())
+            .rewriteFiles(
+                ImmutableSet.of(FILE_B),
+                ImmutableSet.of(),
+                ImmutableSet.of(FILE_C),
+                ImmutableSet.of()),
+        branch);
+
+    Snapshot finalSnapshot = latestSnapshot(table, branch);
+    assertThat(finalSnapshot.operation()).isEqualTo(DataOperations.REPLACE);
+
+    List<ManifestFile> manifests = finalSnapshot.allManifests(table.io());
+    assertThat(manifests).hasSize(3);
+
+    long rewriteSnapshotId = finalSnapshot.snapshotId();
+    validateManifestEntries(
+        manifests.get(0), ids(rewriteSnapshotId), files(FILE_C), statuses(ADDED));
+    validateManifestEntries(
+        manifests.get(1),
+        ids(s0.snapshotId(), rewriteSnapshotId),
+        files(FILE_A, FILE_B),
+        statuses(EXISTING, DELETED));
+
+    validateDeleteManifest(
+        manifests.get(2),
+        dataSeqs(dvSnapshot.sequenceNumber()),
+        fileSeqs(dvSnapshot.sequenceNumber()),
+        ids(dvSnapshot.snapshotId()),
+        files(dv2),
+        statuses(ADDED));
+  }
+
+  @TestTemplate
+  public void testRewriteWithOldSequenceNumberRejectsSuccessiveDVReplacements() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A), branch);
+    Snapshot s0 = latestSnapshot(table, branch);
+    long oldSequenceNumber = s0.sequenceNumber();
+
+    DeleteFile dv1 = newDV(FILE_A);
+    commit(table, table.newRowDelta().addDeletes(dv1), branch);
+    Snapshot s1 = latestSnapshot(table, branch);
+
+    DeleteFile dv2 = newDV(FILE_A);
+    commit(
+        table,
+        table
+            .newRowDelta()
+            .removeDeletes(dv1)
+            .addDeletes(dv2)
+            .validateFromSnapshot(s1.snapshotId()),
+        branch);
+
+    assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newRewrite()
+                        .validateFromSnapshot(s0.snapshotId())
+                        .rewriteFiles(
+                            ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_D), oldSequenceNumber),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Cannot commit, found new position delete for replaced data file");
+  }
+
+  @TestTemplate
+  public void testRewriteOfUnrelatedFileSucceedsWhenDVIsLiveInTwoManifests() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(
+        table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C), branch);
+    Snapshot s0 = latestSnapshot(table, branch);
+
+    // both DVs land in one delete manifest
+    DeleteFile dvA = newDV(FILE_A);
+    DeleteFile dvB = newDV(FILE_B);
+    commit(table, table.newRowDelta().addDeletes(dvA).addDeletes(dvB), branch);
+    Snapshot dvSnapshot = latestSnapshot(table, branch);
+
+    // dropping FILE_B's DV as dangling rewrites that manifest, and the copy still carries the DV
+    // for FILE_A, leaving it live in both
+    commit(table, table.newDelete().deleteFile(FILE_B), branch);
+    Snapshot danglingSnapshot = latestSnapshot(table, branch);
+
+    commit(
+        table,
+        table
+            .newRewrite()
+            .validateFromSnapshot(s0.snapshotId())
+            .rewriteFiles(
+                ImmutableSet.of(FILE_C),
+                ImmutableSet.of(),
+                ImmutableSet.of(FILE_D),
+                ImmutableSet.of()),
+        branch);
+
+    Snapshot finalSnapshot = latestSnapshot(table, branch);
+    assertThat(finalSnapshot.operation()).isEqualTo(DataOperations.REPLACE);
+
+    List<ManifestFile> manifests = finalSnapshot.allManifests(table.io());
+    assertThat(manifests).hasSize(3);
+
+    long rewriteSnapshotId = finalSnapshot.snapshotId();
+    validateManifestEntries(
+        manifests.get(0), ids(rewriteSnapshotId), files(FILE_D), statuses(ADDED));
+    validateManifestEntries(
+        manifests.get(1),
+        ids(s0.snapshotId(), rewriteSnapshotId),
+        files(FILE_A, FILE_C),
+        statuses(EXISTING, DELETED));
+
+    // the rewrite carries the delete manifest forward untouched, so the DV for FILE_A is still
+    // live in the copy written when FILE_B's DV was dropped
+    assertThat(manifests.get(2).snapshotId()).isEqualTo(danglingSnapshot.snapshotId());
+    validateDeleteManifest(
+        manifests.get(2),
+        dataSeqs(dvSnapshot.sequenceNumber(), dvSnapshot.sequenceNumber()),
+        fileSeqs(dvSnapshot.sequenceNumber(), dvSnapshot.sequenceNumber()),
+        ids(dvSnapshot.snapshotId(), danglingSnapshot.snapshotId()),
+        files(dvA, dvB),
+        statuses(EXISTING, DELETED));
+  }
+
+  @TestTemplate
+  public void testRewriteOfUnrelatedFileSucceedsWithSingleDV() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_B), branch);
+    Snapshot s0 = latestSnapshot(table, branch);
+
+    DeleteFile dv = newDV(FILE_A);
+    commit(table, table.newRowDelta().addDeletes(dv), branch);
+    Snapshot dvSnapshot = latestSnapshot(table, branch);
+
+    commit(
+        table,
+        table
+            .newRewrite()
+            .validateFromSnapshot(s0.snapshotId())
+            .rewriteFiles(
+                ImmutableSet.of(FILE_B),
+                ImmutableSet.of(),
+                ImmutableSet.of(FILE_C),
+                ImmutableSet.of()),
+        branch);
+
+    Snapshot finalSnapshot = latestSnapshot(table, branch);
+    assertThat(finalSnapshot.operation()).isEqualTo(DataOperations.REPLACE);
+
+    List<ManifestFile> manifests = finalSnapshot.allManifests(table.io());
+    assertThat(manifests).hasSize(3);
+
+    long rewriteSnapshotId = finalSnapshot.snapshotId();
+    validateManifestEntries(
+        manifests.get(0), ids(rewriteSnapshotId), files(FILE_C), statuses(ADDED));
+    validateManifestEntries(
+        manifests.get(1),
+        ids(s0.snapshotId(), rewriteSnapshotId),
+        files(FILE_A, FILE_B),
+        statuses(EXISTING, DELETED));
+
+    validateDeleteManifest(
+        manifests.get(2),
+        dataSeqs(dvSnapshot.sequenceNumber()),
+        fileSeqs(dvSnapshot.sequenceNumber()),
+        ids(dvSnapshot.snapshotId()),
+        files(dv),
+        statuses(ADDED));
+  }
 }

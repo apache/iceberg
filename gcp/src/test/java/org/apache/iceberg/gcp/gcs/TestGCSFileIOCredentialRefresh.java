@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.io.StorageCredential;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -224,6 +225,72 @@ class TestGCSFileIOCredentialRefresh {
                     .containsEntry(GCPProperties.GCS_OAUTH2_TOKEN, "refreshedToken")
                     .containsEntry(GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT, refreshedExpiryMs);
               });
+    }
+  }
+
+  @Test
+  void refreshedCredentialsAreKryoSerializable() throws Exception {
+    // Verify that a GCSFileIO whose credentials have been refreshed at runtime can still be
+    // round-tripped through Kryo. The internal storageCredentials list must be backed by a
+    // collection that Kryo can serialize and deserialize.
+    String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
+
+    StorageCredential initialCredential =
+        StorageCredential.create(
+            "gs://bucket/path",
+            ImmutableMap.of(
+                GCPProperties.GCS_OAUTH2_TOKEN,
+                "initialToken",
+                GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT,
+                nearExpiryMs));
+
+    String refreshedExpiryMs =
+        Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
+    LoadCredentialsResponse refreshResponse =
+        ImmutableLoadCredentialsResponse.builder()
+            .addCredentials(
+                ImmutableCredential.builder()
+                    .prefix("gs://bucket/path")
+                    .config(
+                        ImmutableMap.of(
+                            GCPProperties.GCS_OAUTH2_TOKEN,
+                            "refreshedToken",
+                            GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT,
+                            refreshedExpiryMs))
+                    .build())
+            .build();
+
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    mockServer
+        .when(mockRequest)
+        .respond(
+            response(LoadCredentialsResponseParser.toJson(refreshResponse)).withStatusCode(200));
+
+    Map<String, String> properties =
+        ImmutableMap.of(
+            GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+            credentialsUri,
+            CatalogProperties.URI,
+            catalogUri);
+
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.initialize(properties);
+      fileIO.setCredentials(List.of(initialCredential));
+
+      fileIO.client();
+
+      // Wait for the refresh to update the in-memory credentials
+      Awaitility.await()
+          .atMost(10, TimeUnit.SECONDS)
+          .untilAsserted(
+              () ->
+                  assertThat(fileIO.credentials().get(0).config())
+                      .containsEntry(GCPProperties.GCS_OAUTH2_TOKEN, "refreshedToken"));
+
+      // Round-trip through Kryo and verify the credentials still match
+      try (GCSFileIO deserialized = TestHelpers.KryoHelpers.roundTripSerialize(fileIO)) {
+        assertThat(deserialized.credentials()).isEqualTo(fileIO.credentials());
+      }
     }
   }
 }

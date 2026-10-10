@@ -45,6 +45,11 @@ public class TestGenericAvro extends DataTestBase {
   }
 
   @Override
+  protected boolean supportsGeospatial() {
+    return true;
+  }
+
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     List<Record> expected = RandomAvroData.generate(schema, 100, 0L);
 

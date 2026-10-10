@@ -430,7 +430,7 @@ public class SparkSessionCatalog<
       if (null != asViewCatalog) {
         return asViewCatalog.listViews(namespace);
       } else if (isViewCatalog()) {
-        getSessionCatalog().listViews(namespace);
+        return getSessionCatalog().listViews(namespace);
       }
     } catch (NoSuchNamespaceException e) {
       throw new RuntimeException(e);

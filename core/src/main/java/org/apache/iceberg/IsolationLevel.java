@@ -43,7 +43,7 @@ public enum IsolationLevel {
   public static IsolationLevel fromName(String levelName) {
     Preconditions.checkArgument(levelName != null, "Invalid isolation level: null");
     try {
-      return IsolationLevel.valueOf(levelName.toUpperCase(Locale.ENGLISH));
+      return IsolationLevel.valueOf(levelName.toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
           String.format("Invalid isolation level: %s", levelName), e);

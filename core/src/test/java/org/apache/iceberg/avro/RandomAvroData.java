@@ -110,6 +110,8 @@ public class RandomAvroData {
         case FIXED:
           return new GenericData.Fixed(typeToSchema.get(primitive), (byte[]) result);
         case BINARY:
+        case GEOMETRY:
+        case GEOGRAPHY:
           return ByteBuffer.wrap((byte[]) result);
         case UUID:
           return UUID.nameUUIDFromBytes((byte[]) result);

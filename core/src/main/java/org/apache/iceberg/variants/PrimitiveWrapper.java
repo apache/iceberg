@@ -18,15 +18,17 @@
  */
 package org.apache.iceberg.variants;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.UUIDUtil;
 
-class PrimitiveWrapper<T> implements VariantPrimitive<T> {
+class PrimitiveWrapper<T> implements VariantPrimitive<T>, Serializable {
   private static final byte NULL_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_NULL);
   private static final byte TRUE_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_TRUE);
   private static final byte FALSE_HEADER = VariantUtil.primitiveHeader(Primitives.TYPE_FALSE);
@@ -57,7 +59,9 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
 
   private final PhysicalType type;
   private final T value;
-  private ByteBuffer buffer = null;
+  // binary values are held as a serializable byte array rather than a non-serializable ByteBuffer
+  private final byte[] binary;
+  private transient ByteBuffer buffer = null;
 
   PrimitiveWrapper(PhysicalType type, T value) {
     if (value instanceof Boolean
@@ -67,7 +71,14 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
     } else {
       this.type = type;
     }
-    this.value = value;
+
+    if (this.type == PhysicalType.BINARY) {
+      this.binary = ByteBuffers.toByteArray((ByteBuffer) value);
+      this.value = null;
+    } else {
+      this.value = value;
+      this.binary = null;
+    }
   }
 
   @Override
@@ -76,7 +87,12 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public T get() {
+    if (type == PhysicalType.BINARY) {
+      return (T) ByteBuffer.wrap(binary);
+    }
+
     return value;
   }
 
@@ -110,7 +126,7 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
       case DECIMAL16:
         return 18; // 1 header + 1 scale + 16 unscaled value
       case BINARY:
-        return 5 + ((ByteBuffer) value).remaining(); // 1 header + 4 length + value length
+        return 5 + binary.length; // 1 header + 4 length + value length
       case STRING:
         if (null == buffer) {
           this.buffer = ByteBuffer.wrap(((String) value).getBytes(StandardCharsets.UTF_8));
@@ -205,23 +221,22 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         }
         return 18;
       case BINARY:
-        ByteBuffer binary = (ByteBuffer) value;
         outBuffer.put(offset, BINARY_HEADER);
-        outBuffer.putInt(offset + 1, binary.remaining());
-        VariantUtil.writeBufferAbsolute(outBuffer, offset + 5, binary);
-        return 5 + binary.remaining();
+        outBuffer.putInt(offset + 1, binary.length);
+        outBuffer.put(offset + 5, binary, 0, binary.length);
+        return 5 + binary.length;
       case STRING:
         if (null == buffer) {
           this.buffer = ByteBuffer.wrap(((String) value).getBytes(StandardCharsets.UTF_8));
         }
         if (buffer.remaining() <= MAX_SHORT_STRING_LENGTH) {
           outBuffer.put(offset, VariantUtil.shortStringHeader(buffer.remaining()));
-          VariantUtil.writeBufferAbsolute(outBuffer, offset + 1, buffer);
+          outBuffer.put(offset + 1, buffer, buffer.position(), buffer.remaining());
           return 1 + buffer.remaining();
         } else {
           outBuffer.put(offset, STRING_HEADER);
           outBuffer.putInt(offset + 1, buffer.remaining());
-          VariantUtil.writeBufferAbsolute(outBuffer, offset + 5, buffer);
+          outBuffer.put(offset + 5, buffer, buffer.position(), buffer.remaining());
           return 5 + buffer.remaining();
         }
       case TIME:
@@ -238,8 +253,8 @@ class PrimitiveWrapper<T> implements VariantPrimitive<T> {
         return 9;
       case UUID:
         outBuffer.put(offset, UUID_HEADER);
-        VariantUtil.writeBufferAbsolute(
-            outBuffer, offset + 1, UUIDUtil.convertToByteBuffer((UUID) value));
+        ByteBuffer uuidBuffer = UUIDUtil.convertToByteBuffer((UUID) value);
+        outBuffer.put(offset + 1, uuidBuffer, uuidBuffer.position(), uuidBuffer.remaining());
         return 17;
     }
 

@@ -108,8 +108,8 @@ cp $projectdir/build/iceberg-build.properties $projectdir/iceberg-build.properti
 
 # be conservative and use the release hash, even though git produces the same
 # archive (identical hashes) using the scm tag
-echo "Creating tarball ${tarball} using commit $release_hash"
 tarball=$tag.tar.gz
+echo "Creating tarball ${tarball} using commit $release_hash"
 git archive $release_hash --worktree-attributes --prefix $tag/ --add-file $projectdir/version.txt --add-file $projectdir/iceberg-build.properties -o $projectdir/$tarball
 
 # remove the uncommitted build files so they don't affect the current working copy

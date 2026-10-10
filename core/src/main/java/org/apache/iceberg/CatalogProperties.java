@@ -158,6 +158,15 @@ public class CatalogProperties {
   public static final String APP_NAME = "app-name";
   public static final String USER = "user";
 
+  /**
+   * Requests that the catalog provide unique locations for new tables.
+   *
+   * <p>Relevant only for catalogs which support unique table locations.
+   */
+  public static final String UNIQUE_TABLE_LOCATION = "unique-table-location";
+
+  public static final boolean UNIQUE_TABLE_LOCATION_DEFAULT = false;
+
   public static final String AUTH_SESSION_TIMEOUT_MS = "auth.session-timeout-ms";
   public static final long AUTH_SESSION_TIMEOUT_MS_DEFAULT = TimeUnit.HOURS.toMillis(1);
 
@@ -165,6 +174,7 @@ public class CatalogProperties {
   public static final String ENCRYPTION_KMS_TYPE_AWS = "aws";
   public static final String ENCRYPTION_KMS_TYPE_AZURE = "azure";
   public static final String ENCRYPTION_KMS_TYPE_GCP = "gcp";
+  public static final String ENCRYPTION_KMS_TYPE_ALIYUN = "aliyun";
 
   public static final String ENCRYPTION_KMS_IMPL = "encryption.kms-impl";
   public static final String ENCRYPTION_KMS_IMPL_AWS =
@@ -173,4 +183,6 @@ public class CatalogProperties {
       "org.apache.iceberg.azure.keymanagement.AzureKeyManagementClient";
   public static final String ENCRYPTION_KMS_IMPL_GCP =
       "org.apache.iceberg.gcp.GcpKeyManagementClient";
+  public static final String ENCRYPTION_KMS_IMPL_ALIYUN =
+      "org.apache.iceberg.aliyun.AliyunKeyManagementClient";
 }

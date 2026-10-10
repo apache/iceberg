@@ -24,6 +24,7 @@ import static org.apache.iceberg.gcp.bigquery.BigQueryProperties.PROJECT_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
@@ -167,6 +168,18 @@ public class TestBigQueryCatalog extends CatalogTests<BigQueryMetastoreCatalog> 
   @Test
   public void testRenameTableMissingSourceTable() {
     super.testRenameTableMissingSourceTable();
+  }
+
+  @Disabled("BigQuery Metastore does not support rename tables")
+  @Test
+  public void createTableInUniqueLocation() {
+    super.createTableInUniqueLocation();
+  }
+
+  @Disabled("BigQuery Metastore does not support rename tables")
+  @Test
+  public void dropAfterRenameDoesntCorruptTable() throws IOException {
+    super.dropAfterRenameDoesntCorruptTable();
   }
 
   @Test

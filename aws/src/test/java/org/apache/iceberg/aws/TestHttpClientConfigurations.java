@@ -22,9 +22,11 @@ import java.time.Duration;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
-import software.amazon.awssdk.http.apache.ProxyConfiguration;
+import software.amazon.awssdk.http.apache5.Apache5HttpClient;
+import software.amazon.awssdk.http.apache5.ProxyConfiguration;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 
 public class TestHttpClientConfigurations {
@@ -91,8 +93,8 @@ public class TestHttpClientConfigurations {
     properties.put(HttpClientProperties.PROXY_ENDPOINT, "http://proxy:8080");
     ApacheHttpClientConfigurations apacheHttpClientConfigurations =
         ApacheHttpClientConfigurations.create(properties);
-    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
-    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    Apache5HttpClient.Builder apacheHttpClientBuilder = Apache5HttpClient.builder();
+    Apache5HttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
 
     apacheHttpClientConfigurations.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
 
@@ -113,8 +115,8 @@ public class TestHttpClientConfigurations {
   public void testApacheDefaultConfigurations() {
     ApacheHttpClientConfigurations apacheHttpClientConfigurations =
         ApacheHttpClientConfigurations.create(Maps.newHashMap());
-    ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
-    ApacheHttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
+    Apache5HttpClient.Builder apacheHttpClientBuilder = Apache5HttpClient.builder();
+    Apache5HttpClient.Builder spyApacheHttpClientBuilder = Mockito.spy(apacheHttpClientBuilder);
 
     apacheHttpClientConfigurations.configureApacheHttpClientBuilder(spyApacheHttpClientBuilder);
 
@@ -136,5 +138,40 @@ public class TestHttpClientConfigurations {
         .useIdleConnectionReaper(Mockito.anyBoolean());
     Mockito.verify(spyApacheHttpClientBuilder, Mockito.never())
         .proxyConfiguration(Mockito.any(ProxyConfiguration.class));
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        HttpClientProperties.PROXY_USE_SYSTEM_PROPERTY_VALUES,
+        HttpClientProperties.PROXY_USE_ENVIRONMENT_VARIABLE_VALUES
+      })
+  public void testApacheProxyFlagTriggersProxyConfig(String propertyKey) {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(propertyKey, "false");
+    Apache5HttpClient.Builder spy = Mockito.spy(Apache5HttpClient.builder());
+
+    ApacheHttpClientConfigurations.create(properties).configureApacheHttpClientBuilder(spy);
+
+    Mockito.verify(spy).proxyConfiguration(Mockito.any(ProxyConfiguration.class));
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        HttpClientProperties.PROXY_USE_SYSTEM_PROPERTY_VALUES,
+        HttpClientProperties.PROXY_USE_ENVIRONMENT_VARIABLE_VALUES
+      })
+  public void testUrlConnectionProxyFlagTriggersProxyConfig(String propertyKey) {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(propertyKey, "false");
+    UrlConnectionHttpClient.Builder spy = Mockito.spy(UrlConnectionHttpClient.builder());
+
+    UrlConnectionHttpClientConfigurations.create(properties)
+        .configureUrlConnectionHttpClientBuilder(spy);
+
+    Mockito.verify(spy)
+        .proxyConfiguration(
+            Mockito.any(software.amazon.awssdk.http.urlconnection.ProxyConfiguration.class));
   }
 }

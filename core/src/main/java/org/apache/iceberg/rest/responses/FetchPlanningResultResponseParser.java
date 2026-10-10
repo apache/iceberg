@@ -38,6 +38,7 @@ public class FetchPlanningResultResponseParser {
   private static final String STATUS = "status";
   private static final String PLAN_TASKS = "plan-tasks";
   private static final String STORAGE_CREDENTIALS = "storage-credentials";
+  private static final String ERROR = "error";
 
   private FetchPlanningResultResponseParser() {}
 
@@ -58,6 +59,11 @@ public class FetchPlanningResultResponseParser {
         "Cannot serialize fileScanTasks in fetchingPlanningResultResponse without specsById");
     gen.writeStartObject();
     gen.writeStringField(STATUS, response.planStatus().status());
+
+    if (response.errorResponse() != null) {
+      ErrorResponseParser.writeError(response.errorResponse(), gen);
+    }
+
     if (response.planTasks() != null) {
       JsonUtil.writeStringArray(PLAN_TASKS, response.planTasks(), gen);
     }
@@ -90,6 +96,11 @@ public class FetchPlanningResultResponseParser {
         json != null && !json.isEmpty(), "Invalid fetchPlanningResult response: null or empty");
 
     PlanStatus planStatus = PlanStatus.fromName(JsonUtil.getString(STATUS, json));
+    ErrorResponse errorResponse = null;
+    if (json.has(ERROR) && json.get(ERROR).isObject()) {
+      errorResponse = ErrorResponseParser.fromJson(json);
+    }
+
     List<String> planTasks = JsonUtil.getStringListOrNull(PLAN_TASKS, json);
     List<DeleteFile> deleteFiles = TableScanResponseParser.parseDeleteFiles(json, specsById);
     List<FileScanTask> fileScanTasks =
@@ -98,6 +109,7 @@ public class FetchPlanningResultResponseParser {
     FetchPlanningResultResponse.Builder builder =
         FetchPlanningResultResponse.builder()
             .withPlanStatus(planStatus)
+            .withErrorResponse(errorResponse)
             .withPlanTasks(planTasks)
             .withFileScanTasks(fileScanTasks)
             .withSpecsById(specsById);

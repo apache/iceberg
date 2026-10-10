@@ -58,8 +58,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 
-public class TestInclusiveMetricsEvaluatorWithTransforms {
-  private static final Schema SCHEMA =
+public class TestInclusiveMetricsEvaluatorWithTransforms<F> {
+  protected static final Schema SCHEMA =
       new Schema(
           required(1, "id", IntegerType.get()),
           required(2, "ts", Types.TimestampType.withZone()),
@@ -68,13 +68,13 @@ public class TestInclusiveMetricsEvaluatorWithTransforms {
           optional(5, "no_stats", IntegerType.get()),
           optional(6, "str", Types.StringType.get()));
 
-  private static final int INT_MIN_VALUE = 30;
-  private static final int INT_MAX_VALUE = 79;
+  protected static final int INT_MIN_VALUE = 30;
+  protected static final int INT_MAX_VALUE = 79;
 
-  private static final long TS_MIN_VALUE =
+  protected static final long TS_MIN_VALUE =
       DateTimeUtil.microsFromTimestamptz(
           DateTimeUtil.dateFromDays(30).atStartOfDay().atOffset(ZoneOffset.UTC));
-  private static final long TS_MAX_VALUE =
+  protected static final long TS_MAX_VALUE =
       DateTimeUtil.microsFromTimestamptz(
           DateTimeUtil.dateFromDays(79).atStartOfDay().atOffset(ZoneOffset.UTC));
 
@@ -109,19 +109,32 @@ public class TestInclusiveMetricsEvaluatorWithTransforms {
               6, Conversions.toByteBuffer(Types.StringType.get(), "abe")));
 
   private boolean shouldRead(Expression expr) {
-    return shouldRead(expr, FILE);
+    return shouldRead(expr, file());
   }
 
-  private boolean shouldRead(Expression expr, DataFile file) {
+  private boolean shouldRead(Expression expr, F file) {
     return shouldRead(expr, file, true);
   }
 
   private boolean shouldReadCaseInsensitive(Expression expr) {
-    return shouldRead(expr, FILE, false);
+    return shouldRead(expr, file(), false);
   }
 
-  private boolean shouldRead(Expression expr, DataFile file, boolean caseSensitive) {
-    return new InclusiveMetricsEvaluator(SCHEMA, expr, caseSensitive).eval(file);
+  protected boolean shouldRead(Expression expr, F file, boolean caseSensitive) {
+    return new InclusiveMetricsEvaluator(SCHEMA, expr, caseSensitive).eval((DataFile) file);
+  }
+
+  protected F file() {
+    return asFile(FILE);
+  }
+
+  protected F emptyFile() {
+    return asFile(new TestDataFile("file.parquet", Row.of(), 0));
+  }
+
+  @SuppressWarnings("unchecked")
+  private F asFile(DataFile dataFile) {
+    return (F) dataFile;
   }
 
   @Test
@@ -289,7 +302,7 @@ public class TestInclusiveMetricsEvaluatorWithTransforms {
   @ParameterizedTest
   @FieldSource("MISSING_STATS_EXPRESSIONS")
   public void testZeroRecordFile(Expression expr) {
-    DataFile empty = new TestDataFile("file.parquet", Row.of(), 0);
+    F empty = emptyFile();
     assertThat(shouldRead(expr, empty)).as("Should never read 0-record file: " + expr).isFalse();
   }
 

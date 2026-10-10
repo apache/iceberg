@@ -18,14 +18,16 @@
  */
 package org.apache.iceberg.variants;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.ByteBuffers;
 
-public class ValueArray implements VariantArray {
-  private SerializationState serializationState = null;
+public class ValueArray implements VariantArray, Serializable {
+  private transient SerializationState serializationState = null;
   private List<VariantValue> elements = Lists.newArrayList();
 
   ValueArray() {}
@@ -101,15 +103,15 @@ public class ValueArray implements VariantArray {
       int dataOffset = offsetListOffset + ((1 + numElements) * offsetSize);
       byte header = VariantUtil.arrayHeader(isLarge, offsetSize);
 
-      VariantUtil.writeByte(buffer, header, offset);
-      VariantUtil.writeLittleEndianUnsigned(buffer, numElements, offset + 1, isLarge ? 4 : 1);
+      ByteBuffers.writeByte(buffer, header, offset);
+      ByteBuffers.writeLittleEndianUnsigned(buffer, numElements, offset + 1, isLarge ? 4 : 1);
 
       // Insert element offsets
       int nextValueOffset = 0;
       int index = 0;
       for (VariantValue element : elements) {
         // write the data offset
-        VariantUtil.writeLittleEndianUnsigned(
+        ByteBuffers.writeLittleEndianUnsigned(
             buffer, nextValueOffset, offsetListOffset + (index * offsetSize), offsetSize);
 
         // write the data
@@ -120,7 +122,7 @@ public class ValueArray implements VariantArray {
       }
 
       // write the final size of the data section
-      VariantUtil.writeLittleEndianUnsigned(
+      ByteBuffers.writeLittleEndianUnsigned(
           buffer, nextValueOffset, offsetListOffset + (index * offsetSize), offsetSize);
 
       // return the total size

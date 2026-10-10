@@ -115,6 +115,8 @@ public class TestManifestWriterVersions {
           null,
           null);
 
+  static final List<FileFormat> V4_FORMATS = ImmutableList.of(FileFormat.AVRO, FileFormat.PARQUET);
+
   @TempDir private Path temp;
 
   @Test
@@ -344,6 +346,100 @@ public class TestManifestWriterVersions {
     assertThat(readAvroCodec(manifestFile)).isEqualTo("snappy");
   }
 
+  @ParameterizedTest
+  @FieldSource("V4_FORMATS")
+  public void testV4WritePartitioned(FileFormat fileFormat) throws IOException {
+    ManifestFile manifest = writeManifest(4, fileFormat, SPEC, DATA_FILE);
+    checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
+    checkEntry(
+        readManifest(manifest),
+        ManifestWriter.UNASSIGNED_SEQ,
+        ManifestWriter.UNASSIGNED_SEQ,
+        FileContent.DATA,
+        FIRST_ROW_ID);
+  }
+
+  @ParameterizedTest
+  @FieldSource("V4_FORMATS")
+  public void testV4WriteUnpartitioned(FileFormat fileFormat) throws IOException {
+    DataFile unpartitionedFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(PATH)
+            .withFormat(FORMAT)
+            .withFileSizeInBytes(150972L)
+            .withMetrics(METRICS)
+            .withSplitOffsets(OFFSETS)
+            .withSortOrderId(SORT_ORDER_ID)
+            .withFirstRowId(FIRST_ROW_ID)
+            .build();
+
+    ManifestFile manifest =
+        writeManifest(4, fileFormat, PartitionSpec.unpartitioned(), unpartitionedFile);
+    checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
+
+    Map<Integer, PartitionSpec> unpartitionedSpecs =
+        ImmutableMap.of(PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned());
+    try (CloseableIterable<ManifestEntry<DataFile>> reader =
+        ManifestFiles.read(manifest, io, unpartitionedSpecs).entries()) {
+      ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader);
+      assertThat(entry.status()).isEqualTo(ManifestEntry.Status.ADDED);
+      assertThat(entry.file().location()).isEqualTo(PATH);
+      assertThat(entry.file().recordCount()).isEqualTo(METRICS.recordCount());
+      assertThat(entry.file().firstRowId()).isEqualTo(FIRST_ROW_ID);
+    }
+  }
+
+  @ParameterizedTest
+  @FieldSource("V4_FORMATS")
+  public void testV4WriteDeletePartitioned(FileFormat fileFormat) throws IOException {
+    ManifestFile manifest = writeDeleteManifest(4, fileFormat, SPEC);
+    checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
+    assertThat(manifest.content()).isEqualTo(ManifestContent.DELETES);
+    checkEntry(
+        readDeleteManifest(manifest),
+        ManifestWriter.UNASSIGNED_SEQ,
+        ManifestWriter.UNASSIGNED_SEQ,
+        FileContent.EQUALITY_DELETES);
+  }
+
+  @ParameterizedTest
+  @FieldSource("V4_FORMATS")
+  public void testV4WriteDeleteUnpartitioned(FileFormat fileFormat) throws IOException {
+    DeleteFile unpartitionedDelete =
+        new GenericDeleteFile(
+            0,
+            FileContent.EQUALITY_DELETES,
+            PATH,
+            FORMAT,
+            new PartitionData(PartitionSpec.unpartitioned().partitionType()),
+            22905L,
+            METRICS,
+            EQUALITY_ID_ARR,
+            SORT_ORDER_ID,
+            null,
+            null,
+            null,
+            null,
+            null);
+
+    ManifestFile manifest =
+        writeDeleteManifest(4, fileFormat, PartitionSpec.unpartitioned(), unpartitionedDelete);
+    checkManifest(manifest, ManifestWriter.UNASSIGNED_SEQ);
+    assertThat(manifest.content()).isEqualTo(ManifestContent.DELETES);
+
+    Map<Integer, PartitionSpec> unpartitionedSpecs =
+        ImmutableMap.of(PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned());
+    try (CloseableIterable<ManifestEntry<DeleteFile>> reader =
+        ManifestFiles.readDeleteManifest(manifest, io, unpartitionedSpecs).entries()) {
+      ManifestEntry<DeleteFile> entry = Iterables.getOnlyElement(reader);
+      assertThat(entry.status()).isEqualTo(ManifestEntry.Status.ADDED);
+      assertThat(entry.file().content()).isEqualTo(FileContent.EQUALITY_DELETES);
+      assertThat(entry.file().location()).isEqualTo(PATH);
+      assertThat(entry.file().recordCount()).isEqualTo(METRICS.recordCount());
+      assertThat(entry.file().equalityFieldIds()).isEqualTo(EQUALITY_IDS);
+    }
+  }
+
   void checkEntry(
       ManifestEntry<?> entry,
       Long expectedDataSequenceNumber,
@@ -466,7 +562,7 @@ public class TestManifestWriterVersions {
 
   private ManifestFile rewriteManifest(ManifestFile manifest, int formatVersion)
       throws IOException {
-    String filename = FileFormat.AVRO.addExtension("rewrite-manifest");
+    String filename = TestBase.manifestFormat(formatVersion).addExtension("rewrite-manifest");
     EncryptedOutputFile manifestFile = encryptionManager().encrypt(io.newOutputFile(filename));
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
@@ -483,10 +579,16 @@ public class TestManifestWriterVersions {
   }
 
   private ManifestFile writeManifest(int formatVersion, DataFile... files) throws IOException {
-    String filename = FileFormat.AVRO.addExtension("manifest");
+    return writeManifest(formatVersion, TestBase.manifestFormat(formatVersion), SPEC, files);
+  }
+
+  private ManifestFile writeManifest(
+      int formatVersion, FileFormat fileFormat, PartitionSpec spec, DataFile... files)
+      throws IOException {
+    String filename = fileFormat.addExtension("manifest");
     EncryptedOutputFile manifestFile = encryptionManager().encrypt(io.newOutputFile(filename));
     ManifestWriter<DataFile> writer =
-        ManifestFiles.newWriter(formatVersion, SPEC, manifestFile, SNAPSHOT_ID, FIRST_ROW_ID);
+        ManifestFiles.newWriter(formatVersion, spec, manifestFile, SNAPSHOT_ID, FIRST_ROW_ID);
     try {
       for (DataFile file : files) {
         writer.add(file);
@@ -512,12 +614,23 @@ public class TestManifestWriterVersions {
   }
 
   private ManifestFile writeDeleteManifest(int formatVersion) throws IOException {
-    String filename = FileFormat.AVRO.addExtension("manifest");
+    return writeDeleteManifest(formatVersion, TestBase.manifestFormat(formatVersion), SPEC);
+  }
+
+  private ManifestFile writeDeleteManifest(
+      int formatVersion, FileFormat fileFormat, PartitionSpec spec) throws IOException {
+    return writeDeleteManifest(formatVersion, fileFormat, spec, DELETE_FILE);
+  }
+
+  private ManifestFile writeDeleteManifest(
+      int formatVersion, FileFormat fileFormat, PartitionSpec spec, DeleteFile deleteFile)
+      throws IOException {
+    String filename = fileFormat.addExtension("manifest");
     EncryptedOutputFile manifestFile = encryptionManager().encrypt(io.newOutputFile(filename));
     ManifestWriter<DeleteFile> writer =
-        ManifestFiles.writeDeleteManifest(formatVersion, SPEC, manifestFile, SNAPSHOT_ID);
+        ManifestFiles.writeDeleteManifest(formatVersion, spec, manifestFile, SNAPSHOT_ID);
     try {
-      writer.add(DELETE_FILE);
+      writer.add(deleteFile);
     } finally {
       writer.close();
     }

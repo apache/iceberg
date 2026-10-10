@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.io;
 
-import java.io.EOFException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -28,8 +27,7 @@ public class FileRange {
   private final long offset;
   private final int length;
 
-  public FileRange(CompletableFuture<ByteBuffer> byteBuffer, long offset, int length)
-      throws EOFException {
+  public FileRange(CompletableFuture<ByteBuffer> byteBuffer, long offset, int length) {
     Preconditions.checkNotNull(byteBuffer, "byteBuffer can't be null");
     Preconditions.checkArgument(length >= 0, "Invalid length: %s in range (must be >= 0)", length);
     Preconditions.checkArgument(offset >= 0, "Invalid offset: %s in range (must be >= 0)", offset);

@@ -19,13 +19,19 @@
 package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.CatalogTests;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.util.PropertyUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,5 +111,72 @@ public class RESTCompatibilityKitCatalogTests extends CatalogTests<RESTCatalog> 
     // https://jakarta.ee/specifications/servlet/6.0/jakarta-servlet-spec-6.0.html#uri-path-canonicalization
     // for additional details
     return false;
+  }
+
+  @Override
+  protected boolean supportsVariant() {
+    return PropertyUtil.propertyAsBoolean(
+        restCatalog.properties(), RESTCompatibilityKitSuite.RCK_SUPPORTS_VARIANT, false);
+  }
+
+  @Override
+  protected boolean supportsUnregister() {
+    return true;
+  }
+
+  @Test
+  public void testUnregisterTable() {
+    if (requiresNamespaceCreate()) {
+      restCatalog.createNamespace(TABLE.namespace());
+    }
+
+    Table original =
+        restCatalog
+            .buildTable(TABLE, SCHEMA)
+            .withPartitionSpec(SPEC)
+            .withSortOrder(WRITE_ORDER)
+            .create();
+    original.newFastAppend().appendFile(FILE_A).commit();
+    original.newFastAppend().appendFile(FILE_B).commit();
+
+    Table unregistered = restCatalog.unregisterTable(TABLE);
+
+    assertThat(unregistered.currentSnapshot())
+        .as("Current snapshot must match the unregistered table")
+        .isEqualTo(original.currentSnapshot());
+    assertFiles(unregistered, FILE_A, FILE_B);
+    assertThat(restCatalog.tableExists(TABLE))
+        .as("Table must not exist after being unregistered")
+        .isFalse();
+    assertThatThrownBy(() -> unregistered.updateProperties().set("unregistered", "true").commit())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Cannot modify a static table");
+
+    // the underlying files are left in place, so the table can be registered again
+    Table registered =
+        restCatalog.registerTable(TABLE, TableUtil.metadataFileLocation(unregistered));
+    assertThat(registered.currentSnapshot())
+        .as("Current snapshot must match the unregistered table")
+        .isEqualTo(original.currentSnapshot());
+    assertFiles(registered, FILE_A, FILE_B);
+
+    assertThat(restCatalog.dropTable(TABLE)).isTrue();
+  }
+
+  @Test
+  public void testUnregisterMissingTable() {
+    if (requiresNamespaceCreate()) {
+      restCatalog.createNamespace(TABLE.namespace());
+    }
+
+    assertThatThrownBy(() -> restCatalog.unregisterTable(TABLE))
+        .isInstanceOf(NoSuchTableException.class)
+        .hasMessageContaining("Table does not exist");
+  }
+
+  @Disabled("RESTServerExtension isn’t configurable per test")
+  @Test
+  public void createTableInUniqueLocation() {
+    super.createTableInUniqueLocation();
   }
 }

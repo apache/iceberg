@@ -80,7 +80,8 @@ public class AzureKeyManagementClient implements KeyManagementClient {
               keyClientBuilder
                   .credential(AdlsTokenCredentialProviders.from(allProperties).credential())
                   .buildClient();
-          KeyWrapAlgorithm keyWrapAlgorithm = azureProperties.keyWrapAlgorithm();
+          KeyWrapAlgorithm keyWrapAlgorithm =
+              KeyWrapAlgorithm.fromString(azureProperties.keyWrapAlgorithm());
           state = new ClientState(keyClient, keyWrapAlgorithm);
         }
       }
