@@ -63,6 +63,7 @@ import org.apache.flink.table.data.util.DataFormatConverters;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
+import org.apache.flink.types.RowKind;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.function.SerializableSupplier;
@@ -124,6 +125,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
   private static class DynamicIcebergDataImpl implements Serializable {
     Row rowProvided;
+    RowData rowDataProvided;
     Row rowExpected;
     Schema schemaProvided;
     Schema schemaExpected;
@@ -222,7 +224,9 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
               tableIdentifier,
               branch,
               schema,
-              converter(schema).toInternal(row.rowProvided),
+              row.rowDataProvided != null
+                  ? row.rowDataProvided
+                  : converter(schema).toInternal(row.rowProvided),
               spec,
               spec.isPartitioned() ? DistributionMode.HASH : DistributionMode.NONE,
               row.writeParallelism);
@@ -624,6 +628,67 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                 PartitionSpec.unpartitioned()));
 
     runTest(rows, this.env, 1);
+  }
+
+  @Test
+  void upsertAcrossSchemaEvolutionInCheckpoint() throws Exception {
+    String tableName = "schema_evolution_upsert";
+    TableIdentifier tableId = TableIdentifier.of(DATABASE, tableName);
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "order_id", Types.StringType.get()),
+            Types.NestedField.required(2, "amount", Types.IntegerType.get()));
+    Schema evolvedSchema =
+        new Schema(
+            schema.columns().get(0),
+            schema.columns().get(1),
+            Types.NestedField.optional(3, "note", Types.StringType.get()));
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    CATALOG_EXTENSION
+        .catalog()
+        .createTable(tableId, schema, spec, ImmutableMap.of(TableProperties.FORMAT_VERSION, "2"));
+
+    DynamicIcebergDataImpl firstWrite =
+        new DynamicIcebergDataImpl(
+            schema,
+            tableName,
+            SnapshotRef.MAIN_BRANCH,
+            spec,
+            true,
+            Sets.newHashSet("order_id"),
+            false);
+    firstWrite.rowProvided = Row.of("K", 100);
+    DynamicIcebergDataImpl update =
+        new DynamicIcebergDataImpl(
+            evolvedSchema,
+            tableName,
+            SnapshotRef.MAIN_BRANCH,
+            spec,
+            true,
+            Sets.newHashSet("order_id"),
+            false);
+    GenericRowData updateRow = new GenericRowData(3);
+    updateRow.setField(0, StringData.fromString("K"));
+    updateRow.setField(1, 200);
+    updateRow.setField(2, null);
+    updateRow.setRowKind(RowKind.UPDATE_AFTER);
+    update.rowDataProvided = updateRow;
+
+    env =
+        StreamExecutionEnvironment.getExecutionEnvironment(
+            MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
+    executeDynamicSink(Lists.newArrayList(firstWrite, update), env, true, 1, null);
+
+    List<Record> actualRows;
+    try (CloseableIterable<Record> rows =
+        IcebergGenerics.read(CATALOG_EXTENSION.catalog().loadTable(tableId)).build()) {
+      actualRows = Lists.newArrayList(rows);
+    }
+
+    assertThat(actualRows).hasSize(1);
+    assertThat(actualRows.get(0).get(0)).isEqualTo("K");
+    assertThat(actualRows.get(0).get(1)).isEqualTo(200);
+    assertThat(actualRows.get(0).get(2)).isNull();
   }
 
   @Test
