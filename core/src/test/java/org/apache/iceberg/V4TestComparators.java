@@ -66,8 +66,7 @@ class V4TestComparators {
             .thenComparing(TrackedFile::deletionVector, DELETION_VECTOR)
             .thenComparing(TrackedFile::manifestInfo, MANIFEST_INFO)
             .thenComparing(TrackedFile::keyMetadata, BYTES)
-            .thenComparing(TrackedFile::splitOffsets, SPLIT_OFFSETS)
-            .thenComparing(TrackedFile::equalityIds, EQ_IDS));
+            .thenComparing(TrackedFile::splitOffsets, SPLIT_OFFSETS));
   }
 
   // convenience method for a null-safe natural order comparator
@@ -81,8 +80,6 @@ class V4TestComparators {
       Comparator.nullsFirst(Comparator.comparing(ManifestBitmap::buffer, BYTES));
   private static final Comparator<List<Long>> SPLIT_OFFSETS =
       Comparator.nullsFirst(Comparators.forType(TrackedFile.SPLIT_OFFSETS.type().asListType()));
-  private static final Comparator<List<Integer>> EQ_IDS =
-      Comparator.nullsFirst(Comparators.forType(TrackedFile.EQUALITY_IDS.type().asListType()));
 
   static final Comparator<Tracking> TRACKING =
       Comparator.nullsFirst(

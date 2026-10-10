@@ -59,8 +59,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
           TrackedFile.DELETION_VECTOR,
           TrackedFile.MANIFEST_INFO,
           TrackedFile.KEY_METADATA,
-          TrackedFile.SPLIT_OFFSETS,
-          TrackedFile.EQUALITY_IDS);
+          TrackedFile.SPLIT_OFFSETS);
 
   private FileContent contentType = null;
   private String location = null;
@@ -78,7 +77,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   private ManifestInfo manifestInfo = null;
   private byte[] keyMetadata = null;
   private long[] splitOffsets = null;
-  private int[] equalityIds = null;
 
   private transient StructProjection partitionProjection = null;
 
@@ -106,8 +104,7 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       DeletionVector deletionVector,
       ManifestInfo manifestInfo,
       ByteBuffer keyMetadata,
-      List<Long> splitOffsets,
-      List<Integer> equalityIds) {
+      List<Long> splitOffsets) {
     super(BASE_TYPE.fields().size());
     this.tracking = tracking;
     this.contentType = contentType;
@@ -123,7 +120,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.manifestInfo = manifestInfo;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
     this.splitOffsets = ArrayUtil.toLongArray(splitOffsets);
-    this.equalityIds = ArrayUtil.toIntArray(equalityIds);
   }
 
   /** Copy constructor. */
@@ -155,10 +151,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
     this.splitOffsets =
         toCopy.splitOffsets != null
             ? Arrays.copyOf(toCopy.splitOffsets, toCopy.splitOffsets.length)
-            : null;
-    this.equalityIds =
-        toCopy.equalityIds != null
-            ? Arrays.copyOf(toCopy.equalityIds, toCopy.equalityIds.length)
             : null;
   }
 
@@ -253,11 +245,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
   }
 
   @Override
-  public List<Integer> equalityIds() {
-    return equalityIds != null ? ArrayUtil.toUnmodifiableIntList(equalityIds) : null;
-  }
-
-  @Override
   public TrackedFile copy() {
     return new TrackedFileStruct(this, null);
   }
@@ -288,7 +275,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       case 11 -> manifestInfo;
       case 12 -> keyMetadata();
       case 13 -> splitOffsets();
-      case 14 -> equalityIds();
       default -> throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     };
   }
@@ -312,7 +298,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
       case 11 -> this.manifestInfo = (ManifestInfo) value;
       case 12 -> this.keyMetadata = ByteBuffers.toByteArray((ByteBuffer) value);
       case 13 -> this.splitOffsets = ArrayUtil.toLongArray((List<Long>) value);
-      case 14 -> this.equalityIds = ArrayUtil.toIntArray((List<Integer>) value);
       default -> {
         // ignore the object, it must be from a newer version of the format
       }
@@ -336,7 +321,6 @@ class TrackedFileStruct extends SupportsIndexProjection implements TrackedFile, 
         .add("manifest_info", manifestInfo)
         .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
         .add("split_offsets", splitOffsets == null ? "null" : splitOffsets())
-        .add("equality_ids", equalityIds == null ? "null" : equalityIds())
         .toString();
   }
 }

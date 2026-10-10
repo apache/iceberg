@@ -157,8 +157,7 @@ class TestTrackedFileAdapters {
             dv,
             null,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
-            ImmutableList.of(50L, 100L),
-            null);
+            ImmutableList.of(50L, 100L));
 
     DataFile dataFile = TrackedFileAdapters.asDataFile(file, specsById(PARTITIONED_SPEC));
 
@@ -207,85 +206,6 @@ class TestTrackedFileAdapters {
   }
 
   @Test
-  void equalityDeleteFileAdapterDelegation() {
-    TrackingStruct tracking =
-        new TrackingStruct(
-            EntryStatus.ADDED,
-            42L,
-            DATA_SEQUENCE_NUMBER,
-            FILE_SEQUENCE_NUMBER,
-            null,
-            FIRST_ROW_ID,
-            null,
-            null);
-    tracking.set(MANIFEST_LOCATION_ORDINAL, MANIFEST_LOCATION);
-    tracking.set(MANIFEST_POSITION_ORDINAL, MANIFEST_POS);
-
-    TrackedFile file =
-        new TrackedFileStruct(
-            tracking,
-            FileContent.EQUALITY_DELETES,
-            "s3://bucket/eq-delete.avro",
-            FileFormat.AVRO,
-            50L,
-            512L,
-            PARTITIONED_SPEC_ID,
-            PARTITION,
-            CONTENT_STATS,
-            5,
-            null,
-            null,
-            ByteBuffer.wrap(new byte[] {4, 5}),
-            ImmutableList.of(200L),
-            ImmutableList.of(1, 2, 3));
-
-    DeleteFile deleteFile =
-        TrackedFileAdapters.asEqualityDeleteFile(file, specsById(PARTITIONED_SPEC));
-
-    assertThat(deleteFile.pos()).isEqualTo(MANIFEST_POS);
-    assertThat(deleteFile.specId()).isEqualTo(PARTITIONED_SPEC_ID);
-    assertThat(deleteFile.partition()).isSameAs(PARTITION);
-    assertThat(deleteFile.content()).isEqualTo(FileContent.EQUALITY_DELETES);
-    assertThat(deleteFile.location()).isEqualTo("s3://bucket/eq-delete.avro");
-    assertThat(deleteFile.format()).isEqualTo(FileFormat.AVRO);
-    assertThat(deleteFile.recordCount()).isEqualTo(50L);
-    assertThat(deleteFile.fileSizeInBytes()).isEqualTo(512L);
-    assertThat(deleteFile.sortOrderId()).isEqualTo(5);
-    assertThat(deleteFile.dataSequenceNumber()).isEqualTo(DATA_SEQUENCE_NUMBER);
-    assertThat(deleteFile.fileSequenceNumber()).isEqualTo(FILE_SEQUENCE_NUMBER);
-    assertThat(deleteFile.firstRowId()).isNull();
-    assertThat(deleteFile.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {4, 5}));
-    assertThat(deleteFile.splitOffsets()).containsExactly(200L);
-    assertThat(deleteFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
-    assertThat(deleteFile.equalityFieldIds()).containsExactly(1, 2, 3);
-    assertThat(deleteFile.columnSizes()).isNull();
-    assertThat(deleteFile.valueCounts())
-        .containsOnly(Map.entry(1, 100L), Map.entry(2, 100L), Map.entry(3, 100L));
-    assertThat(deleteFile.nullValueCounts())
-        .containsOnly(Map.entry(1, 5L), Map.entry(2, 10L), Map.entry(3, 20L));
-    assertThat(deleteFile.nanValueCounts()).containsOnly(Map.entry(2, 3L));
-    assertThat(deleteFile.totalBytes()).containsOnly(Map.entry(3, 12L));
-    assertThat(deleteFile.lowerBounds())
-        .containsOnly(
-            Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1)),
-            Map.entry(2, Conversions.toByteBuffer(Types.FloatType.get(), 1.0f)));
-    assertThat(deleteFile.upperBounds())
-        .containsOnly(
-            Map.entry(1, Conversions.toByteBuffer(Types.IntegerType.get(), 1000)),
-            Map.entry(2, Conversions.toByteBuffer(Types.FloatType.get(), 100.0f)));
-  }
-
-  @ParameterizedTest
-  @EnumSource(value = FileContent.class, mode = EnumSource.Mode.EXCLUDE, names = "EQUALITY_DELETES")
-  void equalityDeleteFileAdapterRejectsNonEqualityContent(FileContent contentType) {
-    TrackedFileStruct file = dummyTrackedFile(contentType);
-
-    assertThatThrownBy(() -> TrackedFileAdapters.asEqualityDeleteFile(file, UNPARTITIONED))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid content type for equality delete file: %s", contentType);
-  }
-
-  @Test
   void dvDeleteFileAdapterDelegation() {
     DeletionVector dv =
         DeletionVectorStruct.builder()
@@ -322,7 +242,6 @@ class TestTrackedFileAdapters {
             null,
             null,
             dv,
-            null,
             null,
             null,
             null);
@@ -455,8 +374,7 @@ class TestTrackedFileAdapters {
         dv, // deletionVector
         null, // manifestInfo
         KEY_METADATA,
-        ImmutableList.of(50L, 100L), // splitOffsets
-        null); // equalityIds
+        ImmutableList.of(50L, 100L)); // splitOffsets
   }
 
   @ParameterizedTest
@@ -498,8 +416,7 @@ class TestTrackedFileAdapters {
             null, // deletionVector
             MANIFEST_INFO,
             MANIFEST_KEY_METADATA,
-            null, // splitOffsets
-            null); // equalityIds
+            null); // splitOffsets
 
     ManifestFile manifest = TrackedFileAdapters.asManifestFile(file);
 
@@ -585,9 +502,6 @@ class TestTrackedFileAdapters {
     // null rather than throwing.
     assertNullTrackingFields(
         TrackedFileAdapters.asDataFile(dummyTrackedFile(FileContent.DATA), UNPARTITIONED));
-    assertNullTrackingFields(
-        TrackedFileAdapters.asEqualityDeleteFile(
-            dummyTrackedFile(FileContent.EQUALITY_DELETES), UNPARTITIONED));
 
     TrackedFileStruct fileWithDV =
         new TrackedFileStruct(
@@ -602,7 +516,6 @@ class TestTrackedFileAdapters {
             null,
             null,
             deletionVector(),
-            null,
             null,
             null,
             null);
@@ -657,7 +570,6 @@ class TestTrackedFileAdapters {
             null,
             null,
             null,
-            null,
             null);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, ImmutableMap.of()))
@@ -693,7 +605,6 @@ class TestTrackedFileAdapters {
         FileFormat.PARQUET,
         1L,
         1L,
-        null,
         null,
         null,
         null,

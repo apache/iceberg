@@ -46,14 +46,6 @@ class TrackedFileAdapters {
     return new TrackedDVDeleteFile(file, resolveSpecId(file, specsById));
   }
 
-  static DeleteFile asEqualityDeleteFile(TrackedFile file, Map<Integer, PartitionSpec> specsById) {
-    Preconditions.checkArgument(
-        file.contentType() == FileContent.EQUALITY_DELETES,
-        "Invalid content type for equality delete file: %s",
-        file.contentType());
-    return new TrackedEqualityDeleteFile(file, resolveSpecId(file, specsById));
-  }
-
   static ManifestFile asManifestFile(TrackedFile file) {
     Preconditions.checkArgument(
         file.contentType() == FileContent.DATA_MANIFEST
@@ -243,44 +235,6 @@ class TrackedFileAdapters {
     @Override
     public DataFile copyWithStats(Set<Integer> requestedColumnIds) {
       return new TrackedDataFile(file().copyWithStats(requestedColumnIds), specId());
-    }
-  }
-
-  /** Adapts a TrackedFile EQUALITY_DELETES entry to the {@link DeleteFile} interface. */
-  private static class TrackedEqualityDeleteFile extends TrackedContentFile<DeleteFile>
-      implements DeleteFile {
-    private TrackedEqualityDeleteFile(TrackedFile file, int specId) {
-      super(file, specId);
-    }
-
-    @Override
-    public FileContent content() {
-      return FileContent.EQUALITY_DELETES;
-    }
-
-    @Override
-    public List<Integer> equalityFieldIds() {
-      return file().equalityIds();
-    }
-
-    @Override
-    public DeleteFile copy() {
-      return new TrackedEqualityDeleteFile(file().copy(), specId());
-    }
-
-    @Override
-    public DeleteFile copy(boolean withStats) {
-      return withStats ? copy() : copyWithoutStats();
-    }
-
-    @Override
-    public DeleteFile copyWithoutStats() {
-      return new TrackedEqualityDeleteFile(file().copyWithoutStats(), specId());
-    }
-
-    @Override
-    public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return new TrackedEqualityDeleteFile(file().copyWithStats(requestedColumnIds), specId());
     }
   }
 
