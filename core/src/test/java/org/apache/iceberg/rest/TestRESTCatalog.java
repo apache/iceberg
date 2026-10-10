@@ -1476,7 +1476,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       // load table from catalog + refresh loaded table
       Mockito.verify(adapter, times(2))
           .execute(
-              matches(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedTableHeaders),
+              containsHeaders(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedTableHeaders),
               eq(LoadTableResponse.class),
               any(),
               any());
@@ -1492,7 +1492,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
       // refresh loaded table
       Mockito.verify(adapter)
           .execute(
-              matches(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedTableHeaders),
+              containsHeaders(HTTPMethod.GET, RESOURCE_PATHS.table(TBL), expectedTableHeaders),
               eq(LoadTableResponse.class),
               any(),
               any());
@@ -3276,6 +3276,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
           TableMetadata current,
+          String eTag,
           Set<Endpoint> supportedEndpoints,
           Map<String, String> readQueryParams) {
         RESTTableOperations ops =

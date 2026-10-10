@@ -60,6 +60,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.HTTPRequest.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogProperties.SnapshotMode;
 import org.apache.iceberg.rest.auth.AuthSession;
@@ -324,7 +325,10 @@ public class RESTCatalogAdapter extends BaseHTTPClient {
           Optional<HTTPHeaders.HTTPHeader> ifNoneMatchHeader =
               httpRequest.headers().firstEntry(HttpHeaders.IF_NONE_MATCH);
 
-          String eTag = ETagProvider.of(response.metadataLocation(), httpRequest.queryParameters());
+          // a request without the snapshots parameter loads all snapshots, so it shares that ETag
+          Map<String, String> eTagParams = Maps.newHashMap(defaultQueryParams());
+          eTagParams.putAll(httpRequest.queryParameters());
+          String eTag = ETagProvider.of(response.metadataLocation(), eTagParams);
 
           if (ifNoneMatchHeader.isPresent() && eTag.equals(ifNoneMatchHeader.get().value())) {
             return null;
