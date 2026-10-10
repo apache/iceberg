@@ -50,6 +50,7 @@ public interface Type extends Serializable {
     LIST(List.class),
     MAP(Map.class),
     VARIANT(Variant.class),
+    FILE(StructLike.class),
     UNKNOWN(Object.class);
 
     private final Class<?> javaClass;
@@ -89,6 +90,10 @@ public interface Type extends Serializable {
     throw new IllegalArgumentException("Not a variant type: " + this);
   }
 
+  default Types.FileType asFileType() {
+    throw new IllegalArgumentException("Not a file type: " + this);
+  }
+
   default boolean isNestedType() {
     return false;
   }
@@ -106,6 +111,10 @@ public interface Type extends Serializable {
   }
 
   default boolean isVariantType() {
+    return false;
+  }
+
+  default boolean isFileType() {
     return false;
   }
 
