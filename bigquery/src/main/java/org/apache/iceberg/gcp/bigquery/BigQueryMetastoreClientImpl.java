@@ -48,6 +48,8 @@ import com.google.cloud.bigquery.BigQueryOptions;
 import com.google.cloud.bigquery.BigQueryRetryConfig;
 import com.google.cloud.bigquery.BigQueryRetryHelper;
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.UnknownHostException;
 import java.security.GeneralSecurityException;
 import java.util.Collections;
 import java.util.List;
@@ -99,6 +101,15 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
                 : ExceptionHandler.Interceptor.RetryResult.CONTINUE_EVALUATION;
           }
 
+          Throwable cause = exception.getCause();
+          while (cause != null) {
+            if (cause instanceof ConnectException || cause instanceof UnknownHostException) {
+              return ExceptionHandler.Interceptor.RetryResult.RETRY;
+            }
+
+            cause = cause.getCause();
+          }
+
           return ExceptionHandler.Interceptor.RetryResult.CONTINUE_EVALUATION;
         }
       };
@@ -115,9 +126,9 @@ public final class BigQueryMetastoreClientImpl implements BigQueryMetastoreClien
       ExceptionHandler.newBuilder()
           .abortOn(RuntimeException.class)
           // Retry on connection failures due to transient network issues.
-          .retryOn(java.net.ConnectException.class)
+          .retryOn(ConnectException.class)
           // Retry to recover from temporary DNS resolution failures.
-          .retryOn(java.net.UnknownHostException.class)
+          .retryOn(UnknownHostException.class)
           .addInterceptors(EXCEPTION_HANDLER_INTERCEPTOR)
           .build();
 
