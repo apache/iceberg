@@ -21,7 +21,7 @@
 
 [versions]
 activation = "1.1.1"
-aliyun-credentials-java = "1.0.3"
+aliyun-credentials-java = "1.0.8"
 aliyun-sdk-kms = "2.3.0"
 aliyun-sdk-oss = "3.18.5"
 aliyun-tea = "1.4.2"
