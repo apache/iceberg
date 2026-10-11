@@ -19,6 +19,7 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
@@ -27,6 +28,7 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.VariantType;
 import org.apache.iceberg.variants.Variant;
+import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
@@ -70,6 +72,41 @@ public class TestVectorizedReaderBuilder {
             () -> TypeWithSchemaVisitor.visit(icebergSchema.asStruct(), parquetSchema, builder));
   }
 
+  @Test
+  public void testShreddedVariantSkippedWhenNotInProjection() {
+    Schema icebergSchema = new Schema(NestedField.required(1, "id", IntegerType.get()));
+
+    MessageType parquetSchema = parquetSchemaWithShreddedVariant();
+
+    VectorizedReaderBuilder builder =
+        new VectorizedReaderBuilder(
+            icebergSchema, parquetSchema, false, ImmutableMap.of(), readers -> null);
+
+    assertThatNoException()
+        .describedAs("Shredded variant not in projection should not throw")
+        .isThrownBy(
+            () -> TypeWithSchemaVisitor.visit(icebergSchema.asStruct(), parquetSchema, builder));
+  }
+
+  @Test
+  public void testShreddedVariantInProjectionThrows() {
+    Schema icebergSchema =
+        new Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(2, "data", VariantType.get()));
+
+    MessageType parquetSchema = parquetSchemaWithShreddedVariant();
+
+    VectorizedReaderBuilder builder =
+        new VectorizedReaderBuilder(
+            icebergSchema, parquetSchema, false, ImmutableMap.of(), readers -> null);
+
+    assertThatThrownBy(
+            () -> TypeWithSchemaVisitor.visit(icebergSchema.asStruct(), parquetSchema, builder))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Unsupported variant: shredded typed_value primitive");
+  }
+
   private static MessageType parquetSchemaWithVariant() {
     return Types.buildMessage()
         .addField(
@@ -83,6 +120,36 @@ public class TestVectorizedReaderBuilder {
                 .addField(
                     Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
                         .named("value"))
+                .id(2)
+                .named("data"))
+        .named("table");
+  }
+
+  private static MessageType parquetSchemaWithShreddedVariant() {
+    GroupType shreddedField =
+        Types.buildGroup(Type.Repetition.REQUIRED)
+            .addField(
+                Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.OPTIONAL).named("value"))
+            .addField(
+                Types.primitive(PrimitiveTypeName.INT32, Type.Repetition.OPTIONAL)
+                    .named("typed_value"))
+            .named("a");
+    return Types.buildMessage()
+        .addField(
+            Types.primitive(PrimitiveTypeName.INT32, Type.Repetition.REQUIRED).id(1).named("id"))
+        .addField(
+            Types.buildGroup(Type.Repetition.OPTIONAL)
+                .as(LogicalTypeAnnotation.variantType(Variant.VARIANT_SPEC_VERSION))
+                .addField(
+                    Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.REQUIRED)
+                        .named("metadata"))
+                .addField(
+                    Types.primitive(PrimitiveTypeName.BINARY, Type.Repetition.OPTIONAL)
+                        .named("value"))
+                .addField(
+                    Types.buildGroup(Type.Repetition.OPTIONAL)
+                        .addField(shreddedField)
+                        .named("typed_value"))
                 .id(2)
                 .named("data"))
         .named("table");

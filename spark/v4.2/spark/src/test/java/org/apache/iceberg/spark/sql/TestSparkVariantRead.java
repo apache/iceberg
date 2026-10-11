@@ -465,6 +465,38 @@ public class TestSparkVariantRead extends TestBase {
   }
 
   @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testReadShreddedWithoutProjectingVariant(boolean vectorized)
+      throws IOException, NoSuchTableException, ParseException {
+    String shreddedTable = CATALOG + ".default.var_shredded_unprojected";
+    sql("DROP TABLE IF EXISTS %s", shreddedTable);
+    sql(
+        "CREATE TABLE %s (id BIGINT, v VARIANT) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='3', 'write.parquet.shred-variants'='true')",
+        shreddedTable);
+
+    spark.conf().set("spark.sql.iceberg.shred-variants", "true");
+    try {
+      sql(
+          "INSERT INTO %s VALUES "
+              + "(1, parse_json('{\"name\":\"alice\",\"age\":30}')), "
+              + "(2, parse_json('{\"name\":\"bob\",\"age\":25}'))",
+          shreddedTable);
+    } finally {
+      spark.conf().unset("spark.sql.iceberg.shred-variants");
+    }
+
+    Table table = Spark3Util.loadIcebergTable(spark, shreddedTable);
+    assertHasTypedValueSubtree(table);
+    setVectorization(shreddedTable, vectorized);
+
+    List<Row> rows = spark.table(shreddedTable).select("id").orderBy("id").collectAsList();
+    assertThat(rows).extracting(r -> r.getLong(0)).containsExactly(1L, 2L);
+
+    sql("DROP TABLE IF EXISTS %s", shreddedTable);
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"none", "counts"})
   public void testReadShreddedWithMetricsDisabled(String metricsMode)
       throws IOException, NoSuchTableException, ParseException {
