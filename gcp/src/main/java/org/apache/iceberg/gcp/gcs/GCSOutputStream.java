@@ -22,7 +22,9 @@ import com.google.cloud.WriteChannel;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.Storage.BlobTargetOption;
 import com.google.cloud.storage.Storage.BlobWriteOption;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.channels.Channels;
@@ -35,13 +37,17 @@ import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The GCSOutputStream leverages native streaming channels from the GCS API for streaming uploads.
- * See <a href="https://cloud.google.com/storage/docs/streaming">Streaming Transfers</a>
+ * Uploads to GCS.
+ *
+ * <p>Objects smaller than {@link GCPProperties#GCS_WRITE_THRESHOLD_BYTES} are uploaded with a
+ * single {@link Storage#create} call on close. Larger objects use a {@link WriteChannel} and
+ * stream, which is the pre-existing GCS write path.
  */
 class GCSOutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(GCSOutputStream.class);
@@ -50,8 +56,11 @@ class GCSOutputStream extends PositionOutputStream {
   private final Storage storage;
   private final BlobId blobId;
   private final GCPProperties gcpProperties;
+  private final int writeThreshold;
 
+  private ByteArrayOutputStream buffer;
   private OutputStream stream;
+  private boolean useWriteChannel = false;
 
   private final Counter writeBytes;
   private final Counter writeOperations;
@@ -65,13 +74,19 @@ class GCSOutputStream extends PositionOutputStream {
     this.storage = storage;
     this.blobId = blobId;
     this.gcpProperties = gcpProperties;
+    this.writeThreshold = gcpProperties.writeThresholdBytes();
 
     createStack = Thread.currentThread().getStackTrace();
 
     this.writeBytes = metrics.counter(FileIOMetricsContext.WRITE_BYTES, Unit.BYTES);
     this.writeOperations = metrics.counter(FileIOMetricsContext.WRITE_OPERATIONS);
 
-    openStream();
+    if (writeThreshold == 0) {
+      openWriteChannel();
+    } else {
+      this.buffer = new ByteArrayOutputStream();
+      this.stream = buffer;
+    }
   }
 
   @Override
@@ -81,26 +96,82 @@ class GCSOutputStream extends PositionOutputStream {
 
   @Override
   public void flush() throws IOException {
-    stream.flush();
+    Preconditions.checkState(!closed, "Already closed.");
+    if (stream != null) {
+      stream.flush();
+    }
   }
 
   @Override
   public void write(int b) throws IOException {
+    Preconditions.checkState(!closed, "Already closed.");
     stream.write(b);
     pos += 1;
     writeBytes.increment();
     writeOperations.increment();
+
+    if (!useWriteChannel && pos >= writeThreshold) {
+      switchToWriteChannel();
+    }
   }
 
   @Override
   public void write(byte[] b, int off, int len) throws IOException {
-    stream.write(b, off, len);
-    pos += len;
+    Preconditions.checkState(!closed, "Already closed.");
+    int remaining = len;
+    int offset = off;
+
+    if (!useWriteChannel && pos + remaining >= writeThreshold) {
+      int toThreshold = writeThreshold - (int) pos;
+      if (toThreshold > 0) {
+        stream.write(b, offset, toThreshold);
+        pos += toThreshold;
+        offset += toThreshold;
+        remaining -= toThreshold;
+      }
+      switchToWriteChannel();
+    }
+
+    if (remaining > 0) {
+      stream.write(b, offset, remaining);
+      pos += remaining;
+    }
+
     writeBytes.increment(len);
     writeOperations.increment();
   }
 
-  private void openStream() {
+  /**
+   * Open the existing WriteChannel streaming path. Commit to this path before calling {@link
+   * Storage#writer} so a failed open cannot fall through to {@link Storage#create} on close.
+   */
+  private void switchToWriteChannel() throws IOException {
+    OutputStream channelStream = openWriteChannel();
+    try {
+      buffer.writeTo(channelStream);
+      buffer = null;
+    } catch (IOException e) {
+      try {
+        // Best-effort abort. A failed close can leave a truncated GCS object; useWriteChannel
+        // stays true so close() does not also Storage.create the same path.
+        channelStream.close();
+      } catch (IOException closeException) {
+        e.addSuppressed(closeException);
+      }
+      stream = null;
+      throw e;
+    }
+  }
+
+  private OutputStream openWriteChannel() {
+    // Commit before Storage.writer, which may throw StorageException.
+    this.useWriteChannel = true;
+    OutputStream channelStream = newWriteChannelStream();
+    this.stream = channelStream;
+    return channelStream;
+  }
+
+  private OutputStream newWriteChannelStream() {
     List<BlobWriteOption> writeOptions = Lists.newArrayList();
 
     gcpProperties
@@ -116,7 +187,7 @@ class GCSOutputStream extends PositionOutputStream {
 
     gcpProperties.channelWriteChunkSize().ifPresent(channel::setChunkSize);
 
-    stream = Channels.newOutputStream(channel);
+    return Channels.newOutputStream(channel);
   }
 
   @Override
@@ -127,7 +198,29 @@ class GCSOutputStream extends PositionOutputStream {
 
     super.close();
     closed = true;
-    stream.close();
+
+    if (useWriteChannel) {
+      if (stream != null) {
+        stream.close();
+      }
+      return;
+    }
+
+    // size < threshold: single-shot upload
+    List<BlobTargetOption> targetOptions = Lists.newArrayList();
+    gcpProperties
+        .encryptionKey()
+        .ifPresent(key -> targetOptions.add(BlobTargetOption.encryptionKey(key)));
+    gcpProperties
+        .userProject()
+        .ifPresent(userProject -> targetOptions.add(BlobTargetOption.userProject(userProject)));
+
+    byte[] content = buffer != null ? buffer.toByteArray() : new byte[0];
+    buffer = null;
+    storage.create(
+        BlobInfo.newBuilder(blobId).build(),
+        content,
+        targetOptions.toArray(new BlobTargetOption[0]));
   }
 
   @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize", "deprecation"})
