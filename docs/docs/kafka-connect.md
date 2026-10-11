@@ -100,7 +100,9 @@ record is written to the table as null instead of being replaced by the record s
 value. This applies to value conversion and to route-field extraction: a record whose route field
 is explicitly null is skipped, like any other record with a null route value. A required Iceberg column cannot take an explicit null under this setting and the write
 fails, so set `iceberg.tables.schema-force-optional` to `true` (or alter the columns to optional)
-if the source can emit explicit nulls for such columns. Note that the JSON converter applies its
+if the source can emit explicit nulls for such columns. The connector logs a warning whenever a
+record holds a null value for a required column; this also happens with the default setting when
+the field has no schema default to substitute. Note that the JSON converter applies its
 own `replace.null.with.default` setting during (de)serialization (default `true` since its
 introduction in Kafka 3.5.0), so it must also be set to `false` wherever that converter is used.
 

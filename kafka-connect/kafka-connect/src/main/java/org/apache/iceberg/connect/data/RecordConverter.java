@@ -363,7 +363,7 @@ class RecordConverter {
       Object value, NestedField tableField, boolean hasSchemaUpdates) {
     if (value == null && tableField.isRequired() && !hasSchemaUpdates) {
       LOG.warn(
-          "Explicit null value for required column {}; the write will fail. Consider setting"
+          "Null value for required column {}; the write will fail. Consider setting"
               + " iceberg.tables.schema-force-optional=true or altering the column to optional",
           tableSchema.findColumnName(tableField.fieldId()));
     }

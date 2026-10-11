@@ -1084,6 +1084,34 @@ public class TestRecordConverter {
     assertThat(consumer.updateTypes()).isEmpty();
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testStructWithNullValueForRequiredColumn(boolean replaceNullWithDefault) {
+    when(config.replaceNullWithDefault()).thenReturn(replaceNullWithDefault);
+
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.required(2, "data", StringType.get()));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectSchema =
+        SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("data", Schema.OPTIONAL_STRING_SCHEMA)
+            .build();
+    Struct data = new Struct(connectSchema).put("id", 1).put("data", null);
+
+    // without a schema default to substitute, the null reaches the required column either way
+    Record record = converter.convert(data);
+
+    assertThat(record.getField("id")).isEqualTo(1);
+    assertThat(record.getField("data")).isNull();
+  }
+
   @Test
   @SuppressWarnings("unchecked")
   public void testNestedSchemaEvolutionListOfStructsWithNullValue() {
