@@ -196,6 +196,37 @@ public class TestKafkaMetadataTransform {
   }
 
   @Test
+  @DisplayName("should preserve explicit nulls for struct fields with schema defaults")
+  public void testPreservesNullOfFieldWithDefault() {
+    Schema schema =
+        SchemaBuilder.struct()
+            .field("id", Schema.STRING_SCHEMA)
+            .field("memo", SchemaBuilder.string().optional().defaultValue("").build())
+            .build();
+    Struct struct = new Struct(schema).put("id", "value").put("memo", null);
+    SinkRecord record =
+        new SinkRecord(
+            TOPIC,
+            PARTITION,
+            KEY_SCHEMA,
+            KEY_VALUE,
+            schema,
+            struct,
+            OFFSET,
+            TIMESTAMP,
+            TimestampType.CREATE_TIME);
+    try (KafkaMetadataTransform smt = new KafkaMetadataTransform()) {
+      smt.configure(ImmutableMap.of());
+      SinkRecord result = smt.apply(record);
+      Struct value = (Struct) result.value();
+
+      // the explicit null is preserved, and the schema still carries the default
+      assertThat(value.getWithoutDefault("memo")).isNull();
+      assertThat(value.get("memo")).isEqualTo("");
+    }
+  }
+
+  @Test
   @DisplayName("should append kafka metadata to maps")
   public void testAppendToMaps() {
     SinkRecord record =
