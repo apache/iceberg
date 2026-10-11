@@ -22,6 +22,7 @@ import java.util.Set;
 import org.apache.iceberg.ChangelogUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.SparkSession;
@@ -52,7 +53,7 @@ public class SparkChangelogTable
 
   public SparkChangelogTable(Table table) {
     this.table = table;
-    this.schema = ChangelogUtil.changelogSchema(table.schema());
+    this.schema = ChangelogUtil.changelogSchema(table.schema(), TableUtil.formatVersion(table));
   }
 
   @Override
