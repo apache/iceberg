@@ -68,6 +68,7 @@ import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.types.Types.TimestampNanoType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -161,6 +162,8 @@ class RecordConverter {
         return convertTimeValue(value);
       case TIMESTAMP:
         return convertTimestampValue(value, (TimestampType) type);
+      case TIMESTAMP_NANO:
+        return convertTimestampNanoValue(value, (TimestampNanoType) type);
       case VARIANT:
         return convertVariantValue(value);
     }
@@ -569,6 +572,24 @@ class RecordConverter {
   }
 
   protected Temporal convertTimestampValue(Object value, TimestampType type) {
+    if (type.shouldAdjustToUTC()) {
+      return convertOffsetDateTime(value);
+    }
+    return convertLocalDateTime(value);
+  }
+
+  /**
+   * Converts a value for a {@code timestamp_ns} column.
+   *
+   * <p>The Java representations are the same as for {@code timestamp} ({@link OffsetDateTime} and
+   * {@link LocalDateTime}), so the same converters are reused. Those types carry nanoseconds, and
+   * the ISO parser accepts them, so nanosecond precision survives for string and temporal inputs.
+   *
+   * <p>A numeric input is interpreted as milliseconds, consistent with {@code timestamp} in the
+   * same switch and with the Kafka Connect {@code Timestamp} logical type, which is
+   * millisecond-based and cannot express finer precision.
+   */
+  protected Temporal convertTimestampNanoValue(Object value, TimestampNanoType type) {
     if (type.shouldAdjustToUTC()) {
       return convertOffsetDateTime(value);
     }
