@@ -469,6 +469,74 @@ public class TestSparkScan extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testTableWithStatsForDroppedColumnOrNonFieldBlob() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "a"),
+            new SimpleRecord(4, "b"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId,
+            "/test/statistics/file.puffin",
+            100,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId,
+                    1,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("ndv", "4")),
+                // Blob for field ID 2 ('data') which is in the snapshot schema but later dropped
+                // from table
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId,
+                    1,
+                    ImmutableList.of(2),
+                    ImmutableMap.of("ndv", "2")),
+                // Blob with empty fields (e.g. table-level or non-field blob)
+                new GenericBlobMetadata(
+                    DUMMY_BLOB_TYPE, snapshotId, 1, ImmutableList.of(), ImmutableMap.of())));
+
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    // Drop column 'data' (field ID 2) to simulate real schema evolution
+    table.updateSchema().deleteColumn("data").commit();
+
+    Table updatedTable = validationCatalog.loadTable(tableIdent);
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(spark, updatedTable, CaseInsensitiveStringMap.empty());
+    SparkScan scan = (SparkScan) scanBuilder.build();
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
+
+    Map<String, Long> expectedNDV = Maps.newHashMap();
+    expectedNDV.put("id", 4L);
+    expectedNDV.put("data", 2L);
+    withSQLConf(
+        reportColStatsEnabled,
+        () -> {
+          checkColStatisticsReported(scan, 4L, expectedNDV);
+          assertThat(scan.estimateStatistics().columnStats()).hasSize(2);
+        });
+  }
+
+  @TestTemplate
   public void testUnpartitionedYears() throws Exception {
     createUnpartitionedTable(spark, tableName);
 
