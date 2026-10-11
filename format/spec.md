@@ -694,7 +694,7 @@ The fields of a `primary-key` constraint must be `required` and must not be nest
 
 When a constraint is `enforced`, writers must only add rows they can prove follow the constraint. A constraint that is not enforced can be written to by any writer, regardless of their ability to prove that the constraint is followed by new rows.
 
-When a commit is retried against a new parent snapshot, the rows that a writer adds must still satisfy the table's enforced constraints. A `check` constraint is evaluated for each row on its own, so a retry cannot change its result. A `unique` or `primary-key` constraint compares rows to each other, so a writer must verify the rows that it adds against the new parent; verifying them against the original parent is not sufficient. A writer must also verify the rows that it adds against any constraint that a concurrent commit added or changed to enforced, and must recompute `constraint-statuses` from the new parent.
+When a commit is retried against a new parent snapshot, the rows that a writer adds must still satisfy the table's enforced constraints. A `check` constraint is evaluated for each row on its own, so a retry cannot change its result. A `unique` or `primary-key` constraint compares rows to each other, so a writer must verify that added rows have distinct keys among themselves and do not conflict with rows remaining from the new parent after applying the commit's removals; verifying them against the original parent is not sufficient. A writer must also verify the rows that it adds against any constraint that a concurrent commit added or changed to enforced, and must recompute `constraint-statuses` from the new parent.
 
 Whether to trust a constraint that is not enforced is left to engines and is not tracked in table metadata.
 
@@ -708,7 +708,7 @@ Constraint IDs are assigned from the table's `last-constraint-id`, which is trea
 
 The `expression` of a `check` constraint is serialized as described in the [Iceberg expressions spec](expressions-spec.md) and must use ID references so that it remains bound to the same fields when columns are renamed or reordered.
 
-A check expression is evaluated for each row over the values of that row. An expression may reference more than one field of the row, such as `start_date <= end_date`. Expressions that depend on more than one row, such as aggregates and window functions, and expressions that depend on another table, such as subqueries, must not be used. An expression must not reference a field within a `list` or a `map`, because such a field has a value for each element rather than one value for the row.
+A check expression is evaluated for each row over the values of that row. An expression may reference more than one field of the row, such as `start_date <= end_date`. Expressions that depend on more than one row, such as aggregates over rows and window functions, and expressions that depend on another table, such as subqueries, must not be used. An expression must not reference a field within a `list` or a `map`, because such a field has a value for each element rather than one value for the row. An expression may pass a whole `list` or `map` field to a function, for example to check that a list is not empty.
 
 A check expression must produce the same result every time it is evaluated for the same row. A function that depends on anything other than its arguments, such as the current time or a random value, must not be called, because the status recorded for a snapshot describes the table's data and an expression whose result can change on its own would make a recorded status wrong without any write. A [user-defined function](udf-spec.md) must not be called unless its current definition version declares `deterministic` as true.
 
@@ -716,7 +716,7 @@ The status of a `check` constraint that calls a user-defined function describes 
 
 Iceberg predicates use two-valued logic and null-safe comparisons, as defined in the [expressions spec](expressions-spec.md#boolean-logic). This differs from SQL `CHECK`, where a row satisfies a constraint unless the predicate produces false.
 
-To express SQL `CHECK` semantics for an optional field, the stored expression must make the null case explicit. For example, SQL `CHECK (price >= 0)` for an optional `price` field is stored as the expression for `price >= 0 OR price IS NULL`. This is unnecessary for required fields, which can never be null.
+To express SQL `CHECK` semantics for a field that can be null, the stored expression must make the null case explicit. For example, SQL `CHECK (price >= 0)` for an optional `price` field is stored as the expression for `price >= 0 OR price IS NULL`.
 
 #### Constraints and Schema Evolution
 
@@ -1103,7 +1103,7 @@ A snapshot consists of the following fields:
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
 * `append` -- Only data files were added and no files were removed.
-* `replace` -- Data and delete files were added and removed without changing table data; i.e., compaction, changing the data file format, or relocating data files.
+* `replace` -- Data and delete files were added and removed without changing table data; i.e., compaction, changing the data file format, or relocating data files. A snapshot that only records [constraint statuses](#constraint-validation) and does not add or remove files also uses `replace`.
 * `overwrite` -- Data and delete files were added and removed in a logical overwrite operation.
 * `delete` -- Data files were removed and their contents logically deleted and/or delete files were added to delete rows.
 
