@@ -40,6 +40,8 @@ import org.apache.parquet.schema.Type;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestVariantShreddingAnalyzer {
 
@@ -163,6 +165,104 @@ public class TestVariantShreddingAnalyzer {
     assertThat(schema).isInstanceOf(GroupType.class);
     GroupType typedValue = (GroupType) schema;
     assertThat(typedValue.getFieldCount()).isGreaterThan(0).isLessThanOrEqualTo(300);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {299, 300})
+  void rejectedFieldsDoNotConsumeFieldLimit(int rejectedFieldCount) {
+    String[] fieldNames = new String[rejectedFieldCount + 1];
+    for (int i = 0; i < rejectedFieldCount; i++) {
+      fieldNames[i] = String.format(Locale.ROOT, "mixed_%04d", i);
+    }
+    fieldNames[rejectedFieldCount] = "z_stable";
+
+    VariantMetadata meta = Variants.metadata(fieldNames);
+    ShreddedObject row1 = Variants.object(meta);
+    ShreddedObject row2 = Variants.object(meta);
+    for (int i = 0; i < rejectedFieldCount; i++) {
+      row1.put(fieldNames[i], Variants.of(1));
+      row2.put(fieldNames[i], Variants.of("text"));
+    }
+    row1.put("z_stable", Variants.of(1));
+    row2.put("z_stable", Variants.of(2));
+
+    Type schema =
+        new VariantValueShreddingAnalyzer().analyzeAndCreateSchema(List.of(row1, row2), 0);
+
+    assertThat(schema).isNotNull();
+    assertThat(schema.asGroupType().getFields())
+        .extracting(Type::getName)
+        .containsExactly("z_stable");
+    assertThat(
+            schema
+                .asGroupType()
+                .getType("z_stable")
+                .asGroupType()
+                .getType("typed_value")
+                .asPrimitiveType()
+                .getPrimitiveTypeName())
+        .isEqualTo(PrimitiveType.PrimitiveTypeName.INT32);
+  }
+
+  @ParameterizedTest
+  @MethodSource("unshreddableContainers")
+  void unshreddableContainersDoNotConsumeFieldLimit(VariantValue unshreddable) {
+    int fieldLimit = 300;
+    String[] fieldNames = new String[fieldLimit + 1];
+    for (int i = 0; i < fieldLimit; i++) {
+      fieldNames[i] = String.format(Locale.ROOT, "container_%04d", i);
+    }
+    fieldNames[fieldLimit] = "z_stable";
+
+    ShreddedObject row = Variants.object(Variants.metadata(fieldNames));
+    for (int i = 0; i < fieldLimit; i++) {
+      row.put(fieldNames[i], unshreddable);
+    }
+    row.put("z_stable", Variants.of(1));
+
+    Type schema = new VariantValueShreddingAnalyzer().analyzeAndCreateSchema(List.of(row), 0);
+
+    assertThat(schema).isNotNull();
+    assertThat(schema.asGroupType().getFields())
+        .extracting(Type::getName)
+        .containsExactly("z_stable");
+  }
+
+  @Test
+  void fieldLimitSelectsShreddableFieldsDeterministically() {
+    int fieldLimit = 300;
+    String[] fieldNames = new String[fieldLimit + 2];
+    for (int i = 0; i < fieldLimit; i++) {
+      fieldNames[i] = String.format(Locale.ROOT, "field_%04d", i);
+    }
+    fieldNames[fieldLimit] = "a_mixed";
+    fieldNames[fieldLimit + 1] = "z_frequent";
+
+    VariantMetadata meta = Variants.metadata(fieldNames);
+    ShreddedObject row1 = Variants.object(meta);
+    ShreddedObject row2 = Variants.object(meta);
+    for (int i = 0; i < fieldLimit; i++) {
+      row1.put(fieldNames[i], Variants.of(i));
+    }
+    row1.put("a_mixed", Variants.of(1));
+    row2.put("a_mixed", Variants.of("text"));
+    row1.put("z_frequent", Variants.of(1));
+    row2.put("z_frequent", Variants.of(2));
+
+    VariantValueShreddingAnalyzer analyzer = new VariantValueShreddingAnalyzer();
+    Type schema = analyzer.analyzeAndCreateSchema(List.of(row1, row2), 0);
+
+    assertThat(schema)
+        .isNotNull()
+        .isEqualTo(analyzer.analyzeAndCreateSchema(List.of(row2, row1), 0));
+    List<String> expectedFields = Lists.newArrayList();
+    for (int i = 0; i < fieldLimit - 1; i++) {
+      expectedFields.add(fieldNames[i]);
+    }
+    expectedFields.add("z_frequent");
+    assertThat(schema.asGroupType().getFields())
+        .extracting(Type::getName)
+        .containsExactlyElementsOf(expectedFields);
   }
 
   @Test
@@ -692,6 +792,15 @@ public class TestVariantShreddingAnalyzer {
     Type schema = analyzer.analyzeAndCreateSchema(List.of(Variants.of(42), Variants.of("text")), 0);
 
     assertThat(schema).isNull();
+  }
+
+  private static List<VariantValue> unshreddableContainers() {
+    ValueArray mixedArray = Variants.array();
+    mixedArray.add(Variants.of(1));
+    mixedArray.add(Variants.of("text"));
+    ShreddedObject object = Variants.object(Variants.metadata("mixed"));
+    object.put("mixed", mixedArray);
+    return List.of(Variants.object(Variants.emptyMetadata()), Variants.array(), mixedArray, object);
   }
 
   /**
