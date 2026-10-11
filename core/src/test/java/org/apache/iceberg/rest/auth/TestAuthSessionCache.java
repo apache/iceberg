@@ -88,4 +88,37 @@ class TestAuthSessionCache {
 
     cache.close();
   }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void accessRenewsSessionLifetime() {
+    AtomicLong ticker = new AtomicLong(0);
+    Duration sessionTimeout = Duration.ofHours(1);
+    AuthSessionCache cache = new AuthSessionCache(sessionTimeout, Runnable::run, ticker::get);
+    AuthSession session1 = Mockito.mock(AuthSession.class);
+
+    Function<String, AuthSession> loader = Mockito.mock(Function.class);
+    Mockito.when(loader.apply("key1")).thenReturn(session1);
+
+    assertThat(cache.cachedSession("key1", loader)).isSameAs(session1);
+
+    // the session timeout is an inactivity timeout, so a session that keeps being requested is
+    // retained even once its total age exceeds the timeout
+    for (int i = 0; i < 4; i++) {
+      ticker.addAndGet(sessionTimeout.dividedBy(2).toNanos());
+      cache.sessionCache().cleanUp();
+      assertThat(cache.cachedSession("key1", loader)).isSameAs(session1);
+    }
+
+    assertThat(ticker.get()).isGreaterThan(sessionTimeout.toNanos());
+    Mockito.verify(loader, times(1)).apply("key1");
+    Mockito.verify(session1, never()).close();
+
+    ticker.addAndGet(sessionTimeout.toNanos());
+    cache.sessionCache().cleanUp();
+
+    Mockito.verify(session1).close();
+
+    cache.close();
+  }
 }
