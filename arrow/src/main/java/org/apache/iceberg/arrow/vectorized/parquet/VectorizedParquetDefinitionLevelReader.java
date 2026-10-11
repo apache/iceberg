@@ -575,10 +575,10 @@ public final class VectorizedParquetDefinitionLevelReader
             .fixedSizeBinaryDictEncodedReader()
             .nextBatch(vector, idx, numValues, dict, holder, typeWidth);
       } else if (Mode.PACKED.equals(mode)) {
-        byte[] bytes = dict.decodeToBinary(reader.readInteger()).getBytes();
-        byte[] vectorBytes = new byte[typeWidth];
-        System.arraycopy(bytes, 0, vectorBytes, 0, typeWidth);
-        ((FixedSizeBinaryVector) vector).set(idx, vectorBytes);
+        // Write the bytes straight into the data buffer (no per-value byte[]), like the numeric
+        // dict readers; toByteBuffer() respects the dictionary entry's backing offset.
+        ByteBuffer buffer = dict.decodeToBinary(reader.readInteger()).toByteBuffer();
+        vector.getDataBuffer().setBytes((long) idx * typeWidth, buffer);
       }
     }
   }

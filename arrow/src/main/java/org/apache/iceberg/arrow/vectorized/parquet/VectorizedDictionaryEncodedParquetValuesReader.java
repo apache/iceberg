@@ -23,7 +23,6 @@ import java.nio.ByteOrder;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.ParquetUtil;
@@ -151,10 +150,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     @Override
     protected void nextVal(
         FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      byte[] bytes = dict.decodeToBinary(currentVal).getBytesUnsafe();
-      byte[] vectorBytes = new byte[typeWidth];
-      System.arraycopy(bytes, 0, vectorBytes, 0, typeWidth);
-      ((FixedSizeBinaryVector) vector).set(idx, vectorBytes);
+      // Write the decoded bytes straight into the vector's data buffer (no per-value byte[]), like
+      // the numeric dict readers. toByteBuffer() respects the dictionary entry's backing offset.
+      ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
+      vector.getDataBuffer().setBytes((long) idx * typeWidth, buffer);
     }
   }
 
