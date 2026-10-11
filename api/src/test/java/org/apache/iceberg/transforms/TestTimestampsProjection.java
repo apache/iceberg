@@ -31,9 +31,13 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -42,10 +46,43 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTimestampsProjection {
   private static final Types.TimestampType TYPE = Types.TimestampType.withoutZone();
   private static final Schema SCHEMA = new Schema(optional(1, "timestamp", TYPE));
+
+  private static Stream<Type> timestampTypes() {
+    return Stream.of(
+        Types.TimestampType.withoutZone(),
+        Types.TimestampType.withZone(),
+        Types.TimestampNanoType.withoutZone(),
+        Types.TimestampNanoType.withZone());
+  }
+
+  @ParameterizedTest
+  @MethodSource("timestampTypes")
+  void inclusiveProjectionRetainsPreEpochSecondRollover(Type type) {
+    long unitsPerSecond = type.typeId() == Type.TypeID.TIMESTAMP_NANO ? 1_000_000_000L : 1_000_000L;
+    long midnight = -24 * 60 * 60 * unitsPerSecond;
+    long timestamp = midnight + unitsPerSecond - 1;
+    Schema schema = new Schema(optional(1, "timestamp", type));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).day("timestamp").build();
+    long lowerBound = midnight + unitsPerSecond / 2;
+    Literal<Long> literal =
+        type.typeId() == Type.TypeID.TIMESTAMP_NANO
+            ? Expressions.nanos(lowerBound)
+            : Expressions.micros(lowerBound);
+    Expression filter = Expressions.predicate(Expression.Operation.GT_EQ, "timestamp", literal);
+    Expression projection = Projections.inclusive(spec).project(filter);
+    int partition = Transforms.<Long>day().bind(type).apply(timestamp);
+
+    assertThat(new Evaluator(schema.asStruct(), filter).eval(TestHelpers.Row.of(timestamp)))
+        .isTrue();
+    assertThat(new Evaluator(spec.partitionType(), projection).eval(TestHelpers.Row.of(partition)))
+        .isTrue();
+  }
 
   @SuppressWarnings("unchecked")
   public void assertProjectionStrict(
