@@ -60,15 +60,6 @@ public class SparkChangelogTable
     return table.name() + "." + TABLE_NAME;
   }
 
-  /**
-   * @deprecated since 1.12.0, use {@link #columns()} instead
-   */
-  @Deprecated
-  @Override
-  public StructType schema() {
-    return sparkSchema();
-  }
-
   @Override
   public Column[] columns() {
     if (lazySparkColumns == null) {
