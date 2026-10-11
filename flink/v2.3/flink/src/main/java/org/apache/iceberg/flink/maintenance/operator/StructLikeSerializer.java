@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Conversions;
@@ -43,9 +44,10 @@ import org.apache.iceberg.types.Types;
  *   <li>{@link #encodePartition} / {@link #decodePartition} serialize partition tuples into bytes.
  * </ul>
  */
-class StructLikeSerializer {
+@Internal
+public class StructLikeSerializer {
 
-  static final byte[] EMPTY_PARTITION = new byte[0];
+  public static final byte[] EMPTY_PARTITION = new byte[0];
 
   private final ByteArrayOutputStream baos = new ByteArrayOutputStream();
   private final DataOutputStream dos = new DataOutputStream(baos);
@@ -69,6 +71,15 @@ class StructLikeSerializer {
     }
 
     return new SerializedEqualityValues(baos.toByteArray());
+  }
+
+  public static String keyFingerprint(Types.StructType keyType) {
+    StringBuilder fingerprint = new StringBuilder();
+    for (Types.NestedField field : keyType.fields()) {
+      fingerprint.append(field.fieldId()).append(':').append(field.type()).append(';');
+    }
+
+    return fingerprint.toString();
   }
 
   public byte[] encodePartition(StructLike partition, Types.StructType partitionType) {

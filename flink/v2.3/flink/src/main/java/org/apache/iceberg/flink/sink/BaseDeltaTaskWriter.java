@@ -79,15 +79,27 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
 
   @Override
   public void write(RowData row) throws IOException {
-    RowDataDeltaWriter writer = route(row);
+    applyChange(row, upsert, keyProjection, route(row));
+  }
 
+  interface RowChanges {
+    void insert(RowData row) throws IOException;
+
+    void delete(RowData row) throws IOException;
+
+    void deleteKey(RowData key) throws IOException;
+  }
+
+  static void applyChange(
+      RowData row, boolean upsert, RowDataProjection keyProjection, RowChanges writer)
+      throws IOException {
     switch (row.getRowKind()) {
       case INSERT:
       case UPDATE_AFTER:
         if (upsert) {
           writer.deleteKey(keyProjection.wrap(row));
         }
-        writer.write(row);
+        writer.insert(row);
         break;
 
       case UPDATE_BEFORE:
@@ -110,9 +122,14 @@ abstract class BaseDeltaTaskWriter extends BaseTaskWriter<RowData> {
     }
   }
 
-  protected class RowDataDeltaWriter extends BaseEqualityDeltaWriter {
+  protected class RowDataDeltaWriter extends BaseEqualityDeltaWriter implements RowChanges {
     RowDataDeltaWriter(PartitionKey partition, PartitioningDVWriter<RowData> dvFileWriter) {
       super(partition, schema, deleteSchema, DeleteGranularity.FILE, dvFileWriter);
+    }
+
+    @Override
+    public void insert(RowData row) throws IOException {
+      write(row);
     }
 
     @Override

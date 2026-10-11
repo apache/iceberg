@@ -39,6 +39,7 @@ import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,26 +85,66 @@ public class SinkUtil {
 
   static long getMaxCommittedCheckpointId(
       Table table, String flinkJobId, String operatorId, String branch) {
-    Snapshot snapshot = table.snapshot(branch);
-    long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
+    return maxCommittedCheckpointId(table, table.snapshot(branch), flinkJobId, operatorId);
+  }
 
+  /**
+   * Returns the last checkpoint committed by the given job in the history of {@code head}, or -1
+   * when there is none.
+   *
+   * @param operatorId the committing operator, or null to accept any operator of the job
+   */
+  static long maxCommittedCheckpointId(
+      Table table, Snapshot head, String flinkJobId, @Nullable String operatorId) {
+    Snapshot snapshot = head;
     while (snapshot != null) {
-      Map<String, String> summary = snapshot.summary();
-      String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
-      String snapshotOperatorId = summary.get(OPERATOR_ID);
-      if (flinkJobId.equals(snapshotFlinkJobId)
-          && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
-        String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
-        if (value != null) {
-          lastCommittedCheckpointId = Long.parseLong(value);
-          break;
-        }
+      Long checkpointId = committedCheckpointId(snapshot, flinkJobId, operatorId);
+      if (checkpointId != null) {
+        return checkpointId;
       }
+
       Long parentSnapshotId = snapshot.parentId();
       snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
     }
 
-    return lastCommittedCheckpointId;
+    return INITIAL_CHECKPOINT_ID;
+  }
+
+  /**
+   * Returns the last checkpoint a snapshot committed, or null when the given job did not commit it.
+   *
+   * @param operatorId the committing operator, or null to accept any operator of the job
+   */
+  static Long committedCheckpointId(
+      Snapshot snapshot, String flinkJobId, @Nullable String operatorId) {
+    Map<String, String> summary = snapshot.summary();
+    if (!flinkJobId.equals(summary.get(FLINK_JOB_ID))) {
+      return null;
+    }
+
+    String snapshotOperatorId = summary.get(OPERATOR_ID);
+    if (operatorId != null
+        && snapshotOperatorId != null
+        && !snapshotOperatorId.equals(operatorId)) {
+      return null;
+    }
+
+    String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
+    return value != null ? Long.parseLong(value) : null;
+  }
+
+  /**
+   * Whether the snapshots committed after {@code fromSnapshotId} up to {@code head} can still be
+   * enumerated. They cannot once {@code fromSnapshotId} stopped being an ancestor of the branch,
+   * typically because it expired.
+   *
+   * @param head the branch head, or null when the branch has no snapshot
+   * @param fromSnapshotId the snapshot to start after, or null for the start of the history
+   */
+  static boolean isTraceable(Table table, Snapshot head, Long fromSnapshotId) {
+    return fromSnapshotId == null
+        || head == null
+        || SnapshotUtil.isAncestorOf(head.snapshotId(), fromSnapshotId, table::snapshot);
   }
 
   /**

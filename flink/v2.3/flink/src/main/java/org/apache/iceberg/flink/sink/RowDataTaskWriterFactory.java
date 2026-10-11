@@ -52,6 +52,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final FileFormat format;
   private final Set<Integer> equalityFieldIds;
   private final boolean upsert;
+  private final boolean dvOnly;
   private final FileWriterFactory<RowData> fileWriterFactory;
   private boolean useDv;
 
@@ -91,8 +92,29 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
         writeProperties,
         equalityFieldIds,
         upsert,
+        false);
+  }
+
+  public RowDataTaskWriterFactory(
+      SerializableSupplier<Table> tableSupplier,
+      RowType flinkSchema,
+      long targetFileSizeBytes,
+      FileFormat format,
+      Map<String, String> writeProperties,
+      Collection<Integer> equalityFieldIds,
+      boolean upsert,
+      boolean dvOnly) {
+    this(
+        tableSupplier,
+        flinkSchema,
+        targetFileSizeBytes,
+        format,
+        writeProperties,
+        equalityFieldIds,
+        upsert,
         tableSupplier.get().schema(),
-        tableSupplier.get().spec());
+        tableSupplier.get().spec(),
+        dvOnly);
   }
 
   public RowDataTaskWriterFactory(
@@ -105,6 +127,30 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       boolean upsert,
       Schema schema,
       PartitionSpec spec) {
+    this(
+        tableSupplier,
+        flinkSchema,
+        targetFileSizeBytes,
+        format,
+        writeProperties,
+        equalityFieldIds,
+        upsert,
+        schema,
+        spec,
+        false);
+  }
+
+  public RowDataTaskWriterFactory(
+      SerializableSupplier<Table> tableSupplier,
+      RowType flinkSchema,
+      long targetFileSizeBytes,
+      FileFormat format,
+      Map<String, String> writeProperties,
+      Collection<Integer> equalityFieldIds,
+      boolean upsert,
+      Schema schema,
+      PartitionSpec spec,
+      boolean dvOnly) {
     this.tableSupplier = tableSupplier;
 
     Table table;
@@ -122,6 +168,7 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
     this.format = format;
     this.equalityFieldIds = equalityFieldIds != null ? Sets.newHashSet(equalityFieldIds) : null;
     this.upsert = upsert;
+    this.dvOnly = dvOnly;
 
     if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
       this.fileWriterFactory =
@@ -129,6 +176,15 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
               .dataFileFormat(format)
               .dataSchema(schema)
               .dataFlinkType(flinkSchema)
+              .writerProperties(writeProperties)
+              .build();
+    } else if (dvOnly) {
+      this.fileWriterFactory =
+          new FlinkFileWriterFactory.Builder(table)
+              .dataFileFormat(format)
+              .dataSchema(schema)
+              .dataFlinkType(flinkSchema)
+              .deleteFileFormat(format)
               .writerProperties(writeProperties)
               .build();
     } else if (upsert) {
@@ -213,7 +269,19 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       }
     } else {
       // Initialize a task writer to write both INSERT and equality DELETE.
-      if (spec.isUnpartitioned()) {
+      if (dvOnly) {
+        return new DvOnlyDeltaWriter(
+            spec,
+            format,
+            fileWriterFactory,
+            outputFileFactory,
+            tableSupplier.get().io(),
+            targetFileSizeBytes,
+            schema,
+            flinkSchema,
+            equalityFieldIds,
+            upsert);
+      } else if (spec.isUnpartitioned()) {
         return new UnpartitionedDeltaWriter(
             spec,
             format,

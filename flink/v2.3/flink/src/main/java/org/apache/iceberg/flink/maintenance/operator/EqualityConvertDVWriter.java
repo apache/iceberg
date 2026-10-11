@@ -19,10 +19,7 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.TwoInputStreamOperator;
@@ -30,33 +27,17 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestFiles;
-import org.apache.iceberg.ManifestReader;
-import org.apache.iceberg.PartitionField;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.BaseDeleteLoader;
-import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
-import org.apache.iceberg.deletes.PositionDeleteIndex;
-import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.maintenance.operator.DeletionVectorHelper.FilePositions;
 import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ContentFileUtil;
-import org.apache.iceberg.util.StructLikeWrapper;
-import org.roaringbitmap.longlong.Roaring64Bitmap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,11 +67,10 @@ public class EqualityConvertDVWriter extends AbstractStreamOperator<DVWriteResul
 
   private transient Table table;
   private transient OutputFileFactory fileFactory;
-  private transient DeleteLoader deleteLoader;
+  private transient DeletionVectorHelper deletionVectorHelper;
   private transient Map<String, FilePositions> positionsByFile;
   private transient EqualityConvertPlan planResult;
   private transient boolean hasUpstreamError;
-  private transient int manifestsRead;
 
   public EqualityConvertDVWriter(
       String tableName, String taskName, TableLoader tableLoader, String targetBranch) {
@@ -111,7 +91,7 @@ public class EqualityConvertDVWriter extends AbstractStreamOperator<DVWriteResul
     int subtaskIndex = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
     fileFactory =
         OutputFileFactory.builderFor(table, subtaskIndex, 0L).format(FileFormat.PUFFIN).build();
-    deleteLoader = new BaseDeleteLoader(deleteFile -> table.io().newInputFile(deleteFile));
+    deletionVectorHelper = new DeletionVectorHelper(table);
     positionsByFile = Maps.newHashMap();
   }
 
@@ -126,8 +106,7 @@ public class EqualityConvertDVWriter extends AbstractStreamOperator<DVWriteResul
       positionsByFile
           .computeIfAbsent(
               pos.dataFilePath(), k -> new FilePositions(pos.specId(), pos.partition()))
-          .positions
-          .addLong(pos.position());
+          .add(pos.position());
     }
   }
 
@@ -180,7 +159,8 @@ public class EqualityConvertDVWriter extends AbstractStreamOperator<DVWriteResul
               + mainSnapshot.snapshotId());
     }
 
-    Map<String, DeleteFile> dvs = collectExistingDVs(mainSnapshot, positionsByFile.keySet());
+    Map<String, DeleteFile> dvs =
+        deletionVectorHelper.collectExistingDVs(mainSnapshot, positionsByFile);
 
     // Fold staging DVs into the rewrite so the writer emits one DV per data file (V3 rule). Flink
     // writes a staging DV only for a newly added data file, so it never collides with a distinct
@@ -192,21 +172,7 @@ public class EqualityConvertDVWriter extends AbstractStreamOperator<DVWriteResul
       }
     }
 
-    BaseDVFileWriter dvWriter =
-        new BaseDVFileWriter(fileFactory, path -> loadPreviousDV(path, dvs));
-    try (dvWriter) {
-      for (Map.Entry<String, FilePositions> entry : positionsByFile.entrySet()) {
-        String dataFilePath = entry.getKey();
-        FilePositions filePositions = entry.getValue();
-        PartitionSpec spec = table.specs().get(filePositions.specId);
-        StructLike partition = filePositions.partition(spec.partitionType());
-
-        filePositions.positions.forEach(
-            (long pos) -> dvWriter.delete(dataFilePath, pos, spec, partition));
-      }
-    }
-
-    DeleteWriteResult result = dvWriter.result();
+    DeleteWriteResult result = deletionVectorHelper.write(fileFactory, positionsByFile, dvs);
     LOG.info(
         "Wrote {} DV files (rewriting {}) for {} data files in table {} task {}.",
         result.deleteFiles().size(),
@@ -228,127 +194,13 @@ public class EqualityConvertDVWriter extends AbstractStreamOperator<DVWriteResul
     tableLoader.close();
   }
 
-  private Map<String, DeleteFile> collectExistingDVs(
-      Snapshot mainSnapshot, Set<String> affectedPaths) {
-    manifestsRead = 0;
-    Map<String, DeleteFile> dvs = Maps.newHashMap();
-    if (mainSnapshot == null) {
-      return dvs;
-    }
-
-    // Prune delete manifests whose partition summaries cannot cover the cycle's affected
-    // partitions. A DV inherits its referenced data file's spec and partition, so partition pruning
-    // works for DV manifests.
-    Map<Integer, ManifestEvaluator> evaluators = partitionEvaluators(positionsByFile);
-    for (ManifestFile manifest : mainSnapshot.deleteManifests(table.io())) {
-      ManifestEvaluator evaluator = evaluators.get(manifest.partitionSpecId());
-      if (evaluator == null || !evaluator.eval(manifest)) {
-        continue;
-      }
-
-      readDVEntries(manifest, affectedPaths, dvs);
-    }
-
-    return dvs;
-  }
-
-  private Map<Integer, ManifestEvaluator> partitionEvaluators(
-      Map<String, FilePositions> positions) {
-    Map<Integer, StructLikeWrapper> templatesBySpec = Maps.newHashMap();
-    Map<Integer, Set<StructLikeWrapper>> partitionsBySpec = Maps.newHashMap();
-    for (FilePositions filePositions : positions.values()) {
-      PartitionSpec spec = table.specs().get(filePositions.specId);
-      StructLikeWrapper template =
-          templatesBySpec.computeIfAbsent(
-              filePositions.specId, id -> StructLikeWrapper.forType(spec.partitionType()));
-      partitionsBySpec
-          .computeIfAbsent(filePositions.specId, k -> Sets.newHashSet())
-          .add(template.copyFor(filePositions.partition(spec.partitionType())));
-    }
-
-    Map<Integer, ManifestEvaluator> evaluators = Maps.newHashMap();
-    for (Map.Entry<Integer, Set<StructLikeWrapper>> entry : partitionsBySpec.entrySet()) {
-      PartitionSpec spec = table.specs().get(entry.getKey());
-      Expression filter = partitionFilter(spec, entry.getValue());
-      evaluators.put(entry.getKey(), ManifestEvaluator.forPartitionFilter(filter, spec, false));
-    }
-
-    return evaluators;
-  }
-
-  private static Expression partitionFilter(PartitionSpec spec, Set<StructLikeWrapper> partitions) {
-    List<PartitionField> fields = spec.fields();
-    Expression anyPartition = Expressions.alwaysFalse();
-    for (StructLikeWrapper wrapper : partitions) {
-      StructLike partition = wrapper.get();
-      Expression onePartition = Expressions.alwaysTrue();
-      for (int i = 0; i < fields.size(); i++) {
-        String name = fields.get(i).name();
-        Object value = partition.get(i, Object.class);
-        Expression predicate =
-            value == null ? Expressions.isNull(name) : Expressions.equal(name, value);
-        onePartition = Expressions.and(onePartition, predicate);
-      }
-
-      anyPartition = Expressions.or(anyPartition, onePartition);
-    }
-
-    return anyPartition;
-  }
-
-  private void readDVEntries(
-      ManifestFile manifest, Set<String> filterPaths, Map<String, DeleteFile> out) {
-    manifestsRead++;
-    try (ManifestReader<DeleteFile> reader =
-        ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
-      for (DeleteFile deleteFile : reader) {
-        if (ContentFileUtil.isDV(deleteFile)
-            && deleteFile.referencedDataFile() != null
-            && filterPaths.contains(deleteFile.referencedDataFile())) {
-          out.put(deleteFile.referencedDataFile(), deleteFile);
-        }
-      }
-    } catch (IOException e) {
-      throw new UncheckedIOException("Failed to read manifest: " + manifest.path(), e);
-    }
-  }
-
   @VisibleForTesting
   int manifestsReadLastCycle() {
-    return manifestsRead;
+    return deletionVectorHelper.manifestsReadLastLookup();
   }
 
   @VisibleForTesting
   int retainedStateSize() {
     return positionsByFile.size();
-  }
-
-  private PositionDeleteIndex loadPreviousDV(String dataFilePath, Map<String, DeleteFile> dvs) {
-    DeleteFile existingDV = dvs.get(dataFilePath);
-    if (existingDV == null) {
-      return null;
-    }
-
-    return deleteLoader.loadPositionDeletes(ImmutableList.of(existingDV), dataFilePath);
-  }
-
-  private static final class FilePositions {
-    private final int specId;
-    private final byte[] encodedPartition;
-    private final Roaring64Bitmap positions = new Roaring64Bitmap();
-    private StructLike decodedPartition;
-
-    FilePositions(int specId, byte[] encodedPartition) {
-      this.specId = specId;
-      this.encodedPartition = encodedPartition;
-    }
-
-    StructLike partition(Types.StructType partitionType) {
-      if (decodedPartition == null) {
-        decodedPartition = StructLikeSerializer.decodePartition(encodedPartition, partitionType);
-      }
-
-      return decodedPartition;
-    }
   }
 }
