@@ -49,8 +49,18 @@ public class VectorizedByteStreamSplitValuesReader extends ValuesReader
   }
 
   @Override
-  public void initFromPage(int ignoredValueCount, ByteBufferInputStream in) {
+  public void initFromPage(int valueCount, ByteBufferInputStream in) {
+    Preconditions.checkArgument(valueCount >= 0, "valueCount must be >= 0, but is %s", valueCount);
     this.totalBytesInStream = in.available();
+    // valueCount counts every row in the page including nulls, but BYTE_STREAM_SPLIT only encodes
+    // the non-null values, so the byte count is an upper bound rather than an exact match.
+    Preconditions.checkArgument(
+        (long) totalBytesInStream <= (long) valueCount * elementSizeInBytes,
+        "Page size %s bytes exceeds bound %s (= valueCount %s * elementSize %s)",
+        totalBytesInStream,
+        (long) valueCount * elementSizeInBytes,
+        valueCount,
+        elementSizeInBytes);
     this.dataStream = in;
   }
 
@@ -80,7 +90,13 @@ public class VectorizedByteStreamSplitValuesReader extends ValuesReader
 
   @Override
   public Binary readBinary(int len) {
+    Preconditions.checkArgument(len >= 0, "Length must be >= 0, but is %s", len);
     ensureDecoded();
+    Preconditions.checkArgument(
+        len <= decodedDataStream.remaining(),
+        "Length %s exceeds %s bytes remaining in the decoded stream",
+        len,
+        decodedDataStream.remaining());
     byte[] bytes = new byte[len];
     decodedDataStream.get(bytes);
     return Binary.fromConstantByteArray(bytes);

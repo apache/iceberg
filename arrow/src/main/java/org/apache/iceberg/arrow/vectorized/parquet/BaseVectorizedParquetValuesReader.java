@@ -188,6 +188,17 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
           return;
         case PACKED:
           int numGroups = header >>> 1;
+          Preconditions.checkArgument(
+              numGroups >= 0 && numGroups <= Integer.MAX_VALUE / 8,
+              "Invalid PACKED group count %s, must be in [0, %s]",
+              numGroups,
+              Integer.MAX_VALUE / 8);
+          long requiredBytes = (long) numGroups * bitWidth;
+          Preconditions.checkArgument(
+              requiredBytes <= inputStream.available(),
+              "PACKED run needs %s bytes but only %s available",
+              requiredBytes,
+              inputStream.available());
           this.currentCount = numGroups * 8;
           if (this.packedValuesBuffer.length < this.currentCount) {
             this.packedValuesBuffer = new int[this.currentCount];
