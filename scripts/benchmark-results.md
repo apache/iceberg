@@ -12,6 +12,45 @@ absolute is a partial DataSourceV2 metric, but its ratio tracks records. Wall-cl
 noisy and, on this `local[2]` + warm-page-cache profile, dominated by fixed per-query index-resolution
 overhead — see the note at the bottom.
 
+## Benchmark setup — tables & queries
+
+All tables are **Iceberg (format-version 2)**, **10,000,000 rows across 200 data files**, created
+fresh per run with Spark 3.5. Rows are **round-robin-scattered** across files so each file's `[min,
+max]` spans ~the whole key range — per-file min/max stats therefore cannot prune the baseline, which
+isolates the index's effect. The index is built with `CALL <catalog>.system.build_scalar_index(...)`.
+Each query is run **before** the index exists (baseline = full scan / partition-prune) and **after**
+(index), asserting identical result sets.
+
+**Scenario 1 — unpartitioned, single-column IDENTITY index on `id`:**
+```sql
+CREATE TABLE t (id bigint NOT NULL, data string) USING iceberg;   -- data = 'row-<id>', id = 0..9,999,999
+CALL cat.system.build_scalar_index(table => 't', columns => array('id'), transform => 'IDENTITY');
+
+SELECT * FROM t WHERE id = 5000000;                        -- eq (point)
+SELECT * FROM t WHERE id IN (2500000, 5000000, 7500000);   -- in (3 keys)
+SELECT * FROM t WHERE id BETWEEN 5000000 AND 5000019;      -- range (20 ids)
+```
+
+**Scenario 2 — partitioned by `part` (= `id % 10`), IDENTITY index on `id`:**
+```sql
+CREATE TABLE t (id bigint NOT NULL, data string, part int NOT NULL) USING iceberg
+PARTITIONED BY (part)
+TBLPROPERTIES ('write.distribution-mode'='none', 'write.spark.fanout.enabled'='true');  -- keep many files/partition
+CALL cat.system.build_scalar_index(table => 't', columns => array('id'), transform => 'IDENTITY');
+
+SELECT * FROM t WHERE part = 0 AND id = 5000000;                       -- eq  (partition + index)
+SELECT * FROM t WHERE part = 0 AND id IN (2500000, 5000000, 7500000);  -- in
+SELECT * FROM t WHERE part = 0 AND id BETWEEN 5000000 AND 5000399;     -- range
+```
+
+**Scenario 3 — composite `ZORDER` index on `(k1 bigint, k2 string)`:**
+```sql
+CREATE TABLE t (k1 bigint NOT NULL, k2 string, data string) USING iceberg;  -- k1 = id (unique), k2 = 'v'||id
+CALL cat.system.build_scalar_index(table => 't', columns => array('k1', 'k2'), transform => 'ZORDER');
+
+SELECT * FROM t WHERE k1 = 5000000 AND k2 = 'v5000000';    -- both key columns constrained
+```
+
 ## Scenario 1 — Unpartitioned (actual)
 
 Baseline = full scan (no partition pruning; interior keys defeat min/max stats).
