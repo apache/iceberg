@@ -44,7 +44,8 @@ GitHub-hosted runners have limited and shared resources, so treat these results 
 JMH writes human-readable output to `build/reports/jmh/human-readable-output.txt` and JSON output to `build/reports/jmh/results.json` by default. Override them with `-PjmhOutputPath=<path>` and `-PjmhJsonOutputPath=<path>` if needed. You can share the JSON output with others and view it in the [JMH Visualizer](https://jmh.morethan.io/).
 
 Core and data benchmarks can be run directly. Spark and Flink benchmarks use versioned Gradle modules.
-Spark `4.0` and `4.1` benchmarks use `2.13` module names, while Spark `3.5` modules follow the configured `scalaVersion`.
+Check `settings.gradle` for the module name associated with the Spark version you want to test.
+Some Spark modules have a fixed Scala suffix, so the suffix is not always determined by the configured `scalaVersion`.
 
 ### Command templates
 
@@ -57,17 +58,19 @@ Spark `4.0` and `4.1` benchmarks use `2.13` module names, while Spark `3.5` modu
 
 #### Spark modules
 
-Run benchmarks in the default Spark module:
+Run benchmarks in a Spark module by enabling its Spark version and using the corresponding module name. For example:
 
 ```bash
-./gradlew :iceberg-spark:iceberg-spark-4.1_2.13:jmh \
+./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 \
+  :iceberg-spark:iceberg-spark-4.1_2.13:jmh \
   -PjmhIncludeRegex=<BenchmarkName>
 ```
 
-Run benchmarks in the default Spark extensions module:
+The same version selection applies to Spark extensions modules:
 
 ```bash
-./gradlew :iceberg-spark:iceberg-spark-extensions-4.1_2.13:jmh \
+./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 \
+  :iceberg-spark:iceberg-spark-extensions-4.1_2.13:jmh \
   -PjmhIncludeRegex=<BenchmarkName>
 ```
 
@@ -137,7 +140,8 @@ Run benchmarks in this group with:
 Run benchmarks in this group with:
 
 ```bash
-./gradlew :iceberg-spark:iceberg-spark-4.1_2.13:jmh \
+./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 \
+  :iceberg-spark:iceberg-spark-4.1_2.13:jmh \
   -PjmhIncludeRegex=<BenchmarkName>
 ```
 
@@ -152,7 +156,8 @@ Run benchmarks in this group with:
 Run benchmarks in this group with:
 
 ```bash
-./gradlew :iceberg-spark:iceberg-spark-4.1_2.13:jmh \
+./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 \
+  :iceberg-spark:iceberg-spark-4.1_2.13:jmh \
   -PjmhIncludeRegex=<BenchmarkName>
 ```
 
@@ -168,7 +173,8 @@ Run benchmarks in this group with:
 Run benchmarks in this group with:
 
 ```bash
-./gradlew :iceberg-spark:iceberg-spark-4.1_2.13:jmh \
+./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 \
+  :iceberg-spark:iceberg-spark-4.1_2.13:jmh \
   -PjmhIncludeRegex=<BenchmarkName>
 ```
 
@@ -203,7 +209,8 @@ Run benchmarks in this group with:
 Run benchmarks in this group with:
 
 ```bash
-./gradlew :iceberg-spark:iceberg-spark-extensions-4.1_2.13:jmh \
+./gradlew -DsparkVersions=4.1 -DscalaVersion=2.13 \
+  :iceberg-spark:iceberg-spark-extensions-4.1_2.13:jmh \
   -PjmhIncludeRegex=<BenchmarkName>
 ```
 
