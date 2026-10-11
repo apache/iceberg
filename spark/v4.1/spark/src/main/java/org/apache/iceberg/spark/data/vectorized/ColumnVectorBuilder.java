@@ -29,6 +29,8 @@ class ColumnVectorBuilder {
   public ColumnVector build(VectorHolder holder, int numRows) {
     if (holder instanceof VectorHolder.VariantVectorHolder) {
       return new VariantColumnVector((VectorHolder.VariantVectorHolder) holder);
+    } else if (holder instanceof VectorHolder.StructVectorHolder) {
+      return new StructColumnVector((VectorHolder.StructVectorHolder) holder);
     } else if (holder.isDummy()) {
       if (holder instanceof VectorHolder.DeletedVectorHolder) {
         return new DeletedColumnVector(Types.BooleanType.get());
