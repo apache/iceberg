@@ -28,6 +28,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit;
+import org.apache.parquet.schema.LogicalTypeAnnotation.TimestampLogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
 
 class ParquetConversions {
@@ -40,12 +42,13 @@ class ParquetConversions {
       case INTEGER:
       case DATE:
       case TIME:
-      case TIMESTAMP:
       case TIMESTAMP_NANO:
       case LONG:
       case FLOAT:
       case DOUBLE:
         return (T) value;
+      case TIMESTAMP:
+        return isTimestampMillis(parquetType) ? (T) (Long) (1000L * (Long) value) : (T) value;
       case STRING:
         return (T) ((Binary) value).toStringUsingUTF8();
       case UUID:
@@ -84,6 +87,8 @@ class ParquetConversions {
         return value -> ((Float) fromParquet.apply(value)).doubleValue();
       } else if (icebergType.typeId() == Type.TypeID.UUID) {
         return binary -> UUIDUtil.convert(((Binary) binary).toByteBuffer());
+      } else if (icebergType.typeId() == Type.TypeID.TIMESTAMP && isTimestampMillis(parquetType)) {
+        return value -> 1000L * (Long) fromParquet.apply(value);
       }
     }
 
@@ -129,5 +134,11 @@ class ParquetConversions {
     }
 
     return obj -> obj;
+  }
+
+  private static boolean isTimestampMillis(PrimitiveType parquetType) {
+    return parquetType.getLogicalTypeAnnotation() instanceof TimestampLogicalTypeAnnotation
+        && ((TimestampLogicalTypeAnnotation) parquetType.getLogicalTypeAnnotation()).getUnit()
+            == TimeUnit.MILLIS;
   }
 }
