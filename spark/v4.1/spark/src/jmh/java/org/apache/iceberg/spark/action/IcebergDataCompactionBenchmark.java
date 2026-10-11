@@ -34,7 +34,9 @@ import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.connector.catalog.CatalogV2Util;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Measurement;
@@ -93,7 +95,12 @@ public class IcebergDataCompactionBenchmark extends IcebergCompactionBenchmark {
               Spark3Util.catalogAndIdentifier(spark(), "spark_catalog").catalog();
       catalog.dropTable(IDENT);
       catalog.createTable(
-          IDENT, SparkSchemaUtil.convert(schema), new Transform[0], Collections.emptyMap());
+          IDENT,
+          new TableInfo.Builder()
+              .withColumns(CatalogV2Util.structTypeToV2Columns(SparkSchemaUtil.convert(schema)))
+              .withPartitions(new Transform[0])
+              .withProperties(Collections.emptyMap())
+              .build());
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
