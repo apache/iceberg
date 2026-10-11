@@ -108,9 +108,11 @@ public class TestCopyValue {
 
       Struct newValue = (Struct) result.value();
 
-      // the explicit null is preserved for both the copied and the target field
+      // the explicit null is preserved, and the schema still carries the default
       assertThat(newValue.getWithoutDefault("data")).isNull();
+      assertThat(newValue.get("data")).isEqualTo("");
       assertThat(newValue.getWithoutDefault("data_copy")).isNull();
+      assertThat(newValue.get("data_copy")).isEqualTo("");
     }
   }
 }
