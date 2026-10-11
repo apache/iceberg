@@ -61,6 +61,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final InternalFileEncryptor fileEncryptor;
   private final boolean trackUncompressedSize;
 
+  private org.apache.parquet.io.OutputFile parquetOutputFile;
   private ColumnChunkPageWriteStore pageStore = null;
   private ColumnWriteStore writeStore;
   private long recordCount = 0;
@@ -112,10 +113,13 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   private void ensureWriterInitialized() {
     if (writer == null) {
+      // Hold the Parquet OutputFile for the writer's lifetime so its Hadoop FileSystem is not
+      // garbage-collected mid-write when the Hadoop FileSystem cache is disabled. See #16640.
+      this.parquetOutputFile = ParquetIO.file(output, conf);
       try {
         this.writer =
             new ParquetFileWriter(
-                ParquetIO.file(output, conf),
+                parquetOutputFile,
                 parquetSchema,
                 writeMode,
                 targetRowGroupSize,
