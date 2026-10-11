@@ -208,6 +208,69 @@ public class TestStrictMetricsEvaluator {
           // upper bounds
           ImmutableMap.of(3, toByteBuffer(StringType.get(), "dC")));
 
+  // Int columns with bounds, but without any null value counts
+  private static final DataFile MISSING_NULL_COUNTS_FILE =
+      new TestDataFile(
+          "missing_null_counts.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(1, 50L, 2, 50L),
+          // null value counts
+          null,
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(
+              1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
+              2, toByteBuffer(IntegerType.get(), INT_MIN_VALUE)),
+          // upper bounds
+          ImmutableMap.of(
+              1, toByteBuffer(IntegerType.get(), INT_MAX_VALUE),
+              2, toByteBuffer(IntegerType.get(), INT_MAX_VALUE)));
+
+  // Int columns with bounds, where null value counts are tracked only for another column
+  private static final DataFile PARTIAL_NULL_COUNTS_FILE =
+      new TestDataFile(
+          "partial_null_counts.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(1, 50L, 2, 50L),
+          // null value counts
+          ImmutableMap.of(3, 0L),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(
+              1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
+              2, toByteBuffer(IntegerType.get(), INT_MIN_VALUE)),
+          // upper bounds
+          ImmutableMap.of(
+              1, toByteBuffer(IntegerType.get(), INT_MAX_VALUE),
+              2, toByteBuffer(IntegerType.get(), INT_MAX_VALUE)));
+
+  // Float columns without nulls, where NaN counts are tracked only for column 10 (no_nans)
+  private static final DataFile FLOAT_FILE =
+      new TestDataFile(
+          "float_file.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(10, 50L, 14, 50L),
+          // null value counts
+          ImmutableMap.of(10, 0L, 14, 0L),
+          // nan value counts
+          ImmutableMap.of(10, 0L),
+          // lower bounds
+          ImmutableMap.of(
+              10, toByteBuffer(Types.FloatType.get(), 1.0F),
+              14, toByteBuffer(Types.DoubleType.get(), 1.0D)),
+          // upper bounds
+          ImmutableMap.of(
+              10, toByteBuffer(Types.FloatType.get(), 5.0F),
+              14, toByteBuffer(Types.DoubleType.get(), 5.0D)));
+
   @Test
   public void testAllNulls() {
     boolean shouldRead = new StrictMetricsEvaluator(SCHEMA, notNull("all_nulls")).eval(FILE);
@@ -920,5 +983,48 @@ public class TestStrictMetricsEvaluator {
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, startsWith("struct.nested_string_col", "a")).eval(FILE);
     assertThat(shouldRead).as("Should not match: nested column is not supported").isFalse();
+  }
+
+  @Test
+  void missingNullCounts() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, lessThan("id", INT_MAX_VALUE + 1))
+            .eval(MISSING_NULL_COUNTS_FILE);
+    assertThat(shouldRead).as("Should match: required column cannot contain nulls").isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, lessThan("no_stats", INT_MAX_VALUE + 1))
+            .eval(MISSING_NULL_COUNTS_FILE);
+    assertThat(shouldRead)
+        .as("Should not match: optional column may contain nulls without a null count")
+        .isFalse();
+  }
+
+  @Test
+  void partialNullCounts() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, lessThan("id", INT_MAX_VALUE + 1))
+            .eval(PARTIAL_NULL_COUNTS_FILE);
+    assertThat(shouldRead).as("Should match: required column cannot contain nulls").isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, lessThan("no_stats", INT_MAX_VALUE + 1))
+            .eval(PARTIAL_NULL_COUNTS_FILE);
+    assertThat(shouldRead)
+        .as("Should not match: optional column may contain nulls without a null count")
+        .isFalse();
+  }
+
+  @Test
+  void missingNaNCounts() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, lessThan("no_nans", 10.0F)).eval(FLOAT_FILE);
+    assertThat(shouldRead).as("Should match: float column has no nulls and no NaNs").isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, lessThan("no_nan_stats", 10.0D)).eval(FLOAT_FILE);
+    assertThat(shouldRead)
+        .as("Should not match: float column may contain NaNs without a NaN count")
+        .isFalse();
   }
 }
