@@ -40,7 +40,6 @@ public class SinkWriter {
   private final IcebergWriterFactory writerFactory;
   private final Map<String, RecordWriter> writers;
   private final Map<TopicPartition, Offset> sourceOffsets;
-  // the route field is fixed per config, so split its dotted path once instead of per record
   private final List<String> routeFieldPath;
 
   public SinkWriter(Catalog catalog, IcebergSinkConfig config) {

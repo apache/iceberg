@@ -204,6 +204,22 @@ public class TestSinkWriter {
     assertThat(writerResult.tableReference().identifier()).isEqualTo(TABLE_IDENTIFIER);
   }
 
+  @Test
+  void dynamicRouteNestedField() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+    when(config.dynamicTablesEnabled()).thenReturn(true);
+    when(config.tablesRouteField()).thenReturn("route.table");
+
+    Map<String, Object> value =
+        ImmutableMap.of("route", ImmutableMap.of("table", TABLE_IDENTIFIER.toString()));
+
+    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
+    assertThat(writerResults).hasSize(1);
+    assertThat(writerResults.get(0).tableReference().identifier()).isEqualTo(TABLE_IDENTIFIER);
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   public void testDynamicRouteReplaceNullWithDefault(boolean replaceNullWithDefault) {
