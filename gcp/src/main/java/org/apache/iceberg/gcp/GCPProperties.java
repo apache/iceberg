@@ -47,6 +47,14 @@ public class GCPProperties implements Serializable {
   public static final String GCS_CHANNEL_READ_CHUNK_SIZE = "gcs.channel.read.chunk-size-bytes";
   public static final String GCS_CHANNEL_WRITE_CHUNK_SIZE = "gcs.channel.write.chunk-size-bytes";
 
+  /**
+   * Max size in bytes for a single-shot GCS upload. Larger objects stream through a WriteChannel.
+   * Default: 8 MiB. Set to 0 to always use WriteChannel.
+   */
+  public static final String GCS_WRITE_THRESHOLD_BYTES = "gcs.write.threshold-bytes";
+
+  public static final int GCS_WRITE_THRESHOLD_BYTES_DEFAULT = 8 * 1024 * 1024;
+
   public static final String GCS_OAUTH2_TOKEN = "gcs.oauth2.token";
   public static final String GCS_OAUTH2_TOKEN_EXPIRES_AT = "gcs.oauth2.token-expires-at";
   // Boolean to explicitly configure "no authentication" for testing purposes using a GCS emulator
@@ -91,6 +99,7 @@ public class GCPProperties implements Serializable {
 
   private Integer gcsChannelReadChunkSize;
   private Integer gcsChannelWriteChunkSize;
+  private int gcsWriteThresholdBytes = GCS_WRITE_THRESHOLD_BYTES_DEFAULT;
 
   private boolean gcsNoAuth;
   private String gcsOAuth2Token;
@@ -161,6 +170,15 @@ public class GCPProperties implements Serializable {
       gcsChannelWriteChunkSize = Integer.parseInt(properties.get(GCS_CHANNEL_WRITE_CHUNK_SIZE));
     }
 
+    gcsWriteThresholdBytes =
+        PropertyUtil.propertyAsInt(
+            properties, GCS_WRITE_THRESHOLD_BYTES, GCS_WRITE_THRESHOLD_BYTES_DEFAULT);
+    Preconditions.checkArgument(
+        gcsWriteThresholdBytes >= 0,
+        "Property %s must be >= 0: %s",
+        GCS_WRITE_THRESHOLD_BYTES,
+        gcsWriteThresholdBytes);
+
     gcsOAuth2Token = properties.get(GCS_OAUTH2_TOKEN);
     if (properties.containsKey(GCS_OAUTH2_TOKEN_EXPIRES_AT)) {
       gcsOAuth2TokenExpiresAt =
@@ -205,6 +223,13 @@ public class GCPProperties implements Serializable {
 
   public Optional<Integer> channelWriteChunkSize() {
     return Optional.ofNullable(gcsChannelWriteChunkSize);
+  }
+
+  /**
+   * Returns the max size in bytes for single-shot uploads. See {@link #GCS_WRITE_THRESHOLD_BYTES}.
+   */
+  public int writeThresholdBytes() {
+    return gcsWriteThresholdBytes;
   }
 
   public Optional<String> clientLibToken() {
