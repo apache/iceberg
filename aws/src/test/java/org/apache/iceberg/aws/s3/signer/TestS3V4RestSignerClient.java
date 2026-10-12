@@ -58,9 +58,9 @@ class TestS3V4RestSignerClient {
 
   private static final Map<String, String> SIGNER_PROPERTIES =
       Map.of(
-          RESTCatalogProperties.SIGNER_URI,
+          CatalogProperties.URI,
           "https://signer.com",
-          RESTCatalogProperties.SIGNER_ENDPOINT,
+          RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
           "v1/sign/s3");
 
   /**
@@ -246,9 +246,9 @@ class TestS3V4RestSignerClient {
   void authManagerNotSharedAcrossInstances() {
     Map<String, String> oauth2Properties =
         Map.of(
-            RESTCatalogProperties.SIGNER_URI,
+            CatalogProperties.URI,
             "https://signer.com",
-            RESTCatalogProperties.SIGNER_ENDPOINT,
+            RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
             "v1/sign/s3",
             AuthProperties.AUTH_TYPE,
             AuthProperties.AUTH_TYPE_OAUTH2,
