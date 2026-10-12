@@ -477,6 +477,82 @@ class TestDynamicCommitter {
   }
 
   @Test
+  void testCommitAfterStatelessRestartWithConcurrentCompaction() throws Exception {
+    Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table.snapshots()).isEmpty();
+
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
+    OneInputStreamOperatorTestHarness aggregatorHarness =
+        new OneInputStreamOperatorTestHarness(aggregator);
+    aggregatorHarness.open();
+
+    TableKey tableKey = new TableKey(TABLE1, "branch");
+    final String jobId = JobID.generate().toHexString();
+    final String operatorId = new OperatorID().toHexString();
+    final int previousCheckpointId = 10;
+    final int newCheckpointId = 1;
+
+    createCommitter(false)
+        .commit(
+            Sets.newHashSet(
+                commitRequest(
+                    aggregator,
+                    tableKey,
+                    WRITE_RESULT_BY_SPEC,
+                    jobId,
+                    operatorId,
+                    previousCheckpointId)));
+
+    DataFile compactedFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/compacted.parquet")
+            .withFileSizeInBytes(0)
+            .withRecordCount(42)
+            .build();
+    CommitHook compactionAfterTableLoad =
+        new CommitHook() {
+          @Override
+          public void beforeCommitOperation() {
+            catalog
+                .loadTable(TableIdentifier.of(TABLE1))
+                .newRewrite()
+                .toBranch("branch")
+                .rewriteFiles(Sets.newHashSet(DATA_FILE), Sets.newHashSet(compactedFile))
+                .commit();
+          }
+        };
+
+    new CommitHookEnabledDynamicCommitter(
+            compactionAfterTableLoad,
+            CATALOG_EXTENSION.catalog(),
+            Maps.newHashMap(),
+            false,
+            1,
+            "sinkId",
+            false,
+            new DynamicCommitterMetrics(new UnregisteredMetricsGroup()))
+        .commit(
+            Sets.newHashSet(
+                commitRequest(
+                    aggregator,
+                    tableKey,
+                    WRITE_RESULT_BY_SPEC_2,
+                    jobId,
+                    operatorId,
+                    newCheckpointId)));
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(3);
+    assertThat(table.snapshot(table.refs().get("branch").snapshotId()).summary())
+        .containsEntry("flink.job-id", jobId)
+        .containsEntry("flink.max-committed-checkpoint-id", String.valueOf(newCheckpointId))
+        .containsEntry("flink.operator-id", operatorId)
+        .containsEntry("added-records", "24")
+        .containsEntry("total-records", "66");
+  }
+
+  @Test
   void testSkipsAlreadyCommittedCheckpointAfterRestore() throws Exception {
     Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
     assertThat(table.snapshots()).isEmpty();
