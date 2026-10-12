@@ -21,10 +21,12 @@ package org.apache.iceberg.arrow;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import org.apache.arrow.vector.extension.UuidType;
 import org.apache.arrow.vector.types.DateUnit;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.ExtensionTypeRegistry;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -42,6 +44,13 @@ import org.apache.iceberg.types.Types.StructType;
 public class ArrowSchemaUtil {
   private static final String ORIGINAL_TYPE = "originalType";
   private static final String MAP_TYPE = "mapType";
+
+  static {
+    // Register the canonical Arrow UUID extension type so that schemas containing it can be
+    // resolved back from the serialized extension metadata (e.g. an Arrow IPC round-trip).
+    // Registration is idempotent.
+    ExtensionTypeRegistry.register(UuidType.INSTANCE);
+  }
 
   private ArrowSchemaUtil() {}
 
@@ -163,7 +172,7 @@ public class ArrowSchemaUtil {
           arrowType = new ArrowType.Time(TimeUnit.MICROSECOND, Long.SIZE);
           break;
         case UUID:
-          arrowType = new ArrowType.FixedSizeBinary(16);
+          arrowType = UuidType.INSTANCE;
           break;
         case TIMESTAMP:
           arrowType =
