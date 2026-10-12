@@ -50,11 +50,13 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The commit is gated on the plan's done-timestamp watermark.
  *
- * <p>Watermarks are forwarded only after the cycle commits, never mid-cycle. The {@link
- * LockRemover} releases the maintenance lock once a watermark past the trigger's start epoch
- * reaches it. The planner emits phase watermarks in the middle of a cycle; forwarding those would
- * release the lock before this commit, letting the TriggerManager start a concurrent cycle that
- * re-processes the same uncommitted staging snapshot.
+ * <p>Watermarks are forwarded while no cycle is active, so a watermark from another task's
+ * trigger sharing the maintenance lock is not stalled. Once the planner marks cycle start,
+ * watermarks are held back until the cycle commits, never mid-cycle. The {@link LockRemover}
+ * releases the maintenance lock once a watermark past the trigger's start epoch reaches it. The
+ * planner emits phase watermarks before the plan arrives; forwarding those would release the lock
+ * before this commit, letting the TriggerManager start a concurrent cycle that re-processes the
+ * same uncommitted staging snapshot.
  *
  * <p>Emits a {@link Trigger} after each cycle (commit, no-op, or error) so the downstream {@link
  * TaskResultAggregator} can track task completion. This is the sole source of Trigger records for
@@ -93,6 +95,7 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
   private transient Table table;
   private transient List<DVWriteResult> bufferedResults;
   private transient EqualityConvertPlan planResult;
+  private transient boolean cycleInFlight;
 
   private transient Counter errorCounter;
   private transient Counter addedDataFileNumCounter;
@@ -143,24 +146,38 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
 
   @Override
   public void processElement2(StreamRecord<EqualityConvertPlan> record) {
+    if (record.getValue().cycleStart()) {
+      // The planner started a conversion cycle. Hold back watermarks until the plan arrives; the
+      // planner emits phase watermarks before the plan, and forwarding those would release the
+      // maintenance lock before the commit.
+      cycleInFlight = true;
+      return;
+    }
+
     planResult = record.getValue();
+    cycleInFlight = true;
   }
 
   @Override
   public void processWatermark(Watermark mark) throws Exception {
-    if (planResult == null) {
+    if (!cycleInFlight) {
       // No conversion cycle is active: forward the watermark. It may originate from another
-      // task's trigger sharing the maintenance lock, and holding it back would stall lock
-      // release for that task.
+      // task's trigger sharing the maintenance lock, and holding it back would stall lock release
+      // for that task.
       super.processWatermark(mark);
       return;
     }
 
+    if (planResult == null) {
+      // The cycle started but the plan has not arrived yet. The planner emits phase watermarks
+      // before the plan; forwarding them would release the maintenance lock before the commit,
+      // letting the next trigger run a concurrent cycle on the same staging snapshot.
+      return;
+    }
+
     if (mark.getTimestamp() < planResult.doneTimestamp()) {
-      // Hold back watermarks until the cycle commits so the LockRemover keeps the maintenance lock
-      // for the whole cycle. Forwarding the planner's mid-cycle phase watermarks will release the
-      // lock early and could let the next trigger run a concurrent cycle on the same staging
-      // snapshot.
+      // Hold back watermarks until the cycle commits so the LockRemover keeps the maintenance
+      // lock for the whole cycle.
       return;
     }
 
@@ -178,6 +195,7 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
 
     bufferedResults.clear();
     planResult = null;
+    cycleInFlight = false;
 
     super.processWatermark(mark);
   }

@@ -133,6 +133,10 @@ public class EqualityConvertDVWriter extends AbstractStreamOperator<DVWriteResul
 
   @Override
   public void processElement2(StreamRecord<EqualityConvertPlan> record) {
+    if (record.getValue().cycleStart()) {
+      return;
+    }
+
     planResult = record.getValue();
   }
 
