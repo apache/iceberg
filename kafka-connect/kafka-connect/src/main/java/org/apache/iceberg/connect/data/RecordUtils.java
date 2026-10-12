@@ -35,7 +35,6 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
@@ -49,8 +48,7 @@ class RecordUtils {
 
   @SuppressWarnings("unchecked")
   static Object extractFromRecordValue(
-      Object recordValue, String fieldName, IcebergSinkConfig config) {
-    List<String> fields = Splitter.on('.').splitToList(fieldName);
+      Object recordValue, List<String> fields, IcebergSinkConfig config) {
     if (recordValue instanceof Struct) {
       return valueFromStruct((Struct) recordValue, fields, config.replaceNullWithDefault());
     } else if (recordValue instanceof Map) {

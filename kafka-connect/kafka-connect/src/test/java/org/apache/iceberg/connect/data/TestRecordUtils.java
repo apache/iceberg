@@ -28,6 +28,7 @@ import java.util.UUID;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.events.TableReference;
+import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -51,7 +52,8 @@ public class TestRecordUtils extends WriterTestBase {
   public void testExtractFromRecordValueStruct() {
     Schema valSchema = SchemaBuilder.struct().field("key", Schema.INT64_SCHEMA).build();
     Struct val = new Struct(valSchema).put("key", 123L);
-    Object result = RecordUtils.extractFromRecordValue(val, "key", config);
+    Object result =
+        RecordUtils.extractFromRecordValue(val, Splitter.on('.').splitToList("key"), config);
     assertThat(result).isEqualTo(123L);
   }
 
@@ -65,7 +67,9 @@ public class TestRecordUtils extends WriterTestBase {
     Struct data = new Struct(dataSchema).put("id", id);
     Struct val = new Struct(valSchema).put("data", data);
 
-    Object result = RecordUtils.extractFromRecordValue(val, "data.id.key", config);
+    Object result =
+        RecordUtils.extractFromRecordValue(
+            val, Splitter.on('.').splitToList("data.id.key"), config);
     assertThat(result).isEqualTo(123L);
   }
 
@@ -74,10 +78,11 @@ public class TestRecordUtils extends WriterTestBase {
     Schema valSchema = SchemaBuilder.struct().field("key", Schema.INT64_SCHEMA).build();
     Struct val = new Struct(valSchema).put("key", 123L);
 
-    Object result = RecordUtils.extractFromRecordValue(val, "", config);
+    Object result =
+        RecordUtils.extractFromRecordValue(val, Splitter.on('.').splitToList(""), config);
     assertThat(result).isNull();
 
-    result = RecordUtils.extractFromRecordValue(val, "xkey", config);
+    result = RecordUtils.extractFromRecordValue(val, Splitter.on('.').splitToList("xkey"), config);
     assertThat(result).isNull();
   }
 
@@ -93,7 +98,8 @@ public class TestRecordUtils extends WriterTestBase {
             .build();
     Struct val = new Struct(valSchema).put("key", null);
 
-    Object result = RecordUtils.extractFromRecordValue(val, "key", config);
+    Object result =
+        RecordUtils.extractFromRecordValue(val, Splitter.on('.').splitToList("key"), config);
     if (replaceNullWithDefault) {
       assertThat(result).isEqualTo("default");
     } else {
@@ -118,7 +124,9 @@ public class TestRecordUtils extends WriterTestBase {
     Struct data = new Struct(dataSchema).put("id", id);
     Struct val = new Struct(valSchema).put("data", data);
 
-    Object result = RecordUtils.extractFromRecordValue(val, "data.id.key", config);
+    Object result =
+        RecordUtils.extractFromRecordValue(
+            val, Splitter.on('.').splitToList("data.id.key"), config);
     if (replaceNullWithDefault) {
       assertThat(result).isEqualTo(123L);
     } else {
@@ -129,7 +137,8 @@ public class TestRecordUtils extends WriterTestBase {
   @Test
   public void testExtractFromRecordValueMap() {
     Map<String, Object> val = ImmutableMap.of("key", 123L);
-    Object result = RecordUtils.extractFromRecordValue(val, "key", config);
+    Object result =
+        RecordUtils.extractFromRecordValue(val, Splitter.on('.').splitToList("key"), config);
     assertThat(result).isEqualTo(123L);
   }
 
@@ -139,7 +148,9 @@ public class TestRecordUtils extends WriterTestBase {
     Map<String, Object> data = ImmutableMap.of("id", id);
     Map<String, Object> val = ImmutableMap.of("data", data);
 
-    Object result = RecordUtils.extractFromRecordValue(val, "data.id.key", config);
+    Object result =
+        RecordUtils.extractFromRecordValue(
+            val, Splitter.on('.').splitToList("data.id.key"), config);
     assertThat(result).isEqualTo(123L);
   }
 
@@ -147,10 +158,11 @@ public class TestRecordUtils extends WriterTestBase {
   public void testExtractFromRecordValueMapNull() {
     Map<String, Object> val = ImmutableMap.of("key", 123L);
 
-    Object result = RecordUtils.extractFromRecordValue(val, "", config);
+    Object result =
+        RecordUtils.extractFromRecordValue(val, Splitter.on('.').splitToList(""), config);
     assertThat(result).isNull();
 
-    result = RecordUtils.extractFromRecordValue(val, "xkey", config);
+    result = RecordUtils.extractFromRecordValue(val, Splitter.on('.').splitToList("xkey"), config);
     assertThat(result).isNull();
   }
 
