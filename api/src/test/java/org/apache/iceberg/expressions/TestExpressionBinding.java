@@ -101,6 +101,19 @@ public class TestExpressionBinding {
   }
 
   @Test
+  void fileNestedFieldReference() {
+    StructType struct =
+        StructType.of(
+            required(0, "id", Types.LongType.get()), optional(1, "photo", Types.FileType.of(1)));
+
+    Expression bound = Binder.bind(struct, equal("photo.uri", "s3://bucket/key"));
+
+    BoundPredicate<?> predicate = TestHelpers.assertAndUnwrap(bound);
+    assertThat(predicate.ref().fieldId()).isEqualTo(2);
+    assertThat(predicate.ref().type()).isEqualTo(Types.StringType.get());
+  }
+
+  @Test
   public void testMultipleReferences() {
     Expression expr = or(and(equal("x", 7), lessThan("y", 100)), greaterThan("z", -100));
     TestHelpers.assertAllReferencesBound("Multiple references", Binder.bind(STRUCT, expr));

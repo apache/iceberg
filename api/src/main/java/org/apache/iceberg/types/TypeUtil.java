@@ -38,6 +38,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 public class TypeUtil {
 
@@ -460,6 +461,14 @@ public class TypeUtil {
     return TypeUtil.visit(type, new AssignIds(getId));
   }
 
+  static Type assignedType(Type original, int newId, Type visited) {
+    if (original.isFileType()) {
+      return Types.FileType.of(newId);
+    }
+
+    return visited;
+  }
+
   public static Type find(Schema schema, Predicate<Type> predicate) {
     return visit(schema, new FindTypeVisitor(predicate));
   }
@@ -639,11 +648,48 @@ public class TypeUtil {
   /** Interface for passing a function that assigns column IDs. */
   public interface NextID {
     int get();
+
+    default int get(int numReserved) {
+      int id = get();
+      if (numReserved > 0) {
+        for (int offset = 1; offset <= numReserved; offset += 1) {
+          int reserved = get();
+          Preconditions.checkState(
+              reserved == id + offset,
+              "Cannot reserve %s IDs after %s: assigned %s",
+              numReserved,
+              id,
+              reserved);
+        }
+      }
+
+      return id;
+    }
   }
 
   /** Interface for passing a function that assigns column IDs from the previous Id. */
   public interface GetID {
     int get(int oldId);
+
+    /**
+     * Assigns a new ID and reserves the IDs that immediately follow it.
+     *
+     * <p>Implementations must override this method to assign IDs for types with derived field IDs.
+     *
+     * @param oldId an existing field ID
+     * @param numReserved number of IDs after the new ID that must not be assigned
+     * @return a new field ID
+     */
+    default int get(int oldId, int numReserved) {
+      if (numReserved > 0) {
+        throw new UnsupportedOperationException(
+            String.format(
+                "Cannot reserve %s IDs after %s: reserving IDs is not supported",
+                numReserved, oldId));
+      }
+
+      return get(oldId);
+    }
   }
 
   /**
@@ -652,6 +698,9 @@ public class TypeUtil {
    * <p>This is useful for merging schemas where some field IDs in one schema might conflict with
    * IDs already in use by another schema. The function will reassign the provided IDs to new unused
    * IDs, while preserving other IDs.
+   *
+   * <p>The returned function will not hand out an ID that it has already assigned or reserved,
+   * whether that ID was preserved or freshly assigned.
    *
    * @param conflictingIds the set of conflicting field IDs that should be reassigned
    * @param allUsedIds the set of field IDs that are already in use and cannot be reused
@@ -664,31 +713,62 @@ public class TypeUtil {
   private static class ReassignConflictingIds implements GetID {
     private final Set<Integer> conflictingIds;
     private final Set<Integer> allUsedIds;
+    private final Set<Integer> handedOutIds;
     private final AtomicInteger nextId;
 
     private ReassignConflictingIds(Set<Integer> conflictingIds, Set<Integer> allUsedIds) {
       this.conflictingIds = conflictingIds;
       this.allUsedIds = allUsedIds;
+      this.handedOutIds = Sets.newHashSet();
       this.nextId = new AtomicInteger();
     }
 
     @Override
     public int get(int oldId) {
-      if (conflictingIds.contains(oldId)) {
-        return nextAvailableId();
+      return get(oldId, 0);
+    }
+
+    @Override
+    public int get(int oldId, int numReserved) {
+      // a field that is not conflicting keeps its ID, so oldId itself is not checked against the
+      // caller's used IDs, only against the IDs this assigner has already handed out
+      if (conflictingIds.contains(oldId)
+          || handedOutIds.contains(oldId)
+          || !isRangeAvailable(oldId + 1, oldId + numReserved)) {
+        return nextAvailableId(numReserved);
       } else {
-        return oldId;
+        return handOut(oldId, numReserved);
       }
     }
 
-    private int nextAvailableId() {
+    private int nextAvailableId(int numReserved) {
       int candidateId = nextId.incrementAndGet();
 
-      while (allUsedIds.contains(candidateId)) {
+      while (!isRangeAvailable(candidateId, candidateId + numReserved)) {
         candidateId = nextId.incrementAndGet();
       }
 
-      return candidateId;
+      nextId.addAndGet(numReserved);
+
+      return handOut(candidateId, numReserved);
+    }
+
+    private int handOut(int firstId, int numReserved) {
+      for (int id = firstId; id <= firstId + numReserved; id += 1) {
+        handedOutIds.add(id);
+      }
+
+      return firstId;
+    }
+
+    private boolean isRangeAvailable(int firstId, int lastId) {
+      for (int id = firstId; id <= lastId; id += 1) {
+        if (allUsedIds.contains(id) || handedOutIds.contains(id)) {
+          return false;
+        }
+      }
+
+      return true;
     }
   }
 

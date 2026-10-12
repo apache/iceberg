@@ -247,4 +247,16 @@ public class TestAccessors {
     Schema emptySchema = new Schema();
     assertThat(emptySchema.accessorForField(17)).isNull();
   }
+
+  @Test
+  void fileNestedFields() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "photo", Types.FileType.of(2)));
+    StructLike row = Row.of(1L, Row.of("s3://bucket/key", 4L, 1024L, "image/png", null, null));
+
+    assertThat(schema.accessorForField(3).get(row)).isEqualTo("s3://bucket/key");
+    assertThat(schema.accessorForField(5).get(row)).isEqualTo(1024L);
+    assertThat(schema.accessorForField(8).get(row)).isNull();
+  }
 }

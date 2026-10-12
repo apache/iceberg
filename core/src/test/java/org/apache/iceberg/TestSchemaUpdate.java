@@ -2590,4 +2590,136 @@ public class TestSchemaUpdate {
 
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
+
+  private static final Schema FILE_SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()),
+          optional(2, "photo", Types.FileType.of(2)),
+          optional(9, "data", Types.StringType.get()));
+
+  private static SchemaUpdate fileUpdate() {
+    return new SchemaUpdate(FILE_SCHEMA, FILE_SCHEMA.highestFieldId());
+  }
+
+  @Test
+  void cannotAddColumnToFileColumn() {
+    assertThatThrownBy(() -> fileUpdate().addColumn("photo", "extra", Types.StringType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add to a file column: photo");
+  }
+
+  @Test
+  void cannotDeleteFileNestedField() {
+    assertThatThrownBy(() -> fileUpdate().deleteColumn("photo.checksum"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change a nested field of a file column: photo.checksum");
+  }
+
+  @Test
+  void cannotRenameFileNestedField() {
+    assertThatThrownBy(() -> fileUpdate().renameColumn("photo.uri", "location"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change a nested field of a file column: photo.uri");
+  }
+
+  @Test
+  void cannotPromoteFileNestedField() {
+    assertThatThrownBy(() -> fileUpdate().updateColumn("photo.size", Types.LongType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change a nested field of a file column: photo.size");
+  }
+
+  @Test
+  void cannotUpdateFileNestedFieldDoc() {
+    assertThatThrownBy(() -> fileUpdate().updateColumnDoc("photo.uri", "the location"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change a nested field of a file column: photo.uri");
+  }
+
+  @Test
+  void cannotUpdateFileNestedFieldDefault() {
+    assertThatThrownBy(
+            () -> fileUpdate().updateColumnDefault("photo.uri", Literal.of("s3://bucket/key")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change a nested field of a file column: photo.uri");
+  }
+
+  @Test
+  void cannotUpdateFileNestedFieldRequirement() {
+    assertThatThrownBy(() -> fileUpdate().requireColumn("photo.uri"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change a nested field of a file column: photo.uri");
+    assertThatThrownBy(() -> fileUpdate().makeColumnOptional("photo.uri"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot change a nested field of a file column: photo.uri");
+  }
+
+  @Test
+  void cannotMoveFileNestedField() {
+    assertThatThrownBy(() -> fileUpdate().moveFirst("photo.checksum"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move fields in a file column: photo.checksum");
+    assertThatThrownBy(() -> fileUpdate().moveBefore("photo.checksum", "photo.uri"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move fields in a file column: photo.checksum");
+    assertThatThrownBy(() -> fileUpdate().moveAfter("photo.uri", "photo.inline"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move fields in a file column: photo.uri");
+  }
+
+  @Test
+  void unionByNameCannotAddToFileColumn() {
+    Schema newSchema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(
+                2,
+                "photo",
+                Types.StructType.of(
+                    optional(3, "uri", Types.StringType.get()),
+                    optional(10, "extra", Types.StringType.get()))));
+
+    assertThatThrownBy(() -> fileUpdate().unionByNameWith(newSchema))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot add to a file column: photo");
+  }
+
+  @Test
+  void renameFileColumn() {
+    Schema renamed = fileUpdate().renameColumn("photo", "image").apply();
+
+    assertThat(renamed.findField("image").type()).isEqualTo(Types.FileType.of(2));
+    assertThat(renamed.findField("image.uri").fieldId()).isEqualTo(3);
+  }
+
+  @Test
+  void deleteFileColumn() {
+    Schema deleted = fileUpdate().deleteColumn("photo").apply();
+
+    assertThat(deleted.findField("photo")).isNull();
+    assertThat(deleted.asStruct())
+        .isEqualTo(
+            new Schema(
+                    required(1, "id", Types.LongType.get()),
+                    optional(9, "data", Types.StringType.get()))
+                .asStruct());
+  }
+
+  @Test
+  void addFileColumnReservesNestedIds() {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+
+    Schema updated =
+        new SchemaUpdate(schema, schema.highestFieldId())
+            .addColumn("photo", Types.FileType.of(2))
+            .addColumn("data", Types.StringType.get())
+            .apply();
+
+    assertThat(updated.findField("photo").fieldId()).isEqualTo(2);
+    assertThat(updated.findField("photo").type()).isEqualTo(Types.FileType.of(2));
+    assertThat(updated.findField("photo.uri").fieldId()).isEqualTo(3);
+    assertThat(updated.findField("photo.inline").fieldId()).isEqualTo(8);
+    assertThat(updated.findField("data").fieldId()).isEqualTo(9);
+    assertThat(updated.highestFieldId()).isEqualTo(9);
+  }
 }

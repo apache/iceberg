@@ -63,6 +63,7 @@ class SchemaUpdate implements UpdateSchema {
   private final Map<String, Integer> addedNameToId = Maps.newHashMap();
   private final Multimap<Integer, Move> moves =
       Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
+  private final TypeUtil.NextID nextColumnId = this::assignNewColumnId;
   private int lastColumnId;
   private boolean allowIncompatibleChanges = false;
   private Set<String> identifierFieldNames;
@@ -138,6 +139,8 @@ class SchemaUpdate implements UpdateSchema {
           "Cannot add to non-struct column: %s: %s",
           parent,
           parentField.type());
+      Preconditions.checkArgument(
+          !parentField.type().isFileType(), "Cannot add to a file column: %s", parent);
       parentId = parentField.fieldId();
       Types.NestedField currentField = findField(parent + "." + name);
       Preconditions.checkArgument(
@@ -163,7 +166,7 @@ class SchemaUpdate implements UpdateSchema {
         fullName);
 
     // assign new IDs in order
-    int newId = assignNewColumnId();
+    int newId = assignNewColumnId(type);
 
     // update tracking for moves
     addedNameToId.put(caseSensitivityAwareName(fullName), newId);
@@ -176,7 +179,7 @@ class SchemaUpdate implements UpdateSchema {
             .withName(name)
             .isOptional(isOptional)
             .withId(newId)
-            .ofType(TypeUtil.assignFreshIds(type, this::assignNewColumnId))
+            .ofType(assignedType(type, newId))
             .withDoc(doc)
             .withInitialDefault(defaultValue)
             .withWriteDefault(defaultValue)
@@ -186,10 +189,25 @@ class SchemaUpdate implements UpdateSchema {
     parentToAddedIds.put(parentId, newId);
   }
 
+  private int assignNewColumnId(Type type) {
+    return type.isFileType()
+        ? nextColumnId.get(Types.FileType.NUM_NESTED_FIELDS)
+        : nextColumnId.get();
+  }
+
+  private Type assignedType(Type type, int fieldId) {
+    if (type.isFileType()) {
+      return Types.FileType.of(fieldId);
+    }
+
+    return TypeUtil.assignFreshIds(type, nextColumnId);
+  }
+
   @Override
   public UpdateSchema deleteColumn(String name) {
     Types.NestedField field = findField(name);
     Preconditions.checkArgument(field != null, "Cannot delete missing column: %s", name);
+    checkNotNestedInFile(name, field.fieldId());
     Preconditions.checkArgument(
         !parentToAddedIds.containsKey(field.fieldId()),
         "Cannot delete a column that has additions: %s",
@@ -205,6 +223,7 @@ class SchemaUpdate implements UpdateSchema {
   public UpdateSchema renameColumn(String name, String newName) {
     Types.NestedField field = findField(name);
     Preconditions.checkArgument(field != null, "Cannot rename missing column: %s", name);
+    checkNotNestedInFile(name, field.fieldId());
     Preconditions.checkArgument(newName != null, "Cannot rename a column to null");
     Preconditions.checkArgument(
         !deletes.contains(field.fieldId()),
@@ -241,6 +260,7 @@ class SchemaUpdate implements UpdateSchema {
   private void internalUpdateColumnRequirement(String name, boolean isOptional) {
     Types.NestedField field = findForUpdate(name);
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
+    checkNotNestedInFile(name, field.fieldId());
 
     if ((!isOptional && field.isRequired()) || (isOptional && field.isOptional())) {
       // if the change is a noop, allow it even if allowIncompatibleChanges is false
@@ -273,6 +293,7 @@ class SchemaUpdate implements UpdateSchema {
   public UpdateSchema updateColumn(String name, Type.PrimitiveType newType) {
     Types.NestedField field = findForUpdate(name);
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
+    checkNotNestedInFile(name, field.fieldId());
     Preconditions.checkArgument(
         !deletes.contains(field.fieldId()),
         "Cannot update a column that will be deleted: %s",
@@ -301,6 +322,7 @@ class SchemaUpdate implements UpdateSchema {
   public UpdateSchema updateColumnDoc(String name, String doc) {
     Types.NestedField field = findForUpdate(name);
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
+    checkNotNestedInFile(name, field.fieldId());
     Preconditions.checkArgument(
         !deletes.contains(field.fieldId()),
         "Cannot update a column that will be deleted: %s",
@@ -322,6 +344,7 @@ class SchemaUpdate implements UpdateSchema {
   public UpdateSchema updateColumnDefault(String name, Literal<?> newDefault) {
     Types.NestedField field = findForUpdate(name);
     Preconditions.checkArgument(field != null, "Cannot update missing column: %s", name);
+    checkNotNestedInFile(name, field.fieldId());
     Preconditions.checkArgument(
         !deletes.contains(field.fieldId()),
         "Cannot update a column that will be deleted: %s",
@@ -396,6 +419,15 @@ class SchemaUpdate implements UpdateSchema {
     return addedNameToId.containsKey(caseSensitivityAwareName(name));
   }
 
+  private void checkNotNestedInFile(String name, int fieldId) {
+    Integer parentId = idToParent.get(fieldId);
+    Types.NestedField parent = parentId != null ? schema.findField(parentId) : null;
+    Preconditions.checkArgument(
+        parent == null || !parent.type().isFileType(),
+        "Cannot change a nested field of a file column: %s",
+        name);
+  }
+
   private Types.NestedField findForUpdate(String name) {
     Types.NestedField existing = findField(name);
     if (existing != null) {
@@ -435,6 +467,8 @@ class SchemaUpdate implements UpdateSchema {
       Types.NestedField parent = schema.findField(parentId);
       Preconditions.checkArgument(
           parent.type().isStructType(), "Cannot move fields in non-struct type: %s", parent.type());
+      Preconditions.checkArgument(
+          !parent.type().isFileType(), "Cannot move fields in a file column: %s", name);
 
       if (move.type() == Move.MoveType.AFTER || move.type() == Move.MoveType.BEFORE) {
         Preconditions.checkArgument(
@@ -646,6 +680,8 @@ class SchemaUpdate implements UpdateSchema {
       }
 
       if (hasChange) {
+        Preconditions.checkArgument(
+            !struct.isFileType(), "Cannot change the nested fields of a file column: %s", struct);
         // TODO: What happens if there are no fields left?
         return Types.StructType.of(newFields);
       }

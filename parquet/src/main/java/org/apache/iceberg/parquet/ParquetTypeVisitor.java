@@ -52,6 +52,10 @@ public class ParquetTypeVisitor<T> {
         return visitVariant(group, visitor);
       }
 
+      // TODO: dispatch FILE-annotated groups to a file() hook once parquet is upgraded. This
+      // visitor has no Iceberg type to fall back on, so until FileLogicalTypeAnnotation exists a
+      // file group is indistinguishable from a struct here. Subclasses that rebuild the group
+      // (RemoveIds, ApplyNameMapping) will need to preserve the annotation, which struct() drops.
       return visitor.struct(group, visitFields(group, visitor));
     }
   }
