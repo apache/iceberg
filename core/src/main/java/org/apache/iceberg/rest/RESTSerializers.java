@@ -45,6 +45,7 @@ import org.apache.iceberg.catalog.CatalogObjectIdentifierParser;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CommitTransactionRequestParser;
@@ -640,7 +641,10 @@ public class RESTSerializers {
 
       return (T)
           PlanTableScanResponseParser.fromJson(
-              jsonNode, scanContext.getSpecsById(), scanContext.isCaseSensitive());
+              jsonNode,
+              scanContext.getSpecsById(),
+              scanContext.isCaseSensitive(),
+              scanContext.getScanFilter());
     }
   }
 
@@ -662,7 +666,10 @@ public class RESTSerializers {
       TableScanResponseContext scanContext = parseScanResponseContext(context);
       return (T)
           FetchPlanningResultResponseParser.fromJson(
-              jsonNode, scanContext.getSpecsById(), scanContext.isCaseSensitive());
+              jsonNode,
+              scanContext.getSpecsById(),
+              scanContext.isCaseSensitive(),
+              scanContext.getScanFilter());
     }
   }
 
@@ -684,7 +691,10 @@ public class RESTSerializers {
       TableScanResponseContext scanContext = parseScanResponseContext(context);
       return (T)
           FetchScanTasksResponseParser.fromJson(
-              jsonNode, scanContext.getSpecsById(), scanContext.isCaseSensitive());
+              jsonNode,
+              scanContext.getSpecsById(),
+              scanContext.isCaseSensitive(),
+              scanContext.getScanFilter());
     }
   }
 
@@ -695,16 +705,20 @@ public class RESTSerializers {
     Map<Integer, PartitionSpec> specsById =
         (Map<Integer, PartitionSpec>) context.findInjectableValue("specsById", null, null);
     boolean caseSensitive = (boolean) context.findInjectableValue("caseSensitive", null, null);
-    return new TableScanResponseContext(specsById, caseSensitive);
+    Expression scanFilter = (Expression) context.findInjectableValue("scanFilter", null, null);
+    return new TableScanResponseContext(specsById, caseSensitive, scanFilter);
   }
 
   static class TableScanResponseContext {
     private final Map<Integer, PartitionSpec> specsById;
     private final boolean caseSensitive;
+    private final Expression scanFilter;
 
-    TableScanResponseContext(Map<Integer, PartitionSpec> specs, boolean isCaseSensitive) {
+    TableScanResponseContext(
+        Map<Integer, PartitionSpec> specs, boolean isCaseSensitive, Expression scanFilter) {
       this.specsById = specs;
       this.caseSensitive = isCaseSensitive;
+      this.scanFilter = scanFilter;
     }
 
     Map<Integer, PartitionSpec> getSpecsById() {
@@ -713,6 +727,10 @@ public class RESTSerializers {
 
     boolean isCaseSensitive() {
       return caseSensitive;
+    }
+
+    Expression getScanFilter() {
+      return scanFilter;
     }
   }
 

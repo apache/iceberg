@@ -160,7 +160,11 @@ public class TestRESTScanPlanning extends TestBaseWithRESTServer {
 
   private void setParserContext(Table table) {
     parserContext =
-        ParserContext.builder().add("specsById", table.specs()).add("caseSensitive", false).build();
+        ParserContext.builder()
+            .add("specsById", table.specs())
+            .add("caseSensitive", false)
+            .add("scanFilter", Expressions.alwaysTrue())
+            .build();
   }
 
   private void configurePlanningBehavior(

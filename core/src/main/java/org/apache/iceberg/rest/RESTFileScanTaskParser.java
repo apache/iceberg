@@ -74,7 +74,8 @@ class RESTFileScanTaskParser {
       JsonNode jsonNode,
       List<DeleteFile> allDeleteFiles,
       Map<Integer, PartitionSpec> specsById,
-      boolean isCaseSensitive) {
+      boolean isCaseSensitive,
+      Expression scanFilter) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for file scan task: null");
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for file scan task: non-object (%s)", jsonNode);
@@ -94,7 +95,10 @@ class RESTFileScanTaskParser {
       deleteFiles = indices.stream().map(allDeleteFiles::get).toArray(DeleteFile[]::new);
     }
 
-    Expression filter = null;
+    // A missing residual-filter is allowed by the spec, and the client must then produce the
+    // residual: the ResidualEvaluator below derives it from the scan filter and the task's
+    // partition.
+    Expression filter = scanFilter;
     // An explicit null residual-filter is intentionally rejected to stay aligned with the OpenAPI
     // spec, where residual-filter is a non-nullable expression: has() + fromJson throws rather than
     // dropping the residual.

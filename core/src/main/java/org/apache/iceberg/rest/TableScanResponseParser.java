@@ -28,6 +28,7 @@ import org.apache.iceberg.ContentFileParser;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -66,6 +67,19 @@ public class TableScanResponseParser {
       List<DeleteFile> deleteFiles,
       Map<Integer, PartitionSpec> specsById,
       boolean caseSensitive) {
+    return parseFileScanTasks(node, deleteFiles, specsById, caseSensitive, null);
+  }
+
+  /**
+   * Parses file scan tasks. A task without a residual-filter takes its residual from scanFilter,
+   * the filter of the scan that was planned, as the REST spec requires of clients.
+   */
+  public static List<FileScanTask> parseFileScanTasks(
+      JsonNode node,
+      List<DeleteFile> deleteFiles,
+      Map<Integer, PartitionSpec> specsById,
+      boolean caseSensitive,
+      Expression scanFilter) {
     if (node.hasNonNull(FILE_SCAN_TASKS)) {
       JsonNode scanTasks = JsonUtil.get(FILE_SCAN_TASKS, node);
       Preconditions.checkArgument(
@@ -74,7 +88,7 @@ public class TableScanResponseParser {
       for (JsonNode fileScanTaskNode : scanTasks) {
         FileScanTask fileScanTask =
             RESTFileScanTaskParser.fromJson(
-                fileScanTaskNode, deleteFiles, specsById, caseSensitive);
+                fileScanTaskNode, deleteFiles, specsById, caseSensitive, scanFilter);
         fileScanTaskList.add(fileScanTask);
       }
 

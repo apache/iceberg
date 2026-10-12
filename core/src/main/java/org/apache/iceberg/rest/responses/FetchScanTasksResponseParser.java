@@ -26,6 +26,7 @@ import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.TableScanResponseParser;
@@ -69,12 +70,25 @@ public class FetchScanTasksResponseParser {
 
   public static FetchScanTasksResponse fromJson(
       JsonNode json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
+    return fromJson(json, specsById, caseSensitive, null);
+  }
+
+  /**
+   * Parses the response. A file scan task without a residual-filter takes its residual from
+   * scanFilter, the filter of the scan that was planned.
+   */
+  public static FetchScanTasksResponse fromJson(
+      JsonNode json,
+      Map<Integer, PartitionSpec> specsById,
+      boolean caseSensitive,
+      Expression scanFilter) {
     Preconditions.checkArgument(
         json != null && !json.isEmpty(), "Invalid response: fetchScanTasksResponse null");
     List<String> planTasks = JsonUtil.getStringListOrNull(PLAN_TASKS, json);
     List<DeleteFile> deleteFiles = TableScanResponseParser.parseDeleteFiles(json, specsById);
     List<FileScanTask> fileScanTasks =
-        TableScanResponseParser.parseFileScanTasks(json, deleteFiles, specsById, caseSensitive);
+        TableScanResponseParser.parseFileScanTasks(
+            json, deleteFiles, specsById, caseSensitive, scanFilter);
     return FetchScanTasksResponse.builder()
         .withPlanTasks(planTasks)
         .withSpecsById(specsById)
