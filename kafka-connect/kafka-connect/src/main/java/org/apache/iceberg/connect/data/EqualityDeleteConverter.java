@@ -267,7 +267,11 @@ public class EqualityDeleteConverter {
       return baseSnapshotId;
     }
 
-    /** Deletion vectors to add. */
+    /**
+     * Deletion vectors to add. The data files they reference must still exist when the vectors are
+     * committed, so the commit should pass their referenced data files to {@link
+     * org.apache.iceberg.RowDelta#validateDataFilesExist(Iterable)}.
+     */
     public List<DeleteFile> dvFiles() {
       return dvFiles;
     }
