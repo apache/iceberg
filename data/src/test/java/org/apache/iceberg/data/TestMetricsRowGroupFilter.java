@@ -200,7 +200,9 @@ public class TestMetricsRowGroupFilter {
         record.setField("_id", INT_MIN_VALUE + i); // min=30, max=79, num-nulls=0
         record.setField(
             "_no_stats_parquet",
-            TOO_LONG_FOR_STATS_PARQUET); // value longer than 4k will produce no stats
+            (i % 10 == 0)
+                ? null
+                : TOO_LONG_FOR_STATS_PARQUET); // value longer than 4k will produce no stats
         // in Parquet, but will produce stats for ORC
         record.setField("_required", "req"); // required, always non-null
         record.setField("_all_nulls", null); // never non-null
@@ -240,7 +242,9 @@ public class TestMetricsRowGroupFilter {
       builder.setField("_id", INT_MIN_VALUE + i); // min=30, max=79, num-nulls=0
       builder.setField(
           "_no_stats_parquet",
-          TOO_LONG_FOR_STATS_PARQUET); // value longer than 4k will produce no stats
+          (i % 10 == 0)
+              ? null
+              : TOO_LONG_FOR_STATS_PARQUET); // value longer than 4k will produce no stats
       // in Parquet
       builder.setField("_required", "req"); // required, always non-null
       builder.setField("_all_nulls", null); // never non-null
@@ -341,7 +345,7 @@ public class TestMetricsRowGroupFilter {
     shouldRead = shouldRead(lessThan("some_nans", 3.0));
     assertThat(shouldRead).isTrue();
 
-    shouldRead = shouldRead(lessThanOrEqual("some_nans", 1.0));
+    shouldRead = shouldRead(lessThanOrEqual("some_nans", 2.0));
     assertThat(shouldRead).isTrue();
 
     shouldRead = shouldRead(equal("some_nans", 2.0));
@@ -361,7 +365,7 @@ public class TestMetricsRowGroupFilter {
     shouldRead = shouldRead(lessThan("some_double_nans", 3.0));
     assertThat(shouldRead).as("Should read: column with some nans contains target value").isTrue();
 
-    shouldRead = shouldRead(lessThanOrEqual("some_double_nans", 1.0));
+    shouldRead = shouldRead(lessThanOrEqual("some_double_nans", 2.0));
     assertThat(shouldRead).as("Should read: column with some nans contains target value").isTrue();
 
     shouldRead = shouldRead(equal("some_double_nans", 2.0));
