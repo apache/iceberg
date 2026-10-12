@@ -58,7 +58,7 @@ class RemoveCarryoverIterator extends ChangelogIterator {
 
   RemoveCarryoverIterator(Iterator<InternalRow> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
-    this.ordering = ordering(generateIndicesToIdentifySameRow());
+    this.ordering = getOrdering(generateIndicesToIdentifySameRow());
   }
 
   @Override
