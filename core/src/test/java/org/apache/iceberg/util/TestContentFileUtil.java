@@ -101,6 +101,18 @@ public class TestContentFileUtil {
   }
 
   @Test
+  public void referencedDataFileReturnsNullWhenUpperBoundMissing() {
+    // lower bound carries the path, but the upper bound for the path column is absent
+    Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
+    lowerBounds.put(PATH_ID, pathBound("/path/to/data.parquet"));
+    Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
+    upperBounds.put(POS_ID, posBound(10L));
+    DeleteFile positionDelete = positionDeleteWithBounds(lowerBounds, upperBounds);
+
+    assertThat(ContentFileUtil.referencedDataFile(positionDelete)).isNull();
+  }
+
+  @Test
   public void referencedDataFileLocation() {
     DeleteFile withRef =
         FileMetadata.deleteFileBuilder(SPEC)
@@ -212,8 +224,28 @@ public class TestContentFileUtil {
     Metrics metrics = ContentFileUtil.replacePathBounds(positionDelete, sourcePrefix, targetPrefix);
 
     String expected = RewriteTablePathUtil.newPath(dataFile, sourcePrefix, targetPrefix);
+    assertThat(expected).isNotEqualTo(dataFile);
     assertThat(decodePathBound(metrics.lowerBounds())).isEqualTo(expected);
     assertThat(decodePathBound(metrics.upperBounds())).isEqualTo(expected);
+    // non-path bounds must be carried over untouched
+    assertThat(metrics.lowerBounds()).containsKey(POS_ID);
+    assertThat(metrics.upperBounds()).containsKey(POS_ID);
+  }
+
+  @Test
+  public void replacePathBoundsClearsWhenUpperBoundMissing() {
+    Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
+    lowerBounds.put(PATH_ID, pathBound("/old/table/data.parquet"));
+    lowerBounds.put(POS_ID, posBound(0L));
+    Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
+    upperBounds.put(POS_ID, posBound(10L));
+    DeleteFile positionDelete = positionDeleteWithBounds(lowerBounds, upperBounds);
+
+    Metrics metrics = ContentFileUtil.replacePathBounds(positionDelete, "/old", "/new");
+
+    // upper path bound missing -> path bounds dropped, position bound preserved
+    assertThat(metrics.lowerBounds()).doesNotContainKey(PATH_ID).containsKey(POS_ID);
+    assertThat(metrics.upperBounds()).doesNotContainKey(PATH_ID).containsKey(POS_ID);
   }
 
   @Test
@@ -293,12 +325,16 @@ public class TestContentFileUtil {
   private DeleteFile positionDeleteWithPathBounds(String lowerPath, String upperPath) {
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
     Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
-    lowerBounds.put(PATH_ID, Conversions.toByteBuffer(PATH_TYPE, lowerPath));
-    upperBounds.put(PATH_ID, Conversions.toByteBuffer(PATH_TYPE, upperPath));
+    lowerBounds.put(PATH_ID, pathBound(lowerPath));
+    upperBounds.put(PATH_ID, pathBound(upperPath));
     // include a position-column bound so bound-clearing behavior can be verified
-    lowerBounds.put(POS_ID, Conversions.toByteBuffer(MetadataColumns.DELETE_FILE_POS.type(), 0L));
-    upperBounds.put(POS_ID, Conversions.toByteBuffer(MetadataColumns.DELETE_FILE_POS.type(), 10L));
+    lowerBounds.put(POS_ID, posBound(0L));
+    upperBounds.put(POS_ID, posBound(10L));
+    return positionDeleteWithBounds(lowerBounds, upperBounds);
+  }
 
+  private DeleteFile positionDeleteWithBounds(
+      Map<Integer, ByteBuffer> lowerBounds, Map<Integer, ByteBuffer> upperBounds) {
     Metrics metrics = new Metrics(5L, null, null, null, null, lowerBounds, upperBounds);
     return FileMetadata.deleteFileBuilder(SPEC)
         .ofPositionDeletes()
@@ -306,6 +342,14 @@ public class TestContentFileUtil {
         .withFileSizeInBytes(1024)
         .withMetrics(metrics)
         .build();
+  }
+
+  private static ByteBuffer pathBound(String path) {
+    return Conversions.toByteBuffer(PATH_TYPE, path);
+  }
+
+  private static ByteBuffer posBound(long pos) {
+    return Conversions.toByteBuffer(MetadataColumns.DELETE_FILE_POS.type(), pos);
   }
 
   private String decodePathBound(Map<Integer, ByteBuffer> bounds) {
