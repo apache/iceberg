@@ -466,7 +466,7 @@ public class TestSparkVariantRead extends TestBase {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
-  public void testReadShreddedWithoutProjectingVariant(boolean vectorized)
+  public void readShreddedWithoutProjectingVariant(boolean vectorized)
       throws IOException, NoSuchTableException, ParseException {
     String shreddedTable = CATALOG + ".default.var_shredded_unprojected";
     sql("DROP TABLE IF EXISTS %s", shreddedTable);
