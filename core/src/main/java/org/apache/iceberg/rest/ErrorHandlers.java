@@ -36,6 +36,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.iceberg.exceptions.ServiceUnavailableException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
@@ -337,6 +338,8 @@ public class ErrorHandlers {
         case 400:
           if (IllegalArgumentException.class.getSimpleName().equals(error.type())) {
             throw new IllegalArgumentException(error.message());
+          } else if (ValidationException.class.getSimpleName().equals(error.type())) {
+            throw new ValidationException("%s", error.message());
           }
           throw new BadRequestException("Malformed request: %s", error.message());
         case 401:

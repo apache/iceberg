@@ -20,9 +20,11 @@ package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.NoSuchWarehouseException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.junit.jupiter.api.Test;
 
@@ -69,6 +71,48 @@ public class TestErrorHandlers {
     assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
         .isInstanceOf(RESTException.class)
         .hasMessage("Unable to process (code: 422, type: ValidationException): null");
+  }
+
+  @Test
+  void badRequestWithValidationExceptionType() {
+    ErrorResponse error =
+        ErrorResponse.builder()
+            .responseCode(400)
+            .withType("ValidationException")
+            .withMessage("Table property commit.retry.num-retries must have integer value")
+            .build();
+
+    assertThatThrownBy(() -> ErrorHandlers.tableErrorHandler().accept(error))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Table property commit.retry.num-retries must have integer value");
+  }
+
+  @Test
+  void badRequestWithValidationExceptionTypeKeepsPercentInMessage() {
+    ErrorResponse error =
+        ErrorResponse.builder()
+            .responseCode(400)
+            .withType("ValidationException")
+            .withMessage("Invalid value: 100%")
+            .build();
+
+    assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid value: 100%");
+  }
+
+  @Test
+  void badRequestWithOtherType() {
+    ErrorResponse error =
+        ErrorResponse.builder()
+            .responseCode(400)
+            .withType("BadRequestException")
+            .withMessage("Invalid input")
+            .build();
+
+    assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
+        .isInstanceOf(BadRequestException.class)
+        .hasMessage("Malformed request: Invalid input");
   }
 
   @Test
