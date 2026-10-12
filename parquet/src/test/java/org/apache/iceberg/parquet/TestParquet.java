@@ -780,7 +780,7 @@ public class TestParquet {
   }
 
   @Test
-  public void testGlobalCompressionCodecAppliesToAllColumns() throws Exception {
+  void globalCompressionCodecAppliesToAllColumns() throws Exception {
     File file = writeIntAndStringFields(ImmutableMap.of(PARQUET_COMPRESSION, "snappy"), 5);
 
     assertThat(readColumnCodecs(file))
@@ -789,7 +789,7 @@ public class TestParquet {
   }
 
   @Test
-  public void testPerColumnCompressionCodec() throws Exception {
+  void perColumnCompressionCodec() throws Exception {
     File file =
         writeIntAndStringFields(
             ImmutableMap.of(
@@ -805,7 +805,7 @@ public class TestParquet {
   }
 
   @Test
-  public void testPerColumnCompressionCodecForNonExistentColumnIsIgnored() throws Exception {
+  void perColumnCompressionCodecForNonExistentColumnIsIgnored() throws Exception {
     File file =
         writeIntAndStringFields(
             ImmutableMap.of(
@@ -821,7 +821,25 @@ public class TestParquet {
   }
 
   @Test
-  public void testInvalidCompressionLevelThrows() {
+  void perColumnCompressionLevelWritesSuccessfully() throws Exception {
+    File file =
+        writeIntAndStringFields(
+            ImmutableMap.of(
+                PARQUET_COMPRESSION,
+                "snappy",
+                PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "int_field",
+                "zstd",
+                PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "int_field",
+                "9"),
+            5);
+
+    assertThat(readColumnCodecs(file))
+        .containsEntry("int_field", CompressionCodecName.ZSTD)
+        .containsEntry("string_field", CompressionCodecName.SNAPPY);
+  }
+
+  @Test
+  void invalidCompressionLevelThrows() {
     assertThatThrownBy(
             () ->
                 writeIntAndStringFields(
@@ -832,22 +850,7 @@ public class TestParquet {
                         "not-a-number"),
                     1))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("not-a-number");
-  }
-
-  @Test
-  public void testInvalidPerColumnLevelWithGlobalCodecThrows() {
-    assertThatThrownBy(
-            () ->
-                writeIntAndStringFields(
-                    ImmutableMap.of(
-                        PARQUET_COMPRESSION,
-                        "zstd",
-                        PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "int_field",
-                        "not-a-number"),
-                    1))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("not-a-number");
+        .hasMessageContaining("Invalid compression level for column int_field: not-a-number");
   }
 
   private File writeIntAndStringFields(Map<String, String> properties, int recordCount)

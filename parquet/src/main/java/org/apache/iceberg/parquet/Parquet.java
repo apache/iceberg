@@ -401,9 +401,19 @@ public class Parquet {
 
                 String level = columnCompressionLevel.get(colName);
                 if (level != null) {
-                  withCompressionLevel.accept(parquetColumnPath, Integer.parseInt(level));
+                  withCompressionLevel.accept(
+                      parquetColumnPath, parseCompressionLevel(colName, level));
                 }
               });
+    }
+
+    private int parseCompressionLevel(String colName, String level) {
+      try {
+        return Integer.parseInt(level);
+      } catch (NumberFormatException e) {
+        throw new IllegalArgumentException(
+            String.format("Invalid compression level for column %s: %s", colName, level), e);
+      }
     }
 
     private void setDictionaryEncodingConfig(
@@ -429,19 +439,16 @@ public class Parquet {
         return;
       }
       switch (codec) {
-        case GZIP:
-          config.put("zlib.compress.level", compressionLevel);
-          break;
-        case BROTLI:
-          config.put("compression.brotli.quality", compressionLevel);
-          break;
-        case ZSTD:
+        case GZIP -> config.put("zlib.compress.level", compressionLevel);
+        case BROTLI -> config.put("compression.brotli.quality", compressionLevel);
+        case ZSTD -> {
           // keep "io.compression.codec.zstd.level" for backwards compatibility
           config.put("io.compression.codec.zstd.level", compressionLevel);
           config.put("parquet.compression.codec.zstd.level", compressionLevel);
-          break;
-        default:
+        }
+        default -> {
           // compression level is not supported; ignore it
+        }
       }
     }
 
