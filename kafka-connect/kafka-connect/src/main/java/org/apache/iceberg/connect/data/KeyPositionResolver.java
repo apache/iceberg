@@ -47,8 +47,9 @@ public interface KeyPositionResolver {
    * @param keys deleted keys in the internal representation of {@code keySchema}, as produced by
    *     {@link org.apache.iceberg.data.InternalRecordWrapper}
    * @param deleteSpec partition spec of the equality delete files
-   * @param deletePartition partition of the equality delete files; the rows of other partitions are
-   *     not affected by the deletes
+   * @param deletePartition partition of the equality delete files. If {@code deleteSpec} is
+   *     partitioned, only rows of data files with the same spec ID and partition values are
+   *     returned; otherwise rows of every data file are candidates
    * @return the matched rows, grouped by data file
    */
   Resolution resolve(

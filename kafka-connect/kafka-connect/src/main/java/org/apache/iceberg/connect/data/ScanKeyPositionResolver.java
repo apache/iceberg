@@ -51,6 +51,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.StructLikeSet;
+import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -65,6 +66,10 @@ import org.apache.iceberg.util.ThreadPools;
  * position of the candidate files are read, in parallel, and a row is matched by comparing its key
  * with the deleted set. A cluster of hot keys and a few scattered keys therefore cost the files
  * that hold them; keys spread evenly over a large table still match most files of the partition.
+ *
+ * <p>The filters only prune. A candidate is resolved only if the deletes apply to it under the scan
+ * planning rules: an unpartitioned delete applies to every data file, a partitioned delete only to
+ * data files with the same spec ID and partition values.
  *
  * <p>Data files that carry position delete files instead of deletion vectors are rejected, because
  * a deletion vector replaces all position deletes of its data file.
@@ -96,7 +101,10 @@ class ScanKeyPositionResolver implements KeyPositionResolver {
         Expressions.and(
             KeyFilters.partitionFilter(table.schema(), deleteSpec, deletePartition), keyFilter);
 
-    List<FileScanTask> tasks;
+    // the partition filter only prunes; it also keeps files of other specs whose rows satisfy the
+    // transforms, so the spec and partition of every candidate are checked as well
+    PartitionMatcher partitionMatcher = new PartitionMatcher(deleteSpec, deletePartition);
+    List<FileScanTask> tasks = Lists.newArrayList();
     try (CloseableIterable<FileScanTask> planned =
         table
             .newScan()
@@ -104,7 +112,11 @@ class ScanKeyPositionResolver implements KeyPositionResolver {
             .filter(planFilter)
             .ignoreResiduals()
             .planFiles()) {
-      tasks = Lists.newArrayList(planned);
+      for (FileScanTask task : planned) {
+        if (partitionMatcher.matches(task.spec(), task.file().partition())) {
+          tasks.add(task);
+        }
+      }
     }
 
     Map<String, FileMatches> matches = Maps.newConcurrentMap();
@@ -177,6 +189,38 @@ class ScanKeyPositionResolver implements KeyPositionResolver {
       matches.put(
           file.location(),
           new ScanFileMatches(file.location(), task.spec(), file.partition(), existing, positions));
+    }
+  }
+
+  /**
+   * Decides which data files an equality delete applies to. A delete stored with an unpartitioned
+   * spec applies to every data file. Otherwise it applies only to data files that have the same
+   * spec ID and the same partition values, as in scan planning.
+   */
+  private static class PartitionMatcher {
+    private final PartitionSpec deleteSpec;
+    private final StructLikeWrapper deletePartition;
+    private final StructLikeWrapper candidate;
+
+    PartitionMatcher(PartitionSpec deleteSpec, StructLike deletePartition) {
+      this.deleteSpec = deleteSpec;
+      if (deleteSpec.isPartitioned()) {
+        this.deletePartition =
+            StructLikeWrapper.forType(deleteSpec.partitionType()).set(deletePartition);
+        this.candidate = StructLikeWrapper.forType(deleteSpec.partitionType());
+      } else {
+        this.deletePartition = null;
+        this.candidate = null;
+      }
+    }
+
+    boolean matches(PartitionSpec dataSpec, StructLike dataPartition) {
+      if (deleteSpec.isUnpartitioned()) {
+        return true;
+      }
+
+      return dataSpec.specId() == deleteSpec.specId()
+          && deletePartition.equals(candidate.set(dataPartition));
     }
   }
 

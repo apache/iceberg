@@ -49,6 +49,7 @@ import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
@@ -181,6 +182,37 @@ public class TestEqualityDeleteConverter {
 
     commit(table, second.dataFiles(), result.dvFiles(), result.rewrittenDvFiles());
     assertThat(readRows(table)).containsExactlyInAnyOrder("2|a|v1", "3|b|v1", "4|b|v1");
+  }
+
+  @Test
+  public void testPartitionedDeletesSkipDataFilesOfOtherSpecs() throws IOException {
+    Table table = createTable(PartitionSpec.builderFor(SCHEMA).identity("category").build());
+    equalityFieldIds = ImmutableList.of(1, 2);
+
+    WriteResult first = write(table, insert(1L, "a", "v1"), insert(2L, "a", "v1"));
+    commit(table, first.dataFiles(), first.deleteFiles(), ImmutableList.of());
+
+    table.updateSpec().addField(Expressions.bucket("id", 4)).commit();
+    WriteResult second = write(table, insert(3L, "a", "v1"));
+    commit(table, second.dataFiles(), second.deleteFiles(), ImmutableList.of());
+    long baseSnapshotId = table.currentSnapshot().snapshotId();
+
+    WriteResult third = write(table, delete(1L, "a"), delete(3L, "a"));
+
+    // the equality deletes committed as they are define the expected rows: a delete stored with
+    // the new spec does not apply to the data file written with the old spec
+    table.manageSnapshots().createBranch("expected", baseSnapshotId).commit();
+    RowDelta expected = table.newRowDelta().toBranch("expected");
+    Arrays.stream(third.deleteFiles()).forEach(expected::addDeletes);
+    expected.commit();
+    Set<String> expectedRows = readRows(table, table.snapshot("expected").snapshotId());
+    assertThat(expectedRows).containsExactlyInAnyOrder("1|a|v1", "2|a|v1");
+
+    EqualityDeleteConverter converter = new EqualityDeleteConverter(table, null);
+    EqualityDeleteConverter.Result result = converter.convert(Arrays.asList(third.deleteFiles()));
+    commit(table, third.dataFiles(), result.dvFiles(), result.rewrittenDvFiles());
+
+    assertThat(readRows(table)).isEqualTo(expectedRows);
   }
 
   @Test
@@ -665,8 +697,13 @@ public class TestEqualityDeleteConverter {
   }
 
   private static Set<String> readRows(Table table) {
+    return readRows(table, table.currentSnapshot().snapshotId());
+  }
+
+  private static Set<String> readRows(Table table, long snapshotId) {
     Set<String> rows = Sets.newHashSet();
-    try (CloseableIterable<Record> records = IcebergGenerics.read(table).build()) {
+    try (CloseableIterable<Record> records =
+        IcebergGenerics.read(table).useSnapshot(snapshotId).build()) {
       for (Record record : records) {
         rows.add(
             record.getField("id")
