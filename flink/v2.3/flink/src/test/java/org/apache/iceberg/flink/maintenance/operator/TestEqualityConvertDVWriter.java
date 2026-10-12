@@ -157,9 +157,10 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
       harness.processBothWatermarks(new Watermark(time));
       assertThat(harness.extractOutputValues()).isEmpty();
 
-      // The real plan that follows still drives the write.
+      // The real plan that follows still drives the write. The watermark must advance past the
+      // previous one for the operator to process it.
       harness.processElement2(new StreamRecord<>(emptyEqualityConvertPlan(), time));
-      harness.processBothWatermarks(new Watermark(time));
+      harness.processBothWatermarks(new Watermark(time + 1));
 
       List<DVWriteResult> output = harness.extractOutputValues();
       assertThat(output).hasSize(1);
