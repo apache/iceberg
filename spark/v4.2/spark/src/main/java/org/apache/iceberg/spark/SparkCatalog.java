@@ -67,6 +67,7 @@ import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.SparkView;
 import org.apache.iceberg.spark.source.StagedSparkTable;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.UpdateViewProperties;
@@ -140,6 +141,14 @@ public class SparkCatalog extends BaseCatalog {
           ViewProperties.METADATA_COMPRESSION,
           ViewProperties.WRITE_METADATA_LOCATION,
           ViewProperties.REPLACE_DROP_DIALECT_ALLOWED);
+  private static final Set<String> COLUMN_PROPERTY_PREFIXES =
+      ImmutableSet.of(
+          TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
+          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX,
+          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX,
+          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX,
+          TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX,
+          TableProperties.PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX);
 
   private enum ViewCommit {
     CREATE,
@@ -235,7 +244,9 @@ public class SparkCatalog extends BaseCatalog {
       org.apache.iceberg.Table sourceIcebergTable = sparkTable.table();
       icebergSchema = sparkTable.icebergSchema();
       spec = copyPartitionSpec(icebergSchema, sourceIcebergTable.spec());
-      properties.putAll(sourceIcebergTable.properties());
+      properties.putAll(
+          copyColumnProperties(
+              sourceIcebergTable.properties(), sourceIcebergTable.schema(), icebergSchema));
       properties.remove(TableProperties.WRITE_METADATA_LOCATION);
       properties.remove(TableProperties.WRITE_DATA_LOCATION);
       properties.remove(TableProperties.OBJECT_STORE_PATH);
@@ -246,6 +257,8 @@ public class SparkCatalog extends BaseCatalog {
           String.valueOf(TableUtil.formatVersion(sourceIcebergTable)));
       sortOrder = copySortOrder(icebergSchema, sourceIcebergTable.sortOrder());
     } else {
+      // Spark passes the column defaults of a non-Iceberg source as SQL text only, which
+      // convertWithDefaults rejects, so cloning a source column with a default fails for now
       icebergSchema = SparkSchemaUtil.convertWithDefaults(tableInfo);
       spec = Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions());
     }
@@ -280,6 +293,30 @@ public class SparkCatalog extends BaseCatalog {
     } catch (AlreadyExistsException e) {
       throw new TableAlreadyExistsException(ident);
     }
+  }
+
+  /**
+   * Returns the source properties with column-specific properties renamed or dropped to match the
+   * given schema, since those properties name columns of the current schema, which can differ from
+   * the schema of a pinned snapshot.
+   */
+  private static Map<String, String> copyColumnProperties(
+      Map<String, String> properties, Schema currentSchema, Schema schema) {
+    List<String> deletedColumns = Lists.newArrayList();
+    Map<String, String> renamedColumns = Maps.newHashMap();
+    TypeUtil.indexByName(currentSchema.asStruct())
+        .forEach(
+            (name, id) -> {
+              String nameInSchema = schema.findColumnName(id);
+              if (nameInSchema == null) {
+                deletedColumns.add(name);
+              } else if (!nameInSchema.equals(name)) {
+                renamedColumns.put(name, nameInSchema);
+              }
+            });
+
+    return PropertyUtil.applySchemaChanges(
+        properties, deletedColumns, renamedColumns, COLUMN_PROPERTY_PREFIXES);
   }
 
   private static PartitionSpec copyPartitionSpec(Schema schema, PartitionSpec sourceSpec) {

@@ -174,6 +174,45 @@ public class TestCreateTable extends CatalogTestBase {
   }
 
   @TestTemplate
+  void createTableLikeUsesSnapshotColumnPropertyNames() {
+    assumeThat(catalogName)
+        .as("Spark session catalog does not support extended table names")
+        .isNotEqualTo("spark_catalog");
+
+    String sourceName = tableName("source");
+    TableIdentifier sourceIdent = TableIdentifier.of(Namespace.of("default"), "source");
+    Schema schema =
+        new Schema(
+            NestedField.required(1, "id", Types.LongType.get()),
+            NestedField.optional(2, "data", Types.StringType.get()));
+    String dataMetrics = TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data";
+    String payloadMetrics = TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "payload";
+    String extraMetrics = TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "extra";
+
+    try {
+      Table source =
+          validationCatalog
+              .buildTable(sourceIdent, schema)
+              .withProperty(dataMetrics, "full")
+              .create();
+      source.newAppend().commit();
+      long snapshotId = source.currentSnapshot().snapshotId();
+      sql("ALTER TABLE %s RENAME COLUMN data TO payload", sourceName);
+      sql("ALTER TABLE %s ADD COLUMN extra STRING", sourceName);
+      sql("ALTER TABLE %s SET TBLPROPERTIES ('%s'='counts')", sourceName, extraMetrics);
+
+      sql("CREATE TABLE %s LIKE %s.snapshot_id_%s", tableName, sourceName, snapshotId);
+
+      Table target = validationCatalog.loadTable(tableIdent);
+      assertThat(target.properties())
+          .containsEntry(dataMetrics, "full")
+          .doesNotContainKeys(payloadMetrics, extraMetrics);
+    } finally {
+      sql("DROP TABLE IF EXISTS %s", sourceName);
+    }
+  }
+
+  @TestTemplate
   void createTableLikeOmitsSortFieldsAddedAfterSnapshot() {
     assumeThat(catalogName)
         .as("Spark session catalog does not support extended table names")
