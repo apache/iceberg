@@ -281,12 +281,14 @@ public class NessieIcebergClient implements AutoCloseable {
           throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
         }
 
+        // escape the name so it stays a single CEL string literal
+        String rootName = root.name().replace("\\", "\\\\").replace("'", "\\'");
         filter +=
             String.format(
                 Locale.ROOT,
                 "size(entry.keyElements) == %d && entry.encodedKey.startsWith('%s.')",
                 root.getElementCount() + 1,
-                root.name());
+                rootName);
       }
       List<ContentKey> entries =
           withReference(api.getEntries()).filter(filter).stream()
