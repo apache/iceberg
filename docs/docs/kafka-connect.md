@@ -48,8 +48,12 @@ The connector zip archive is created as part of the Iceberg build. You can run t
 ```bash
 ./gradlew -x test -x integrationTest clean build
 ```
-The zip archive will be found under `./kafka-connect/kafka-connect-runtime/build/distributions`. There is
-one distribution that bundles the Hive Metastore client and related dependencies, and one that does not.
+The zip archive will be found under `./kafka-connect/kafka-connect-runtime/build/distributions`. The default
+build produces a distribution that does not bundle the Hive Metastore client. A distribution that also bundles
+the Hive Metastore client and related dependencies is not built by default; to build it, run:
+```bash
+./gradlew :iceberg-kafka-connect:iceberg-kafka-connect-runtime:hiveDistZip
+```
 Copy the distribution archive into the Kafka Connect plugins directory on all nodes.
 
 ## Requirements
@@ -125,8 +129,8 @@ Messages should be converted to a struct or map using the appropriate Kafka Conn
 The `iceberg.catalog.*` properties are required for connecting to the Iceberg catalog. The core catalog
 types are included in the default distribution, including REST, Glue, DynamoDB, Hadoop, Nessie,
 JDBC, Hive and BigQuery Metastore. JDBC drivers are not included in the default distribution, so you will need to include
-those if needed. When using a Hive catalog, you can use the distribution that includes the Hive metastore client,
-otherwise you will need to include that yourself.
+those if needed. When using a Hive catalog, you will need to include the Hive Metastore client yourself or build
+the distribution that bundles it (see [Installation](#installation)).
 
 To set the catalog type, you can set `iceberg.catalog.type` to `rest`, `hive`, or `hadoop`. For other
 catalog types, you need to instead set `iceberg.catalog.catalog-impl` to the name of the catalog class.
@@ -142,7 +146,7 @@ catalog types, you need to instead set `iceberg.catalog.catalog-impl` to the nam
 
 #### Hive example
 
-NOTE: Use the distribution that includes the HMS client (or include the HMS client yourself). Use `S3FileIO` when
+NOTE: Include the HMS client yourself, or build the distribution that bundles it. Use `S3FileIO` when
 using S3 for storage and `GCSFileIO` when using GCS (the default is `HadoopFileIO` with `HiveCatalog`).
 ```
 "iceberg.catalog.type": "hive",
