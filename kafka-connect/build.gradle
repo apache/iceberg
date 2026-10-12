@@ -254,7 +254,11 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   integrationTest.dependsOn installDist
   check.dependsOn integrationTest
 
-  assemble.dependsOn distZip, hiveDistZip
+  // assemble builds every distribution's archives through the archives configuration;
+  // keep the Hive distribution opt-in via assembleHiveDist
+  configurations.archives.artifacts.removeAll {
+    it.file in [hiveDistZip.archiveFile.get().asFile, hiveDistTar.archiveFile.get().asFile]
+  }
 
   apply from: "${rootDir}/runtime-deps.gradle"
 }
