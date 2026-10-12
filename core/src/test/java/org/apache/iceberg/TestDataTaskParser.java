@@ -159,7 +159,7 @@ public class TestDataTaskParser {
   public void roundTripSerde() {
     StaticDataTask dataTask = (StaticDataTask) createDataTask();
     String jsonStr = ScanTaskParser.toJson(dataTask);
-    assertThat(jsonStr).isEqualTo(snapshotsDataTaskJson());
+    assertThat(jsonStr).isEqualTo(snapshotsDataTaskJson(dataTask.sizeBytes()));
     StaticDataTask deserializedTask = (StaticDataTask) ScanTaskParser.fromJson(jsonStr, true);
     assertDataTaskEquals(dataTask, deserializedTask);
   }
@@ -236,14 +236,14 @@ public class TestDataTaskParser {
                 null));
 
     return StaticDataTask.of(
-        Files.localInput("file:/tmp/metadata2.json"),
+        "/tmp/metadata2.json",
         SNAPSHOT_SCHEMA,
         SNAPSHOT_SCHEMA,
         snapshots,
         TestDataTaskParser::snapshotToRow);
   }
 
-  private String snapshotsDataTaskJson() {
+  private String snapshotsDataTaskJson(long sizeBytes) {
     return "{\"task-type\":\"data-task\","
         + "\"schema\":{\"type\":\"struct\",\"schema-id\":0,"
         + "\"fields\":[{\"id\":1,\"name\":\"committed_at\",\"required\":true,\"type\":\"timestamptz\"},"
@@ -266,7 +266,9 @@ public class TestDataTaskParser {
         + "\"metadata-file\":{\"spec-id\":0,\"content\":\"data\","
         + "\"file-path\":\"/tmp/metadata2.json\","
         + "\"file-format\":\"metadata\",\"partition\":[],"
-        + "\"file-size-in-bytes\":0,\"record-count\":2,\"sort-order-id\":0},"
+        + "\"file-size-in-bytes\":"
+        + sizeBytes
+        + ",\"record-count\":2,\"sort-order-id\":0},"
         + "\"rows\":[{\"1\":\"2009-02-13T23:31:30+00:00\",\"2\":1,\"4\":\"append\","
         + "\"5\":\"file:/tmp/manifest1.avro\","
         + "\"6\":{\"keys\":[\"added-data-files\",\"added-records\",\"added-files-size\",\"changed-partition-count\","

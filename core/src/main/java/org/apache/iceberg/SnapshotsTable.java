@@ -59,7 +59,7 @@ public class SnapshotsTable extends BaseMetadataTable {
 
   private DataTask task(BaseTableScan scan) {
     return StaticDataTask.of(
-        table().io().newInputFile(table().operations().current().metadataFileLocation()),
+        table().operations().current().metadataFileLocation(),
         schema(),
         scan.schema(),
         table().snapshots(),
