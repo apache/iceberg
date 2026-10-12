@@ -706,15 +706,15 @@ class TestManifestInfoStruct {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {-1, 1, 2, 3, 5})
+  @ValueSource(ints = {-1, 1, 2, 3})
   void builderRejectsUndefinedFormatVersion(int version) {
     assertThatThrownBy(() -> ManifestInfoStruct.builder().formatVersion(version))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid format version: " + version + " (must be 0 or 4)");
+        .hasMessage("Invalid format version: " + version + " (must be 0 or >= 4)");
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {0, 4})
+  @ValueSource(ints = {0, 4, 5})
   void builderAcceptsValidFormatVersion(int version) {
     ManifestInfoStruct info =
         ManifestInfoStruct.builder()
