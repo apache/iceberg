@@ -315,9 +315,10 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                       && !validIds.contains(entry.snapshotId())) {
                     // use toString to ensure the path will not change (Utf8 is reused)
                     String location = entry.file().location();
-                    filesToDelete.add(location);
                     if (entry.file().format() == FileFormat.PUFFIN) {
                       deletionVectorsToDelete.add(location);
+                    } else {
+                      filesToDelete.add(location);
                     }
                   }
                 }
@@ -326,8 +327,8 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
               }
             });
 
-    retainReferencedDeletionVectors(
-        filesToDelete, deletionVectorsToDelete, liveDeleteManifests, specsById);
+    filesToDelete.addAll(
+        unreferencedDeletionVectors(deletionVectorsToDelete, liveDeleteManifests, specsById));
 
     Tasks.foreach(manifestsToRevert)
         .retry(3)
@@ -356,14 +357,16 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
   }
 
   // A Puffin file can be shared by multiple deletion vectors, so keep it if any live one remains
-  private void retainReferencedDeletionVectors(
-      Set<String> filesToDelete,
+  private Set<String> unreferencedDeletionVectors(
       Set<String> deletionVectorsToDelete,
       Collection<ManifestFile> liveDeleteManifests,
       Map<Integer, PartitionSpec> specsById) {
     if (deletionVectorsToDelete.isEmpty()) {
-      return;
+      return deletionVectorsToDelete;
     }
+
+    Set<String> unreferenced = ConcurrentHashMap.newKeySet();
+    unreferenced.addAll(deletionVectorsToDelete);
 
     try {
       Tasks.foreach(liveDeleteManifests)
@@ -382,9 +385,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                 try (CloseableIterable<String> paths =
                     ManifestFiles.readPaths(manifest, fileIO, specsById)) {
                   for (String path : paths) {
-                    if (deletionVectorsToDelete.contains(path)) {
-                      filesToDelete.remove(path);
-                    }
+                    unreferenced.remove(path);
                   }
                 } catch (IOException e) {
                   throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
@@ -392,7 +393,9 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
               });
     } catch (Throwable e) {
       LOG.warn("Failed to list all live deletion vectors, retaining deletion vector files", e);
-      filesToDelete.removeAll(deletionVectorsToDelete);
+      return Set.of();
     }
+
+    return unreferenced;
   }
 }

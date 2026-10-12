@@ -2186,6 +2186,41 @@ public class TestRemoveSnapshots extends TestBase {
         .containsExactlyInAnyOrder(newDvA.location(), dvB.location());
   }
 
+  @TestTemplate
+  public void expireDeletesPuffinFileWhenAllSharedDeletionVectorsReplaced() {
+    assumeThat(formatVersion).as("Deletion vectors require V3 or later").isGreaterThanOrEqualTo(3);
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    String sharedPuffinPath = "/path/to/shared-dvs-" + UUID.randomUUID() + ".puffin";
+    DeleteFile dvA = deletionVector(sharedPuffinPath, FILE_A, 4L);
+    DeleteFile dvB = deletionVector(sharedPuffinPath, FILE_B, 44L);
+    table.newRowDelta().addDeletes(dvA).addDeletes(dvB).commit();
+
+    DeleteFile newDvA =
+        deletionVector("/path/to/new-dv-a-" + UUID.randomUUID() + ".puffin", FILE_A, 4L);
+    DeleteFile newDvB =
+        deletionVector("/path/to/new-dv-b-" + UUID.randomUUID() + ".puffin", FILE_B, 4L);
+    table
+        .newRowDelta()
+        .validateFromSnapshot(table.currentSnapshot().snapshotId())
+        .removeDeletes(dvA)
+        .removeDeletes(dvB)
+        .addDeletes(newDvA)
+        .addDeletes(newDvB)
+        .commit();
+
+    table.newAppend().appendFile(FILE_C).commit();
+
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(deletedFiles).contains(sharedPuffinPath);
+  }
+
   private List<String> liveDeleteFilePaths() throws IOException {
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       return Lists.newArrayList(
