@@ -198,6 +198,28 @@ public class TestSparkTable extends CatalogTestBase {
   }
 
   @TestTemplate
+  void collectionElementsCannotBeDeleted() {
+    sql("ALTER TABLE %s ADD COLUMN items array<struct<x: int, y: int>>", tableName);
+    sql("ALTER TABLE %s ADD COLUMN m map<int, string>", tableName);
+    SparkTable table = loadSparkTable();
+
+    for (String[] path : new String[][] {{"items", "element"}, {"m", "key"}, {"m", "value"}}) {
+      assertThat(
+              table.supportsColumnChange(
+                  (TableChange.ColumnChange) TableChange.deleteColumn(path, false)))
+          .as("Deleting %s", String.join(".", path))
+          .isFalse();
+    }
+
+    // a field of a list element struct can still be deleted
+    assertThat(
+            table.supportsColumnChange(
+                (TableChange.ColumnChange)
+                    TableChange.deleteColumn(new String[] {"items", "element", "x"}, false)))
+        .isTrue();
+  }
+
+  @TestTemplate
   public void testMapKeySchemaEvolutionChanges() {
     sql("ALTER TABLE %s ADD COLUMN m map<int, string>", tableName);
     sql("ALTER TABLE %s ADD COLUMN value_map map<int, int>", tableName);
