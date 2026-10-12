@@ -111,6 +111,10 @@ With Dremio, an organization can easily build and manage a data lakehouse in whi
 
 DuckDB is an open-source, in-process SQL database optimized for fast analytical queries. DuckDB is not only lightweight &mdash;just a small binary&mdash;, but also extensible. One of the core extensions supported by DuckDB is the [`duckdb-iceberg` extension](https://duckdb.org/docs/stable/core_extensions/iceberg/overview), which allows DuckDB users to attach to an Iceberg catalog, query data and write to Iceberg tables. This functionality is all natively implemented in DuckDB with no external dependencies.
 
+### [Earthmover](https://earthmover.io/)
+
+[Earthmover](https://earthmover.io/) builds [Arraylake](https://docs.earthmover.io/), a cloud data catalog for scientific and geospatial data that manages both multidimensional array data (via [Icechunk](https://icechunk.io/) and Zarr) and tabular data in Apache Iceberg. Arraylake implements the Iceberg REST Catalog specification, so Iceberg namespaces and tables live alongside Icechunk repositories with shared authentication, team- and role-based access control, and bring-your-own-storage bucket configuration. The catalog issues short-lived vended credentials scoped to individual tables, and any engine that speaks the REST catalog protocol, including Apache Spark, DuckDB, Polars, PyIceberg, Snowflake, Trino, and [Zax SQL](https://docs.earthmover.io/compute/sql), can read and write tables directly. Learn more about Iceberg in Arraylake [here](https://docs.earthmover.io/iceberg/).
+
 ### [Estuary](https://estuary.dev)
 
 A low-latency, high-fidelity data movement platform, Estuary lets developers quickly set up pipelines to connect their entire data architecture. Intelligent schema inference and evolution determines field data types based on usage and keeps pipelines running when fields change. Flexible [deployment options](https://estuary.dev/deployment-options/) include public, private, and BYOC (Bring Your Own Cloud) for a range of compliance and privacy-oriented use cases.
@@ -181,6 +185,10 @@ Redpanda is both a cloud-native and self-hosted streaming platform whose [Iceber
 
 [Sail](https://github.com/lakehq/sail) is an open-source multimodal distributed compute framework, built in Rust, unifying batch, streaming, and AI workloads. For seamless adoption, Sail offers a drop-in replacement for the Spark SQL and DataFrame APIs in both single-host and distributed settings. Learn more about using Sail with Iceberg in the [Sail Iceberg guide](https://docs.lakesail.com/sail/latest/guide/sources/iceberg).
 
+### [SeaweedFS](https://seaweedfs.com/)
+
+[SeaweedFS](https://github.com/seaweedfs/seaweedfs) is an open-source distributed object store with an S3-compatible gateway. Its S3 Table Buckets provide both halves of an Iceberg deployment in a single service: an embedded Iceberg REST catalog serves table metadata, and the table bucket stores table data as Parquet files, with server-side compaction and snapshot expiration. Engines such as Spark, Trino, ClickHouse, DuckDB, Apache Doris, RisingWave, Dremio, and PyIceberg connect through the standard Iceberg REST catalog and S3 APIs.
+
 ### [SingleStore](https://singlestore.com/)
 
 SingleStore is a high‑performance, scalable, distributed SQL platform that makes real‑time analytics and transactional processing available at scale. Its native Apache Iceberg integration removes costly ETL steps and powers intelligent, millisecond‑response applications.
@@ -209,7 +217,7 @@ Starburst is a commercial offering for the [Trino query engine](https://trino.io
 
 StarTree is a real-time analytics platform that is able to deliver consistently fast, highly concurrent queries on data stored in Apache Iceberg. Built on the indexing capabilities of Apache Pinot, StarTree can precisely fetch page-level data from Parquet files, reducing unnecessary scanning and data transfer.
 
-This makes it practical and cost-effective to support [SLA-driven analytics on the lakehouse](https://startree.ai/resources/5-sla-driven-analytics-use-cases-now-possible-with-iceberg/). StarTree can power observability, customer-facing analytics, anomaly detection, and interactive business intelligence workloads without requiring data to be duplicated, pre-aggregated, or materialized into a separate serving system. StarTree is available as a managed cloud service or can be deployed within an [enterprise cloud environment](https://startree.ai/resources/byoc-beyond-the-checkbox/). Learn more in the [StarTree Docs]([https://docs.startree.ai/corecapabilities/external-table/overview).
+This makes it practical and cost-effective to support [SLA-driven analytics on the lakehouse](https://startree.ai/resources/5-sla-driven-analytics-use-cases-now-possible-with-iceberg/). StarTree can power observability, customer-facing analytics, anomaly detection, and interactive business intelligence workloads without requiring data to be duplicated, pre-aggregated, or materialized into a separate serving system. StarTree is available as a managed cloud service or can be deployed within an [enterprise cloud environment](https://startree.ai/resources/byoc-beyond-the-checkbox/). Learn more in the [StarTree Docs](https://docs.startree.ai/corecapabilities/external-table/overview).
 
 ### [StreamNative](https://streamnative.io)
 

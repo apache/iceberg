@@ -47,6 +47,7 @@ import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.InternalData;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SchemaParser;
@@ -714,6 +715,11 @@ public class Avro {
         reader = (DatumReader<D>) createResolvingReaderFunc.apply(schema);
       } else {
         reader = (DatumReader<D>) defaultCreateReaderFunc.apply(schema);
+      }
+
+      if (reader instanceof InternalReader) {
+        ((InternalReader<D>) reader)
+            .setConstant(MetadataColumns.FILE_PATH_COLUMN_ID, file.location());
       }
 
       if (reader instanceof SupportsCustomRecords) {

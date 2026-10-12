@@ -757,6 +757,42 @@ public class TestRewriteManifestsAction extends TestBase {
   }
 
   @TestTemplate
+  public void
+      testRewriteManifestsPartitionedTableWithCustomSortingOnFieldNameContainingDotAndBacktick()
+          throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "a", Types.StructType.of(optional(2, "b`c", Types.StringType.get()))),
+            optional(3, "ds", Types.StringType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("a.b`c").build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    options.put(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, snapshotIdInheritanceEnabled);
+    Table table = TABLES.create(schema, spec, options, tableLocation);
+
+    // write two manifests so the rewrite doesn't short-circuit via the "already optimal" early
+    // return, and sortColumn() actually gets exercised
+    ManifestFile manifest1 =
+        writeManifest(table, ImmutableList.of(newDataFile(table, TestHelpers.Row.of("val1"))));
+    table.newFastAppend().appendManifest(manifest1).commit();
+
+    ManifestFile manifest2 =
+        writeManifest(table, ImmutableList.of(newDataFile(table, TestHelpers.Row.of("val2"))));
+    table.newFastAppend().appendManifest(manifest2).commit();
+
+    RewriteManifests.Result result =
+        SparkActions.get()
+            .rewriteManifests(table)
+            .rewriteIf(manifest -> true)
+            .sortBy(ImmutableList.of("a.b`c"))
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+            .execute();
+
+    assertThat(result.rewrittenManifests()).hasSize(2);
+    assertThat(result.addedManifests()).hasSizeGreaterThanOrEqualTo(1);
+  }
+
+  @TestTemplate
   public void testRewriteManifestsWithPredicate() throws IOException {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").truncate("c2", 2).build();
     Map<String, String> options = Maps.newHashMap();

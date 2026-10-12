@@ -1,0 +1,270 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.iceberg.spark;
+
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.EdgeAlgorithm;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.connector.catalog.Column;
+import org.apache.spark.sql.connector.catalog.ColumnDefaultValue;
+import org.apache.spark.sql.connector.catalog.TableInfo;
+import org.apache.spark.sql.connector.expressions.Literal;
+import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.BinaryType;
+import org.apache.spark.sql.types.BooleanType;
+import org.apache.spark.sql.types.ByteType;
+import org.apache.spark.sql.types.CharType;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.DateType;
+import org.apache.spark.sql.types.DecimalType;
+import org.apache.spark.sql.types.DoubleType;
+import org.apache.spark.sql.types.EdgeInterpolationAlgorithm;
+import org.apache.spark.sql.types.FloatType;
+import org.apache.spark.sql.types.GeographyType;
+import org.apache.spark.sql.types.GeometryType;
+import org.apache.spark.sql.types.IntegerType;
+import org.apache.spark.sql.types.LongType;
+import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.NullType;
+import org.apache.spark.sql.types.ShortType;
+import org.apache.spark.sql.types.StringType;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.TimestampNTZType;
+import org.apache.spark.sql.types.TimestampType;
+import org.apache.spark.sql.types.VarcharType;
+import org.apache.spark.sql.types.VariantType;
+
+class SparkTypeToType extends SparkTypeVisitor<Type> {
+  private final StructType root;
+  private boolean includeDefaults;
+  private Map<String, Column> nameToColumnMap = Map.of();
+  private int nextId = 0;
+
+  SparkTypeToType() {
+    this.root = null;
+  }
+
+  SparkTypeToType(StructType root) {
+    this.root = root;
+    // the root struct's fields use the first ids
+    this.nextId = root.fields().length;
+  }
+
+  SparkTypeToType(TableInfo tableInfo, boolean includeDefaults) {
+    this(tableInfo.schema());
+
+    this.includeDefaults = includeDefaults;
+    this.nameToColumnMap =
+        Stream.of(tableInfo.columns()).collect(Collectors.toMap(Column::name, Function.identity()));
+  }
+
+  private int getNextId() {
+    int next = nextId;
+    nextId += 1;
+    return next;
+  }
+
+  @Override
+  public Type struct(StructType struct, List<Type> types) {
+    StructField[] fields = struct.fields();
+    List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(fields.length);
+    boolean isRoot = root != null && root.equals(struct);
+    for (int i = 0; i < fields.length; i += 1) {
+      StructField field = fields[i];
+      Type type = types.get(i);
+
+      int id;
+      if (isRoot) {
+        // for new conversions, use ordinals for ids in the root struct
+        id = i;
+      } else {
+        id = getNextId();
+      }
+
+      Types.NestedField.Builder fieldBuilder =
+          Types.NestedField.builder()
+              .isOptional(field.nullable())
+              .withId(id)
+              .withName(field.name())
+              .ofType(type);
+
+      if (field.getComment().isDefined()) {
+        fieldBuilder.withDoc(field.getComment().get());
+      }
+
+      // spark only supports defaults at the top-level
+      if (isRoot && includeDefaults) {
+        convertDefaultValue(fieldBuilder, field);
+      }
+
+      newFields.add(fieldBuilder.build());
+    }
+
+    return Types.StructType.of(newFields);
+  }
+
+  @Override
+  public Type field(StructField field, Type typeResult) {
+    return typeResult;
+  }
+
+  @Override
+  public Type array(ArrayType array, Type elementType) {
+    if (array.containsNull()) {
+      return Types.ListType.ofOptional(getNextId(), elementType);
+    } else {
+      return Types.ListType.ofRequired(getNextId(), elementType);
+    }
+  }
+
+  @Override
+  public Type map(MapType map, Type keyType, Type valueType) {
+    if (map.valueContainsNull()) {
+      return Types.MapType.ofOptional(getNextId(), getNextId(), keyType, valueType);
+    } else {
+      return Types.MapType.ofRequired(getNextId(), getNextId(), keyType, valueType);
+    }
+  }
+
+  @Override
+  public Type variant(VariantType variant) {
+    return Types.VariantType.get();
+  }
+
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  @Override
+  public Type atomic(DataType atomic) {
+    if (atomic instanceof BooleanType) {
+      return Types.BooleanType.get();
+
+    } else if (atomic instanceof IntegerType
+        || atomic instanceof ShortType
+        || atomic instanceof ByteType) {
+      return Types.IntegerType.get();
+
+    } else if (atomic instanceof LongType) {
+      return Types.LongType.get();
+
+    } else if (atomic instanceof FloatType) {
+      return Types.FloatType.get();
+
+    } else if (atomic instanceof DoubleType) {
+      return Types.DoubleType.get();
+
+    } else if (atomic instanceof StringType
+        || atomic instanceof CharType
+        || atomic instanceof VarcharType) {
+      return Types.StringType.get();
+
+    } else if (atomic instanceof DateType) {
+      return Types.DateType.get();
+
+    } else if (atomic instanceof TimestampType) {
+      return Types.TimestampType.withZone();
+
+    } else if (atomic instanceof TimestampNTZType) {
+      return Types.TimestampType.withoutZone();
+
+    } else if (atomic instanceof DecimalType) {
+      return Types.DecimalType.of(
+          ((DecimalType) atomic).precision(), ((DecimalType) atomic).scale());
+    } else if (atomic instanceof BinaryType) {
+      return Types.BinaryType.get();
+    } else if (atomic instanceof GeometryType) {
+      GeometryType geometry = (GeometryType) atomic;
+      if (geometry.isMixedSrid()) {
+        throw new UnsupportedOperationException(
+            "Cannot convert Spark geometry with mixed SRID to Iceberg");
+      }
+      return Types.GeometryType.of(geometry.crs());
+    } else if (atomic instanceof GeographyType) {
+      GeographyType geography = (GeographyType) atomic;
+      if (geography.isMixedSrid()) {
+        throw new UnsupportedOperationException(
+            "Cannot convert Spark geography with mixed SRID to Iceberg");
+      }
+      return Types.GeographyType.of(geography.crs(), convertAlgorithm(geography.algorithm()));
+    } else if (atomic instanceof NullType) {
+      return Types.UnknownType.get();
+    }
+
+    throw new UnsupportedOperationException("Not a supported type: " + atomic.catalogString());
+  }
+
+  // Translates Spark's edge-interpolation algorithm to Iceberg's, mirroring
+  // TypeToSparkType#convertAlgorithm. Spark supports only the spherical algorithm today; anything
+  // else is rejected loudly rather than silently defaulting, so a new Spark algorithm surfaces here
+  // instead of being dropped.
+  private static EdgeAlgorithm convertAlgorithm(EdgeInterpolationAlgorithm algorithm) {
+    switch (algorithm.toString().toUpperCase(Locale.ROOT)) {
+      case "SPHERICAL":
+        return EdgeAlgorithm.SPHERICAL;
+      default:
+        throw new UnsupportedOperationException(
+            "Iceberg does not support Spark geography edge algorithm: " + algorithm);
+    }
+  }
+
+  private void convertDefaultValue(Types.NestedField.Builder icebergField, StructField sparkField) {
+    Column column = nameToColumnMap.get(sparkField.name());
+
+    if (column == null) {
+      return;
+    }
+
+    ColumnDefaultValue columnDefaultValue = column.defaultValue();
+
+    if (columnDefaultValue == null) {
+      return;
+    }
+
+    if (columnDefaultValue.getExpression() == null && columnDefaultValue.getSql() != null) {
+      throw new UnsupportedOperationException(
+          "Unsupported default value expression: " + columnDefaultValue.getSql());
+    }
+
+    if (columnDefaultValue.getExpression() != null
+        && !SparkV2Filters.isLiteral(columnDefaultValue.getExpression())) {
+      throw new UnsupportedOperationException(
+          "Default value expressions are not supported in Iceberg");
+    }
+
+    // ColumnDefaultValue.getValue is equivalent to initial-default in Iceberg
+    Literal<?> initialDefault = columnDefaultValue.getValue();
+    if (initialDefault != null && initialDefault.value() != null) {
+      icebergField.withInitialDefault(
+          Expressions.lit(SparkV2Filters.convertLiteral(initialDefault)));
+    }
+
+    // ColumnDefaultValue.getExpression() is equivalent to write-default in Iceberg
+    Literal<?> writeDefault = (Literal<?>) columnDefaultValue.getExpression();
+    if (writeDefault != null && writeDefault.value() != null) {
+      icebergField.withWriteDefault(Expressions.lit(SparkV2Filters.convertLiteral(writeDefault)));
+    }
+  }
+}

@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -46,8 +47,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.signer.AwsSignerExecutionAttribute;
 import software.amazon.awssdk.core.interceptor.ExecutionAttributes;
 import software.amazon.awssdk.http.SdkHttpFullRequest;
@@ -108,6 +111,69 @@ class TestS3V4RestSignerClient {
   void afterEach() {
     IoUtils.closeQuietlyV2(S3V4RestSignerClient.authManager, null);
     S3V4RestSignerClient.authManager = null;
+  }
+
+  /**
+   * A server may write the Cache-Control field name in any case, and HTTP/2 requires it to be
+   * lowercase, so the spelling it chose must not decide whether the signed component is cached.
+   */
+  @SuppressWarnings("deprecation")
+  @ParameterizedTest
+  @ValueSource(strings = {"Cache-Control", "cache-control"})
+  void signedComponentIsCachedRegardlessOfCacheControlHeaderCase(String cacheControlHeader)
+      throws Exception {
+    // the signing cache is static and keyed on method, region and URI
+    URI uri = URI.create("https://bucket.s3.us-west-2.amazonaws.com/" + UUID.randomUUID());
+    AtomicInteger signRequests = new AtomicInteger();
+
+    when(S3V4RestSignerClient.httpClient.post(
+            Mockito.anyString(),
+            Mockito.any(),
+            Mockito.eq(RemoteSignResponse.class),
+            Mockito.anyMap(),
+            Mockito.any(),
+            Mockito.any()))
+        .thenAnswer(
+            invocation -> {
+              signRequests.incrementAndGet();
+              Consumer<Map<String, String>> responseHeaders = invocation.getArgument(5);
+              responseHeaders.accept(Map.of(cacheControlHeader, "private"));
+              return ImmutableRemoteSignResponse.builder()
+                  .uri(uri)
+                  .headers(Map.of("Authorization", List.of("AWS4-HMAC-SHA256 Credential=key")))
+                  .build();
+            });
+
+    ExecutionAttributes executionAttributes =
+        ExecutionAttributes.builder()
+            .put(
+                AwsSignerExecutionAttribute.AWS_CREDENTIALS,
+                AwsBasicCredentials.create("accessKeyId", "secretAccessKey"))
+            .put(AwsSignerExecutionAttribute.SIGNING_REGION, Region.US_WEST_2)
+            .put(AwsSignerExecutionAttribute.SERVICE_SIGNING_NAME, "s3")
+            .build();
+
+    try (S3V4RestSignerClient client =
+        ImmutableS3V4RestSignerClient.builder()
+            .properties(
+                Map.of(
+                    CatalogProperties.URI,
+                    "https://signer.com",
+                    RESTCatalogProperties.REMOTE_SIGNING_ENDPOINT,
+                    "v1/namespaces/ns1/tables/t1/sign",
+                    OAuth2Properties.TOKEN,
+                    "token"))
+            .build()) {
+      SdkHttpFullRequest request =
+          SdkHttpFullRequest.builder().uri(uri).method(SdkHttpMethod.GET).build();
+
+      client.sign(request, executionAttributes);
+      client.sign(request, executionAttributes);
+    }
+
+    assertThat(signRequests.get())
+        .as("the signed component should be cached, so the repeated request must not sign again")
+        .isEqualTo(1);
   }
 
   @ParameterizedTest

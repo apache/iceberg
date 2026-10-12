@@ -153,6 +153,23 @@ public class TestResourcePaths {
   }
 
   @Test
+  public void nestedNamespaceAsPathSegmentWithCustomSeparator() {
+    Namespace namespace = Namespace.of("first second", "third");
+    String separator = RESTCatalogAdapter.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+
+    ResourcePaths pathsWithCustomSeparator =
+        ResourcePaths.forCatalogProperties(
+            ImmutableMap.of(RESTCatalogProperties.NAMESPACE_SEPARATOR, separator));
+
+    String actual = pathsWithCustomSeparator.namespace(namespace);
+    assertThat(actual)
+        .contains(RESTUtil.encodeNamespaceAsPathSegment(namespace, separator))
+        .contains(separator)
+        .contains("%20")
+        .doesNotContain("+");
+  }
+
+  @Test
   public void testNamespaceProperties() {
     Namespace ns = Namespace.of("ns");
     assertThat(withPrefix.namespaceProperties(ns))
@@ -177,6 +194,22 @@ public class TestResourcePaths {
   }
 
   @Test
+  public void testNamespacePropertiesWithSpace() {
+    Namespace ns = Namespace.of("n s");
+    assertThat(withPrefix.namespaceProperties(ns))
+        .isEqualTo("v1/ws/catalog/namespaces/n%20s/properties");
+    assertThat(withoutPrefix.namespaceProperties(ns)).isEqualTo("v1/namespaces/n%20s/properties");
+  }
+
+  @Test
+  public void testNamespacePropertiesWithPlusSign() {
+    Namespace ns = Namespace.of("n+s");
+    assertThat(withPrefix.namespaceProperties(ns))
+        .isEqualTo("v1/ws/catalog/namespaces/n%2Bs/properties");
+    assertThat(withoutPrefix.namespaceProperties(ns)).isEqualTo("v1/namespaces/n%2Bs/properties");
+  }
+
+  @Test
   public void testTables() {
     Namespace ns = Namespace.of("ns");
     assertThat(withPrefix.tables(ns)).isEqualTo("v1/ws/catalog/namespaces/ns/tables");
@@ -195,6 +228,20 @@ public class TestResourcePaths {
     Namespace ns = Namespace.of("n", "s");
     assertThat(withPrefix.tables(ns)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/tables");
     assertThat(withoutPrefix.tables(ns)).isEqualTo("v1/namespaces/n%1Fs/tables");
+  }
+
+  @Test
+  public void testTablesWithSpace() {
+    Namespace ns = Namespace.of("n s");
+    assertThat(withPrefix.tables(ns)).isEqualTo("v1/ws/catalog/namespaces/n%20s/tables");
+    assertThat(withoutPrefix.tables(ns)).isEqualTo("v1/namespaces/n%20s/tables");
+  }
+
+  @Test
+  public void testTablesWithPlusSign() {
+    Namespace ns = Namespace.of("n+s");
+    assertThat(withPrefix.tables(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Bs/tables");
+    assertThat(withoutPrefix.tables(ns)).isEqualTo("v1/namespaces/n%2Bs/tables");
   }
 
   @Test
@@ -219,10 +266,80 @@ public class TestResourcePaths {
   }
 
   @Test
+  public void testNamespaceWithSpace() {
+    Namespace ns = Namespace.of("n s");
+    assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%20s");
+    assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%20s");
+  }
+
+  @Test
+  public void testMultipartNamespaceWithSpace() {
+    Namespace ns = Namespace.of("n s", "a b");
+    assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%20s%1Fa%20b");
+    assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%20s%1Fa%20b");
+  }
+
+  @Test
+  public void testNamespaceWithPlusSign() {
+    Namespace ns = Namespace.of("n+s");
+    assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Bs");
+    assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%2Bs");
+  }
+
+  @Test
+  public void testMultipartNamespaceWithPlusSign() {
+    Namespace ns = Namespace.of("n+s", "a+b");
+    assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Bs%1Fa%2Bb");
+    assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%2Bs%1Fa%2Bb");
+  }
+
+  @Test
+  public void testTableWithSpace() {
+    TableIdentifier ident = TableIdentifier.of("ns", "my table");
+    assertThat(withPrefix.table(ident)).isEqualTo("v1/ws/catalog/namespaces/ns/tables/my%20table");
+    assertThat(withoutPrefix.table(ident)).isEqualTo("v1/namespaces/ns/tables/my%20table");
+  }
+
+  @Test
+  public void testTableWithPlusSign() {
+    TableIdentifier ident = TableIdentifier.of("ns", "a+b");
+    assertThat(withPrefix.table(ident)).isEqualTo("v1/ws/catalog/namespaces/ns/tables/a%2Bb");
+    assertThat(withoutPrefix.table(ident)).isEqualTo("v1/namespaces/ns/tables/a%2Bb");
+  }
+
+  @Test
+  public void testViewWithSpace() {
+    TableIdentifier ident = TableIdentifier.of("ns", "my view");
+    assertThat(withPrefix.view(ident)).isEqualTo("v1/ws/catalog/namespaces/ns/views/my%20view");
+    assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/ns/views/my%20view");
+  }
+
+  @Test
+  public void testViewWithPlusSign() {
+    TableIdentifier ident = TableIdentifier.of("ns", "a+b");
+    assertThat(withPrefix.view(ident)).isEqualTo("v1/ws/catalog/namespaces/ns/views/a%2Bb");
+    assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/ns/views/a%2Bb");
+  }
+
+  @Test
   public void testRegister() {
     Namespace ns = Namespace.of("ns");
     assertThat(withPrefix.register(ns)).isEqualTo("v1/ws/catalog/namespaces/ns/register");
     assertThat(withoutPrefix.register(ns)).isEqualTo("v1/namespaces/ns/register");
+  }
+
+  @Test
+  public void testRegisterWithSpace() {
+    Namespace ns = Namespace.of("n s");
+    assertThat(withPrefix.register(ns)).isEqualTo("v1/ws/catalog/namespaces/n%20s/register");
+    assertThat(withoutPrefix.register(ns)).isEqualTo("v1/namespaces/n%20s/register");
+  }
+
+  @Test
+  public void testRegisterWithPlusSign() {
+    Namespace ns = Namespace.of("n+s");
+    assertThat(withPrefix.register(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Bs/register");
+    assertThat(withoutPrefix.register(ns)).isEqualTo("v1/namespaces/n%2Bs/register");
   }
 
   @Test
@@ -244,6 +361,20 @@ public class TestResourcePaths {
     Namespace ns = Namespace.of("n", "s");
     assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/views");
     assertThat(withoutPrefix.views(ns)).isEqualTo("v1/namespaces/n%1Fs/views");
+  }
+
+  @Test
+  public void viewsWithSpace() {
+    Namespace ns = Namespace.of("n s");
+    assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/namespaces/n%20s/views");
+    assertThat(withoutPrefix.views(ns)).isEqualTo("v1/namespaces/n%20s/views");
+  }
+
+  @Test
+  public void viewsWithPlusSign() {
+    Namespace ns = Namespace.of("n+s");
+    assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Bs/views");
+    assertThat(withoutPrefix.views(ns)).isEqualTo("v1/namespaces/n%2Bs/views");
   }
 
   @Test
@@ -276,6 +407,22 @@ public class TestResourcePaths {
   }
 
   @Test
+  public void testRegisterViewWithSpace() {
+    Namespace ns = Namespace.of("n s");
+    assertThat(withPrefix.registerView(ns))
+        .isEqualTo("v1/ws/catalog/namespaces/n%20s/register-view");
+    assertThat(withoutPrefix.registerView(ns)).isEqualTo("v1/namespaces/n%20s/register-view");
+  }
+
+  @Test
+  public void testRegisterViewWithPlusSign() {
+    Namespace ns = Namespace.of("n+s");
+    assertThat(withPrefix.registerView(ns))
+        .isEqualTo("v1/ws/catalog/namespaces/n%2Bs/register-view");
+    assertThat(withoutPrefix.registerView(ns)).isEqualTo("v1/namespaces/n%2Bs/register-view");
+  }
+
+  @Test
   public void planEndpointPath() {
     TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
 
@@ -290,6 +437,24 @@ public class TestResourcePaths {
         .isEqualTo("v1/ws/catalog/namespaces/db%1Fschema/tables/my_table/plan");
     assertThat(withoutPrefix.planTableScan(complexId))
         .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/plan");
+  }
+
+  @Test
+  public void testPlanTableScanWithSpace() {
+    TableIdentifier ident = TableIdentifier.of("n s", "my table");
+    assertThat(withPrefix.planTableScan(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/n%20s/tables/my%20table/plan");
+    assertThat(withoutPrefix.planTableScan(ident))
+        .isEqualTo("v1/namespaces/n%20s/tables/my%20table/plan");
+  }
+
+  @Test
+  public void testPlanTableScanWithPlusSign() {
+    TableIdentifier ident = TableIdentifier.of("n+s", "a+b");
+    assertThat(withPrefix.planTableScan(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/n%2Bs/tables/a%2Bb/plan");
+    assertThat(withoutPrefix.planTableScan(ident))
+        .isEqualTo("v1/namespaces/n%2Bs/tables/a%2Bb/plan");
   }
 
   @Test
@@ -310,6 +475,24 @@ public class TestResourcePaths {
   }
 
   @Test
+  public void testFetchScanTasksWithSpace() {
+    TableIdentifier ident = TableIdentifier.of("n s", "my table");
+    assertThat(withPrefix.fetchScanTasks(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/n%20s/tables/my%20table/tasks");
+    assertThat(withoutPrefix.fetchScanTasks(ident))
+        .isEqualTo("v1/namespaces/n%20s/tables/my%20table/tasks");
+  }
+
+  @Test
+  public void testFetchScanTasksWithPlusSign() {
+    TableIdentifier ident = TableIdentifier.of("n+s", "a+b");
+    assertThat(withPrefix.fetchScanTasks(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/n%2Bs/tables/a%2Bb/tasks");
+    assertThat(withoutPrefix.fetchScanTasks(ident))
+        .isEqualTo("v1/namespaces/n%2Bs/tables/a%2Bb/tasks");
+  }
+
+  @Test
   public void cancelPlanEndpointPath() {
     TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
     String planId = "plan-abc-123";
@@ -321,8 +504,8 @@ public class TestResourcePaths {
 
     // The planId contains a space which needs to be encoded
     String spaceSeparatedPlanId = "plan with spaces";
-    // The expected encoded version of the planId
-    String encodedPlanId = "plan+with+spaces";
+    // The expected encoded version of the planId (RFC 3986: space -> %20)
+    String encodedPlanId = "plan%20with%20spaces";
 
     assertThat(withPrefix.plan(tableId, spaceSeparatedPlanId))
         .isEqualTo(
@@ -339,6 +522,15 @@ public class TestResourcePaths {
   }
 
   @Test
+  public void cancelPlanEndpointPathWithPlusSign() {
+    TableIdentifier tableId = TableIdentifier.of("ns", "table");
+    assertThat(withPrefix.plan(tableId, "plan+id"))
+        .isEqualTo("v1/ws/catalog/namespaces/ns/tables/table/plan/plan%2Bid");
+    assertThat(withoutPrefix.plan(tableId, "plan+id"))
+        .isEqualTo("v1/namespaces/ns/tables/table/plan/plan%2Bid");
+  }
+
+  @Test
   public void testRemoteSign() {
     TableIdentifier tableId = TableIdentifier.of("test_namespace", "test_table");
     assertThat(withPrefix.remoteSign(tableId))
@@ -352,5 +544,47 @@ public class TestResourcePaths {
         .isEqualTo("v1/ws/catalog/namespaces/db%1Fschema/tables/my_table/sign");
     assertThat(withoutPrefix.remoteSign(complexId))
         .isEqualTo("v1/namespaces/db%1Fschema/tables/my_table/sign");
+  }
+
+  @Test
+  public void testRemoteSignWithSpace() {
+    TableIdentifier ident = TableIdentifier.of("n s", "my table");
+    assertThat(withPrefix.remoteSign(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/n%20s/tables/my%20table/sign");
+    assertThat(withoutPrefix.remoteSign(ident))
+        .isEqualTo("v1/namespaces/n%20s/tables/my%20table/sign");
+  }
+
+  @Test
+  public void testRemoteSignWithPlusSign() {
+    TableIdentifier ident = TableIdentifier.of("n+s", "a+b");
+    assertThat(withPrefix.remoteSign(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/n%2Bs/tables/a%2Bb/sign");
+    assertThat(withoutPrefix.remoteSign(ident)).isEqualTo("v1/namespaces/n%2Bs/tables/a%2Bb/sign");
+  }
+
+  @Test
+  public void testMetrics() {
+    TableIdentifier ident = TableIdentifier.of("ns", "table");
+    assertThat(withPrefix.metrics(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/ns/tables/table/metrics");
+    assertThat(withoutPrefix.metrics(ident)).isEqualTo("v1/namespaces/ns/tables/table/metrics");
+  }
+
+  @Test
+  public void testMetricsWithSpace() {
+    TableIdentifier ident = TableIdentifier.of("n s", "my table");
+    assertThat(withPrefix.metrics(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/n%20s/tables/my%20table/metrics");
+    assertThat(withoutPrefix.metrics(ident))
+        .isEqualTo("v1/namespaces/n%20s/tables/my%20table/metrics");
+  }
+
+  @Test
+  public void testMetricsWithPlusSign() {
+    TableIdentifier ident = TableIdentifier.of("n+s", "a+b");
+    assertThat(withPrefix.metrics(ident))
+        .isEqualTo("v1/ws/catalog/namespaces/n%2Bs/tables/a%2Bb/metrics");
+    assertThat(withoutPrefix.metrics(ident)).isEqualTo("v1/namespaces/n%2Bs/tables/a%2Bb/metrics");
   }
 }

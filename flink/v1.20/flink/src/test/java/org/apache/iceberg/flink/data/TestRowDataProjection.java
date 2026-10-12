@@ -211,6 +211,29 @@ public class TestRowDataProjection {
   }
 
   @Test
+  void nestedRowIsNotMutatedByNextWrap() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(0, "id", Types.LongType.get()),
+            Types.NestedField.optional(
+                3,
+                "location",
+                Types.StructType.of(
+                    Types.NestedField.required(1, "lat", Types.FloatType.get()),
+                    Types.NestedField.required(2, "long", Types.FloatType.get()))));
+    RowDataProjection projection = RowDataProjection.create(schema, schema.select("location"));
+
+    RowData first =
+        projection.wrap(GenericRowData.of(1L, GenericRowData.of(1.0f, 1.0f))).getRow(0, 2);
+    RowData second =
+        projection.wrap(GenericRowData.of(2L, GenericRowData.of(9.0f, 9.0f))).getRow(0, 2);
+
+    assertThat(first).isNotSameAs(second);
+    assertThat(first.getFloat(0)).isEqualTo(1.0f);
+    assertThat(second.getFloat(0)).isEqualTo(9.0f);
+  }
+
+  @Test
   public void testPrimitivesFullProjection() {
     DataGenerator dataGenerator = new DataGenerators.Primitives();
     Schema schema = dataGenerator.icebergSchema();

@@ -31,12 +31,10 @@ import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
 import org.apache.iceberg.io.DeleteWriteResult;
-import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.BlobMetadata;
@@ -66,16 +64,6 @@ public class BaseDVFileWriter implements DVFileWriter {
   public BaseDVFileWriter(
       OutputFileFactory fileFactory, Function<String, PositionDeleteIndex> loadPreviousDeletes) {
     this(loadPreviousDeletes, fileFactory::newOutputFile);
-  }
-
-  /**
-   * @deprecated since 1.12.0 and will be removed in 1.13.0
-   */
-  @Deprecated
-  public BaseDVFileWriter(
-      Supplier<OutputFile> dvOutputFile,
-      Function<String, PositionDeleteIndex> loadPreviousDeletes) {
-    this(loadPreviousDeletes, () -> EncryptedFiles.plainAsEncryptedOutput(dvOutputFile.get()));
   }
 
   BaseDVFileWriter(

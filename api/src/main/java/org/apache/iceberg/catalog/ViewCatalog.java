@@ -55,6 +55,20 @@ public interface ViewCatalog {
   View loadView(TableIdentifier identifier);
 
   /**
+   * Load a view, passing the context it is being loaded with.
+   *
+   * <p>The default implementation ignores the context.
+   *
+   * @param identifier a view identifier
+   * @param context context for this load
+   * @return instance of {@link View} implementation referred by the identifier
+   * @throws NoSuchViewException if the view does not exist
+   */
+  default View loadView(TableIdentifier identifier, LoadContext context) {
+    return loadView(identifier);
+  }
+
+  /**
    * Check whether view exists.
    *
    * @param identifier a view identifier

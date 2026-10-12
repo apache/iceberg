@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.util;
 
+import java.io.InterruptedIOException;
+import java.net.SocketTimeoutException;
+import java.nio.channels.ClosedByInterruptException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -414,6 +417,13 @@ public class Tasks {
           break;
 
         } catch (Exception e) {
+          // a failure caused by cancellation is not transient: retrying would do real work for a
+          // caller that has already gone away
+          if (causedByInterruption(e)) {
+            Thread.currentThread().interrupt();
+            throw e;
+          }
+
           long durationMs = System.currentTimeMillis() - start;
           if (attempt >= maxAttempts || (durationMs > maxDurationMs && attempt > 1)) {
             if (durationMs > maxDurationMs) {
@@ -468,6 +478,24 @@ public class Tasks {
         }
       }
     }
+  }
+
+  private static boolean causedByInterruption(Throwable throwable) {
+    Throwable current = throwable;
+    while (current != null) {
+      // SocketTimeoutException extends InterruptedIOException but signals a socket timeout rather
+      // than Thread.interrupt(), so it remains retryable
+      if (current instanceof InterruptedException
+          || current instanceof ClosedByInterruptException
+          || (current instanceof InterruptedIOException
+              && !(current instanceof SocketTimeoutException))) {
+        return true;
+      }
+
+      current = current.getCause();
+    }
+
+    return false;
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
