@@ -330,7 +330,7 @@ public class DynamoDbLockManager extends LockManagers.BaseLockManager {
   }
 
   /**
-   * The lock table column definition, for users who whould like to create the table separately
+   * The lock table column definition, for users who would like to create the table separately
    *
    * @return lock table column definition
    */

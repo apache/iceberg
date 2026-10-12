@@ -30,6 +30,7 @@ import static org.apache.iceberg.TestBase.SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Collections;
 import java.util.List;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.DataFile;
@@ -49,6 +50,17 @@ import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.junit.jupiter.api.Test;
 
 public class TestPlanTableScanResponseParser {
+
+  private static final Credential S3_CREDENTIAL =
+      ImmutableCredential.builder()
+          .prefix("s3://custom-uri")
+          .config(ImmutableMap.of("s3.access-key-id", "keyId"))
+          .build();
+  private static final Credential GCS_CREDENTIAL =
+      ImmutableCredential.builder()
+          .prefix("gs://custom-uri")
+          .config(ImmutableMap.of("gcs.oauth2.token", "gcsToken"))
+          .build();
 
   @Test
   public void nullAndEmptyCheck() {
@@ -199,17 +211,6 @@ public class TestPlanTableScanResponseParser {
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
-    assertThatThrownBy(
-            () ->
-                PlanTableScanResponse.builder()
-                    .withPlanStatus(PlanStatus.SUBMITTED)
-                    .withPlanId("somePlanId")
-                    .withDeleteFiles(List.of(FILE_A_DELETES))
-                    .build())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(
-            "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
-
     String invalidJson =
         "{\"status\":\"submitted\","
             + "\"plan-id\":\"somePlanId\","
@@ -267,7 +268,6 @@ public class TestPlanTableScanResponseParser {
             .withPlanStatus(fromResponse.planStatus())
             .withPlanId(fromResponse.planId())
             .withPlanTasks(fromResponse.planTasks())
-            .withDeleteFiles(fromResponse.deleteFiles())
             .withFileScanTasks(fromResponse.fileScanTasks())
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
@@ -475,6 +475,35 @@ public class TestPlanTableScanResponseParser {
       assertThat(taskDelete.contentOffset()).isEqualTo(expected.contentOffset());
       assertThat(taskDelete.contentSizeInBytes()).isEqualTo(expected.contentSizeInBytes());
     }
+  }
+
+  @Test
+  public void toBuilderClearsDeleteFilesWhenClearingFileScanTasks() {
+    ResidualEvaluator residualEvaluator =
+        ResidualEvaluator.of(SPEC, Expressions.alwaysTrue(), true);
+    FileScanTask task =
+        new BaseFileScanTask(
+            FILE_A,
+            new DeleteFile[] {FILE_A_DELETES},
+            SchemaParser.toJson(SCHEMA),
+            PartitionSpecParser.toJson(SPEC),
+            residualEvaluator);
+
+    PlanTableScanResponse completed =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withFileScanTasks(List.of(task))
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .build();
+    assertThat(completed.deleteFiles()).containsExactly(FILE_A_DELETES);
+
+    // clearing the tasks must clear the delete files derived from them, otherwise validate()
+    // rejects the copy because the retained delete files reference tasks that are no longer present
+    PlanTableScanResponse failed =
+        completed.toBuilder().withPlanStatus(PlanStatus.FAILED).withFileScanTasks(null).build();
+
+    assertThat(failed.fileScanTasks()).isNull();
+    assertThat(failed.deleteFiles()).isNull();
   }
 
   @Test
@@ -837,5 +866,30 @@ public class TestPlanTableScanResponseParser {
                     .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: error can only be defined when status is 'failed'");
+  }
+
+  @Test
+  void withCredentialsReplacesPreviouslySetCredentials() {
+    PlanTableScanResponse response =
+        PlanTableScanResponse.builder()
+            .withPlanStatus(PlanStatus.COMPLETED)
+            .withSpecsById(PARTITION_SPECS_BY_ID)
+            .withCredentials(ImmutableList.of(S3_CREDENTIAL))
+            .withCredentials(ImmutableList.of(GCS_CREDENTIAL))
+            .build();
+
+    assertThat(response.credentials()).containsExactly(GCS_CREDENTIAL);
+  }
+
+  @Test
+  void nullCredentials() {
+    assertThatThrownBy(() -> PlanTableScanResponse.builder().withCredentials(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid credentials: null");
+
+    assertThatThrownBy(
+            () -> PlanTableScanResponse.builder().withCredentials(Collections.singletonList(null)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid credential: null");
   }
 }

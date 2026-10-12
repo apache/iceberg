@@ -34,14 +34,6 @@ public class ThreadPools {
 
   private ThreadPools() {}
 
-  /**
-   * @deprecated Use {@link SystemConfigs#WORKER_THREAD_POOL_SIZE} instead. will be removed in
-   *     1.12.0
-   */
-  @Deprecated
-  public static final String WORKER_THREAD_POOL_SIZE_PROP =
-      SystemConfigs.WORKER_THREAD_POOL_SIZE.propertyKey();
-
   public static final int WORKER_THREAD_POOL_SIZE = SystemConfigs.WORKER_THREAD_POOL_SIZE.value();
 
   private static final ExecutorService WORKER_POOL =
@@ -99,48 +91,6 @@ public class ThreadPools {
     private static final ScheduledExecutorService INSTANCE =
         ThreadPools.newExitingScheduledPool(
             "auth-session-refresh", AUTH_REFRESH_THREAD_POOL_SIZE, Duration.ZERO);
-  }
-
-  /**
-   * Creates a fixed-size thread pool that uses daemon threads. The pool is wrapped with {@link
-   * MoreExecutors#getExitingExecutorService(ThreadPoolExecutor)}, which registers a shutdown hook
-   * to ensure the pool terminates when the JVM exits. <b>Important:</b> Even if the pool is
-   * explicitly shut down using {@link ExecutorService#shutdown()}, the shutdown hook is <i>not</i>
-   * removed. This can lead to accumulation of shutdown hooks if this method is used repeatedly for
-   * short-lived thread pools.
-   *
-   * <p>For clarity and to avoid potential issues with shutdown hook accumulation, prefer using
-   * either {@link #newExitingWorkerPool(String, int)} or {@link #newFixedThreadPool(String, int)},
-   * depending on the intended lifecycle of the thread pool.
-   *
-   * @deprecated will be removed in 1.12.0. Use {@link #newExitingWorkerPool(String, int)} for
-   *     long-lived thread pools that require a shutdown hook, or {@link #newFixedThreadPool(String,
-   *     int)} for short-lived thread pools where you manage the lifecycle.
-   */
-  @Deprecated
-  public static ExecutorService newWorkerPool(String namePrefix) {
-    return newExitingWorkerPool(namePrefix, WORKER_THREAD_POOL_SIZE);
-  }
-
-  /**
-   * Creates a fixed-size thread pool that uses daemon threads. The pool is wrapped with {@link
-   * MoreExecutors#getExitingExecutorService(ThreadPoolExecutor)}, which registers a shutdown hook
-   * to ensure the pool terminates when the JVM exits. <b>Important:</b> Even if the pool is
-   * explicitly shut down using {@link ExecutorService#shutdown()}, the shutdown hook is <i>not</i>
-   * removed. This can lead to accumulation of shutdown hooks if this method is used repeatedly for
-   * short-lived thread pools.
-   *
-   * <p>For clarity and to avoid potential issues with shutdown hook accumulation, prefer using
-   * either {@link #newExitingWorkerPool(String, int)} or {@link #newFixedThreadPool(String, int)},
-   * depending on the intended lifecycle of the thread pool.
-   *
-   * @deprecated will be removed in 1.12.0. Use {@link #newExitingWorkerPool(String, int)} for
-   *     long-lived thread pools that require a shutdown hook, or {@link #newFixedThreadPool(String,
-   *     int)} for short-lived thread pools where you manage the lifecycle.
-   */
-  @Deprecated
-  public static ExecutorService newWorkerPool(String namePrefix, int poolSize) {
-    return newExitingWorkerPool(namePrefix, poolSize);
   }
 
   /**

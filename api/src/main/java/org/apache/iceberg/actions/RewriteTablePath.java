@@ -62,6 +62,11 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
    * metadata log. It is optional, if provided then this action will only rewrite metadata files
    * added after this version.
    *
+   * <p>Manifests added before this version are not rewritten, so snapshots that still reference
+   * them keep the {@code manifest_length} recorded in the source table. That length does not match
+   * the manifest at the target when the source and target prefixes differ in length, and readers
+   * that validate the field will reject those manifest lists.
+   *
    * @param startVersion name of a metadata.json file. For example,
    *     "00001-8893aa9e-f92e-4443-80e7-cfa42238a654.metadata.json".
    * @return this for method chaining

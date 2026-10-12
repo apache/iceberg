@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
@@ -135,5 +136,53 @@ public class TestSparkFileRewriteRunners extends TestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot use less than 1 byte for variable length types with ZOrder")
         .hasMessageContaining("'var-length-contribution' was set to 0");
+  }
+
+  @Test
+  public void invalidConstructorUsagesHilbertData() {
+    Table table = catalog.createTable(TABLE_IDENT, SCHEMA, SPEC);
+
+    assertThatThrownBy(() -> new SparkHilbertFileRewriteRunner(spark, table, null))
+        .hasMessageContaining("Cannot HILBERT when no columns are specified");
+
+    assertThatThrownBy(() -> new SparkHilbertFileRewriteRunner(spark, table, ImmutableList.of()))
+        .hasMessageContaining("Cannot HILBERT when no columns are specified");
+
+    assertThatThrownBy(
+            () -> new SparkHilbertFileRewriteRunner(spark, table, ImmutableList.of("dep")))
+        .hasMessageContaining("Cannot HILBERT")
+        .hasMessageContaining("all columns provided were identity partition columns");
+
+    assertThatThrownBy(
+            () -> new SparkHilbertFileRewriteRunner(spark, table, ImmutableList.of("DeP")))
+        .hasMessageContaining("Cannot HILBERT")
+        .hasMessageContaining("all columns provided were identity partition columns");
+
+    assertThatThrownBy(
+            () -> new SparkHilbertFileRewriteRunner(spark, table, ImmutableList.of("nonexistent")))
+        .hasMessageContaining("Cannot find column 'nonexistent' in table schema");
+  }
+
+  @Test
+  public void hilbertIgnoresIdentityPartitionColumnsWhenDataColumnsRemain() {
+    Table table = catalog.createTable(TABLE_IDENT, SCHEMA, SPEC);
+
+    // 'dep' is an identity partition column and is dropped, leaving 'id' to cluster on
+    assertThatNoException()
+        .isThrownBy(
+            () -> new SparkHilbertFileRewriteRunner(spark, table, ImmutableList.of("dep", "id")));
+  }
+
+  @Test
+  public void hilbertDataDescriptionAndValidOptions() {
+    Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
+    ImmutableList<String> hilbertCols = ImmutableList.of("id");
+    SparkHilbertFileRewriteRunner rewriter =
+        new SparkHilbertFileRewriteRunner(spark, table, hilbertCols);
+
+    assertThat(rewriter.description()).isEqualTo("HILBERT");
+    assertThat(rewriter.validOptions())
+        .as("Rewriter must report all supported options")
+        .containsExactlyInAnyOrder(SparkHilbertFileRewriteRunner.SHUFFLE_PARTITIONS_PER_FILE);
   }
 }

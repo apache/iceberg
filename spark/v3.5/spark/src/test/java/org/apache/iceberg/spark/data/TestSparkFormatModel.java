@@ -34,7 +34,7 @@ import org.apache.spark.sql.catalyst.InternalRow;
 public class TestSparkFormatModel extends BaseFormatModelTests<InternalRow> {
 
   private static final Set<Type.TypeID> UNSUPPORTED_TYPE_IDS =
-      Set.of(Type.TypeID.TIME, Type.TypeID.TIMESTAMP_NANO);
+      Set.of(Type.TypeID.TIME, Type.TypeID.TIMESTAMP_NANO, Type.TypeID.VARIANT);
 
   @Override
   protected Collection<Type.TypeID> unsupportedTypeIds() {

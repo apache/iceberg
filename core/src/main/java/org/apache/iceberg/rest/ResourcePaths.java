@@ -38,6 +38,8 @@ public class ResourcePaths {
   public static final String V1_TABLE_REMOTE_SIGN =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/sign";
   public static final String V1_TABLE_REGISTER = "/v1/{prefix}/namespaces/{namespace}/register";
+  public static final String V1_TABLE_UNREGISTER =
+      "/v1/{prefix}/namespaces/{namespace}/tables/{table}/unregister";
   public static final String V1_TABLE_METRICS =
       "/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics";
   public static final String V1_TABLE_RENAME = "/v1/{prefix}/tables/rename";
@@ -73,15 +75,6 @@ public class ResourcePaths {
   private final String prefix;
   private final String namespaceSeparator;
 
-  /**
-   * @deprecated since 1.11.0, will be made private in 1.12.0; use {@link
-   *     ResourcePaths#forCatalogProperties(Map)} instead.
-   */
-  @Deprecated
-  public ResourcePaths(String prefix) {
-    this(prefix, RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8);
-  }
-
   private ResourcePaths(String prefix, String namespaceSeparator) {
     this.prefix = prefix;
     this.namespaceSeparator = namespaceSeparator;
@@ -110,11 +103,22 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(ident.namespace()),
         "tables",
-        RESTUtil.encodeString(ident.name()));
+        RESTUtil.encodePathSegment(ident.name()));
   }
 
   public String register(Namespace ns) {
     return SLASH.join("v1", prefix, "namespaces", pathEncode(ns), "register");
+  }
+
+  public String unregister(TableIdentifier ident) {
+    return SLASH.join(
+        "v1",
+        prefix,
+        "namespaces",
+        pathEncode(ident.namespace()),
+        "tables",
+        RESTUtil.encodePathSegment(ident.name()),
+        "unregister");
   }
 
   public String rename() {
@@ -128,7 +132,7 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(identifier.namespace()),
         "tables",
-        RESTUtil.encodeString(identifier.name()),
+        RESTUtil.encodePathSegment(identifier.name()),
         "metrics");
   }
 
@@ -139,7 +143,7 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(identifier.namespace()),
         "tables",
-        RESTUtil.encodeString(identifier.name()),
+        RESTUtil.encodePathSegment(identifier.name()),
         "sign");
   }
 
@@ -158,7 +162,7 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(ident.namespace()),
         "views",
-        RESTUtil.encodeString(ident.name()));
+        RESTUtil.encodePathSegment(ident.name()));
   }
 
   public String renameView() {
@@ -176,7 +180,7 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(ident.namespace()),
         "tables",
-        RESTUtil.encodeString(ident.name()),
+        RESTUtil.encodePathSegment(ident.name()),
         "plan");
   }
 
@@ -187,9 +191,9 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(ident.namespace()),
         "tables",
-        RESTUtil.encodeString(ident.name()),
+        RESTUtil.encodePathSegment(ident.name()),
         "plan",
-        RESTUtil.encodeString(planId));
+        RESTUtil.encodePathSegment(planId));
   }
 
   public String fetchScanTasks(TableIdentifier ident) {
@@ -199,11 +203,11 @@ public class ResourcePaths {
         "namespaces",
         pathEncode(ident.namespace()),
         "tables",
-        RESTUtil.encodeString(ident.name()),
+        RESTUtil.encodePathSegment(ident.name()),
         "tasks");
   }
 
   private String pathEncode(Namespace ns) {
-    return RESTUtil.encodeNamespace(ns, namespaceSeparator);
+    return RESTUtil.encodeNamespaceAsPathSegment(ns, namespaceSeparator);
   }
 }

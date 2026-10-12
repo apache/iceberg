@@ -24,7 +24,6 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.Schema;
@@ -36,6 +35,7 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.compression.CompressionCodecFactory;
+import org.apache.parquet.conf.ParquetConfiguration;
 import org.apache.parquet.crypto.FileEncryptionProperties;
 import org.apache.parquet.crypto.InternalFileEncryptor;
 import org.apache.parquet.hadoop.ColumnChunkPageWriteStore;
@@ -59,7 +59,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final int columnIndexTruncateLength;
   private final ParquetFileWriter.Mode writeMode;
   private final OutputFile output;
-  private final Configuration conf;
+  private final ParquetConfiguration conf;
   private final InternalFileEncryptor fileEncryptor;
   private final boolean trackUncompressedSize;
 
@@ -77,7 +77,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   @SuppressWarnings("unchecked")
   ParquetWriter(
-      Configuration conf,
+      ParquetConfiguration conf,
       OutputFile output,
       Schema schema,
       MessageType parquetSchema,

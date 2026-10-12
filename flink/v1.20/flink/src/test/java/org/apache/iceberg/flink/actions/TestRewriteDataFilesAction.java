@@ -94,16 +94,16 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
     return super.getTableEnv();
   }
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}, format={2}, formatVersion={3}")
+  @Parameters(name = "catalogType={0}, baseNamespace={1}, format={2}, formatVersion={3}")
   public static List<Object[]> parameters() {
     List<Object[]> parameters = Lists.newArrayList();
     for (FileFormat format :
         new FileFormat[] {FileFormat.AVRO, FileFormat.ORC, FileFormat.PARQUET}) {
       for (Object[] catalogParams : CatalogTestBase.parameters()) {
         for (int version : TestHelpers.V2_AND_ABOVE) {
-          String catalogName = (String) catalogParams[0];
+          CatalogType catalogType = (CatalogType) catalogParams[0];
           Namespace baseNamespace = (Namespace) catalogParams[1];
-          parameters.add(new Object[] {catalogName, baseNamespace, format, version});
+          parameters.add(new Object[] {catalogType, baseNamespace, format, version});
         }
       }
     }

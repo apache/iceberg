@@ -44,7 +44,6 @@ public class TestSparkPartitioningWriters extends TestPartitioningWriters<Intern
         .deleteFileFormat(format())
         .equalityFieldIds(ArrayUtil.toIntArray(equalityFieldIds))
         .equalityDeleteRowSchema(equalityDeleteRowSchema)
-        .positionDeleteRowSchema(positionDeleteRowSchema)
         .build();
   }
 

@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
  *
  * <ul>
  *   <li>Adding new columns
- *   <li>Widening the type of existing columsn
+ *   <li>Widening the type of existing columns
  *   <li>Reordering columns
  *   <li>Dropping columns (when dropUnusedColumns is enabled)
  * </ul>

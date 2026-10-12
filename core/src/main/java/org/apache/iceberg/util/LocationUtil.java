@@ -107,7 +107,8 @@ public class LocationUtil {
       return location;
     }
 
-    return tableLocation + PATH_SEPARATOR + location;
+    // call toString to cause a NullPointerException if the string is null
+    return tableLocation.toString() + PATH_SEPARATOR + location;
   }
 
   /**

@@ -44,7 +44,8 @@ class DataGenerators {
         new StructOfPrimitive(),
         new ListOfPrimitive(),
         new MapOfPrimitive(),
-        new TimestampNano()
+        new TimestampNano(),
+        new Variant()
       };
 
   private DataGenerators() {}
@@ -98,6 +99,21 @@ class DataGenerators {
     @Override
     public String toString() {
       return "DefaultSchema";
+    }
+  }
+
+  static class Variant implements DataGenerator {
+    private final Schema schema =
+        new Schema(Types.NestedField.required(1, "variant_col", Types.VariantType.get()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "Variant";
     }
   }
 

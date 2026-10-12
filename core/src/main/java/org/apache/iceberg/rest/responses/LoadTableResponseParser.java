@@ -21,9 +21,11 @@ package org.apache.iceberg.rest.responses;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import org.apache.iceberg.LabelsParser;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.rest.RemoteSigningConfigParser;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.CredentialParser;
 import org.apache.iceberg.util.JsonUtil;
@@ -34,6 +36,8 @@ public class LoadTableResponseParser {
   private static final String METADATA = "metadata";
   private static final String CONFIG = "config";
   private static final String STORAGE_CREDENTIALS = "storage-credentials";
+  private static final String REMOTE_SIGNING_CONFIG = "remote-signing-config";
+  private static final String LABELS = "labels";
 
   private LoadTableResponseParser() {}
 
@@ -70,6 +74,16 @@ public class LoadTableResponseParser {
       gen.writeEndArray();
     }
 
+    if (null != response.remoteSigningConfig() && !response.remoteSigningConfig().isEmpty()) {
+      gen.writeFieldName(REMOTE_SIGNING_CONFIG);
+      RemoteSigningConfigParser.toJson(response.remoteSigningConfig(), gen);
+    }
+
+    if (!response.labels().isEmpty()) {
+      gen.writeFieldName(LABELS);
+      LabelsParser.toJson(response.labels(), gen);
+    }
+
     gen.writeEndObject();
   }
 
@@ -99,6 +113,15 @@ public class LoadTableResponseParser {
 
     if (json.hasNonNull(STORAGE_CREDENTIALS)) {
       builder.addAllCredentials(LoadCredentialsResponseParser.fromJson(json).credentials());
+    }
+
+    if (json.hasNonNull(REMOTE_SIGNING_CONFIG)) {
+      builder.withRemoteSigningConfig(
+          RemoteSigningConfigParser.fromJson(JsonUtil.get(REMOTE_SIGNING_CONFIG, json)));
+    }
+
+    if (json.hasNonNull(LABELS)) {
+      builder.withLabels(LabelsParser.fromJson(JsonUtil.get(LABELS, json)));
     }
 
     return builder.build();

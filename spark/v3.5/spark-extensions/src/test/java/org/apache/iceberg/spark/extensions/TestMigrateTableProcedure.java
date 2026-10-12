@@ -151,7 +151,7 @@ public class TestMigrateTableProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(
             () -> {
-              String props = "map('write.metadata.metrics.column.x', 'X')";
+              String props = "map('write.metadata.metrics.column.x', 'counts')";
               sql("CALL %s.system.migrate('%s', %s)", catalogName, tableName, props);
             })
         .isInstanceOf(ValidationException.class)

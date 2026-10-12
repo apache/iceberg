@@ -113,6 +113,7 @@ import org.apache.iceberg.spark.FileRewriteCoordinator;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBase;
@@ -127,8 +128,10 @@ import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -142,7 +145,8 @@ import org.mockito.Mockito;
 public class TestRewriteDataFilesAction extends TestBase {
 
   @TempDir private File tableDir;
-  private static final int SCALE = 400000;
+  private static final int SCALE = 400;
+  private static final int LARGE_SCALE = 400000;
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA =
@@ -291,7 +295,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testBinPackAfterPartitionChange() {
     Table table = createTable();
 
-    writeRecords(20, SCALE, 20);
+    writeRecords(20, LARGE_SCALE, 20);
     table.refresh();
     shouldHaveFiles(table, 20);
     table.updateSpec().addField(Expressions.ref("c1")).commit();
@@ -936,7 +940,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackSplitLargeFile() {
-    Table table = createTable(1);
+    Table table = createTable(1, LARGE_SCALE);
     shouldHaveFiles(table, 1);
 
     List<Object[]> expectedRecords = currentData();
@@ -963,12 +967,12 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackCombineMixedFiles() {
-    Table table = createTable(1); // 400000
+    Table table = createTable(1, LARGE_SCALE); // 400000
     shouldHaveFiles(table, 1);
 
     // Add one more small file, and one large file
-    writeRecords(1, SCALE);
-    writeRecords(1, SCALE * 3);
+    writeRecords(1, LARGE_SCALE);
+    writeRecords(1, LARGE_SCALE * 3);
     table.refresh();
     shouldHaveFiles(table, 3);
 
@@ -1005,7 +1009,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testBinPackCombineMediumFiles() {
-    Table table = createTable(4);
+    Table table = createTable(4, LARGE_SCALE);
     shouldHaveFiles(table, 4);
 
     List<Object[]> expectedRecords = currentData();
@@ -1617,7 +1621,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testSortCustomSortOrderRequiresRepartition() throws IOException {
     int partitions = 4;
     Table table = createTable();
-    writeRecords(20, SCALE, partitions);
+    writeRecords(20, LARGE_SCALE, partitions);
     table.refresh();
     shouldHaveLastCommitUnsorted(table, "c3");
 
@@ -1684,7 +1688,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @TestTemplate
   public void testAutoSortShuffleOutput() throws IOException {
-    Table table = createTable(20);
+    Table table = createTable(20, LARGE_SCALE);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, 20);
 
@@ -1776,7 +1780,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   @TestTemplate
   public void testZOrderSort() {
     int originalFiles = 20;
-    Table table = createTable(originalFiles);
+    Table table = createTable(originalFiles, LARGE_SCALE);
     shouldHaveLastCommitUnsorted(table, "c2");
     shouldHaveFiles(table, originalFiles);
 
@@ -2144,15 +2148,26 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @TestTemplate
-  public void testExecutorCacheForDeleteFilesDisabled() {
+  void cacheDeleteFilesOnExecutorsDisabledByDefault() {
     Table table = createTablePartitioned(1, 1);
     RewriteDataFilesSparkAction action = SparkActions.get(spark).rewriteDataFiles(table);
+    action.init(0L);
 
-    // The constructor should have set the configuration to false
     SparkReadConf readConf = new SparkReadConf(action.spark(), table, Collections.emptyMap());
-    assertThat(readConf.cacheDeleteFilesOnExecutors())
-        .as("Executor cache for delete files should be disabled in RewriteDataFilesSparkAction")
-        .isFalse();
+    assertThat(readConf.cacheDeleteFilesOnExecutors()).isFalse();
+  }
+
+  @TestTemplate
+  void cacheDeleteFilesOnExecutorsEnabledByOption() {
+    Table table = createTablePartitioned(1, 1);
+    RewriteDataFilesSparkAction action =
+        SparkActions.get(spark)
+            .rewriteDataFiles(table)
+            .option(RewriteDataFilesSparkAction.CACHE_DELETE_FILES, "true");
+    action.init(0L);
+
+    SparkReadConf readConf = new SparkReadConf(action.spark(), table, Collections.emptyMap());
+    assertThat(readConf.cacheDeleteFilesOnExecutors()).isTrue();
   }
 
   @TestTemplate
@@ -2187,6 +2202,105 @@ public class TestRewriteDataFilesAction extends TestBase {
     Row row = rows.get(0);
     byte[] zorderBytes = row.getAs("zorder_result");
     assertThat(zorderBytes).isNotNull().isNotEmpty();
+  }
+
+  @TestTemplate
+  public void zOrderUDFEncodesNullValuesAsZeroBytes() {
+    Object[][] nullsByType = {
+      {"CAST(NULL AS BOOLEAN)", DataTypes.BooleanType},
+      {"CAST(NULL AS TINYINT)", DataTypes.ByteType},
+      {"CAST(NULL AS SMALLINT)", DataTypes.ShortType},
+      {"CAST(NULL AS INT)", DataTypes.IntegerType},
+      {"CAST(NULL AS BIGINT)", DataTypes.LongType},
+      {"CAST(NULL AS FLOAT)", DataTypes.FloatType},
+      {"CAST(NULL AS DOUBLE)", DataTypes.DoubleType},
+      {"CAST(NULL AS DATE)", DataTypes.DateType},
+      {"CAST(NULL AS TIMESTAMP)", DataTypes.TimestampType},
+      {"CAST(NULL AS TIMESTAMP_NTZ)", DataTypes.TimestampNTZType},
+      {"CAST(NULL AS STRING)", DataTypes.StringType},
+      {"CAST(NULL AS BINARY)", DataTypes.BinaryType},
+    };
+
+    for (Object[] nullByType : nullsByType) {
+      String literal = (String) nullByType[0];
+      DataType type = (DataType) nullByType[1];
+      SparkZOrderUDF zorderUDF = new SparkZOrderUDF(1, 16, 1024);
+      Dataset<Row> result =
+          spark
+              .sql("SELECT " + literal + " as test_col")
+              .withColumn(
+                  "zorder_result", zorderUDF.sortedLexicographically(col("test_col"), type));
+
+      byte[] zorderBytes = result.collectAsList().get(0).getAs("zorder_result");
+      assertThat(zorderBytes)
+          .as("A null %s must produce ordered bytes rather than failing", type.simpleString())
+          .isNotNull()
+          .isNotEmpty();
+      assertThat(zorderBytes)
+          .as("A null %s must sort lowest, as an all-zero byte sequence", type.simpleString())
+          .containsOnly((byte) 0);
+    }
+  }
+
+  @TestTemplate
+  public void zOrderSortWithNullBooleanValues() {
+    Schema schema =
+        new Schema(
+            optional(1, "id", Types.IntegerType.get()),
+            optional(2, "flag", Types.BooleanType.get()));
+    Table table =
+        TABLES.create(
+            schema,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
+
+    for (int batch = 0; batch < 2; batch++) {
+      spark
+          .createDataFrame(
+              Lists.newArrayList(
+                  RowFactory.create(1, true),
+                  RowFactory.create(2, null),
+                  RowFactory.create(3, false)),
+              SparkSchemaUtil.convert(schema))
+          .write()
+          .format("iceberg")
+          .mode("append")
+          .save(tableLocation);
+    }
+    table.refresh();
+
+    long dataSizeBefore = testDataSize(table);
+    RewriteDataFiles.Result result =
+        basicRewrite(table)
+            .zOrder("id", "flag")
+            .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
+            .execute();
+
+    assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+    assertThat(result.rewrittenDataFilesCount()).isGreaterThan(0);
+    assertThat(spark.read().format("iceberg").load(tableLocation).filter("flag IS NULL").count())
+        .isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void zOrderSortWithMismatchedColumnCase() {
+    withSQLConf(
+        ImmutableMap.of(SQLConf.CASE_SENSITIVE().key(), "false"),
+        () -> {
+          Table table = createTable(4);
+          long dataSizeBefore = testDataSize(table);
+
+          // 'C2' and 'C3' resolve case-insensitively to 'c2' and 'c3'
+          RewriteDataFiles.Result result =
+              basicRewrite(table)
+                  .zOrder("C2", "C3")
+                  .option(SizeBasedFileRewritePlanner.MIN_INPUT_FILES, "1")
+                  .execute();
+
+          assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+          assertThat(result.rewrittenDataFilesCount()).isGreaterThan(0);
+        });
   }
 
   protected void shouldRewriteDataFilesWithPartitionSpec(Table table, int outputSpecId) {
@@ -2398,8 +2512,12 @@ public class TestRewriteDataFilesAction extends TestBase {
    * @return the created table
    */
   protected Table createTable(int files) {
+    return createTable(files, SCALE);
+  }
+
+  protected Table createTable(int files, int numRecords) {
     Table table = createTable();
-    writeRecords(files, SCALE);
+    writeRecords(files, numRecords);
     table.refresh();
     return table;
   }
@@ -2546,7 +2664,7 @@ public class TestRewriteDataFilesAction extends TestBase {
               .newPositionDeleteWriter(encrypt(outputFile), table.spec(), partition);
 
       PositionDelete<Record> posDelete = PositionDelete.create();
-      posDeleteWriter.write(posDelete.set(path, rowPosition, null));
+      posDeleteWriter.write(posDelete.set(path, rowPosition));
       try {
         posDeleteWriter.close();
       } catch (IOException e) {
@@ -2590,7 +2708,7 @@ public class TestRewriteDataFilesAction extends TestBase {
       for (int position = file * positionsPerDeleteFile;
           position < (file + 1) * positionsPerDeleteFile;
           position++) {
-        posDeleteWriter.write(posDelete.set(path, position, null));
+        posDeleteWriter.write(posDelete.set(path, position));
       }
 
       try {

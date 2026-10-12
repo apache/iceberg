@@ -44,12 +44,12 @@ interface Tracking {
           "file_sequence_number",
           Types.LongType.get(),
           "File sequence number indicating when the file was added");
-  Types.NestedField DV_SNAPSHOT_ID =
+  Types.NestedField MODIFIED_SNAPSHOT_ID =
       Types.NestedField.optional(
           5,
-          "dv_snapshot_id",
+          "modified_snapshot_id",
           Types.LongType.get(),
-          "Snapshot ID where the DV was added; null if there is no DV");
+          "Snapshot ID where the file was last modified");
   Types.NestedField FIRST_ROW_ID =
       Types.NestedField.optional(
           142, "first_row_id", Types.LongType.get(), "ID of the first row in the data file");
@@ -72,7 +72,7 @@ interface Tracking {
         SNAPSHOT_ID,
         SEQUENCE_NUMBER,
         FILE_SEQUENCE_NUMBER,
-        DV_SNAPSHOT_ID,
+        MODIFIED_SNAPSHOT_ID,
         FIRST_ROW_ID,
         DELETED_POSITIONS,
         REPLACED_POSITIONS);
@@ -95,8 +95,8 @@ interface Tracking {
   /** Returns the file sequence number indicating when the file was added. */
   Long fileSequenceNumber();
 
-  /** Returns the snapshot ID where the DV was added; null if there is no DV. */
-  Long dvSnapshotId();
+  /** Returns the snapshot ID where the file was last modified. */
+  Long modifiedSnapshotId();
 
   /** Returns the ID of the first row in the data file. */
   Long firstRowId();

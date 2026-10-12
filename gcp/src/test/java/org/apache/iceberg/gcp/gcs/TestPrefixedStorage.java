@@ -25,6 +25,7 @@ import com.google.cloud.gcs.analyticscore.client.GcsClientOptions;
 import com.google.cloud.gcs.analyticscore.client.GcsFileSystem;
 import com.google.cloud.gcs.analyticscore.client.GcsFileSystemOptions;
 import com.google.cloud.gcs.analyticscore.client.GcsReadOptions;
+import com.google.cloud.gcs.analyticscore.client.GcsWriteOptions;
 import java.util.Map;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.gcp.GCPProperties;
@@ -150,6 +151,11 @@ public class TestPrefixedStorage {
                             .setChunkSize(1024)
                             .setDecryptionKey("decryptionKey")
                             .setUserProjectId("userProject")
+                            .build())
+                    .setGcsWriteOptions(
+                        GcsWriteOptions.builder()
+                            .setEncryptionKey("encryptionKey")
+                            .setUserProject("userProject")
                             .build())
                     .build())
             .build();

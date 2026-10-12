@@ -72,6 +72,7 @@ public class TestSparkShufflingDataRewritePlanner extends TestBase {
                 SparkShufflingDataRewritePlanner.MIN_INPUT_FILES,
                 SparkShufflingDataRewritePlanner.REWRITE_ALL,
                 SparkShufflingDataRewritePlanner.MAX_FILE_GROUP_SIZE_BYTES,
+                SparkShufflingDataRewritePlanner.MAX_FILE_GROUP_INPUT_FILES,
                 SparkShufflingDataRewritePlanner.DELETE_FILE_THRESHOLD,
                 SparkShufflingDataRewritePlanner.DELETE_RATIO_THRESHOLD,
                 RewriteDataFiles.REWRITE_JOB_ORDER,

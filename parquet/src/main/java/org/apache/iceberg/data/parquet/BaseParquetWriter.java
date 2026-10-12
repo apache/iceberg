@@ -269,7 +269,8 @@ abstract class BaseParquetWriter<T> {
     public Optional<ParquetValueWriter<?>> visit(
         LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
       // geometry values are pure WKB stored in a BINARY column
-      return Optional.of(ParquetValueWriters.geospatial(desc));
+      return Optional.of(
+          ParquetValueWriters.geometry(desc, Types.GeometryType.of(geometryType.getCrs())));
     }
 
     @Override

@@ -137,7 +137,7 @@ public class TestStatsUtil {
   @FieldSource("FIXED_WIDTH_TYPES")
   public void testFixedWidthPrimitiveStruct(Type type) {
     // fixed-width, non-floating-point types track bounds (including tight bounds) but have no NaN
-    // count or average value size
+    // count or total bytes
     Types.StructType expected =
         Types.StructType.of(
             Types.NestedField.optional(30_001, "lower_bound", type),
@@ -146,8 +146,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(30_004, "value_count", Types.LongType.get()),
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()));
 
-    Types.StructType actual =
-        StatsUtil.fieldStatsStruct(true, type, 30_000, MetricsModes.Full.get());
+    Types.StructType actual = StatsUtil.fieldStatsStruct(type, 30_000, MetricsModes.Full.get());
 
     assertSameStructure(expected, actual);
   }
@@ -158,7 +157,7 @@ public class TestStatsUtil {
   @ParameterizedTest
   @FieldSource("VARIABLE_WIDTH_TYPES")
   public void testVariableWidthPrimitiveStruct(Type type) {
-    // variable-width types track bounds (including tight bounds) and an average value size, but no
+    // variable-width types track bounds (including tight bounds) and total bytes, but no
     // NaN count
     Types.StructType expected =
         Types.StructType.of(
@@ -167,10 +166,9 @@ public class TestStatsUtil {
             Types.NestedField.optional(30_003, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(30_004, "value_count", Types.LongType.get()),
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(30_007, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(30_007, "total_bytes", Types.LongType.get()));
 
-    Types.StructType actual =
-        StatsUtil.fieldStatsStruct(true, type, 30_000, MetricsModes.Full.get());
+    Types.StructType actual = StatsUtil.fieldStatsStruct(type, 30_000, MetricsModes.Full.get());
 
     assertSameStructure(expected, actual);
   }
@@ -186,7 +184,7 @@ public class TestStatsUtil {
   @FieldSource("GEO_TYPES")
   public void testGeoStruct(Type type) {
     // geometry and geography use bounding-box structs for their bounds, do not track tight bounds,
-    // and record an average value size
+    // and record total bytes
     Types.StructType lowerBound =
         Types.StructType.of(
             Types.NestedField.required(30_010, "x", Types.DoubleType.get()),
@@ -205,10 +203,9 @@ public class TestStatsUtil {
             Types.NestedField.optional(30_002, "upper_bound", upperBound),
             Types.NestedField.optional(30_004, "value_count", Types.LongType.get()),
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(30_007, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(30_007, "total_bytes", Types.LongType.get()));
 
-    Types.StructType actual =
-        StatsUtil.fieldStatsStruct(true, type, 30_000, MetricsModes.Full.get());
+    Types.StructType actual = StatsUtil.fieldStatsStruct(type, 30_000, MetricsModes.Full.get());
 
     assertSameStructure(expected, actual);
   }
@@ -220,7 +217,7 @@ public class TestStatsUtil {
   @FieldSource("FLOATING_POINT_TYPES")
   public void testFloatingPointStruct(Type type) {
     // floating-point types track bounds (including tight bounds) and a NaN count, but have no
-    // average value size
+    // total bytes
     Types.StructType expected =
         Types.StructType.of(
             Types.NestedField.optional(30_001, "lower_bound", type),
@@ -230,8 +227,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()),
             Types.NestedField.optional(30_006, "nan_value_count", Types.LongType.get()));
 
-    Types.StructType actual =
-        StatsUtil.fieldStatsStruct(true, type, 30_000, MetricsModes.Full.get());
+    Types.StructType actual = StatsUtil.fieldStatsStruct(type, 30_000, MetricsModes.Full.get());
 
     assertSameStructure(expected, actual);
   }
@@ -252,22 +248,22 @@ public class TestStatsUtil {
   @FieldSource("NESTED_TYPES")
   public void testNestedTypesHaveNoStats(Type type) {
     // list and map types are not tracked and produce no stats struct
-    assertThat(StatsUtil.fieldStatsStruct(true, type, 30_000, MetricsModes.Full.get())).isNull();
+    assertThat(StatsUtil.fieldStatsStruct(type, 30_000, MetricsModes.Full.get())).isNull();
   }
 
   @Test
   public void testRequiredField() {
-    // a required column does not produce a null_value_count field
+    // a required column produces a null_value_count field like any other column
     Type type = Types.IntegerType.get();
     Types.StructType expected =
         Types.StructType.of(
             Types.NestedField.optional(30_001, "lower_bound", type),
             Types.NestedField.optional(30_002, "upper_bound", type),
             Types.NestedField.optional(30_003, "tight_bounds", Types.BooleanType.get()),
-            Types.NestedField.optional(30_004, "value_count", Types.LongType.get()));
+            Types.NestedField.optional(30_004, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()));
 
-    Types.StructType actual =
-        StatsUtil.fieldStatsStruct(false, type, 30_000, MetricsModes.Full.get());
+    Types.StructType actual = StatsUtil.fieldStatsStruct(type, 30_000, MetricsModes.Full.get());
 
     assertSameStructure(expected, actual);
   }
@@ -275,9 +271,7 @@ public class TestStatsUtil {
   @Test
   public void testStringNoneMode() {
     // none mode produces no stats struct
-    assertThat(
-            StatsUtil.fieldStatsStruct(
-                true, Types.StringType.get(), 30_000, MetricsModes.None.get()))
+    assertThat(StatsUtil.fieldStatsStruct(Types.StringType.get(), 30_000, MetricsModes.None.get()))
         .isNull();
   }
 
@@ -288,10 +282,10 @@ public class TestStatsUtil {
         Types.StructType.of(
             Types.NestedField.optional(30_004, "value_count", Types.LongType.get()),
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(30_007, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(30_007, "total_bytes", Types.LongType.get()));
 
     Types.StructType actual =
-        StatsUtil.fieldStatsStruct(true, Types.StringType.get(), 30_000, MetricsModes.Counts.get());
+        StatsUtil.fieldStatsStruct(Types.StringType.get(), 30_000, MetricsModes.Counts.get());
 
     assertSameStructure(expected, actual);
   }
@@ -311,9 +305,9 @@ public class TestStatsUtil {
             Types.NestedField.optional(30_003, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(30_004, "value_count", Types.LongType.get()),
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(30_007, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(30_007, "total_bytes", Types.LongType.get()));
 
-    Types.StructType actual = StatsUtil.fieldStatsStruct(true, string, 30_000, mode);
+    Types.StructType actual = StatsUtil.fieldStatsStruct(string, 30_000, mode);
 
     assertSameStructure(expected, actual);
   }
@@ -330,7 +324,8 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_201, "lower_bound", Types.LongType.get()),
             Types.NestedField.optional(10_202, "upper_bound", Types.LongType.get()),
             Types.NestedField.optional(10_203, "tight_bounds", Types.BooleanType.get()),
-            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()));
+            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(10_205, "null_value_count", Types.LongType.get()));
     Types.StructType dataStats =
         Types.StructType.of(
             Types.NestedField.optional(10_401, "lower_bound", Types.StringType.get()),
@@ -338,7 +333,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_403, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(10_404, "value_count", Types.LongType.get()),
             Types.NestedField.optional(10_405, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(10_407, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(10_407, "total_bytes", Types.LongType.get()));
     Types.StructType expected =
         Types.StructType.of(
             Types.NestedField.optional(10_200, "id", idStats),
@@ -363,7 +358,8 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_201, "lower_bound", Types.LongType.get()),
             Types.NestedField.optional(10_202, "upper_bound", Types.LongType.get()),
             Types.NestedField.optional(10_203, "tight_bounds", Types.BooleanType.get()),
-            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()));
+            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(10_205, "null_value_count", Types.LongType.get()));
     Types.StructType categoryStats =
         Types.StructType.of(
             Types.NestedField.optional(10_601, "lower_bound", Types.StringType.get()),
@@ -371,7 +367,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_603, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(10_604, "value_count", Types.LongType.get()),
             Types.NestedField.optional(10_605, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(10_607, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(10_607, "total_bytes", Types.LongType.get()));
     Types.StructType expected =
         Types.StructType.of(
             Types.NestedField.optional(10_200, "id", idStats),
@@ -401,6 +397,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_602, "upper_bound", Types.DoubleType.get()),
             Types.NestedField.optional(10_603, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(10_604, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(10_605, "null_value_count", Types.LongType.get()),
             Types.NestedField.optional(10_606, "nan_value_count", Types.LongType.get()));
     Types.StructType lonStats =
         Types.StructType.of(
@@ -449,7 +446,8 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_201, "lower_bound", Types.LongType.get()),
             Types.NestedField.optional(10_202, "upper_bound", Types.LongType.get()),
             Types.NestedField.optional(10_203, "tight_bounds", Types.BooleanType.get()),
-            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()));
+            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(10_205, "null_value_count", Types.LongType.get()));
     Types.StructType dataStats =
         Types.StructType.of(
             Types.NestedField.optional(10_401, "lower_bound", Types.StringType.get()),
@@ -457,14 +455,14 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_403, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(10_404, "value_count", Types.LongType.get()),
             Types.NestedField.optional(10_405, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(10_407, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(10_407, "total_bytes", Types.LongType.get()));
     Types.StructType expected =
         Types.StructType.of(
             Types.NestedField.optional(10_200, "id", idStats),
             Types.NestedField.optional(10_400, "data", dataStats));
 
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(ImmutableMap.of(), schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(ImmutableMap.of(), schema));
 
     assertSameStructure(expected, actual);
   }
@@ -483,7 +481,8 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_201, "lower_bound", Types.LongType.get()),
             Types.NestedField.optional(10_202, "upper_bound", Types.LongType.get()),
             Types.NestedField.optional(10_203, "tight_bounds", Types.BooleanType.get()),
-            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()));
+            Types.NestedField.optional(10_204, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(10_205, "null_value_count", Types.LongType.get()));
     Types.StructType categoryStats =
         Types.StructType.of(
             Types.NestedField.optional(10_601, "lower_bound", Types.StringType.get()),
@@ -491,7 +490,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_603, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(10_604, "value_count", Types.LongType.get()),
             Types.NestedField.optional(10_605, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(10_607, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(10_607, "total_bytes", Types.LongType.get()));
     Types.StructType expected =
         Types.StructType.of(
             Types.NestedField.optional(10_200, "id", idStats),
@@ -500,7 +499,7 @@ public class TestStatsUtil {
     Map<String, String> properties =
         ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data", "none");
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(properties, schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(properties, schema));
 
     assertSameStructure(expected, actual);
   }
@@ -524,6 +523,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_602, "upper_bound", Types.DoubleType.get()),
             Types.NestedField.optional(10_603, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(10_604, "value_count", Types.LongType.get()),
+            Types.NestedField.optional(10_605, "null_value_count", Types.LongType.get()),
             Types.NestedField.optional(10_606, "nan_value_count", Types.LongType.get()));
     Types.StructType lonStats =
         Types.StructType.of(
@@ -541,7 +541,7 @@ public class TestStatsUtil {
     Map<String, String> properties =
         ImmutableMap.of(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "none");
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(properties, schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(properties, schema));
 
     assertSameStructure(expected, actual);
   }
@@ -559,7 +559,7 @@ public class TestStatsUtil {
                 Types.MapType.ofOptional(4, 5, Types.StringType.get(), Types.StringType.get())));
 
     Types.StructType actual =
-        StatsUtil.statsWriteSchema(schema, MetricsConfig.from(ImmutableMap.of(), schema, null));
+        StatsUtil.statsWriteSchema(schema, MetricsTestUtil.from(ImmutableMap.of(), schema));
 
     assertThat(actual.fields()).isEmpty();
   }

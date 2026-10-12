@@ -51,11 +51,11 @@ public class TestContentStatsStruct {
   private static final Types.StructType CONTENT_STATS_STRUCT =
       StatsUtil.statsReadSchema(SCHEMA, ImmutableList.of(1, 2, 3));
   private static final Types.StructType UNKNOWN_FIELD_STATS_STRUCT =
-      StatsUtil.fieldStatsStruct(false, Types.IntegerType.get(), 10_800, MetricsModes.Full.get());
+      StatsUtil.fieldStatsStruct(Types.IntegerType.get(), 10_800, MetricsModes.Full.get());
 
   private static final FieldStats<Long> ID_STATS =
       new FieldStatsStruct<>(
-          CONTENT_STATS_STRUCT.field("id").type().asStructType(), 0L, 25L, true, 26L, 0L, 0L, null);
+          CONTENT_STATS_STRUCT.field("id").type().asStructType(), 0L, 25L, true, 26L, 0L, 0L, 0L);
   private static final FieldStats<String> DATA_STATS =
       new FieldStatsStruct<>(
           CONTENT_STATS_STRUCT.field("data").type().asStructType(),
@@ -65,7 +65,7 @@ public class TestContentStatsStruct {
           26L,
           0L,
           0L,
-          null);
+          2L);
 
   @Test
   public void emptyContentStats() {
@@ -103,7 +103,7 @@ public class TestContentStatsStruct {
     ContentStatsStruct stats = new ContentStatsStruct(CONTENT_STATS_STRUCT);
 
     FieldStats<Integer> fieldStats =
-        new FieldStatsStruct<>(UNKNOWN_FIELD_STATS_STRUCT, 0, 10, false, 8, 3, 0, null);
+        new FieldStatsStruct<>(UNKNOWN_FIELD_STATS_STRUCT, 0, 10, false, 8, 3, 0, 23L);
 
     assertThatThrownBy(() -> stats.setStats(4, fieldStats))
         .hasMessage("Cannot set stats for unknown field ID: 4")
@@ -181,6 +181,26 @@ public class TestContentStatsStruct {
     // each field stats is deep-copied using its own copy() method
     assertThat(copy.statsFor(1)).isSameAs(idStatsCopy);
     assertThat(copy.statsFor(2)).isSameAs(dataStatsCopy);
+    assertThat(copy.statsFor(3)).isNull();
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void copyWithNullFieldStats() {
+    FieldStats<Long> idStats = Mockito.mock(FieldStats.class);
+    FieldStats<Long> idStatsCopy = Mockito.mock(FieldStats.class);
+    Mockito.when(idStats.fieldId()).thenReturn(1);
+    Mockito.when(idStats.copy()).thenReturn(idStatsCopy);
+
+    ContentStatsStruct stats = new ContentStatsStruct(CONTENT_STATS_STRUCT);
+    stats.setStats(1, idStats);
+    stats.set(2, null);
+
+    ContentStats copy = stats.copy();
+
+    assertThat(copy).isInstanceOf(ContentStatsStruct.class).isNotSameAs(stats);
+    assertThat(copy.statsFor(1)).isSameAs(idStatsCopy);
+    assertThat(copy.statsFor(2)).isNull();
     assertThat(copy.statsFor(3)).isNull();
   }
 

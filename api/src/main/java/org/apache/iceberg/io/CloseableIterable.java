@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -133,6 +134,38 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   }
 
   /**
+   * Filters the given {@link CloseableIterable} and passes each skipped item to a {@link Consumer}.
+   *
+   * @param skipCallback A consumer used to handle skipped items
+   * @param iterable The underlying {@link CloseableIterable} to filter
+   * @param <E> The underlying type to be iterated
+   * @return A filtered {@link CloseableIterable} that skips items the predicate does not match
+   */
+  static <E> CloseableIterable<E> filter(
+      Consumer<E> skipCallback, CloseableIterable<E> iterable, Predicate<E> pred) {
+    Preconditions.checkArgument(null != iterable, "Invalid iterable: null");
+    Preconditions.checkArgument(null != pred, "Invalid predicate: null");
+
+    if (skipCallback != null) {
+      return combine(
+          () ->
+              new FilterIterator<E>(iterable.iterator()) {
+                @Override
+                protected boolean shouldKeep(E item) {
+                  boolean matches = pred.test(item);
+                  if (!matches) {
+                    skipCallback.accept(item);
+                  }
+                  return matches;
+                }
+              },
+          iterable);
+    } else {
+      return filter(iterable, pred);
+    }
+  }
+
+  /**
    * Filters the given {@link CloseableIterable} and counts the number of elements that do not match
    * the predicate by incrementing the {@link Counter}.
    *
@@ -146,21 +179,7 @@ public interface CloseableIterable<T> extends Iterable<T>, Closeable {
   static <E> CloseableIterable<E> filter(
       Counter skipCounter, CloseableIterable<E> iterable, Predicate<E> pred) {
     Preconditions.checkArgument(null != skipCounter, "Invalid counter: null");
-    Preconditions.checkArgument(null != iterable, "Invalid iterable: null");
-    Preconditions.checkArgument(null != pred, "Invalid predicate: null");
-    return combine(
-        () ->
-            new FilterIterator<E>(iterable.iterator()) {
-              @Override
-              protected boolean shouldKeep(E item) {
-                boolean matches = pred.test(item);
-                if (!matches) {
-                  skipCounter.increment();
-                }
-                return matches;
-              }
-            },
-        iterable);
+    return filter(item -> skipCounter.increment(), iterable, pred);
   }
 
   /**

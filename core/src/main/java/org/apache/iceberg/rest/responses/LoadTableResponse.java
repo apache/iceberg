@@ -20,6 +20,7 @@ package org.apache.iceberg.rest.responses;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.Labels;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -28,6 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
+import org.apache.iceberg.rest.RemoteSigningConfig;
 import org.apache.iceberg.rest.credentials.Credential;
 
 /**
@@ -45,6 +47,8 @@ public class LoadTableResponse implements RESTResponse {
   private Map<String, String> config;
   private TableMetadata metadataWithLocation;
   private List<Credential> credentials;
+  private RemoteSigningConfig remoteSigningConfig;
+  private Labels labels;
 
   public LoadTableResponse() {
     // Required for Jackson deserialization
@@ -54,11 +58,15 @@ public class LoadTableResponse implements RESTResponse {
       String metadataLocation,
       TableMetadata metadata,
       Map<String, String> config,
-      List<Credential> credentials) {
+      List<Credential> credentials,
+      RemoteSigningConfig remoteSigningConfig,
+      Labels labels) {
     this.metadataLocation = metadataLocation;
     this.metadata = metadata;
     this.config = config;
     this.credentials = credentials;
+    this.remoteSigningConfig = remoteSigningConfig;
+    this.labels = labels;
   }
 
   @Override
@@ -87,12 +95,21 @@ public class LoadTableResponse implements RESTResponse {
     return credentials != null ? credentials : ImmutableList.of();
   }
 
+  public RemoteSigningConfig remoteSigningConfig() {
+    return remoteSigningConfig != null ? remoteSigningConfig : RemoteSigningConfig.EMPTY;
+  }
+
+  public Labels labels() {
+    return labels != null ? labels : Labels.EMPTY;
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("metadataLocation", metadataLocation)
         .add("metadata", metadata)
         .add("config", config)
+        .add("labels", labels)
         .toString();
   }
 
@@ -105,6 +122,8 @@ public class LoadTableResponse implements RESTResponse {
     private TableMetadata metadata;
     private final Map<String, String> config = Maps.newHashMap();
     private final List<Credential> credentials = Lists.newArrayList();
+    private RemoteSigningConfig remoteSigningConfig = RemoteSigningConfig.EMPTY;
+    private Labels labels = Labels.EMPTY;
 
     private Builder() {}
 
@@ -134,9 +153,20 @@ public class LoadTableResponse implements RESTResponse {
       return this;
     }
 
+    public Builder withRemoteSigningConfig(RemoteSigningConfig signingConfig) {
+      this.remoteSigningConfig = signingConfig;
+      return this;
+    }
+
+    public Builder withLabels(Labels tableLabels) {
+      this.labels = tableLabels;
+      return this;
+    }
+
     public LoadTableResponse build() {
       Preconditions.checkNotNull(metadata, "Invalid metadata: null");
-      return new LoadTableResponse(metadataLocation, metadata, config, credentials);
+      return new LoadTableResponse(
+          metadataLocation, metadata, config, credentials, remoteSigningConfig, labels);
     }
   }
 }

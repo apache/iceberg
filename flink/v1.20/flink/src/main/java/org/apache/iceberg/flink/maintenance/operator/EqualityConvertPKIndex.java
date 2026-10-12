@@ -58,21 +58,22 @@ import org.slf4j.LoggerFactory;
  * On a separate target branch the committer reassigns data sequence numbers, so every match is
  * deleted; event-time ordering prevents over-deletion.
  *
- * <p>Stale-index protection runs on two levels. Each key tracks the main sequence number its stored
- * positions were indexed against. The sequence number is unique and monotonic per snapshot, so it
- * serves both the equality test below and the ordering test:
+ * <p>Stale-index protection runs on two levels. Each key tracks the generation the commands
+ * carrying its stored positions were stamped with. The planner hands out a strictly higher
+ * generation on every rebuild of the index, so it serves both the equality test below and the
+ * ordering test:
  *
  * <ul>
  *   <li><b>Lazy (per-key)</b>: any keyed command at the top of {@link #processElement} whose {@link
- *       IndexCommand#mainSequenceNumber()} differs from the stored one clears stale state and
- *       adopts the command's sequence number. Equality suffices here. Required because the
- *       broadcast and keyed inputs are independent streams with no ordering guarantee; without it,
- *       an ADD_DATA_ROW that arrived before the broadcast would be wrongly evicted.
+ *       IndexCommand#indexGeneration()} differs from the stored one clears stale state and adopts
+ *       the command's generation. Equality suffices here. Required because the broadcast and keyed
+ *       inputs are independent streams with no ordering guarantee; without it, an ADD_DATA_ROW that
+ *       arrived before the broadcast would be wrongly evicted.
  *   <li><b>Eager (all keys)</b>: a CLEAR_INDEX broadcast iterates all keys on the subtask via
  *       {@link KeyedBroadcastProcessFunction.Context#applyToKeyedState} and clears any whose stored
- *       sequence number is older than the broadcast's. Staleness is ordered by sequence number.
- *       Bounds state size for PKs that were removed from main by an external CoW commit and won't
- *       receive any keyed command next cycle.
+ *       generation is older than the broadcast's. Staleness is ordered by generation. Bounds state
+ *       size for PKs that were removed from main by an external CoW commit and won't receive any
+ *       keyed command next cycle.
  * </ul>
  */
 @Internal
@@ -89,8 +90,8 @@ public class EqualityConvertPKIndex
   public static final MapStateDescriptor<Void, Void> CLEAR_BROADCAST_DESCRIPTOR =
       new MapStateDescriptor<>("eq-convert-clear-broadcast", Types.VOID, Types.VOID);
 
-  private static final ValueStateDescriptor<Long> MAIN_SEQUENCE_VERSION_DESCRIPTOR =
-      new ValueStateDescriptor<>("mainSequenceVersion", Types.LONG);
+  private static final ValueStateDescriptor<Long> INDEX_GENERATION_DESCRIPTOR =
+      new ValueStateDescriptor<>("indexGeneration", Types.LONG);
   private static final ListStateDescriptor<DVPosition> DATA_ROW_POSITIONS_DESCRIPTOR =
       new ListStateDescriptor<>("filePositions", TypeInformation.of(DVPosition.class));
   private static final ListStateDescriptor<DVPosition> BUFFERED_ROWS_DESCRIPTOR =
@@ -102,7 +103,7 @@ public class EqualityConvertPKIndex
   private static final ListStateDescriptor<Integer> RESOLVE_SPEC_IDS_DESCRIPTOR =
       new ListStateDescriptor<>("resolveSpecIds", Types.INT);
 
-  private transient ValueState<Long> mainSequenceVersion;
+  private transient ValueState<Long> indexGeneration;
   // Resolvable rows for this key. Populated immediately for main data, or from onTimer for
   // staging rows once their phase watermark passes, so a delete never resolves against a row from a
   // later phase.
@@ -132,7 +133,7 @@ public class EqualityConvertPKIndex
   @Override
   public void open(OpenContext context) throws Exception {
     super.open(context);
-    mainSequenceVersion = getRuntimeContext().getState(MAIN_SEQUENCE_VERSION_DESCRIPTOR);
+    indexGeneration = getRuntimeContext().getState(INDEX_GENERATION_DESCRIPTOR);
     dataRowPositions = getRuntimeContext().getListState(DATA_ROW_POSITIONS_DESCRIPTOR);
     bufferedRows = getRuntimeContext().getListState(BUFFERED_ROWS_DESCRIPTOR);
     resolveTimestamp = getRuntimeContext().getState(RESOLVE_TIMESTAMP_DESCRIPTOR);
@@ -149,15 +150,15 @@ public class EqualityConvertPKIndex
   public void processElement(IndexCommand cmd, ReadOnlyContext ctx, Collector<DVPosition> out)
       throws Exception {
     try {
-      Long storedSequence = mainSequenceVersion.value();
-      if (!Objects.equals(storedSequence, cmd.mainSequenceNumber())) {
+      Long storedGeneration = indexGeneration.value();
+      if (!Objects.equals(storedGeneration, cmd.indexGeneration())) {
         LOG.info(
-            "Main sequence changed from {} to {} (snapshot {}), clearing state",
-            storedSequence,
-            cmd.mainSequenceNumber(),
+            "Index generation changed from {} to {} (snapshot {}), clearing state",
+            storedGeneration,
+            cmd.indexGeneration(),
             cmd.mainSnapshotId());
         clearKeyState();
-        mainSequenceVersion.update(cmd.mainSequenceNumber());
+        indexGeneration.update(cmd.indexGeneration());
       }
 
       long ts = ctx.timestamp();
@@ -204,15 +205,15 @@ public class EqualityConvertPKIndex
         "Broadcast element must be %s",
         IndexCommand.Type.CLEAR_INDEX);
 
-    final long broadcastSequenceNumber = cmd.mainSequenceNumber();
+    final long broadcastGeneration = cmd.indexGeneration();
     try {
       ctx.applyToKeyedState(
-          MAIN_SEQUENCE_VERSION_DESCRIPTOR,
-          (key, sequenceState) -> {
-            Long storedSequenceNumber = sequenceState.value();
-            if (storedSequenceNumber != null && storedSequenceNumber < broadcastSequenceNumber) {
+          INDEX_GENERATION_DESCRIPTOR,
+          (key, generationState) -> {
+            Long storedGeneration = generationState.value();
+            if (storedGeneration != null && storedGeneration < broadcastGeneration) {
               clearKeyState();
-              sequenceState.update(broadcastSequenceNumber);
+              generationState.update(broadcastGeneration);
               eagerlyEvictedKeyNumCounter.inc();
             }
           });

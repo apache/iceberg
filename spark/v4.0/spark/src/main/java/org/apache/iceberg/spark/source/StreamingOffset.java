@@ -86,8 +86,7 @@ class StreamingOffset extends Offset {
   @Override
   public String json() {
     StringWriter writer = new StringWriter();
-    try {
-      JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+    try (JsonGenerator generator = JsonUtil.factory().createGenerator(writer)) {
       generator.writeStartObject();
       generator.writeNumberField(VERSION, CURR_VERSION);
       generator.writeNumberField(SNAPSHOT_ID, snapshotId);

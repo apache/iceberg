@@ -230,7 +230,7 @@ public class ExpressionParser {
     }
 
     private String operationType(Expression.Operation op) {
-      return op.toString().replaceAll("_", "-").toLowerCase(Locale.ROOT);
+      return op.toString().replace('_', '-').toLowerCase(Locale.ROOT);
     }
 
     private void term(Term term) throws IOException {
@@ -312,7 +312,7 @@ public class ExpressionParser {
   }
 
   private static Expression.Operation fromType(String type) {
-    return Expression.Operation.fromString(type.replaceAll("-", "_"));
+    return Expression.Operation.fromString(type.replace('-', '_'));
   }
 
   @SuppressWarnings("unchecked")

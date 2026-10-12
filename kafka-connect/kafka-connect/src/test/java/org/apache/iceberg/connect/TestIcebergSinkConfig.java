@@ -57,6 +57,7 @@ public class TestIcebergSinkConfig {
             "iceberg.tables", "db.landing");
     IcebergSinkConfig config = new IcebergSinkConfig(props);
     assertThat(config.commitIntervalMs()).isEqualTo(300_000);
+    assertThat(config.replaceNullWithDefault()).isTrue();
   }
 
   @Test

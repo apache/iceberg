@@ -628,7 +628,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     sql(
         "CALL %s.system.rewrite_data_files(table => '%s'," + " where => 'c2 like \"%s\"')",
         catalogName, tableIdent, "car%");
-    // TODO: Enable when org.apache.iceberg.spark.SparkFilters have implementations for
+    // TODO: Enable when org.apache.iceberg.spark.SparkV2Filters has implementations for
     // StringEndsWith & StringContains
     // StringEndsWith
     // sql("CALL %s.system.rewrite_data_files(table => '%s'," +
@@ -805,7 +805,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     assumeThat(catalogName).isEqualTo(SparkCatalogConfig.HADOOP.catalogName());
 
     TableIdentifier identifier =
-        TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replaceAll("`", ""));
+        TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replace("`", ""));
     sql(
         "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg",
         tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
@@ -840,7 +840,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     assumeThat(catalogName).isEqualTo(SparkCatalogConfig.HADOOP.catalogName());
 
     TableIdentifier identifier =
-        TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replaceAll("`", ""));
+        TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replace("`", ""));
     sql(
         "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg",
         tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));
@@ -880,7 +880,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     assumeThat(catalogName).isEqualTo(SparkCatalogConfig.HADOOP.catalogName());
 
     TableIdentifier identifier =
-        TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replaceAll("`", ""));
+        TableIdentifier.of("default", QUOTED_SPECIAL_CHARS_TABLE_NAME.replace("`", ""));
     sql(
         "CREATE TABLE %s (c1 int, c2 string, c3 string) USING iceberg",
         tableName(QUOTED_SPECIAL_CHARS_TABLE_NAME));

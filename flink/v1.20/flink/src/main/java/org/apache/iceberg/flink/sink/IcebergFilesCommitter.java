@@ -87,7 +87,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not
   // been committed to iceberg table). We need a sorted map here because there's possible that few
   // checkpoints snapshot failed, for example: the 1st checkpoint have 2 data files <1, <file0,
-  // file1>>, the 2st checkpoint have 1 data files <2, <file3>>. Snapshot for checkpoint#1
+  // file1>>, the 2nd checkpoint have 1 data files <2, <file3>>. Snapshot for checkpoint#1
   // interrupted because of network/disk failure etc, while we don't expect any data loss in iceberg
   // table. So we keep the finished files <1, <file0, file1>> in memory and retry to commit iceberg
   // table when the next checkpoint happen.

@@ -210,20 +210,6 @@ public class RewriteDataFiles {
     }
 
     /**
-     * A user provided filter for determining which files will be considered by the rewrite
-     * strategy.
-     *
-     * @param newFilter the filter expression to apply
-     * @return this for method chaining
-     * @deprecated will be removed in 1.12.0. Use {@link #filter(SerializableSupplier)} instead
-     */
-    @Deprecated
-    public Builder filter(Expression newFilter) {
-      this.filterSupplier = () -> newFilter;
-      return this;
-    }
-
-    /**
      * A user-provided supplier of a filter expression that determines which files are considered by
      * the rewrite strategy.
      *

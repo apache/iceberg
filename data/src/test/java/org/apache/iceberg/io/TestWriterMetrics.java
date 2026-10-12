@@ -152,9 +152,8 @@ public abstract class TestWriterMetrics<T> {
         writerFactory.newPositionDeleteWriter(outputFile, table.spec(), null);
 
     try {
-      T deletedRow = toRow(3, "3", true, 3L);
       PositionDelete<T> positionDelete = PositionDelete.create();
-      positionDelete.set("File A", 1, deletedRow);
+      positionDelete.set("File A", 1);
       deleteWriter.write(positionDelete);
     } finally {
       deleteWriter.close();
@@ -193,10 +192,10 @@ public abstract class TestWriterMetrics<T> {
     try {
       PositionDelete<T> positionDelete = PositionDelete.create();
 
-      positionDelete.set("File A", 1, toRow(3, "3", true, 3L));
+      positionDelete.set("File A", 1);
       deleteWriter.write(positionDelete);
 
-      positionDelete.set("File B", 1, toRow(3, "3", true, 3L));
+      positionDelete.set("File B", 1);
       deleteWriter.write(positionDelete);
 
     } finally {

@@ -90,20 +90,17 @@ public class TestFlinkTableSinkCompaction extends CatalogTestBase {
   @Parameter(index = 3)
   private String lockType;
 
-  @Parameters(name = "catalogName={0}, baseNamespace={1}, userSqlHint={2}, lockType={3}")
+  @Parameters(name = "catalogType={0}, baseNamespace={1}, userSqlHint={2}, lockType={3}")
   public static List<Object[]> parameters() {
     return Arrays.asList(
         new Object[] {
-          "testhadoop_basenamespace", Namespace.of("l0", "l1"), true, LockConfig.JdbcLockConfig.JDBC
+          CatalogType.HADOOP, Namespace.of("l0", "l1"), true, LockConfig.JdbcLockConfig.JDBC
         },
         new Object[] {
-          "testhadoop_basenamespace",
-          Namespace.of("l0", "l1"),
-          false,
-          LockConfig.JdbcLockConfig.JDBC
+          CatalogType.HADOOP, Namespace.of("l0", "l1"), false, LockConfig.JdbcLockConfig.JDBC
         },
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), true, ""},
-        new Object[] {"testhadoop_basenamespace", Namespace.of("l0", "l1"), false, ""});
+        new Object[] {CatalogType.HADOOP, Namespace.of("l0", "l1"), true, ""},
+        new Object[] {CatalogType.HADOOP, Namespace.of("l0", "l1"), false, ""});
   }
 
   @Override

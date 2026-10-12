@@ -46,7 +46,7 @@ services:
       iceberg_net:
     depends_on:
       - rest
-      - minio
+      - object-store
     volumes:
       - ./warehouse:/home/iceberg/warehouse
       - ./notebooks:/home/iceberg/notebooks/notebooks
@@ -72,41 +72,46 @@ services:
       - AWS_REGION=us-east-1
       - CATALOG_WAREHOUSE=s3://warehouse/
       - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
-      - CATALOG_S3_ENDPOINT=http://minio:9000
-  minio:
-    image: minio/minio
-    container_name: minio
+      - CATALOG_S3_ENDPOINT=http://object-store:9000
+      - CATALOG_S3_PATH__STYLE__ACCESS=true
+  # tabulario/spark-iceberg expects virtual-hosted-style S3 at http://minio:9000
+  object-store:
+    image: rustfs/rustfs:1.0.0
+    container_name: object-store
     environment:
-      - MINIO_ROOT_USER=admin
-      - MINIO_ROOT_PASSWORD=password
-      - MINIO_DOMAIN=minio
+      - RUSTFS_ACCESS_KEY=admin
+      - RUSTFS_SECRET_KEY=password
+      - RUSTFS_OBS_LOG_STDOUT_ENABLED=true
+      - RUSTFS_SERVER_DOMAINS=minio
     networks:
       iceberg_net:
         aliases:
+          - minio
           - warehouse.minio
     ports:
       - 9001:9001
       - 9000:9000
-    command: ["server", "/data", "--console-address", ":9001"]
-  mc:
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:9000/health/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  create-bucket:
+    image: rustfs/rustfs:1.0.0
+    container_name: create-bucket
     depends_on:
-      - minio
-    image: minio/mc
-    container_name: mc
+      object-store:
+        condition: service_healthy
     networks:
       iceberg_net:
-    environment:
-      - AWS_ACCESS_KEY_ID=admin
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_REGION=us-east-1
-    entrypoint: |
-      /bin/sh -c "
-      until (/usr/bin/mc alias set minio http://minio:9000 admin password) do echo '...waiting...' && sleep 1; done;
-      /usr/bin/mc rm -r --force minio/warehouse;
-      /usr/bin/mc mb minio/warehouse;
-      /usr/bin/mc policy set public minio/warehouse;
-      tail -f /dev/null
-      "
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - >-
+        curl -sf -o /dev/null --aws-sigv4 aws:amz:us-east-1:s3 --user admin:password
+        --head http://object-store:9000/warehouse ||
+        curl -sSf --aws-sigv4 aws:amz:us-east-1:s3 --user admin:password
+        -X PUT http://object-store:9000/warehouse
 networks:
   iceberg_net:
 
