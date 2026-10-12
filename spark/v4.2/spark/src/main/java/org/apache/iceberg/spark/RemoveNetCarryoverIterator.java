@@ -47,7 +47,7 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
 
   protected RemoveNetCarryoverIterator(Iterator<InternalRow> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
-    this.ordering = ordering(generateIndicesToIdentifySameRow());
+    this.ordering = getOrdering(generateIndicesToIdentifySameRow());
   }
 
   @Override

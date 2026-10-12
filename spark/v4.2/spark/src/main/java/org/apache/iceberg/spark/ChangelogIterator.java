@@ -142,7 +142,7 @@ public abstract class ChangelogIterator implements Iterator<InternalRow> {
    * ordering compares them as equal, which applies Spark's own semantics for nested values,
    * including normalizing map entry order.
    */
-  protected BaseOrdering ordering(int[] indices) {
+  protected BaseOrdering getOrdering(int[] indices) {
     List<SortOrder> sortOrders = Lists.newArrayListWithCapacity(indices.length);
     for (int index : indices) {
       sortOrders.add(

@@ -65,7 +65,7 @@ public class ComputeUpdateIterator extends ChangelogIterator {
       Iterator<InternalRow> rowIterator, StructType rowType, String[] identifierFields) {
     super(rowIterator, rowType);
     this.ordering =
-        ordering(Arrays.stream(identifierFields).mapToInt(rowType::fieldIndex).toArray());
+        getOrdering(Arrays.stream(identifierFields).mapToInt(rowType::fieldIndex).toArray());
     this.updateBefore = updateProjection(UPDATE_BEFORE);
     this.updateAfter = updateProjection(UPDATE_AFTER);
     this.identifierFields = identifierFields;
