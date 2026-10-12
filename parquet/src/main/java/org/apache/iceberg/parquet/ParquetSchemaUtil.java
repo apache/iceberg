@@ -130,6 +130,16 @@ public class ParquetSchemaUtil {
     }
   }
 
+  /**
+   * Prunes columns from the file schema to match the expected schema.
+   *
+   * <p>Like {@link TypeUtil#project(Schema, Set)}, structs that are partially projected are read as
+   * their projected subtrees rather than widened back to the full struct.
+   *
+   * @param fileSchema schema from a Parquet file
+   * @param expectedSchema expected schema
+   * @return a parquet schema pruned using the expected schema
+   */
   public static MessageType pruneColumns(MessageType fileSchema, Schema expectedSchema) {
     // column order must match the incoming type, so it doesn't matter that the ids are unordered
     Set<Integer> selectedIds = Sets.newHashSet(TypeUtil.getProjectedIds(expectedSchema));
