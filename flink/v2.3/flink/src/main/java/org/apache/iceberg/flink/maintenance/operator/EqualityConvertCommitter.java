@@ -50,13 +50,9 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The commit is gated on the plan's done-timestamp watermark.
  *
- * <p>Watermarks are forwarded while no cycle is active, so a watermark from another task's
- * trigger sharing the maintenance lock is not stalled. Once the planner marks cycle start,
- * watermarks are held back until the cycle commits, never mid-cycle. The {@link LockRemover}
- * releases the maintenance lock once a watermark past the trigger's start epoch reaches it. The
- * planner emits phase watermarks before the plan arrives; forwarding those would release the lock
- * before this commit, letting the TriggerManager start a concurrent cycle that re-processes the
- * same uncommitted staging snapshot.
+ * <p>Watermarks are forwarded while no cycle is active. After the planner marks cycle start,
+ * watermarks are held back until the cycle commits; forwarding a pre-plan phase watermark would
+ * let the {@link LockRemover} release the maintenance lock before this commit.
  *
  * <p>Emits a {@link Trigger} after each cycle (commit, no-op, or error) so the downstream {@link
  * TaskResultAggregator} can track task completion. This is the sole source of Trigger records for

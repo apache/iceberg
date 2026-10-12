@@ -35,10 +35,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
  * #noOp()} to check.
  *
  * <p>A cycle-start marker is encoded by {@link #stagingSnapshotId()} == {@link
- * #CYCLE_START_STAGING_SNAPSHOT_ID}. The planner emits one on the metadata stream before the
- * first phase watermark so the committer holds back watermarks until the plan arrives. Use
- * {@link #cycleStart(long)} to construct one and {@link #cycleStart()} to check. It is never a
- * plan: consumers must not treat it as one.
+ * #CYCLE_START_STAGING_SNAPSHOT_ID}. Use {@link #cycleStart(long)} to construct one and {@link
+ * #cycleStart()} to check. It is never a plan: consumers must not treat it as one.
  *
  * @param dataFiles new staging data files committed in the cycle
  * @param stagingDVFiles staging DVs passed through to main, used by DVWriter to merge with
