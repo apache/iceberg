@@ -200,7 +200,8 @@ public class TestGCSFileIO {
   @Test
   public void testDeleteFilesIdempotentWhenAlreadyGone() {
     Iterable<String> deletes =
-        () -> ImmutableList.of(gsUri("gone/data1.dat"), gsUri("gone/data2.dat")).stream().iterator();
+        () ->
+            ImmutableList.of(gsUri("gone/data1.dat"), gsUri("gone/data2.dat")).stream().iterator();
 
     assertThatCode(() -> io.deleteFiles(deletes)).doesNotThrowAnyException();
   }
@@ -224,7 +225,8 @@ public class TestGCSFileIO {
         () -> ImmutableList.of(gsUri("forbidden/data.dat")).stream().iterator();
 
     assertThatThrownBy(() -> io.deleteFiles(deletes))
-        .isInstanceOf(BulkDeletionFailureException.class);
+        .isInstanceOf(BulkDeletionFailureException.class)
+        .hasMessage("Failed to delete 1 files");
   }
 
   @Test
