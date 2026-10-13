@@ -649,11 +649,6 @@ class TrackedFileAdapters {
     }
 
     @Override
-    public List<Integer> equalityIds() {
-      return null;
-    }
-
-    @Override
     public TrackedFile copy() {
       throw new UnsupportedOperationException("copy is not implemented");
     }
@@ -772,11 +767,6 @@ class TrackedFileAdapters {
 
     @Override
     public List<Long> splitOffsets() {
-      return null;
-    }
-
-    @Override
-    public List<Integer> equalityIds() {
       return null;
     }
 
@@ -1013,7 +1003,7 @@ class TrackedFileAdapters {
     return isPresent(file.valueCounts())
         || isPresent(file.nullValueCounts())
         || isPresent(file.nanValueCounts())
-        || isPresent(file.avgValueSizes())
+        || isPresent(file.totalBytes())
         || isPresent(file.lowerBounds())
         || isPresent(file.upperBounds());
   }
