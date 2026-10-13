@@ -35,6 +35,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.ContentFile;
@@ -1071,6 +1072,61 @@ public class TestRepairTableAction extends TestBase {
   }
 
   @TestTemplate
+  void repairCleansUpManifestsOfEarlierGroupsWhenLaterGroupFails() throws IOException {
+    assumeThat(formatVersion)
+        .as("position delete files are written in format version 2")
+        .isEqualTo(2);
+
+    // the data group repairs its manifest before the delete group fails writing its own
+    Table table = createTable(PartitionSpec.unpartitioned());
+    appendRecords(table, records(4));
+    DataFile original = onlyDataFile(table);
+    replaceManifestWithCorruptRecordCount(table, original);
+    table.refresh();
+    DeleteFile delete =
+        writePosDeletes(table, Lists.newArrayList(Pair.of(original.location(), 0L)));
+    table
+        .newRowDelta()
+        .addDeletes(
+            FileMetadata.deleteFileBuilder(table.spec())
+                .copy(delete)
+                .withRecordCount(delete.recordCount() + 100)
+                .build())
+        .commit();
+    table.refresh();
+
+    String metadataBefore =
+        ((HasTableOperations) table).operations().current().metadataFileLocation();
+    Set<String> manifestsBefore = manifestPaths();
+    FileIO failingIO = new FailingSecondManifestWriteFileIO();
+    Table repairTable =
+        new BaseTable(((HasTableOperations) table).operations(), table.name()) {
+          @Override
+          public FileIO io() {
+            return failingIO;
+          }
+        };
+
+    try {
+      assertThatThrownBy(
+              () -> SparkActions.get().repairTable(repairTable).repairFileMetrics().execute())
+          .hasMessageContaining("Injected manifest write failure");
+      assertThat(FailingSecondManifestWriteFileIO.REPAIRED_MANIFESTS.get())
+          .as("the data group must write its manifest before the delete group fails")
+          .isEqualTo(2);
+    } finally {
+      FailingSecondManifestWriteFileIO.REPAIRED_MANIFESTS.set(0);
+    }
+
+    table.refresh();
+    assertThat(((HasTableOperations) table).operations().current().metadataFileLocation())
+        .isEqualTo(metadataBefore);
+    assertThat(manifestPaths())
+        .as("the manifests written by the data group must be deleted")
+        .isEqualTo(manifestsBefore);
+  }
+
+  @TestTemplate
   void repairCleansUpManifestsOnSnapshotTotalsFailure() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "false").commit();
@@ -1573,6 +1629,25 @@ public class TestRepairTableAction extends TestBase {
   private static class MetricsReadFailure extends RuntimeException {
     MetricsReadFailure(String path) {
       super("Injected metrics read failure reading " + path);
+    }
+  }
+
+  private static class FailingSecondManifestWriteFileIO extends HadoopFileIO {
+    private static final AtomicInteger REPAIRED_MANIFESTS = new AtomicInteger(0);
+
+    @Override
+    public OutputFile newOutputFile(String path) {
+      if (path.contains("/repaired-m-") && REPAIRED_MANIFESTS.incrementAndGet() > 1) {
+        throw new ManifestWriteFailure(path);
+      }
+
+      return super.newOutputFile(path);
+    }
+  }
+
+  private static class ManifestWriteFailure extends RuntimeException {
+    ManifestWriteFailure(String path) {
+      super("Injected manifest write failure writing " + path);
     }
   }
 
