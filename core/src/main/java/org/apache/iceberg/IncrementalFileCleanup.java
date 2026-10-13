@@ -296,7 +296,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
       Set<Long> validIds,
       Map<Integer, PartitionSpec> specsById) {
     Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
-    Set<String> deletionVectorsToDelete = ConcurrentHashMap.newKeySet();
+    Set<String> dvFileRemovalCandidates = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifestsToScan)
         .retry(3)
         .suppressFailureWhenFinished()
@@ -316,7 +316,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                     // use toString to ensure the path will not change (Utf8 is reused)
                     String location = entry.file().location();
                     if (entry.file().format() == FileFormat.PUFFIN) {
-                      deletionVectorsToDelete.add(location);
+                      dvFileRemovalCandidates.add(location);
                     } else {
                       filesToDelete.add(location);
                     }
@@ -327,8 +327,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
               }
             });
 
-    filesToDelete.addAll(
-        unreferencedDeletionVectors(deletionVectorsToDelete, liveDeleteManifests, specsById));
+    filesToDelete.addAll(unreferencedDVs(dvFileRemovalCandidates, liveDeleteManifests, specsById));
 
     Tasks.foreach(manifestsToRevert)
         .retry(3)
@@ -357,16 +356,16 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
   }
 
   // A Puffin file can be shared by multiple deletion vectors, so keep it if any live one remains
-  private Set<String> unreferencedDeletionVectors(
-      Set<String> deletionVectorsToDelete,
+  private Set<String> unreferencedDVs(
+      Set<String> dvFileRemovalCandidates,
       Collection<ManifestFile> liveDeleteManifests,
       Map<Integer, PartitionSpec> specsById) {
-    if (deletionVectorsToDelete.isEmpty()) {
-      return deletionVectorsToDelete;
+    if (dvFileRemovalCandidates.isEmpty()) {
+      return dvFileRemovalCandidates;
     }
 
     Set<String> unreferenced = ConcurrentHashMap.newKeySet();
-    unreferenced.addAll(deletionVectorsToDelete);
+    unreferenced.addAll(dvFileRemovalCandidates);
 
     try {
       Tasks.foreach(liveDeleteManifests)
@@ -377,9 +376,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
           .onFailure(
               (item, exc) ->
                   LOG.warn(
-                      "Failed to determine live deletion vectors in manifest {}. Retrying",
-                      item.path(),
-                      exc))
+                      "Failed to determine live DVs in manifest {}. Retrying", item.path(), exc))
           .run(
               manifest -> {
                 try (CloseableIterable<String> paths =
@@ -392,7 +389,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                 }
               });
     } catch (Throwable e) {
-      LOG.warn("Failed to list all live deletion vectors, retaining deletion vector files", e);
+      LOG.warn("Failed to determine live DVs, skipping DV cleanup", e);
       return Set.of();
     }
 

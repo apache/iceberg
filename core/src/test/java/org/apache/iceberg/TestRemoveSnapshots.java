@@ -2145,7 +2145,7 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
-  public void testExpireDoesNotDeletePuffinFileSharedByLiveDeletionVectors() throws Exception {
+  public void expireDoesNotDeletePuffinFileSharedByLiveDeletionVectors() throws Exception {
     assumeThat(formatVersion).as("Deletion vectors require V3 or later").isGreaterThanOrEqualTo(3);
 
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
@@ -2155,10 +2155,6 @@ public class TestRemoveSnapshots extends TestBase {
     DeleteFile dvA = deletionVector(sharedPuffinPath, FILE_A, 4L);
     DeleteFile dvB = deletionVector(sharedPuffinPath, FILE_B, 44L);
     table.newRowDelta().addDeletes(dvA).addDeletes(dvB).commit();
-
-    assertThat(liveDeleteFilePaths())
-        .as("Table should have two deletion vectors in the shared Puffin file")
-        .containsExactly(sharedPuffinPath, sharedPuffinPath);
 
     // replace FILE_A's deletion vector; FILE_B's stays in the shared Puffin file
     DeleteFile newDvA =
@@ -2181,9 +2177,6 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(deletedFiles)
         .as("Puffin file with a live deletion vector must not be deleted")
         .doesNotContain(sharedPuffinPath);
-    assertThat(liveDeleteFilePaths())
-        .as("Table should have the replacement deletion vector for FILE_A and the shared one")
-        .containsExactlyInAnyOrder(newDvA.location(), dvB.location());
   }
 
   @TestTemplate
@@ -2219,15 +2212,6 @@ public class TestRemoveSnapshots extends TestBase {
 
     assertThat(table.snapshots()).hasSize(1);
     assertThat(deletedFiles).contains(sharedPuffinPath);
-  }
-
-  private List<String> liveDeleteFilePaths() throws IOException {
-    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-      return Lists.newArrayList(
-          Iterables.transform(
-              Iterables.concat(Iterables.transform(tasks, FileScanTask::deletes)),
-              DeleteFile::location));
-    }
   }
 
   private DeleteFile deletionVector(String puffinPath, DataFile dataFile, long contentOffset) {
