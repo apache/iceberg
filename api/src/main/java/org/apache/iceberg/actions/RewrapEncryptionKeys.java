@@ -19,16 +19,24 @@
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.RewrapEncryptionKeys.KeyRegenerationLevel;
 
 /**
- * An action that re-wraps the encryption keys of a table so that they no longer depend on a
- * superseded version of the table master key.
+ * An action that re-wraps the encryption keys of a table.
  *
- * <p>Only the metadata reachable from the current snapshot is re-wrapped. Data and delete files are
- * not rewritten, and older snapshots keep depending on the previous keys until they are expired.
+ * <p>Similar to {@link org.apache.iceberg.RewrapEncryptionKeys} but may use a query engine to
+ * distribute parts of the work.
  */
 public interface RewrapEncryptionKeys
     extends SnapshotUpdate<RewrapEncryptionKeys, RewrapEncryptionKeys.Result> {
+
+  /**
+   * Sets the lowest key to regenerate.
+   *
+   * @param level the lowest key to regenerate
+   * @return this for method chaining
+   */
+  RewrapEncryptionKeys keyRegenerationLevel(KeyRegenerationLevel level);
 
   /** The action result that contains a summary of the execution. */
   interface Result {
