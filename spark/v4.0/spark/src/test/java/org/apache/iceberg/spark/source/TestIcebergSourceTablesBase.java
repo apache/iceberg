@@ -43,6 +43,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecordBuilder;
+import org.apache.iceberg.AllManifestsTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
@@ -75,6 +76,7 @@ import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadOptions;
@@ -85,6 +87,7 @@ import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.data.TestHelpers;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.spark.SparkException;
@@ -383,28 +386,41 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
             .format("iceberg")
             .load(loadLocation(tableIdentifier, "all_entries"))
             .orderBy("snapshot_id");
-    List<Row> actual = TestHelpers.selectNonDerived(entriesTableDs).collectAsList();
+    Dataset<Row> nonRefEntriesDs = entriesTableDs.drop("reference_snapshot_id");
+    List<Row> actual = TestHelpers.selectNonDerived(nonRefEntriesDs).collectAsList();
+    List<Pair<Long, Long>> actualSnapshotIds =
+        entriesTableDs.select("snapshot_id", "reference_snapshot_id").collectAsList().stream()
+            .map(row -> Pair.of(row.getLong(0), row.getLong(1)))
+            .collect(Collectors.toList());
 
+    // reference_snapshot_id is not stored in manifests; it is the snapshot that lists the manifest
+    Schema manifestEntrySchema =
+        TypeUtil.selectNot(
+            entriesTable.schema(), ImmutableSet.of(AllManifestsTable.REF_SNAPSHOT_ID.fieldId()));
     List<GenericData.Record> expected = Lists.newArrayList();
-    for (ManifestFile manifest :
-        Iterables.concat(Iterables.transform(table.snapshots(), s -> s.allManifests(table.io())))) {
-      InputFile in = table.io().newInputFile(manifest.path());
-      try (CloseableIterable<GenericData.Record> rows =
-          Avro.read(in).project(entriesTable.schema()).build()) {
-        // each row must inherit snapshot_id and sequence_number
-        rows.forEach(
-            row -> {
-              if (row.get("snapshot_id").equals(table.currentSnapshot().snapshotId())) {
-                row.put(2, 3L); // data sequence number
-                row.put(3, 3L); // file sequence number
-              } else {
-                row.put(2, 1L); // data sequence number
-                row.put(3, 1L); // file sequence number
-              }
-              GenericData.Record file = (GenericData.Record) row.get("data_file");
-              TestHelpers.asMetadataRecord(file);
-              expected.add(row);
-            });
+    List<Pair<Long, Long>> expectedSnapshotIds = Lists.newArrayList();
+    for (Snapshot snapshot : table.snapshots()) {
+      for (ManifestFile manifest : snapshot.allManifests(table.io())) {
+        InputFile in = table.io().newInputFile(manifest.path());
+        try (CloseableIterable<GenericData.Record> rows =
+            Avro.read(in).project(manifestEntrySchema).build()) {
+          // each row must inherit snapshot_id and sequence_number
+          rows.forEach(
+              row -> {
+                if (row.get("snapshot_id").equals(table.currentSnapshot().snapshotId())) {
+                  row.put(2, 3L); // data sequence number
+                  row.put(3, 3L); // file sequence number
+                } else {
+                  row.put(2, 1L); // data sequence number
+                  row.put(3, 1L); // file sequence number
+                }
+                GenericData.Record file = (GenericData.Record) row.get("data_file");
+                TestHelpers.asMetadataRecord(file);
+                expected.add(row);
+                expectedSnapshotIds.add(
+                    Pair.of((Long) row.get("snapshot_id"), snapshot.snapshotId()));
+              });
+        }
       }
     }
 
@@ -412,10 +428,11 @@ public abstract class TestIcebergSourceTablesBase extends TestBase {
 
     assertThat(expected).as("Entries table should have 3 rows").hasSize(3);
     assertThat(actual).as("Actual results should have 3 rows").hasSize(3);
+    assertThat(actualSnapshotIds).containsExactlyInAnyOrderElementsOf(expectedSnapshotIds);
 
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(
-          TestHelpers.nonDerivedSchema(entriesTableDs), expected.get(i), actual.get(i));
+          TestHelpers.nonDerivedSchema(nonRefEntriesDs), expected.get(i), actual.get(i));
     }
   }
 

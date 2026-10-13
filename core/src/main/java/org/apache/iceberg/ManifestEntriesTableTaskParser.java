@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
@@ -38,6 +39,7 @@ class ManifestEntriesTableTaskParser {
   private static final String PROJECTION = "projection";
   private static final String RESIDUAL = "residual-filter";
   private static final String MANIFEST = "manifest-file";
+  private static final String REFERENCE_SNAPSHOT_IDS = "reference-snapshot-ids";
 
   private ManifestEntriesTableTaskParser() {}
 
@@ -67,6 +69,10 @@ class ManifestEntriesTableTaskParser {
 
     generator.writeFieldName(RESIDUAL);
     ExpressionParser.toJson(task.residual(), generator);
+
+    if (task.referenceSnapshotIds() != null) {
+      JsonUtil.writeLongArray(REFERENCE_SNAPSHOT_IDS, task.referenceSnapshotIds(), generator);
+    }
   }
 
   static BaseEntriesTable.ManifestReadTask fromJson(JsonNode jsonNode) {
@@ -91,8 +97,15 @@ class ManifestEntriesTableTaskParser {
     ManifestFile manifestFile = ManifestFileParser.fromJson(JsonUtil.get(MANIFEST, jsonNode));
     Schema projection = SchemaParser.fromJson(JsonUtil.get(PROJECTION, jsonNode));
     Expression residualFilter = ExpressionParser.fromJson(JsonUtil.get(RESIDUAL, jsonNode));
+    List<Long> referenceSnapshotIds = JsonUtil.getLongListOrNull(REFERENCE_SNAPSHOT_IDS, jsonNode);
 
     return new BaseEntriesTable.ManifestReadTask(
-        dataTableSchema, fileIO, specsById, manifestFile, projection, residualFilter);
+        dataTableSchema,
+        fileIO,
+        specsById,
+        manifestFile,
+        projection,
+        residualFilter,
+        referenceSnapshotIds);
   }
 }

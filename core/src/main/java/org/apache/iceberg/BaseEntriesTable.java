@@ -20,8 +20,11 @@ package org.apache.iceberg;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundReference;
@@ -34,6 +37,9 @@ import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -51,6 +57,12 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
   @Override
   public Schema schema() {
+    Schema schema = entrySchema();
+    return TypeUtil.join(schema, MetricsUtil.readableMetricsSchema(table().schema(), schema));
+  }
+
+  /** Returns the schema of this table without the readable_metrics column */
+  Schema entrySchema() {
     StructType partitionType = Partitioning.partitionType(table());
     Schema schema = ManifestEntry.getSchema(partitionType);
     if (partitionType.fields().isEmpty()) {
@@ -59,12 +71,28 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       schema = TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     }
 
-    return TypeUtil.join(schema, MetricsUtil.readableMetricsSchema(table().schema(), schema));
+    return schema;
   }
 
   static CloseableIterable<FileScanTask> planFiles(
       Table table,
       CloseableIterable<ManifestFile> manifests,
+      Schema tableSchema,
+      Schema projectedSchema,
+      TableScanContext context) {
+    return planFiles(table, manifests, manifest -> null, tableSchema, projectedSchema, context);
+  }
+
+  /**
+   * Plans one read task per manifest.
+   *
+   * @param referenceSnapshotIds returns the IDs of the snapshots that reference a manifest; when
+   *     not null, each entry is returned once per referencing snapshot
+   */
+  static CloseableIterable<FileScanTask> planFiles(
+      Table table,
+      CloseableIterable<ManifestFile> manifests,
+      Function<ManifestFile, List<Long>> referenceSnapshotIds,
       Schema tableSchema,
       Schema projectedSchema,
       TableScanContext context) {
@@ -94,7 +122,9 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
     return CloseableIterable.transform(
         filteredManifests,
-        manifest -> new ManifestReadTask(table, manifest, projectedSchema, residual));
+        manifest ->
+            new ManifestReadTask(
+                table, manifest, projectedSchema, residual, referenceSnapshotIds.apply(manifest)));
   }
 
   /**
@@ -290,10 +320,22 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     private final FileIO io;
     private final ManifestFile manifest;
     private final Map<Integer, PartitionSpec> specsById;
+    private final List<Long> referenceSnapshotIds;
 
     private ManifestReadTask(
-        Table table, ManifestFile manifest, Schema projection, Expression filter) {
-      this(table.schema(), table.io(), table.specs(), manifest, projection, filter);
+        Table table,
+        ManifestFile manifest,
+        Schema projection,
+        Expression filter,
+        List<Long> referenceSnapshotIds) {
+      this(
+          table.schema(),
+          table.io(),
+          table.specs(),
+          manifest,
+          projection,
+          filter,
+          referenceSnapshotIds);
     }
 
     ManifestReadTask(
@@ -303,6 +345,17 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
         ManifestFile manifest,
         Schema projection,
         Expression filter) {
+      this(dataTableSchema, io, specsById, manifest, projection, filter, null);
+    }
+
+    ManifestReadTask(
+        Schema dataTableSchema,
+        FileIO io,
+        Map<Integer, PartitionSpec> specsById,
+        ManifestFile manifest,
+        Schema projection,
+        Expression filter,
+        List<Long> referenceSnapshotIds) {
       super(
           DataFiles.fromManifest(manifest),
           null,
@@ -314,6 +367,8 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       this.manifest = manifest;
       this.specsById = Maps.newHashMap(specsById);
       this.dataTableSchema = dataTableSchema;
+      this.referenceSnapshotIds =
+          referenceSnapshotIds != null ? ImmutableList.copyOf(referenceSnapshotIds) : null;
 
       Type fileProjectionType = projection.findType("data_file");
       this.fileProjection =
@@ -324,9 +379,11 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
     @Override
     public long estimatedRowsCount() {
-      return (long) manifest.addedFilesCount()
-          + (long) manifest.deletedFilesCount()
-          + (long) manifest.existingFilesCount();
+      long entryCount =
+          (long) manifest.addedFilesCount()
+              + (long) manifest.deletedFilesCount()
+              + (long) manifest.existingFilesCount();
+      return referenceSnapshotIds != null ? entryCount * referenceSnapshotIds.size() : entryCount;
     }
 
     ManifestFile manifest() {
@@ -335,21 +392,61 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
     @Override
     public CloseableIterable<StructLike> rows() {
-      Types.NestedField readableMetricsField = projection.findField(MetricsUtil.READABLE_METRICS);
+      if (referenceSnapshotIds == null) {
+        return entryRows(projection);
+      }
+
+      Types.NestedField refSnapshotIdField =
+          projection.asStruct().field(AllManifestsTable.REF_SNAPSHOT_ID.fieldId());
+      if (refSnapshotIdField == null) {
+        CloseableIterable<StructLike> rows = entryRows(projection);
+        return CloseableIterable.combine(
+            Iterables.concat(
+                Iterables.transform(
+                    rows, row -> Collections.nCopies(referenceSnapshotIds.size(), row))),
+            rows);
+      }
+
+      int refSnapshotIdPosition = projection.columns().indexOf(refSnapshotIdField);
+      CloseableIterable<StructLike> rows =
+          entryRows(
+              TypeUtil.selectNot(
+                  projection, ImmutableSet.of(AllManifestsTable.REF_SNAPSHOT_ID.fieldId())));
+      return CloseableIterable.combine(
+          Iterables.concat(
+              Iterables.transform(
+                  rows,
+                  row ->
+                      Lists.transform(
+                          referenceSnapshotIds,
+                          snapshotId ->
+                              new StructWithValue(
+                                  row,
+                                  refSnapshotIdPosition,
+                                  snapshotId,
+                                  projection.columns().size())))),
+          rows);
+    }
+
+    private CloseableIterable<StructLike> entryRows(Schema entryProjection) {
+      Types.NestedField readableMetricsField =
+          entryProjection.findField(MetricsUtil.READABLE_METRICS);
 
       if (readableMetricsField == null) {
-        StructProjection structProjection = structProjection(projection);
+        StructProjection structProjection = structProjection(entryProjection);
 
         return CloseableIterable.transform(
             entries(fileProjection), entry -> structProjection.wrap((StructLike) entry));
       } else {
         Schema requiredFileProjection = requiredFileProjection();
-        Schema actualProjection = removeReadableMetrics(projection, readableMetricsField);
+        Schema actualProjection = removeReadableMetrics(entryProjection, readableMetricsField);
         StructProjection structProjection = structProjection(actualProjection);
 
         return CloseableIterable.transform(
             entries(requiredFileProjection),
-            entry -> withReadableMetrics(structProjection, entry, readableMetricsField));
+            entry ->
+                withReadableMetrics(
+                    structProjection, entry, entryProjection, readableMetricsField));
       }
     }
 
@@ -392,19 +489,21 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
      *
      * @param entry manifest entry
      * @param structProjection projection to apply on the manifest entry
+     * @param entryProjection projection of the row, including the readable_metrics field
      * @param readableMetricsField projected "readable_metrics" field
      * @return struct representing projected manifest entry, with appended readable_metrics field
      */
     private StructLike withReadableMetrics(
         StructProjection structProjection,
         ManifestEntry<? extends ContentFile<?>> entry,
+        Schema entryProjection,
         Types.NestedField readableMetricsField) {
       StructProjection struct = structProjection.wrap((StructLike) entry);
-      int structSize = projection.columns().size();
+      int structSize = entryProjection.columns().size();
 
       MetricsUtil.ReadableMetricsStruct readableMetrics =
           readableMetrics(entry.file(), readableMetricsField);
-      int metricsPosition = projection.columns().indexOf(readableMetricsField);
+      int metricsPosition = entryProjection.columns().indexOf(readableMetricsField);
 
       return new MetricsUtil.StructWithReadableMetrics(
           struct, structSize, readableMetrics, metricsPosition);
@@ -435,6 +534,46 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
     Schema projection() {
       return projection;
+    }
+
+    List<Long> referenceSnapshotIds() {
+      return referenceSnapshotIds;
+    }
+  }
+
+  /** Read-only struct that returns a value at the given position and the wrapped struct's fields */
+  private static class StructWithValue implements StructLike {
+    private final StructLike struct;
+    private final int valuePosition;
+    private final Object insertedValue;
+    private final int size;
+
+    private StructWithValue(StructLike struct, int valuePosition, Object value, int size) {
+      this.struct = struct;
+      this.valuePosition = valuePosition;
+      this.insertedValue = value;
+      this.size = size;
+    }
+
+    @Override
+    public int size() {
+      return size;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      if (pos < valuePosition) {
+        return struct.get(pos, javaClass);
+      } else if (pos == valuePosition) {
+        return javaClass.cast(insertedValue);
+      } else {
+        return struct.get(pos - 1, javaClass);
+      }
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("StructWithValue is read only");
     }
   }
 }

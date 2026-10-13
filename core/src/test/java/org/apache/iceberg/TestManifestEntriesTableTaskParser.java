@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.StringWriter;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopFileIO;
@@ -78,7 +79,24 @@ public class TestManifestEntriesTableTaskParser {
     assertTaskEquals(task, deserializedTask);
   }
 
+  @Test
+  public void testParserWithReferenceSnapshotIds() {
+    BaseEntriesTable.ManifestReadTask task = createTask(Arrays.asList(1L, 2L));
+    String jsonStr = ScanTaskParser.toJson(task);
+    assertThat(jsonStr)
+        .isEqualTo(
+            taskJson().substring(0, taskJson().length() - 1)
+                + ",\"reference-snapshot-ids\":[1,2]}");
+    BaseEntriesTable.ManifestReadTask deserializedTask =
+        (BaseEntriesTable.ManifestReadTask) ScanTaskParser.fromJson(jsonStr, false);
+    assertTaskEquals(task, deserializedTask);
+  }
+
   private BaseEntriesTable.ManifestReadTask createTask() {
+    return createTask(null);
+  }
+
+  private BaseEntriesTable.ManifestReadTask createTask(List<Long> referenceSnapshotIds) {
     Schema schema = TestBase.SCHEMA;
     Schema projection = schema.select("data");
     HadoopFileIO fileIO = new HadoopFileIO();
@@ -90,7 +108,13 @@ public class TestManifestEntriesTableTaskParser {
                 PartitionSpec.builderFor(schema).withSpecId(1).bucket("id", 4).build()));
     ManifestFile manifestFile = TestManifestFileParser.createManifestFile();
     return new BaseEntriesTable.ManifestReadTask(
-        schema, fileIO, specsById, manifestFile, projection, Expressions.equal("id", 1));
+        schema,
+        fileIO,
+        specsById,
+        manifestFile,
+        projection,
+        Expressions.equal("id", 1),
+        referenceSnapshotIds);
   }
 
   private String taskJson() {
@@ -133,5 +157,6 @@ public class TestManifestEntriesTableTaskParser {
     assertThat(actual.specsById()).isEqualTo(expected.specsById());
     assertThat(actual.residual().toString()).isEqualTo(expected.residual().toString());
     assertThat(actual.manifest()).isEqualTo(expected.manifest());
+    assertThat(actual.referenceSnapshotIds()).isEqualTo(expected.referenceSnapshotIds());
   }
 }

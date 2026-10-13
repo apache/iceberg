@@ -20,14 +20,20 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.ParallelIterable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -83,5 +89,35 @@ abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close parallel iterable", e);
     }
+  }
+
+  /**
+   * Returns each manifest reachable from the table's snapshots, mapped to the sorted IDs of the
+   * snapshots that reference it.
+   */
+  protected Map<ManifestFile, List<Long>> reachableManifestsWithReferenceSnapshots(
+      Function<Snapshot, Iterable<ManifestFile>> toManifests) {
+    Iterable<Iterable<Pair<ManifestFile, Long>>> manifestIterables =
+        Iterables.transform(
+            table().snapshots(),
+            snapshot ->
+                Iterables.transform(
+                    toManifests.apply(snapshot),
+                    manifest -> Pair.of(manifest, snapshot.snapshotId())));
+
+    Map<ManifestFile, List<Long>> referenceSnapshotIds = Maps.newHashMap();
+    try (CloseableIterable<Pair<ManifestFile, Long>> iterable =
+        new ParallelIterable<>(manifestIterables, planExecutor())) {
+      for (Pair<ManifestFile, Long> pair : iterable) {
+        referenceSnapshotIds
+            .computeIfAbsent(pair.first(), manifest -> Lists.newArrayList())
+            .add(pair.second());
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close parallel iterable", e);
+    }
+
+    referenceSnapshotIds.values().forEach(Collections::sort);
+    return referenceSnapshotIds;
   }
 }
