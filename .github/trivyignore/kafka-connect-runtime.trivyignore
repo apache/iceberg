@@ -24,13 +24,6 @@
 # upgraded independently of Apache Parquet, and 1.18.1 still bundles
 # vulnerable versions.
 #
-# jackson-databind CVEs shaded into parquet-jackson, only fixed in jackson
-# >= 2.21.4 / 2.18.8.
-CVE-2026-54512
-CVE-2026-54513
-# jackson-core CVE shaded into parquet-jackson, only fixed in jackson
-# >= 2.18.8 / 2.21.4 / 2.22.1.
-CVE-2026-68494
 # jackson-databind CVEs shaded into parquet-jackson 1.18.1 (jackson 2.22.2),
 # only fixed in jackson >= 2.18.11 / 2.21.7 / 2.22.3.
 CVE-2026-91776
