@@ -88,6 +88,20 @@ public class TestErrorHandlers {
   }
 
   @Test
+  void commitBadRequestWithValidationExceptionType() {
+    ErrorResponse error =
+        ErrorResponse.builder()
+            .responseCode(400)
+            .withType("ValidationException")
+            .withMessage("Table property commit.retry.num-retries must have integer value")
+            .build();
+
+    assertThatThrownBy(() -> ErrorHandlers.tableCommitHandler().accept(error))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Table property commit.retry.num-retries must have integer value");
+  }
+
+  @Test
   void badRequestWithValidationExceptionTypeKeepsPercentInMessage() {
     ErrorResponse error =
         ErrorResponse.builder()
