@@ -800,10 +800,13 @@ class KeyManagementCredential(BaseModel):
     returned from `/v1/config`. The `config` map contains provider-specific properties for the
     selected key-management provider.
 
-    Catalogs that return `key-management-credentials` for an operation must include credentials for all
-    KMS key IDs required by table encryption metadata. Clients should select the credential config by
-    matching KMS key identifiers referenced by table encryption metadata, such as
-    `encrypted-by-id` fields in table encryption metadata, against `kms-key-ids`.
+    Catalogs that return `key-management-credentials` must include credentials for all KMS keys required
+    by the operation. Clients should select credentials by matching the IDs of KMS keys used to wrap
+    or unwrap table key encryption keys (KEKs) against `kms-key-ids`.
+
+    These IDs may be specified by the `encryption.key-id` table property or recorded in the
+    `encrypted-by-id` fields of KMS-wrapped KEK entries in `encryption-keys`. References to
+    table-internal keys are not KMS key IDs and must not be used for credential matching.
 
     Credential configs should use provider-specific expiration mechanisms where available and should
     be scoped to the minimum required KMS operations and listed KMS key IDs where the provider
@@ -814,7 +817,7 @@ class KeyManagementCredential(BaseModel):
     kms_key_ids: list[str] = Field(
         ...,
         alias='kms-key-ids',
-        description='KMS key identifiers for which the credential config is relevant.\n\nClients should match these values against KMS key identifiers referenced by table encryption\nmetadata, such as `encrypted-by-id` fields in table encryption metadata.\n',
+        description='Identifiers of KMS keys used to wrap or unwrap table key encryption keys (KEKs). These identify\nkeys managed by the KMS, rather than table-internal encryption keys.\n',
     )
     config: dict[str, str] = Field(
         ...,
