@@ -311,7 +311,6 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                   // deleted
                   if (entry.status() == ManifestEntry.Status.DELETED
                       && !validIds.contains(entry.snapshotId())) {
-                    // use toString to ensure the path will not change (Utf8 is reused)
                     String location = entry.file().location();
                     if (entry.file().format() == FileFormat.PUFFIN) {
                       dvFileRemovalCandidates.add(location);
@@ -341,7 +340,6 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                 for (ManifestEntry<?> entry : reader.entries()) {
                   // delete any ADDED file from manifests that were reverted
                   if (entry.status() == ManifestEntry.Status.ADDED) {
-                    // use toString to ensure the path will not change (Utf8 is reused)
                     filesToDelete.add(entry.file().location());
                   }
                 }
