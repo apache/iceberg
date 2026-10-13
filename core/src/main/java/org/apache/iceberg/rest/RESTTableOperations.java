@@ -41,7 +41,6 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
-import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
@@ -73,6 +72,7 @@ class RESTTableOperations implements TableOperations {
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
   private final Set<Endpoint> endpoints;
+  private final Map<String, String> readQueryParams;
   private UpdateType updateType;
   private TableMetadata current;
 
@@ -101,7 +101,8 @@ class RESTTableOperations implements TableOperations {
         UpdateType.SIMPLE,
         Lists.newArrayList(),
         current,
-        endpoints);
+        endpoints,
+        Map.of());
   }
 
   RESTTableOperations(
@@ -124,7 +125,8 @@ class RESTTableOperations implements TableOperations {
         updateType,
         createChanges,
         current,
-        endpoints);
+        endpoints,
+        Map.of());
   }
 
   RESTTableOperations(
@@ -135,7 +137,8 @@ class RESTTableOperations implements TableOperations {
       FileIO io,
       KeyManagementClient keyManagementClient,
       TableMetadata current,
-      Set<Endpoint> endpoints) {
+      Set<Endpoint> endpoints,
+      Map<String, String> readQueryParams) {
     this(
         client,
         path,
@@ -146,7 +149,8 @@ class RESTTableOperations implements TableOperations {
         UpdateType.SIMPLE,
         Lists.newArrayList(),
         current,
-        endpoints);
+        endpoints,
+        readQueryParams);
   }
 
   RESTTableOperations(
@@ -159,7 +163,8 @@ class RESTTableOperations implements TableOperations {
       UpdateType updateType,
       List<MetadataUpdate> createChanges,
       TableMetadata current,
-      Set<Endpoint> endpoints) {
+      Set<Endpoint> endpoints,
+      Map<String, String> readQueryParams) {
     this.client = client;
     this.path = path;
     this.readHeaders = readHeaders;
@@ -175,9 +180,9 @@ class RESTTableOperations implements TableOperations {
       this.current = current;
     }
     this.endpoints = endpoints;
+    this.readQueryParams = readQueryParams;
 
-    // N.B. We don't use this.current due to it being null for the CREATE update type; we still
-    // want encryption configured for this case.
+    // CREATE operations need encryption configured before current metadata is available.
     encryptionPropsFromMetadata(current);
   }
 
@@ -190,25 +195,17 @@ class RESTTableOperations implements TableOperations {
   public TableMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     return updateCurrentMetadata(
-        client.get(path, LoadTableResponse.class, readHeaders, ErrorHandlers.tableErrorHandler()));
+        client.get(
+            path,
+            readQueryParams,
+            LoadTableResponse.class,
+            readHeaders,
+            ErrorHandlers.tableErrorHandler()));
   }
 
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
     Endpoint.check(endpoints, Endpoint.V1_UPDATE_TABLE);
-
-    EncryptionManager encryption = encryption();
-    if (encryption instanceof StandardEncryptionManager) {
-      // Add encryption keys to the to-be-committed metadata
-      TableMetadata.Builder builder = TableMetadata.buildFrom(metadata);
-      EncryptionUtil.encryptionKeys(encryption).values().forEach(builder::addEncryptionKey);
-      commitInternal(base, builder.build());
-    } else {
-      commitInternal(base, metadata);
-    }
-  }
-
-  private void commitInternal(TableMetadata base, TableMetadata metadata) {
     Consumer<ErrorResponse> errorHandler;
     List<UpdateRequirement> requirements;
     List<MetadataUpdate> updates;
@@ -407,20 +404,22 @@ class RESTTableOperations implements TableOperations {
               TableProperties.ENCRYPTION_DEK_LENGTH,
               TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
 
+      // Active transactions may still need keys that are not in committed metadata.
+      Iterable<EncryptedKey> retainedKeys =
+          encryptionManager != null
+              ? EncryptionUtil.encryptionKeys(encryptionManager).values()
+              : encryptedKeys;
       encryptedKeys =
           Optional.ofNullable(metadata.encryptionKeys())
               .map(Lists::newLinkedList)
               .orElseGet(Lists::newLinkedList);
 
-      // Include pending encryption keys from the encryption manager
-      if (encryptionManager != null) {
-        Set<String> keyIdsFromMetadata =
-            encryptedKeys.stream().map(EncryptedKey::keyId).collect(Collectors.toSet());
+      Set<String> keyIdsFromMetadata =
+          encryptedKeys.stream().map(EncryptedKey::keyId).collect(Collectors.toSet());
 
-        for (EncryptedKey keyFromEM : EncryptionUtil.encryptionKeys(encryptionManager).values()) {
-          if (!keyIdsFromMetadata.contains(keyFromEM.keyId())) {
-            encryptedKeys.add(keyFromEM);
-          }
+      for (EncryptedKey retainedKey : retainedKeys) {
+        if (!keyIdsFromMetadata.contains(retainedKey.keyId())) {
+          encryptedKeys.add(retainedKey);
         }
       }
     }

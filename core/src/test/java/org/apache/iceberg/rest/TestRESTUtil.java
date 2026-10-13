@@ -22,9 +22,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.apache.hc.core5.net.URIBuilder;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -198,6 +204,116 @@ public class TestRESTUtil {
     assertThat(RESTUtil.decodePathSegment(encodedOldJava)).isNotEqualTo(input).isEqualTo("++%20");
     assertThat(RESTUtil.decodePathSegment(encodedNewJava)).isEqualTo(input);
     assertThat(RESTUtil.decodePathSegment(encodedOther)).isEqualTo(input);
+  }
+
+  private static Stream<Arguments> referencedBySeparators() {
+    // configured separator, and how it has to appear in the query string
+    return Stream.of(
+        Arguments.of(RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8, "%1F"),
+        Arguments.of("\u001f", "%1F"),
+        Arguments.of("%2D", "-"),
+        Arguments.of("%2E", "."),
+        Arguments.of("#", "%23"),
+        Arguments.of("_", "_"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("referencedBySeparators")
+  public void encodeReferencedBy(String namespaceSeparator, String encodedSeparator) {
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(
+                    TableIdentifier.of(Namespace.of("outer_ns"), "outer_view"),
+                    TableIdentifier.of(Namespace.of("prod", "analytics"), "inner_view")),
+                namespaceSeparator))
+        .isEqualTo(
+            String.format(
+                "outer_ns%1$souter_view,prod%1$sanalytics%1$sinner_view", encodedSeparator));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"#", "\u001f"})
+  public void encodeReferencedByReachesQueryStringIntact(String namespaceSeparator) {
+    // a separator that is not URL-safe must not corrupt the query string
+    String encoded =
+        RESTUtil.encodeReferencedBy(
+            ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "outer_view")),
+            namespaceSeparator);
+
+    URI uri =
+        ImmutableHTTPRequest.builder()
+            .baseUri(URI.create("http://localhost:8080"))
+            .method(HTTPRequest.HTTPMethod.GET)
+            .path("v1/namespaces/ns/tables/tbl")
+            .putQueryParameter(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER, encoded)
+            .build()
+            .requestUri();
+
+    assertThat(uri.getRawQuery())
+        .isEqualTo(RESTCatalogProperties.REFERENCED_BY_QUERY_PARAMETER + "=" + encoded);
+  }
+
+  @Test
+  public void encodeReferencedByWithoutChain() {
+    String separator = RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+
+    assertThat(RESTUtil.encodeReferencedBy(null, separator)).isNull();
+    assertThat(RESTUtil.encodeReferencedBy(ImmutableList.of(), separator)).isNull();
+  }
+
+  @Test
+  public void encodeReferencedByEncodesReservedCharacters() {
+    String separator = RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8;
+
+    // a space is %20 rather than the + that URLEncoder alone would produce
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(TableIdentifier.of(Namespace.of("ns with spaces"), "view/name")),
+                separator))
+        .isEqualTo("ns%20with%20spaces%1Fview%2Fname");
+
+    // a comma inside a view name is encoded, so splitting the chain on bare commas still works
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "view,name")), separator))
+        .isEqualTo("ns%1Fview%2Cname");
+
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(TableIdentifier.of(Namespace.of("a+b"), "c*d")), separator))
+        .isEqualTo("a%2Bb%1Fc%2Ad");
+
+    // the example given in the referenced-by OpenAPI parameter description
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(
+                    TableIdentifier.of(Namespace.of("prod", "analytics"), "quarterly_view"),
+                    TableIdentifier.of(Namespace.of("prod", "analytics"), "monthly_view")),
+                separator))
+        .isEqualTo("prod%1Fanalytics%1Fquarterly_view,prod%1Fanalytics%1Fmonthly_view");
+  }
+
+  @Test
+  public void encodeReferencedByMatchesParentParamEncoding() {
+    // the spec ties this parameter's encoding to the parent query parameter's rules
+    Namespace namespace = Namespace.of("a b", "c*d", "e+f");
+    String parentValue;
+    try {
+      parentValue =
+          new URIBuilder("http://localhost/v1/namespaces")
+              .addParameter("parent", RESTUtil.namespaceToQueryParam(namespace))
+              .build()
+              .getRawQuery()
+              .substring("parent=".length());
+    } catch (URISyntaxException e) {
+      throw new RuntimeException(e);
+    }
+
+    assertThat(
+            RESTUtil.encodeReferencedBy(
+                ImmutableList.of(TableIdentifier.of(namespace, "v")),
+                RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8))
+        .isEqualTo(parentValue + RESTUtil.NAMESPACE_SEPARATOR_URLENCODED_UTF_8 + "v");
   }
 
   @Test
@@ -426,6 +542,16 @@ public class TestRESTUtil {
         .hasMessage(errorMsg);
 
     assertThatThrownBy(() -> RESTUtil.namespaceFromQueryParam("namespace", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    List<TableIdentifier> chain =
+        ImmutableList.of(TableIdentifier.of(Namespace.of("ns"), "viewName"));
+    assertThatThrownBy(() -> RESTUtil.encodeReferencedBy(chain, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.encodeReferencedBy(chain, ""))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(errorMsg);
   }

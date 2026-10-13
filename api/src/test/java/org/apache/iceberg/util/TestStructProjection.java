@@ -69,4 +69,33 @@ class TestStructProjection {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot find field");
   }
+
+  @Test
+  void toStringRendersNestedProjectionRecursively() {
+    StructProjection projection = StructProjection.create(PROJECTED_STRUCT, PROJECTED_STRUCT);
+    projection.wrap(Row.of(1L, Row.of("John", "Q", "Doe")));
+
+    assertThat(projection)
+        .hasToString(
+            "StructProjection{id=1, person=StructProjection{first=John, middle=Q, last=Doe}}");
+  }
+
+  @Test
+  void toStringRendersNullNestedStructAsNull() {
+    StructProjection projection = StructProjection.create(PROJECTED_STRUCT, PROJECTED_STRUCT);
+    projection.wrap(Row.of(1L, null));
+
+    assertThat(projection).hasToString("StructProjection{id=1, person=null}");
+  }
+
+  @Test
+  void toStringRendersMissingNestedFieldAsNull() {
+    StructProjection projection =
+        StructProjection.createAllowMissing(DATA_STRUCT_MISSING_NESTED_FIELD, PROJECTED_STRUCT);
+    projection.wrap(Row.of(1L, Row.of("John", "Doe")));
+
+    assertThat(projection)
+        .hasToString(
+            "StructProjection{id=1, person=StructProjection{first=John, middle=null, last=Doe}}");
+  }
 }

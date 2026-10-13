@@ -59,6 +59,7 @@ public class TableMetadata implements Serializable {
   static final int MIN_FORMAT_VERSION_ROW_LINEAGE = 3;
   static final int MIN_FORMAT_VERSION_PARQUET_MANIFESTS = 4;
   static final int MIN_FORMAT_VERSION_OPTIONAL_LOCATION = 4;
+  static final int MIN_FORMAT_VERSION_MONOTONIC_TIMESTAMPS = 4;
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;
@@ -377,15 +378,6 @@ public class TableMetadata implements Serializable {
             "[BUG] Expected sorted snapshot log entries.");
       }
       last = logEntry;
-    }
-    if (last != null) {
-      Preconditions.checkArgument(
-          // commits can happen concurrently from different machines.
-          // A tolerance helps us avoid failure for small clock skew
-          lastUpdatedMillis - last.timestampMillis() >= -ONE_MINUTE,
-          "Invalid update timestamp %s: before last snapshot log entry at %s",
-          lastUpdatedMillis,
-          last.timestampMillis());
     }
 
     MetadataLogEntry previous = null;
@@ -1269,6 +1261,18 @@ public class TableMetadata implements Serializable {
           "Cannot add snapshot with sequence number %s older than last sequence number %s",
           snapshot.sequenceNumber(),
           lastSequenceNumber);
+
+      if (formatVersion >= MIN_FORMAT_VERSION_MONOTONIC_TIMESTAMPS && snapshot.parentId() != null) {
+        Snapshot parent = snapshotsById.get(snapshot.parentId());
+        if (parent != null) {
+          ValidationException.check(
+              snapshot.timestampMillis() > parent.timestampMillis(),
+              "Invalid snapshot timestamp %s: not after parent snapshot %s at %s",
+              snapshot.timestampMillis(),
+              snapshot.parentId(),
+              parent.timestampMillis());
+        }
+      }
 
       this.lastSequenceNumber = snapshot.sequenceNumber();
       snapshots.add(snapshot);

@@ -321,6 +321,8 @@ final class JdbcUtil {
           + " OR "
           + RECORD_TYPE
           + " IS NULL)";
+  static final String V1_UNREGISTER_TABLE_SQL =
+      V1_DROP_TABLE_SQL + " AND " + BaseMetastoreTableOperations.METADATA_LOCATION_PROP + " = ?";
   static final String V0_DROP_TABLE_SQL =
       "DELETE FROM "
           + CATALOG_TABLE_VIEW_NAME
@@ -331,6 +333,8 @@ final class JdbcUtil {
           + "  = ? AND "
           + TABLE_NAME
           + " = ?";
+  static final String V0_UNREGISTER_TABLE_SQL =
+      V0_DROP_TABLE_SQL + " AND " + BaseMetastoreTableOperations.METADATA_LOCATION_PROP + " = ?";
   private static final String GET_NAMESPACE_SQL =
       "SELECT "
           + TABLE_NAMESPACE

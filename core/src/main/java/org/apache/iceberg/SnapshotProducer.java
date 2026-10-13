@@ -35,6 +35,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -47,6 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.encryption.StandardEncryptionManager.FileEncryptionKeys;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CleanableFailure;
@@ -113,11 +115,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private MetricsReporter reporter = LoggingMetricsReporter.instance();
   private volatile Long snapshotId = null;
   private TableMetadata base;
+  // Encryption keys required by the manifest list written in the current commit attempt.
+  private FileEncryptionKeys manifestListEncryptionKeys;
   private boolean stageOnly = false;
   private Consumer<String> deleteFunc = defaultDelete;
   private SnapshotAncestryValidator snapshotAncestryValidator =
       SnapshotAncestryValidator.NON_VALIDATING;
 
+  private Clock clock = Clock.systemUTC();
   private ExecutorService workerPool;
   private ExecutorService writePool;
   private int writePoolParallelism = ThreadPools.WORKER_THREAD_POOL_SIZE;
@@ -353,18 +358,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           replacedRecords);
     }
 
+    this.manifestListEncryptionKeys = writer.encryptionKeys();
+
     return new BaseSnapshot(
         sequenceNumber,
         snapshotId(),
         parentSnapshotId,
-        System.currentTimeMillis(),
+        snapshotTimestampMillis(parentSnapshot),
         operation(),
         summary(base),
         base.currentSchemaId(),
         manifestList.location(),
         nextRowId,
         assignedRows,
-        writer.toManifestListFile().encryptionKeyID());
+        manifestListEncryptionKeys != null ? manifestListEncryptionKeys.fileKey().keyId() : null);
   }
 
   private void runValidations(Snapshot parentSnapshot) {
@@ -498,10 +505,17 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   if (base.snapshot(newSnapshot.snapshotId()) != null) {
                     // this is a rollback operation
                     update.setBranchSnapshot(newSnapshot.snapshotId(), targetBranch);
-                  } else if (stageOnly) {
-                    update.addSnapshot(newSnapshot);
                   } else {
-                    update.setBranchSnapshot(newSnapshot, targetBranch);
+                    if (manifestListEncryptionKeys != null) {
+                      update.addEncryptionKey(manifestListEncryptionKeys.keyEncryptionKey());
+                      update.addEncryptionKey(manifestListEncryptionKeys.fileKey());
+                    }
+
+                    if (stageOnly) {
+                      update.addSnapshot(newSnapshot);
+                    } else {
+                      update.setBranchSnapshot(newSnapshot, targetBranch);
+                    }
                   }
 
                   TableMetadata updated = update.build();
@@ -680,6 +694,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected ManifestReader<DeleteFile> newDeleteManifestReader(ManifestFile manifest) {
     return ManifestFiles.readDeleteManifest(manifest, ops.io(), ops.current().specsById());
+  }
+
+  @VisibleForTesting
+  void setClock(Clock newClock) {
+    this.clock = newClock;
+  }
+
+  private long snapshotTimestampMillis(Snapshot parentSnapshot) {
+    long now = clock.millis();
+    if (parentSnapshot != null) {
+      return Math.max(now, parentSnapshot.timestampMillis() + 1);
+    }
+
+    return now;
   }
 
   protected long snapshotId() {

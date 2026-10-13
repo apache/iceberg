@@ -56,11 +56,13 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.MetricsTestUtil;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.data.parquet.InternalReader;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
@@ -77,6 +79,8 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.RandomUtil;
 import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.statistics.Statistics;
@@ -659,6 +663,31 @@ public class TestParquet {
   }
 
   @Test
+  void writesVariantWithDefaultAvroWriter() throws IOException {
+    Schema schema = new Schema(required(1, "v", Types.VariantType.get()));
+    GenericData.Record record =
+        new GenericData.Record(AvroSchemaUtil.convert(schema.asStruct(), "table"));
+    Variant expected = Variant.of(Variants.emptyMetadata(), Variants.of(34));
+    record.put("v", expected);
+
+    File file = createTempFile(temp);
+    try (FileAppender<GenericData.Record> writer =
+        Parquet.write(Files.localOutput(file)).schema(schema).build()) {
+      writer.add(record);
+    }
+
+    try (CloseableIterable<Record> rows =
+        Parquet.read(Files.localInput(file))
+            .project(schema)
+            .createReaderFunc(fileSchema -> InternalReader.create(schema, fileSchema))
+            .build()) {
+      Variant actual = (Variant) getOnlyElement(rows).get(0);
+      VariantTestUtil.assertEqual(expected.metadata(), actual.metadata());
+      VariantTestUtil.assertEqual(expected.value(), actual.value());
+    }
+  }
+
+  @Test
   public void adaptiveBloomFilterSizingShrinksFile() throws IOException {
     // when PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED is not set (the default), the writer
     // allocates the full PARQUET_BLOOM_FILTER_MAX_BYTES buffer (4 MiB here) regardless
@@ -898,10 +927,15 @@ public class TestParquet {
 
   @Test
   public void missingNullCountWithCountsMode() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
     Metrics metrics =
         missingNullCountMetrics(
-            MetricsConfig.fromProperties(
-                Collections.singletonMap("write.metadata.metrics.default", "counts")),
+            MetricsTestUtil.from(
+                Collections.singletonMap("write.metadata.metrics.default", "counts"), schema),
             block(statsWithoutNullCount(1, 10), 10),
             block(statsWithNullCount(20, 30, 1), 10));
 

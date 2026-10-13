@@ -106,8 +106,8 @@ public class TestFileGenerationUtil {
   @ValueSource(strings = {"none", "counts", "truncate(16)", "full"})
   void testBoundsForAllMetricsModes(String metricsMode) {
     MetricsConfig metricsConfig =
-        MetricsConfig.from(
-            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, metricsMode), SCHEMA, null);
+        MetricsTestUtil.from(
+            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, metricsMode), SCHEMA);
     Metrics metrics =
         FileGenerationUtil.generateRandomMetrics(
             SCHEMA,
@@ -122,10 +122,9 @@ public class TestFileGenerationUtil {
   @ValueSource(strings = {"none", "counts", "truncate(16)", "full"})
   public void testBoundsForNestedTypes(String metricsMode) {
     MetricsConfig metricsConfig =
-        MetricsConfig.from(
+        MetricsTestUtil.from(
             ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, metricsMode),
-            NESTED_SCHEMA,
-            null);
+            NESTED_SCHEMA);
     Metrics metrics =
         FileGenerationUtil.generateRandomMetrics(
             NESTED_SCHEMA,

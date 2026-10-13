@@ -71,6 +71,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestCatalogUtil;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.UpdatePartitionSpec;
@@ -81,6 +83,8 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptedKey;
+import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -3217,6 +3221,75 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @Test
+  void removedEncryptionKeysStayRemoved() throws IOException {
+    try (RESTCatalog catalog =
+        initCatalog(
+            "encrypted",
+            Map.of(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getName()))) {
+      catalog.createNamespace(NS);
+      Table table =
+          catalog
+              .buildTable(TABLE, SCHEMA)
+              .withProperty(TableProperties.FORMAT_VERSION, "3")
+              .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+              .create();
+      table.newFastAppend().appendFile(FILE_A).commit();
+      Snapshot firstSnapshot = table.currentSnapshot();
+      table.newFastAppend().appendFile(FILE_B).commit();
+      table
+          .expireSnapshots()
+          .expireSnapshotId(firstSnapshot.snapshotId())
+          .cleanExpiredFiles(false)
+          .commit();
+
+      TableOperations ops = ((HasTableOperations) table).operations();
+      TableMetadata base = ops.current();
+      ops.commit(
+          base, TableMetadata.buildFrom(base).removeEncryptionKey(firstSnapshot.keyId()).build());
+
+      table.updateProperties().set("owner", "updated").commit();
+      Table reloaded = catalog.loadTable(TABLE);
+      assertThat(((HasTableOperations) reloaded).operations().current().encryptionKeys())
+          .extracting(EncryptedKey::keyId)
+          .doesNotContain(firstSnapshot.keyId())
+          .contains(reloaded.currentSnapshot().keyId());
+      try (var files = reloaded.newScan().planFiles()) {
+        assertThat(files).hasSize(2);
+      }
+    }
+  }
+
+  @Test
+  void transactionKeysSurviveMetadataCommits() throws IOException {
+    try (RESTCatalog catalog =
+        initCatalog(
+            "encrypted",
+            Map.of(CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getName()))) {
+      catalog.createNamespace(NS);
+      Table table =
+          catalog
+              .buildTable(TABLE, SCHEMA)
+              .withProperty(TableProperties.FORMAT_VERSION, "3")
+              .withProperty(TableProperties.ENCRYPTION_TABLE_KEY, UnitestKMS.MASTER_KEY_NAME1)
+              .create();
+      Transaction transaction = table.newTransaction();
+      transaction.newFastAppend().appendFile(FILE_A).commit();
+
+      table.updateProperties().set("owner", "first").commit();
+      table.updateProperties().set("owner", "second").commit();
+      assertThat(((HasTableOperations) table).operations().current().encryptionKeys()).isEmpty();
+
+      assertThat(transaction.table().currentSnapshot().allManifests(transaction.table().io()))
+          .hasSize(1);
+
+      transaction.commitTransaction();
+      try (var files = catalog.loadTable(TABLE).newScan().planFiles()) {
+        assertThat(files).hasSize(1);
+      }
+    }
+  }
+
+  @Test
   public void testCustomTableOperationsInjection() throws IOException {
     AtomicBoolean customTableOpsCalled = new AtomicBoolean();
     AtomicBoolean customTransactionTableOpsCalled = new AtomicBoolean();
@@ -3277,7 +3350,8 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
           TableMetadata current,
-          Set<Endpoint> supportedEndpoints) {
+          Set<Endpoint> supportedEndpoints,
+          Map<String, String> readQueryParams) {
         RESTTableOperations ops =
             new CustomRESTTableOperations(
                 restClient, path, mutationHeaders, fileIO, current, supportedEndpoints);

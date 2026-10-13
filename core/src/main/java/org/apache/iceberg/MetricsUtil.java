@@ -42,11 +42,10 @@ public class MetricsUtil {
   private MetricsUtil() {}
 
   /**
-   * Copies a metrics object without value, NULL and NaN counts or average value sizes for given
-   * fields.
+   * Copies a metrics object without value, NULL and NaN counts or total bytes for given fields.
    *
-   * @param excludedFieldIds field IDs for which the counts and average value sizes must be dropped
-   * @return a new metrics object without counts or average value sizes for given fields
+   * @param excludedFieldIds field IDs for which the counts and total bytes must be dropped
+   * @return a new metrics object without counts or total bytes for given fields
    */
   public static Metrics copyWithoutFieldCounts(Metrics metrics, Set<Integer> excludedFieldIds) {
     return new Metrics(
@@ -57,15 +56,14 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         metrics.lowerBounds(),
         metrics.upperBounds(),
-        copyWithoutKeys(metrics.avgValueSizes(), excludedFieldIds),
+        copyWithoutKeys(metrics.totalBytes(), excludedFieldIds),
         metrics.originalTypes());
   }
 
   /**
-   * Copies a metrics object without counts, average value sizes, and bounds for given fields.
+   * Copies a metrics object without counts, total bytes, and bounds for given fields.
    *
-   * @param excludedFieldIds field IDs for which the counts, average value sizes, and bounds must be
-   *     dropped
+   * @param excludedFieldIds field IDs for which the counts, total bytes, and bounds must be dropped
    * @return a new metrics object without lower and upper bounds for given fields
    */
   public static Metrics copyWithoutFieldCountsAndBounds(
@@ -78,7 +76,7 @@ public class MetricsUtil {
         copyWithoutKeys(metrics.nanValueCounts(), excludedFieldIds),
         copyWithoutKeys(metrics.lowerBounds(), excludedFieldIds),
         copyWithoutKeys(metrics.upperBounds(), excludedFieldIds),
-        copyWithoutKeys(metrics.avgValueSizes(), excludedFieldIds),
+        copyWithoutKeys(metrics.totalBytes(), excludedFieldIds),
         copyWithoutKeys(metrics.originalTypes(), excludedFieldIds));
   }
 
@@ -112,9 +110,7 @@ public class MetricsUtil {
 
     return fieldMetrics
         .filter(metrics -> !inMapOrList(inputSchema, parents, metrics.id()))
-        .filter(
-            metrics ->
-                metricsMode(inputSchema, metricsConfig, metrics.id()) != MetricsModes.None.get())
+        .filter(metrics -> metricsConfig.columnMode(metrics.id()) != MetricsModes.None.get())
         .collect(Collectors.toMap(FieldMetrics::id, FieldMetrics::nanValueCount));
   }
 
@@ -129,14 +125,18 @@ public class MetricsUtil {
     return false;
   }
 
-  /** Extract MetricsMode for the given field id from metrics config. */
+  /**
+   * Extract MetricsMode for the given field id from metrics config.
+   *
+   * @deprecated will be removed in 1.14.0; use metricsConfig.columnMode(int) instead.
+   */
+  @Deprecated
   public static MetricsModes.MetricsMode metricsMode(
       Schema inputSchema, MetricsConfig metricsConfig, int fieldId) {
     Preconditions.checkNotNull(inputSchema, "inputSchema is required");
     Preconditions.checkNotNull(metricsConfig, "metricsConfig is required");
 
-    String columnName = inputSchema.findColumnName(fieldId);
-    return metricsConfig.columnMode(columnName);
+    return metricsConfig.columnMode(fieldId);
   }
 
   public static final List<ReadableMetricColDefinition> READABLE_METRIC_COLS =
