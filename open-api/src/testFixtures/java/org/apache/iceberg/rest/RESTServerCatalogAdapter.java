@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -45,7 +43,8 @@ class RESTServerCatalogAdapter extends RESTCatalogAdapter {
   private static final String INCLUDE_CREDENTIALS = "include-credentials";
   private static final String INCLUDE_LABELS = "include-labels";
 
-  private static final String HOSTNAME = hostname();
+  // set in container environments such as the REST fixture image; the label is omitted otherwise
+  private static final String HOSTNAME = System.getenv("HOSTNAME");
 
   private final CatalogContext catalogContext;
 
@@ -136,15 +135,6 @@ class RESTServerCatalogAdapter extends RESTCatalogAdapter {
     }
 
     return labels.build();
-  }
-
-  private static String hostname() {
-    try {
-      return InetAddress.getLocalHost().getHostName();
-    } catch (UnknownHostException e) {
-      // the hostname is not resolvable in all environments, so it is simply omitted
-      return null;
-    }
   }
 
   private void applyCredentials(
