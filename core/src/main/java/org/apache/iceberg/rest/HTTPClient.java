@@ -132,10 +132,8 @@ public class HTTPClient extends BaseHTTPClient {
     clientBuilder.setRetryStrategy(
         new ExponentialHttpRequestRetryStrategy(maxRetries, keyLifetime));
 
-    String userAgent = PropertyUtil.propertyAsString(properties, REST_USER_AGENT, null);
-    if (userAgent != null) {
-      clientBuilder.setUserAgent(userAgent);
-    }
+    clientBuilder.setUserAgent(
+        userAgent(PropertyUtil.propertyAsString(properties, REST_USER_AGENT, null)));
 
     if (proxy != null) {
       if (proxyCredsProvider != null) {
@@ -167,6 +165,22 @@ public class HTTPClient extends BaseHTTPClient {
   public HTTPClient withAuthSession(AuthSession session) {
     Preconditions.checkNotNull(session, "Invalid auth session: null");
     return new HTTPClient(this, session);
+  }
+
+  /**
+   * Returns the User-Agent recommended by the REST spec: the caller's product tokens, if any,
+   * followed by the iceberg-java token and the JVM version as a comment.
+   */
+  @VisibleForTesting
+  static String userAgent(String callerTokens) {
+    String userAgent =
+        String.format(
+            "iceberg-java/%s (jvm %s)", IcebergBuild.version(), System.getProperty("java.version"));
+    if (callerTokens == null || callerTokens.isBlank()) {
+      return userAgent;
+    }
+
+    return callerTokens.strip() + " " + userAgent;
   }
 
   @VisibleForTesting
