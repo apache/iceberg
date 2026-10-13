@@ -803,6 +803,61 @@ public class TestArrowReader {
     assertThat(rowsRead).isEqualTo(1);
   }
 
+  /**
+   * With reuseContainers set, the vector built for a column missing from the data file is kept
+   * across batches of the same size and only rebuilt when the number of rows changes.
+   */
+  @Test
+  public void testReuseVectorForColumnAddedAfterDataFileWasWritten() throws Exception {
+    tables = new HadoopTables();
+    Schema schema = new Schema(Types.NestedField.required(1, "col", Types.IntegerType.get()));
+    Table table = tables.create(schema, tableLocation);
+
+    File parquetFile = File.createTempFile("added-column-reuse", ".parquet", tempDir);
+    assertThat(parquetFile.delete()).isTrue();
+    FileAppender<GenericRecord> appender =
+        Parquet.write(Files.localOutput(parquetFile))
+            .schema(schema)
+            .createWriterFunc(GenericParquetWriter::create)
+            .build();
+    try {
+      for (int i = 0; i < 5; i += 1) {
+        GenericRecord record = GenericRecord.create(schema);
+        record.setField("col", i);
+        appender.add(record);
+      }
+    } finally {
+      appender.close();
+    }
+
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withInputFile(localInput(parquetFile))
+            .withMetrics(appender.metrics())
+            .withFormat(FileFormat.PARQUET)
+            .build();
+    table.newAppend().appendFile(dataFile).commit();
+
+    table.updateSchema().addColumn("added", Types.IntegerType.get()).commit();
+    Table reloaded = tables.load(tableLocation);
+
+    List<FieldVector> addedVectors = Lists.newArrayList();
+    try (VectorizedTableScanIterable vectorizedReader =
+        new VectorizedTableScanIterable(reloaded.newScan(), 2, true)) {
+      for (ColumnarBatch batch : vectorizedReader) {
+        for (int row = 0; row < batch.numRows(); row += 1) {
+          assertThat(batch.column(1).isNullAt(row)).isTrue();
+        }
+        addedVectors.add(batch.column(1).getFieldVector());
+      }
+    }
+
+    // batches of 2, 2 and 1 rows
+    assertThat(addedVectors).hasSize(3);
+    assertThat(addedVectors.get(1)).isSameAs(addedVectors.get(0));
+    assertThat(addedVectors.get(2)).isNotSameAs(addedVectors.get(1));
+  }
+
   private static Stream<Arguments> rejectedUnsignedIntegerCases() {
     return Stream.of(
         Arguments.of(

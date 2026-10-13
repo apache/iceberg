@@ -55,8 +55,7 @@ class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
         // The column is not in the data file, so the reader returns the value it should be read as
         // instead of a vector. Build a vector holding that value because callers read a batch as an
         // Arrow VectorSchemaRoot, which has no way to represent a column without a vector.
-        closeVector(vectorHolders[i]);
-        holder = constantHolder(fields.get(i), holder, numRowsToRead);
+        holder = constantHolder(fields.get(i), holder, vectorHolders[i], numRowsToRead);
       }
 
       vectorHolders[i] = holder;
@@ -72,7 +71,14 @@ class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
   }
 
   private VectorHolder constantHolder(
-      Types.NestedField field, VectorHolder dummyHolder, int numRows) {
+      Types.NestedField field, VectorHolder dummyHolder, VectorHolder previous, int numRows) {
+    // The value is the same in every batch, so the vector built for the previous batch can be
+    // returned as is unless the number of rows changed.
+    if (previous != null && previous.numValues() == numRows) {
+      return previous;
+    }
+
+    closeVector(previous);
     Object constant =
         dummyHolder instanceof ConstantVectorHolder
             ? ((ConstantVectorHolder<?>) dummyHolder).getConstant()
