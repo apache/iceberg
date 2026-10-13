@@ -1384,32 +1384,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   /**
    * Create a new {@link RESTTableOperations} instance for simple table operations.
    *
-   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link #newTableOps(RESTClient,
-   *     String, Supplier, Supplier, FileIO, TableMetadata, Set, Map)} instead.
-   */
-  @Deprecated
-  protected RESTTableOperations newTableOps(
-      RESTClient restClient,
-      String path,
-      Supplier<Map<String, String>> readHeaders,
-      Supplier<Map<String, String>> mutationHeaderSupplier,
-      FileIO fileIO,
-      TableMetadata current,
-      Set<Endpoint> supportedEndpoints) {
-    return newTableOps(
-        restClient,
-        path,
-        readHeaders,
-        mutationHeaderSupplier,
-        fileIO,
-        current,
-        supportedEndpoints,
-        Map.of());
-  }
-
-  /**
-   * Create a new {@link RESTTableOperations} instance for simple table operations.
-   *
    * <p>This method can be overridden in subclasses to provide custom table operations
    * implementations.
    *

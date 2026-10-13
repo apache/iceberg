@@ -61,6 +61,12 @@ interface ManifestInfo {
   Types.NestedField DV =
       Types.NestedField.optional(
           522, "dv", Types.BinaryType.get(), "Deletion vector for manifest entries");
+  Types.NestedField FORMAT_VERSION =
+      Types.NestedField.required(
+          521,
+          "format_version",
+          Types.IntegerType.get(),
+          "Format version used to write the manifest");
 
   static Types.StructType schema() {
     return Types.StructType.of(
@@ -75,7 +81,8 @@ interface ManifestInfo {
         REPLACED_ROWS_COUNT,
         MODIFIED_ROWS_COUNT,
         MIN_SEQUENCE_NUMBER,
-        DV);
+        DV,
+        FORMAT_VERSION);
   }
 
   /** Returns the number of files added by this manifest. */
@@ -113,6 +120,9 @@ interface ManifestInfo {
 
   /** Returns the deletion vector for manifest entries, or null if not present. */
   ManifestBitmap manifestDeletionVector();
+
+  /** Returns the format version used to write the manifest. */
+  int formatVersion();
 
   /** Copies this manifest info. */
   ManifestInfo copy();

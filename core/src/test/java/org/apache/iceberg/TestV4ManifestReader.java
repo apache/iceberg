@@ -18,6 +18,19 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.V4TestHelpers.ADDED_TRACKING;
+import static org.apache.iceberg.V4TestHelpers.FILE_SIZE_IN_BYTES;
+import static org.apache.iceberg.V4TestHelpers.FORMAT_VERSION_V4;
+import static org.apache.iceberg.V4TestHelpers.RECORD_COUNT;
+import static org.apache.iceberg.V4TestHelpers.SNAPSHOT_ID;
+import static org.apache.iceberg.V4TestHelpers.dataFile;
+import static org.apache.iceberg.V4TestHelpers.dataFileWithDV;
+import static org.apache.iceberg.V4TestHelpers.dataFileWithStats;
+import static org.apache.iceberg.V4TestHelpers.deletionVector;
+import static org.apache.iceberg.V4TestHelpers.manifestRef;
+import static org.apache.iceberg.V4TestHelpers.manifestRefWithStats;
+import static org.apache.iceberg.V4TestHelpers.partition;
+import static org.apache.iceberg.V4TestHelpers.writeTrackedFiles;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -37,7 +50,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
-import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ScanMetrics;
@@ -66,17 +78,11 @@ class TestV4ManifestReader {
     Mockito.when(UNREAD_MANIFEST_FILE.content()).thenReturn(ManifestContent.DATA);
   }
 
-  private static final long SNAPSHOT_ID = 42L;
   private static final long MANIFEST_SEQ = 309L;
-  private static final int FORMAT_VERSION_V4 = 4;
-  private static final long RECORD_COUNT = 100L;
-  private static final long FILE_SIZE_IN_BYTES = 1024L;
-  private static final DeletionVector DV = dv("s3://bucket/dv.puffin");
-
-  private static final Tracking ADDED_TRACKING = TrackingBuilder.added(SNAPSHOT_ID).build();
+  private static final DeletionVector DV = deletionVector("s3://bucket/dv.puffin");
 
   private static final ManifestInfo MANIFEST_INFO =
-      new ManifestInfoStruct(49, 51, 0, 0, 1, 4_900L, 5_100L, 0L, 0L, 100L, 1L, null);
+      new ManifestInfoStruct(49, 51, 0, 0, 1, 4_900L, 5_100L, 0L, 0L, 100L, 1L, null, 4);
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
@@ -104,10 +110,10 @@ class TestV4ManifestReader {
 
   private static final FieldStatsStruct<Integer> ID_STATS =
       new FieldStatsStruct<>(
-          STATS_TYPE.fieldType("id").asStructType(), 0, 99, true, RECORD_COUNT, 0, 0, null);
+          STATS_TYPE.fieldType("id").asStructType(), 0, 99, true, RECORD_COUNT, 0, 0, 0L);
   private static final FieldStatsStruct<String> DATA_STATS =
       new FieldStatsStruct<>(
-          STATS_TYPE.fieldType("data").asStructType(), "a", "z", false, RECORD_COUNT, 20, 0, null);
+          STATS_TYPE.fieldType("data").asStructType(), "a", "z", false, RECORD_COUNT, 20, 0, 2L);
   private static final ContentStatsStruct CONTENT_STATS = new ContentStatsStruct(STATS_TYPE);
 
   static {
@@ -130,22 +136,19 @@ class TestV4ManifestReader {
   private static final TrackedFile FILE_B =
       idPartitionedDataFileWithoutStats("s3://bucket/table/id=2/file-b.parquet", idPartition(2));
   private static final TrackedFile FILE_C =
-      unpartitionedDataFileWithStats("s3://bucket/table/file-c.parquet", CONTENT_STATS);
+      dataFileWithStats("s3://bucket/table/file-c.parquet", CONTENT_STATS);
   private static final TrackedFile FILE_D =
       unpartitionedFileWithoutStats("s3://bucket/table/file-d.parquet");
-  private static final TrackedFile EQ_DELETES_A =
-      idPartitionedDeleteFileWithoutStats(
-          "s3://bucket/table/id=1/eq-deletes-a.parquet", idPartition(1));
-  private static final TrackedFile EQ_DELETES_B =
-      idPartitionedDeleteFileWithoutStats(
-          "s3://bucket/table/id=2/eq-deletes-b.parquet", idPartition(2));
   private static final TrackedFile DATA_MANIFEST_REF =
       manifestRefWithoutStats(FileContent.DATA_MANIFEST, "s3://bucket/table/data-leaf.parquet");
   private static final TrackedFile DELETE_MANIFEST_REF =
       manifestRefWithoutStats(FileContent.DELETE_MANIFEST, "s3://bucket/table/delete-leaf.parquet");
   private static final TrackedFile DATA_MANIFEST_WITH_STATS_REF =
       manifestRefWithStats(
-          FileContent.DATA_MANIFEST, "s3://bucket/table/metadata/data-leaf-stats.parquet");
+          FileContent.DATA_MANIFEST,
+          "s3://bucket/table/metadata/data-leaf-stats.parquet",
+          CONTENT_STATS,
+          MANIFEST_INFO);
 
   private static final List<FileFormat> MANIFEST_FORMATS =
       ImmutableList.of(FileFormat.AVRO, FileFormat.PARQUET);
@@ -159,7 +162,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
             RECORD_COUNT,
@@ -171,8 +173,7 @@ class TestV4ManifestReader {
             DV,
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            ImmutableList.of(50L, 100L),
-            null); // equality field IDs
+            ImmutableList.of(50L, 100L));
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -191,7 +192,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
             RECORD_COUNT,
@@ -203,8 +203,7 @@ class TestV4ManifestReader {
             DV,
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            ImmutableList.of(50L, 100L),
-            null); // equality field IDs
+            ImmutableList.of(50L, 100L));
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -225,7 +224,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
             RECORD_COUNT,
@@ -237,8 +235,7 @@ class TestV4ManifestReader {
             DV,
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            ImmutableList.of(50L, 100L),
-            null); // equality field IDs
+            ImmutableList.of(50L, 100L));
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -256,44 +253,11 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  public void readEqualityDelete(FileFormat format) throws IOException {
-    TrackedFile delete =
-        new TrackedFileStruct(
-            ADDED_TRACKING,
-            FileContent.EQUALITY_DELETES,
-            FORMAT_VERSION_V4,
-            "s3://bucket/eq-delete.parquet",
-            FileFormat.PARQUET,
-            RECORD_COUNT,
-            FILE_SIZE_IN_BYTES,
-            ID_PARTITIONED.specId(),
-            idPartition(7),
-            CONTENT_STATS,
-            SortOrder.unsorted().orderId(),
-            null, // dv
-            null, // manifest info
-            ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            null, // split offsets
-            ImmutableList.of(1, 2));
-
-    ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, delete);
-
-    V4ManifestReader.Builder builder =
-        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
-            .metricsConfig(METRICS_CONFIG);
-    TrackedFile actual = readOne(builder);
-
-    assertThat(actual).usingComparator(FILE_COMPARATOR).isEqualTo(delete);
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
   public void readManifestFile(FileFormat format) throws IOException {
     TrackedFile manifestRef =
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA_MANIFEST,
-            FORMAT_VERSION_V4,
             "s3://bucket/leaf-manifest.parquet",
             FileFormat.PARQUET,
             RECORD_COUNT,
@@ -305,8 +269,7 @@ class TestV4ManifestReader {
             null, // dv
             MANIFEST_INFO,
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            null, // split offsets
-            ImmutableList.of(1, 2));
+            null); // split offsets
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, manifestRef);
 
@@ -323,19 +286,19 @@ class TestV4ManifestReader {
   public void statusFilter(FileFormat format) throws IOException {
     List<TrackedFile> files =
         List.of(
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.ADDED, 42L, null, null, null, null, null, null),
                 "s3://bucket/added.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.MODIFIED, 40L, 5L, 5L, 42L, 5_000L, null, null),
                 "s3://bucket/modified.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null),
                 "s3://bucket/deleted.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.EXISTING, 38L, 4L, 4L, null, 3_000L, null, null),
                 "s3://bucket/existing.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.REPLACED, 42L, 2L, 2L, 40L, 2_000L, null, null),
                 "s3://bucket/replaced.parquet"));
 
@@ -345,20 +308,20 @@ class TestV4ManifestReader {
     List<TrackedFile> expectedFiles =
         List.of(
             // inherits seq number and assigned first row ID
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, 42L, MANIFEST_SEQ, MANIFEST_SEQ, null, 10_000L, null, null),
                 "s3://bucket/added.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.MODIFIED, 40L, 5L, 5L, 42L, 5_000L, null, null),
                 "s3://bucket/modified.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null),
                 "s3://bucket/deleted.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.EXISTING, 38L, 4L, 4L, null, 3_000L, null, null),
                 "s3://bucket/existing.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.REPLACED, 42L, 2L, 2L, 40L, 2_000L, null, null),
                 "s3://bucket/replaced.parquet"));
 
@@ -377,19 +340,19 @@ class TestV4ManifestReader {
   public void mdvFilter(FileFormat format) throws IOException {
     List<TrackedFile> files =
         List.of(
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.ADDED, 42L, null, null, null, null, null, null),
                 "s3://bucket/added.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.MODIFIED, 40L, 5L, 5L, 42L, 5_000L, null, null),
                 "s3://bucket/modified.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null),
                 "s3://bucket/deleted.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.EXISTING, 38L, 4L, 4L, null, 3_000L, null, null),
                 "s3://bucket/existing.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.REPLACED, 42L, 2L, 2L, 40L, 2_000L, null, null),
                 "s3://bucket/replaced.parquet"));
 
@@ -403,22 +366,22 @@ class TestV4ManifestReader {
     List<TrackedFile> expectedFiles =
         List.of(
             // inherits seq number and assigned first row ID
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, 42L, MANIFEST_SEQ, MANIFEST_SEQ, null, 10_000L, null, null),
                 "s3://bucket/added.parquet"),
             // status changed to DELETED, delete snapshot ID is unknown
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.DELETED, null, 5L, 5L, 42L, 5_000L, null, null),
                 "s3://bucket/modified.parquet"),
             // status already DELETED, no modification
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.DELETED, 42L, 2L, 2L, null, 1_000L, null, null),
                 "s3://bucket/deleted.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.EXISTING, 38L, 4L, 4L, null, 3_000L, null, null),
                 "s3://bucket/existing.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.REPLACED, 42L, 2L, 2L, 40L, 2_000L, null, null),
                 "s3://bucket/replaced.parquet"));
 
@@ -436,11 +399,11 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void inheritanceUncommittedOnlyInheritsSnapshotId(FileFormat format) throws IOException {
     TrackedFile withSnapshotId =
-        unpartitionedDataFile(
+        dataFile(
             new TrackingStruct(EntryStatus.ADDED, 1234567L, null, null, null, null, null, null),
             "s3://bucket/table/file-b.parquet");
     TrackedFile withoutSnapshotId =
-        unpartitionedDataFile(
+        dataFile(
             new TrackingStruct(EntryStatus.ADDED, null, null, null, null, null, null, null),
             "s3://bucket/table/file-a.parquet");
 
@@ -464,11 +427,11 @@ class TestV4ManifestReader {
 
     List<TrackedFile> expected =
         List.of(
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.ADDED, 1234567L, null, null, null, null, null, null),
                 "s3://bucket/table/file-b.parquet"),
             // inherits only snapshot ID
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.ADDED, 34L, null, null, null, null, null, null),
                 "s3://bucket/table/file-a.parquet"));
 
@@ -481,11 +444,11 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void inheritanceSnapshotId(FileFormat format) throws IOException {
     TrackedFile withSnapshotId =
-        unpartitionedDataFile(
+        dataFile(
             new TrackingStruct(EntryStatus.ADDED, 1234567L, 5L, 5L, null, 5_000L, null, null),
             "s3://bucket/table/file-b.parquet");
     TrackedFile withoutSnapshotId =
-        unpartitionedDataFile(
+        dataFile(
             new TrackingStruct(EntryStatus.ADDED, null, 5L, 5L, null, 5_100L, null, null),
             "s3://bucket/table/file-a.parquet");
 
@@ -503,11 +466,11 @@ class TestV4ManifestReader {
 
     List<TrackedFile> expected =
         List.of(
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.ADDED, 1234567L, 5L, 5L, null, 5_000L, null, null),
                 "s3://bucket/table/file-b.parquet"),
             // inherits only snapshot ID
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(EntryStatus.ADDED, 34L, 5L, 5L, null, 5_100L, null, null),
                 "s3://bucket/table/file-a.parquet"));
 
@@ -518,20 +481,22 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  public void inheritanceDVSnapshotIdNotInherited(FileFormat format) throws IOException {
-    TrackedFile withDVSnapshotId =
-        unpartitionedDataFile(
+  public void inheritanceModifiedSnapshotIdNotInherited(FileFormat format) throws IOException {
+    TrackedFile withModifiedSnapshotId =
+        dataFile(
             new TrackingStruct(
                 EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, 1234567L, 5_000L, null, null),
             "s3://bucket/table/file-b.parquet");
-    TrackedFile withoutDVSnapshotId =
-        unpartitionedDataFile(
+    TrackedFile withoutModifiedSnapshotId =
+        dataFile(
             new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 5_100L, null, null),
             "s3://bucket/table/file-a.parquet");
 
     ManifestFile manifest =
         writeManifest(
-            format, UNPARTITIONED_TYPE, ImmutableList.of(withDVSnapshotId, withoutDVSnapshotId));
+            format,
+            UNPARTITIONED_TYPE,
+            ImmutableList.of(withModifiedSnapshotId, withoutModifiedSnapshotId));
 
     when(manifest.firstRowId()).thenReturn(10_000L);
     when(manifest.snapshotId()).thenReturn(34L);
@@ -543,12 +508,12 @@ class TestV4ManifestReader {
 
     List<TrackedFile> expected =
         List.of(
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, 1234567L, 5_000L, null, null),
                 "s3://bucket/table/file-b.parquet"),
             // inherits only snapshot ID
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 5_100L, null, null),
                 "s3://bucket/table/file-a.parquet"));
@@ -562,12 +527,12 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void inheritanceAddedSequenceNumbers(FileFormat format) throws IOException {
     TrackedFile withoutSeq =
-        unpartitionedDataFile(
+        dataFile(
             new TrackingStruct(
                 EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, 5_000L, null, null),
             "s3://bucket/table/file-a.parquet");
     TrackedFile withDataSeq =
-        unpartitionedDataFile(
+        dataFile(
             new TrackingStruct(
                 EntryStatus.ADDED, SNAPSHOT_ID, 500L, 500L, null, 5_100L, null, null),
             "s3://bucket/table/file-b.parquet");
@@ -587,12 +552,12 @@ class TestV4ManifestReader {
     List<TrackedFile> expected =
         List.of(
             // inherits sequence numbers
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 5_000L, null, null),
                 "s3://bucket/table/file-a.parquet"),
             // does not inherit sequence numbers
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 500L, 500L, null, 5_100L, null, null),
                 "s3://bucket/table/file-b.parquet"));
@@ -606,11 +571,11 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void inheritanceFirstRowId(FileFormat format) throws IOException {
     TrackedFile withoutFirstRowId =
-        unpartitionedDataFile(
+        dataFile(
             new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, null, null, null),
             "s3://bucket/table/file-a.parquet");
     TrackedFile withFirstRowId =
-        unpartitionedDataFile(
+        dataFile(
             new TrackingStruct(EntryStatus.EXISTING, SNAPSHOT_ID, 5L, 5L, null, 5_000L, null, null),
             "s3://bucket/table/file-c.parquet");
 
@@ -628,12 +593,12 @@ class TestV4ManifestReader {
     List<TrackedFile> expected =
         List.of(
             // assigns a new first row ID
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_000L, null, null),
                 "s3://bucket/table/file-a.parquet"),
             // does not modify first row ID
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(
                     EntryStatus.EXISTING, SNAPSHOT_ID, 5L, 5L, null, 5_000L, null, null),
                 "s3://bucket/table/file-c.parquet"));
@@ -651,16 +616,11 @@ class TestV4ManifestReader {
     Tracking trackingWithFirstRowId =
         new TrackingStruct(EntryStatus.EXISTING, SNAPSHOT_ID, 2L, 2L, null, 5_000L, null, null);
 
-    TrackedFile fileA =
-        unpartitionedDataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-a.parquet");
-    TrackedFile fileB =
-        unpartitionedDataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-b.parquet");
-    TrackedFile fileC =
-        unpartitionedDataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-c.parquet");
-    TrackedFile fileD =
-        unpartitionedDataFile(trackingWithFirstRowId, "s3://bucket/table/file-d.parquet");
-    TrackedFile fileE =
-        unpartitionedDataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-e.parquet");
+    TrackedFile fileA = dataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-a.parquet");
+    TrackedFile fileB = dataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-b.parquet");
+    TrackedFile fileC = dataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-c.parquet");
+    TrackedFile fileD = dataFile(trackingWithFirstRowId, "s3://bucket/table/file-d.parquet");
+    TrackedFile fileE = dataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-e.parquet");
 
     ManifestFile manifest =
         writeManifest(
@@ -677,23 +637,23 @@ class TestV4ManifestReader {
 
     List<TrackedFile> expected =
         List.of(
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_000L, null, null),
                 "s3://bucket/table/file-a.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_100L, null, null),
                 "s3://bucket/table/file-b.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_200L, null, null),
                 "s3://bucket/table/file-c.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(
                     EntryStatus.EXISTING, SNAPSHOT_ID, 2L, 2L, null, 5_000L, null, null),
                 "s3://bucket/table/file-d.parquet"),
-            unpartitionedDataFile(
+            dataFile(
                 new TrackingStruct(
                     EntryStatus.ADDED, SNAPSHOT_ID, 5L, 5L, null, 10_300L, null, null),
                 "s3://bucket/table/file-e.parquet"));
@@ -709,11 +669,11 @@ class TestV4ManifestReader {
     Tracking trackingWithoutFirstRowId =
         new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
     TrackedFile withoutFirstRowId =
-        unpartitionedDataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-a.parquet");
+        dataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-a.parquet");
     Tracking trackingWithFirstRowId =
         new TrackingStruct(EntryStatus.EXISTING, SNAPSHOT_ID, null, null, null, 5_000L, null, null);
     TrackedFile withFirstRowId =
-        unpartitionedDataFile(trackingWithFirstRowId, "s3://bucket/table/file-c.parquet");
+        dataFile(trackingWithFirstRowId, "s3://bucket/table/file-c.parquet");
 
     ManifestFile manifest =
         writeManifest(
@@ -736,11 +696,11 @@ class TestV4ManifestReader {
     Tracking trackingWithoutFirstRowId =
         new TrackingStruct(EntryStatus.ADDED, SNAPSHOT_ID, null, null, null, null, null, null);
     TrackedFile withoutFirstRowId =
-        unpartitionedDataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-a.parquet");
+        dataFile(trackingWithoutFirstRowId, "s3://bucket/table/file-a.parquet");
     Tracking trackingWithFirstRowId =
         new TrackingStruct(EntryStatus.EXISTING, SNAPSHOT_ID, null, null, null, 5_000L, null, null);
     TrackedFile withFirstRowId =
-        unpartitionedDataFile(trackingWithFirstRowId, "s3://bucket/table/file-c.parquet");
+        dataFile(trackingWithFirstRowId, "s3://bucket/table/file-c.parquet");
 
     ManifestFile manifest =
         writeManifest(
@@ -1157,7 +1117,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/table/empty-file.parquet",
             FileFormat.PARQUET,
             0, // file contains no records
@@ -1169,8 +1128,7 @@ class TestV4ManifestReader {
             null,
             null,
             null,
-            List.of(4L),
-            null);
+            List.of(4L));
 
     ManifestFile manifest =
         writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(emptyTrackedFile, FILE_D));
@@ -1194,7 +1152,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/table/very-old.avro",
             FileFormat.AVRO,
             -1, // mimic invalid record count in old Avro metadata
@@ -1206,8 +1163,7 @@ class TestV4ManifestReader {
             null,
             null,
             null,
-            List.of(4L),
-            null);
+            List.of(4L));
 
     ManifestFile manifest =
         writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(invalidRecordCountFile, FILE_D));
@@ -1379,7 +1335,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/table/bucket=7/data-file.parquet",
             FileFormat.AVRO,
             10,
@@ -1391,8 +1346,7 @@ class TestV4ManifestReader {
             null, // dv
             null, // manifest info
             null, // key metadata
-            List.of(4L),
-            null); // eq delete ids
+            List.of(4L));
 
     ManifestFile manifest =
         writeManifest(
@@ -1425,13 +1379,7 @@ class TestV4ManifestReader {
         writeManifest(
             format,
             ID_PARTITIONED_TYPE,
-            ImmutableList.of(
-                FILE_A,
-                FILE_B,
-                EQ_DELETES_A,
-                EQ_DELETES_B,
-                DATA_MANIFEST_REF,
-                DELETE_MANIFEST_REF));
+            ImmutableList.of(FILE_A, FILE_B, DATA_MANIFEST_REF, DELETE_MANIFEST_REF));
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     V4ManifestReader.Builder builder =
@@ -1442,14 +1390,14 @@ class TestV4ManifestReader {
 
     assertThat(read(builder))
         .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
-        .containsExactly(FILE_A, EQ_DELETES_A, DATA_MANIFEST_REF, DELETE_MANIFEST_REF);
+        .containsExactly(FILE_A, DATA_MANIFEST_REF, DELETE_MANIFEST_REF);
 
     assertThat(metrics.skippedDataFiles().value())
         .as("one data file is pruned by the partition filter")
         .isEqualTo(1L);
     assertThat(metrics.skippedDeleteFiles().value())
-        .as("one delete file is pruned by the partition filter")
-        .isEqualTo(1L);
+        .as("no delete files are present")
+        .isEqualTo(0L);
     assertThat(metrics.skippedDataManifests().value())
         .as("manifests have no partition and are not pruned")
         .isEqualTo(0L);
@@ -1509,14 +1457,15 @@ class TestV4ManifestReader {
     dataX.set(dataPos, "x");
 
     TrackedFile idFileKept =
-        dataFileWithoutStats("s3://bucket/table/id=1/file-a.parquet", idSpec.specId(), idOne);
+        dataFile("s3://bucket/table/id=1/file-a.parquet", idSpec.specId(), idOne);
     TrackedFile idFilePruned =
-        dataFileWithoutStats("s3://bucket/table/id=2/file-b.parquet", idSpec.specId(), idTwo);
-    TrackedFile dataFile =
-        dataFileWithoutStats("s3://bucket/table/data=x/file-c.parquet", dataSpec.specId(), dataX);
+        dataFile("s3://bucket/table/id=2/file-b.parquet", idSpec.specId(), idTwo);
+    TrackedFile dataPartitionedFile =
+        dataFile("s3://bucket/table/data=x/file-c.parquet", dataSpec.specId(), dataX);
 
     ManifestFile manifest =
-        writeManifest(format, unionType, ImmutableList.of(idFileKept, idFilePruned, dataFile));
+        writeManifest(
+            format, unionType, ImmutableList.of(idFileKept, idFilePruned, dataPartitionedFile));
 
     V4ManifestReader.Builder builder =
         V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, specsById)
@@ -1525,7 +1474,7 @@ class TestV4ManifestReader {
 
     assertThat(read(builder))
         .extracting(TrackedFile::location)
-        .containsExactlyInAnyOrder(idFileKept.location(), dataFile.location());
+        .containsExactlyInAnyOrder(idFileKept.location(), dataPartitionedFile.location());
   }
 
   @ParameterizedTest
@@ -1548,8 +1497,7 @@ class TestV4ManifestReader {
     PartitionData unionPartition = new PartitionData(unionType);
     unionPartition.set(unionType.fields().indexOf(unionType.field("data")), "x");
     TrackedFile file =
-        dataFileWithoutStats(
-            "s3://bucket/table/data=x/file.parquet", dataSpec.specId(), unionPartition);
+        dataFile("s3://bucket/table/data=x/file.parquet", dataSpec.specId(), unionPartition);
     ManifestFile manifest = writeManifest(format, unionType, ImmutableList.of(file));
 
     TrackedFile actual =
@@ -1581,13 +1529,12 @@ class TestV4ManifestReader {
     PartitionData knownPartition = new PartitionData(unionType);
     knownPartition.set(unionType.fields().indexOf(unionType.field("id")), 7);
     TrackedFile known =
-        dataFileWithoutStats("s3://bucket/table/known.parquet", idSpec.specId(), knownPartition);
+        dataFile("s3://bucket/table/known.parquet", idSpec.specId(), knownPartition);
 
     // spec id 5 is not in specsById; it follows a known-spec file in the same (reused) reader
     PartitionData unknownPartition = new PartitionData(unionType);
     unknownPartition.set(dataPos, "x");
-    TrackedFile unknown =
-        dataFileWithoutStats("s3://bucket/table/unknown.parquet", 5, unknownPartition);
+    TrackedFile unknown = dataFile("s3://bucket/table/unknown.parquet", 5, unknownPartition);
 
     ManifestFile manifest = writeManifest(format, unionType, ImmutableList.of(known, unknown));
 
@@ -1614,8 +1561,7 @@ class TestV4ManifestReader {
   @FieldSource("MANIFEST_FORMATS")
   public void partitionFilterKeepsFileWithUnknownSpec(FileFormat format) throws IOException {
     int missingSpecId = 5;
-    TrackedFile file =
-        dataFileWithoutStats("s3://bucket/table/orphan.parquet", missingSpecId, idPartition(1));
+    TrackedFile file = dataFile("s3://bucket/table/orphan.parquet", missingSpecId, idPartition(1));
 
     assertThat(ID_PARTITIONING_SPECS).doesNotContainKey(missingSpecId);
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
@@ -1783,7 +1729,7 @@ class TestV4ManifestReader {
         writeManifest(
             format,
             UNPARTITIONED_TYPE,
-            unpartitionedDataWithDVFile("s3://other/abs.parquet", "data/dv.puffin"));
+            unpartitionedDataFileWithDV("s3://other/abs.parquet", "data/dv.puffin"));
 
     V4ManifestReader.Builder builder =
         V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
@@ -1793,7 +1739,7 @@ class TestV4ManifestReader {
     assertThat(readOne(builder))
         .usingComparator(FILE_COMPARATOR)
         .isEqualTo(
-            unpartitionedDataWithDVFile(
+            unpartitionedDataFileWithDV(
                 "s3://other/abs.parquet", "s3://bucket/db/table/data/dv.puffin"));
   }
 
@@ -1805,8 +1751,8 @@ class TestV4ManifestReader {
             format,
             UNPARTITIONED_TYPE,
             ImmutableList.of(
-                unpartitionedDataWithDVFile("s3://other/abs.parquet", "data/dv.puffin"),
-                unpartitionedDataWithDVFile("data/rel.parquet", "s3://other/abs-dv.puffin")));
+                unpartitionedDataFileWithDV("s3://other/abs.parquet", "data/dv.puffin"),
+                unpartitionedDataFileWithDV("data/rel.parquet", "s3://other/abs-dv.puffin")));
 
     V4ManifestReader.Builder builder =
         V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
@@ -1816,9 +1762,9 @@ class TestV4ManifestReader {
     assertThat(read(builder))
         .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
         .containsExactly(
-            unpartitionedDataWithDVFile(
+            unpartitionedDataFileWithDV(
                 "s3://other/abs.parquet", "s3://bucket/db/table/data/dv.puffin"),
-            unpartitionedDataWithDVFile(
+            unpartitionedDataFileWithDV(
                 "s3://bucket/db/table/data/rel.parquet", "s3://other/abs-dv.puffin"));
   }
 
@@ -1842,11 +1788,11 @@ class TestV4ManifestReader {
     GeospatialBound nextGeogUpper = GeospatialBound.createXYZM(3.0, 4.0, 5.0, 6.0);
 
     TrackedFile first =
-        unpartitionedDataFileWithStats(
+        dataFileWithStats(
             "s3://bucket/table/geo-a.parquet",
             contentStats(statsType, geomLower, geomUpper, geogLower, geogUpper));
     TrackedFile second =
-        unpartitionedDataFileWithStats(
+        dataFileWithStats(
             "s3://bucket/table/geo-b.parquet",
             contentStats(statsType, nextGeomLower, nextGeomUpper, nextGeogLower, nextGeogUpper));
 
@@ -1881,7 +1827,7 @@ class TestV4ManifestReader {
   private static FieldStatsStruct<GeospatialBound> geoFieldStats(
       Types.StructType statsType, String name, GeospatialBound lower, GeospatialBound upper) {
     return new FieldStatsStruct<>(
-        statsType.fieldType(name).asStructType(), lower, upper, false, RECORD_COUNT, 0, 0, null);
+        statsType.fieldType(name).asStructType(), lower, upper, false, RECORD_COUNT, 0, 0, 0L);
   }
 
   private static void assertGeospatialBounds(
@@ -1904,19 +1850,6 @@ class TestV4ManifestReader {
         .isEqualTo(upper);
   }
 
-  private static DeletionVector dv(String location) {
-    return DeletionVectorStruct.builder()
-        .location(location)
-        .offset(100L)
-        .sizeInBytes(50L)
-        .cardinality(5L)
-        .build();
-  }
-
-  private static TrackedFile unpartitionedDataFileWithStats(String location, ContentStats stats) {
-    return unpartitionedDataFile(ADDED_TRACKING, location, stats, null /* no DV */);
-  }
-
   private static TrackedFile unpartitionedFileWithoutStats(String location) {
     Tracking tracking =
         new TrackingStruct(
@@ -1928,123 +1861,24 @@ class TestV4ManifestReader {
             null, // first row id
             null, // deleted positions
             null); // replaced positions
-    return unpartitionedDataFile(tracking, location, null /* no stats */, null /* no DV */);
+    return dataFile(tracking, location);
   }
 
   private static TrackedFile idPartitionedDataFileWithoutStats(
       String location, PartitionData partition) {
-    return dataFileWithoutStats(location, ID_PARTITIONED.specId(), partition);
+    return dataFile(location, ID_PARTITIONED.specId(), partition);
   }
 
-  private static TrackedFile dataFileWithoutStats(
-      String location, Integer specId, PartitionData partition) {
-    return new TrackedFileStruct(
-        ADDED_TRACKING,
-        FileContent.DATA,
-        FORMAT_VERSION_V4,
-        location,
-        FileFormat.PARQUET,
-        RECORD_COUNT,
-        FILE_SIZE_IN_BYTES,
-        specId,
-        partition,
-        null, // content_stats
-        SortOrder.unsorted().orderId(),
-        null, // deletion_vector
-        null, // manifest_info
-        null, // key_metadata
-        ImmutableList.of(4L), // split offsets
-        null); // equality_ids
-  }
-
-  private static TrackedFile idPartitionedDeleteFileWithoutStats(
-      String location, PartitionData partition) {
-    return new TrackedFileStruct(
-        ADDED_TRACKING,
-        FileContent.EQUALITY_DELETES,
-        FORMAT_VERSION_V4,
-        location,
-        FileFormat.PARQUET,
-        RECORD_COUNT,
-        FILE_SIZE_IN_BYTES,
-        ID_PARTITIONED.specId(),
-        partition,
-        null, // content_stats
-        SortOrder.unsorted().orderId(),
-        null, // deletion_vector
-        null, // manifest_info
-        null, // key_metadata
-        ImmutableList.of(4L), // split offsets
-        ImmutableList.of(1)); // equality_ids
-  }
-
-  private static TrackedFile unpartitionedDataWithDVFile(String location, String dvLocation) {
-    return unpartitionedDataFile(ADDED_TRACKING, location, null, dv(dvLocation));
+  private static TrackedFile unpartitionedDataFileWithDV(String location, String dvLocation) {
+    return dataFileWithDV(location, deletionVector(dvLocation));
   }
 
   private static TrackedFile manifestRefWithoutStats(FileContent content, String location) {
-    return manifestRef(content, location, null /* no stats */);
-  }
-
-  private static TrackedFile manifestRefWithStats(FileContent content, String location) {
-    return manifestRef(content, location, CONTENT_STATS);
-  }
-
-  private static TrackedFile manifestRef(FileContent content, String location, ContentStats stats) {
-    return new TrackedFileStruct(
-        ADDED_TRACKING,
-        content,
-        FORMAT_VERSION_V4,
-        location,
-        FileFormat.PARQUET,
-        RECORD_COUNT,
-        FILE_SIZE_IN_BYTES,
-        null, // spec_id: a manifest reference has no spec
-        null, // partition: a manifest reference has no partition tuple
-        stats, // content_stats
-        null, // sort_order_id
-        null, // deletion_vector
-        MANIFEST_INFO,
-        null, // key_metadata
-        ImmutableList.of(4L), // split_offsets
-        null); // equality_ids
-  }
-
-  private static TrackedFile unpartitionedDataFile(Tracking tracking, String location) {
-    return unpartitionedDataFile(tracking, location, null /* no stats */, null /* no DV */);
-  }
-
-  private static TrackedFile unpartitionedDataFile(
-      Tracking tracking, String location, ContentStats stats, DeletionVector dv) {
-    return new TrackedFileStruct(
-        tracking,
-        FileContent.DATA,
-        FORMAT_VERSION_V4,
-        location,
-        FileFormat.PARQUET,
-        RECORD_COUNT,
-        FILE_SIZE_IN_BYTES,
-        null, // unpartitioned
-        null, // null partition data
-        stats,
-        SortOrder.unsorted().orderId(),
-        dv,
-        null, // manifest info
-        null, // key metadata
-        ImmutableList.of(4L), // split offsets
-        null); // equality ids
+    return manifestRef(content, location, MANIFEST_INFO);
   }
 
   private static PartitionData idPartition(int id) {
     return partition(ID_PARTITIONED, id);
-  }
-
-  private static PartitionData partition(PartitionSpec spec, Object... values) {
-    PartitionData partition = DataFiles.newPartitionData(spec);
-    for (int i = 0; i < values.length; i += 1) {
-      partition.set(i, values[i]);
-    }
-    return partition;
   }
 
   private ManifestFile writeManifest(
@@ -2064,15 +1898,7 @@ class TestV4ManifestReader {
       Types.StructType statsType,
       List<TrackedFile> files)
       throws IOException {
-    Schema writeSchema = TrackedFile.schema(partitionType, statsType);
-    OutputFile out = IO.newOutputFile(format.addExtension("manifest." + System.nanoTime()));
-    try (FileAppender<StructLike> appender =
-        InternalData.write(format, out).schema(writeSchema).named("tracked_file").build()) {
-      for (TrackedFile file : files) {
-        appender.add((StructLike) file);
-      }
-    }
-
+    OutputFile out = writeTrackedFiles(IO, format, partitionType, statsType, files);
     return v4Manifest(out.location());
   }
 

@@ -35,7 +35,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
           Tracking.SNAPSHOT_ID,
           Tracking.SEQUENCE_NUMBER,
           Tracking.FILE_SEQUENCE_NUMBER,
-          Tracking.DV_SNAPSHOT_ID,
+          Tracking.MODIFIED_SNAPSHOT_ID,
           Tracking.FIRST_ROW_ID,
           Tracking.DELETED_POSITIONS,
           Tracking.REPLACED_POSITIONS,
@@ -58,7 +58,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   private Long snapshotId = null;
   private Long dataSequenceNumber = null;
   private Long fileSequenceNumber = null;
-  private Long dvSnapshotId = null;
+  private Long modifiedSnapshotId = null;
   private Long firstRowId = null;
   private byte[] deletedPositions = null;
   private byte[] replacedPositions = null;
@@ -82,7 +82,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     this.snapshotId = toCopy.snapshotId;
     this.dataSequenceNumber = toCopy.dataSequenceNumber;
     this.fileSequenceNumber = toCopy.fileSequenceNumber;
-    this.dvSnapshotId = toCopy.dvSnapshotId;
+    this.modifiedSnapshotId = toCopy.modifiedSnapshotId;
     this.firstRowId = toCopy.firstRowId;
     this.deletedPositions =
         toCopy.deletedPositions != null
@@ -101,7 +101,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
       Long snapshotId,
       Long dataSequenceNumber,
       Long fileSequenceNumber,
-      Long dvSnapshotId,
+      Long modifiedSnapshotId,
       Long firstRowId,
       byte[] deletedPositions,
       byte[] replacedPositions) {
@@ -110,7 +110,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
     this.snapshotId = snapshotId;
     this.dataSequenceNumber = dataSequenceNumber;
     this.fileSequenceNumber = fileSequenceNumber;
-    this.dvSnapshotId = dvSnapshotId;
+    this.modifiedSnapshotId = modifiedSnapshotId;
     this.firstRowId = firstRowId;
     this.deletedPositions = deletedPositions;
     this.replacedPositions = replacedPositions;
@@ -200,8 +200,8 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
   }
 
   @Override
-  public Long dvSnapshotId() {
-    return dvSnapshotId;
+  public Long modifiedSnapshotId() {
+    return modifiedSnapshotId;
   }
 
   @Override
@@ -250,7 +250,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
       case 3:
         return fileSequenceNumber();
       case 4:
-        return dvSnapshotId;
+        return modifiedSnapshotId;
       case 5:
         return firstRowId;
       case 6:
@@ -282,7 +282,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         this.fileSequenceNumber = (Long) value;
         break;
       case 4:
-        this.dvSnapshotId = (Long) value;
+        this.modifiedSnapshotId = (Long) value;
         break;
       case 5:
         this.firstRowId = (Long) value;
@@ -311,7 +311,7 @@ class TrackingStruct extends SupportsIndexProjection implements Tracking, Serial
         .add("snapshot_id", snapshotId)
         .add("data_sequence_number", dataSequenceNumber)
         .add("file_sequence_number", fileSequenceNumber)
-        .add("dv_snapshot_id", dvSnapshotId)
+        .add("modified_snapshot_id", modifiedSnapshotId)
         .add("first_row_id", firstRowId)
         .add("deleted_positions", deletedPositions == null ? "null" : "(binary)")
         .add("replaced_positions", replacedPositions == null ? "null" : "(binary)")

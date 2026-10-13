@@ -36,10 +36,7 @@ interface TrackedFile {
           134,
           "content_type",
           Types.IntegerType.get(),
-          "Type of content: 0=DATA, 2=EQUALITY_DELETES, 3=DATA_MANIFEST, 4=DELETE_MANIFEST");
-  Types.NestedField FORMAT_VERSION =
-      Types.NestedField.required(
-          157, "format_version", Types.IntegerType.get(), "Format version of this file");
+          "Type of content: 0=DATA, 3=DATA_MANIFEST, 4=DELETE_MANIFEST");
   Types.NestedField LOCATION =
       Types.NestedField.required(100, "location", Types.StringType.get(), "Location of the file");
   Types.NestedField FILE_FORMAT =
@@ -90,19 +87,12 @@ interface TrackedFile {
           "split_offsets",
           Types.ListType.ofRequired(133, Types.LongType.get()),
           "Split offsets for the data file");
-  Types.NestedField EQUALITY_IDS =
-      Types.NestedField.optional(
-          135,
-          "equality_ids",
-          Types.ListType.ofRequired(136, Types.IntegerType.get()),
-          "Field ids used to determine row equality in equality delete files");
 
   private static List<Types.NestedField> fields(
       Types.StructType partitionType, Types.StructType contentStatsType) {
     return ImmutableList.of(
         TRACKING,
         CONTENT_TYPE,
-        FORMAT_VERSION,
         LOCATION,
         FILE_FORMAT,
         RECORD_COUNT,
@@ -119,8 +109,7 @@ interface TrackedFile {
         DELETION_VECTOR,
         MANIFEST_INFO,
         KEY_METADATA,
-        SPLIT_OFFSETS,
-        EQUALITY_IDS);
+        SPLIT_OFFSETS);
   }
 
   private static Type typeOrUnknown(Types.StructType structType) {
@@ -150,9 +139,6 @@ interface TrackedFile {
 
   /** Returns the type of content stored by this entry. */
   FileContent contentType();
-
-  /** Returns the format version of this file. */
-  int formatVersion();
 
   /** Returns the location of the file. */
   String location();
@@ -191,9 +177,6 @@ interface TrackedFile {
 
   /** Returns the list of recommended split locations, or null. */
   List<Long> splitOffsets();
-
-  /** Returns the set of field IDs used for equality comparison in equality delete files. */
-  List<Integer> equalityIds();
 
   /** Copies this tracked file. */
   TrackedFile copy();

@@ -40,8 +40,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 
 class TestTrackedFileStruct {
-  private static final int FORMAT_VERSION_V4 = 4;
-
   private static final List<Types.NestedField> DEFAULT_FIELDS =
       TrackedFile.schema(Types.StructType.of(), Types.StructType.of()).asStruct().fields();
 
@@ -72,7 +70,6 @@ class TestTrackedFileStruct {
         new TrackedFileStruct(
             TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
             50L,
@@ -84,12 +81,10 @@ class TestTrackedFileStruct {
             DELETION_VECTOR,
             MANIFEST_INFO,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
-            ImmutableList.of(100L, 200L),
-            ImmutableList.of(1, 2, 3));
+            ImmutableList.of(100L, 200L));
 
     assertThat(file.tracking()).isSameAs(TRACKING);
     assertThat(file.contentType()).isEqualTo(FileContent.DATA);
-    assertThat(file.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(file.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
     assertThat(file.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(file.partition()).isSameAs(PARTITION);
@@ -102,7 +97,6 @@ class TestTrackedFileStruct {
     assertThat(file.manifestInfo()).isSameAs(MANIFEST_INFO);
     assertThat(file.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(file.splitOffsets()).containsExactly(100L, 200L);
-    assertThat(file.equalityIds()).containsExactly(1, 2, 3);
   }
 
   @Test
@@ -110,7 +104,6 @@ class TestTrackedFileStruct {
     TrackedFileStruct file = new TrackedFileStruct();
     file.set(pos("tracking"), TRACKING);
     file.set(pos("content_type"), FileContent.DATA.id());
-    file.set(pos("format_version"), FORMAT_VERSION_V4);
     file.set(pos("location"), "s3://bucket/data/00000-0-file.parquet");
     file.set(pos("file_format"), "parquet");
     file.set(pos("record_count"), 50L);
@@ -123,11 +116,9 @@ class TestTrackedFileStruct {
     file.set(pos("manifest_info"), MANIFEST_INFO);
     file.set(pos("key_metadata"), ByteBuffer.wrap(new byte[] {1, 2, 3}));
     file.set(pos("split_offsets"), ImmutableList.of(100L, 200L));
-    file.set(pos("equality_ids"), ImmutableList.of(1, 2, 3));
 
     assertThat(file.tracking()).isSameAs(TRACKING);
     assertThat(file.contentType()).isEqualTo(FileContent.DATA);
-    assertThat(file.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(file.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
     assertThat(file.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(file.recordCount()).isEqualTo(50L);
@@ -140,7 +131,6 @@ class TestTrackedFileStruct {
     assertThat(file.manifestInfo()).isSameAs(MANIFEST_INFO);
     assertThat(file.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(file.splitOffsets()).containsExactly(100L, 200L);
-    assertThat(file.equalityIds()).containsExactly(1, 2, 3);
   }
 
   @Test
@@ -149,7 +139,6 @@ class TestTrackedFileStruct {
         new TrackedFileStruct(
             TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
             50L,
@@ -161,12 +150,10 @@ class TestTrackedFileStruct {
             DELETION_VECTOR,
             MANIFEST_INFO,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
-            ImmutableList.of(100L, 200L),
-            ImmutableList.of(1, 2, 3));
+            ImmutableList.of(100L, 200L));
 
     assertThat(file.get(pos("tracking"), Tracking.class)).isSameAs(TRACKING);
     assertThat(file.get(pos("content_type"), Integer.class)).isEqualTo(FileContent.DATA.id());
-    assertThat(file.get(pos("format_version"), Integer.class)).isEqualTo(FORMAT_VERSION_V4);
     assertThat(file.get(pos("location"), String.class))
         .isEqualTo("s3://bucket/data/00000-0-file.parquet");
     assertThat(file.get(pos("file_format"), String.class)).isEqualTo(FileFormat.PARQUET.toString());
@@ -181,7 +168,6 @@ class TestTrackedFileStruct {
     assertThat(file.get(pos("key_metadata"), ByteBuffer.class))
         .isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(file.get(pos("split_offsets"), List.class)).containsExactly(100L, 200L);
-    assertThat(file.get(pos("equality_ids"), List.class)).containsExactly(1, 2, 3);
   }
 
   @Test
@@ -190,7 +176,6 @@ class TestTrackedFileStruct {
         new TrackedFileStruct(
             TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
             50L,
@@ -202,15 +187,13 @@ class TestTrackedFileStruct {
             DELETION_VECTOR,
             MANIFEST_INFO,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
-            ImmutableList.of(100L, 200L),
-            ImmutableList.of(1, 2, 3));
+            ImmutableList.of(100L, 200L));
 
     TrackedFile copy = file.copy();
 
     assertThat(copy).isInstanceOf(TrackedFileStruct.class);
     assertThat(copy.tracking()).isSameAs(TRACKING_COPY);
     assertThat(copy.contentType()).isEqualTo(FileContent.DATA);
-    assertThat(copy.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(copy.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
     assertThat(copy.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(copy.recordCount()).isEqualTo(50L);
@@ -222,7 +205,6 @@ class TestTrackedFileStruct {
     assertThat(copy.manifestInfo()).isSameAs(MANIFEST_INFO_COPY);
     assertThat(copy.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(copy.splitOffsets()).containsExactly(100L, 200L);
-    assertThat(copy.equalityIds()).containsExactly(1, 2, 3);
     assertThat(copy.partition()).isNotSameAs(PARTITION);
 
     // mutable fields are deep-copied, not shared with the original
@@ -239,7 +221,6 @@ class TestTrackedFileStruct {
         new TrackedFileStruct(
             TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
             50L,
@@ -251,15 +232,13 @@ class TestTrackedFileStruct {
             DELETION_VECTOR,
             MANIFEST_INFO,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
-            ImmutableList.of(100L, 200L),
-            ImmutableList.of(1, 2, 3));
+            ImmutableList.of(100L, 200L));
 
     TrackedFile copy = file.copyWithStats(ImmutableSet.of(1));
 
     assertThat(copy).isInstanceOf(TrackedFileStruct.class);
     assertThat(copy.tracking()).isSameAs(TRACKING_COPY);
     assertThat(copy.contentType()).isEqualTo(FileContent.DATA);
-    assertThat(copy.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(copy.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
     assertThat(copy.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(copy.recordCount()).isEqualTo(50L);
@@ -271,7 +250,6 @@ class TestTrackedFileStruct {
     assertThat(copy.manifestInfo()).isSameAs(MANIFEST_INFO_COPY);
     assertThat(copy.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(copy.splitOffsets()).containsExactly(100L, 200L);
-    assertThat(copy.equalityIds()).containsExactly(1, 2, 3);
     assertThat(copy.partition()).isNotSameAs(PARTITION);
 
     // mutable fields are deep-copied, not shared with the original
@@ -286,7 +264,6 @@ class TestTrackedFileStruct {
         new TrackedFileStruct(
             TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/00000-0-file.parquet",
             FileFormat.PARQUET,
             50L,
@@ -298,8 +275,7 @@ class TestTrackedFileStruct {
             DELETION_VECTOR,
             MANIFEST_INFO,
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
-            ImmutableList.of(100L, 200L),
-            ImmutableList.of(1, 2, 3));
+            ImmutableList.of(100L, 200L));
 
     TrackedFile copy = file.copyWithoutStats();
 
@@ -309,7 +285,6 @@ class TestTrackedFileStruct {
     assertThat(copy).isInstanceOf(TrackedFileStruct.class);
     assertThat(copy.tracking()).isSameAs(TRACKING_COPY);
     assertThat(copy.contentType()).isEqualTo(FileContent.DATA);
-    assertThat(copy.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(copy.location()).isEqualTo("s3://bucket/data/00000-0-file.parquet");
     assertThat(copy.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(copy.recordCount()).isEqualTo(50L);
@@ -321,7 +296,6 @@ class TestTrackedFileStruct {
     assertThat(copy.manifestInfo()).isSameAs(MANIFEST_INFO_COPY);
     assertThat(copy.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(copy.splitOffsets()).containsExactly(100L, 200L);
-    assertThat(copy.equalityIds()).containsExactly(1, 2, 3);
     assertThat(copy.partition()).isNotSameAs(PARTITION);
 
     // mutable fields are deep-copied, not shared with the original
@@ -436,7 +410,6 @@ class TestTrackedFileStruct {
         new TrackedFileStruct(
             null, // TrackingStruct has its own serialization tests
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
             100L,
@@ -448,14 +421,12 @@ class TestTrackedFileStruct {
             null, // DeletionVector has its own serialization tests
             null, // ManifestInfo has its own serialization tests
             ByteBuffer.wrap(new byte[] {1, 2, 3}),
-            ImmutableList.of(50L),
-            ImmutableList.of(1, 2, 3));
+            ImmutableList.of(50L));
 
     TrackedFileStruct deserialized = serializer.apply(file);
 
     assertThat(deserialized.tracking()).isNull();
     assertThat(deserialized.contentType()).isEqualTo(FileContent.DATA);
-    assertThat(deserialized.formatVersion()).isEqualTo(FORMAT_VERSION_V4);
     assertThat(deserialized.location()).isEqualTo("s3://bucket/data/file.parquet");
     assertThat(deserialized.fileFormat()).isEqualTo(FileFormat.PARQUET);
     assertThat(deserialized.partition())
@@ -469,7 +440,6 @@ class TestTrackedFileStruct {
     assertThat(deserialized.manifestInfo()).isNull();
     assertThat(deserialized.keyMetadata()).isEqualTo(ByteBuffer.wrap(new byte[] {1, 2, 3}));
     assertThat(deserialized.splitOffsets()).containsExactly(50L);
-    assertThat(deserialized.equalityIds()).containsExactly(1, 2, 3);
   }
 
   @ParameterizedTest
@@ -513,7 +483,6 @@ class TestTrackedFileStruct {
     return new TrackedFileStruct(
         null, // tracking
         FileContent.DATA,
-        FORMAT_VERSION_V4,
         "s3://bucket/file.parquet",
         FileFormat.PARQUET,
         100L, // recordCount
@@ -525,8 +494,7 @@ class TestTrackedFileStruct {
         null, // deletionVector
         null, // manifestInfo
         null, // keyMetadata
-        null, // splitOffsets
-        null); // equalityIds
+        null); // splitOffsets
   }
 
   private static int pos(String fieldName) {

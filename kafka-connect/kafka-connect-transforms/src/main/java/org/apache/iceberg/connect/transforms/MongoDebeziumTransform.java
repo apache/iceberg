@@ -251,7 +251,8 @@ public class MongoDebeziumTransform implements Transformation<SinkRecord> {
                   newValueStruct.put(field.name(), fillStructFromBson(field.schema(), beforeBson));
                 }
               } else {
-                newValueStruct.put(field.name(), oldValue.get(field.name()));
+                // getWithoutDefault so an explicit null is not replaced by the schema default value
+                newValueStruct.put(field.name(), oldValue.getWithoutDefault(field.name()));
               }
             });
     return record.newRecord(

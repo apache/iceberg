@@ -49,7 +49,7 @@ class TestTrackingStruct {
     assertThat(tracking.snapshotId()).isEqualTo(42L);
     assertThat(tracking.dataSequenceNumber()).isEqualTo(10L);
     assertThat(tracking.fileSequenceNumber()).isEqualTo(11L);
-    assertThat(tracking.dvSnapshotId()).isEqualTo(43L);
+    assertThat(tracking.modifiedSnapshotId()).isEqualTo(43L);
     assertThat(tracking.firstRowId()).isEqualTo(1000L);
     assertThat(tracking.deletedPositions()).isEqualTo(ByteBuffer.wrap(DELETED_POSITIONS));
     assertThat(tracking.replacedPositions()).isEqualTo(ByteBuffer.wrap(REPLACED_POSITIONS));
@@ -65,7 +65,7 @@ class TestTrackingStruct {
     tracking.set(pos("snapshot_id"), 42L);
     tracking.set(pos("sequence_number"), 10L);
     tracking.set(pos("file_sequence_number"), 11L);
-    tracking.set(pos("dv_snapshot_id"), 43L);
+    tracking.set(pos("modified_snapshot_id"), 43L);
     tracking.set(pos("first_row_id"), 1000L);
     tracking.set(pos("deleted_positions"), ByteBuffer.wrap(DELETED_POSITIONS));
     tracking.set(pos("replaced_positions"), ByteBuffer.wrap(REPLACED_POSITIONS));
@@ -76,7 +76,7 @@ class TestTrackingStruct {
     assertThat(tracking.snapshotId()).isEqualTo(42L);
     assertThat(tracking.dataSequenceNumber()).isEqualTo(10L);
     assertThat(tracking.fileSequenceNumber()).isEqualTo(11L);
-    assertThat(tracking.dvSnapshotId()).isEqualTo(43L);
+    assertThat(tracking.modifiedSnapshotId()).isEqualTo(43L);
     assertThat(tracking.firstRowId()).isEqualTo(1000L);
     assertThat(tracking.deletedPositions()).isEqualTo(ByteBuffer.wrap(DELETED_POSITIONS));
     assertThat(tracking.replacedPositions()).isEqualTo(ByteBuffer.wrap(REPLACED_POSITIONS));
@@ -96,7 +96,7 @@ class TestTrackingStruct {
     assertThat(tracking.get(pos("snapshot_id"), Long.class)).isEqualTo(42L);
     assertThat(tracking.get(pos("sequence_number"), Long.class)).isEqualTo(10L);
     assertThat(tracking.get(pos("file_sequence_number"), Long.class)).isEqualTo(11L);
-    assertThat(tracking.get(pos("dv_snapshot_id"), Long.class)).isEqualTo(43L);
+    assertThat(tracking.get(pos("modified_snapshot_id"), Long.class)).isEqualTo(43L);
     assertThat(tracking.get(pos("first_row_id"), Long.class)).isEqualTo(1000L);
     assertThat(tracking.get(pos("deleted_positions"), ByteBuffer.class))
         .isEqualTo(ByteBuffer.wrap(DELETED_POSITIONS));
@@ -121,7 +121,7 @@ class TestTrackingStruct {
     assertThat(copy.snapshotId()).isEqualTo(tracking.snapshotId());
     assertThat(copy.dataSequenceNumber()).isEqualTo(tracking.dataSequenceNumber());
     assertThat(copy.fileSequenceNumber()).isEqualTo(tracking.fileSequenceNumber());
-    assertThat(copy.dvSnapshotId()).isEqualTo(tracking.dvSnapshotId());
+    assertThat(copy.modifiedSnapshotId()).isEqualTo(tracking.modifiedSnapshotId());
     assertThat(copy.firstRowId()).isEqualTo(tracking.firstRowId());
     assertThat(copy.deletedPositions()).isEqualTo(tracking.deletedPositions());
     assertThat(copy.replacedPositions()).isEqualTo(tracking.replacedPositions());
@@ -280,7 +280,7 @@ class TestTrackingStruct {
     assertThat(tracking.snapshotId()).isEqualTo(42L);
     assertThat(tracking.dataSequenceNumber()).isEqualTo(10L);
     assertThat(tracking.fileSequenceNumber()).isEqualTo(11L);
-    assertThat(tracking.dvSnapshotId()).isEqualTo(43L);
+    assertThat(tracking.modifiedSnapshotId()).isEqualTo(43L);
     assertThat(tracking.firstRowId()).isEqualTo(1000L);
     assertThat(tracking.deletedPositions()).isEqualTo(ByteBuffer.wrap(DELETED_POSITIONS));
     assertThat(tracking.replacedPositions()).isEqualTo(ByteBuffer.wrap(REPLACED_POSITIONS));
@@ -321,7 +321,7 @@ class TestTrackingStruct {
     assertThat(deserialized.snapshotId()).isEqualTo(42L);
     assertThat(deserialized.dataSequenceNumber()).isEqualTo(10L);
     assertThat(deserialized.fileSequenceNumber()).isEqualTo(11L);
-    assertThat(deserialized.dvSnapshotId()).isEqualTo(43L);
+    assertThat(deserialized.modifiedSnapshotId()).isEqualTo(43L);
     assertThat(deserialized.firstRowId()).isEqualTo(1000L);
     assertThat(deserialized.deletedPositions()).isEqualTo(ByteBuffer.wrap(DELETED_POSITIONS));
     assertThat(deserialized.replacedPositions()).isEqualTo(ByteBuffer.wrap(REPLACED_POSITIONS));

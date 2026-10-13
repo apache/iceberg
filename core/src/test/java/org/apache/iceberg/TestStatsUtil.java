@@ -137,7 +137,7 @@ public class TestStatsUtil {
   @FieldSource("FIXED_WIDTH_TYPES")
   public void testFixedWidthPrimitiveStruct(Type type) {
     // fixed-width, non-floating-point types track bounds (including tight bounds) but have no NaN
-    // count or average value size
+    // count or total bytes
     Types.StructType expected =
         Types.StructType.of(
             Types.NestedField.optional(30_001, "lower_bound", type),
@@ -157,7 +157,7 @@ public class TestStatsUtil {
   @ParameterizedTest
   @FieldSource("VARIABLE_WIDTH_TYPES")
   public void testVariableWidthPrimitiveStruct(Type type) {
-    // variable-width types track bounds (including tight bounds) and an average value size, but no
+    // variable-width types track bounds (including tight bounds) and total bytes, but no
     // NaN count
     Types.StructType expected =
         Types.StructType.of(
@@ -166,7 +166,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(30_003, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(30_004, "value_count", Types.LongType.get()),
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(30_007, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(30_007, "total_bytes", Types.LongType.get()));
 
     Types.StructType actual = StatsUtil.fieldStatsStruct(type, 30_000, MetricsModes.Full.get());
 
@@ -184,7 +184,7 @@ public class TestStatsUtil {
   @FieldSource("GEO_TYPES")
   public void testGeoStruct(Type type) {
     // geometry and geography use bounding-box structs for their bounds, do not track tight bounds,
-    // and record an average value size
+    // and record total bytes
     Types.StructType lowerBound =
         Types.StructType.of(
             Types.NestedField.required(30_010, "x", Types.DoubleType.get()),
@@ -203,7 +203,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(30_002, "upper_bound", upperBound),
             Types.NestedField.optional(30_004, "value_count", Types.LongType.get()),
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(30_007, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(30_007, "total_bytes", Types.LongType.get()));
 
     Types.StructType actual = StatsUtil.fieldStatsStruct(type, 30_000, MetricsModes.Full.get());
 
@@ -217,7 +217,7 @@ public class TestStatsUtil {
   @FieldSource("FLOATING_POINT_TYPES")
   public void testFloatingPointStruct(Type type) {
     // floating-point types track bounds (including tight bounds) and a NaN count, but have no
-    // average value size
+    // total bytes
     Types.StructType expected =
         Types.StructType.of(
             Types.NestedField.optional(30_001, "lower_bound", type),
@@ -282,7 +282,7 @@ public class TestStatsUtil {
         Types.StructType.of(
             Types.NestedField.optional(30_004, "value_count", Types.LongType.get()),
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(30_007, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(30_007, "total_bytes", Types.LongType.get()));
 
     Types.StructType actual =
         StatsUtil.fieldStatsStruct(Types.StringType.get(), 30_000, MetricsModes.Counts.get());
@@ -305,7 +305,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(30_003, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(30_004, "value_count", Types.LongType.get()),
             Types.NestedField.optional(30_005, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(30_007, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(30_007, "total_bytes", Types.LongType.get()));
 
     Types.StructType actual = StatsUtil.fieldStatsStruct(string, 30_000, mode);
 
@@ -333,7 +333,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_403, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(10_404, "value_count", Types.LongType.get()),
             Types.NestedField.optional(10_405, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(10_407, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(10_407, "total_bytes", Types.LongType.get()));
     Types.StructType expected =
         Types.StructType.of(
             Types.NestedField.optional(10_200, "id", idStats),
@@ -367,7 +367,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_603, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(10_604, "value_count", Types.LongType.get()),
             Types.NestedField.optional(10_605, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(10_607, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(10_607, "total_bytes", Types.LongType.get()));
     Types.StructType expected =
         Types.StructType.of(
             Types.NestedField.optional(10_200, "id", idStats),
@@ -455,7 +455,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_403, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(10_404, "value_count", Types.LongType.get()),
             Types.NestedField.optional(10_405, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(10_407, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(10_407, "total_bytes", Types.LongType.get()));
     Types.StructType expected =
         Types.StructType.of(
             Types.NestedField.optional(10_200, "id", idStats),
@@ -490,7 +490,7 @@ public class TestStatsUtil {
             Types.NestedField.optional(10_603, "tight_bounds", Types.BooleanType.get()),
             Types.NestedField.optional(10_604, "value_count", Types.LongType.get()),
             Types.NestedField.optional(10_605, "null_value_count", Types.LongType.get()),
-            Types.NestedField.optional(10_607, "avg_value_size_in_bytes", Types.IntegerType.get()));
+            Types.NestedField.optional(10_607, "total_bytes", Types.LongType.get()));
     Types.StructType expected =
         Types.StructType.of(
             Types.NestedField.optional(10_200, "id", idStats),

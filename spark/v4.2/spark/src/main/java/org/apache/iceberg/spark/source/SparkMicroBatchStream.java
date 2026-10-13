@@ -66,6 +66,7 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   private final boolean cacheDeleteFilesOnExecutors;
   private SparkMicroBatchPlanner planner;
   private StreamingOffset lastOffsetForTriggerAvailableNow;
+  private boolean noSnapshotMatchedForTriggerAvailableNow;
 
   SparkMicroBatchStream(
       JavaSparkContext sparkContext,
@@ -215,6 +216,12 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
         "Invalid start offset: %s is not a StreamingOffset",
         startOffset);
 
+    // Snapshots committed after Trigger.AvailableNow started are left for the next run
+    if (noSnapshotMatchedForTriggerAvailableNow
+        && StreamingOffset.START_OFFSET.equals(startOffset)) {
+      return StreamingOffset.START_OFFSET;
+    }
+
     // Initialize planner if not already done
     if (planner == null) {
       initializePlanner((StreamingOffset) startOffset, null);
@@ -244,10 +251,16 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsTriggerA
   public void prepareForTriggerAvailableNow() {
     LOG.info("The streaming query reports to use Trigger.AvailableNow");
 
-    lastOffsetForTriggerAvailableNow =
+    StreamingOffset lastOffset =
         (StreamingOffset) latestOffset(initialOffset, ReadLimit.allAvailable());
+    // START_OFFSET means that no snapshot matched stream-from-timestamp. A new stream has nothing
+    // to read in this run. A resumed stream continues from its offset and is capped at the latest
+    // snapshot the planner reads, since a cap at a skipped snapshot is never reached.
+    this.noSnapshotMatchedForTriggerAvailableNow = StreamingOffset.START_OFFSET.equals(lastOffset);
+    this.lastOffsetForTriggerAvailableNow =
+        noSnapshotMatchedForTriggerAvailableNow ? planner.latestValidSnapshotOffset() : lastOffset;
 
-    LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow.json());
+    LOG.info("lastOffset for Trigger.AvailableNow is {}", lastOffsetForTriggerAvailableNow);
 
     // Reset planner so it gets recreated with the cap on next call
     if (planner != null) {

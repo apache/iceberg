@@ -107,6 +107,9 @@ class GCSOutputStream extends PositionOutputStream {
         .encryptionKey()
         .ifPresent(key -> writeOptions.add(BlobWriteOption.encryptionKey(key)));
     gcpProperties
+        .kmsKeyName()
+        .ifPresent(kmsKeyName -> writeOptions.add(BlobWriteOption.kmsKeyName(kmsKeyName)));
+    gcpProperties
         .userProject()
         .ifPresent(userProject -> writeOptions.add(BlobWriteOption.userProject(userProject)));
 

@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -37,6 +36,8 @@ import org.apache.iceberg.io.FileRange;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.parquet.bytes.ByteBufferAllocator;
+import org.apache.parquet.conf.ParquetConfiguration;
+import org.apache.parquet.hadoop.util.ConfigurationUtil;
 import org.apache.parquet.hadoop.util.HadoopStreams;
 import org.apache.parquet.io.DelegatingPositionOutputStream;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
@@ -80,11 +81,12 @@ class ParquetIO {
     return new ParquetOutputFile(file);
   }
 
-  static OutputFile file(org.apache.iceberg.io.OutputFile file, Configuration conf) {
+  static OutputFile file(org.apache.iceberg.io.OutputFile file, ParquetConfiguration conf) {
     if (file instanceof HadoopOutputFile) {
       HadoopOutputFile hfile = (HadoopOutputFile) file;
       try {
-        return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(hfile.getPath(), conf);
+        return org.apache.parquet.hadoop.util.HadoopOutputFile.fromPath(
+            hfile.getPath(), ConfigurationUtil.createHadoopConfiguration(conf));
       } catch (IOException e) {
         throw new RuntimeIOException(
             e, "Failed to create Parquet output file for %s", file.location());

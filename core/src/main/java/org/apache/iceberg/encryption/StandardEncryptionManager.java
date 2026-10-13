@@ -185,18 +185,6 @@ public class StandardEncryptionManager implements EncryptionManager {
   }
 
   /**
-   * Encrypts and registers manifest-list key metadata.
-   *
-   * @return the ID of the encrypted metadata
-   * @deprecated since 1.12.0, will be removed in 1.13.0; use {@link
-   *     #registerKeyMetadata(NativeEncryptionKeyMetadata)} instead.
-   */
-  @Deprecated
-  public String addManifestListKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
-    return registerKeyMetadata(keyMetadata).fileKey().keyId();
-  }
-
-  /**
    * Encrypts and registers key metadata.
    *
    * @return the encrypted metadata and its wrapping key

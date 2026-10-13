@@ -105,6 +105,7 @@ public class TestMongoDebeziumTransform {
     builder.field("before", optionalJsonField());
     builder.field("op", Schema.OPTIONAL_STRING_SCHEMA);
     builder.field("ts_ms", Schema.OPTIONAL_INT64_SCHEMA);
+    builder.field("memo", SchemaBuilder.string().optional().defaultValue("").build());
     builder.name(
         (validEnvelope) ? "dbserver1.inventory.customers.Envelope" : "some_invalid_envelope_name");
     // in the docs this doesn't appear on create or delete events
@@ -355,6 +356,38 @@ public class TestMongoDebeziumTransform {
     assertThat(extractStringAt(result.value(), "after.first_name")).isEqualTo("Anne");
     assertThat(extractStringAt(result.value(), "after.last_name")).isEqualTo("Kretchmar");
     assertThat(extractStringAt(result.value(), "after.email")).isEqualTo("annek@noanswer.org");
+  }
+
+  @Test
+  @DisplayName("explicit null value of a field with a schema default is preserved")
+  public void shouldPreserveNullOfFieldWithDefault() throws Exception {
+    Struct valueStruct = new Struct(DEFAULT_VALUE_SCHEMA);
+    valueStruct.put("after", getFile("mongo_create_event_after.json"));
+    valueStruct.put("source", DEFAULT_SOURCE_STRUCT);
+    valueStruct.put("ts_ms", DEFAULT_TS_MS);
+    valueStruct.put("op", "c");
+    valueStruct.put("memo", null);
+    SinkRecord record =
+        new SinkRecord(
+            TEST_TOPIC,
+            TEST_PARTITION,
+            DEFAULT_KEY_SCHEMA,
+            DEFAULT_KEY_STRUCT,
+            DEFAULT_VALUE_SCHEMA,
+            valueStruct,
+            0L,
+            DEFAULT_TS_MS,
+            TimestampType.CREATE_TIME);
+
+    MongoDebeziumTransform smt = getTransformer("array");
+
+    SinkRecord result = smt.apply(record);
+    Struct newValue = Requirements.requireStruct(result.value(), "preserve null test");
+
+    // the stored value stays null, and the schema still carries the default for get() consumers
+    assertThat(newValue.getWithoutDefault("memo")).isNull();
+    assertThat(newValue.get("memo")).isEqualTo("");
+    assertThat(result.valueSchema().field("memo").schema().defaultValue()).isEqualTo("");
   }
 
   @Test

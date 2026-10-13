@@ -44,6 +44,12 @@ public class GCPProperties implements Serializable {
   public static final String GCS_ENCRYPTION_KEY = "gcs.encryption-key";
   public static final String GCS_USER_PROJECT = "gcs.user-project";
 
+  /**
+   * Cloud KMS key resource name for CMEK server-side encryption. Mutually exclusive with {@link
+   * #GCS_ENCRYPTION_KEY} (CSEK).
+   */
+  public static final String GCS_KMS_KEY_NAME = "gcs.kms-key-name";
+
   public static final String GCS_CHANNEL_READ_CHUNK_SIZE = "gcs.channel.read.chunk-size-bytes";
   public static final String GCS_CHANNEL_WRITE_CHUNK_SIZE = "gcs.channel.write.chunk-size-bytes";
 
@@ -87,6 +93,7 @@ public class GCPProperties implements Serializable {
 
   private String gcsDecryptionKey;
   private String gcsEncryptionKey;
+  private String gcsKmsKeyName;
   private String gcsUserProject;
 
   private Integer gcsChannelReadChunkSize;
@@ -151,7 +158,14 @@ public class GCPProperties implements Serializable {
 
     gcsDecryptionKey = properties.get(GCS_DECRYPTION_KEY);
     gcsEncryptionKey = properties.get(GCS_ENCRYPTION_KEY);
+    gcsKmsKeyName = properties.get(GCS_KMS_KEY_NAME);
     gcsUserProject = properties.get(GCS_USER_PROJECT);
+
+    Preconditions.checkState(
+        !(gcsEncryptionKey != null && gcsKmsKeyName != null),
+        "Invalid encryption settings: must not configure both %s (CSEK) and %s (CMEK)",
+        GCS_ENCRYPTION_KEY,
+        GCS_KMS_KEY_NAME);
 
     if (properties.containsKey(GCS_CHANNEL_READ_CHUNK_SIZE)) {
       gcsChannelReadChunkSize = Integer.parseInt(properties.get(GCS_CHANNEL_READ_CHUNK_SIZE));
@@ -217,6 +231,10 @@ public class GCPProperties implements Serializable {
 
   public Optional<String> encryptionKey() {
     return Optional.ofNullable(gcsEncryptionKey);
+  }
+
+  public Optional<String> kmsKeyName() {
+    return Optional.ofNullable(gcsKmsKeyName);
   }
 
   public Optional<String> projectId() {

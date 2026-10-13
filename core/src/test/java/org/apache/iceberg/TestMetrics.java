@@ -299,6 +299,8 @@ public abstract class TestMetrics {
     assertBounds(3, Types.GeographyType.crs84(), null, null, metrics);
     assertThat(metrics.avgValueSizes())
         .containsOnly(Map.entry(2, geom.remaining()), Map.entry(3, geog.remaining()));
+    assertThat(metrics.totalBytes())
+        .containsOnly(Map.entry(2, 2L * geom.remaining()), Map.entry(3, (long) geog.remaining()));
   }
 
   @TestTemplate
