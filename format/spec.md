@@ -268,10 +268,10 @@ Supported primitive types are defined in the table below. Primitive types added 
 |------------------|--------------------|--------------------------------------------------------------------------|--------------------------------------------------|
 | [v3](#version-3) | **`unknown`**      | Default / null column type used when a more specific type is not known   | Must be optional with `null` defaults; not stored in data files |
 |                  | **`boolean`**      | True or false                                                            |                                                  |
-| [v4](#version-4) | **`int8`**         | 8-bit signed integers                                                    | Can promote to `int` or `long` [4]               |
+| [v4](#version-4) | **`int8`**         | 8-bit signed integers                                                    | Can promote to `int` or `long`                   |
 |                  | **`int`**          | 32-bit signed integers                                                   | Can promote to `long`                            |
 |                  | **`long`**         | 64-bit signed integers                                                   |                                                  |
-| [v4](#version-4) | **`float16`**      | [16-bit IEEE 754](https://en.wikipedia.org/wiki/Half-precision_floating-point_format) (binary16) floating point | Can promote to `float` or `double` [5] |
+| [v4](#version-4) | **`float16`**      | [16-bit IEEE 754](https://en.wikipedia.org/wiki/Half-precision_floating-point_format) (binary16) floating point | Can promote to `float` or `double` [4] |
 |                  | **`float`**        | [32-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point | Can promote to double                            |
 |                  | **`double`**       | [64-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point |                                                  |
 |                  | **`decimal(P,S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed, precision must be 38 or less     |
@@ -293,8 +293,7 @@ Notes:
 1. Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
 2. Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
 3. Character strings must be stored as UTF-8 encoded byte arrays.
-4. `int8` values must be in the range `[-128, 127]`.
-5. `float16` values must be exactly representable as IEEE 754 binary16, which has 1 sign bit, 5 exponent bits, and 10 explicitly stored significand bits. Every `float16` value, including subnormals, infinities, and NaN, is exactly representable as a `float` and as a `double`.
+4. `float16` values must be exactly representable as IEEE 754 binary16, which has 1 sign bit, 5 exponent bits, and 10 explicitly stored significand bits. Every `float16` value, including subnormals, infinities, and NaN, is exactly representable as a `float` and as a `double`.
 
 For details on how to serialize a schema to JSON, see Appendix C.
 
@@ -1501,7 +1500,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 |--- |--- |--- |
 |**`unknown`**|`null` or omitted||
 |**`boolean`**|`boolean`||
-|**`int8`**|`{ "type": "int",`<br />&nbsp;&nbsp;`"logicalType": "int8" }`|Values must be in the range `[-128, 127]`. [3]|
+|**`int8`**|`{ "type": "int",`<br />&nbsp;&nbsp;`"logicalType": "int8" }`|[3]|
 |**`int`**|`int`||
 |**`long`**|`long`||
 |**`float16`**|`{ "type": "float",`<br />&nbsp;&nbsp;`"logicalType": "float16" }`|Values must be exactly representable as IEEE 754 binary16. [3]|
@@ -1902,7 +1901,7 @@ The binary single-value serialization can be used to store the lower and upper b
 | Type               | JSON representation                       | Example                                    | Description                                                                                                                 |
 | ------------------ | ----------------------------------------- | ------------------------------------------ | -- |
 | **`boolean`**      | **`JSON boolean`**                        | `true`                                     | |
-| **`int8`**         | **`JSON int`**                            | `-34`                                      | Value must be in the range `[-128, 127]` |
+| **`int8`**         | **`JSON int`**                            | `-34`                                      | |
 | **`int`**          | **`JSON int`**                            | `34`                                       | |
 | **`long`**         | **`JSON long`**                           | `34`                                       | |
 | **`float16`**      | **`JSON number`**                         | `1.5`                                      | Value must be exactly representable as IEEE 754 binary16 |
