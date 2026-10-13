@@ -2145,7 +2145,7 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
-  public void expireDoesNotDeletePuffinFileSharedByLiveDeletionVectors() throws Exception {
+  void expireDoesNotDeletePuffinFileSharedByLiveDeletionVectors() {
     assumeThat(formatVersion).as("Deletion vectors require V3 or later").isGreaterThanOrEqualTo(3);
 
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
@@ -2180,7 +2180,7 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
-  public void expireDeletesPuffinFileWhenAllSharedDeletionVectorsReplaced() {
+  void expireDeletesPuffinFileWhenAllSharedDeletionVectorsReplaced() {
     assumeThat(formatVersion).as("Deletion vectors require V3 or later").isGreaterThanOrEqualTo(3);
 
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
