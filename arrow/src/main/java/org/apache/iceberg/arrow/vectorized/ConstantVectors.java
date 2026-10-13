@@ -106,104 +106,89 @@ class ConstantVectors {
   }
 
   private static IntConsumer setter(FieldVector vector, Type type, Object constant) {
-    switch (type.typeId()) {
-      case BOOLEAN:
-        {
-          BitVector bits = (BitVector) vector;
-          int bit = (Boolean) constant ? 1 : 0;
-          return row -> bits.setSafe(row, bit);
+    return switch (type.typeId()) {
+      case BOOLEAN -> {
+        BitVector bits = (BitVector) vector;
+        int bit = (Boolean) constant ? 1 : 0;
+        yield row -> bits.setSafe(row, bit);
+      }
+      case INTEGER -> {
+        IntVector ints = (IntVector) vector;
+        int intValue = (Integer) constant;
+        yield row -> ints.setSafe(row, intValue);
+      }
+      case LONG -> {
+        BigIntVector longs = (BigIntVector) vector;
+        long longValue = (Long) constant;
+        yield row -> longs.setSafe(row, longValue);
+      }
+      case FLOAT -> {
+        Float4Vector floats = (Float4Vector) vector;
+        float floatValue = (Float) constant;
+        yield row -> floats.setSafe(row, floatValue);
+      }
+      case DOUBLE -> {
+        Float8Vector doubles = (Float8Vector) vector;
+        double doubleValue = (Double) constant;
+        yield row -> doubles.setSafe(row, doubleValue);
+      }
+      case DATE -> {
+        DateDayVector days = (DateDayVector) vector;
+        int dayValue = (Integer) constant;
+        yield row -> days.setSafe(row, dayValue);
+      }
+      case TIME -> {
+        TimeMicroVector times = (TimeMicroVector) vector;
+        long timeValue = (Long) constant;
+        yield row -> times.setSafe(row, timeValue);
+      }
+      case TIMESTAMP -> {
+        long micros = (Long) constant;
+        if (vector instanceof TimeStampMicroTZVector) {
+          TimeStampMicroTZVector timestamps = (TimeStampMicroTZVector) vector;
+          yield row -> timestamps.setSafe(row, micros);
+        } else {
+          TimeStampMicroVector timestamps = (TimeStampMicroVector) vector;
+          yield row -> timestamps.setSafe(row, micros);
         }
-      case INTEGER:
-        {
-          IntVector ints = (IntVector) vector;
-          int intValue = (Integer) constant;
-          return row -> ints.setSafe(row, intValue);
+      }
+      case TIMESTAMP_NANO -> {
+        long nanos = (Long) constant;
+        if (vector instanceof TimeStampNanoTZVector) {
+          TimeStampNanoTZVector timestamps = (TimeStampNanoTZVector) vector;
+          yield row -> timestamps.setSafe(row, nanos);
+        } else {
+          TimeStampNanoVector timestamps = (TimeStampNanoVector) vector;
+          yield row -> timestamps.setSafe(row, nanos);
         }
-      case LONG:
-        {
-          BigIntVector longs = (BigIntVector) vector;
-          long longValue = (Long) constant;
-          return row -> longs.setSafe(row, longValue);
-        }
-      case FLOAT:
-        {
-          Float4Vector floats = (Float4Vector) vector;
-          float floatValue = (Float) constant;
-          return row -> floats.setSafe(row, floatValue);
-        }
-      case DOUBLE:
-        {
-          Float8Vector doubles = (Float8Vector) vector;
-          double doubleValue = (Double) constant;
-          return row -> doubles.setSafe(row, doubleValue);
-        }
-      case DATE:
-        {
-          DateDayVector days = (DateDayVector) vector;
-          int dayValue = (Integer) constant;
-          return row -> days.setSafe(row, dayValue);
-        }
-      case TIME:
-        {
-          TimeMicroVector times = (TimeMicroVector) vector;
-          long timeValue = (Long) constant;
-          return row -> times.setSafe(row, timeValue);
-        }
-      case TIMESTAMP:
-        {
-          long micros = (Long) constant;
-          if (vector instanceof TimeStampMicroTZVector) {
-            TimeStampMicroTZVector timestamps = (TimeStampMicroTZVector) vector;
-            return row -> timestamps.setSafe(row, micros);
-          } else {
-            TimeStampMicroVector timestamps = (TimeStampMicroVector) vector;
-            return row -> timestamps.setSafe(row, micros);
-          }
-        }
-      case TIMESTAMP_NANO:
-        {
-          long nanos = (Long) constant;
-          if (vector instanceof TimeStampNanoTZVector) {
-            TimeStampNanoTZVector timestamps = (TimeStampNanoTZVector) vector;
-            return row -> timestamps.setSafe(row, nanos);
-          } else {
-            TimeStampNanoVector timestamps = (TimeStampNanoVector) vector;
-            return row -> timestamps.setSafe(row, nanos);
-          }
-        }
-      case STRING:
-        {
-          VarCharVector strings = (VarCharVector) vector;
-          byte[] utf8 = constant.toString().getBytes(StandardCharsets.UTF_8);
-          return row -> strings.setSafe(row, utf8);
-        }
-      case UUID:
-        {
-          FixedSizeBinaryVector uuids = (FixedSizeBinaryVector) vector;
-          byte[] uuidBytes = UUIDUtil.convert((UUID) constant);
-          return row -> uuids.setSafe(row, uuidBytes);
-        }
-      case FIXED:
-        {
-          FixedSizeBinaryVector fixed = (FixedSizeBinaryVector) vector;
-          byte[] fixedBytes = toByteArray(constant);
-          return row -> fixed.setSafe(row, fixedBytes);
-        }
-      case BINARY:
-        {
-          VarBinaryVector binary = (VarBinaryVector) vector;
-          byte[] bytes = toByteArray(constant);
-          return row -> binary.setSafe(row, bytes);
-        }
-      case DECIMAL:
-        {
-          DecimalVector decimals = (DecimalVector) vector;
-          BigDecimal decimal = (BigDecimal) constant;
-          return row -> decimals.setSafe(row, decimal);
-        }
-      default:
-        throw new UnsupportedOperationException("Unsupported constant type: " + type);
-    }
+      }
+      case STRING -> {
+        VarCharVector strings = (VarCharVector) vector;
+        byte[] utf8 = constant.toString().getBytes(StandardCharsets.UTF_8);
+        yield row -> strings.setSafe(row, utf8);
+      }
+      case UUID -> {
+        FixedSizeBinaryVector uuids = (FixedSizeBinaryVector) vector;
+        byte[] uuidBytes = UUIDUtil.convert((UUID) constant);
+        yield row -> uuids.setSafe(row, uuidBytes);
+      }
+      case FIXED -> {
+        FixedSizeBinaryVector fixed = (FixedSizeBinaryVector) vector;
+        byte[] fixedBytes = toByteArray(constant);
+        yield row -> fixed.setSafe(row, fixedBytes);
+      }
+      case BINARY -> {
+        VarBinaryVector binary = (VarBinaryVector) vector;
+        byte[] bytes = toByteArray(constant);
+        yield row -> binary.setSafe(row, bytes);
+      }
+      case DECIMAL -> {
+        DecimalVector decimals = (DecimalVector) vector;
+        BigDecimal decimal = (BigDecimal) constant;
+        yield row -> decimals.setSafe(row, decimal);
+      }
+      default -> throw new UnsupportedOperationException("Unsupported constant type: " + type);
+    };
   }
 
   private static byte[] toByteArray(Object constant) {
