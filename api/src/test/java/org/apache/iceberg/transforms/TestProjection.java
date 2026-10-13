@@ -37,8 +37,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -48,7 +50,9 @@ import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.Or;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -415,6 +419,23 @@ public class TestProjection {
     Expression strictProjected = Projections.strict(spec).project(hourFilter);
     assertThat(strictProjected).isEqualTo(Expressions.alwaysFalse());
 
-    assertThat(ManifestEvaluator.forRowFilter(hourFilter, spec, true)).isNotNull();
+    // A manifest whose ts partition range lies outside the filtered hour must still be read,
+    // because the identity spec cannot prune on an hour() predicate.
+    ManifestFile manifest =
+        new TestHelpers.TestManifestFile(
+            "manifest.avro",
+            1024,
+            0,
+            System.currentTimeMillis(),
+            1,
+            0,
+            0,
+            ImmutableList.of(
+                new TestHelpers.TestFieldSummary(
+                    false,
+                    Conversions.toByteBuffer(Types.TimestampType.withZone(), 0L),
+                    Conversions.toByteBuffer(Types.TimestampType.withZone(), 0L))),
+            null);
+    assertThat(ManifestEvaluator.forRowFilter(hourFilter, spec, true).eval(manifest)).isTrue();
   }
 }
