@@ -84,6 +84,26 @@ public class TestGeospatialBound {
   }
 
   @Test
+  public void testStructLikeXYZ() {
+    StructLike bound = GeospatialBound.createXYZ(1.0, 2.0, 3.0);
+    assertThat(bound.size()).isEqualTo(4);
+    assertThat(bound.get(0, Double.class)).isEqualTo(1.0);
+    assertThat(bound.get(1, Double.class)).isEqualTo(2.0);
+    assertThat(bound.get(2, Double.class)).isEqualTo(3.0);
+    assertThat(bound.get(3, Double.class)).isNull();
+  }
+
+  @Test
+  public void testStructLikeXYM() {
+    StructLike bound = GeospatialBound.createXYM(1.0, 2.0, 4.0);
+    assertThat(bound.size()).isEqualTo(4);
+    assertThat(bound.get(0, Double.class)).isEqualTo(1.0);
+    assertThat(bound.get(1, Double.class)).isEqualTo(2.0);
+    assertThat(bound.get(2, Double.class)).isNull();
+    assertThat(bound.get(3, Double.class)).isEqualTo(4.0);
+  }
+
+  @Test
   public void testStructLikeXYZM() {
     StructLike bound = GeospatialBound.createXYZM(3.0, 4.0, 5.0, 6.0);
     assertThat(bound.size()).isEqualTo(4);
