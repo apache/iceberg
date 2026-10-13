@@ -56,6 +56,8 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
@@ -70,6 +72,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Exceptions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -305,6 +308,17 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     List<ManifestFile> manifests = apply(base, parentSnapshot);
 
+    ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
+    Tasks.range(manifestFiles.length)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(workerPool())
+        .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
+
+    if (base.formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS) {
+      return applyV4(manifestFiles, sequenceNumber, parentSnapshotId, parentSnapshot);
+    }
+
     OutputFile manifestList = manifestListPath();
 
     ManifestListWriter writer =
@@ -320,15 +334,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     try (writer) {
       // keep track of the manifest lists created
       manifestLists.add(manifestList.location());
-
-      ManifestFile[] manifestFiles = new ManifestFile[manifests.size()];
-
-      Tasks.range(manifestFiles.length)
-          .stopOnFailure()
-          .throwFailureWhenFinished()
-          .executeWith(workerPool())
-          .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
-
       writer.addAll(Arrays.asList(manifestFiles));
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
@@ -341,22 +346,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       assignedRows = writer.nextRowId() - base.nextRowId();
     }
 
-    Map<String, String> summary = summary();
-    String operation = operation();
-
-    if (summary != null && DataOperations.REPLACE.equals(operation)) {
-      long addedRecords =
-          PropertyUtil.propertyAsLong(summary, SnapshotSummary.ADDED_RECORDS_PROP, 0L);
-      long replacedRecords =
-          PropertyUtil.propertyAsLong(summary, SnapshotSummary.DELETED_RECORDS_PROP, 0L);
-
-      // added may be less than replaced when records are already deleted by delete files
-      Preconditions.checkArgument(
-          addedRecords <= replacedRecords,
-          "Invalid REPLACE operation: %s added records > %s replaced records",
-          addedRecords,
-          replacedRecords);
-    }
+    validateReplace();
 
     this.manifestListEncryptionKeys = writer.encryptionKeys();
 
@@ -372,6 +362,157 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         nextRowId,
         assignedRows,
         manifestListEncryptionKeys != null ? manifestListEncryptionKeys.fileKey().keyId() : null);
+  }
+
+  private void validateReplace() {
+    Map<String, String> summary = summary();
+    if (summary != null && DataOperations.REPLACE.equals(operation())) {
+      long addedRecords =
+          PropertyUtil.propertyAsLong(summary, SnapshotSummary.ADDED_RECORDS_PROP, 0L);
+      long replacedRecords =
+          PropertyUtil.propertyAsLong(summary, SnapshotSummary.DELETED_RECORDS_PROP, 0L);
+
+      // added may be less than replaced when records are already deleted by delete files
+      Preconditions.checkArgument(
+          addedRecords <= replacedRecords,
+          "Invalid REPLACE operation: %s added records > %s replaced records",
+          addedRecords,
+          replacedRecords);
+    }
+  }
+
+  /**
+   * Writes a v4 flat-tree root manifest.
+   *
+   * <p>The data files from the freshly written leaf manifests are inlined into the root manifest as
+   * {@code DATA} entries (the leaf manifests are not referenced), alongside data entries carried
+   * forward from the parent snapshot's root manifest.
+   */
+  private Snapshot applyV4(
+      ManifestFile[] manifestFiles,
+      long sequenceNumber,
+      Long parentSnapshotId,
+      Snapshot parentSnapshot) {
+    List<TrackedFile> entries = Lists.newArrayList();
+
+    for (ManifestFile manifest : manifestFiles) {
+      Preconditions.checkArgument(
+          manifest.content() == ManifestContent.DATA,
+          "Cannot write delete manifest to v4 flat-tree root manifest: %s",
+          manifest.path());
+
+      try (ManifestReader<DataFile> reader =
+          ManifestFiles.read(manifest, ops.io(), base.specsById())) {
+        for (DataFile file : reader) {
+          entries.add(dataFileToTrackedFile(file));
+        }
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to read manifest: %s", manifest.path());
+      }
+    }
+
+    entries.addAll(readParentDataEntries(parentSnapshot));
+
+    OutputFile rootManifest = rootManifestPath();
+    writeRootManifest(rootManifest, entries);
+    manifestLists.add(rootManifest.location());
+
+    long addedRows = 0L;
+    for (ManifestFile manifest : manifestFiles) {
+      if (manifest.addedRowsCount() != null) {
+        addedRows += manifest.addedRowsCount();
+      }
+    }
+
+    validateReplace();
+
+    return new BaseSnapshot(
+        sequenceNumber,
+        snapshotId(),
+        parentSnapshotId,
+        snapshotTimestampMillis(parentSnapshot),
+        operation(),
+        summary(base),
+        base.currentSchemaId(),
+        rootManifest.location(),
+        base.nextRowId(),
+        addedRows,
+        null);
+  }
+
+  private TrackedFile dataFileToTrackedFile(DataFile file) {
+    PartitionSpec spec = base.specsById().get(file.specId());
+    boolean partitioned = spec != null && spec.isPartitioned();
+    return new TrackedFileStruct(
+        TrackingBuilder.added(snapshotId()).build(),
+        FileContent.DATA,
+        file.location(),
+        file.format(),
+        file.recordCount(),
+        file.fileSizeInBytes(),
+        partitioned ? file.specId() : null,
+        partitioned ? coercePartition(file.partition()) : null,
+        null /* contentStats */,
+        file.sortOrderId(),
+        null /* deletionVector */,
+        null /* manifestInfo */,
+        file.keyMetadata(),
+        file.splitOffsets());
+  }
+
+  private PartitionData coercePartition(StructLike partition) {
+    if (partition instanceof PartitionData) {
+      return ((PartitionData) partition).copy();
+    }
+
+    return null;
+  }
+
+  /** Reads DATA entries carried forward from the parent snapshot's flat-tree root manifest. */
+  private List<TrackedFile> readParentDataEntries(Snapshot parentSnapshot) {
+    List<TrackedFile> dataEntries = Lists.newArrayList();
+    if (parentSnapshot == null || parentSnapshot.manifestListLocation() == null) {
+      return dataEntries;
+    }
+
+    String location = parentSnapshot.manifestListLocation();
+    if (FileFormat.fromFileName(location) != FileFormat.PARQUET) {
+      return dataEntries;
+    }
+
+    ManifestFile parentRoot = RootManifestFile.from(parentSnapshot, ops.io());
+    try (CloseableIterable<TrackedFile> parentEntries =
+        V4ManifestReader.builder(parentRoot, ops.io(), base.schema(), base.specsById())
+            .tableLocation(base.location())
+            .metricsConfig(MetricsConfig.getDefault())
+            .build()) {
+      for (TrackedFile entry : parentEntries) {
+        if (entry.contentType() == FileContent.DATA && entry.tracking().isLive()) {
+          dataEntries.add(entry.copy());
+        }
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to read parent root manifest: %s", location);
+    }
+
+    return dataEntries;
+  }
+
+  private void writeRootManifest(OutputFile output, List<TrackedFile> entries) {
+    Schema schema = TrackedFile.schema(base.spec().partitionType(), Types.StructType.of());
+    try (FileAppender<StructLike> appender =
+        InternalData.write(FileFormat.PARQUET, output)
+            .schema(schema)
+            .named("tracked_file")
+            .meta("format-version", "4")
+            .overwrite()
+            .build()) {
+      for (TrackedFile entry : entries) {
+        appender.add((StructLike) entry);
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to write root manifest: %s", output.location());
+    }
   }
 
   private void runValidations(Snapshot parentSnapshot) {
@@ -629,6 +770,19 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                     String.format(
                         Locale.ROOT,
                         "snap-%d-%d-%s",
+                        snapshotId(),
+                        attempt.incrementAndGet(),
+                        commitUUID))));
+  }
+
+  protected OutputFile rootManifestPath() {
+    return ops.io()
+        .newOutputFile(
+            ops.metadataFileLocation(
+                FileFormat.PARQUET.addExtension(
+                    String.format(
+                        Locale.ROOT,
+                        "root-%d-%d-%s",
                         snapshotId(),
                         attempt.incrementAndGet(),
                         commitUUID))));

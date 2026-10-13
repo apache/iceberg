@@ -171,6 +171,14 @@ class BaseSnapshot implements Snapshot {
       throw new IllegalArgumentException("Cannot cache changes: FileIO is null");
     }
 
+    if (allManifests == null
+        && manifestListLocation != null
+        && FileFormat.fromFileName(manifestListLocation) == FileFormat.PARQUET) {
+      // A v4 flat-tree root manifest stores data entries inline rather than referencing leaf
+      // manifests, so it exposes no ManifestFiles. Scans plan directly from the root manifest.
+      this.allManifests = ImmutableList.of();
+    }
+
     if (allManifests == null && v1ManifestLocations != null) {
       // if we have a collection of manifest locations, then we need to load them here
       allManifests =

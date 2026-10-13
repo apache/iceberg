@@ -62,6 +62,34 @@ public class DataTableScan extends BaseTableScan {
 
   @Override
   public CloseableIterable<FileScanTask> doPlanFiles() {
+    if (TableUtil.formatVersion(table()) >= TableMetadata.MIN_FORMAT_VERSION_PARQUET_MANIFESTS) {
+      return doPlanFilesV4();
+    }
+
+    return doPlanFilesV3();
+  }
+
+  private CloseableIterable<FileScanTask> doPlanFilesV4() {
+    ManifestFile root = RootManifestFile.from(snapshot(), table().io());
+    FilePlanner planner =
+        new FilePlanner(table().io(), root, tableSchema(), specs())
+            .filterData(filter())
+            .caseSensitive(isCaseSensitive())
+            .scanMetrics(scanMetrics())
+            .tableLocation(table().location());
+
+    if (shouldIgnoreResiduals()) {
+      planner.ignoreResiduals();
+    }
+
+    if (shouldPlanWithExecutor()) {
+      planner.planWith(planExecutor());
+    }
+
+    return planner.planFiles();
+  }
+
+  private CloseableIterable<FileScanTask> doPlanFilesV3() {
     Snapshot snapshot = snapshot();
 
     FileIO io = table().io();
