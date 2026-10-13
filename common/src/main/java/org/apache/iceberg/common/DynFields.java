@@ -84,8 +84,7 @@ public class DynFields {
      * @throws IllegalArgumentException if the receiver's class is incompatible
      */
     public BoundField<T> bind(Object target) {
-      Preconditions.checkState(
-          !isStatic() || this == AlwaysNull.INSTANCE, "Cannot bind static field %s", name);
+      Preconditions.checkState(!isStatic(), "Cannot bind static field %s", name);
       Preconditions.checkArgument(
           field.getDeclaringClass().isAssignableFrom(target.getClass()),
           "Cannot bind field %s to instance of %s",
