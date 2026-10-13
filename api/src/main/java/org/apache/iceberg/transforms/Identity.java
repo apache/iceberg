@@ -25,6 +25,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
@@ -145,13 +146,23 @@ class Identity<T> implements Transform<T, T> {
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public UnboundPredicate<T> projectStrict(String name, BoundPredicate<T> predicate) {
     if (predicate.isUnaryPredicate()) {
       return Expressions.predicate(predicate.op(), name);
     } else if (predicate.isLiteralPredicate()) {
       return Expressions.predicate(predicate.op(), name, predicate.asLiteralPredicate().literal());
     } else if (predicate.isSetPredicate()) {
-      return Expressions.predicate(predicate.op(), name, predicate.asSetPredicate().literalSet());
+      Set<T> values = predicate.asSetPredicate().literalSet();
+      if (predicate.term().type().typeId() == Type.TypeID.TIMESTAMP_NANO) {
+        return (UnboundPredicate<T>)
+            Expressions.predicate(
+                predicate.op(),
+                name,
+                Iterables.transform(values, v -> Expressions.nanos((Long) v)));
+      }
+
+      return Expressions.predicate(predicate.op(), name, values);
     }
     return null;
   }
