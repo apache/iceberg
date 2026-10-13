@@ -712,7 +712,7 @@ A check expression is evaluated for each row over the values of that row. An exp
 
 A check expression must produce the same result every time it is evaluated for the same row. A function that depends on anything other than its arguments, such as the current time or a random value, must not be called, because the status recorded for a snapshot describes the table's data and an expression whose result can change on its own would make a recorded status wrong without any write. A [user-defined function](udf-spec.md) must not be called unless its current definition version declares `deterministic` as true.
 
-The status of a `check` constraint that calls a user-defined function describes the function definitions that were current when the snapshot was written.
+The status of a `check` constraint that calls a user-defined function describes the function definitions that were current when the snapshot was written. Changing a function definition can make the status of a constraint that calls it wrong, and engines are responsible for validating the constraint again.
 
 Iceberg predicates use two-valued logic and null-safe comparisons, as defined in the [expressions spec](expressions-spec.md#boolean-logic). This differs from SQL `CHECK`, where a row satisfies a constraint unless the predicate produces false.
 
