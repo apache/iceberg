@@ -113,8 +113,8 @@ Tests are predicates that test a single value expression, optionally using a con
 |-------------------------|---------------|---------------|-------------|
 | `IS NULL`               | any           |               | true iff the value is null |
 | `IS NOT NULL`           | any           |               | true iff the value is not null |
-| `IS NaN`                | float, double |               | true iff the value is an IEEE 754 NaN |
-| `IS NOT NaN`            | float, double |               | true iff the value is not an IEEE 754 NaN |
+| `IS NaN`                | float16, float, double |               | true iff the value is an IEEE 754 NaN |
+| `IS NOT NaN`            | float16, float, double |               | true iff the value is not an IEEE 754 NaN |
 | `STARTS WITH const`     | string        | string        | true iff the constant is a prefix of the value |
 | `NOT STARTS WITH const` | string        | string        | true iff the constant is not a prefix of the value |
 | `IN (constant set)`     | any primitive | same as value | true iff the value is equal to any constant |
@@ -165,7 +165,7 @@ Primitive types are compared using signed comparison, except for the following t
 * `string` uses unsigned byte-wise comparison of the UTF-8 representation; it is not the Unicode Collation Algorithm
 * `uuid` uses unsigned byte-wise comparison of the UUID bytes
 * `decimal` uses signed comparison independent of scale; this is equivalent to comparison of unscaled values because type alignment produces values with the same scale
-* `float` and `double` use IEEE 754 order for all non-NaN values; see below for NaN comparison rules
+* `float16`, `float`, and `double` use IEEE 754 order for all non-NaN values; see below for NaN comparison rules
 
 For floating point values, comparison with NaN behaves similarly to comparison of values with null. NaN should be specifically handled using `IS NaN` and `IS NOT NaN` tests. However, when value expressions produce a NaN value, the following rules must be applied:
 
@@ -222,8 +222,8 @@ Note that `year`, `month`, and `hour` transforms produce ordinal values and not 
 
 | Parameterized function name | Description                                                           | Source types                                                                                 | Result type |
 |-----------------------------|-----------------------------------------------------------------------|----------------------------------------------------------------------------------------------|-------------|
-| `bucket(N, value)`          | Hash of value, mod `N` (see [table spec details][bucket-ref])         | Any primitive except for `geometry`, `geography`, `boolean`, `float`, or `double` | `int`       |
-| `truncate(W, value)`        | Value truncated to width `W` (see [table spec details][truncate-ref]) | `int`, `long`, `decimal`, `string`, `binary`                                                 | Source type |
+| `bucket(N, value)`          | Hash of value, mod `N` (see [table spec details][bucket-ref])         | Any primitive except for `geometry`, `geography`, `boolean`, `float16`, `float`, or `double` | `int`       |
+| `truncate(W, value)`        | Value truncated to width `W` (see [table spec details][truncate-ref]) | `int8`, `int`, `long`, `decimal`, `string`, `binary`                                          | Source type, or `int` for `int8` |
 
 [bucket-ref]: spec/#bucket-transform-details
 [truncate-ref]: spec/#truncate-transform-details

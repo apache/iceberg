@@ -63,6 +63,7 @@ Version 4 of the Iceberg spec restructures metadata for improved performance and
 
 * Support for [relative locations](#file-locations-in-metadata) in metadata fields
 * Writing new [equality deletes](#equality-delete-files) is no longer allowed
+* New data types: int8, float16
 
 The full set of changes are listed in [Appendix E](#version-4).
 
@@ -267,8 +268,10 @@ Supported primitive types are defined in the table below. Primitive types added 
 |------------------|--------------------|--------------------------------------------------------------------------|--------------------------------------------------|
 | [v3](#version-3) | **`unknown`**      | Default / null column type used when a more specific type is not known   | Must be optional with `null` defaults; not stored in data files |
 |                  | **`boolean`**      | True or false                                                            |                                                  |
+| [v4](#version-4) | **`int8`**         | 8-bit signed integers                                                    | Can promote to `int` or `long` [4]               |
 |                  | **`int`**          | 32-bit signed integers                                                   | Can promote to `long`                            |
 |                  | **`long`**         | 64-bit signed integers                                                   |                                                  |
+| [v4](#version-4) | **`float16`**      | [16-bit IEEE 754](https://en.wikipedia.org/wiki/Half-precision_floating-point_format) (binary16) floating point | Can promote to `float` or `double` [5] |
 |                  | **`float`**        | [32-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point | Can promote to double                            |
 |                  | **`double`**       | [64-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point |                                                  |
 |                  | **`decimal(P,S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed, precision must be 38 or less     |
@@ -290,6 +293,8 @@ Notes:
 1. Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
 2. Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
 3. Character strings must be stored as UTF-8 encoded byte arrays.
+4. `int8` values must be in the range `[-128, 127]`.
+5. `float16` values must be exactly representable as IEEE 754 binary16, which has 1 sign bit, 5 exponent bits, and 10 explicitly stored significand bits. Every `float16` value, including subnormals, infinities, and NaN, is exactly representable as a `float` and as a `double`.
 
 For details on how to serialize a schema to JSON, see Appendix C.
 
@@ -356,13 +361,15 @@ Evolution applies changes to the table's current schema to produce a new schema 
 
 Valid primitive type promotions are:
 
-| Primitive type   | v1, v2 valid type promotions | v3+ valid type promotions    | Requirements |
-|------------------|------------------------------|------------------------------|--------------|
-| `unknown`        |                              | _any type_                   | |
-| `int`            | `long`                       | `long`                       | |
-| `date`           |                              | `timestamp`, `timestamp_ns`  | Promotion to `timestamptz` or `timestamptz_ns` is **not** allowed; values outside the promoted type's range must result in a runtime failure |
-| `float`          | `double`                     | `double`                     | |
-| `decimal(P, S)`  | `decimal(P', S)` if `P' > P` | `decimal(P', S)` if `P' > P` | Widen precision only |
+| Primitive type   | v1, v2 valid type promotions | v3 valid type promotions     | v4+ valid type promotions    | Requirements |
+|------------------|------------------------------|------------------------------|------------------------------|--------------|
+| `unknown`        |                              | _any type_                   | _any type_                   | |
+| `int8`           |                              |                              | `int`, `long`                | |
+| `int`            | `long`                       | `long`                       | `long`                       | |
+| `date`           |                              | `timestamp`, `timestamp_ns`  | `timestamp`, `timestamp_ns`  | Promotion to `timestamptz` or `timestamptz_ns` is **not** allowed; values outside the promoted type's range must result in a runtime failure |
+| `float16`        |                              |                              | `float`, `double`            | |
+| `float`          | `double`                     | `double`                     | `double`                     | |
+| `decimal(P, S)`  | `decimal(P', S)` if `P' > P` | `decimal(P', S)` if `P' > P` | `decimal(P', S)` if `P' > P` | Widen precision only |
 
 Iceberg's Avro manifest format does not store the type of lower and upper bounds, and type promotion does not rewrite existing bounds. For example, when a `float` is promoted to `double`, existing data file bounds are encoded as 4 little-endian bytes rather than 8 little-endian bytes for `double`. To correctly decode the value, the original type at the time the file was written must be inferred according to the following table:
 
@@ -434,7 +441,7 @@ A schema can optionally track the set of primitive fields that identify rows in 
 
 Two rows are the "same"---that is, the rows represent the same entity---if the identifier fields are equal. However, uniqueness of rows by this identifier is not guaranteed or required by Iceberg and it is the responsibility of processing engines or data providers to enforce.
 
-Identifier fields may be nested in structs but cannot be nested within maps or lists. Float, double, and optional fields cannot be used as identifier fields and a nested field cannot be used as an identifier field if it is nested in an optional struct, to avoid null values in identifiers.
+Identifier fields may be nested in structs but cannot be nested within maps or lists. Float16, float, double, and optional fields cannot be used as identifier fields and a nested field cannot be used as an identifier field if it is nested in an optional struct, to avoid null values in identifiers.
 
 #### Reserved Field IDs
 
@@ -571,8 +578,8 @@ Partition field IDs must be reused if an existing partition spec contains an equ
 | Transform name    | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
 | **`identity`**    | Source value, unmodified                                     | Any primitive except for `geometry` and `geography` | Source type |
-| **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
-| **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`, `binary`                                                              | Source type |
+| **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int8`, `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
+| **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int8`, `int`, `long`, `decimal`, `string`, `binary`                                                      | Source type, or `int` for `int8` [2] |
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
 | **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
 | **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `date` [1]  |
@@ -586,6 +593,7 @@ The `void` transform may be used to replace the transform in an existing partiti
 Notes:
 
 1. Readers must also accept `int` values for the `day` transform, interpreting each integer as a `date` represented by the number of days since `1970-01-01`.
+2. Truncating an `int8` value can produce a result outside of the `int8` range (for example, `truncate[10]` of `-128` is `-130`). To avoid overflow and to produce the same partition values after the source column is promoted to `int`, `truncate[W]` produces an `int` for `int8` source columns.
 
 #### Bucket Transform Details
 
@@ -607,6 +615,7 @@ For hash function details by type, see Appendix B.
 
 | **Type**      | **Config**            | **Truncate specification**                                       | **Examples**                     |
 |---------------|-----------------------|------------------------------------------------------------------|----------------------------------|
+| **`int8`**    | `W`, width            | `int(v) - (int(v) % W)` remainders must be positive [1]          | `W=10`: `1` ￫ `0`, `-128` ￫ `-130` |
 | **`int`**     | `W`, width            | `v - (v % W)` remainders must be positive [1]                    | `W=10`: `1` ￫ `0`, `-1` ￫ `-10`  |
 | **`long`**    | `W`, width            | `v - (v % W)` remainders must be positive [1]                    | `W=10`: `1` ￫ `0`, `-1` ￫ `-10`  |
 | **`decimal`** | `W`, width (no scale) | `scaled_W = decimal(W, scale(v))` `v - (v % scaled_W)`        [1, 2] | `W=50`, `s=2`: `10.65` ￫ `10.50` |
@@ -651,7 +660,7 @@ For details on how to serialize a sort order to JSON, see Appendix C.
 
 Order id `0` is reserved for the unsorted order.
 
-Sorting floating-point numbers should produce the following behavior: `-NaN` < `-Infinity` < `-value` < `-0` < `0` < `value` < `Infinity` < `NaN`. This aligns with the implementation of Java floating-point types comparisons.
+Sorting floating-point numbers (`float16`, `float`, and `double`) should produce the following behavior: `-NaN` < `-Infinity` < `-value` < `-0` < `0` < `value` < `Infinity` < `NaN`. This aligns with the implementation of Java floating-point types comparisons.
 
 A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
 
@@ -750,7 +759,7 @@ The v4 `content_stats` container struct stores field-level metrics. Unlike the m
 Notes:
 
 1. Single-value serialization for lower and upper bounds is detailed in Appendix D.
-2. For `float` and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate. NaNs are not permitted as lower or upper bounds.
+2. For `float16`, `float`, and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate. NaNs are not permitted as lower or upper bounds.
 3. If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files should be written with a non-null order id. [Position deletes](#position-delete-files) are required to be sorted by file and position, not a table order, and should set sort order id to null. Readers must ignore sort order id for position delete files.
 4. Position delete metadata can use `referenced_data_file` when all deletes tracked by the entry are in a single data file. Setting the referenced file is required for deletion vectors.
 5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. For deletion vectors, these values are required and must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
@@ -826,7 +835,7 @@ Each stats struct holds statistics for one table field. It may contain the follo
 | _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry` and `geography` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
 | _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
-| _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
+| _optional_  | 6      | `nan_value_count`         | `long`                    | `float16`, `float`, `double`                  | Number of NaN values in the column |
 | _optional_  | 7      | `total_bytes`             | `long`                    | `string`, `binary`, `variant`, `geometry`, `geography` | Estimated uncompressed bytes in memory of non-null values. The estimate depends on the in-memory representation |
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
@@ -839,7 +848,7 @@ For example, stats for a `required` `int` field named `id` with field-id `2` are
   10_404: optional long value_count;
 
   // null_value_count is only used for optional fields
-  // nan_value_count is only used for float and double
+  // nan_value_count is only used for float16, float, and double
   // total_bytes is only used for variable length types
 }
 ```
@@ -923,7 +932,7 @@ Implementations may produce stats structs for fields that are not in the table s
 
 Fields with stats tracked in `content_stats` change based on updates like schema evolution or metrics configuration. Writers adapt to table changes by writing new manifest files with the implementation's current `content_stats` type. When existing file metadata is written to new manifests, writers must update `content_stats` by discarding old stats (for removed fields), set unknown stats structs to null (for added fields), and promote lower and upper bounds types (for type promotion) to conform to the manifest schema.
 
-A simple (and recommended) way for writers to adapt existing metadata for table changes is to read manifests with the implementation's current `content_stats` type and apply schema evolution rules, such as reading `int` as `long` for promoted fields.
+A simple (and recommended) way for writers to adapt existing metadata for table changes is to read manifests with the implementation's current `content_stats` type and apply schema evolution rules, such as reading `int` as `long` or `float16` as `float` for promoted fields.
 
 #### Sequence Number Inheritance
 
@@ -1096,7 +1105,7 @@ Notes:
 
 1. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
 2. For example, if `file_a` has rows with `id` between 1 and 10 and a delete file contains rows with `id` between 1 and 4, a scan for `id = 9` may ignore the delete file because none of the deletes can match a row that will be selected.
-3. Floating point partition values are considered equal if their IEEE 754 floating-point "single format" bit layout are equal with NaNs normalized to have only the most significant mantissa bit set (the equivalent of calling `Float.floatToIntBits` or `Double.doubleToLongBits` in Java). The Avro specification requires all floating point values to be encoded in this format.
+3. Floating point partition values are considered equal if their IEEE 754 floating-point "single format" bit layout are equal with NaNs normalized to have only the most significant mantissa bit set (the equivalent of calling `Float.floatToIntBits` or `Double.doubleToLongBits` in Java). The Avro specification requires all floating point values to be encoded in this format. `float16` partition values are compared after converting them to `float`, which is exact.
 4. Unknown partition transforms do not affect partition equality. Although partition fields with unknown transforms are ignored for filtering, the result of an unknown transform is still used when testing whether partition values are equal.
 
 ### Snapshot References
@@ -1492,8 +1501,10 @@ Maps with non-string keys must use an array representation with the `map` logica
 |--- |--- |--- |
 |**`unknown`**|`null` or omitted||
 |**`boolean`**|`boolean`||
+|**`int8`**|`{ "type": "int",`<br />&nbsp;&nbsp;`"logicalType": "int8" }`|Values must be in the range `[-128, 127]`. [3]|
 |**`int`**|`int`||
 |**`long`**|`long`||
+|**`float16`**|`{ "type": "float",`<br />&nbsp;&nbsp;`"logicalType": "float16" }`|Values must be exactly representable as IEEE 754 binary16. [3]|
 |**`float`**|`float`||
 |**`double`**|`double`||
 |**`decimal(P,S)`**|`{ "type": "fixed",`<br />&nbsp;&nbsp;`"size": minBytesRequired(P),`<br />&nbsp;&nbsp;`"logicalType": "decimal",`<br />&nbsp;&nbsp;`"precision": P,`<br />&nbsp;&nbsp;`"scale": S }`|Stored as fixed using the minimum number of bytes for the given precision.|
@@ -1518,6 +1529,7 @@ Notes:
 
 1. Avro type annotation `adjust-to-utc` is an Iceberg convention; default value is `false` if not present.
 2. Avro logical type `timestamp-nanos` is an Iceberg convention; the Avro specification does not define this type.
+3. Avro logical types `int8` and `float16` are Iceberg conventions; the Avro specification does not define these types. Values are stored using the wider Avro `int` or `float` type so that Avro's type promotion rules (`int` to `long`, `float` to `double`) can be used when the Iceberg type is promoted.
 
 **Field IDs**
 
@@ -1547,8 +1559,10 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 |--------------------|----------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------|----------------------------------------------------------------|
 | **`unknown`**      | None                                                                                                                                         |                                             | Omit from data files                                           |
 | **`boolean`**      | `boolean`                                                                                                                                    |                                             |                                                                |
+| **`int8`**         | `int32`                                                                                                                                      | `INT(8, true)`                              |                                                                |
 | **`int`**          | `int32`                                                                                                                                      |                                             |                                                                |
 | **`long`**         | `int64`                                                                                                                                      |                                             |                                                                |
+| **`float16`**      | `fixed_len_byte_array[2]`                                                                                                                    | `FLOAT16`                                   | IEEE 754 binary16, little-endian. [1]                          |
 | **`float`**        | `float`                                                                                                                                      |                                             |                                                                |
 | **`double`**       | `double`                                                                                                                                     |                                             |                                                                |
 | **`decimal(P,S)`** | `P <= 9`: `int32`,<br />`P <= 18`: `int64`,<br />`fixed` otherwise                                                                           | `DECIMAL(P,S)`                              | Fixed must use the minimum number of bytes that can store `P`. |
@@ -1571,6 +1585,12 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 
 When reading an `unknown` column, any corresponding column must be ignored and replaced with `null` values.
 
+When reading a Parquet file without Iceberg field IDs, columns annotated with `INT(8, true)` may be read as `int8` only in v4 and later tables; tables with earlier format versions must read these columns as `int`.
+
+Notes:
+
+1. The Parquet `FLOAT16` logical type was added in Parquet format version 2.10. Readers that do not support `FLOAT16` see a 2-byte `fixed_len_byte_array` column.
+
 ### ORC
 
 **Data Type Mappings**
@@ -1579,8 +1599,10 @@ When reading an `unknown` column, any corresponding column must be ignored and r
 |--------------------|---------------------|------------------------------------------------------|-----------------------------------------------------------------------------------------|
 | **`unknown`**      | None                |                                                      | Omit from data files                                                                    |
 | **`boolean`**      | `boolean`           |                                                      |                                                                                         |
-| **`int`**          | `int`               |                                                      | ORC `tinyint` and `smallint` would also map to **`int`**.                               |
+| **`int8`**         | `byte`              |                                                      | ORC `byte` is also known as `tinyint`.                                                  |
+| **`int`**          | `int`               |                                                      | ORC `smallint` would also map to **`int`**. ORC `tinyint` would map to **`int`** in tables before v4. |
 | **`long`**         | `long`              |                                                      |                                                                                         |
+| **`float16`**      | `float`             | `iceberg.float-type`=`FLOAT16`                       | ORC has no 16-bit floating point type; values must be exactly representable as IEEE 754 binary16. |
 | **`float`**        | `float`             |                                                      |                                                                                         |
 | **`double`**       | `double`            |                                                      |                                                                                         |
 | **`decimal(P,S)`** | `decimal`           |                                                      |                                                                                         |
@@ -1623,6 +1645,7 @@ The 32-bit hash implementation is 32-bit Murmur3 hash, x86 variant, seeded with 
 
 | Primitive type     | Hash specification                        | Test value                                 |
 |--------------------|-------------------------------------------|--------------------------------------------|
+| **`int8`**         | `hashLong(long(v))`          [1]          | `34` ￫ `2017239379`, `-1` ￫ `1651860712`   |
 | **`int`**          | `hashLong(long(v))`          [1]          | `34` ￫ `2017239379`                        |
 | **`long`**         | `hashBytes(littleEndianBytes(v))`         | `34L` ￫ `2017239379`                       |
 | **`decimal(P,S)`** | `hashBytes(minBigEndian(unscaled(v)))`[2] | `14.20` ￫ `-500754589`                     |
@@ -1643,20 +1666,22 @@ The types below are not currently valid for bucketing, and so are not hashed. Ho
 |--------------------|-------------------------------------------|--------------------------------------------|
 | **`unknown`**      | always `null`                             |                                            |
 | **`boolean`**      | `false: hashInt(0)`, `true: hashInt(1)`   | `true` ￫ `1392991556`                      |
-| **`float`**        | `hashLong(doubleToLongBits(double(v))` [5]| `1.0F` ￫ `-142385009`, `0.0F` ￫ `1669671676`, `-0.0F` ￫ `1669671676` |
+| **`float16`**      | `hashLong(doubleToLongBits(double(v))` [5, 6]| `1.0` ￫ `-142385009`, `0.0` ￫ `1669671676`, `-0.0` ￫ `1669671676` |
+| **`float`**        | `hashLong(doubleToLongBits(double(v))` [5, 6]| `1.0F` ￫ `-142385009`, `0.0F` ￫ `1669671676`, `-0.0F` ￫ `1669671676` |
 | **`double`**       | `hashLong(doubleToLongBits(v))`        [5]| `1.0D` ￫ `-142385009`, `0.0D` ￫ `1669671676`, `-0.0D` ￫ `1669671676` |
 
 A 32-bit hash is not defined for `variant` because there are multiple representations for equivalent values.
 
 Notes:
 
-1. Integer and long hash results must be identical for all integer values. This ensures that schema evolution does not change bucket partition values if integer types are promoted.
+1. `int8` and `int` hash results must be identical to `long` hash results for the same value. This ensures that schema evolution does not change bucket partition values if integer types are promoted.
 2. Decimal values are hashed using the minimum number of bytes required to hold the unscaled value as a two’s complement big-endian; this representation does not include padding bytes required for storage in a fixed-length array.
 Hash results are not dependent on decimal scale, which is part of the type, not the data value.
 3. Nanosecond timestamps must be converted to microsecond precision before hashing to ensure timestamps have the same hash value.
 4. UUIDs are encoded using big endian. The test UUID for the example above is: `f79c3e09-677c-4bbd-a479-3f349cb785e7`. This UUID encoded as a byte array is:
 `F7 9C 3E 09 67 7C 4B BD A4 79 3F 34 9C B7 85 E7`
-5. `doubleToLongBits` must give the IEEE 754 compliant bit representation of the double value. All `NaN` bit patterns must be canonicalized to `0x7ff8000000000000L`. Negative zero (`-0.0`) must be canonicalized to positive zero (`0.0`). Float hash values are the result of hashing the float cast to double to ensure that schema evolution does not change hash values if float types are promoted.
+5. `doubleToLongBits` must give the IEEE 754 compliant bit representation of the double value. All `NaN` bit patterns must be canonicalized to `0x7ff8000000000000L`. Negative zero (`-0.0`) must be canonicalized to positive zero (`0.0`).
+6. `float16` and `float` hash results must be identical to `double` hash results for the same value. This ensures that schema evolution does not change hash values if floating point types are promoted.
 
 ## Appendix C: JSON serialization
 
@@ -1675,8 +1700,10 @@ Types are serialized according to this table:
 |--- |--- |--- |
 |**`unknown`**|`JSON string: "unknown"`|`"unknown"`|
 |**`boolean`**|`JSON string: "boolean"`|`"boolean"`|
+|**`int8`**|`JSON string: "int8"`|`"int8"`|
 |**`int`**|`JSON string: "int"`|`"int"`|
 |**`long`**|`JSON string: "long"`|`"long"`|
+|**`float16`**|`JSON string: "float16"`|`"float16"`|
 |**`float`**|`JSON string: "float"`|`"float"`|
 |**`double`**|`JSON string: "double"`|`"double"`|
 |**`date`**|`JSON string: "date"`|`"date"`|
@@ -1834,8 +1861,10 @@ This serialization scheme is for storing single values as individual binary valu
 |------------------------------|--------------------------------------------------------------------------------------------------------------|
 | **`unknown`**                | Not supported                                                                                                |
 | **`boolean`**                | `0x00` for false, non-zero byte for true                                                                     |
+| **`int8`**                   | Stored as 1 byte, two’s complement                                                                           |
 | **`int`**                    | Stored as 4-byte little-endian                                                                               |
 | **`long`**                   | Stored as 8-byte little-endian                                                                               |
+| **`float16`**                | Stored as 2-byte little-endian                                                                               |
 | **`float`**                  | Stored as 4-byte little-endian                                                                               |
 | **`double`**                 | Stored as 8-byte little-endian                                                                               |
 | **`date`**                   | Stores days from the 1970-01-01 in an 4-byte little-endian int                                               |
@@ -1873,8 +1902,10 @@ The binary single-value serialization can be used to store the lower and upper b
 | Type               | JSON representation                       | Example                                    | Description                                                                                                                 |
 | ------------------ | ----------------------------------------- | ------------------------------------------ | -- |
 | **`boolean`**      | **`JSON boolean`**                        | `true`                                     | |
+| **`int8`**         | **`JSON int`**                            | `-34`                                      | Value must be in the range `[-128, 127]` |
 | **`int`**          | **`JSON int`**                            | `34`                                       | |
 | **`long`**         | **`JSON long`**                           | `34`                                       | |
+| **`float16`**      | **`JSON number`**                         | `1.5`                                      | Value must be exactly representable as IEEE 754 binary16 |
 | **`float`**        | **`JSON number`**                         | `1.0`                                      | |
 | **`double`**       | **`JSON number`**                         | `1.0`                                      | |
 | **`decimal(P,S)`** | **`JSON string`**                         | `"14.20"`, `"2E+20"`                       | Stores the string representation of the decimal value, specifically, for values with a positive scale, the number of digits to the right of the decimal point is used to indicate scale, for values with a negative scale, the scientific notation is used and the exponent must equal the negated scale |
@@ -1930,6 +1961,11 @@ Equality deletes are prohibited in v4.
 * Writers must not add equality delete files to v4 tables; equality deletes cannot be added as an entry to a v4 manifest
 * Upgrading a v2 or v3 table to v4 does not require rewriting data or delete files
 * Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
+
+Types `int8` and `float16` are added in v4.
+
+* Tables with format version 3 or earlier must not use these types
+* `int8` can be promoted to `int` or `long`, and `float16` can be promoted to `float` or `double`
 
 ### Version 3
 
