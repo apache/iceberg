@@ -46,7 +46,7 @@ Hive supports the following features with Hive version 4.0.0 and above:
 * Copy-on-write support for delete, update and merge queries, CRUD support for Iceberg V1 tables.
 * Altering a table with expiring snapshots.
 * Create a table like an existing table (CTLT table).
-* Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/2.4.3/sql-data-sources-parquet.html#configuration).
+* Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/latest/sql-data-sources-parquet.html#configuration).
 * Altering a table metadata location.
 * Supporting table rollback.
 * Honors sort orders on existing tables when writing a table [Sort orders specification](../../spec.md#sort-orders).
