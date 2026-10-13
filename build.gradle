@@ -121,7 +121,7 @@ allprojects {
       forRepository {
         maven {
           name = "ApacheSparkStaging"
-          url = uri("https://repository.apache.org/content/repositories/orgapachespark-1534/")
+          url = uri("https://repository.apache.org/content/repositories/orgapachespark-1535/")
         }
       }
       filter {
