@@ -41,11 +41,16 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.deletes.BaseDVFileWriter;
+import org.apache.iceberg.deletes.DVFileWriter;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.Puffin;
@@ -56,6 +61,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -1098,6 +1104,303 @@ public class TestRemoveSnapshots extends TestBase {
                         .map(ManifestFile::path)
                         .collect(Collectors.toList()))
                 .build());
+  }
+
+  @TestTemplate
+  public void expireKeepsSharedDVPuffin() throws IOException {
+    assumeThat(formatVersion).isEqualTo(3);
+    assumeThat(incrementalCleanup).isTrue();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newAppend().appendFile(FILE_A2).commit();
+
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+    DVFileWriter writer = new BaseDVFileWriter(fileFactory, path -> null);
+    try (DVFileWriter closeableWriter = writer) {
+      closeableWriter.delete(FILE_A.location(), 0, SPEC, FILE_A.partition());
+      closeableWriter.delete(FILE_A2.location(), 0, SPEC, FILE_A2.partition());
+    }
+
+    List<DeleteFile> dvs = writer.result().deleteFiles();
+    assertThat(dvs).hasSize(2);
+    DeleteFile dvA = Iterables.find(dvs, dv -> FILE_A.location().equals(dv.referencedDataFile()));
+    DeleteFile dvB = Iterables.find(dvs, dv -> FILE_A2.location().equals(dv.referencedDataFile()));
+    assertThat(dvB.location()).isEqualTo(dvA.location());
+    assertThat(dvB.contentOffset()).isNotEqualTo(dvA.contentOffset());
+    table.newRowDelta().addDeletes(dvA).addDeletes(dvB).commit();
+    Snapshot dvSnapshot = table.currentSnapshot();
+
+    DVFileWriter replacement =
+        new BaseDVFileWriter(fileFactory, path -> DVUtil.readDV(dvA, table.io()));
+    try (DVFileWriter closeableWriter = replacement) {
+      closeableWriter.delete(FILE_A.location(), 1, SPEC, FILE_A.partition());
+    }
+
+    assertThat(replacement.result().rewrittenDeleteFiles()).containsExactly(dvA);
+    DeleteFile mergedDV = Iterables.getOnlyElement(replacement.result().deleteFiles());
+    assertThat(mergedDV.location()).isNotEqualTo(dvA.location());
+    PositionDeleteIndex mergedPositions = DVUtil.readDV(mergedDV, table.io());
+    assertThat(mergedPositions.isDeleted(0)).isTrue();
+    assertThat(mergedPositions.isDeleted(1)).isTrue();
+    table
+        .newRowDelta()
+        .removeDeletes(dvA)
+        .addDeletes(mergedDV)
+        .validateFromSnapshot(dvSnapshot.snapshotId())
+        .commit();
+
+    List<Long> deletedOffsets = Lists.newArrayList();
+    for (ManifestFile manifest : table.currentSnapshot().deleteManifests(table.io())) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
+        for (ManifestEntry<DeleteFile> entry : reader.entries()) {
+          if (entry.status() == Status.DELETED
+              && FILE_A.location().equals(entry.file().referencedDataFile())
+              && dvA.location().equals(entry.file().location())) {
+            deletedOffsets.add(entry.file().contentOffset());
+          }
+        }
+      }
+    }
+
+    assertThat(deletedOffsets).contains(dvA.contentOffset());
+    assertThat(DVUtil.readDV(dvB, table.io()).isDeleted(0)).isTrue();
+
+    table.newAppend().appendFile(FILE_C).commit();
+    long currentSnapshotId = table.currentSnapshot().snapshotId();
+    long cutoff = waitUntilAfter(table.currentSnapshot().timestampMillis());
+    table.expireSnapshots().expireOlderThan(cutoff).cleanExpiredFiles(true).commit();
+
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(currentSnapshotId);
+    List<DeleteFile> liveDVs = Lists.newArrayList();
+    for (ManifestFile manifest : table.currentSnapshot().deleteManifests(table.io())) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
+        reader.forEach(liveDVs::add);
+      }
+    }
+
+    assertThat(liveDVs)
+        .extracting(DeleteFile::referencedDataFile)
+        .containsExactlyInAnyOrder(FILE_A.location(), FILE_A2.location());
+    assertThat(liveDVs)
+        .extracting(DeleteFile::location)
+        .containsExactlyInAnyOrder(mergedDV.location(), dvB.location());
+    assertThat(table.io().newInputFile(dvB.location()).exists()).isTrue();
+    assertThat(DVUtil.readDV(dvB, table.io()).isDeleted(0)).isTrue();
+
+    table.newRowDelta().removeDeletes(dvB).commit();
+    table.newAppend().appendFile(FILE_D).commit();
+    table
+        .expireSnapshots()
+        .expireOlderThan(waitUntilAfter(table.currentSnapshot().timestampMillis()))
+        .commit();
+    assertThat(table.io().newInputFile(dvB.location()).exists()).isFalse();
+    assertThat(table.io().newInputFile(mergedDV.location()).exists()).isTrue();
+  }
+
+  @TestTemplate
+  public void expireKeepsPuffinReferencedByOlderSnapshot() throws IOException {
+    assumeThat(formatVersion).isEqualTo(3);
+    assumeThat(incrementalCleanup).isTrue();
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_A2).commit();
+    DeleteFile dvA = newDV(FILE_A);
+    DeleteFile dvB =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .copy(dvA)
+            .withReferencedDataFile(FILE_A2.location())
+            .withContentOffset(dvA.contentOffset() + 100)
+            .build();
+    table.newRowDelta().addDeletes(dvA).addDeletes(dvB).commit();
+    Snapshot tagged = table.currentSnapshot();
+    table.manageSnapshots().createTag("tag", tagged.snapshotId()).commit();
+
+    table
+        .newRowDelta()
+        .removeDeletes(dvA)
+        .addDeletes(newDV(FILE_A))
+        .validateFromSnapshot(tagged.snapshotId())
+        .commit();
+    table.newRowDelta().removeDeletes(dvB).commit();
+    table.newAppend().appendFile(FILE_C).commit();
+
+    for (ManifestFile manifest : table.currentSnapshot().deleteManifests(table.io())) {
+      try (ManifestReader<DeleteFile> reader =
+          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
+        for (DeleteFile dv : reader) {
+          assertThat(dv.location()).isNotEqualTo(dvB.location());
+        }
+      }
+    }
+
+    TableMetadata before = table.ops().current();
+    table
+        .expireSnapshots()
+        .expireOlderThan(waitUntilAfter(table.currentSnapshot().timestampMillis()))
+        .cleanExpiredFiles(false)
+        .commit();
+    Set<String> deletedFiles = Sets.newHashSet();
+    new IncrementalFileCleanup(
+            table.io(),
+            MoreExecutors.newDirectExecutorService(),
+            MoreExecutors.newDirectExecutorService(),
+            deletedFiles::add)
+        .cleanFiles(before, table.ops().current(), ExpireSnapshots.CleanupLevel.ALL);
+
+    assertThat(table.snapshot(tagged.snapshotId())).isNotNull();
+    assertThat(table.snapshots()).hasSize(2);
+    assertThat(deletedFiles).doesNotContain(dvA.location());
+  }
+
+  @TestTemplate
+  public void expireKeepsPuffinAddedByRevertedSnapshotWithoutExtension() {
+    assumeThat(formatVersion).isEqualTo(3);
+    assumeThat(incrementalCleanup).isTrue();
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_A2).commit();
+    DeleteFile dv = newDV(FILE_A);
+    DeleteFile dvA =
+        FileMetadata.deleteFileBuilder(SPEC).copy(dv).withPath(dv.location() + ".bin").build();
+    DeleteFile dvB =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .copy(dvA)
+            .withReferencedDataFile(FILE_A2.location())
+            .withContentOffset(dvA.contentOffset() + 100)
+            .build();
+    assertThat(FileFormat.fromFileName(dvA.location())).isNull();
+    table.newRowDelta().addDeletes(dvB).commit();
+    table.newRowDelta().addDeletes(dvA).stageOnly().commit();
+    table.newAppend().appendFile(FILE_C).commit();
+
+    TableMetadata before = table.ops().current();
+    table
+        .expireSnapshots()
+        .expireOlderThan(waitUntilAfter(table.currentSnapshot().timestampMillis()))
+        .cleanExpiredFiles(false)
+        .commit();
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    new IncrementalFileCleanup(
+            table.io(),
+            MoreExecutors.newDirectExecutorService(),
+            MoreExecutors.newDirectExecutorService(),
+            deletedFiles::add)
+        .cleanFiles(before, table.ops().current(), ExpireSnapshots.CleanupLevel.ALL);
+
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(deletedFiles).doesNotContain(dvB.location());
+  }
+
+  @TestTemplate
+  public void expireKeepsPuffinWhenLiveManifestCannotBeRead() {
+    assumeThat(formatVersion).isEqualTo(3);
+    assumeThat(incrementalCleanup).isTrue();
+
+    TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
+    String tableName = "expireKeepPuffinOnReadFailure";
+    Table testTable =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, tableDir, spyFileIO));
+    testTable.newAppend().appendFile(FILE_A).appendFile(FILE_A2).commit();
+    DeleteFile dvA = FileGenerationUtil.generateDV(testTable, FILE_A);
+    DeleteFile dvB =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .copy(dvA)
+            .withReferencedDataFile(FILE_A2.location())
+            .withContentOffset(dvA.contentOffset() + 100)
+            .build();
+    testTable.newRowDelta().addDeletes(dvB).commit();
+    ManifestFile liveManifest =
+        Iterables.getOnlyElement(testTable.currentSnapshot().deleteManifests(testTable.io()));
+    testTable.newRowDelta().addDeletes(dvA).commit();
+    long dvSnapshotId = testTable.currentSnapshot().snapshotId();
+    testTable
+        .newRowDelta()
+        .removeDeletes(dvA)
+        .addDeletes(FileGenerationUtil.generateDV(testTable, FILE_A))
+        .validateFromSnapshot(dvSnapshotId)
+        .commit();
+    testTable.newAppend().appendFile(FILE_C).commit();
+
+    Mockito.doThrow(new RuntimeIOException("Manifest read failed"))
+        .when(spyFileIO)
+        .newInputFile(
+            argThat((ManifestFile manifest) -> liveManifest.path().equals(manifest.path())));
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    testTable
+        .expireSnapshots()
+        .expireOlderThan(waitUntilAfter(testTable.currentSnapshot().timestampMillis()))
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    Mockito.verify(spyFileIO, Mockito.atLeastOnce())
+        .newInputFile(
+            argThat((ManifestFile manifest) -> liveManifest.path().equals(manifest.path())));
+    assertThat(deletedFiles).doesNotContain(dvB.location());
+  }
+
+  @TestTemplate
+  public void expireKeepsPuffinWhenRetainedManifestListCannotBeRead() {
+    assumeThat(formatVersion).isEqualTo(3);
+    assumeThat(incrementalCleanup).isTrue();
+
+    TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
+    String tableName = "expireKeepPuffinOnListFailure";
+    TestTables.TestTable testTable =
+        TestTables.create(
+            tableDir,
+            tableName,
+            SCHEMA,
+            SPEC,
+            SortOrder.unsorted(),
+            formatVersion,
+            new TestTables.TestTableOperations(tableName, tableDir, spyFileIO));
+    testTable.newAppend().appendFile(FILE_A).appendFile(FILE_A2).appendFile(FILE_B).commit();
+    DeleteFile dvA = FileGenerationUtil.generateDV(testTable, FILE_A);
+    DeleteFile dvB =
+        FileMetadata.deleteFileBuilder(SPEC)
+            .copy(dvA)
+            .withReferencedDataFile(FILE_A2.location())
+            .withContentOffset(dvA.contentOffset() + 100)
+            .build();
+    testTable.newRowDelta().addDeletes(dvA).addDeletes(dvB).commit();
+    testTable.newRowDelta().removeDeletes(dvA).commit();
+    testTable.newDelete().deleteFile(FILE_B).commit();
+    testTable.newAppend().appendFile(FILE_C).commit();
+
+    TableMetadata before = testTable.ops().current();
+    testTable
+        .expireSnapshots()
+        .expireOlderThan(waitUntilAfter(testTable.currentSnapshot().timestampMillis()))
+        .cleanExpiredFiles(false)
+        .commit();
+    TableMetadata after = testTable.ops().current();
+    String manifestList = testTable.currentSnapshot().manifestListLocation();
+    Mockito.doThrow(new RuntimeIOException("Manifest list read failed"))
+        .when(spyFileIO)
+        .newInputFile(manifestList);
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    new IncrementalFileCleanup(
+            testTable.io(),
+            MoreExecutors.newDirectExecutorService(),
+            MoreExecutors.newDirectExecutorService(),
+            deletedFiles::add)
+        .cleanFiles(before, after, ExpireSnapshots.CleanupLevel.ALL);
+
+    Mockito.verify(spyFileIO, Mockito.atLeastOnce()).newInputFile(manifestList);
+    assertThat(deletedFiles).contains(FILE_B.location());
+    assertThat(deletedFiles).doesNotContain(dvA.location());
   }
 
   @TestTemplate

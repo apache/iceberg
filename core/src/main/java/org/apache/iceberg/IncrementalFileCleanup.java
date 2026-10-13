@@ -112,52 +112,59 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
     // expired snapshot
     Set<String> validManifests = ConcurrentHashMap.newKeySet();
     Set<ManifestFile> manifestsToScan = ConcurrentHashMap.newKeySet();
+    Set<ManifestFile> retainedDeleteManifests = ConcurrentHashMap.newKeySet();
 
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
     // as much of the delete work as possible and avoid orphaned data or manifest files.
-    Tasks.foreach(snapshots)
-        .retry(3)
-        .suppressFailureWhenFinished()
-        .executeWith(planExecutorService)
-        .onFailure(
-            (snapshot, exc) ->
-                LOG.warn(
-                    "Failed on snapshot {} while reading manifest list: {}",
-                    snapshot.snapshotId(),
-                    snapshot.manifestListLocation(),
-                    exc))
-        .run(
-            snapshot -> {
-              try (CloseableIterable<ManifestFile> manifests = readManifests(snapshot)) {
-                for (ManifestFile manifest : manifests) {
-                  validManifests.add(manifest.path());
+    boolean retainedManifestsRead =
+        Tasks.foreach(snapshots)
+            .retry(3)
+            .suppressFailureWhenFinished()
+            .executeWith(planExecutorService)
+            .onFailure(
+                (snapshot, exc) ->
+                    LOG.warn(
+                        "Failed on snapshot {} while reading manifest list: {}",
+                        snapshot.snapshotId(),
+                        snapshot.manifestListLocation(),
+                        exc))
+            .run(
+                snapshot -> {
+                  try (CloseableIterable<ManifestFile> manifests = readManifests(snapshot)) {
+                    for (ManifestFile manifest : manifests) {
+                      validManifests.add(manifest.path());
+                      if (cleanupLevel == ExpireSnapshots.CleanupLevel.ALL
+                          && manifest.content() == ManifestContent.DELETES) {
+                        retainedDeleteManifests.add(manifest.copy());
+                      }
 
-                  long snapshotId = manifest.snapshotId();
-                  // whether the manifest was created by a valid snapshot (true) or an expired
-                  // snapshot (false)
-                  boolean fromValidSnapshots = validIds.contains(snapshotId);
-                  // whether the snapshot that created the manifest was an ancestor of the table
-                  // state
-                  boolean isFromAncestor = ancestorIds.contains(snapshotId);
-                  // whether the changes in this snapshot have been picked into the current table
-                  // state
-                  boolean isPicked = pickedAncestorSnapshotIds.contains(snapshotId);
-                  // if the snapshot that wrote this manifest is no longer valid (has expired),
-                  // then delete its deleted files. note that this is only for expired snapshots
-                  // that are in the
-                  // current table state
-                  if (!fromValidSnapshots
-                      && (isFromAncestor || isPicked)
-                      && manifest.hasDeletedFiles()) {
-                    manifestsToScan.add(manifest.copy());
+                      long snapshotId = manifest.snapshotId();
+                      // whether the manifest was created by a valid snapshot (true) or an expired
+                      // snapshot (false)
+                      boolean fromValidSnapshots = validIds.contains(snapshotId);
+                      // whether the snapshot that created the manifest was an ancestor of the table
+                      // state
+                      boolean isFromAncestor = ancestorIds.contains(snapshotId);
+                      // whether the changes in this snapshot have been picked into the current
+                      // table
+                      // state
+                      boolean isPicked = pickedAncestorSnapshotIds.contains(snapshotId);
+                      // if the snapshot that wrote this manifest is no longer valid (has expired),
+                      // then delete its deleted files. note that this is only for expired snapshots
+                      // that are in the
+                      // current table state
+                      if (!fromValidSnapshots
+                          && (isFromAncestor || isPicked)
+                          && manifest.hasDeletedFiles()) {
+                        manifestsToScan.add(manifest.copy());
+                      }
+                    }
+
+                  } catch (IOException e) {
+                    throw new RuntimeIOException(
+                        e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
                   }
-                }
-
-              } catch (IOException e) {
-                throw new RuntimeIOException(
-                    e, "Failed to close manifest list: %s", snapshot.manifestListLocation());
-              }
-            });
+                });
 
     // find manifests to clean up that were only referenced by snapshots that have expired
     Set<String> manifestListsToDelete = ConcurrentHashMap.newKeySet();
@@ -259,9 +266,46 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
             });
 
     if (ExpireSnapshots.CleanupLevel.ALL == cleanupLevel) {
+      Set<String> puffinFiles = ConcurrentHashMap.newKeySet();
       Set<String> filesToDelete =
           findFilesToDelete(
-              manifestsToScan, manifestsToRevert, validIds, beforeExpiration.specsById());
+              manifestsToScan,
+              manifestsToRevert,
+              validIds,
+              beforeExpiration.specsById(),
+              puffinFiles);
+
+      if (!puffinFiles.isEmpty()) {
+        if (!retainedManifestsRead) {
+          filesToDelete.removeAll(puffinFiles);
+        } else {
+          try {
+            Tasks.foreach(retainedDeleteManifests)
+                .retry(3)
+                .stopOnFailure()
+                .throwFailureWhenFinished()
+                .executeWith(planExecutorService)
+                .run(
+                    manifest -> {
+                      try (CloseableIterable<String> paths =
+                          ManifestFiles.readPaths(manifest, fileIO, beforeExpiration.specsById())) {
+                        for (String path : paths) {
+                          if (puffinFiles.contains(path)) {
+                            filesToDelete.remove(path);
+                          }
+                        }
+                      } catch (IOException e) {
+                        throw new RuntimeIOException(
+                            e, "Failed to read manifest file: %s", manifest);
+                      }
+                    });
+          } catch (RuntimeException e) {
+            LOG.warn("Failed to list live delete files, skipping Puffin cleanup", e);
+            filesToDelete.removeAll(puffinFiles);
+          }
+        }
+      }
+
       LOG.debug("Deleting {} data files", filesToDelete.size());
       deleteFiles(filesToDelete, "data");
     }
@@ -283,7 +327,8 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
       Set<ManifestFile> manifestsToScan,
       Set<ManifestFile> manifestsToRevert,
       Set<Long> validIds,
-      Map<Integer, PartitionSpec> specsById) {
+      Map<Integer, PartitionSpec> specsById,
+      Set<String> puffinFiles) {
     Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifestsToScan)
         .retry(3)
@@ -302,7 +347,11 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                   if (entry.status() == ManifestEntry.Status.DELETED
                       && !validIds.contains(entry.snapshotId())) {
                     // use toString to ensure the path will not change (Utf8 is reused)
-                    filesToDelete.add(entry.file().location());
+                    String path = entry.file().location();
+                    filesToDelete.add(path);
+                    if (entry.file().format() == FileFormat.PUFFIN) {
+                      puffinFiles.add(path);
+                    }
                   }
                 }
               } catch (IOException e) {
@@ -325,7 +374,11 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                   // delete any ADDED file from manifests that were reverted
                   if (entry.status() == ManifestEntry.Status.ADDED) {
                     // use toString to ensure the path will not change (Utf8 is reused)
-                    filesToDelete.add(entry.file().location());
+                    String path = entry.file().location();
+                    filesToDelete.add(path);
+                    if (entry.file().format() == FileFormat.PUFFIN) {
+                      puffinFiles.add(path);
+                    }
                   }
                 }
               } catch (IOException e) {
