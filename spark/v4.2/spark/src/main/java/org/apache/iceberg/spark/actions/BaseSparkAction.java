@@ -22,10 +22,12 @@ import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.lit;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -72,6 +74,7 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.util.CollectionAccumulator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -149,6 +152,11 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected Dataset<FileInfo> contentFileDS(Table table, Set<Long> snapshotIds) {
+    return contentFileDS(table, snapshotIds, null);
+  }
+
+  protected Dataset<FileInfo> contentFileDS(
+      Table table, Set<Long> snapshotIds, CollectionAccumulator<String> missingManifests) {
     Table serializableTable = SerializableTableWithSize.copyOf(table);
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(serializableTable);
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
@@ -167,7 +175,8 @@ abstract class BaseSparkAction<ThisT> {
             .repartition(numShufflePartitions) // avoid adaptive execution combining tasks
             .as(ManifestFileBean.ENCODER);
 
-    return manifestBeanDS.flatMap(new ReadManifest(tableBroadcast), FileInfo.ENCODER);
+    return manifestBeanDS.flatMap(
+        new ReadManifest(tableBroadcast, missingManifests), FileInfo.ENCODER);
   }
 
   protected Dataset<FileInfo> manifestDS(Table table) {
@@ -407,14 +416,21 @@ abstract class BaseSparkAction<ThisT> {
 
   private static class ReadManifest implements FlatMapFunction<ManifestFileBean, FileInfo> {
     private final Broadcast<Table> table;
+    private final CollectionAccumulator<String> missingManifests;
 
-    ReadManifest(Broadcast<Table> table) {
+    ReadManifest(Broadcast<Table> table, CollectionAccumulator<String> missingManifests) {
       this.table = table;
+      this.missingManifests = missingManifests;
     }
 
     @Override
     public Iterator<FileInfo> call(ManifestFileBean manifest) {
-      return new ClosingIterator<>(entries(manifest));
+      if (missingManifests == null) {
+        return new ClosingIterator<>(entries(manifest));
+      }
+
+      return new BestEffortManifestIterator(
+          () -> entries(manifest), manifest.path(), missingManifests);
     }
 
     public CloseableIterator<FileInfo> entries(ManifestFileBean manifest) {
@@ -439,6 +455,73 @@ abstract class BaseSparkAction<ThisT> {
 
     static FileInfo toFileInfo(ContentFile<?> file) {
       return new FileInfo(file.location(), file.content().toString());
+    }
+  }
+
+  private static void recordMissingManifest(
+      String location, CollectionAccumulator<String> missingManifests, NotFoundException cause) {
+    LOG.warn("Skipping manifest missing from storage: {}", location, cause);
+    missingManifests.add(location);
+  }
+
+  private static class BestEffortManifestIterator implements Iterator<FileInfo> {
+    private final Supplier<CloseableIterator<FileInfo>> open;
+    private final String manifestLocation;
+    private final CollectionAccumulator<String> missingManifests;
+    private CloseableIterator<FileInfo> entries;
+    private boolean missing = false;
+
+    BestEffortManifestIterator(
+        Supplier<CloseableIterator<FileInfo>> open,
+        String manifestLocation,
+        CollectionAccumulator<String> missingManifests) {
+      this.open = open;
+      this.manifestLocation = manifestLocation;
+      this.missingManifests = missingManifests;
+    }
+
+    @Override
+    public boolean hasNext() {
+      if (missing) {
+        return false;
+      }
+
+      try {
+        if (entries == null) {
+          entries = open.get();
+        }
+
+        if (entries.hasNext()) {
+          return true;
+        }
+
+        closeQuietly();
+        return false;
+      } catch (NotFoundException e) {
+        missing = true;
+        recordMissingManifest(manifestLocation, missingManifests, e);
+        closeQuietly();
+        return false;
+      }
+    }
+
+    @Override
+    public FileInfo next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+
+      return entries.next();
+    }
+
+    private void closeQuietly() {
+      if (entries != null) {
+        try {
+          entries.close();
+        } catch (IOException ignored) {
+          // best-effort: the manifest is either fully read or being skipped
+        }
+      }
     }
   }
 }
