@@ -62,6 +62,11 @@ public class TableScanResponseParser {
     return Lists.newArrayList();
   }
 
+  /**
+   * @deprecated since 1.13.0, will be removed in 1.14.0; use {@link #parseFileScanTasks(JsonNode,
+   *     List, Map, boolean, Expression)} instead.
+   */
+  @Deprecated
   public static List<FileScanTask> parseFileScanTasks(
       JsonNode node,
       List<DeleteFile> deleteFiles,

@@ -95,9 +95,7 @@ class RESTFileScanTaskParser {
       deleteFiles = indices.stream().map(allDeleteFiles::get).toArray(DeleteFile[]::new);
     }
 
-    // A missing residual-filter is allowed by the spec, and the client must then produce the
-    // residual: the ResidualEvaluator below derives it from the scan filter and the task's
-    // partition.
+    // Use the scan filter when residual-filter is missing
     Expression filter = scanFilter;
     // An explicit null residual-filter is intentionally rejected to stay aligned with the OpenAPI
     // spec, where residual-filter is a non-nullable expression: has() + fromJson throws rather than

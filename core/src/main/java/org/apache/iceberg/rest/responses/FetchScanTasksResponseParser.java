@@ -68,6 +68,11 @@ public class FetchScanTasksResponseParser {
     return JsonUtil.parse(json, node -> fromJson(node, specsById, caseSensitive));
   }
 
+  /**
+   * @deprecated since 1.13.0, will be removed in 1.14.0; use {@link #fromJson(JsonNode, Map,
+   *     boolean, Expression)} instead.
+   */
+  @Deprecated
   public static FetchScanTasksResponse fromJson(
       JsonNode json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
     return fromJson(json, specsById, caseSensitive, null);
