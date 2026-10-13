@@ -684,7 +684,7 @@ A constraint consists of the following fields:
 | _required_ | **`enforced`**            | `boolean` | Whether writers must only add rows that satisfy the constraint |
 | _required_ | **`timestamp-ms`**        | `long`    | Timestamp in milliseconds from the unix epoch when the constraint was created or last modified. The timestamp is informational and must not be used to determine whether a constraint applies to a snapshot or whether it holds |
 | _optional_ | **`expression`**          | `expression` | The predicate that every row must satisfy, see [Check Constraint Expressions](#check-constraint-expressions). Required for a `check` constraint and must not be set for other types |
-| _optional_ | **`field-ids`**           | `list<int>`  | The list of field IDs that the constraint applies to. Required for a `unique` or `primary-key` constraint and must not be set for a `check` constraint |
+| _optional_ | **`field-ids`**           | `list<int>`  | The set of field IDs that the constraint applies to. Required for a `unique` or `primary-key` constraint and must not be set for a `check` constraint |
 
 The fields that define what a constraint requires are embedded directly in the constraint based on its `type`. Each type carries only the metadata that it requires: a `check` constraint has an `expression` and must not declare `field-ids`, and a `unique` or `primary-key` constraint has `field-ids` and must not declare an `expression`. This keeps a single source of truth for the fields that a constraint references.
 
@@ -693,6 +693,8 @@ The `field-ids` of a `unique` or `primary-key` constraint must reference primiti
 The fields of a `primary-key` constraint must be `required` and must not be nested in an optional struct, so that the schema rules out null keys even when the constraint is not enforced. These are the same restrictions that apply to [identifier fields](#identifier-field-ids). The fields of a `unique` constraint may be optional or nested in optional structs, because a row in which any field is null is not compared.
 
 When a constraint is `enforced`, writers must only add rows they can prove follow the constraint. A constraint that is not enforced can be written to by any writer, regardless of their ability to prove that the constraint is followed by new rows.
+
+For constraints, a row whose values are changed by a commit counts as a removed row and an added row, whether the engine models the change as deleting and inserting the row or as a modification that preserves the row ID (see [Row Lineage](#row-lineage)).
 
 When a commit is retried against a new parent snapshot, the rows that a writer adds must still satisfy the table's enforced constraints. A `check` constraint is evaluated for each row on its own, so a retry cannot change its result. A `unique` or `primary-key` constraint compares rows to each other, so a writer must verify that added rows have distinct keys among themselves and do not conflict with rows remaining from the new parent after applying the commit's removals; verifying them against the original parent is not sufficient. A writer must also verify the rows that it adds against any constraint that a concurrent commit added or changed to enforced, and must recompute `constraint-statuses` from the new parent.
 
@@ -761,7 +763,7 @@ Readers must determine the status of a constraint for a snapshot as follows:
 Writers must record `constraint-statuses` in every snapshot of a table that has constraints, and must place every constraint that exists when the snapshot is created into exactly one status list, following these rules:
 
 * A constraint must not be listed as `validated` unless it was checked for every row in the snapshot, or the commit did not add rows and the parent snapshot's status for the constraint is `validated`
-* A constraint must not be listed as `valid` unless the parent snapshot's status for the constraint is `validated` or `valid`, and either it was enforced for the commit or the commit did not add rows
+* A constraint must not be listed as `valid` unless the parent snapshot's status for the constraint is `validated` or `valid`, and either the writer can prove that the rows it added follow the constraint or the commit did not add rows
 * A constraint must not be listed as `invalid` unless a row in the snapshot is known to violate it
 * `unvalidated` is the status of a constraint that cannot be listed in any other status
 
@@ -769,7 +771,7 @@ Enforcing a constraint for a commit is not sufficient to list it as `valid`. Whe
 
 A commit that does not add rows cannot introduce a violation. A `check` expression is evaluated for each row, and `unique` and `primary-key` require values to be distinct, so removing rows or rewriting files without changing rows preserves all three. Such a commit, for example a delete or a compaction, may record the parent snapshot's `validated` or `valid` status for a constraint without checking rows again.
 
-When a constraint becomes enforced, either by being added with `enforced` set to true or by `enforced` changing from false to true, writers should validate the table and record `validated`. A writer that does not validate records `unvalidated`, and the constraint remains `unvalidated` until a later validation records `validated`.
+When a constraint becomes enforced, either by being added with `enforced` set to true or by `enforced` changing from false to true, writers should validate the table and record `validated`.
 
 A snapshot's `constraint-statuses` must not be modified after the snapshot is created. Recording a different status for a constraint requires a new snapshot. A snapshot that only records constraint statuses does not add or remove files and uses the `replace` operation.
 
