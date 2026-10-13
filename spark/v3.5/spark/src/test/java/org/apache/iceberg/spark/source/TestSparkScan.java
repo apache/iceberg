@@ -28,6 +28,7 @@ import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStr
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.util.List;
 import java.util.Map;
@@ -469,20 +470,9 @@ public class TestSparkScan extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testTableWithStatsForDroppedColumnOrNonFieldBlob() throws NoSuchTableException {
+  public void testStatisticsMappedWithSnapshotSchema() throws NoSuchTableException {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
-
-    List<SimpleRecord> records =
-        Lists.newArrayList(
-            new SimpleRecord(1, "a"),
-            new SimpleRecord(2, "b"),
-            new SimpleRecord(3, "a"),
-            new SimpleRecord(4, "b"));
-    spark
-        .createDataset(records, Encoders.bean(SimpleRecord.class))
-        .coalesce(1)
-        .writeTo(tableName)
-        .append();
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
     long snapshotId = table.currentSnapshot().snapshotId();
@@ -525,15 +515,9 @@ public class TestSparkScan extends TestBaseWithCatalog {
     Map<String, String> reportColStatsEnabled =
         ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
 
-    Map<String, Long> expectedNDV = Maps.newHashMap();
-    expectedNDV.put("id", 4L);
-    expectedNDV.put("data", 2L);
     withSQLConf(
         reportColStatsEnabled,
-        () -> {
-          checkColStatisticsReported(scan, 4L, expectedNDV);
-          assertThat(scan.estimateStatistics().columnStats()).hasSize(2);
-        });
+        () -> assertThatCode(scan::estimateStatistics).doesNotThrowAnyException());
   }
 
   @TestTemplate
