@@ -1251,11 +1251,13 @@ A snapshot consists of the following fields:
     | _required_ | **`sequence-number`**        | A monotonically increasing long that tracks the order of changes to a table |
     | _required_ | **`timestamp-ms`**           | A timestamp when the snapshot was created, used for garbage collection and table inspection |
     | _required_ | **`root-manifest`**          | The location of the root manifest for this snapshot |
+    | _required_ | **`root-manifest-size-in-bytes`** | Size of the root manifest file in bytes |
     | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` as a _required_ field (see below) |
     | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created |
     | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
     | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
-    | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the root manifest key metadata |
+    | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata (**Deprecated**: use `encryption-key` instead) |
+    | _optional_ | **`encryption-key`**         | The [encryption key](#encryption-keys) that encrypts the root manifest |
     | _optional_ | **`constraint-statuses`**    | A struct that records the status of the table's constraints for the snapshot, see [Constraint Status](#constraint-status) |
 
 When committed while the table is at version 4 or higher, a snapshot's `timestamp-ms` must be strictly greater than its parent snapshot's `timestamp-ms` on the same branch. Snapshots with no parent, and snapshots that were committed before a table was upgraded to v4 or higher, do not have this requirement.
@@ -1268,6 +1270,8 @@ The snapshot summary's `operation` field is used by some operations, like snapsh
 * `delete` -- Data files were removed and their contents logically deleted and/or delete files were added to delete rows.
 
 For other optional snapshot summary fields, see [Appendix F](#optional-snapshot-summary-fields).
+
+A snapshot's `key-id` and `encryption-key` fields are mutually exclusive and both must not be present. When committed while the table is at version 4 or higher, writers must store the snapshot's encryption key in `encryption-key`.
 
 Data and delete files for a snapshot can be stored in more than one manifest. This enables:
 
@@ -1608,18 +1612,19 @@ If a table has no deletes or only deletion vectors, implementations are encourag
 
 #### Encryption Keys
 
-Keys used for table encryption can be tracked in table metadata as a list named `encryption-keys`. The schema of each key is a struct with the following fields:
-=== "v1 - v3"
-    | v1 | v2 |     v3     | Field name                    | Type                  | Description |
-    |----|----|------------|-------------------------------|-----------------------|-------------|
-    |    |    | _required_ | **`key-id`**                  | `string`              | ID of the encryption key |
-    |    |    | _required_ | **`encrypted-key-metadata`**  | `string`              | Encrypted key and metadata, base64 encoded [1] |
-    |    |    | _optional_ | **`encrypted-by-id`**         | `string`              | Optional ID of the key used to encrypt or wrap `key-metadata` |
-    |    |    | _optional_ | **`properties`**              | `map<string, string>` | A string to string map of additional metadata used by the table's encryption scheme |
+Keys used for table encryption can be tracked in table metadata as a list named `encryption-keys`, or embedded directly in the metadata object that references the encrypted file, such as the `encryption-key` field of a v4 snapshot. The schema of each key is a struct with the following fields:
+=== "v1 - v4"
+    | v1 and v2 |     v3     |     v4     | Field name                    | Type                  | Description |
+    |-----------|------------|------------|-------------------------------|-----------------------|-------------|
+    |           | _required_ | _optional_ | **`key-id`**                  | `string`              | ID of the encryption key [2] |
+    |           | _required_ | _required_ | **`encrypted-key-metadata`**  | `string`              | Encrypted key and metadata, base64 encoded [1] |
+    |           | _optional_ | _optional_ | **`encrypted-by-id`**         | `string`              | Optional ID of the key used to encrypt or wrap `key-metadata` |
+    |           | _optional_ | _optional_ | **`properties`**              | `map<string, string>` | A string to string map of additional metadata used by the table's encryption scheme |
 
 Notes:
 
 1. The format of encrypted key metadata is determined by the table's encryption scheme and can be a wrapped format specific to the table's KMS provider.
+2. `key-id` is required for keys tracked in the table metadata `encryption-keys` list, because they are referenced by ID. It is not set for keys embedded directly in the metadata object that references the encrypted file, such as the `encryption-key` field of a v4 snapshot.
 
 ### Commit Conflict Resolution and Retry
 
@@ -2262,6 +2267,11 @@ Snapshot timestamp changes:
 
 * When committed while the table is at version 4 or higher, a snapshot's `timestamp-ms` must be strictly greater than its parent snapshot's `timestamp-ms` on the same branch.
 * Snapshots with no parent and snapshots that existed before a table was upgraded to v4 are not constrained.
+
+Snapshot encryption key changes:
+
+* Writers must store the root manifest file's encryption key directly in the snapshot's `encryption-key` field and must not write `key-id`
+* Snapshots that existed before a table was upgraded to v4 continue to use `key-id`
 
 Equality deletes are prohibited in v4.
 
