@@ -310,122 +310,84 @@ stored in the [index order](#ordering). Index entries that share an ordering key
 
 ## Appendix A: Rationale
 
-Iceberg standardizes the index lifecycle, snapshot relationship, and the minimum metadata needed for safe cross-engine
-use. Beyond that minimum, engines remain free to ignore unsupported indexes, use exact snapshot matches only, or
-implement more advanced stale-index and incremental-query logic. The index type is a first filter: it identifies the
-class of index, so an engine can skip a type it does not implement without inspecting the definition.
+Iceberg standardizes the index lifecycle, the snapshot relationship, and the minimum metadata needed for safe
+cross-engine use. Engines remain free to skip index types they do not implement, use exact snapshot matches only, or
+implement more advanced stale-index logic.
 
 ### Identity and Derived Columns
 
-Identity columns store values of the indexed row, and derived columns compute everything else from them. Derived
-expressions must be deterministic, otherwise entries could not be placed at reproducible positions. Computing them only
-from identity columns keeps a region file self-contained: a reader can recompute `virtual` columns, and entries that
-share an ordering key can be told apart by its inputs. Ordering by `bucket(256, user_id)`, for example, needs `user_id`
-stored, because different `user_id` values can share a bucket. A `generated-always` column trades storage for faster
-search.
+Derived expressions must be deterministic so that entries land at reproducible positions. Computing them only from
+identity columns keeps a region file self-contained: a reader can recompute `virtual` columns, and entries that share an
+ordering key are told apart by its inputs, such as `user_id` under `bucket(256, user_id)`.
 
-Metadata columns that do not describe a live row of one snapshot are excluded: `_deleted` is the same for every indexed
-row, the changelog columns describe a change between snapshots, and the delete file columns describe delete records.
-`_partition` is excluded because its type changes when the partition spec evolves.
+The excluded metadata columns do not describe a live row of one snapshot, except `_partition`, which is excluded because
+its type changes with the partition spec.
 
-`identity-fields` gives the extract schema its own field ID space, so IDs can be assigned freely without clashing with
-IDs the source table assigns as it evolves, or with reserved metadata column IDs. For example, a reader synthesizes
-`_pos` from the row position in the region file, so storing the source `_pos` under its own ID would collide.
+`identity-fields` gives the extract schema its own field ID space, so its IDs cannot clash with IDs the source table
+assigns later or with reserved IDs, such as `_pos`, which a reader synthesizes from the region file row position.
 
 ### Ordering and Pruning
 
-Each field in the ordering key determines part of the position of an entry, so its result type is limited to values
-that Iceberg can order. Primitives are ordered by the rules the expressions specification already defines.
-Multi-component ordering keys are compared field by field, which is an extension of the sort orders in the Iceberg
-table specification. Structs, lists, and maps are excluded because Iceberg does not define ordering for lists and maps,
-and a struct is represented as separate index fields instead.
+Ordering key fields must be primitive because Iceberg defines no order for lists and maps; struct fields can be listed
+separately. Ordering keys need not be unique. Region boundaries fall only where the key changes, so a lookup resolves to
+a single region file, and the order of entries that share a key is left to the writer.
 
-Ordering keys do not have to be unique. Region boundaries fall only where the ordering key changes, so all entries
-that share a key are in one region file and a lookup resolves to a single region file. Because a region file holds every
-entry with a given ordering key, the order of those entries within the file has no effect on planning or on region
-file bounds, and the specification leaves it to the writer.
+Ordered tracking file entries with non-overlapping ranges need only an upper bound per region file, as the lower bound
+is the upper bound of the preceding entry. `max_ordering_key` is a single key compared field by field, not a per-field
+statistic, so it is not part of `content_stats`. Like a partition tuple, it places a file, so it reuses the `partition`
+field ID and numbers its fields from `1000`. It must be exact, as a rounded bound would send lookups to the wrong region
+file.
 
-The index order makes the index usable at two levels: region files can be pruned without being opened, and the
-entries of a region file that is opened can be located without reading all of it.
+`max_ordering_key` also prunes on ordering key prefixes, so `content_stats` is optional. Its bounds can still skip a
+region file for a key that falls before its first entry, or prune on other fields.
 
-Region files hold non-overlapping ordering key ranges, so `max_ordering_key` in the tracking file is enough to
-eliminate a region file. Only the upper bound of a range is stored: ordered tracking file entries make the lower bound
-redundant, because it is exclusive and equal to the upper bound of the preceding entry. The bound is a single key
-compared field by field, not a per-field statistic, so it is stored as its own struct rather than in `content_stats`.
-It places a region file within the index as a partition tuple places a data file within a table, so it reuses the
-`partition` field ID and numbers its fields from `1000` like partition fields. The bound has to be exact, because a
-bound rounded up would place the next region file's lower bound above entries that file actually contains, so a
-lookup would prune to the wrong file and miss rows.
-
-`max_ordering_key` also supports pruning on a prefix of the ordering key, so `content_stats` is optional. Its bounds
-can still eliminate more region files: for a lookup key between the upper bound of the preceding entry and the first
-entry of a region file, or for a filter on fields that do not form a prefix of the ordering key.
-
-Within a region file, the entries that match a lookup are contiguous, so a reader can locate them with the structures
-the file format provides for stored columns, such as Parquet page indexes, instead of examining every entry. Those
-structures work on a stored field that the ordering keeps sorted, or a value from which the ordering expression is
-order preserving: a file ordered by `day(ts)` is also ordered by a stored `ts` field. Ordering by
-`bucket(256, user_id)` leaves a stored `user_id` field unsorted unless the bucket field is also stored, so a reader may
-need to evaluate the ordering expression over region file rows.
+Within a region file, matching entries are contiguous, so a reader can locate them with file format structures, such as
+Parquet page indexes, on stored fields that the ordering keeps sorted.
 
 ### Source Table Schema Evolution
 
-Source table schema evolution only limits which extracts can be created next: a dropped identity source field prevents
-new extracts, and a type promotion or a field made optional requires a new extract schema.
-
-Extract schemas may differ only in changes that widen the values a field accepts, so a reused region file is read like
-a data file written before a promotion. Any other change would prevent reusing region files and their `content_stats`
-across extracts. Making a field required is unsafe, as region files may contain nulls, and never needed, as an
-optional identity column can hold the values of a required source field.
-
-A reused region file keeps the order it was written in, so an ordering key promotion must not reorder values. This is
-checked on reuse because a source table evolves without knowledge of its indexes, so only the index writer can detect
-the case and rewrite the region file.
+Source table schema evolution only limits which extracts can be created next. Extract schemas may differ only in
+changes that widen values, so a reused region file is read like a data file written before a promotion. Making a field
+required is unsafe, as region files may contain nulls, and never needed. An ordering key promotion must also keep the
+order of a reused region file, which only the index writer can check, as the source table evolves without knowledge of
+its indexes.
 
 ### Atomic Commits
 
-Index metadata is immutable and committed by an atomic swap, mirroring how Iceberg commits table metadata. Requiring
-the current metadata file to be unchanged is what prevents concurrent maintenance processes from silently overwriting
-each other and losing extracts.
+Index metadata is committed by an atomic swap, like table metadata, so concurrent maintenance processes cannot
+overwrite each other and lose extracts.
 
 ### Reclaiming Index Files
 
-The `extracts` list of the current index metadata file is the only root for reachability. A tracking file or region
-file is live because a listed extract references it. A commit that removes an extract should delete the
-files that only that extract referenced.
+The `extracts` list of the current index metadata file is the only reachability root, so a commit that removes an
+extract should delete the files that no remaining extract references.
 
 ## Appendix B: Recommendations
 
 ### Recording the Source Row Location
 
-This specification does not define how an index entry points back to the row it was built from. The pointer is one or
-more identity columns for metadata columns, and indexes could identify a row in different ways. The options below
-cover the common cases.
+This specification does not define if or how an index entry points back to its source row. Identity columns for metadata
+columns cover the common cases:
 
-To identify an individual row, add identity columns for the `_file` (`2147483646`) and `_pos` (`2147483645`) metadata
-columns, as shown in [Appendix C](#appendix-c-example---key-lookup-index). Every entry then carries the data file and
-the row position of its source row, so a reader can fetch matching rows without scanning the table.
+* `_file` and `_pos` identify a row, as in [Appendix C](#appendix-c-example---key-lookup-index), so a reader can fetch
+  matching rows without scanning the table.
+* `_row_id` identifies a row with a single column and stays valid when a data file is rewritten, but has to be
+  resolved to a location when reading.
+* `_file` alone is enough to eliminate data files. Its statistics also let maintenance find the entries of a rewritten
+  data file.
 
-For a table with row lineage, an identity column for `_row_id` (`2147483540`) identifies a row with a single column
-and keeps the pointer valid when a data file is rewritten, at the cost of resolving the row ID to a location when
-reading.
-
-An index that only has to eliminate data files can store `_file` alone. Recording statistics for the `_file` identity
-column also lets index maintenance find the entries produced by a data file that has since been rewritten.
-
-An index that stores none of these can still prune region files by ordering key, but it cannot return source rows.
+Without any of these, an index cannot return source rows, only the values of its own columns.
 
 ### Choosing Virtual Columns
 
-A `virtual` derived column suits an ordering expression whose result is as large as its input, such as `lower(name)`
-over an identity column `name`. Storing the result would nearly double the stored bytes, and a reader can recompute it
-from `name` while searching.
+A `virtual` derived column suits an expression that is order preserving over a stored identity column, such as
+`day(ts)`: the statistics of `ts` bound `day(ts)`, so a reader can still seek within a region file. Other expressions,
+such as `bucket(256, user_id)`, must be evaluated over every row of an opened region file.
 
 ### Choosing an Ordering Key
 
-A region file cannot hold fewer entries than a single ordering key produces, because a region boundary falls only
-where the ordering key changes. Ordering by a low-cardinality expression alone, such as `bucket(256, user_id)` on a
-large table, therefore forces very large region files. Ending `ordering-key` with a high-cardinality field, as in
+A region file holds at least all entries of one ordering key, so a low-cardinality key such as `bucket(256, user_id)`
+alone forces very large region files. Ending `ordering-key` with a high-cardinality field, as in
 `[ bucket(256, user_id), user_id ]`, keeps region files bounded.
 
 ## Appendix C: Example - Key Lookup Index
