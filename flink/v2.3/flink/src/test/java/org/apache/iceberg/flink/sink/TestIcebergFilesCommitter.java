@@ -55,6 +55,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
@@ -64,7 +65,9 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
+import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestBase;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
@@ -845,6 +848,60 @@ public class TestIcebergFilesCommitter extends TestBase {
       SimpleDataUtil.assertTableRows(table, ImmutableList.of(row2), branch);
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint);
       assertFlinkManifests(0);
+    }
+  }
+
+  @TestTemplate
+  void commitDVsAfterExpiringOldestSnapshot() throws Exception {
+    assumeThat(formatVersion).as("Upgrade to format v3 requires format v2").isEqualTo(2);
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+
+    long timestamp = 0;
+    JobID jobId = new JobID();
+    OperatorID operatorId;
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId)) {
+      harness.setup();
+      harness.open();
+      operatorId = harness.getOperator().getOperatorID();
+
+      for (long checkpointId = 1; checkpointId <= 2; checkpointId++) {
+        DataFile dataFile =
+            writeDataFile(
+                "data-" + checkpointId,
+                ImmutableList.of(SimpleDataUtil.createRowData((int) checkpointId, "a")));
+        harness.processElement(of(checkpointId, dataFile), ++timestamp);
+        harness.snapshot(checkpointId, ++timestamp);
+        harness.notifyOfCompletedCheckpoint(checkpointId);
+      }
+
+      table.refresh();
+      long oldestSnapshotId = SimpleDataUtil.latestSnapshot(table, branch).parentId();
+      table.expireSnapshots().expireSnapshotId(oldestSnapshotId).commit();
+
+      long checkpointId = 3;
+      DataFile dataFile =
+          writeDataFile("data-3", ImmutableList.of(SimpleDataUtil.createRowData(3, "a")));
+      DeleteFile dv =
+          FileMetadata.deleteFileBuilder(table.spec())
+              .ofPositionDeletes()
+              .withFormat(FileFormat.PUFFIN)
+              .withPath(tableDir.getAbsolutePath() + "/data-3-dv-1.puffin")
+              .withFileSizeInBytes(10)
+              .withRecordCount(1)
+              .withReferencedDataFile(dataFile.location())
+              .withContentOffset(4)
+              .withContentSizeInBytes(6)
+              .build();
+      WriteResult writeResult =
+          WriteResult.builder().addDataFiles(dataFile).addDeleteFiles(dv).build();
+      harness.processElement(new FlinkWriteResult(checkpointId, writeResult), ++timestamp);
+      harness.snapshot(checkpointId, ++timestamp);
+      harness.notifyOfCompletedCheckpoint(checkpointId);
+
+      assertMaxCommittedCheckpointId(jobId, operatorId, checkpointId);
+      assertThat(SimpleDataUtil.latestSnapshot(table, branch).summary())
+          .containsEntry(SnapshotSummary.ADDED_DVS_PROP, "1");
     }
   }
 
