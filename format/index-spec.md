@@ -136,21 +136,21 @@ The index metadata file stores the index definition and extract history. It is e
 
 The index metadata file has the following fields:
 
-| Requirement | Field name                | Type                       | Description                                                                                        |
-|-------------|---------------------------|----------------------------|----------------------------------------------------------------------------------------------------|
-| _required_  | `format-version`          | `int`                      | Index format version; must be `1`                                                                  |
-| _required_  | `index-uuid`              | `string`                   | Stable UUID assigned at creation                                                                   |
-| _required_  | `table-uuid`              | `string`                   | UUID of the indexed table                                                                          |
-| _required_  | `location`                | `string`                   | Index root location                                                                                |
-| _required_  | `last-updated-ms`         | `long`                     | Timestamp when the index was last updated (ms from epoch) [1]                                      |
-| _required_  | `index-type`              | `string`                   | Logical index type                                                                                 |
-| _required_  | `identity-fields`         | `list<identity-field>`     | Identity columns of the extract schema, see [Identity Fields](#identity-fields)                    |
-| _required_  | `schemas`                 | `list<schema>`             | Extract schemas, see [Extract Schema](#extract-schema)                                             |
-| _required_  | `ordering-key`            | `list<int>`                | Field IDs that form the ordering key, see [Ordering Key](#ordering-key)                            |
-| _optional_  | `properties`              | `map<string, string>`      | Index properties applicable for every extract                                                      |
-| _optional_  | `extracts`                | `list<extract>`            | Extracts [2]                                                                                       |
-| _optional_  | `metadata-log`            | `list<metadata-log-entry>` | Previous index metadata files, see [Metadata Log](#metadata-log)                                   |
-| _optional_  | `encryption-keys`         | `list<encryption-key>`     | Encryption keys used by the index, see [Encryption Keys](#encryption-keys)                         |
+| Requirement | Field name                | Type                       | Description                                                                     |
+|-------------|---------------------------|----------------------------|---------------------------------------------------------------------------------|
+| _required_  | `format-version`          | `int`                      | Index format version; must be `1`                                               |
+| _required_  | `index-uuid`              | `string`                   | Stable UUID assigned at creation                                                |
+| _required_  | `table-uuid`              | `string`                   | UUID of the indexed table                                                       |
+| _required_  | `location`                | `string`                   | Index root location                                                             |
+| _required_  | `last-updated-ms`         | `long`                     | Timestamp when the index was last updated (ms from epoch) [1]                   |
+| _required_  | `index-type`              | `string`                   | Logical index type                                                              |
+| _required_  | `identity-fields`         | `list<identity-field>`     | Identity columns of the extract schema, see [Identity Fields](#identity-fields) |
+| _required_  | `schemas`                 | `list<schema>`             | Extract schemas, see [Extract Schema](#extract-schema)                          |
+| _required_  | `ordering-key`            | `list<int>`                | Field IDs that form the ordering key, see [Ordering Key](#ordering-key)         |
+| _optional_  | `properties`              | `map<string, string>`      | Index properties applicable for every extract                                   |
+| _optional_  | `extracts`                | `list<extract>`            | Extracts [2]                                                                    |
+| _optional_  | `metadata-log`            | `list<metadata-log-entry>` | Previous index metadata files, see [Metadata Log](#metadata-log)                |
+| _optional_  | `encryption-keys`         | `list<encryption-key>`     | Encryption keys used by the index, see [Encryption Keys](#encryption-keys)      |
 
 A missing optional list must be read as an empty list.
 
@@ -272,49 +272,32 @@ supported metadata file format.
 
 Each tracking file contains a collection of tracking file entries. A tracking file entry describes a single region file
 tracked by an extract. The fields are the subset of the V4 [data file fields](spec.md#data-file-fields) that are
-relevant to planning queries against the index.
+relevant to planning queries against the index, plus the index-specific `max_ordering_key`, which reuses the ID of
+the data file `partition` tuple.
 
-Tracking file entries must be stored in the [index order](#ordering) of the region files they
-describe, which is the ascending order of the `group_max_value` statistics recorded for the ordering key fields in the
-[content statistics](#content-statistics).
+Tracking file entries must be stored in the [index order](#ordering) of the region files they describe, which is the
+ascending order of their [`max_ordering_key`](#max-ordering-key).
 
-| Requirement | Field id, name                | Type      | Description                                                                                            |
-|-------------|-------------------------------|-----------|--------------------------------------------------------------------------------------------------------|
-| _required_  | **`100  file_path`**          | `string`  | Full URI of the referenced region file                                                                 |
-| _required_  | **`101  file_format`**        | `string`  | File format name, such as `parquet`, `avro`, or `orc`                                                  |
-| _required_  | **`103  record_count`**       | `long`    | Number of records contained in the referenced region file                                              |
-| _required_  | **`104  file_size_in_bytes`** | `long`    | Total file size in bytes                                                                               |
-| _required_  | **`146  content_stats`**      | `struct`  | Field statistics and ordering key bounds for the referenced region file, used for planning and pruning |
-| _optional_  | **`131  key_metadata`**       | `binary`  | Implementation-specific key metadata, used for region file encryption                                  |
+| Requirement | Field id, name                | Type     | Description                                                                                        |
+|-------------|-------------------------------|----------|----------------------------------------------------------------------------------------------------|
+| _required_  | **`100  file_path`**          | `string` | Full URI of the referenced region file                                                             |
+| _required_  | **`101  file_format`**        | `string` | File format name, such as `parquet`, `avro`, or `orc`                                              |
+| _required_  | **`102  max_ordering_key`**   | `struct` | Ordering key of the last index entry in the region file, see [Max Ordering Key](#max-ordering-key) |
+| _required_  | **`103  record_count`**       | `long`   | Number of records contained in the referenced region file                                          |
+| _required_  | **`104  file_size_in_bytes`** | `long`   | Total file size in bytes                                                                           |
+| _optional_  | **`146  content_stats`**      | `struct` | Field statistics for the referenced region file, see [content stats](spec.md#content-stats)        |
+| _optional_  | **`131  key_metadata`**       | `binary` | Implementation-specific key metadata, used for region file encryption                              |
 
-##### Content Statistics
+##### Max Ordering Key
 
-The `content_stats` structure stores field statistics following the [content stats](spec.md#content-stats) rules of the
-table specification. Each stored struct derives its ID and metric types from the ID and type of a field in the extract's
-schema, also for reused region files, and contains the metrics supported for that type.
+`max_ordering_key` is a struct with one field for each `ordering-key` field, in `ordering-key` order. The field at
+position `i`, starting at `0`, has ID `1000 + i` and the name and type of the referenced field in the extract's schema.
+It is optional so that it can represent a null ordering key value.
 
-The following metrics are required:
-
-| Extract schema field    | Required metrics                                |
-|-------------------------|-------------------------------------------------|
-| Field in `ordering-key` | `lower_bound`, `upper_bound`, `group_max_value` |
-| `virtual` column        | `lower_bound`, `upper_bound`                    |
-| Other field             | None                                            |
-
-All other metrics are optional. Statistics for a `virtual` column describe the indexed rows, not values stored in the
-region file.
-
-###### Group Max Value
-
-The field statistics struct for each field in `ordering-key` must contain a `group_max_value` metric at offset `8`
-from the field's stats `base-id`. It has the field's type in the extract schema and is optional so that it can represent
-a null ordering key value. Unlike other metrics, a null `group_max_value` is a null ordering key value, not an unknown
-statistic.
-
-The `group_max_value` metrics, read in `ordering-key` order, must be the exact ordering key of the last index entry in
-the region file according to the [index order](#ordering). They must not be truncated or rounded. Readers use these
-keys as inclusive region file upper bounds. The ordering keys of a region file are strictly greater than the
-`group_max_value` key of the preceding tracking file entry, so tracking file entries must be read in order.
+`max_ordering_key` must be the exact ordering key of the last index entry in the region file according to the
+[index order](#ordering). It must not be truncated or rounded. Readers use it as an inclusive region file upper bound.
+The ordering keys of a region file are strictly greater than the `max_ordering_key` of the preceding tracking file
+entry, so tracking file entries must be read in order.
 
 #### Region Files
 
@@ -365,16 +348,18 @@ file bounds, and the specification leaves it to the writer.
 The index order makes the index usable at two levels: region files can be pruned without being opened, and the
 entries of a region file that is opened can be located without reading all of it.
 
-Region files hold non-overlapping ordering key ranges, so the `group_max_value` statistics in the tracking file are
-enough to eliminate a region file. Only the upper bound of a range is stored: ordered tracking file entries make the
-lower bound redundant, because it is exclusive and equal to the upper bound of the preceding entry. Each component of
-the bound is stored in the field statistics of the ordering key field, and the ordering key supplies the component
-order. The bound has to be exact, because a bound rounded up would place the next region file's lower bound above
-entries that file actually contains, so a lookup would prune to the wrong file and miss rows.
+Region files hold non-overlapping ordering key ranges, so `max_ordering_key` in the tracking file is enough to
+eliminate a region file. Only the upper bound of a range is stored: ordered tracking file entries make the lower bound
+redundant, because it is exclusive and equal to the upper bound of the preceding entry. The bound is a single key
+compared field by field, not a per-field statistic, so it is stored as its own struct rather than in `content_stats`.
+It places a region file within the index as a partition tuple places a data file within a table, so it reuses the
+`partition` field ID and numbers its fields from `1000` like partition fields. The bound has to be exact, because a
+bound rounded up would place the next region file's lower bound above entries that file actually contains, so a
+lookup would prune to the wrong file and miss rows.
 
-Ordinary lower and upper bounds are required for ordering key fields and `virtual` columns because they support
-pruning on partial ordering keys, which the `group_max_value` keys alone cannot do. Bounds for the other fields stored
-in region files are optional and, when present, extend pruning to fields outside the ordering key.
+`max_ordering_key` also supports pruning on a prefix of the ordering key, so `content_stats` is optional. Its bounds
+can still eliminate more region files: for a lookup key between the upper bound of the preceding entry and the first
+entry of a region file, or for a filter on fields that do not form a prefix of the ordering key.
 
 Within a region file, the entries that match a lookup are contiguous, so a reader can locate them with the structures
 the file format provides for stored columns, such as Parquet page indexes, instead of examining every entry. Those
@@ -459,20 +444,19 @@ This creates a `scalar` index on the `user_id` column that orders entries by the
 snapshot, writes the region files and a tracking file, and produces the first index metadata file containing a single
 extract. Region file boundaries follow the ordering, so a region file holds a contiguous range of buckets or a
 range of `user_id` values within a single bucket. The tracking file describes each region file with its location,
-format, record count, and size, together with the statistics used for pruning.
+format, record count, size, and the ordering key upper bound used for pruning.
 
 The extract schema has identity columns for `user_id` (source field `1`) and for the `_file` and `_pos` metadata
 columns, which record the source row location. `identity-fields` maps them to extract schema field IDs `1`, `2`, and
-`3`, so the metadata columns take ordinary IDs instead of their reserved ones. The bucket is a `virtual` derived column
-computed from the `user_id` identity column; it is used for ordering and tracking statistics but is not stored in
-region files. The extract schema is:
+`3`, so the metadata columns take ordinary IDs instead of their reserved ones. The bucket is a `generated-always`
+derived column computed from the `user_id` identity column and stored in region files. The extract schema is:
 
-| Field id, name   | Type     | Column                            | Description                                |
-|------------------|----------|-----------------------------------|--------------------------------------------|
-| **`1  user_id`** | `long`   | Identity of source field `1`      | The indexed source column                  |
-| **`2  file`**    | `string` | Identity of `_file`               | The source data file that contains the row |
-| **`3  pos`**     | `long`   | Identity of `_pos`                | The row position within that data file     |
-| **`4  bucket`**  | `int`    | `virtual`, `bucket(256, user_id)` | The hash bucket of `user_id`               |
+| Field id, name   | Type     | Column                                     | Description                                |
+|------------------|----------|--------------------------------------------|--------------------------------------------|
+| **`1  user_id`** | `long`   | Identity of source field `1`               | The indexed source column                  |
+| **`2  file`**    | `string` | Identity of `_file`                        | The source data file that contains the row |
+| **`3  pos`**     | `long`   | Identity of `_pos`                         | The row position within that data file     |
+| **`4  bucket`**  | `int`    | `generated-always`, `bucket(256, user_id)` | The hash bucket of `user_id`               |
 
 The location columns are not part of the ordering key, so entries that fall in the same bucket with the same `user_id`
 are ordered by source location only because the writer chose to store them that way.
@@ -524,7 +508,7 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
       "required" : true,
       "type" : "int",
       "derived" : {
-        "kind" : "virtual",
+        "kind" : "generated-always",
         "expr" : {
           "type" : "apply",
           "function" : { "catalog" : "iceberg_functions", "identifier" : [ "bucket" ] },
@@ -546,57 +530,37 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
 ```
 
 The tracking file at `tracking-file` lists the region files of this extract. It is stored in a metadata file
-format rather than JSON, so its tracking file entries are shown here as a table. In this example the extract has
-two region files:
-
-| file_path                | file_format | record_count | file_size_in_bytes |
-|--------------------------|-------------|--------------|--------------------|
-| .../region-00001.parquet | parquet     | 3            | 1160               |
-| .../region-00002.parquet | parquet     | 2            | 1024               |
-
-Each tracking file entry also carries a `content_stats` struct. The location columns are outside `ordering-key`, so no
-statistics are required for them and this writer stores none. The struct holds field statistics for `user_id` and the
-`virtual` bucket column. Both are in `ordering-key`, so both stats structs include `group_max_value`:
+format rather than JSON, so its tracking file entries are shown here as a table. `max_ordering_key` has one field per
+`ordering-key` field:
 
 ```
-146: required struct content_stats {
-  10_200: optional struct user_id {
-    10_201: optional long lower_bound;
-    10_202: optional long upper_bound;
-    10_208: optional long group_max_value;
-  }
-  10_800: optional struct bucket {
-    10_801: optional int lower_bound;
-    10_802: optional int upper_bound;
-    10_808: optional int group_max_value;
-  }
+102: required struct max_ordering_key {
+  1000: optional int bucket;
+  1001: optional long user_id;
 }
 ```
 
-| Region file            | Field     | `lower_bound` | `upper_bound` | `group_max_value` |
-|------------------------|-----------|---------------|---------------|-------------------|
-| `region-00001.parquet` | bucket    | `3`           | `88`          | `88`              |
-| `region-00001.parquet` | `user_id` | `12094`       | `84721`       | `55310`           |
-| `region-00002.parquet` | bucket    | `120`         | `209`         | `209`             |
-| `region-00002.parquet` | `user_id` | `3277`        | `99182`       | `3277`            |
+In this example the extract has two region files, and the writer does not store `content_stats`:
 
-The `group_max_value` metrics form the ordering key upper bounds `{ bucket: 88, user_id: 55310 }` and
-`{ bucket: 209, user_id: 3277 }` when read in `ordering-key` order. The `user_id` bounds of the two files overlap, so
-ordinary field statistics alone cannot eliminate either file. The ordering key ranges do not overlap:
-`region-00002.parquet` is the second tracking file entry, so its range starts after the first entry's upper bound.
+| file_path                | file_format | record_count | file_size_in_bytes | max_ordering_key                 |
+|--------------------------|-------------|--------------|--------------------|----------------------------------|
+| .../region-00001.parquet | parquet     | 3            | 1160               | `{ bucket: 88, user_id: 55310 }` |
+| .../region-00002.parquet | parquet     | 2            | 1024               | `{ bucket: 209, user_id: 3277 }` |
+
+The ordering key ranges of the two files do not overlap: `region-00002.parquet` is the second tracking file entry, so
+its range starts after `{ bucket: 88, user_id: 55310 }`, the upper bound of the first entry.
 
 A lookup for `user_id = 55310` evaluates the ordering expressions for that value, producing
 `{ bucket: 88, user_id: 55310 }`. That key is not greater than the upper bound of `region-00001.parquet`, the first
 tracking file entry, so only the first region file is read.
 
-The rows of `region-00001.parquet` follow the extract schema, without the `virtual` bucket column. They are stored in
-index order. The bucket is shown here to make the complete ordering key visible:
+The rows of `region-00001.parquet` follow the extract schema and are stored in index order:
 
-| user_id | file                            | pos | (ordering key)   |
-|---------|---------------------------------|-----|------------------|
-| 84721   | .../data/00000-0-(uuid).parquet | 14  | `{ 3, 84721 }`   |
-| 12094   | .../data/00001-0-(uuid).parquet | 3   | `{ 41, 12094 }`  |
-| 55310   | .../data/00000-0-(uuid).parquet | 92  | `{ 88, 55310 }`  |
+| user_id | file                            | pos | bucket |
+|---------|---------------------------------|-----|--------|
+| 84721   | .../data/00000-0-(uuid).parquet | 14  | 3      |
+| 12094   | .../data/00001-0-(uuid).parquet | 3   | 41     |
+| 55310   | .../data/00000-0-(uuid).parquet | 92  | 88     |
 
 Reading the matched row gives the source data file and row position of the indexed row, which the engine uses to read
 `user_id = 55310` from the `events` table without scanning it.
@@ -649,19 +613,19 @@ the second extract references it as well:
 | .../region-00002.parquet | parquet     | 2            | 1024               |
 
 The merged entries fall inside the range that `region-00001.parquet` already covered, so `region-00003.parquet` keeps
-the same field bounds and the same `group_max_value` metrics, which produce the ordering key upper bound
-`{ bucket: 88, user_id: 55310 }`. The entry for `region-00002.parquet` is copied from the previous tracking file.
+the same `max_ordering_key`, `{ bucket: 88, user_id: 55310 }`. The entry for `region-00002.parquet` is copied from
+the previous tracking file.
 
 The rows of `region-00003.parquet` interleave the entries of the rewritten region file with the entries added for the
 new data file, keeping the index order:
 
-| user_id | file                            | pos | (ordering key)   |
-|---------|---------------------------------|-----|------------------|
-| 84721   | .../data/00000-0-(uuid).parquet | 14  | `{ 3, 84721 }`   |
-| 71004   | .../data/00002-0-(uuid).parquet | 5   | `{ 17, 71004 }`  |
-| 12094   | .../data/00001-0-(uuid).parquet | 3   | `{ 41, 12094 }`  |
-| 40318   | .../data/00002-0-(uuid).parquet | 22  | `{ 62, 40318 }`  |
-| 55310   | .../data/00000-0-(uuid).parquet | 92  | `{ 88, 55310 }`  |
+| user_id | file                            | pos | bucket |
+|---------|---------------------------------|-----|--------|
+| 84721   | .../data/00000-0-(uuid).parquet | 14  | 3      |
+| 71004   | .../data/00002-0-(uuid).parquet | 5   | 17     |
+| 12094   | .../data/00001-0-(uuid).parquet | 3   | 41     |
+| 40318   | .../data/00002-0-(uuid).parquet | 22  | 62     |
+| 55310   | .../data/00000-0-(uuid).parquet | 92  | 88     |
 
 `region-00001.parquet` is no longer referenced by the second extract, but it is still referenced by the first and
 must be retained while that extract exists.
