@@ -299,9 +299,11 @@ For details on how to serialize a schema to JSON, see Appendix C.
 
 ##### Vector
 
-Every non-null `vector(E, D)` value must contain exactly D non-null elements of type E. Floating-point elements must not be `NaN`, positive infinity, or negative infinity. The vector value itself may be null when the containing field is optional.
+A non-null `vector(E, D)` contains exactly D elements of type E, and every element is non-null. `float` and `double` elements must be finite: `NaN`, `+Infinity`, and `-Infinity` are invalid. The vector value may be null only when the vector field is optional.
 
-No type promotion to or from `vector` is defined, including changes to its element type or dimension. Lower and upper bounds are not defined for vector values.
+A `vector` must not be promoted to another type. No type other than `unknown` may be promoted to `vector`. The element type and dimension must not change. A `list` of element type E is not a `vector(E, D)`, even when every value has length D.
+
+Equality of vector values is element-wise, using the equality rules of element type. A vector must not be an identifier field. No sort order is defined for a vector value. Writers must not write lower or upper bounds for a vector field.
 
 ##### CRS
 
@@ -1604,7 +1606,7 @@ When reading an `unknown` column, any corresponding column must be ignored and r
 | **`binary`**       | `binary`            |                                                      |                                                                                         |
 | **`struct`**       | `struct`            |                                                      |                                                                                         |
 | **`list`**         | `array`             |                                                      |                                                                                         |
-| **`vector(E, D)`** | `array`             |                                                      | Array elements must use the ORC mapping for E and must not be null. Readers and writers must enforce the vector dimension and element requirements. |
+| **`vector(E, D)`** | Not supported       |                                                      |                                                                                         |
 | **`map`**          | `map`               |                                                      |                                                                                         |
 | **`variant`**      | `struct` with `metadata` and `value` fields. `metadata` and `value` must not be assigned field IDs. |  `iceberg.struct-type`=`VARIANT`   | Shredding is not supported in ORC.                                                 |
 | **`geometry`**     | `binary`            | `iceberg.binary-type`=`GEOMETRY`                     | WKB format, see [Appendix G](#appendix-g-geospatial-notes).                                                      |
@@ -1910,7 +1912,7 @@ The binary single-value serialization can be used to store the lower and upper b
 
 ### Version 4
 
-The `vector` type is added in v4. Writing `vector` into a v3 or earlier schema is invalid.
+The `vector` type is added in v4.
 
 Relative path support is added in v4.
 
