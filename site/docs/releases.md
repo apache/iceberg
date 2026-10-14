@@ -269,6 +269,7 @@ Apache Iceberg 1.11.0 was released on May 19, 2026.
 The 1.11.0 release contains bug fixes and new features. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.11.0)
 
 * Deprecation / End of Support
+    - Core: Deprecate `PositionDelete` methods that set row data ([\#14045](https://github.com/apache/iceberg/pull/14045))
     - Drop support for Java 11 ([\#14400](https://github.com/apache/iceberg/pull/14400))
     - Spark 3.4: Deprecate support ([\#14099](https://github.com/apache/iceberg/pull/14099))
     - Flink: Remove Flink 1.19 support ([\#13714](https://github.com/apache/iceberg/pull/13714))
@@ -554,6 +555,7 @@ The 1.10.0 release contains bug fixes and new features. For full release notes v
     - REST: Add property to configure user agent in http client ([\#13234](https://github.com/apache/iceberg/pull/13234))
     - REST: add option to configure TLS settings in REST client ([\#13190](https://github.com/apache/iceberg/pull/13190))
     - REST: Avoid table corruption by stop retrying on 502 and 504 ([\#13352](https://github.com/apache/iceberg/pull/13352))
+    - REST: Retry 503 only when `Retry-After` is set, and treat 503 on commit as an unknown commit state ([\#13619](https://github.com/apache/iceberg/pull/13619))
     - REST: Add HTTP proxy support for REST client ([\#12406](https://github.com/apache/iceberg/pull/12406))
     - REST: make metrics reporting async ([\#13507](https://github.com/apache/iceberg/pull/13507))
     - REST: allow retries for idempotent requests with some status codes ([\#13449](https://github.com/apache/iceberg/pull/13449))
@@ -944,6 +946,7 @@ The 1.6.0 release contains fixes, dependency updates, and new features (like Kaf
     - JDBC Catalog: Retry connections in JDBC catalog with user configured error code list ([\#10140](https://github.com/apache/iceberg/pull/10140))
     - JDBC Catalog: fix namespace SQL statement using ESCAPE character working with MySQL, PostgreSQL, ... ([\#10167](https://github.com/apache/iceberg/pull/10167))
     - REST Catalog: Assume issued_token_type is access_token to fully comply with RFC 6749 ([\#10314](https://github.com/apache/iceberg/pull/10314))
+    - REST Catalog: Warn when `oauth2-server-uri` is not set and the client falls back to the deprecated `oauth/tokens` endpoint ([\#10603](https://github.com/apache/iceberg/pull/10603))
     - REST Catalog: Fix create v1 table on REST Catalog ([\#10369](https://github.com/apache/iceberg/pull/10369))
     - REST Catalog: Handles possible heap data corruption of OAuth2Util.AuthSession#headers ([\#10615](https://github.com/apache/iceberg/pull/10615))
     - REST Catalog: Handles potential NPE in RESTSessionCatalog#newSessionCache ([\#10607](https://github.com/apache/iceberg/pull/10607))
@@ -1374,7 +1377,7 @@ and adds a variety of new features.
 Here is an overview:
 
 * Core
-    - Puffin statistics have been [added to the Table API](https://github.com/apache/iceberg/pull/4945)
+    - Puffin statistics have been [added to the Table API](https://github.com/apache/iceberg/pull/4741)
     - Support for [Table scan reporting](https://github.com/apache/iceberg/pull/5268), which enables collection of statistics of the table scans.
     - [Add file sequence number to ManifestEntry](https://github.com/apache/iceberg/pull/6002)
     - [Support register table](https://github.com/apache/iceberg/pull/5037) for all the catalogs (previously it was only for Hive)
