@@ -71,10 +71,10 @@ index `location`, which must be an absolute location.
 
 ### Index Definition
 
-An index is defined by a source table, an index type, identity fields, materialized fields, non-materialized fields, and
-an ordering key. The definition is fixed when the index is created and must not change for the lifetime of the index,
-so region files remain readable through every extract that references them. A different definition requires a
-new index.
+An index is defined by a source table, an index type, an [extract schema](#extract-schema), and an
+[ordering key](#ordering-key). The definition is fixed when the index is created so that region files remain readable
+through every extract that references them. Only extract schema field types and optionality may change, as defined in
+[Extract Schema Evolution](#extract-schema-evolution). Any other change requires a new index.
 
 Index properties configure how an index is written and maintained, such as the target size of region files. Any commit
 may change properties, and readers must not depend on them.
@@ -91,83 +91,42 @@ This specification defines a single index type, `scalar`. Future specifications 
 
 Writers must write `index-type` in lower case. Readers must match it case-insensitively.
 
-#### Index Fields
+#### Extract Schema
 
-An index field defines one value of an index entry, produced for an indexed row of the source table. An index declares
-three lists of index fields:
+The extract schema is an Iceberg [schema](spec.md#schemas-and-data-types) and follows the same rules as a table schema.
+It defines the fields of an index entry and is used to read region files. It contains:
 
-* [Identity fields](#identity-fields) store a source table field in region files as is, so a reader can return the
-  indexed values and distinguish entries that share an ordering key.
-* [Materialized fields](#materialized-fields) store a value computed from an indexed row in region files. A value is
-  materialized when a reader cannot recompute it from the stored fields, such as the file and position, or when
-  recomputing it would cost more than storing it, such as a bucket or Hilbert value.
-* [Non-materialized fields](#non-materialized-fields) keep only statistics in
-  [tracking file entries](#tracking-file-entry), for a value a reader can recompute from the stored fields, so it can
-  take part in ordering and pruning without being stored for every entry.
+* Identity columns, which store a value of the indexed row as is. [`identity-fields`](#identity-fields) maps each
+  source field to its identity column. A source field is a source table field or a
+  [metadata column](spec.md#reserved-field-ids), except `_deleted`, `_partition`, the changelog columns
+  (`_change_type`, `_change_ordinal`, `_commit_snapshot_id`), and the delete file columns (`file_path`, `pos`, `row`).
+* [Derived columns](https://docs.google.com/document/d/1u93kyIrTc8bt9VSTB4O0GM9S7zuXekqixJR6Id2FZC4), which are
+  computed only from identity columns by a deterministic expression. `generated-always` columns are stored in region
+  files. `virtual` columns are not stored; only their statistics are kept in
+  [tracking file entries](#tracking-file-entry).
 
-Every index field has a field ID that must be unique across the three lists.
+Extract schemas are stored in `schemas`, and each extract references one by `extract-schema-id`. Each identity column
+must have the type of its source field: for a table field, as defined by the schema of the extract's source table
+snapshot, which must have a `schema-id`; for a metadata column, as defined by the table specification. An identity
+column must be optional if its source field is optional. If no existing extract schema matches, a new one is added.
+If the source field of an identity column is dropped, no new extracts can be created.
 
-Every source table field that an index field references must be present in the source schema of an [extract](#extract).
-When a referenced field has been dropped, no new extract can be created, but existing extracts remain readable using
-their own source schema.
+##### Extract Schema Evolution
 
-##### Identity Fields
+Extract schemas of an index may differ only in field types and optionality. Field IDs, names, order, nesting, and
+derived column definitions must be the same in every extract schema. Compared to the most recently added extract
+schema, each field in a new extract schema must have the same type or a valid
+[type promotion](spec.md#schema-evolution), and may change from required to optional but not from optional to required.
 
-`identity-fields` is a non-empty list of unique source table field IDs. Each entry must reference a data field.
-[Metadata columns](spec.md#reserved-field-ids) are not allowed. Each listed field is stored in the
-[region files](#region-files) under its own field ID and takes its type from the source schema of an
-[extract](#extract).
-
-Every source table field referenced by an expression field in the [ordering key](#ordering-key) must be an identity
-field.
-
-##### Expression Fields
-
-Both [materialized fields](#materialized-fields) and [non-materialized fields](#non-materialized-fields) are expression
-fields; they differ only in where their values are kept.
-
-The value of an expression field is produced by evaluating an
-[Iceberg value expression](expressions-spec.md#value-expressions) for an indexed row of the source table.
-An expression field has the following fields:
-
-| Requirement | Field name    | Type              | Description                                                  |
-|-------------|---------------|-------------------|--------------------------------------------------------------|
-| _required_  | `field-id`    | `int`             | ID that uniquely identifies the index field                  |
-| _required_  | `type`        | `expr-value`      | Expression field representation                              |
-| _required_  | `data-type`   | Iceberg type      | Type produced by the expression                              |
-| _required_  | `expr`        | JSON expression   | Value expression that produces the field, serialized as JSON |
-
-Each expression field must satisfy the following requirements:
-
-- `expr` must contain only ID references to source table fields or
-  [metadata columns](spec.md#reserved-field-ids). Named references must not be used. The `_deleted`, `_change_type`,
-  `_change_ordinal`, and `_commit_snapshot_id` metadata columns must not be referenced, and neither must the
-  `file_path`, `pos`, and `row` columns of delete files.
-- `expr` must be deterministic and must produce the declared `data-type`.
-- `field-id` must not be a [reserved field ID](spec.md#reserved-field-ids).
-- `data-type` must not change. A source table schema change that makes `expr` incompatible with `data-type` requires a
-  new index definition and prevents new extracts from being created.
-
-Expressions are serialized using the [JSON serialization](expressions-spec.md#appendix-b-json-serialization) defined by
-the expressions specification. Types are serialized using the [type serialization](spec.md#schemas) defined by the table
-specification.
-
-###### Materialized Fields
-
-`materialized-fields` is a list of expression fields whose values are stored in the [region files](#region-files).
-Evaluating the identity fields and the materialized fields for one indexed row produces one region file row.
-
-###### Non-Materialized Fields
-
-`non-materialized-fields` is a list of expression fields whose row values are not stored in region files. Only their
-field statistics are stored, in [tracking file entries](#tracking-file-entry).
+Each extract schema only widens all earlier ones, so a region file can be read with the schema it was written with
+or any schema added later. An extract must not reuse a region file written with an extract schema added after its own.
+For `ordering-key` fields, a promoted type must also order all values of the original type identically.
 
 #### Ordering Key
 
-`ordering-key` is a list of field IDs from `identity-fields`, `materialized-fields`, and `non-materialized-fields`.
-The values of the referenced fields, in list order, form the ordering key of an indexed row and determine the row's
-position in the index, as defined in [Ordering](#ordering). The list must not be empty.
-Every referenced field must have a primitive type.
+`ordering-key` is a non-empty list of extract schema field IDs, each of a primitive type. The values of the referenced
+fields, in list order, form the ordering key of an indexed row and determine the row's position in the index, as
+defined in [Ordering](#ordering).
 
 ### Index Metadata
 
@@ -185,9 +144,8 @@ The index metadata file has the following fields:
 | _required_  | `location`                | `string`                   | Index root location                                                                                |
 | _required_  | `last-updated-ms`         | `long`                     | Timestamp when the index was last updated (ms from epoch) [1]                                      |
 | _required_  | `index-type`              | `string`                   | Logical index type                                                                                 |
-| _required_  | `identity-fields`         | `list<int>`                | Source table fields stored in region files, see [Identity Fields](#identity-fields)                |
-| _optional_  | `materialized-fields`     | `list<expression-field>`   | Expression fields stored in region files, see [Materialized Fields](#materialized-fields)          |
-| _optional_  | `non-materialized-fields` | `list<expression-field>`   | Fields stored only in tracking statistics, see [Non-Materialized Fields](#non-materialized-fields) |
+| _required_  | `identity-fields`         | `list<identity-field>`     | Identity columns of the extract schema, see [Identity Fields](#identity-fields)                    |
+| _required_  | `schemas`                 | `list<schema>`             | Extract schemas, see [Extract Schema](#extract-schema)                                             |
 | _required_  | `ordering-key`            | `list<int>`                | Field IDs that form the ordering key, see [Ordering Key](#ordering-key)                            |
 | _optional_  | `properties`              | `map<string, string>`      | Index properties applicable for every extract                                                      |
 | _optional_  | `extracts`                | `list<extract>`            | Extracts [2]                                                                                       |
@@ -205,6 +163,18 @@ Notes:
 4. How the indexes of a table are discovered is out of scope for this specification and is defined by the catalog
    specification.
 
+#### Identity Fields
+
+Each entry in `identity-fields` maps a source field to its identity column in the [extract schema](#extract-schema),
+like a partition field maps a source column to a partition field.
+
+| Requirement | Field name  | Type  | Description                                     |
+|-------------|-------------|-------|-------------------------------------------------|
+| _required_  | `source-id` | `int` | ID of the source table field or metadata column |
+| _required_  | `field-id`  | `int` | Extract schema field ID of the identity column  |
+
+Each `source-id` and each `field-id` must be unique within `identity-fields`.
+
 #### Extract
 
 An extract is an immutable version of the index data generated from a specific source table snapshot. It
@@ -212,13 +182,11 @@ references a complete set of index files through the location of a single [track
 
 An extract must index exactly the live rows of the referenced table snapshot.
 
-The referenced snapshot must have a `schema-id`. The schema it identifies is the **source schema** of the extract, the
-schema that index fields resolve source table fields against.
-
 | Requirement | Field name                    | Type                  | Description                                                        |
 |-------------|-------------------------------|-----------------------|--------------------------------------------------------------------|
 | _required_  | `extract-id`                  | `long`                | Extract identifier                                                 |
 | _required_  | `source-table-snapshot-id`    | `long`                | Source table snapshot                                              |
+| _required_  | `extract-schema-id`           | `int`                 | ID of the [extract schema](#extract-schema) in `schemas`           |
 | _required_  | `timestamp-ms`                | `long`                | Timestamp when the extract was created (ms from epoch)             |
 | _required_  | `tracking-file`               | `string`              | Location of the tracking file                                      |
 | _required_  | `tracking-file-size-in-bytes` | `long`                | Total size of the tracking file in bytes                           |
@@ -295,9 +263,6 @@ position in the ordering:
 - `float` and `double` values are ordered `-NaN` < `-Infinity` < `-value` < `-0.0` < `0.0` < `value` < `Infinity` <
   `NaN`, as defined by [sorting](spec.md#sorting) in the table specification
 
-An extract may reuse a region file written for an earlier extract only if the `ordering-key` field types in its
-[source schema](#extract) order all values of the earlier types identically.
-
 #### Tracking File
 
 The tracking file contains metadata of all region files belonging to the extract. It may be stored using any
@@ -325,25 +290,25 @@ describe, which is the ascending order of the `group_max_value` statistics recor
 ##### Content Statistics
 
 The `content_stats` structure stores field statistics following the [content stats](spec.md#content-stats) rules of the
-table specification. Each stored struct derives its ID and metric types from the index field's ID and type and contains
-the metrics supported for that type.
+table specification. Each stored struct derives its ID and metric types from the ID and type of a field in the extract's
+schema, also for reused region files, and contains the metrics supported for that type.
 
 The following metrics are required:
 
-| Index field              | Required metrics                                |
-|--------------------------|-------------------------------------------------|
-| Field in `ordering-key`  | `lower_bound`, `upper_bound`, `group_max_value` |
-| Non-materialized field   | `lower_bound`, `upper_bound`                    |
-| Other materialized field | None                                            |
+| Extract schema field    | Required metrics                                |
+|-------------------------|-------------------------------------------------|
+| Field in `ordering-key` | `lower_bound`, `upper_bound`, `group_max_value` |
+| `virtual` column        | `lower_bound`, `upper_bound`                    |
+| Other field             | None                                            |
 
-All other metrics are optional. Statistics for a non-materialized field describe the rows that the region file indexes,
-not values stored in it.
+All other metrics are optional. Statistics for a `virtual` column describe the indexed rows, not values stored in the
+region file.
 
 ###### Group Max Value
 
 The field statistics struct for each field in `ordering-key` must contain a `group_max_value` metric at offset `8`
-from the field's stats `base-id`. It has the index field's data type and is optional so that it can represent a null
-ordering key value. Unlike other metrics, a null `group_max_value` is a null ordering key value, not an unknown
+from the field's stats `base-id`. It has the field's type in the extract schema and is optional so that it can represent
+a null ordering key value. Unlike other metrics, a null `group_max_value` is a null ordering key value, not an unknown
 statistic.
 
 The `group_max_value` metrics, read in `ordering-key` order, must be the exact ordering key of the last index entry in
@@ -357,19 +322,8 @@ Region files must be valid Iceberg data files stored in Parquet, Avro, or ORC, f
 [format-specific requirements](spec.md#appendix-a-format-specific-requirements) of the table specification. Those
 requirements define how each type is encoded and where a column's field ID is recorded in the file.
 
-Each region file row is one index entry and holds the [identity field](#identity-fields) and
-[materialized field](#materialized-fields) values of one indexed row. Index entries within a region file must be stored
-in the [index order](#ordering). Index entries that share an ordering key may be stored in any order.
-
-##### Region Schema
-
-The region schema is constructed from `identity-fields` followed by `materialized-fields`. The result is a struct
-containing one field for each index field in those lists, with fields appearing in that order. An identity field takes
-its ID and type from the source table field it names; a materialized field takes its ID from `field-id` and its type
-from `data-type`.
-
-Names of region schema fields are generated by the writer and are not defined by this specification. Users of the index
-must not rely on them; readers must match region file columns by field ID.
+Each region file row is one index entry, written with the extract schema. Index entries within a region file must be
+stored in the [index order](#ordering). Index entries that share an ordering key may be stored in any order.
 
 ## Appendix A: Rationale
 
@@ -378,24 +332,22 @@ use. Beyond that minimum, engines remain free to ignore unsupported indexes, use
 implement more advanced stale-index and incremental-query logic. The index type is a first filter: it identifies the
 class of index, so an engine can skip a type it does not implement without inspecting the definition.
 
-### Expression-based Definitions
+### Identity and Derived Columns
 
-Beyond the source columns it indexes directly, an index is defined by expressions, which keeps the definition open
-ended. Expressions must be deterministic for the same reason ordering must be stable: an expression that depends on
-`random` or on the evaluation time would place entries at positions that cannot be reproduced.
+Identity columns store values of the indexed row, and derived columns compute everything else from them. Derived
+expressions must be deterministic, otherwise entries could not be placed at reproducible positions. Computing them only
+from identity columns keeps a region file self-contained: a reader can recompute `virtual` columns, and entries that
+share an ordering key can be told apart by its inputs. Ordering by `bucket(256, user_id)`, for example, needs `user_id`
+stored, because different `user_id` values can share a bucket. A `generated-always` column trades storage for faster
+search.
 
-Each expression field contains the expression that produces its value. A field that indexes a source table field as is
-carries no expression: it is declared by its ID in `identity-fields`. Materialized field values are stored in region
-files, while non-materialized field values are represented only by tracking statistics. The ordering key lists field
-IDs in comparison order without repeating their expressions. Engines match query expressions to index fields to
-determine whether the index applies and which stored field contains a result. Because expressions reference only fields
-and metadata columns of the source table, each index field can be evaluated directly from a source row.
+Metadata columns that do not describe a live row of one snapshot are excluded: `_deleted` is the same for every indexed
+row, the changelog columns describe a change between snapshots, and the delete file columns describe delete records.
+`_partition` is excluded because its type changes when the partition spec evolves.
 
-That is also why only some metadata columns can be referenced. An extract indexes the live rows of a single
-table snapshot, so a row has one position and one file, and the value of a column such as `_deleted` is fixed for every
-indexed row. The changelog columns describe a row's change between two snapshots rather than a value within one, and
-the delete file columns describe a delete file record rather than a source row, so neither can be evaluated from the
-row an index entry is built from.
+`identity-fields` gives the extract schema its own field ID space, so IDs can be assigned freely without clashing with
+IDs the source table assigns as it evolves, or with reserved metadata column IDs. For example, a reader synthesizes
+`_pos` from the row position in the region file, so storing the source `_pos` under its own ID would collide.
 
 ### Ordering and Pruning
 
@@ -420,7 +372,7 @@ the bound is stored in the field statistics of the ordering key field, and the o
 order. The bound has to be exact, because a bound rounded up would place the next region file's lower bound above
 entries that file actually contains, so a lookup would prune to the wrong file and miss rows.
 
-Ordinary lower and upper bounds are required for ordering key fields and non-materialized fields because they support
+Ordinary lower and upper bounds are required for ordering key fields and `virtual` columns because they support
 pruning on partial ordering keys, which the `group_max_value` keys alone cannot do. Bounds for the other fields stored
 in region files are optional and, when present, extend pruning to fields outside the ordering key.
 
@@ -431,50 +383,19 @@ order preserving: a file ordered by `day(ts)` is also ordered by a stored `ts` f
 `bucket(256, user_id)` leaves a stored `user_id` field unsorted unless the bucket field is also stored, so a reader may
 need to evaluate the ordering expression over region file rows.
 
-### Region Schema Derivation
-
-The region schema is derived from the identity fields and the materialized fields, so the index definition and the
-physical layout of the index cannot drift apart and the schema does not have to be maintained as a second, redundant
-copy of the definition.
-
-Requiring the stored fields to identify matching rows is what keeps a region file useful on its own. An ordering key
-value alone cannot distinguish the entries that share it, so the source values behind each ordering key field have to
-be indexed as identity fields. Ordering by `bucket(256, user_id)`, for example, requires `user_id` to be an identity
-field, because rows with different `user_id` values can share a bucket. Storing the expression result as well is a
-performance choice, because a reader can search it directly.
-
-The `data-type` declared by an expression field fixes the physical and statistics types for the lifetime of the index.
-It also allows a reader to construct those schemas without binding the expression against a possibly evolved source
-table schema. Fields outside `ordering-key` may use any Iceberg type, and a nested `data-type` includes IDs for the
-fields in its subtree, allowing a covering index to store lists, maps, or structs.
-
-An identity field declares only a source field ID, and its type is resolved from the source table schema rather than
-repeated in index metadata, where the two could disagree. Resolving it needs no new rules: a region file stores the
-field under the source field ID, so a reader reads it exactly as it reads the same column of a data file, including the
-type promotions the table specification allows. Keeping the source field ID also preserves column identity through
-renames and makes the relationship between source and stored fields explicit. Expressions reference source field IDs
-for the same reason, so they are not rewritten when a column is renamed.
-
-A metadata column cannot be an identity field. Its name and ID are fixed by the table specification, so there is no
-column identity to preserve. The region schema is the schema of an Iceberg data file, and metadata column IDs are
-reserved. For example, an Iceberg reader synthesizes `_pos` from the position of a row in the file it is reading, which
-is the region file rather than the source data file, so storing a region schema field under that ID would collide. A
-metadata column is therefore indexed with a materialized field that takes an ordinary field ID, and a reader recognizes
-it from its expression.
-
 ### Source Table Schema Evolution
 
-An extract resolves types against the schema of the snapshot it indexes, so it is always read with the types it was
-written with, and requiring that snapshot to have a `schema-id` makes the resolution total. Source table schema
-evolution therefore only limits which extracts can be created next: a dropped field prevents new extracts, and a type
-promotion applies only to extracts created after it.
+Source table schema evolution only limits which extracts can be created next: a dropped identity source field prevents
+new extracts, and a type promotion or a field made optional requires a new extract schema.
 
-Ordering key fields are the exception, because a region file may be reused unchanged by a later extract whose source
-schema promoted one of them. Its entries keep the order they were written in, so a promotion that reordered values
-would leave the reused region file misordered, breaking the non-overlapping region ranges and the `group_max_value`
-bounds used to prune them. The restriction is placed on reuse rather than on the promotion, because a source table is
-evolved without knowledge of the indexes built over it, so only the index writer can detect the case and rewrite the
-region file instead.
+Extract schemas may differ only in changes that widen the values a field accepts, so a reused region file is read like
+a data file written before a promotion. Any other change would prevent reusing region files and their `content_stats`
+across extracts. Making a field required is unsafe, as region files may contain nulls, and never needed, as an
+optional identity column can hold the values of a required source field.
+
+A reused region file keeps the order it was written in, so an ordering key promotion must not reorder values. This is
+checked on reuse because a source table evolves without knowledge of its indexes, so only the index writer can detect
+the case and rewrite the region file.
 
 ### Atomic Commits
 
@@ -493,28 +414,27 @@ files that only that extract referenced.
 ### Recording the Source Row Location
 
 This specification does not define how an index entry points back to the row it was built from. The pointer is one or
-more ordinary materialized fields, and indexes could identify a row in different ways. The options below cover the
-common cases.
+more identity columns for metadata columns, and indexes could identify a row in different ways. The options below
+cover the common cases.
 
-To identify an individual row, materialize expressions that reference the `_file` (`2147483646`) and `_pos`
-(`2147483645`) metadata columns, as shown in [Appendix C](#appendix-c-example---key-lookup-index). The index fields take
-ordinary field IDs, chosen by whoever defines the index. Every entry then carries the data file and the row position of
-its source row, so a reader can fetch matching rows without scanning the table.
+To identify an individual row, add identity columns for the `_file` (`2147483646`) and `_pos` (`2147483645`) metadata
+columns, as shown in [Appendix C](#appendix-c-example---key-lookup-index). Every entry then carries the data file and
+the row position of its source row, so a reader can fetch matching rows without scanning the table.
 
-For a table with row lineage, materializing `_row_id` (`2147483540`) identifies a row with a single field and keeps the
-pointer valid when a data file is rewritten, at the cost of resolving the row ID to a location when reading.
+For a table with row lineage, an identity column for `_row_id` (`2147483540`) identifies a row with a single column
+and keeps the pointer valid when a data file is rewritten, at the cost of resolving the row ID to a location when
+reading.
 
-An index that only has to eliminate data files can materialize `_file` alone. Recording statistics for a materialized
-`_file` field also lets index maintenance find the entries produced by a data file that has since been rewritten.
+An index that only has to eliminate data files can store `_file` alone. Recording statistics for the `_file` identity
+column also lets index maintenance find the entries produced by a data file that has since been rewritten.
 
-An index that materializes none of these can still prune region files by ordering key, but it cannot return source
-rows.
+An index that stores none of these can still prune region files by ordering key, but it cannot return source rows.
 
-### Choosing Non-Materialized Fields
+### Choosing Virtual Columns
 
-Leaving a field non-materialized suits an ordering expression whose result is as large as its source, such as
-`lower(name)` over an identity field `name`. Storing the result would nearly double the stored bytes, and a reader can
-recompute it from `name` while searching.
+A `virtual` derived column suits an ordering expression whose result is as large as its input, such as `lower(name)`
+over an identity column `name`. Storing the result would nearly double the stored bytes, and a reader can recompute it
+from `name` while searching.
 
 ### Choosing an Ordering Key
 
@@ -541,18 +461,20 @@ extract. Region file boundaries follow the ordering, so a region file holds a co
 range of `user_id` values within a single bucket. The tracking file describes each region file with its location,
 format, record count, and size, together with the statistics used for pruning.
 
-The index stores `user_id` and the source row location. `user_id` is an identity field, so it keeps the field ID and the
-type of the source column, while the location fields are materialized fields that reference metadata columns and so
-take ordinary field IDs. The bucket is field `104`; it is evaluated for ordering and tracking statistics but is not
-stored in region files. The resulting region schema is:
+The extract schema has identity columns for `user_id` (source field `1`) and for the `_file` and `_pos` metadata
+columns, which record the source row location. `identity-fields` maps them to extract schema field IDs `1`, `2`, and
+`3`, so the metadata columns take ordinary IDs instead of their reserved ones. The bucket is a `virtual` derived column
+computed from the `user_id` identity column; it is used for ordering and tracking statistics but is not stored in
+region files. The extract schema is:
 
-| Field id, name    | Type     | Description                                              |
-|-------------------|----------|----------------------------------------------------------|
-| **`1  user_id`**  | `long`   | The identity field on the indexed source column          |
-| **`105  file`**   | `string` | The source data file that contains the row, from `_file` |
-| **`106  pos`**    | `long`   | The row position within that data file, from `_pos`      |
+| Field id, name   | Type     | Column                            | Description                                |
+|------------------|----------|-----------------------------------|--------------------------------------------|
+| **`1  user_id`** | `long`   | Identity of source field `1`      | The indexed source column                  |
+| **`2  file`**    | `string` | Identity of `_file`               | The source data file that contains the row |
+| **`3  pos`**     | `long`   | Identity of `_pos`                | The row position within that data file     |
+| **`4  bucket`**  | `int`    | `virtual`, `bucket(256, user_id)` | The hash bucket of `user_id`               |
 
-The location fields are not part of the ordering key, so entries that fall in the same bucket with the same `user_id`
+The location columns are not part of the ordering key, so entries that fall in the same bucket with the same `user_id`
 are ordered by source location only because the writer chose to store them that way.
 
 The JSON metadata file is shown below.
@@ -568,32 +490,54 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00001-(uuid)
   "location" : "s3://bucket/warehouse/default.db/events/index/bucket_index",
   "last-updated-ms" : 1573518431292,
   "index-type" : "scalar",
-  "identity-fields" : [ 1 ],
-  "materialized-fields" : [ {
-    "field-id" : 105,
-    "type" : "expr-value",
-    "data-type" : "string",
-    "expr" : { "type" : "reference", "id" : 2147483646 }
+  "identity-fields" : [ {
+    "source-id" : 1,
+    "field-id" : 1
   }, {
-    "field-id" : 106,
-    "type" : "expr-value",
-    "data-type" : "long",
-    "expr" : { "type" : "reference", "id" : 2147483645 }
+    "source-id" : 2147483646,
+    "field-id" : 2
+  }, {
+    "source-id" : 2147483645,
+    "field-id" : 3
   } ],
-  "non-materialized-fields" : [ {
-    "field-id" : 104,
-    "type" : "expr-value",
-    "data-type" : "int",
-    "expr" : {
-      "type" : "apply",
-      "function" : { "catalog" : "iceberg_functions", "identifier" : [ "bucket" ] },
-      "arguments" : [ 256, { "type" : "reference", "id" : 1 } ]
-    }
+  "schemas" : [ {
+    "type" : "struct",
+    "schema-id" : 0,
+    "fields" : [ {
+      "id" : 1,
+      "name" : "user_id",
+      "required" : true,
+      "type" : "long"
+    }, {
+      "id" : 2,
+      "name" : "file",
+      "required" : true,
+      "type" : "string"
+    }, {
+      "id" : 3,
+      "name" : "pos",
+      "required" : true,
+      "type" : "long"
+    }, {
+      "id" : 4,
+      "name" : "bucket",
+      "required" : true,
+      "type" : "int",
+      "derived" : {
+        "kind" : "virtual",
+        "expr" : {
+          "type" : "apply",
+          "function" : { "catalog" : "iceberg_functions", "identifier" : [ "bucket" ] },
+          "arguments" : [ 256, { "type" : "reference", "id" : 1 } ]
+        }
+      }
+    } ]
   } ],
-  "ordering-key" : [ 104, 1 ],
+  "ordering-key" : [ 4, 1 ],
   "extracts" : [ {
     "extract-id" : 8744736658442914487,
     "source-table-snapshot-id" : 3055729675574597004,
+    "extract-schema-id" : 0,
     "timestamp-ms" : 1573518431292,
     "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00001-(uuid).parquet",
     "tracking-file-size-in-bytes" : 4382
@@ -610,10 +554,9 @@ two region files:
 | .../region-00001.parquet | parquet     | 3            | 1160               |
 | .../region-00002.parquet | parquet     | 2            | 1024               |
 
-Each tracking file entry also carries a `content_stats` struct. The location fields are materialized fields outside
-`ordering-key`, so no statistics are required for them and this writer stores none. The struct holds field statistics
-for the identity field `user_id` and the non-materialized bucket. Both fields participate in `ordering-key`, so both
-stats structs include `group_max_value`:
+Each tracking file entry also carries a `content_stats` struct. The location columns are outside `ordering-key`, so no
+statistics are required for them and this writer stores none. The struct holds field statistics for `user_id` and the
+`virtual` bucket column. Both are in `ordering-key`, so both stats structs include `group_max_value`:
 
 ```
 146: required struct content_stats {
@@ -622,10 +565,10 @@ stats structs include `group_max_value`:
     10_202: optional long upper_bound;
     10_208: optional long group_max_value;
   }
-  30_800: optional struct bucket {
-    30_801: optional int lower_bound;
-    30_802: optional int upper_bound;
-    30_808: optional int group_max_value;
+  10_800: optional struct bucket {
+    10_801: optional int lower_bound;
+    10_802: optional int upper_bound;
+    10_808: optional int group_max_value;
   }
 }
 ```
@@ -646,11 +589,10 @@ A lookup for `user_id = 55310` evaluates the ordering expressions for that value
 `{ bucket: 88, user_id: 55310 }`. That key is not greater than the upper bound of `region-00001.parquet`, the first
 tracking file entry, so only the first region file is read.
 
-The rows of `region-00001.parquet` follow the region schema constructed from the identity field and the materialized
-fields. They are stored in index order. The non-materialized bucket is shown here to make the complete ordering
-key visible:
+The rows of `region-00001.parquet` follow the extract schema, without the `virtual` bucket column. They are stored in
+index order. The bucket is shown here to make the complete ordering key visible:
 
-| user_id | file                            | pos | (ordering key) |
+| user_id | file                            | pos | (ordering key)   |
 |---------|---------------------------------|-----|------------------|
 | 84721   | .../data/00000-0-(uuid).parquet | 14  | `{ 3, 84721 }`   |
 | 12094   | .../data/00001-0-(uuid).parquet | 3   | `{ 41, 12094 }`  |
@@ -677,12 +619,14 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00002-(uuid)
   "extracts" : [ {
     "extract-id" : 8744736658442914487,
     "source-table-snapshot-id" : 3055729675574597004,
+    "extract-schema-id" : 0,
     "timestamp-ms" : 1573518431292,
     "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00001-(uuid).parquet",
     "tracking-file-size-in-bytes" : 4382
   }, {
     "extract-id" : 6574117201097113750,
     "source-table-snapshot-id" : 5459876531255530170,
+    "extract-schema-id" : 0,
     "timestamp-ms" : 1573518981593,
     "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00002-(uuid).parquet",
     "tracking-file-size-in-bytes" : 4417
@@ -711,7 +655,7 @@ the same field bounds and the same `group_max_value` metrics, which produce the 
 The rows of `region-00003.parquet` interleave the entries of the rewritten region file with the entries added for the
 new data file, keeping the index order:
 
-| user_id | file                            | pos | (ordering key) |
+| user_id | file                            | pos | (ordering key)   |
 |---------|---------------------------------|-----|------------------|
 | 84721   | .../data/00000-0-(uuid).parquet | 14  | `{ 3, 84721 }`   |
 | 71004   | .../data/00002-0-(uuid).parquet | 5   | `{ 17, 71004 }`  |
@@ -738,6 +682,7 @@ s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/00003-(uuid)
   "extracts" : [ {
     "extract-id" : 6574117201097113750,
     "source-table-snapshot-id" : 5459876531255530170,
+    "extract-schema-id" : 0,
     "timestamp-ms" : 1573518981593,
     "tracking-file" : "s3://bucket/warehouse/default.db/events/index/bucket_index/metadata/tracking-00002-(uuid).parquet",
     "tracking-file-size-in-bytes" : 4417
