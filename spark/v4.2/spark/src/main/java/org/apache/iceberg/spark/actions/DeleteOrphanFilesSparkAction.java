@@ -258,7 +258,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     Dataset<FileURI> validFileIdentDS = validFileIdentDS();
 
     Dataset<String> orphanFileDS =
-        findOrphanFiles(actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
+        findOrphanFiles(actualFileIdentDS, validFileIdentDS, prefixMismatchMode, streamResults());
     try {
       return deleteFiles(orphanFileDS);
     } finally {
@@ -350,7 +350,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   static Dataset<String> findOrphanFiles(
       Dataset<FileURI> actualFileIdentDS,
       Dataset<FileURI> validFileIdentDS,
-      PrefixMismatchMode prefixMismatchMode) {
+      PrefixMismatchMode prefixMismatchMode,
+      boolean streamResults) {
 
     SetAccumulator<Pair<String, String>> conflicts = new SetAccumulator<>();
     actualFileIdentDS.sparkSession().sparkContext().register(conflicts);
@@ -362,17 +363,18 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
             .joinWith(validFileIdentDS, joinCond, "leftouter")
             .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING());
 
-    if (prefixMismatchMode != PrefixMismatchMode.ERROR) {
+    if (prefixMismatchMode != PrefixMismatchMode.ERROR && !streamResults) {
       return orphanFileDS;
     }
 
-    // Cache and force computation to populate conflicts accumulator
+    // Caching avoids recomputation in toLocalIterator. Eager evaluation populates conflicts and
+    // completes discovery before deletion starts.
     orphanFileDS = orphanFileDS.cache();
 
     try {
       orphanFileDS.count();
 
-      if (!conflicts.value().isEmpty()) {
+      if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
         throw new ValidationException(
             "Unable to determine whether certain files are orphan. Metadata references files that"
                 + " match listed/provided files except for authority/scheme. Please, inspect the"

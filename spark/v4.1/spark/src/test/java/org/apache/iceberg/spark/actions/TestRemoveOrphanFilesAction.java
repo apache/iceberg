@@ -1198,12 +1198,57 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
   @TestTemplate
   public void deleteModeDoesNotEvaluateEagerly() {
-    assertDoesNotEvaluateEagerly(DeleteOrphanFiles.PrefixMismatchMode.DELETE);
+    assertEvaluatesOnce(DeleteOrphanFiles.PrefixMismatchMode.DELETE, /* streamResults */ false);
   }
 
   @TestTemplate
   public void ignoreModeDoesNotEvaluateEagerly() {
-    assertDoesNotEvaluateEagerly(DeleteOrphanFiles.PrefixMismatchMode.IGNORE);
+    assertEvaluatesOnce(DeleteOrphanFiles.PrefixMismatchMode.IGNORE, /* streamResults */ false);
+  }
+
+  @TestTemplate
+  void streamingIgnoreModeSkipsConflictingPrefixes() {
+    List<String> validFiles =
+        List.of("hdfs://valid/dir/authority-mismatch", "s3://bucket/dir/scheme-mismatch");
+    List<String> actualFiles =
+        List.of(
+            "hdfs://other/dir/authority-mismatch",
+            "hdfs://bucket/dir/scheme-mismatch",
+            "hdfs://bucket/dir/orphan");
+    StringToFileURI toFileUri = new StringToFileURI(ImmutableMap.of(), ImmutableMap.of());
+    Dataset<String> orphanFileDS =
+        DeleteOrphanFilesSparkAction.findOrphanFiles(
+            toFileUri.apply(spark.createDataset(actualFiles, Encoders.STRING())),
+            toFileUri.apply(spark.createDataset(validFiles, Encoders.STRING())),
+            DeleteOrphanFiles.PrefixMismatchMode.IGNORE,
+            /* streamResults */ true);
+
+    try {
+      assertThat(Lists.newArrayList(orphanFileDS.toLocalIterator()))
+          .containsExactly("hdfs://bucket/dir/orphan");
+    } finally {
+      orphanFileDS.unpersist();
+    }
+  }
+
+  @TestTemplate
+  void streamingDeleteModeEvaluatesBeforeIteration() {
+    assertEvaluatesOnce(DeleteOrphanFiles.PrefixMismatchMode.DELETE, /* streamResults */ true);
+  }
+
+  @TestTemplate
+  void streamingIgnoreModeEvaluatesBeforeIteration() {
+    assertEvaluatesOnce(DeleteOrphanFiles.PrefixMismatchMode.IGNORE, /* streamResults */ true);
+  }
+
+  @TestTemplate
+  void streamingDeleteModeDoesNotDeleteOnEvaluationFailure() {
+    assertStreamingDoesNotDeleteOnEvaluationFailure(DeleteOrphanFiles.PrefixMismatchMode.DELETE);
+  }
+
+  @TestTemplate
+  void streamingIgnoreModeDoesNotDeleteOnEvaluationFailure() {
+    assertStreamingDoesNotDeleteOnEvaluationFailure(DeleteOrphanFiles.PrefixMismatchMode.IGNORE);
   }
 
   @TestTemplate
@@ -1242,13 +1287,15 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     return prefix + UUID.randomUUID().toString().replace("-", "");
   }
 
-  private void assertDoesNotEvaluateEagerly(DeleteOrphanFiles.PrefixMismatchMode mode) {
+  private void assertEvaluatesOnce(
+      DeleteOrphanFiles.PrefixMismatchMode mode, boolean streamResults) {
     LongAccumulator processedActualFiles = spark.sparkContext().longAccumulator();
-    List<String> actualFiles = Lists.newArrayList("file:///dir/orphan-file");
+    List<String> actualFiles = List.of("file:///dir/orphan-1", "file:///dir/orphan-2");
     List<String> validFiles = Lists.newArrayList();
     Dataset<String> actualFileDS =
         spark
             .createDataset(actualFiles, Encoders.STRING())
+            .repartition(2)
             .map(
                 (MapFunction<String, String>)
                     file -> {
@@ -1261,10 +1308,61 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     Dataset<String> orphanFileDS =
         DeleteOrphanFilesSparkAction.findOrphanFiles(
-            toFileUri.apply(actualFileDS), toFileUri.apply(validFileDS), mode);
+            toFileUri.apply(actualFileDS), toFileUri.apply(validFileDS), mode, streamResults);
 
-    assertThat(processedActualFiles.value()).isZero();
-    assertThat(orphanFileDS.collectAsList()).containsExactly("file:///dir/orphan-file");
+    try {
+      assertThat(processedActualFiles.value()).isEqualTo(streamResults ? actualFiles.size() : 0L);
+      List<String> orphanFiles =
+          streamResults
+              ? Lists.newArrayList(orphanFileDS.toLocalIterator())
+              : orphanFileDS.collectAsList();
+      assertThat(orphanFiles).containsExactlyInAnyOrderElementsOf(actualFiles);
+      assertThat(processedActualFiles.value()).isEqualTo((long) actualFiles.size());
+    } finally {
+      orphanFileDS.unpersist();
+    }
+  }
+
+  private void assertStreamingDoesNotDeleteOnEvaluationFailure(
+      DeleteOrphanFiles.PrefixMismatchMode mode) {
+    Table table = TABLES.create(SCHEMA, PartitionSpec.unpartitioned(), properties, tableLocation);
+    String location = tableLocation;
+    // Each partition exceeds the 100,000-file deletion batch.
+    long fileCount = 200_002L;
+    Dataset<Row> actualFiles =
+        spark
+            .range(0, fileCount, 1, 2)
+            .map(
+                (MapFunction<Long, FilePathLastModifiedRecord>)
+                    id -> {
+                      if (id == fileCount - 1) {
+                        throw new IOException("Cannot evaluate file listing");
+                      }
+
+                      return new FilePathLastModifiedRecord(
+                          location + "/orphan-" + id, new Timestamp(0));
+                    },
+                Encoders.bean(FilePathLastModifiedRecord.class))
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+    AtomicInteger deletedFiles = new AtomicInteger();
+    int cachedBeforeExecution = spark.sparkContext().getPersistentRDDs().size();
+
+    DeleteOrphanFilesSparkAction action =
+        SparkActions.get()
+            .deleteOrphanFiles(table)
+            .compareToFileList(actualFiles)
+            .prefixMismatchMode(mode)
+            .option(STREAM_RESULTS, "true")
+            .deleteWith(file -> deletedFiles.incrementAndGet());
+    withSQLConf(
+        Map.of("spark.sql.adaptive.enabled", "false", "spark.sql.defaultSizeInBytes", "1"),
+        () ->
+            assertThatThrownBy(action::execute)
+                .hasRootCauseMessage("Cannot evaluate file listing"));
+
+    assertThat(deletedFiles.get()).isZero();
+    assertThat(spark.sparkContext().getPersistentRDDs().size()).isEqualTo(cachedBeforeExecution);
   }
 
   private void executeTest(
@@ -1293,7 +1391,10 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
 
     Dataset<String> orphanFileDS =
         DeleteOrphanFilesSparkAction.findOrphanFiles(
-            toFileUri.apply(actualFileDS), toFileUri.apply(validFileDS), mode);
+            toFileUri.apply(actualFileDS),
+            toFileUri.apply(validFileDS),
+            mode,
+            /* streamResults */ false);
 
     List<String> orphanFiles = orphanFileDS.collectAsList();
     orphanFileDS.unpersist();
@@ -1357,6 +1458,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
         .as("Non-streaming dry-run should return all 10 orphan files")
         .isEqualTo((long) invalidFiles.size());
 
+    int cachedBeforeExecution = spark.sparkContext().getPersistentRDDs().size();
     DeleteOrphanFiles.Result streamingResult =
         SparkActions.get()
             .deleteOrphanFiles(table)
@@ -1372,6 +1474,7 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
     assertThat(streamingResult.orphanFilesCount())
         .as("Deleted 10 files")
         .isEqualTo((long) invalidFiles.size());
+    assertThat(spark.sparkContext().getPersistentRDDs().size()).isEqualTo(cachedBeforeExecution);
 
     for (String invalidFile : invalidFiles) {
       assertThat(fs.exists(new Path(invalidFile))).as("Orphan file should be deleted").isFalse();
