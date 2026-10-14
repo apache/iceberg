@@ -81,6 +81,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.UnitestKMS;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -4097,6 +4098,97 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     String metadataFileLocation =
         ((HasTableOperations) table).operations().current().metadataFileLocation();
     assertThat(metadataFileLocation).contains("ns 1 ?=-+/ns 2 ?=-+/table 1 ?=-+");
+  }
+
+  @Test
+  void clientKmsRejectsVendedCredentialsDelegation() {
+    assertThatThrownBy(
+            () ->
+                catalogWithConfig(
+                    ConfigResponse.builder().build(),
+                    ImmutableMap.of(
+                        CatalogProperties.ENCRYPTION_KMS_IMPL,
+                        UnitestKMS.class.getName(),
+                        "header.X-Iceberg-Access-Delegation",
+                        "vended-credentials")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cannot request access delegation (X-Iceberg-Access-Delegation: vended-credentials) "
+                + "with a client-side KMS unless %s is true",
+            RESTCatalogProperties.ALLOW_ACCESS_DELEGATION);
+  }
+
+  @Test
+  void clientKmsRejectsServerProvidedDelegationHeader() {
+    assertThatThrownBy(
+            () ->
+                catalogWithConfig(
+                    ConfigResponse.builder()
+                        .withOverride("header.X-Iceberg-Access-Delegation", "vended-credentials")
+                        .build(),
+                    ImmutableMap.of(
+                        CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getName())))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("X-Iceberg-Access-Delegation: vended-credentials");
+  }
+
+  @Test
+  void clientKmsAllowsDelegationWhenEnabled() throws IOException {
+    try (RESTCatalog catalog =
+        catalogWithConfig(
+            ConfigResponse.builder().build(),
+            ImmutableMap.of(
+                CatalogProperties.ENCRYPTION_KMS_IMPL,
+                UnitestKMS.class.getName(),
+                "header.X-Iceberg-Access-Delegation",
+                "vended-credentials",
+                RESTCatalogProperties.ALLOW_ACCESS_DELEGATION,
+                "true"))) {
+      assertThat(catalog.listNamespaces()).isEmpty();
+    }
+  }
+
+  @Test
+  void clientKmsAllowsNoAccessDelegation() throws IOException {
+    try (RESTCatalog catalog =
+        catalogWithConfig(
+            ConfigResponse.builder().build(),
+            ImmutableMap.of(
+                CatalogProperties.ENCRYPTION_KMS_IMPL,
+                UnitestKMS.class.getName(),
+                "header.X-Iceberg-Access-Delegation",
+                "none"))) {
+      assertThat(catalog.listNamespaces()).isEmpty();
+    }
+  }
+
+  private RESTCatalog catalogWithConfig(
+      ConfigResponse configResponse, Map<String, String> properties) {
+    RESTCatalogAdapter adapter =
+        new RESTCatalogAdapter(backendCatalog) {
+          @Override
+          public <T extends RESTResponse> T execute(
+              HTTPRequest request,
+              Class<T> responseType,
+              Consumer<ErrorResponse> errorHandler,
+              Consumer<Map<String, String>> responseHeaders) {
+            if (ResourcePaths.config().equals(request.path())) {
+              return castResponse(responseType, configResponse);
+            }
+
+            return super.execute(request, responseType, errorHandler, responseHeaders);
+          }
+        };
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.<String, String>builder()
+            .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
+            .putAll(properties)
+            .buildOrThrow());
+    return catalog;
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
