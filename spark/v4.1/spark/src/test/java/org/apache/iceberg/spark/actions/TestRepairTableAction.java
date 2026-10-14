@@ -416,7 +416,7 @@ public class TestRepairTableAction extends TestBase {
     assertThat(repaired.nanValueCounts()).isEqualTo(corrupt.nanValueCounts());
     assertThat(repaired.lowerBounds()).isEqualTo(corrupt.lowerBounds());
     assertThat(repaired.upperBounds()).isEqualTo(corrupt.upperBounds());
-    assertThat(repaired.avgValueSizes()).isEqualTo(corrupt.avgValueSizes());
+    assertThat(repaired.totalBytes()).isEqualTo(corrupt.totalBytes());
     assertNoRepair(table, false);
   }
 

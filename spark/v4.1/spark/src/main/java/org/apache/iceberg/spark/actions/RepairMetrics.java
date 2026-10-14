@@ -153,7 +153,7 @@ class RepairMetrics {
         file.nanValueCounts(),
         preserveBounds(file.lowerBounds(), metrics.lowerBounds(), preservedBoundIds),
         preserveBounds(file.upperBounds(), metrics.upperBounds(), preservedBoundIds),
-        file.avgValueSizes(),
+        file.totalBytes(),
         null);
   }
 
@@ -234,7 +234,7 @@ class RepairMetrics {
         file.nanValueCounts(),
         file.lowerBounds(),
         file.upperBounds(),
-        file.avgValueSizes(),
+        file.totalBytes(),
         null);
   }
 
