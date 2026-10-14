@@ -303,7 +303,7 @@ A non-null `vector(E, D)` contains exactly D elements of type E, and every eleme
 
 A `vector` must not be promoted to another type. No type other than `unknown` may be promoted to `vector`. The element type and dimension must not change. A `list` of element type E is not a `vector(E, D)`, even when every value has length D.
 
-Equality of vector values is element-wise, using the equality rules of element type. A vector must not be an identifier field. No sort order is defined for a vector value. Writers must not write lower or upper bounds for a vector field.
+Equality of vector values is element-wise, using the equality rules of element type.
 
 ##### CRS
 
