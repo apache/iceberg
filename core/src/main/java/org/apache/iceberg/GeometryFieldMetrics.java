@@ -50,13 +50,15 @@ public class GeometryFieldMetrics extends FieldMetrics<GeospatialBound> {
   }
 
   public static class Builder implements ValueSizeFieldMetrics.BinaryMetricsBuilder {
+    private final int id;
     private final Type geometryType;
-    private final ValueSizeFieldMetrics.Builder sizeMetricsBuilder;
     private final GeometryBoundsBuilder boundsBuilder = new GeometryBoundsBuilder();
+    private long valueCount = 0;
+    private long totalValueSizeInBytes = 0;
 
     public Builder(int id, Type geometryType) {
+      this.id = id;
       this.geometryType = geometryType;
-      this.sizeMetricsBuilder = new ValueSizeFieldMetrics.Builder(id);
     }
 
     @Override
@@ -65,7 +67,8 @@ public class GeometryFieldMetrics extends FieldMetrics<GeospatialBound> {
     }
 
     public void addValue(ByteBuffer wkb) {
-      sizeMetricsBuilder.addValueSize(wkb.remaining());
+      this.valueCount += 1;
+      this.totalValueSizeInBytes += wkb.remaining();
       boundsBuilder.addValue(wkb);
     }
 
@@ -77,14 +80,8 @@ public class GeometryFieldMetrics extends FieldMetrics<GeospatialBound> {
       BoundingBox box = boundsBuilder.build();
       GeospatialBound lowerBound = box == null ? null : box.min();
       GeospatialBound upperBound = box == null ? null : box.max();
-      ValueSizeFieldMetrics sizeMetrics = sizeMetricsBuilder.build();
       return new GeometryFieldMetrics(
-          sizeMetrics.id(),
-          sizeMetrics.valueCount(),
-          lowerBound,
-          upperBound,
-          geometryType,
-          sizeMetrics.totalBytes());
+          id, valueCount, lowerBound, upperBound, geometryType, totalValueSizeInBytes);
     }
   }
 }
