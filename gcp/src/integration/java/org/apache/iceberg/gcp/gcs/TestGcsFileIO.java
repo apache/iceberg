@@ -241,7 +241,10 @@ public class TestGcsFileIO {
     }
   }
 
-  @Disabled("regression in gcs-analytics-core, re-enable once fixed version is available")
+  @Disabled(
+      "Regression in gcs-analytics-core, "
+          + "https://github.com/GoogleCloudPlatform/gcs-analytics-core/pull/371 fixes it, "
+          + "enable once fixed version available")
   @Test
   public void readMissingLocationGcsAnalyticsCoreEnabled() throws IOException {
     String location = String.format("gs://%s/path/to/data.parquet", BUCKET);
