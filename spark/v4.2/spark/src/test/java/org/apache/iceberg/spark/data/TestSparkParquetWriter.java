@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
@@ -67,6 +68,8 @@ import org.apache.spark.sql.catalyst.util.STUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSparkParquetWriter {
@@ -324,33 +327,26 @@ public class TestSparkParquetWriter {
         .isEqualTo(GeospatialBound.createXY(40.0, 40.0));
   }
 
-  @Test
-  void allNullGeometryMetricsHaveNoBounds() throws IOException {
+  @ParameterizedTest
+  @MethodSource("geometriesWithoutBounds")
+  void geometryMetricsHaveNoBounds(byte[] wkb, long expectedNullCount, long expectedTotalBytes)
+      throws IOException {
     Schema schema = new Schema(optional(1, "geom", Types.GeometryType.crs84()));
 
-    Metrics metrics = writeMetrics(schema, geometryRow(null), geometryRow(null));
+    Metrics metrics = writeMetrics(schema, geometryRow(wkb), geometryRow(wkb));
 
     assertThat(metrics.recordCount()).isEqualTo(2L);
     assertThat(metrics.valueCounts()).containsEntry(1, 2L);
-    assertThat(metrics.nullValueCounts()).containsEntry(1, 2L);
-    assertThat(metrics.totalBytes()).containsEntry(1, 0L);
+    assertThat(metrics.nullValueCounts()).containsEntry(1, expectedNullCount);
+    assertThat(metrics.totalBytes()).containsEntry(1, expectedTotalBytes);
     assertThat(metrics.lowerBounds()).isEmpty();
     assertThat(metrics.upperBounds()).isEmpty();
   }
 
-  @Test
-  void emptyGeometryMetricsHaveNoBounds() throws IOException {
-    Schema schema = new Schema(optional(1, "geom", Types.GeometryType.crs84()));
+  private static Stream<Arguments> geometriesWithoutBounds() {
     byte[] emptyPoint = pointWkb(Double.NaN, Double.NaN);
-
-    Metrics metrics = writeMetrics(schema, geometryRow(emptyPoint));
-
-    assertThat(metrics.recordCount()).isEqualTo(1L);
-    assertThat(metrics.valueCounts()).containsEntry(1, 1L);
-    assertThat(metrics.nullValueCounts()).containsEntry(1, 0L);
-    assertThat(metrics.totalBytes()).containsEntry(1, (long) emptyPoint.length);
-    assertThat(metrics.lowerBounds()).isEmpty();
-    assertThat(metrics.upperBounds()).isEmpty();
+    return Stream.of(
+        Arguments.of(null, 2L, 0L), Arguments.of(emptyPoint, 0L, 2L * emptyPoint.length));
   }
 
   private Metrics writeMetrics(Schema schema, InternalRow... rows) throws IOException {
