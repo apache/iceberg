@@ -582,6 +582,26 @@ public class TestPlanTableScanResponseParser {
   }
 
   @Test
+  void negativeDeleteFileReference() {
+    String json =
+        "{\"status\":\"completed\","
+            + "\"delete-files\":[{\"spec-id\":0,\"content\":\"position-deletes\","
+            + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"parquet\","
+            + "\"partition\":[0],\"file-size-in-bytes\":10,\"record-count\":1}],"
+            + "\"file-scan-tasks\":["
+            + "{\"data-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\","
+            + "\"file-format\":\"parquet\",\"partition\":[0],"
+            + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
+            + "\"delete-file-references\":[-1]}]"
+            + "}";
+
+    assertThatThrownBy(
+            () -> PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid delete file references: [-1], expected non-negative indices");
+  }
+
+  @Test
   public void emptyOrInvalidCredentials() {
     assertThat(
             PlanTableScanResponseParser.fromJson(
