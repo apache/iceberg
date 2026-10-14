@@ -48,6 +48,8 @@ import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestPlanTableScanResponseParser {
 
@@ -581,8 +583,9 @@ public class TestPlanTableScanResponseParser {
     assertThat(response.fileScanTasks().get(0).deletes()).isEmpty();
   }
 
-  @Test
-  void negativeDeleteFileReference() {
+  @ParameterizedTest
+  @ValueSource(ints = {-1, 1})
+  void invalidDeleteFileReference(int reference) {
     String json =
         "{\"status\":\"completed\","
             + "\"delete-files\":[{\"spec-id\":0,\"content\":\"position-deletes\","
@@ -592,13 +595,15 @@ public class TestPlanTableScanResponseParser {
             + "{\"data-file\":{\"spec-id\":0,\"content\":\"data\",\"file-path\":\"/path/to/data-a.parquet\","
             + "\"file-format\":\"parquet\",\"partition\":[0],"
             + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
-            + "\"delete-file-references\":[-1]}]"
+            + "\"delete-file-references\":["
+            + reference
+            + "]}]"
             + "}";
 
     assertThatThrownBy(
             () -> PlanTableScanResponseParser.fromJson(json, PARTITION_SPECS_BY_ID, false))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid delete file references: [-1], expected non-negative indices");
+        .hasMessageStartingWith("Invalid delete file references: [" + reference + "]");
   }
 
   @Test
