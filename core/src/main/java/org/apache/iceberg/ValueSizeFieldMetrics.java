@@ -27,16 +27,7 @@ public class ValueSizeFieldMetrics extends FieldMetrics<Object> {
     super(id, valueCount, 0L, -1L, null, null, null, totalBytes);
   }
 
-  /** Builds field metrics from binary values. */
-  public interface BinaryMetricsBuilder {
-    /** Tracks a non-null binary value. */
-    void addValue(byte[] value);
-
-    /** Returns the field metrics accumulated so far. */
-    FieldMetrics<?> build();
-  }
-
-  public static class Builder implements BinaryMetricsBuilder {
+  public static class Builder {
     private final int id;
     private long valueCount = 0;
     private long totalValueSizeInBytes = 0;
@@ -45,18 +36,12 @@ public class ValueSizeFieldMetrics extends FieldMetrics<Object> {
       this.id = id;
     }
 
-    @Override
-    public void addValue(byte[] value) {
-      addValueSize(value.length);
-    }
-
     public void addValueSize(int sizeInBytes) {
       Preconditions.checkArgument(sizeInBytes >= 0, "Invalid value size: %s", sizeInBytes);
       this.valueCount += 1;
       this.totalValueSizeInBytes += sizeInBytes;
     }
 
-    @Override
     public ValueSizeFieldMetrics build() {
       return new ValueSizeFieldMetrics(id, valueCount, totalValueSizeInBytes);
     }

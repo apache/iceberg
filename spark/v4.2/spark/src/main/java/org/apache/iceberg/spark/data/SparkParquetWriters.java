@@ -491,29 +491,21 @@ public class SparkParquetWriters {
   }
 
   private abstract static class GeospatialWriter extends PrimitiveWriter<BinaryView> {
-    private final ValueSizeFieldMetrics.BinaryMetricsBuilder metricsBuilder;
-
     private GeospatialWriter(ColumnDescriptor desc) {
-      this(desc, new ValueSizeFieldMetrics.Builder(desc.getPrimitiveType().getId().intValue()));
-    }
-
-    private GeospatialWriter(
-        ColumnDescriptor desc, ValueSizeFieldMetrics.BinaryMetricsBuilder metricsBuilder) {
       super(desc);
-      this.metricsBuilder = metricsBuilder;
     }
 
     @Override
     public void write(int repetitionLevel, BinaryView value) {
       byte[] wkb = toWkb(value);
-      metricsBuilder.addValue(wkb);
+      updateMetrics(wkb);
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(wkb));
     }
 
+    protected abstract void updateMetrics(byte[] wkb);
+
     @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return Stream.of(metricsBuilder.build());
-    }
+    public abstract Stream<FieldMetrics<?>> metrics();
 
     private byte[] toWkb(BinaryView value) {
       // Slice off Spark's SRID header to preserve the original WKB bytes. STUtils.stGeomAsBinary
@@ -523,17 +515,43 @@ public class SparkParquetWriters {
   }
 
   private static class GeometryWriter extends GeospatialWriter {
+    private final GeometryFieldMetrics.Builder metricsBuilder;
+
     private GeometryWriter(ColumnDescriptor desc, Types.GeometryType geometryType) {
-      super(
-          desc,
+      super(desc);
+      this.metricsBuilder =
           new GeometryFieldMetrics.Builder(
-              desc.getPrimitiveType().getId().intValue(), geometryType));
+              desc.getPrimitiveType().getId().intValue(), geometryType);
+    }
+
+    @Override
+    protected void updateMetrics(byte[] wkb) {
+      metricsBuilder.addValue(ByteBuffer.wrap(wkb));
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return Stream.of(metricsBuilder.build());
     }
   }
 
   private static class GeographyWriter extends GeospatialWriter {
+    private final ValueSizeFieldMetrics.Builder metricsBuilder;
+
     private GeographyWriter(ColumnDescriptor desc) {
       super(desc);
+      this.metricsBuilder =
+          new ValueSizeFieldMetrics.Builder(desc.getPrimitiveType().getId().intValue());
+    }
+
+    @Override
+    protected void updateMetrics(byte[] wkb) {
+      metricsBuilder.addValueSize(wkb.length);
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return Stream.of(metricsBuilder.build());
     }
   }
 

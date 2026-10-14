@@ -33,7 +33,7 @@ public class TestGeometryFieldMetrics {
   @Test
   public void testBoundsAcrossMultiplePoints() {
     GeometryFieldMetrics.Builder builder = new GeometryFieldMetrics.Builder(2, GEOMETRY);
-    builder.addValue(wkbPoint(30, 10).array());
+    builder.addValue(wkbPoint(30, 10));
     builder.addValue(wkbPoint(-5, 40));
 
     FieldMetrics<GeospatialBound> metrics = builder.build();

@@ -493,40 +493,44 @@ public class SparkParquetWriters {
   }
 
   private abstract static class GeospatialWriter<T> extends PrimitiveWriter<T> {
-    private final ValueSizeFieldMetrics.BinaryMetricsBuilder metricsBuilder;
-
     private GeospatialWriter(ColumnDescriptor desc) {
-      this(desc, new ValueSizeFieldMetrics.Builder(desc.getPrimitiveType().getId().intValue()));
-    }
-
-    private GeospatialWriter(
-        ColumnDescriptor desc, ValueSizeFieldMetrics.BinaryMetricsBuilder metricsBuilder) {
       super(desc);
-      this.metricsBuilder = metricsBuilder;
     }
 
     @Override
     public void write(int repetitionLevel, T value) {
       byte[] wkb = toWkb(value);
-      metricsBuilder.addValue(wkb);
+      updateMetrics(wkb);
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(wkb));
     }
 
+    protected abstract void updateMetrics(byte[] wkb);
+
     @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return Stream.of(metricsBuilder.build());
-    }
+    public abstract Stream<FieldMetrics<?>> metrics();
 
     protected abstract byte[] toWkb(T value);
   }
 
   /** Writes a Spark {@link GeometryVal} as its WKB bytes into a BINARY column. */
   private static class GeometryWriter extends GeospatialWriter<GeometryVal> {
+    private final GeometryFieldMetrics.Builder metricsBuilder;
+
     private GeometryWriter(ColumnDescriptor desc, Types.GeometryType geometryType) {
-      super(
-          desc,
+      super(desc);
+      this.metricsBuilder =
           new GeometryFieldMetrics.Builder(
-              desc.getPrimitiveType().getId().intValue(), geometryType));
+              desc.getPrimitiveType().getId().intValue(), geometryType);
+    }
+
+    @Override
+    protected void updateMetrics(byte[] wkb) {
+      metricsBuilder.addValue(ByteBuffer.wrap(wkb));
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return Stream.of(metricsBuilder.build());
     }
 
     @Override
@@ -538,8 +542,22 @@ public class SparkParquetWriters {
 
   /** Writes a Spark {@link GeographyVal} as its WKB bytes into a BINARY column. */
   private static class GeographyWriter extends GeospatialWriter<GeographyVal> {
+    private final ValueSizeFieldMetrics.Builder metricsBuilder;
+
     private GeographyWriter(ColumnDescriptor desc) {
       super(desc);
+      this.metricsBuilder =
+          new ValueSizeFieldMetrics.Builder(desc.getPrimitiveType().getId().intValue());
+    }
+
+    @Override
+    protected void updateMetrics(byte[] wkb) {
+      metricsBuilder.addValueSize(wkb.length);
+    }
+
+    @Override
+    public Stream<FieldMetrics<?>> metrics() {
+      return Stream.of(metricsBuilder.build());
     }
 
     @Override
