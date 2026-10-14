@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.sql;
 
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
+import static org.apache.spark.sql.functions.col;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
@@ -256,6 +257,69 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
                 tableName,
                 tableName(UNPARTITIONED_TABLE_NAME),
                 tableName(OTHER_TABLE_NAME)));
+  }
+
+  @TestTemplate
+  void joinsWithCheckpointedScans() {
+    sql(
+        "CREATE TABLE %s (id INT, data STRING) USING iceberg "
+            + "PARTITIONED BY (id) TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(planningMode);
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+
+    sql(
+        "CREATE TABLE %s (id INT, data STRING) USING iceberg "
+            + "PARTITIONED BY (id) TBLPROPERTIES (%s)",
+        tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(tableName(OTHER_TABLE_NAME), planningMode);
+    sql("INSERT INTO %s VALUES (1, 'x'), (3, 'y'), (4, 'z')", tableName(OTHER_TABLE_NAME));
+
+    AtomicReference<List<Object[]>> expectedRows = new AtomicReference<>();
+    withSQLConf(
+        DISABLED_SPJ_SQL_CONF,
+        () ->
+            expectedRows.set(
+                sql(
+                    "SELECT l.id, l.data, r.data FROM %s l JOIN %s r ON l.id = r.id ORDER BY l.id",
+                    tableName, tableName(OTHER_TABLE_NAME))));
+
+    spark.sparkContext().setCheckpointDir(temp.resolve("checkpoints").toString());
+    withSQLConf(
+        ENABLED_SPJ_SQL_CONF,
+        () -> {
+          for (boolean checkpointBothScans : new boolean[] {true, false}) {
+            Dataset<Row> left = spark.read().table(tableName).checkpoint().as("l");
+            Dataset<Row> right = spark.read().table(tableName(OTHER_TABLE_NAME));
+            if (checkpointBothScans) {
+              right = right.checkpoint();
+            }
+
+            Dataset<Row> joined =
+                left.join(right.as("r"), col("l.id").equalTo(col("r.id")))
+                    .selectExpr("l.id", "l.data", "r.data")
+                    .orderBy("id");
+            assertEquals(
+                "Checkpointing must preserve join results",
+                expectedRows.get(),
+                rowsToJava(joined.collectAsList()));
+            assertThat(
+                    StringUtils.countMatches(
+                        joined.queryExecution().executedPlan().toString(), "Exchange"))
+                .as("Checkpointed scans require join shuffles")
+                .isEqualTo(3);
+          }
+        });
+  }
+
+  @TestTemplate
+  void broadcastJoinOrdersByExpressionAscending() {
+    checkBroadcastJoinOrdering("ASC");
+  }
+
+  @TestTemplate
+  void broadcastJoinOrdersByExpressionDescending() {
+    checkBroadcastJoinOrdering("DESC");
   }
 
   // TODO: add tests for truncate transforms once SPARK-40295 is released
@@ -900,6 +964,39 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
             + "ORDER BY t1.id, t1.int_col, t1.dep, t2.id, t2.int_col, t2.dep",
         tableName,
         otherTableName);
+  }
+
+  private void checkBroadcastJoinOrdering(String direction) {
+    sql(
+        "CREATE TABLE %s (id BIGINT) USING iceberg " + "PARTITIONED BY (id) TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(planningMode);
+    sql("INSERT INTO %s VALUES (-3), (-2), (-1), (1), (2), (3)", tableName);
+
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName(OTHER_TABLE_NAME));
+    configurePlanningMode(tableName(OTHER_TABLE_NAME), planningMode);
+    sql("INSERT INTO %s VALUES (1), (2), (3)", tableName(OTHER_TABLE_NAME));
+
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.V2_BUCKETING_SORTING_ENABLED().key(),
+            "true",
+            SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(),
+            "false"),
+        () -> {
+          for (String joinKey : List.of("-p.id", "4 - p.id")) {
+            assertPartitioningAwarePlan(
+                1,
+                2,
+                "SELECT /*+ BROADCAST(p) */ p.id FROM %s i JOIN %s p "
+                    + "ON i.id = %s ORDER BY %s %s",
+                tableName,
+                tableName(OTHER_TABLE_NAME),
+                joinKey,
+                joinKey,
+                direction);
+          }
+        });
   }
 
   private void checkJoin(String sourceColumnName, String sourceColumnType, String transform)
