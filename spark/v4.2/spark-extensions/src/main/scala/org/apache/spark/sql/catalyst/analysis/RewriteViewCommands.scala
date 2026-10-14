@@ -40,7 +40,11 @@ import org.apache.spark.sql.connector.catalog.LookupCatalog
  * ResolveSessionCatalog exits early for some v2 View commands,
  * thus they are pre-substituted here before Spark routes them through the V1 path.
  */
-case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] with LookupCatalog {
+case class RewriteViewCommands(
+    spark: SparkSession,
+    materializedViewOptions: Option[MaterializedViewOptions] = None)
+    extends Rule[LogicalPlan]
+    with LookupCatalog {
 
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
 
@@ -85,7 +89,8 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
         properties = properties,
         allowExisting = allowExisting,
         replace = replace,
-        viewSchemaMode = viewSchemaMode)
+        viewSchemaMode = viewSchemaMode,
+        materializedViewOptions = materializedViewOptions)
 
     case view @ ShowViews(CurrentNamespace, pattern, output) =>
       if (ViewUtil.isIcebergViewCatalog(catalogManager.currentCatalog)) {
@@ -158,3 +163,5 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
   }
 
 }
+
+case class MaterializedViewOptions(storageTableIdentifier: Option[String])

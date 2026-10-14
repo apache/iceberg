@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.util.JsonUtil;
@@ -37,6 +38,9 @@ public class ViewVersionParser {
   private static final String SCHEMA_ID = "schema-id";
   private static final String DEFAULT_CATALOG = "default-catalog";
   private static final String DEFAULT_NAMESPACE = "default-namespace";
+  private static final String STORAGE_TABLE = "storage-table";
+  private static final String NAMESPACE = "namespace";
+  private static final String NAME = "name";
 
   private ViewVersionParser() {}
 
@@ -61,6 +65,14 @@ public class ViewVersionParser {
       ViewRepresentationParser.toJson(representation, generator);
     }
     generator.writeEndArray();
+
+    if (version.storageTable() != null) {
+      generator.writeObjectFieldStart(STORAGE_TABLE);
+      JsonUtil.writeStringArray(
+          NAMESPACE, Arrays.asList(version.storageTable().namespace().levels()), generator);
+      generator.writeStringField(NAME, version.storageTable().name());
+      generator.writeEndObject();
+    }
 
     generator.writeEndObject();
   }
@@ -98,14 +110,24 @@ public class ViewVersionParser {
 
     Namespace defaultNamespace = Namespace.of(JsonUtil.getStringArray(DEFAULT_NAMESPACE, node));
 
-    return ImmutableViewVersion.builder()
-        .versionId(versionId)
-        .timestampMillis(timestamp)
-        .schemaId(schemaId)
-        .summary(summary)
-        .defaultNamespace(defaultNamespace)
-        .defaultCatalog(defaultCatalog)
-        .representations(representations.build())
-        .build();
+    ImmutableViewVersion.Builder builder =
+        ImmutableViewVersion.builder()
+            .versionId(versionId)
+            .timestampMillis(timestamp)
+            .schemaId(schemaId)
+            .summary(summary)
+            .defaultNamespace(defaultNamespace)
+            .defaultCatalog(defaultCatalog)
+            .representations(representations.build());
+
+    if (node.has(STORAGE_TABLE)) {
+      JsonNode storageTableNode = node.get(STORAGE_TABLE);
+      Namespace storageNamespace =
+          Namespace.of(JsonUtil.getStringArray(JsonUtil.get(NAMESPACE, storageTableNode)));
+      String storageTableName = JsonUtil.getString(NAME, storageTableNode);
+      builder.storageTable(TableIdentifier.of(storageNamespace, storageTableName));
+    }
+
+    return builder.build();
   }
 }

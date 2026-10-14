@@ -66,6 +66,16 @@ public enum SparkCatalogConfig {
       "spark_hive_with_views",
       SparkCatalog.class.getName(),
       ImmutableMap.of("type", "hive", "default-namespace", "default", "cache-enabled", "false")),
+  SPARK_WITH_MATERIALIZED_VIEWS(
+      "spark_with_mvs",
+      SparkCatalog.class.getName(),
+      ImmutableMap.of(
+          CatalogProperties.CATALOG_IMPL,
+          InMemoryCatalog.class.getName(),
+          "default-namespace",
+          "default",
+          "cache-enabled",
+          "false")),
   SPARK_SESSION_WITH_UNIQUE_LOCATION(
       "spark_catalog",
       SparkSessionCatalog.class.getName(),
