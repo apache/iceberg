@@ -679,11 +679,11 @@ Each manifest type contains the following content:
 - v1-v3: All entries in a manifest use the same partition spec, because the manifest's partition struct schema is derived from that spec.
 - v4: A manifest may store files written with different partition specs.
 
-The partition spec used when writing each data file is used to transform predicates on the table’s data rows into predicates on partition values during job planning.
+The partition spec used when writing each data file is used to transform predicates on the table's data rows into predicates on partition values during job planning.
 
 #### Manifest File Format
 
-A manifest file must store metadata as properties in the file’s key-value metadata:
+A manifest file must store metadata as properties in the file's key-value metadata:
 
 === "v1 - v3"
     | v1         | v2 and v3  | Key                 | Value                                                                                                                                       |
