@@ -847,38 +847,27 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
     <a id="tracked-file-requirements"></a>
     Tracked files must meet the following requirements:
 
-    **Manifest contents**
-
-    - A leaf manifest written in v4 may only contain data files.
-    - A root manifest may contain manifests from any format version, but only v4 leaf manifests may be created by writers.
-    - Delete files from pre-v4 tables are valid in upgraded tables and are tracked in delete manifests written before the upgrade.
-
-    **`tracking`**
-
-    - `tracking.snapshot_id`, `tracking.sequence_number`, and `tracking.file_sequence_number` are required for all tracked files in the root manifest. `tracking.first_row_id` is also required for data files, data manifests, and v4 leaf manifests in the root manifest.
-    - Writers should not write a null `tracking.snapshot_id`.
-    - `tracking.deleted_positions` and `tracking.replaced_positions` may only be set if the tracked file is a manifest.
-
-    **`spec_id`**
-
-    - For manifests, `spec_id` must be set to the `spec_id` of the manifest's entries if all entries have the same `spec_id`, and must be null otherwise.
-
-    **`manifest_info`**
-
-    - `manifest_info` must be set if and only if the tracked file is a manifest.
-    - `manifest_info.format_version` must be V4 for manifests written in v4 and PRE-V4 for manifests written by earlier versions.
-    - For manifests, `manifest_info.added_files_count`, `existing_files_count`, `deleted_files_count`, `replaced_files_count`, and `modified_files_count` must sum to `record_count`.
-
-    **`deletion_vector`**
-
-    - `deletion_vector` may only be set if the tracked file is a data file.
-    - Row-level deletes may only be written in v4 as deletion vectors in the data file's `deletion_vector`.
-    - `deletion_vector.offset` and `deletion_vector.size_in_bytes` must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
-
-    **`column_files`**
-
-    - `column_files` may only be set if the tracked file is a data file or a v4 leaf manifest.
-    - A field ID may appear in `field_ids` of at most one column file in a tracked file's `column_files`.
+    - Manifest contents:
+        - A leaf manifest written in v4 may only contain data files.
+        - A root manifest may contain manifests from any format version, but only v4 leaf manifests may be created by writers.
+        - Delete files from pre-v4 tables are valid in upgraded tables and are tracked in delete manifests written before the upgrade.
+    - `tracking`:
+        - `tracking.snapshot_id`, `tracking.sequence_number`, and `tracking.file_sequence_number` are required for all tracked files in the root manifest. `tracking.first_row_id` is also required for data files, data manifests, and v4 leaf manifests in the root manifest.
+        - Writers should not write a null `tracking.snapshot_id`.
+        - `tracking.deleted_positions` and `tracking.replaced_positions` may only be set if the tracked file is a manifest.
+    - `spec_id`:
+        - For manifests, `spec_id` must be set to the `spec_id` of the manifest's entries if all entries have the same `spec_id`, and must be null otherwise.
+    - `manifest_info`:
+        - `manifest_info` must be set if and only if the tracked file is a manifest.
+        - `manifest_info.format_version` must be V4 for manifests written in v4 and PRE-V4 for manifests written by earlier versions.
+        - For manifests, `manifest_info.added_files_count`, `existing_files_count`, `deleted_files_count`, `replaced_files_count`, and `modified_files_count` must sum to `record_count`.
+    - `deletion_vector`:
+        - `deletion_vector` may only be set if the tracked file is a data file.
+        - Row-level deletes may only be written in v4 as deletion vectors in the data file's `deletion_vector`.
+        - `deletion_vector.offset` and `deletion_vector.size_in_bytes` must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
+    - `column_files`:
+        - `column_files` may only be set if the tracked file is a data file or a v4 leaf manifest.
+        - A field ID may appear in `field_ids` of at most one column file in a tracked file's `column_files`.
 
     <a id="updating-tracking-metadata"></a>
     When a file is added to the dataset, its tracked file must set status to ADDED and store the snapshot ID in which the file was added.
