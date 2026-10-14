@@ -707,7 +707,7 @@ Within a snapshot, each content file must be referenced by at most one live mani
 
 #### Manifest Schema
 
-Starting in v4, manifests store `tracked_file` records that describe data or manifest files and contain `tracking` metadata, like `status`. The relationship between a file and its tracking metadata is inverted in v1-v3 manifests, which store `manifest_entry` records that contain tracking information and a `data_file` struct. The v4 manifest schema is not compatible with the v1-v3 manifest schema.
+Starting in v4, manifests store `tracked_file` records that describe data or manifest files and contain a `tracking` struct with metadata such as `status`. In v1-v3 manifests, this relationship is inverted: each `manifest_entry` contains tracking metadata and a `data_file` struct describing the file. The v4 manifest schema is not compatible with the v1-v3 manifest schema.
 
 The contents of a file are part of a snapshot if its tracking `status` is **live**: ADDED, EXISTING, or MODIFIED. Changes in a snapshot are tracked using the additional DELETED and REPLACED statuses.
 
