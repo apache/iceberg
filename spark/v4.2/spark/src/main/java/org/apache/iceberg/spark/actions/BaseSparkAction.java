@@ -502,6 +502,9 @@ abstract class BaseSparkAction<ThisT> {
         recordMissingManifest(manifestLocation, missingManifests, e);
         closeQuietly();
         return false;
+      } catch (RuntimeException e) {
+        closeQuietly();
+        throw e;
       }
     }
 
@@ -511,7 +514,12 @@ abstract class BaseSparkAction<ThisT> {
         throw new NoSuchElementException();
       }
 
-      return entries.next();
+      try {
+        return entries.next();
+      } catch (RuntimeException e) {
+        closeQuietly();
+        throw e;
+      }
     }
 
     private void closeQuietly() {
