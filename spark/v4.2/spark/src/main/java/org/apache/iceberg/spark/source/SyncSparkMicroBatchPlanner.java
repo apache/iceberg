@@ -33,6 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.spark.sql.connector.read.streaming.ReadAllAvailable;
 import org.apache.spark.sql.connector.read.streaming.ReadLimit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -131,6 +132,16 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
 
     Snapshot curSnapshot = table().snapshot(startingOffset.snapshotId());
     validateCurrentSnapshotExists(curSnapshot, startingOffset);
+
+    // For an unbounded limit (Trigger.AvailableNow / ReadLimit.allAvailable) there is no per-file
+    // rate limit to enforce: the end offset is just the latest valid snapshot's added-file count.
+    // Walking only the snapshot chain (metadata; skipping rewrite/delete snapshots) avoids reading
+    // every manifest across the committed->head gap. That walk is O(snapshots-in-gap x files),
+    // single-threaded on the driver, and the dominant cost for scheduled Trigger.AvailableNow
+    // consumers of high-commit-cadence tables. Mirrors AsyncSparkMicroBatchPlanner#latestOffset.
+    if (limit instanceof ReadAllAvailable) {
+      return latestOffsetForUnbounded(startingOffset, curSnapshot);
+    }
 
     // Use the pre-computed snapshotId when Trigger.AvailableNow is enabled.
     long latestSnapshotId =
@@ -231,6 +242,36 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
         new StreamingOffset(curSnapshot.snapshotId(), curPos, scanAllFiles);
 
     // if no new data arrived, then return null.
+    return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
+  }
+
+  // Computes latestOffset for an unbounded (allAvailable) limit without per-file planning: the end
+  // offset is the latest valid snapshot's added-file count (or the pre-computed
+  // Trigger.AvailableNow
+  // cap), reached by walking only the snapshot chain. See latestOffset for the rationale.
+  private StreamingOffset latestOffsetForUnbounded(
+      StreamingOffset startingOffset, Snapshot curSnapshot) {
+    StreamingOffset latestStreamingOffset;
+    if (lastOffsetForTriggerAvailableNow != null) {
+      // Trigger.AvailableNow caps the run at a snapshot computed up front.
+      latestStreamingOffset = lastOffsetForTriggerAvailableNow;
+    } else {
+      // Advance the snapshot chain (metadata only) to the latest valid snapshot.
+      Snapshot lastValidSnapshot = curSnapshot;
+      Snapshot next;
+      do {
+        next = nextValidSnapshot(lastValidSnapshot);
+        if (next != null) {
+          lastValidSnapshot = next;
+        }
+      } while (next != null);
+      latestStreamingOffset =
+          new StreamingOffset(
+              lastValidSnapshot.snapshotId(),
+              MicroBatchUtils.addedFilesCount(table(), lastValidSnapshot),
+              false);
+    }
+    // Preserve the existing contract: return null when the offset did not advance.
     return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
   }
 
