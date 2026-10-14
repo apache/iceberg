@@ -553,6 +553,59 @@ class TestDynamicCommitter {
   }
 
   @Test
+  void testSkipsAlreadyCommittedCheckpointAfterRestoreWithCompactionOnTop() throws Exception {
+    Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
+    assertThat(table.snapshots()).isEmpty();
+
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
+    OneInputStreamOperatorTestHarness aggregatorHarness =
+        new OneInputStreamOperatorTestHarness(aggregator);
+    aggregatorHarness.open();
+
+    TableKey tableKey = new TableKey(TABLE1, "branch");
+    final String jobId = JobID.generate().toHexString();
+    final String operatorId = new OperatorID().toHexString();
+    final int checkpointId = 5;
+
+    createCommitter(true)
+        .commit(
+            Sets.newHashSet(
+                commitRequest(
+                    aggregator, tableKey, WRITE_RESULT_BY_SPEC, jobId, operatorId, checkpointId)));
+
+    DataFile compactedFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/compacted.parquet")
+            .withFileSizeInBytes(0)
+            .withRecordCount(42)
+            .build();
+    catalog
+        .loadTable(TableIdentifier.of(TABLE1))
+        .newRewrite()
+        .toBranch("branch")
+        .rewriteFiles(Sets.newHashSet(DATA_FILE), Sets.newHashSet(compactedFile))
+        .commit();
+
+    createCommitter(true)
+        .commit(
+            Sets.newHashSet(
+                commitRequest(
+                    aggregator,
+                    tableKey,
+                    WRITE_RESULT_BY_SPEC_2,
+                    jobId,
+                    operatorId,
+                    checkpointId)));
+
+    table.refresh();
+    assertThat(table.snapshots()).hasSize(2);
+    assertThat(table.snapshot(table.refs().get("branch").snapshotId()).summary())
+        .doesNotContainKey("flink.job-id")
+        .containsEntry("total-records", "42");
+  }
+
+  @Test
   void testSkipsAlreadyCommittedCheckpointAfterRestore() throws Exception {
     Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
     assertThat(table.snapshots()).isEmpty();
