@@ -20,8 +20,18 @@ package org.apache.iceberg.flink;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import org.apache.flink.table.data.DecimalData;
+import org.apache.flink.table.data.GenericArrayData;
+import org.apache.flink.table.data.GenericMapData;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.data.TimestampData;
 import org.apache.iceberg.RecordWrapperTestBase;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -29,7 +39,11 @@ import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.data.RandomRowData;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
+import org.junit.jupiter.api.Test;
 
 public class TestRowDataWrapper extends RecordWrapperTestBase {
 
@@ -90,5 +104,87 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
 
     assertThat(actual).isExhausted();
     assertThat(expected).isExhausted();
+  }
+
+  @Test
+  void listElementsAreConverted() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(
+                1, "tags", Types.ListType.ofOptional(2, Types.StringType.get())));
+    RowData row =
+        GenericRowData.of(new GenericArrayData(new Object[] {StringData.fromString("a"), null}));
+
+    assertThat(wrap(schema, row).get(0, List.class)).containsExactly("a", null);
+  }
+
+  @Test
+  void listOfTimestampsIsConvertedToMicros() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(
+                1, "times", Types.ListType.ofOptional(2, Types.TimestampType.withoutZone())));
+    LocalDateTime time = LocalDateTime.of(2026, 10, 14, 12, 30, 45, 123_456_000);
+    RowData row =
+        GenericRowData.of(
+            new GenericArrayData(new Object[] {TimestampData.fromLocalDateTime(time)}));
+
+    assertThat(wrap(schema, row).get(0, List.class))
+        .containsExactly(DateTimeUtil.microsFromTimestamp(time));
+  }
+
+  @Test
+  void listOfStructsHasIndependentElements() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(
+                1,
+                "points",
+                Types.ListType.ofOptional(
+                    2,
+                    Types.StructType.of(
+                        Types.NestedField.required(3, "x", Types.IntegerType.get())))));
+    RowData row =
+        GenericRowData.of(
+            new GenericArrayData(new Object[] {GenericRowData.of(1), GenericRowData.of(2)}));
+
+    List<?> points = wrap(schema, row).get(0, List.class);
+    assertThat(points).hasSize(2);
+    assertThat(((StructLike) points.get(0)).get(0, Integer.class)).isEqualTo(1);
+    assertThat(((StructLike) points.get(1)).get(0, Integer.class)).isEqualTo(2);
+  }
+
+  @Test
+  void listOfUnknownElements() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(
+                1, "unknowns", Types.ListType.ofOptional(2, Types.UnknownType.get())));
+    RowData row = GenericRowData.of(new GenericArrayData(new Object[] {null}));
+
+    assertThat(wrap(schema, row).get(0, List.class)).containsExactly((Object) null);
+  }
+
+  @Test
+  void mapKeysAndValuesAreConverted() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(
+                1,
+                "prices",
+                Types.MapType.ofOptional(
+                    2, 3, Types.StringType.get(), Types.DecimalType.of(9, 2))));
+    BigDecimal price = new BigDecimal("1.50");
+    RowData row =
+        GenericRowData.of(
+            new GenericMapData(
+                ImmutableMap.of(
+                    StringData.fromString("a"), DecimalData.fromBigDecimal(price, 9, 2))));
+
+    assertThat(wrap(schema, row).get(0, Map.class)).isEqualTo(ImmutableMap.of("a", price));
+  }
+
+  private static StructLike wrap(Schema schema, RowData row) {
+    return new RowDataWrapper(FlinkSchemaUtil.convert(schema), schema.asStruct()).wrap(row);
   }
 }
