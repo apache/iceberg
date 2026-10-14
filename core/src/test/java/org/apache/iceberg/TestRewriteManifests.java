@@ -39,6 +39,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.TestTemplate;
@@ -940,6 +941,64 @@ public class TestRewriteManifests extends TestBase {
         ids(firstSnapshot.snapshotId()),
         files(FILE_A),
         statuses(ManifestEntry.Status.EXISTING));
+  }
+
+  @TestTemplate
+  public void testAddV1ManifestToV2PlusTable() throws IOException {
+    assumeThat(formatVersion).isGreaterThan(1);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    Snapshot snapshot = table.currentSnapshot();
+    ManifestFile original = Iterables.getOnlyElement(snapshot.allManifests(table.io()));
+
+    OutputFile outputFile =
+        table.ops().io().newOutputFile(temp.resolve("v1-manifest.avro").toString());
+    ManifestWriter<DataFile> writer = ManifestFiles.write(1, table.spec(), outputFile, null);
+    try {
+      writer.existing(
+          FILE_A, snapshot.snapshotId(), snapshot.sequenceNumber(), snapshot.sequenceNumber());
+      writer.existing(
+          FILE_B, snapshot.snapshotId(), snapshot.sequenceNumber(), snapshot.sequenceNumber());
+    } finally {
+      writer.close();
+    }
+
+    ManifestFile v1Manifest = writer.toManifestFile();
+
+    assertThatThrownBy(
+            () ->
+                table.rewriteManifests().deleteManifest(original).addManifest(v1Manifest).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add v1 manifest to a v");
+  }
+
+  @TestTemplate
+  public void testAddV1CopiedManifestToV2PlusTable() throws IOException {
+    assumeThat(formatVersion).isGreaterThan(1);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    Snapshot snapshot = table.currentSnapshot();
+    ManifestFile original = Iterables.getOnlyElement(snapshot.allManifests(table.io()));
+
+    OutputFile outputFile =
+        table.ops().io().newOutputFile(temp.resolve("v1-copied-manifest.avro").toString());
+    ManifestWriter<DataFile> writer = ManifestFiles.write(1, table.spec(), outputFile, -1L);
+    try {
+      writer.existing(
+          FILE_A, snapshot.snapshotId(), snapshot.sequenceNumber(), snapshot.sequenceNumber());
+      writer.existing(
+          FILE_B, snapshot.snapshotId(), snapshot.sequenceNumber(), snapshot.sequenceNumber());
+    } finally {
+      writer.close();
+    }
+
+    ManifestFile v1Manifest = writer.toManifestFile();
+
+    assertThatThrownBy(
+            () ->
+                table.rewriteManifests().deleteManifest(original).addManifest(v1Manifest).commit())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Cannot add v1 manifest to a v");
   }
 
   @TestTemplate

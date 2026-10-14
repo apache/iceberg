@@ -204,6 +204,16 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     return metadata;
   }
 
+  static int formatVersion(InputFile inputFile) {
+    if (FileFormat.fromFileName(inputFile.location()) != FileFormat.AVRO) {
+      // v1 manifests are always Avro, so a non-Avro manifest cannot be v1
+      return Integer.MAX_VALUE;
+    }
+
+    String version = readMetadata(inputFile).get("format-version");
+    return version == null ? 1 : Integer.parseInt(version);
+  }
+
   public boolean isDeleteManifestReader() {
     return content == FileType.DELETE_FILES;
   }
