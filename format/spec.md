@@ -831,9 +831,9 @@ Each stats struct holds statistics for one table field. It may contain the follo
 
 | Requirement | Offset | Name                      | Type                      | Included for                                  | Description |
 |-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
-| _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types |
-| _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types |
-| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry` and `geography` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
+| _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | `variant` or all primitives except `vector`    | Lower bound stored as the field's type, or `geo_lower` for geo types |
+| _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | `variant` or all primitives except `vector`    | Upper bound stored as the field's type, or `geo_upper` for geo types |
+| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry`, `geography`, and `vector` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
 | _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
