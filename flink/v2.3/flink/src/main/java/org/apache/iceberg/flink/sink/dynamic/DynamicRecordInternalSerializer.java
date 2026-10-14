@@ -215,11 +215,13 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
 
   @Override
   public DynamicRecordInternal copy(DynamicRecordInternal from) {
+    RowDataSerializer rowDataSerializer =
+        serializerCache.serializer(from.tableName(), from.schema(), from.spec());
     return new DynamicRecordInternal(
         from.tableName(),
         from.branch(),
         from.schema(),
-        from.rowData(),
+        rowDataSerializer.copy(from.rowData()),
         from.spec(),
         from.writerKey(),
         from.upsertMode(),
@@ -228,12 +230,14 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
 
   @Override
   public DynamicRecordInternal copy(DynamicRecordInternal from, DynamicRecordInternal reuse) {
+    RowDataSerializer rowDataSerializer =
+        serializerCache.serializer(from.tableName(), from.schema(), from.spec());
     reuse.setTableName(from.tableName());
     reuse.setBranch(from.branch());
     reuse.setSchema(from.schema());
     reuse.setSpec(from.spec());
     reuse.setWriterKey(from.writerKey());
-    reuse.setRowData(from.rowData());
+    reuse.setRowData(rowDataSerializer.copy(from.rowData()));
     reuse.setUpsertMode(from.upsertMode());
     reuse.setEqualityFieldIds(from.equalityFields());
     return reuse;
