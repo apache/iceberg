@@ -234,9 +234,15 @@ public class TestGoogleAuthManager {
     ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
     CountDownLatch startLatch = new CountDownLatch(1);
     CountDownLatch finishLatch = new CountDownLatch(numThreads);
+    AtomicInteger totalCalls = new AtomicInteger(0);
 
-    GoogleAuthManager spyManager = spy(authManager);
-    doReturn(credentials).when(spyManager).loadCredentials(any(), any(), any());
+    GoogleAuthManager.CredentialsLoader countableLoader =
+        (path, json, scopes) -> {
+          totalCalls.incrementAndGet();
+          threadSleep();
+          return credentials;
+        };
+    GoogleAuthManager concurrentAuthManager = new GoogleAuthManager(MANAGER_NAME, countableLoader);
 
     AtomicInteger successfulInitializations = new AtomicInteger(0);
     List<Exception> exceptions = Collections.synchronizedList(Lists.newArrayList());
@@ -246,7 +252,7 @@ public class TestGoogleAuthManager {
             () -> {
               try {
                 startLatch.await();
-                spyManager.catalogSession(restClient, Collections.emptyMap());
+                concurrentAuthManager.catalogSession(restClient, Collections.emptyMap());
                 successfulInitializations.incrementAndGet();
               } catch (Exception e) {
                 exceptions.add(e);
@@ -264,7 +270,7 @@ public class TestGoogleAuthManager {
 
     assertThat(exceptions).isEmpty();
     assertThat(successfulInitializations.get()).isEqualTo(numThreads);
-    verify(spyManager, times(1)).loadCredentials(any(), any(), any());
+    assertThat(totalCalls.get()).isEqualTo(1);
   }
 
   @Test
@@ -286,5 +292,13 @@ public class TestGoogleAuthManager {
         AuthManagers.loadAuthManager(
             "test", Map.of(AuthProperties.AUTH_TYPE, AuthProperties.AUTH_TYPE_GOOGLE));
     assertThat(manager).isInstanceOf(GoogleAuthManager.class);
+  }
+
+  private static void threadSleep() {
+    try {
+      Thread.sleep(50);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
   }
 }
