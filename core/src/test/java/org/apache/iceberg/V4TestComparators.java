@@ -55,7 +55,6 @@ class V4TestComparators {
     return Comparator.nullsFirst(
         Comparator.comparing(TrackedFile::tracking, trackingComparator)
             .thenComparing(TrackedFile::contentType, natural())
-            .thenComparingInt(TrackedFile::formatVersion)
             .thenComparing(TrackedFile::location, natural())
             .thenComparing(TrackedFile::fileFormat, natural())
             .thenComparingLong(TrackedFile::recordCount)
@@ -67,8 +66,7 @@ class V4TestComparators {
             .thenComparing(TrackedFile::deletionVector, DELETION_VECTOR)
             .thenComparing(TrackedFile::manifestInfo, MANIFEST_INFO)
             .thenComparing(TrackedFile::keyMetadata, BYTES)
-            .thenComparing(TrackedFile::splitOffsets, SPLIT_OFFSETS)
-            .thenComparing(TrackedFile::equalityIds, EQ_IDS));
+            .thenComparing(TrackedFile::splitOffsets, SPLIT_OFFSETS));
   }
 
   // convenience method for a null-safe natural order comparator
@@ -82,8 +80,6 @@ class V4TestComparators {
       Comparator.nullsFirst(Comparator.comparing(ManifestBitmap::buffer, BYTES));
   private static final Comparator<List<Long>> SPLIT_OFFSETS =
       Comparator.nullsFirst(Comparators.forType(TrackedFile.SPLIT_OFFSETS.type().asListType()));
-  private static final Comparator<List<Integer>> EQ_IDS =
-      Comparator.nullsFirst(Comparators.forType(TrackedFile.EQUALITY_IDS.type().asListType()));
 
   static final Comparator<Tracking> TRACKING =
       Comparator.nullsFirst(
@@ -91,7 +87,7 @@ class V4TestComparators {
               .thenComparing(Tracking::snapshotId, natural())
               .thenComparing(Tracking::dataSequenceNumber, natural())
               .thenComparing(Tracking::fileSequenceNumber, natural())
-              .thenComparing(Tracking::dvSnapshotId, natural())
+              .thenComparing(Tracking::modifiedSnapshotId, natural())
               .thenComparing(Tracking::firstRowId, natural())
               .thenComparing(Tracking::deletedPositions, BYTES)
               .thenComparing(Tracking::replacedPositions, BYTES));
@@ -121,7 +117,8 @@ class V4TestComparators {
               .thenComparingLong(ManifestInfo::replacedRowsCount)
               .thenComparingLong(ManifestInfo::modifiedRowsCount)
               .thenComparingLong(ManifestInfo::minSequenceNumber)
-              .thenComparing(ManifestInfo::manifestDeletionVector, BITMAPS));
+              .thenComparing(ManifestInfo::manifestDeletionVector, BITMAPS)
+              .thenComparingInt(ManifestInfo::formatVersion));
 
   private static final Comparator<ContentStats> CONTENT_STATS =
       Comparator.nullsFirst(new ContentStatsComparator());
@@ -176,7 +173,8 @@ class V4TestComparators {
             comparator.thenComparing(
                 fs -> fs.hasNanValueCount() ? fs.nanValueCount() : null, natural());
       } else if (type.typeId() == Type.TypeID.STRING || type.typeId() == Type.TypeID.BINARY) {
-        comparator = comparator.thenComparing(FieldStats::avgValueSizeInBytes, natural());
+        comparator =
+            comparator.thenComparing(fs -> fs.hasTotalBytes() ? fs.totalBytes() : null, natural());
       }
     }
 

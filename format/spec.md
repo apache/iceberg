@@ -827,7 +827,7 @@ Each stats struct holds statistics for one table field. It may contain the follo
 | _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
-| _optional_  | 7      | `avg_value_size_in_bytes` | `int`                     | `string`, `binary`, `variant`, `geometry`, `geography` | Avg value size in memory (uncompressed) in bytes over non-null values to estimate memory consumption |
+| _optional_  | 7      | `total_bytes`             | `long`                    | `string`, `binary`, `variant`, `geometry`, `geography` | Estimated uncompressed bytes in memory of non-null values. The estimate depends on the in-memory representation |
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
@@ -840,7 +840,7 @@ For example, stats for a `required` `int` field named `id` with field-id `2` are
 
   // null_value_count is only used for optional fields
   // nan_value_count is only used for float and double
-  // avg_value_size_in_bytes is only used for variable length types
+  // total_bytes is only used for variable length types
 }
 ```
 
@@ -884,7 +884,7 @@ For example, stats for an optional `geometry` field named `location` with field-
   }
   10_804: optional long value_count;
   10_805: optional long null_value_count;
-  10_807: optional int avg_value_size_in_bytes;
+  10_807: optional long total_bytes;
   // tight_bounds and nan_value_count are omitted for geo types
 }
 ```
@@ -914,7 +914,7 @@ For example, stats for a table with a required int, `id`, and an optional string
     10_603: optional boolean tight_bounds;
     10_604: optional long value_count;
     10_605: optional long null_value_count;
-    10_607: optional int avg_value_size_in_bytes;
+    10_607: optional long total_bytes;
   }
 }
 ```
@@ -965,6 +965,8 @@ A snapshot consists of the following fields:
     |            |            | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
     |            |            | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
     |            |            | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata |
+
+When committed while the table is at version 4 or higher, a snapshot's `timestamp-ms` must be strictly greater than its parent snapshot's `timestamp-ms` on the same branch. Snapshots with no parent, and snapshots that were committed before a table was upgraded to v4 or higher, do not have this requirement.
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
@@ -1270,7 +1272,7 @@ The schema of the partition statistics file is as follows:
     |            |            | _required_ | **`13 dv_count`**                        | `int`        | Count of deletion vectors |
     | _optional_ | _optional_ | _required_ | **`8 equality_delete_record_count`**     | `long`       | Count of records in equality delete files |
     | _optional_ | _optional_ | _required_ | **`9 equality_delete_file_count`**       | `int`        | Count of equality delete files |
-    | _optional_ | _optional_ | _optional_ | **`10 total_record_count`**              | `long`       | Accurate count of records in a partition after applying deletes if any |
+    | _optional_ | _optional_ | _optional_ | **`10 total_record_count`**              | `long`       | Total number of records in data files, after applying position deletes, equality deletes, or deletion vectors |
     | _optional_ | _optional_ | _optional_ | **`11 last_updated_at`**                 | `long`       | Timestamp in milliseconds from the unix epoch when the partition was last updated |
     | _optional_ | _optional_ | _optional_ | **`12 last_updated_snapshot_id`**        | `long`       | ID of snapshot that last updated this partition |
 
@@ -1386,7 +1388,7 @@ Delete manifests track deletion vectors individually by the containing file loca
 
 At most one deletion vector is allowed per data file in a snapshot. If a DV is written for a data file, it must replace all previously written position delete files so that when a DV is present, readers can safely ignore matching position delete files.
 
-[puffin-spec]: https://iceberg.apache.org/puffin-spec/
+[puffin-spec]: puffin-spec.md
 
 #### Position Delete Files
 
@@ -1601,7 +1603,7 @@ When reading an `unknown` column, any corresponding column must be ignored and r
 
 Notes:
 
-1. ORC's [TimestampColumnVector](https://orc.apache.org/api/hive-storage-api/org/apache/hadoop/hive/ql/exec/vector/TimestampColumnVector.html) consists of a time field (milliseconds since epoch) and a nanos field (nanoseconds within the second). Hence the milliseconds within the second are reported twice; once in the time field and again in the nanos field. The read adapter should only use milliseconds within the second from one of these fields. The write adapter should also report milliseconds within the second twice; once in the time field and again in the nanos field. ORC writer is expected to correctly consider millis information from one of the fields. More details at https://issues.apache.org/jira/browse/ORC-546
+1. ORC's [TimestampColumnVector](https://javadoc.io/doc/org.apache.hive/hive-storage-api/2.8.1/org/apache/hadoop/hive/ql/exec/vector/TimestampColumnVector.html) consists of a time field (milliseconds since epoch) and a nanos field (nanoseconds within the second). Hence the milliseconds within the second are reported twice; once in the time field and again in the nanos field. The read adapter should only use milliseconds within the second from one of these fields. The write adapter should also report milliseconds within the second twice; once in the time field and again in the nanos field. ORC writer is expected to correctly consider millis information from one of the fields. More details at https://issues.apache.org/jira/browse/ORC-546
 2. ORC `timestamp` and `timestamp_instant` values store nanosecond precision. Iceberg ORC writers for Iceberg types `timestamp` and `timestamptz` **must** truncate nanoseconds to microseconds. `iceberg.timestamp-unit` is assumed to be `MICROS` if not present.
 
 One of the interesting challenges with this is how to map Iceberg’s schema evolution (id based) on to ORC’s (name based). In theory, we could use Iceberg’s column ids as the column and field names, but that would be inconvenient.
@@ -1662,7 +1664,7 @@ Hash results are not dependent on decimal scale, which is part of the type, not 
 
 Schemas are serialized as a JSON object with the same fields as a struct in the table below, and the following additional fields:
 
-| v1         | v2         |Field|JSON representation|Example|
+| v1         | v2 and v3  |Field|JSON representation|Example|
 | ---------- | ---------- |--- |--- |--- |
 | _optional_ | _required_ |**`schema-id`**|`JSON int`|`0`|
 | _optional_ | _optional_ |**`identifier-field-ids`**|`JSON list of ints`|`[1, 2]`|
@@ -1918,6 +1920,11 @@ Reading v4 metadata:
 * Relative paths must be resolved against the table location before use (see [Path Resolution](#path-resolution))
 * When `location` is omitted, the table location must be provided (see [Table Location Specification](#table-location-specification))
 
+Snapshot timestamp changes:
+
+* When committed while the table is at version 4 or higher, a snapshot's `timestamp-ms` must be strictly greater than its parent snapshot's `timestamp-ms` on the same branch.
+* Snapshots with no parent and snapshots that existed before a table was upgraded to v4 are not constrained.
+
 Equality deletes are prohibited in v4.
 
 * Writers must not add equality delete files to v4 tables; equality deletes cannot be added as an entry to a v4 manifest
@@ -2085,38 +2092,38 @@ Snapshot summary can include metrics fields to track numeric stats of the snapsh
 
 #### Metrics
 
-| Field                               | Description                                                                                      |
-|-------------------------------------|--------------------------------------------------------------------------------------------------|
-| **`added-data-files`**              | Number of data files added in the snapshot                                                       |
-| **`deleted-data-files`**            | Number of data files deleted in the snapshot                                                     |
-| **`total-data-files`**              | Total number of live data files in the snapshot                                                  |
-| **`added-delete-files`**            | Number of positional/equality delete files and deletion vectors added in the snapshot            |
-| **`added-equality-delete-files`**   | Number of equality delete files added in the snapshot                                            |
-| **`removed-equality-delete-files`** | Number of equality delete files removed in the snapshot                                          |
-| **`added-position-delete-files`**   | Number of position delete files added in the snapshot                                            |
-| **`removed-position-delete-files`** | Number of position delete files removed in the snapshot                                          |
-| **`added-dvs`**                     | Number of deletion vectors added in the snapshot                                                 |
-| **`removed-dvs`**                   | Number of deletion vectors removed in the snapshot                                               |
-| **`removed-delete-files`**          | Number of positional/equality delete files and deletion vectors removed in the snapshot          |
-| **`total-delete-files`**            | Total number of live positional/equality delete files and deletion vectors in the snapshot       |
-| **`added-records`**                 | Number of records added in the snapshot                                                          |
-| **`deleted-records`**               | Number of records deleted in the snapshot                                                        |
-| **`total-records`**                 | Total number of records in the snapshot                                                          |
-| **`added-files-size`**              | The size of files added in the snapshot                                                          |
-| **`removed-files-size`**            | The size of files removed in the snapshot                                                        |
-| **`total-files-size`**              | Total size of live files in the snapshot                                                         |
-| **`added-position-deletes`**        | Number of position delete records added in the snapshot                                          |
-| **`removed-position-deletes`**      | Number of position delete records removed in the snapshot                                        |
-| **`total-position-deletes`**        | Total number of position delete records in the snapshot                                          |
-| **`added-equality-deletes`**        | Number of equality delete records added in the snapshot                                          |
-| **`removed-equality-deletes`**      | Number of equality delete records removed in the snapshot                                        |
-| **`total-equality-deletes`**        | Total number of equality delete records in the snapshot                                          |
-| **`deleted-duplicate-files`**       | Number of duplicate files deleted (duplicates are files recorded more than once in the manifest) |
-| **`changed-partition-count`**       | Number of partitions with files added or removed in the snapshot                                 |
-| **`manifests-created`**             | Number of manifest files created in the snapshot                                                 |
-| **`manifests-kept`**                | Number of manifest files kept in the snapshot                                                    |
-| **`manifests-replaced`**            | Number of manifest files replaced in the snapshot                                                |
-| **`entries-processed`**             | Number of manifest entries processed in the snapshot                                             |
+| Field                               | Description                                                                                                                         |
+|-------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| **`added-data-files`**              | Number of data files added in the snapshot                                                                                          |
+| **`deleted-data-files`**            | Number of data files deleted in the snapshot                                                                                        |
+| **`total-data-files`**              | Total number of live data files in the snapshot                                                                                     |
+| **`added-delete-files`**            | Number of positional/equality delete files and deletion vectors added in the snapshot                                               |
+| **`added-equality-delete-files`**   | Number of equality delete files added in the snapshot                                                                               |
+| **`removed-equality-delete-files`** | Number of equality delete files removed in the snapshot                                                                             |
+| **`added-position-delete-files`**   | Number of position delete files added in the snapshot                                                                               |
+| **`removed-position-delete-files`** | Number of position delete files removed in the snapshot                                                                             |
+| **`added-dvs`**                     | Number of deletion vectors added in the snapshot                                                                                    |
+| **`removed-dvs`**                   | Number of deletion vectors removed in the snapshot                                                                                  |
+| **`removed-delete-files`**          | Number of positional/equality delete files and deletion vectors removed in the snapshot                                             |
+| **`total-delete-files`**            | Total number of live positional/equality delete files and deletion vectors in the snapshot                                          |
+| **`added-records`**                 | Number of records added in the snapshot                                                                                             |
+| **`deleted-records`**               | Number of records deleted in the snapshot                                                                                           |
+| **`total-records`**                 | Total number of records in live data files in the snapshot, before applying position deletes, equality deletes, or deletion vectors |
+| **`added-files-size`**              | The size of files added in the snapshot                                                                                             |
+| **`removed-files-size`**            | The size of files removed in the snapshot                                                                                           |
+| **`total-files-size`**              | Total size of live files in the snapshot                                                                                            |
+| **`added-position-deletes`**        | Number of position delete records added in the snapshot                                                                             |
+| **`removed-position-deletes`**      | Number of position delete records removed in the snapshot                                                                           |
+| **`total-position-deletes`**        | Total number of position delete records in the snapshot                                                                             |
+| **`added-equality-deletes`**        | Number of equality delete records added in the snapshot                                                                             |
+| **`removed-equality-deletes`**      | Number of equality delete records removed in the snapshot                                                                           |
+| **`total-equality-deletes`**        | Total number of equality delete records in the snapshot                                                                             |
+| **`deleted-duplicate-files`**       | Number of duplicate files deleted (duplicates are files recorded more than once in the manifest)                                    |
+| **`changed-partition-count`**       | Number of partitions with files added or removed in the snapshot                                                                    |
+| **`manifests-created`**             | Number of manifest files created in the snapshot                                                                                    |
+| **`manifests-kept`**                | Number of manifest files kept in the snapshot                                                                                       |
+| **`manifests-replaced`**            | Number of manifest files replaced in the snapshot                                                                                   |
+| **`entries-processed`**             | Number of manifest entries processed in the snapshot                                                                                |
 
 #### Other Fields
 

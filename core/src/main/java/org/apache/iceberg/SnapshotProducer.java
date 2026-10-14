@@ -35,6 +35,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -121,6 +122,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private SnapshotAncestryValidator snapshotAncestryValidator =
       SnapshotAncestryValidator.NON_VALIDATING;
 
+  private Clock clock = Clock.systemUTC();
   private ExecutorService workerPool;
   private ExecutorService writePool;
   private int writePoolParallelism = ThreadPools.WORKER_THREAD_POOL_SIZE;
@@ -362,7 +364,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         sequenceNumber,
         snapshotId(),
         parentSnapshotId,
-        System.currentTimeMillis(),
+        snapshotTimestampMillis(parentSnapshot),
         operation(),
         summary(base),
         base.currentSchemaId(),
@@ -692,6 +694,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected ManifestReader<DeleteFile> newDeleteManifestReader(ManifestFile manifest) {
     return ManifestFiles.readDeleteManifest(manifest, ops.io(), ops.current().specsById());
+  }
+
+  @VisibleForTesting
+  void setClock(Clock newClock) {
+    this.clock = newClock;
+  }
+
+  private long snapshotTimestampMillis(Snapshot parentSnapshot) {
+    long now = clock.millis();
+    if (parentSnapshot != null) {
+      return Math.max(now, parentSnapshot.timestampMillis() + 1);
+    }
+
+    return now;
   }
 
   protected long snapshotId() {
