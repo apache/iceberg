@@ -41,7 +41,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.RestoreColumns;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
@@ -71,7 +70,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private final ManifestFile manifest;
   private final ManifestBitmap dv;
   private final FileIO io;
-  private final Schema tableSchema;
   private final Schema readSchema;
   private final String tableLocation;
   private final InclusiveStatsEvaluator statsFilter;
@@ -86,7 +84,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private V4ManifestReader(
       ManifestFile manifest,
       FileIO io,
-      Schema tableSchema,
       Schema readSchema,
       String tableLocation,
       InclusiveStatsEvaluator statsFilter,
@@ -98,7 +95,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     this.manifest = manifest;
     this.dv = manifest.manifestDeletionVector();
     this.io = io;
-    this.tableSchema = tableSchema;
     this.readSchema = readSchema;
     this.tableLocation = tableLocation;
     this.statsFilter = statsFilter;
@@ -253,18 +249,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return reader;
   }
 
-  private void registerGeospatialFieldStatsBounds(
+  private static void registerGeospatialFieldStatsBounds(
       InternalData.ReadBuilder readBuilder, Types.NestedField fieldStats) {
-    Types.NestedField tableField = tableSchema.findField(StatsUtil.toFieldId(fieldStats.fieldId()));
-    if (tableField == null) {
-      return;
-    }
-
-    Type.TypeID typeId = tableField.type().typeId();
-    if (typeId != Type.TypeID.GEOMETRY && typeId != Type.TypeID.GEOGRAPHY) {
-      return;
-    }
-
     Types.StructType struct = fieldStats.type().asStructType();
     setGeospatialBoundCustomType(readBuilder, struct.field(StatsUtil.LOWER_BOUND_NAME));
     setGeospatialBoundCustomType(readBuilder, struct.field(StatsUtil.UPPER_BOUND_NAME));
@@ -272,7 +258,9 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
 
   private static void setGeospatialBoundCustomType(
       InternalData.ReadBuilder readBuilder, Types.NestedField boundField) {
-    if (boundField != null) {
+    // Geometry and geography are the only bound types represented as structs, so a struct bound
+    // is read as GeospatialBound.
+    if (boundField != null && boundField.type().isStructType()) {
       readBuilder.setCustomType(boundField.fieldId(), GeospatialBound.class);
     }
   }
@@ -456,7 +444,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       return new V4ManifestReader(
           manifest,
           io,
-          tableSchema,
           readSchema(!partitionFilters.isEmpty()),
           tableLocation,
           statsFilter(),
