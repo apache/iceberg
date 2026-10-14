@@ -240,7 +240,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       readBuilder.setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsStruct.class);
       for (Types.NestedField fieldStats : statsField.type().asStructType().fields()) {
         readBuilder.setCustomType(fieldStats.fieldId(), FieldStatsStruct.class);
-        registerGeospatialFieldStatsBounds(readBuilder, fieldStats);
+        registerCustomBoundTypes(readBuilder, fieldStats);
       }
     }
 
@@ -249,14 +249,14 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     return reader;
   }
 
-  private static void registerGeospatialFieldStatsBounds(
+  private static void registerCustomBoundTypes(
       InternalData.ReadBuilder readBuilder, Types.NestedField fieldStats) {
     Types.StructType struct = fieldStats.type().asStructType();
-    setGeospatialBoundCustomType(readBuilder, struct.field(StatsUtil.LOWER_BOUND_NAME));
-    setGeospatialBoundCustomType(readBuilder, struct.field(StatsUtil.UPPER_BOUND_NAME));
+    registerStructBound(readBuilder, struct.field(StatsUtil.LOWER_BOUND_NAME));
+    registerStructBound(readBuilder, struct.field(StatsUtil.UPPER_BOUND_NAME));
   }
 
-  private static void setGeospatialBoundCustomType(
+  private static void registerStructBound(
       InternalData.ReadBuilder readBuilder, Types.NestedField boundField) {
     // Geometry and geography are the only bound types represented as structs, so a struct bound
     // is read as GeospatialBound.
