@@ -111,6 +111,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
     // find manifests to clean up that are still referenced by a valid snapshot, but written by an
     // expired snapshot
     Set<String> validManifests = ConcurrentHashMap.newKeySet();
+    Set<ManifestFile> liveDeleteManifests = ConcurrentHashMap.newKeySet();
     Set<ManifestFile> manifestsToScan = ConcurrentHashMap.newKeySet();
 
     // Reads and deletes are done using Tasks.foreach(...).suppressFailureWhenFinished to complete
@@ -131,6 +132,9 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
               try (CloseableIterable<ManifestFile> manifests = readManifests(snapshot)) {
                 for (ManifestFile manifest : manifests) {
                   validManifests.add(manifest.path());
+                  if (manifest.content() == ManifestContent.DELETES) {
+                    liveDeleteManifests.add(manifest.copy());
+                  }
 
                   long snapshotId = manifest.snapshotId();
                   // whether the manifest was created by a valid snapshot (true) or an expired
@@ -261,7 +265,11 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
     if (ExpireSnapshots.CleanupLevel.ALL == cleanupLevel) {
       Set<String> filesToDelete =
           findFilesToDelete(
-              manifestsToScan, manifestsToRevert, validIds, beforeExpiration.specsById());
+              manifestsToScan,
+              manifestsToRevert,
+              liveDeleteManifests,
+              validIds,
+              beforeExpiration.specsById());
       LOG.debug("Deleting {} data files", filesToDelete.size());
       deleteFiles(filesToDelete, "data");
     }
@@ -282,9 +290,11 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
   private Set<String> findFilesToDelete(
       Set<ManifestFile> manifestsToScan,
       Set<ManifestFile> manifestsToRevert,
+      Set<ManifestFile> liveDeleteManifests,
       Set<Long> validIds,
       Map<Integer, PartitionSpec> specsById) {
     Set<String> filesToDelete = ConcurrentHashMap.newKeySet();
+    Set<String> dvFileRemovalCandidates = ConcurrentHashMap.newKeySet();
     Tasks.foreach(manifestsToScan)
         .retry(3)
         .suppressFailureWhenFinished()
@@ -302,13 +312,20 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                   if (entry.status() == ManifestEntry.Status.DELETED
                       && !validIds.contains(entry.snapshotId())) {
                     // use toString to ensure the path will not change (Utf8 is reused)
-                    filesToDelete.add(entry.file().location());
+                    String location = entry.file().location();
+                    if (entry.file().format() == FileFormat.PUFFIN) {
+                      dvFileRemovalCandidates.add(location);
+                    } else {
+                      filesToDelete.add(location);
+                    }
                   }
                 }
               } catch (IOException e) {
                 throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
               }
             });
+
+    filesToDelete.addAll(unreferencedDVs(dvFileRemovalCandidates, liveDeleteManifests, specsById));
 
     Tasks.foreach(manifestsToRevert)
         .retry(3)
@@ -334,5 +351,49 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
             });
 
     return filesToDelete;
+  }
+
+  // A Puffin file can be shared by multiple deletion vectors, so keep it if any live one remains
+  private Set<String> unreferencedDVs(
+      Set<String> dvFileRemovalCandidates,
+      Set<ManifestFile> liveDeleteManifests,
+      Map<Integer, PartitionSpec> specsById) {
+    if (dvFileRemovalCandidates.isEmpty()) {
+      return dvFileRemovalCandidates;
+    }
+
+    Set<String> unreferenced = ConcurrentHashMap.newKeySet();
+    unreferenced.addAll(dvFileRemovalCandidates);
+
+    try {
+      Tasks.foreach(liveDeleteManifests)
+          .retry(3)
+          .stopOnFailure()
+          .throwFailureWhenFinished()
+          .executeWith(planExecutorService)
+          .onFailure(
+              (item, exc) ->
+                  LOG.warn("Failed to determine live DVs in manifest {}", item.path(), exc))
+          .run(
+              manifest -> {
+                if (unreferenced.isEmpty()) {
+                  return;
+                }
+
+                try (CloseableIterable<String> paths =
+                    ManifestFiles.readPaths(manifest, fileIO, specsById)) {
+                  for (String path : paths) {
+                    unreferenced.remove(path);
+                  }
+                } catch (IOException e) {
+                  throw new RuntimeIOException(e, "Failed to read manifest file: %s", manifest);
+                }
+              });
+    } catch (Throwable e) {
+      LOG.warn("Failed to determine live DVs, skipping DV cleanup", e);
+      return Set.of();
+    }
+
+    return unreferenced;
   }
 }
