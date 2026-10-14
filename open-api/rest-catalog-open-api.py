@@ -2016,9 +2016,9 @@ class LoadTableResult(BaseModel):
     ## Key Management Credentials
 
     Credentials for KMS / key-management systems are provided through the `key-management-credentials` field.
-    Clients must first check whether KMS credentials exist in the `key-management-credentials`
-    field before checking the `config` map for KMS credential configuration.
-    Clients must use `key-management-credentials`, if present, consistently with the REST access-delegation credential sourcing rules.
+
+    When `key-management-credentials` contains a credential for a KMS key ID, clients must use it
+    for that key instead of locally configured KMS credentials.
 
     ## Remote Signing
 
