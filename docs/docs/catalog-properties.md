@@ -38,6 +38,8 @@ Iceberg catalogs support using catalog properties to configure catalog behaviors
 | encryption.kms-type               | null               | a predefined KMS client type to use in a catalog for encrypted tables, for example `aws`, `gcp`, or `azure`. See the [Encryption](encryption.md) document for additional details |
 | encryption.kms-impl               | null               | a custom `KeyManagementClient` implementation to use in a catalog for interactions with KMS (key management service). See the [Encryption](encryption.md) document for additional details |
 
+`encryption.kms-type` and `encryption.kms-impl` are mutually exclusive. Configure at most one.
+
 `HadoopCatalog` and `HiveCatalog` can access the properties in their constructors.
 Any other custom catalog can access the properties by implementing `Catalog.initialize(catalogName, catalogProperties)`.
 The properties can be manually constructed or passed in from a compute engine like Spark or Flink.
