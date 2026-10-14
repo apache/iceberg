@@ -493,18 +493,22 @@ public class SparkParquetWriters {
   }
 
   private abstract static class GeospatialWriter<T> extends PrimitiveWriter<T> {
-    private final ValueSizeFieldMetrics.Builder metricsBuilder;
+    private final ValueSizeFieldMetrics.BinaryMetricsBuilder metricsBuilder;
 
     private GeospatialWriter(ColumnDescriptor desc) {
+      this(desc, new ValueSizeFieldMetrics.Builder(desc.getPrimitiveType().getId().intValue()));
+    }
+
+    private GeospatialWriter(
+        ColumnDescriptor desc, ValueSizeFieldMetrics.BinaryMetricsBuilder metricsBuilder) {
       super(desc);
-      this.metricsBuilder =
-          new ValueSizeFieldMetrics.Builder(desc.getPrimitiveType().getId().intValue());
+      this.metricsBuilder = metricsBuilder;
     }
 
     @Override
     public void write(int repetitionLevel, T value) {
       byte[] wkb = toWkb(value);
-      metricsBuilder.addValueSize(wkb.length);
+      metricsBuilder.addValue(wkb);
       column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(wkb));
     }
 
@@ -517,27 +521,18 @@ public class SparkParquetWriters {
   }
 
   /** Writes a Spark {@link GeometryVal} as its WKB bytes into a BINARY column. */
-  private static class GeometryWriter extends PrimitiveWriter<GeometryVal> {
-    private final GeometryFieldMetrics.Builder metricsBuilder;
-
+  private static class GeometryWriter extends GeospatialWriter<GeometryVal> {
     private GeometryWriter(ColumnDescriptor desc, Types.GeometryType geometryType) {
-      super(desc);
-      this.metricsBuilder =
+      super(
+          desc,
           new GeometryFieldMetrics.Builder(
-              desc.getPrimitiveType().getId().intValue(), geometryType);
+              desc.getPrimitiveType().getId().intValue(), geometryType));
     }
 
     @Override
-    public void write(int repetitionLevel, GeometryVal value) {
+    protected byte[] toWkb(GeometryVal value) {
       // Spark stores geometry as [SRID | WKB]; Iceberg stores pure WKB, so strip the SRID header.
-      byte[] wkb = STUtils.stAsBinary(value);
-      metricsBuilder.addValue(ByteBuffer.wrap(wkb));
-      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(wkb));
-    }
-
-    @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return Stream.of(metricsBuilder.build());
+      return STUtils.stAsBinary(value);
     }
   }
 

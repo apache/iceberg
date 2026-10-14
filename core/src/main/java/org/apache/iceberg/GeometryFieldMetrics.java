@@ -49,24 +49,27 @@ public class GeometryFieldMetrics extends FieldMetrics<GeospatialBound> {
     super(id, valueCount, 0L, -1L, lowerBound, upperBound, type, totalBytes);
   }
 
-  public static class Builder {
-    private final int id;
+  public static class Builder implements ValueSizeFieldMetrics.BinaryMetricsBuilder {
     private final Type geometryType;
+    private final ValueSizeFieldMetrics.Builder sizeMetricsBuilder;
     private final GeometryBoundsBuilder boundsBuilder = new GeometryBoundsBuilder();
-    private long valueCount = 0;
-    private long totalValueSizeInBytes = 0;
 
     public Builder(int id, Type geometryType) {
-      this.id = id;
       this.geometryType = geometryType;
+      this.sizeMetricsBuilder = new ValueSizeFieldMetrics.Builder(id);
+    }
+
+    @Override
+    public void addValue(byte[] wkb) {
+      addValue(ByteBuffer.wrap(wkb));
     }
 
     public void addValue(ByteBuffer wkb) {
-      this.valueCount += 1;
-      this.totalValueSizeInBytes += wkb.remaining();
+      sizeMetricsBuilder.addValueSize(wkb.remaining());
       boundsBuilder.addValue(wkb);
     }
 
+    @Override
     public GeometryFieldMetrics build() {
       // build() returns null bounds when a dimension has no value or a value could not be bounded,
       // which leaves the field with counts but no bounds. The total bytes are still reported
@@ -74,8 +77,14 @@ public class GeometryFieldMetrics extends FieldMetrics<GeospatialBound> {
       BoundingBox box = boundsBuilder.build();
       GeospatialBound lowerBound = box == null ? null : box.min();
       GeospatialBound upperBound = box == null ? null : box.max();
+      ValueSizeFieldMetrics sizeMetrics = sizeMetricsBuilder.build();
       return new GeometryFieldMetrics(
-          id, valueCount, lowerBound, upperBound, geometryType, totalValueSizeInBytes);
+          sizeMetrics.id(),
+          sizeMetrics.valueCount(),
+          lowerBound,
+          upperBound,
+          geometryType,
+          sizeMetrics.totalBytes());
     }
   }
 }

@@ -29,7 +29,7 @@ class TestValueSizeFieldMetrics {
   void totalBytes() {
     ValueSizeFieldMetrics.Builder builder = new ValueSizeFieldMetrics.Builder(2);
     builder.addValueSize(21);
-    builder.addValueSize(42);
+    builder.addValue(new byte[42]);
 
     FieldMetrics<?> metrics = builder.build();
 
