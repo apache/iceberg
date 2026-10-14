@@ -42,9 +42,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -52,6 +54,7 @@ import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
@@ -63,6 +66,8 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.STUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSparkParquetWriter {
   @TempDir private Path temp;
@@ -241,12 +246,14 @@ public class TestSparkParquetWriter {
     return bytes;
   }
 
-  @Test
-  public void testGeospatialTotalBytesMetrics() throws IOException {
+  @ParameterizedTest
+  @ValueSource(strings = {"OGC:CRS84", "EPSG:3857"})
+  public void testGeospatialTotalBytesMetrics(String crs) throws IOException {
+    Types.GeometryType geometryType = Types.GeometryType.of(crs);
     Schema geoSchema =
         new Schema(
             required(1, "id", Types.LongType.get()),
-            optional(2, "geom", Types.GeometryType.crs84()),
+            optional(2, "geom", geometryType),
             optional(3, "geog", Types.GeographyType.crs84()));
 
     // WKB payloads of 21 and 41 bytes for geometry (total 62), 21 bytes for geography.
@@ -287,11 +294,86 @@ public class TestSparkParquetWriter {
     assertThat(geomMetrics.valueCount()).isEqualTo(2);
     assertThat(geomMetrics.nullValueCount()).isZero();
     assertThat(geomMetrics.totalBytes()).isEqualTo(62L);
+    assertThat(geomMetrics.originalType()).isEqualTo(geometryType);
 
     FieldMetrics<?> geogMetrics = metricsById.get(geogId);
     assertThat(geogMetrics.valueCount()).isEqualTo(2);
     assertThat(geogMetrics.nullValueCount()).isEqualTo(1);
     assertThat(geogMetrics.totalBytes()).isEqualTo(21L);
+  }
+
+  @Test
+  void geometryBoundsMetrics() throws IOException {
+    Types.GeometryType geometryType = Types.GeometryType.crs84();
+    Schema schema = new Schema(optional(1, "geom", geometryType));
+    byte[] point = pointWkb(-5.0, 40.0);
+    byte[] line = lineStringWkb(30.0, 10.0, 40.0, 20.0);
+
+    Metrics metrics =
+        writeMetrics(schema, geometryRow(point), geometryRow(line), geometryRow(null));
+
+    assertThat(metrics.recordCount()).isEqualTo(3L);
+    assertThat(metrics.valueCounts()).containsEntry(1, 3L);
+    assertThat(metrics.nullValueCounts()).containsEntry(1, 1L);
+    assertThat(metrics.totalBytes()).containsEntry(1, (long) point.length + line.length);
+    assertThat(
+            Conversions.<GeospatialBound>fromByteBuffer(geometryType, metrics.lowerBounds().get(1)))
+        .isEqualTo(GeospatialBound.createXY(-5.0, 10.0));
+    assertThat(
+            Conversions.<GeospatialBound>fromByteBuffer(geometryType, metrics.upperBounds().get(1)))
+        .isEqualTo(GeospatialBound.createXY(40.0, 40.0));
+  }
+
+  @Test
+  void allNullGeometryMetricsHaveNoBounds() throws IOException {
+    Schema schema = new Schema(optional(1, "geom", Types.GeometryType.crs84()));
+
+    Metrics metrics = writeMetrics(schema, geometryRow(null), geometryRow(null));
+
+    assertThat(metrics.recordCount()).isEqualTo(2L);
+    assertThat(metrics.valueCounts()).containsEntry(1, 2L);
+    assertThat(metrics.nullValueCounts()).containsEntry(1, 2L);
+    assertThat(metrics.totalBytes()).containsEntry(1, 0L);
+    assertThat(metrics.lowerBounds()).isEmpty();
+    assertThat(metrics.upperBounds()).isEmpty();
+  }
+
+  @Test
+  void emptyGeometryMetricsHaveNoBounds() throws IOException {
+    Schema schema = new Schema(optional(1, "geom", Types.GeometryType.crs84()));
+    byte[] emptyPoint = pointWkb(Double.NaN, Double.NaN);
+
+    Metrics metrics = writeMetrics(schema, geometryRow(emptyPoint));
+
+    assertThat(metrics.recordCount()).isEqualTo(1L);
+    assertThat(metrics.valueCounts()).containsEntry(1, 1L);
+    assertThat(metrics.nullValueCounts()).containsEntry(1, 0L);
+    assertThat(metrics.totalBytes()).containsEntry(1, (long) emptyPoint.length);
+    assertThat(metrics.lowerBounds()).isEmpty();
+    assertThat(metrics.upperBounds()).isEmpty();
+  }
+
+  private Metrics writeMetrics(Schema schema, InternalRow... rows) throws IOException {
+    FileAppender<InternalRow> writer =
+        Parquet.write(Files.localOutput(temp.resolve("geometry.parquet").toFile()))
+            .schema(schema)
+            .createWriterFunc(
+                msgType ->
+                    SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(schema), msgType))
+            .build();
+
+    try (writer) {
+      for (InternalRow row : rows) {
+        writer.add(row);
+      }
+    }
+
+    return writer.metrics();
+  }
+
+  private static InternalRow geometryRow(byte[] wkb) {
+    return new GenericInternalRow(
+        new Object[] {wkb == null ? null : STUtils.stGeomFromWKB(wkb, 4326)});
   }
 
   private static int fieldId(MessageType parquetSchema, String column) {
