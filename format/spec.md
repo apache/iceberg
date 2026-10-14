@@ -483,7 +483,7 @@ A data file with only new rows for the table may omit the `_last_updated_sequenc
 
 On read, if `_last_updated_sequence_number` is `null` it is assigned the `sequence_number` of the data file's manifest entry. The data sequence number of a data file is documented in [Sequence Number Inheritance](#sequence-number-inheritance).
 
-When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the snapshot root file and is documented in [First Row ID Assignment](#first-row-id-assignment). In v4, a data file in the root manifest is assigned a `first_row_id` in the same way. A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
+When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the snapshot root file and is documented in [First Row ID Assignment](#first-row-id-assignment). Starting in v4, a data file in the root manifest is assigned a `first_row_id` in the same way. A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
 
 When an existing row is moved to a different data file for any reason, writers should write `_row_id` and `_last_updated_sequence_number` according to the following rules:
 
@@ -1053,7 +1053,7 @@ Values for `snapshot_id`, `sequence_number`, and `file_sequence_number` are inhe
 
 Manifests track the sequence number when a data or delete file was added to the table.
 
-The `sequence_number` field represents the data sequence number and must never change after a file is added to the dataset. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
+The `sequence_number` field represents the data sequence number. It is set when a file is added to the dataset and must not change unless a column file is added. The data sequence number represents a relative age of the file content and should be used for planning which delete files apply to a data file.
 The `file_sequence_number` field represents the sequence number of the snapshot that added the file and must also remain unchanged upon assigning at commit. The file sequence number can't be used for pruning delete files as the data within the file may have an older data sequence number.
 
 When adding a new file to a leaf manifest, its data and file sequence numbers are set to `null` because the snapshot's sequence number is not assigned until the snapshot is successfully committed. When reading, sequence numbers are inherited by replacing `null` with the manifest's sequence number from the snapshot root file.
@@ -1121,7 +1121,7 @@ For other optional snapshot summary fields, see [Appendix F](#optional-snapshot-
 Data and delete files for a snapshot can be stored in more than one manifest. This enables:
 
 * Appends can add a new manifest to minimize the amount of data written, instead of adding new records by rewriting and appending to an existing manifest. (This is called a “fast append”.)
-* Tables can use multiple partition specs. A table’s partition configuration can evolve if, for example, its data volume changes. Partition predicates for a partition spec are derived from data predicates and can be applied to filter files written using that spec. Prior to v4, a manifest stored files partitioned by single spec.
+* Tables can use multiple partition specs. A table’s partition configuration can evolve if, for example, its data volume changes. Partition predicates for a partition spec are derived from data predicates and can be applied to filter files written using that spec. Prior to v4, a manifest stored files partitioned by a single spec.
 * Large tables can be split across multiple manifests so that implementations can parallelize job planning or reduce the cost of rewriting a manifest.
 
 Manifests for a snapshot are tracked by the snapshot root file and are not allowed in leaf manifest files.
@@ -1187,18 +1187,18 @@ Notes:
 
 #### First Row ID Assignment
 
-The `first_row_id` for existing manifests must be preserved when writing a new snapshot root file. The value of `first_row_id` for delete manifests is always `null`. The `first_row_id` is only assigned for data manifests that do not have a `first_row_id`. Assignment must account for data files that will be assigned `first_row_id` values when the manifest is read. Data files in the root manifest (v4) must also have a `first_row_id`: existing values must be preserved and `first_row_id` is assigned when a data file is ADDED.
+The `first_row_id` for existing manifests must be preserved when writing a new snapshot root file. The value of `first_row_id` for delete manifests is always `null`. The `first_row_id` is only assigned for data manifests that do not have a `first_row_id`. Assignment must account for data files that will be assigned `first_row_id` values when the manifest is read. Data files in the root manifest (v4+) must also have a `first_row_id`: existing values must be preserved and `first_row_id` is assigned when a data file is ADDED.
 
 The first file in the snapshot root file without a `first_row_id` is assigned a value that is greater than or equal to the `first_row_id` of the snapshot. Subsequent files without a `first_row_id` are assigned one based on the previous file to be assigned a `first_row_id`. Each assigned `first_row_id` must be greater than or equal to the last assigned `first_row_id` plus the row count of the last assigned file, where the row count is:
 
-* For a manifest, the total record count of data files with a null `first_row_id` in the manifest.
+* For a manifest, the sum of `record_count` for its data files with a null `first_row_id`.
 * For a data file, its `record_count`.
 
 A simple and valid approach is to estimate the number of rows in data files that will be assigned a `first_row_id` using the manifest's `added_rows_count` and `existing_rows_count`: `first_row_id = last_assigned.first_row_id + last_assigned.added_rows_count + last_assigned.existing_rows_count`.
 
 ### Scan Planning
 
-A reader plans a scan by producing live data files from the snapshot root file and any leaf manifests referenced by the root.
+A reader plans a scan by producing live data files from the snapshot root file and any live leaf manifests referenced by the root.
 
 A scan uses only [live](#manifest-schema) entries.
 
@@ -1526,9 +1526,11 @@ When removing a data file, writers must also remove any deletion vector that app
 
 Row-level delete files (both equality and position delete files) are valid Iceberg data files: files must use valid Iceberg formats, schemas, and column projection. It is recommended that these delete files are written using the table's default file format.
 
-Row-level delete files and deletion vectors are tracked by manifests. A separate set of manifests is used for delete files and DVs, but the same manifest schema is used for both data and delete manifests. Deletion vectors are tracked individually by file location, offset, and length within the containing file. Deletion vector metadata must include the referenced data file. A deletion vector may instead be colocated with its data file, and writers must colocate new deletion vectors in v4. Deletion vectors in delete manifests written before an upgrade to v4 remain valid.
-
 Both position and equality delete files allow encoding deleted row values with a delete. This can be used to reconstruct a stream of changes to a table.
+
+Row-level delete files and deletion vectors are tracked by manifests. Delete manifests (v2-v3) track delete files and DVs separately from data manifests, using the same manifest schema. Deletion vectors in delete manifests are tracked individually by file location, offset, and length within the containing file, and their metadata must include the referenced data file.
+
+Starting in v4, writers must colocate new deletion vectors with their data file using the [`deletion_vector`](#deletion-vector-fields) field. Deletion vectors in delete manifests written before an upgrade to v4 remain valid.
 
 #### Deletion Vectors
 
