@@ -62,7 +62,7 @@ The full set of changes are listed in [Appendix E](#version-3).
 Version 4 of the Iceberg spec restructures metadata for improved performance and new capabilities:
 
 * Support for an [adaptive metadata tree](#manifests), enabling efficient small commits, column updates, and columnar statistics representation
-* Data files and deletion vectors are stored in a combined entry representation, removing the need for two phase planning
+* Data files and their corresponding deletion vector are stored in a combined entry, removing the need for two-phase planning
 * Support for [relative locations](#file-locations-in-metadata) in metadata fields
 * Writing new [equality deletes](#equality-delete-files) is no longer allowed
 
@@ -147,9 +147,10 @@ Version 4 of the Iceberg spec adds support for relative locations in metadata, e
 * **Schema** -- Names and types of fields in a table.
 * **Partition spec** -- A definition of how partition values are derived from data fields.
 * **Snapshot** -- The state of a table at some point in time, including the set of all data files.
-* **Snapshot root file** -- The per-snapshot file that tracks a snapshot's manifests; a manifest list (v1-v3) or a root manifest (v4).
+* **Snapshot root file** -- The per-snapshot file that tracks a snapshot's manifests; a manifest list (v1-v3) or a root manifest (v4+).
 * **Manifest list** -- (v1-v3 only) A file that lists manifest files; one per snapshot.
-* **Root manifest** -- (v4+) A manifest that can reference leaf manifests, data files, or v1-v3 manifests; one per snapshot.
+* **Root manifest** -- (v4+) A manifest that can reference data files, data manifests, or delete manifests; one per snapshot.
+* **Leaf manifest** -- A data or delete manifest.
 * **Data manifest** -- A file that lists data files and, in v4, their deletion vectors and column files; a subset of a snapshot.
 * **Delete manifest** -- A file that lists delete files to be associated with data files at planning time.
 * **Data file** -- A file that contains rows of a table.
@@ -552,7 +553,7 @@ Note that:
 
 ### Partitioning
 
-Data files are stored in manifests with a tuple of partition values that are used in scans to filter out files that cannot contain records that match the scan’s filter predicate. Partition values for a data file must be the same for all records stored in the data file. Manifests store data files from any partition. v4 manifests may store partitions from any spec, but manifests in v3 and earlier store files for a single spec. A manifest is considered partitioned by a spec if every entry in the manifest is partitioned by that spec.
+Data files are stored in manifests with a tuple of partition values that are used in scans to filter out files that cannot contain records that match the scan’s filter predicate. Partition values for a data file must be the same for all records stored in the data file. Manifests store data files from any partition. Manifests in v3 and earlier store files for a single spec. Starting in v4, manifests may store files from any spec. A manifest is considered partitioned by a spec if every entry in the manifest is partitioned by that spec.
 
 Tables are configured with a **partition spec** that defines how to produce a tuple of partition values from a record. A partition spec has a list of fields that consist of:
 
@@ -706,7 +707,7 @@ Within a snapshot, each content file must be referenced by at most one live mani
 
 #### Manifest Schema
 
-In v4, manifests store `tracked_file` records that describe data or manifest files and contain `tracking` metadata, like `status`. The relationship between a file and its tracking metadata is inverted in v1-v3 manifests, which store `manifest_entry` records that contain tracking information and a `data_file` struct. The v4 manifest schema is not compatible with the v1-v3 manifest schema.
+Starting in v4, manifests store `tracked_file` records that describe data or manifest files and contain `tracking` metadata, like `status`. The relationship between a file and its tracking metadata is inverted in v1-v3 manifests, which store `manifest_entry` records that contain tracking information and a `data_file` struct. The v4 manifest schema is not compatible with the v1-v3 manifest schema.
 
 The contents of a file are part of a snapshot if its tracking `status` is **live**: ADDED, EXISTING, or MODIFIED. Changes in a snapshot are tracked using the additional DELETED and REPLACED statuses.
 
