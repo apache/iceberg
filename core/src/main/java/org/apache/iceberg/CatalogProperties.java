@@ -154,6 +154,16 @@ public class CatalogProperties {
 
   public static final String LOCK_TABLE = "lock.table";
 
+  /**
+   * Maximum time in milliseconds to retry reading table or view metadata during a refresh.
+   *
+   * <p>Retries stop once this much time has passed since the first read attempt, so a refresh can
+   * take one more read attempt longer than this. Support for this property is catalog-dependent.
+   */
+  public static final String METADATA_REFRESH_TIMEOUT_MS = "metadata-refresh.timeout-ms";
+
+  public static final long METADATA_REFRESH_TIMEOUT_MS_DEFAULT = TimeUnit.MINUTES.toMillis(10);
+
   public static final String APP_ID = "app-id";
   public static final String APP_NAME = "app-name";
   public static final String USER = "user";

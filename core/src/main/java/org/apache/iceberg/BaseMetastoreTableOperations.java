@@ -164,6 +164,16 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
     return newMetadataLocation.location();
   }
 
+  /**
+   * Returns the maximum time in milliseconds to retry reading table metadata during a refresh.
+   *
+   * <p>Implementations can override this to make the timeout configurable, for example using {@link
+   * CatalogProperties#METADATA_REFRESH_TIMEOUT_MS}.
+   */
+  protected long metadataRefreshTimeoutMs() {
+    return CatalogProperties.METADATA_REFRESH_TIMEOUT_MS_DEFAULT;
+  }
+
   protected void refreshFromMetadataLocation(String newLocation) {
     refreshFromMetadataLocation(newLocation, null, 20);
   }
@@ -193,7 +203,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
       AtomicReference<TableMetadata> newMetadata = new AtomicReference<>();
       Tasks.foreach(newLocation)
           .retry(numRetries)
-          .exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
+          .exponentialBackoff(100, 5000, metadataRefreshTimeoutMs(), 4.0 /* 100, 400, 1600, ... */)
           .throwFailureWhenFinished()
           .stopRetryOn(NotFoundException.class) // overridden if shouldRetry is non-null
           .shouldRetryTest(shouldRetry)

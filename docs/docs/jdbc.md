@@ -35,6 +35,7 @@ the JDBC catalog allows arbitrary configurations through:
 | -------------------- | --------------------------------- | ------------------------------------------------------ |
 | uri                  |                                   | the JDBC connection string |
 | jdbc.<property_key\> |                                   | any key value pairs to configure the JDBC connection |
+| metadata-refresh.timeout-ms | 600000 (10 min)              | maximum time in milliseconds to retry reading table or view metadata during a refresh |
 
 ### Examples
 

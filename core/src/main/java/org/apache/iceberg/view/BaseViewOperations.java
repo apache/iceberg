@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.BaseMetastoreOperations;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -174,6 +175,16 @@ public abstract class BaseViewOperations extends BaseMetastoreOperations impleme
     }
   }
 
+  /**
+   * Returns the maximum time in milliseconds to retry reading view metadata during a refresh.
+   *
+   * <p>Implementations can override this to make the timeout configurable, for example using {@link
+   * CatalogProperties#METADATA_REFRESH_TIMEOUT_MS}.
+   */
+  protected long metadataRefreshTimeoutMs() {
+    return CatalogProperties.METADATA_REFRESH_TIMEOUT_MS_DEFAULT;
+  }
+
   protected void refreshFromMetadataLocation(String newLocation) {
     refreshFromMetadataLocation(newLocation, null, 20);
   }
@@ -198,7 +209,7 @@ public abstract class BaseViewOperations extends BaseMetastoreOperations impleme
       AtomicReference<ViewMetadata> newMetadata = new AtomicReference<>();
       Tasks.foreach(newLocation)
           .retry(numRetries)
-          .exponentialBackoff(100, 5000, 600000, 4.0 /* 100, 400, 1600, ... */)
+          .exponentialBackoff(100, 5000, metadataRefreshTimeoutMs(), 4.0 /* 100, 400, 1600, ... */)
           .throwFailureWhenFinished()
           .stopRetryOn(NotFoundException.class) // overridden if shouldRetry is non-null
           .shouldRetryTest(shouldRetry)
