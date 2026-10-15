@@ -255,7 +255,6 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     StructType schema = df.schema();
     return applyIterator(
         df,
-        schema,
         repartitionSpec,
         sortSpec(df, repartitionSpec, false),
         rows -> ChangelogIterator.computeUpdates(rows, schema, identifierFields));
@@ -266,7 +265,6 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     StructType schema = df.schema();
     return applyIterator(
         df,
-        schema,
         repartitionSpec,
         sortSpec(df, repartitionSpec, netChanges),
         rows ->
@@ -282,7 +280,6 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
    */
   private Dataset<Row> applyIterator(
       Dataset<Row> df,
-      StructType schema,
       Column[] repartitionSpec,
       Column[] sortSpec,
       FlatMapFunction<Iterator<InternalRow>, InternalRow> transform) {
@@ -293,7 +290,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
             .toRdd()
             .toJavaRDD()
             .mapPartitions(transform);
-    return spark().internalCreateDataFrame(changes.rdd(), schema, false /* isStreaming */);
+    return spark().internalCreateDataFrame(changes.rdd(), df.schema(), false /* isStreaming */);
   }
 
   /**

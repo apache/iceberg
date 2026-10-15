@@ -30,14 +30,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.Ascending$;
-import org.apache.spark.sql.catalyst.expressions.Attribute;
 import org.apache.spark.sql.catalyst.expressions.BaseOrdering;
 import org.apache.spark.sql.catalyst.expressions.BoundReference;
 import org.apache.spark.sql.catalyst.expressions.Expression;
+import org.apache.spark.sql.catalyst.expressions.Literal;
 import org.apache.spark.sql.catalyst.expressions.NullsFirst$;
 import org.apache.spark.sql.catalyst.expressions.RowOrdering;
 import org.apache.spark.sql.catalyst.expressions.SortOrder;
+import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.catalyst.optimizer.InsertMapSortExpression;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 import scala.collection.immutable.Seq;
@@ -50,11 +52,6 @@ import scala.jdk.javaapi.CollectionConverters;
  * call to {@link #hasNext()} or {@link #next()}.
  */
 public abstract class ChangelogIterator implements Iterator<InternalRow> {
-  private static final Seq<Expression> NO_SAME_ORDER_EXPRESSIONS =
-      CollectionConverters.asScala(List.<Expression>of()).toSeq();
-  private static final Seq<Attribute> NO_INPUT_ATTRIBUTES =
-      CollectionConverters.asScala(List.<Attribute>of()).toSeq();
-
   protected static final UTF8String DELETE =
       UTF8String.fromString(ChangelogOperation.DELETE.name());
   protected static final UTF8String INSERT =
@@ -133,16 +130,20 @@ public abstract class ChangelogIterator implements Iterator<InternalRow> {
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
-  protected BoundReference boundReference(int index) {
+  private BoundReference boundReference(int index) {
     return new BoundReference(index, rowType.fields()[index].dataType(), true);
   }
 
+  private static <T> Seq<T> emptySeq() {
+    return CollectionConverters.asScala(List.<T>of()).toSeq();
+  }
+
   /**
-   * Builds an ordering over the given column indices. Two rows are the same record when the
-   * ordering compares them as equal, which applies Spark's own semantics for nested values,
-   * including normalizing map entry order.
+   * Builds an ordering over the given column indices. Two rows are the same record when the ordering
+   * compares them as equal, which applies Spark's own semantics for nested values, including
+   * normalizing map entry order.
    */
-  protected BaseOrdering getOrdering(int[] indices) {
+  protected BaseOrdering createOrdering(int[] indices) {
     List<SortOrder> sortOrders = Lists.newArrayListWithCapacity(indices.length);
     for (int index : indices) {
       sortOrders.add(
@@ -150,11 +151,26 @@ public abstract class ChangelogIterator implements Iterator<InternalRow> {
               InsertMapSortExpression.insertMapSortRecursively(boundReference(index)),
               Ascending$.MODULE$,
               NullsFirst$.MODULE$,
-              NO_SAME_ORDER_EXPRESSIONS));
+              emptySeq()));
     }
 
-    return RowOrdering.create(
-        CollectionConverters.asScala(sortOrders).toSeq(), NO_INPUT_ATTRIBUTES);
+    return RowOrdering.create(CollectionConverters.asScala(sortOrders).toSeq(), emptySeq());
+  }
+
+  /**
+   * Builds a projection that copies a row through unchanged except for the change type column, which
+   * is replaced with the given value.
+   */
+  protected UnsafeProjection changeTypeProjection(UTF8String changeType) {
+    List<Expression> fields = Lists.newArrayListWithCapacity(rowType.size());
+    for (int index = 0; index < rowType.size(); index++) {
+      fields.add(
+          index == changeTypeIndex
+              ? Literal.create(changeType, DataTypes.StringType)
+              : boundReference(index));
+    }
+
+    return UnsafeProjection.create(CollectionConverters.asScala(fields).toSeq());
   }
 
   protected static int[] generateIndicesToIdentifySameRow(

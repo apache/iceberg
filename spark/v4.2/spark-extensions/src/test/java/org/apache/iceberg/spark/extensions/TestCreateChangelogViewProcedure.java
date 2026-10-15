@@ -707,7 +707,7 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  void computeUpdatesWithMapPayloads() {
+  void computeUpdatesRepartitionsAndSortsMapColumns() {
     sql("CREATE TABLE %s (id INT, data MAP<STRING,STRING>) USING iceberg", tableName);
     sql(
         "INSERT INTO %s VALUES (1, map('a', 'same', 'b', 'value'))," + " (2, map('a', 'before'))",
@@ -726,7 +726,7 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
     String viewName = (String) result.get(0)[0];
 
     assertEquals(
-        "Only changed map values should produce update images",
+        "Map columns should survive the repartition and sort, leaving only changed values as updates",
         ImmutableList.of(row(2, "before", UPDATE_BEFORE), row(2, "after", UPDATE_AFTER)),
         sql("SELECT id, data['a'], _change_type FROM %s ORDER BY id, _change_type DESC", viewName));
   }

@@ -47,7 +47,7 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
 
   protected RemoveNetCarryoverIterator(Iterator<InternalRow> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
-    this.ordering = getOrdering(generateIndicesToIdentifySameRow());
+    this.ordering = createOrdering(generateIndicesToIdentifySameRow());
   }
 
   @Override
@@ -71,7 +71,7 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
       return cachedRow;
     }
 
-    cachedRow = getCurrentRow().copy();
+    cachedRow = currentRow().copy();
     // return it directly if there is no more rows
     if (!rowIterator().hasNext()) {
       return cachedRow;
@@ -103,7 +103,7 @@ public class RemoveNetCarryoverIterator extends ChangelogIterator {
     return null;
   }
 
-  private InternalRow getCurrentRow() {
+  private InternalRow currentRow() {
     InternalRow currentRow;
     if (cachedNextRow != null) {
       currentRow = cachedNextRow;

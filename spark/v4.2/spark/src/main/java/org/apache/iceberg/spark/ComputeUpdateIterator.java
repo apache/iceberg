@@ -20,18 +20,11 @@ package org.apache.iceberg.spark;
 
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.BaseOrdering;
-import org.apache.spark.sql.catalyst.expressions.Expression;
-import org.apache.spark.sql.catalyst.expressions.Literal;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
-import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.unsafe.types.UTF8String;
-import scala.jdk.javaapi.CollectionConverters;
 
 /**
  * An iterator that finds delete/insert rows which represent an update, and converts them into
@@ -54,7 +47,7 @@ import scala.jdk.javaapi.CollectionConverters;
  */
 public class ComputeUpdateIterator extends ChangelogIterator {
 
-  private final String[] identifierFields;
+  private final String identifierFieldNames;
   private final BaseOrdering ordering;
   private final UnsafeProjection updateBefore;
   private final UnsafeProjection updateAfter;
@@ -65,10 +58,10 @@ public class ComputeUpdateIterator extends ChangelogIterator {
       Iterator<InternalRow> rowIterator, StructType rowType, String[] identifierFields) {
     super(rowIterator, rowType);
     this.ordering =
-        getOrdering(Arrays.stream(identifierFields).mapToInt(rowType::fieldIndex).toArray());
-    this.updateBefore = updateProjection(UPDATE_BEFORE);
-    this.updateAfter = updateProjection(UPDATE_AFTER);
-    this.identifierFields = identifierFields;
+        createOrdering(Arrays.stream(identifierFields).mapToInt(rowType::fieldIndex).toArray());
+    this.updateBefore = changeTypeProjection(UPDATE_BEFORE);
+    this.updateAfter = changeTypeProjection(UPDATE_AFTER);
+    this.identifierFieldNames = String.join(",", identifierFields);
   }
 
   @Override
@@ -89,43 +82,37 @@ public class ComputeUpdateIterator extends ChangelogIterator {
     }
 
     // either a cached record which is not an UPDATE or the next record in the iterator.
+    // cached rows are always copies, so only rows taken from the iterator need to be copied below
+    boolean cached = cachedRow != null;
     InternalRow currentRow = currentRow();
 
-    if (changeType(currentRow).equals(DELETE)) {
+    if (!changeType(currentRow).equals(DELETE)) {
+      return currentRow;
+    }
+
+    // copy before probing the upstream iterator, which may invalidate the row it just returned
+    if (!cached) {
       currentRow = currentRow.copy();
-      if (!rowIterator().hasNext()) {
-        return currentRow;
-      }
-
-      InternalRow nextRow = rowIterator().next();
-      if (ordering.compare(currentRow, nextRow) == 0) {
-        Preconditions.checkState(
-            changeType(nextRow).equals(INSERT),
-            "Cannot compute updates because there are multiple rows with the same identifier"
-                + " fields([%s]). Please make sure the rows are unique.",
-            String.join(",", identifierFields));
-
-        currentRow = updateBefore.apply(currentRow).copy();
-        cachedRow = updateAfter.apply(nextRow).copy();
-      } else {
-        cachedRow = nextRow.copy();
-      }
     }
 
-    return currentRow;
-  }
-
-  private UnsafeProjection updateProjection(UTF8String changeType) {
-    int fieldCount = rowType().size();
-    List<Expression> fields = Lists.newArrayListWithCapacity(fieldCount);
-    for (int index = 0; index < fieldCount; index++) {
-      fields.add(
-          index == changeTypeIndex()
-              ? Literal.create(changeType, DataTypes.StringType)
-              : boundReference(index));
+    if (!rowIterator().hasNext()) {
+      return currentRow;
     }
 
-    return UnsafeProjection.create(CollectionConverters.asScala(fields).toSeq());
+    InternalRow nextRow = rowIterator().next();
+    if (ordering.compare(currentRow, nextRow) != 0) {
+      cachedRow = nextRow.copy();
+      return currentRow;
+    }
+
+    Preconditions.checkState(
+        changeType(nextRow).equals(INSERT),
+        "Cannot compute updates because there are multiple rows with the same identifier"
+            + " fields([%s]). Please make sure the rows are unique.",
+        identifierFieldNames);
+
+    cachedRow = updateAfter.apply(nextRow).copy();
+    return updateBefore.apply(currentRow).copy();
   }
 
   private boolean cachedUpdateRecord() {

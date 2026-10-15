@@ -58,7 +58,7 @@ class RemoveCarryoverIterator extends ChangelogIterator {
 
   RemoveCarryoverIterator(Iterator<InternalRow> rowIterator, StructType rowType) {
     super(rowIterator, rowType);
-    this.ordering = getOrdering(generateIndicesToIdentifySameRow());
+    this.ordering = createOrdering(generateIndicesToIdentifySameRow());
   }
 
   @Override
@@ -133,14 +133,13 @@ class RemoveCarryoverIterator extends ChangelogIterator {
   }
 
   /**
-   * The iterator returns a cached delete row if there are delete rows cached and the next row is
-   * not the same record or there is no next row.
+   * The iterator returns a cached delete row if there are delete rows cached and the next row is not
+   * the same record or there is no next row.
    */
   private boolean returnCachedDeleteRow() {
     return hasCachedDeleteRow() && hitBoundary();
   }
 
-  /** Checks the cached row first so the upstream iterator is only probed when it has to be. */
   private boolean hitBoundary() {
     return cachedNextRecord != null || !rowIterator().hasNext();
   }

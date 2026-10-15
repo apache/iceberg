@@ -18,14 +18,19 @@
  */
 package org.apache.iceberg.spark;
 
+import com.google.errorprone.annotations.FormatMethod;
+import com.google.errorprone.annotations.FormatString;
 import java.net.URI;
 import java.nio.file.Files;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.internal.SQLConf;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -40,6 +45,15 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
+/**
+ * A benchmark that evaluates the performance of the changelog view iterators.
+ *
+ * <p>To run this benchmark for spark-4.2: <code>
+ *   ./gradlew -DsparkVersions=4.2 :iceberg-spark:iceberg-spark-extensions-4.2_2.13:jmh
+ *       -PjmhIncludeRegex=ChangelogViewBenchmark
+ *       -PjmhOutputPath=benchmark/iceberg-changelog-view-benchmark.txt
+ * </code>
+ */
 @Fork(2)
 @State(Scope.Benchmark)
 @Warmup(iterations = 3)
@@ -70,37 +84,29 @@ public class ChangelogViewBenchmark {
   @Setup
   public void setup() throws Exception {
     Preconditions.checkArgument(
-        rowCount % REVERT_INTERVAL == 0, "Row count must be divisible by 20");
+        rowCount % REVERT_INTERVAL == 0, "Row count must be divisible by %s", REVERT_INTERVAL);
     this.warehouse = Files.createTempDirectory("changelog-benchmark-").toUri();
     this.spark =
         SparkSession.builder()
             .master("local[2]")
-            .config("spark.ui.enabled", "false")
+            .config(TestBase.DISABLE_UI)
             .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
             .config("spark.sql.catalog.bench", SparkCatalog.class.getName())
             .config("spark.sql.catalog.bench.type", "hadoop")
             .config("spark.sql.catalog.bench.warehouse", warehouse.toString())
-            .config("spark.sql.shuffle.partitions", "4")
-            .config("spark.sql.adaptive.enabled", "false")
+            .config(SQLConf.SHUFFLE_PARTITIONS().key(), "4")
+            .config(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false")
             .getOrCreate();
     spark.sparkContext().setLogLevel("WARN");
-    spark.sql("CREATE NAMESPACE IF NOT EXISTS bench.default");
-    spark.sql(
-        "CREATE TABLE "
-            + TABLE
-            + " USING iceberg TBLPROPERTIES ('format-version'='2') AS "
-            + inputQuery("0"));
+    sql("CREATE NAMESPACE IF NOT EXISTS bench.default");
+    sql(
+        "CREATE TABLE %s USING iceberg TBLPROPERTIES ('format-version'='2') AS %s",
+        TABLE, inputQuery("0"));
     long startSnapshot = Spark3Util.loadIcebergTable(spark, TABLE).currentSnapshot().snapshotId();
-    spark.sql(
-        "INSERT OVERWRITE "
-            + TABLE
-            + " "
-            + inputQuery("IF(id % " + CHANGE_INTERVAL + " = 0, 1, 0)"));
-    spark.sql(
-        "INSERT OVERWRITE "
-            + TABLE
-            + " "
-            + inputQuery("IF(id % " + REVERT_INTERVAL + " = " + CHANGE_INTERVAL + ", 1, 0)"));
+    sql("INSERT OVERWRITE %s %s", TABLE, inputQuery("IF(id % " + CHANGE_INTERVAL + " = 0, 1, 0)"));
+    sql(
+        "INSERT OVERWRITE %s %s",
+        TABLE, inputQuery("IF(id % " + REVERT_INTERVAL + " = " + CHANGE_INTERVAL + ", 1, 0)"));
     long endSnapshot = Spark3Util.loadIcebergTable(spark, TABLE).currentSnapshot().snapshotId();
     String options =
         switch (operation) {
@@ -110,22 +116,14 @@ public class ChangelogViewBenchmark {
           default -> throw new IllegalArgumentException("Unknown operation: " + operation);
         };
     this.call =
-        "CALL bench.system.create_changelog_view(table => '"
-            + TABLE
-            + "', changelog_view => '"
-            + VIEW
-            + "', options => map('start-snapshot-id', '"
-            + startSnapshot
-            + "', 'end-snapshot-id', '"
-            + endSnapshot
-            + "'), "
-            + options
-            + ")";
+        String.format(
+            "CALL bench.system.create_changelog_view(table => '%s', changelog_view => '%s',"
+                + " options => map('start-snapshot-id', '%d', 'end-snapshot-id', '%d'), %s)",
+            TABLE, VIEW, startSnapshot, endSnapshot, options);
     this.expectedRows =
         operation.equals("net")
             ? 2 * (rowCount / CHANGE_INTERVAL - rowCount / REVERT_INTERVAL)
             : 2 * (rowCount / CHANGE_INTERVAL + rowCount / REVERT_INTERVAL);
-    createAndReadChangelog();
   }
 
   @Benchmark
@@ -141,8 +139,8 @@ public class ChangelogViewBenchmark {
   public void tearDown() throws Exception {
     if (spark != null) {
       try {
-        spark.sql("DROP VIEW IF EXISTS " + VIEW);
-        spark.sql("DROP TABLE IF EXISTS " + TABLE + " PURGE");
+        sql("DROP VIEW IF EXISTS %s", VIEW);
+        sql("DROP TABLE IF EXISTS %s PURGE", TABLE);
         FileSystem.get(warehouse, spark.sparkContext().hadoopConfiguration())
             .delete(new Path(warehouse), true);
       } finally {
@@ -152,15 +150,19 @@ public class ChangelogViewBenchmark {
   }
 
   private String inputQuery(String revision) {
-    StringBuilder query = new StringBuilder("SELECT id, ").append(revision).append(" AS revision");
-    for (int index = 0; index < payloadColumns; index++) {
-      query
-          .append(", sha2(concat(cast(id AS STRING), '")
-          .append(index)
-          .append("'), 256) AS payload_")
-          .append(index);
-    }
+    String payload =
+        IntStream.range(0, payloadColumns)
+            .mapToObj(
+                index ->
+                    String.format(
+                        ", sha2(concat(cast(id AS STRING), '%d'), 256) AS payload_%d", index, index))
+            .collect(Collectors.joining());
+    return String.format(
+        "SELECT id, %s AS revision%s FROM range(0, %d, 1, 4)", revision, payload, rowCount);
+  }
 
-    return query.append(" FROM range(0, ").append(rowCount).append(", 1, 4)").toString();
+  @FormatMethod
+  private void sql(@FormatString String query, Object... args) {
+    spark.sql(String.format(query, args));
   }
 }
