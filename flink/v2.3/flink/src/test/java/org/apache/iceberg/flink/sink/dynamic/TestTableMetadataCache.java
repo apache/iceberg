@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.Map;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -31,6 +32,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -216,5 +218,57 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
 
     assertThat(cache.schema(tableIdentifier, SCHEMA_MIXEDCASE))
         .isEqualTo(TableMetadataCache.NOT_FOUND);
+  }
+
+  @Test
+  void testSchemaPrefersCurrentSchemaAfterDropAndReAddColumn() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
+    int retiredFieldId = table.schema().findField("extra").fieldId();
+    table.updateSchema().deleteColumn("extra").commit();
+    table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
+    int currentFieldId = table.schema().findField("extra").fieldId();
+    assertThat(currentFieldId).isNotEqualTo(retiredFieldId);
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema resolved = cache.schema(tableIdentifier, table.schema()).resolvedTableSchema();
+
+    assertThat(resolved.findField("extra").fieldId()).isEqualTo(currentFieldId);
+  }
+
+  @Test
+  void testSchemaStillMatchesHistoricalSchemaWhenDroppedColumnIsNotReAdded() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    table.updateSchema().addColumn("extra", Types.StringType.get()).commit();
+    Schema withExtra = table.schema();
+    table.updateSchema().deleteColumn("extra").commit();
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema resolved = cache.schema(tableIdentifier, withExtra).resolvedTableSchema();
+
+    assertThat(resolved.findField("extra")).isNotNull();
+  }
+
+  @Test
+  void testSchemasAreOrderedCurrentFirstThenNewestToOldest() {
+    Map<Integer, Schema> schemas = Maps.newHashMap();
+    for (int id = 0; id < 4; id++) {
+      schemas.put(id, SCHEMA);
+    }
+
+    assertThat(TableMetadataCache.CacheItem.orderSchemas(schemas, 3).keySet())
+        .containsExactly(3, 2, 1, 0);
+
+    // after a rollback the current schema is not the one with the highest id
+    assertThat(TableMetadataCache.CacheItem.orderSchemas(schemas, 1).keySet())
+        .containsExactly(1, 3, 2, 0);
   }
 }
