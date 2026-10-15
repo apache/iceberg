@@ -198,43 +198,19 @@ The `refresh-state` property is set on the [snapshot summary](https://iceberg.ap
 |-------------|-----------------|-------------|
 | _optional_  | `refresh-state` | A [refresh state](#refresh-state) record stored as a JSON-encoded string |
 
-#### Freshness
-
-A materialized view is **fresh** when the storage table represents the result of the current view query. However, consumers may still decide to consume from a stale storage table based on their own policies.
-
-A change to the materialized view's definition produces a new `view-version-id`; any storage-table snapshot recorded at a prior `view-version-id` is invalid and should not be consumed until refreshed.
-
 #### Refresh state
 
-The refresh state record captures the state of dependencies that the producer chose to track from the materialized view's dependency graph. A dependency is recorded in `source-states` as either a `table` entry (a source table or an source materialized view's storage table) and/or a `view` entry. Source materialized views can be stored as a `view` and a `table` entry.
+Query engines maintain the precomputed data in the storage table by executing the materialized view’s query. During a refresh, the engine records the state of the view’s dependencies in the refresh state. Which dependencies are available depends on how the query was evaluated, and the writer chooses which of them to record: all, a subset, or none. See [Appendix B](#appendix-b-example-strategies-for-selecting-dependencies) for example strategies. Each recorded dependency appears in `source-states` as a table entry or a view entry. A source materialized view may be recorded as a view entry for its definition and, optionally, a table entry for its storage table.
 
 The refresh state has the following fields:
 
 | Requirement | Field name                   | Description |
 |-------------|------------------------------|-------------|
+| _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
 | _required_  | `view-version-id`            | The `version-id` of the materialized view when the refresh operation was performed |
 | _required_  | `source-states`              | A list of [source state](#source-state) records capturing the dependencies the producer chose to track; may be empty |
-| _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
 
-##### Producer: Recording Refresh State
-
-Producers may selectively choose a subset of their dependencies to record — for example, skipping non-Iceberg sources or recording an empty list. See [Appendix B](#appendix-b-what-counts-as-a-dependency) for strategies on how to store dependency state.
-
-When writing the refresh state, producers:
-
-* **Must** record `view-version-id` and `refresh-start-timestamp-ms`.
-* **Should** include all distinct source states for the inputs they chose to track if they are reachable through multiple paths in the dependency graph.
-* **May** leave `source-states` empty (e.g., when sources are non-Iceberg or freshness is determined by a mechanism outside this spec).
-
-##### Consumer: Evaluating Refresh State
-
-Consumers may use any combination of the following to assess the state of dependencies used to produce the storage table.
-
-* **Recency policy.** Accept the storage table when `refresh-start-timestamp-ms` falls within a staleness window. A recency policy bounds data age but does not establish freshness.
-* **Trust the recorded `source-states`.** Compare each entry against the current catalog state — `snapshot-id` for tables, `version-id` for views, optionally recursive verification for source materialized views recorded by their storage tables. Also confirm that the recorded `view-version-id` equals the materialized view's current `view-version-id`.
-* **Verify by parsing the view query.** Derive the dependency set from the SQL and confirm every dependency is covered by `source-states` and matches the current state. Treat any uncovered dependency as undetermined.
-
-If a consumer's assessment passes, it reads from the storage table. If not, the consumer may fail the query, evaluate the view query directly, or apply another strategy.
+When writing the refresh state, writers may leave source-states empty (e.g., when sources are non-Iceberg or freshness is determined by a mechanism outside this spec).
 
 #### Source state
 
@@ -553,19 +529,24 @@ The following is an example of the `refresh-state` JSON value stored in the snap
 
 ## Appendix B: Example strategies for selecting dependencies
 
-Producers may select different sets of dependencies to record in the refresh state. The strategies below illustrate common choices against the same shared query.
+A writer's choice of what to record varies along two independent dimensions:
+
+* Query evaluation — how the writer evaluates the materialized view’s query, in particular whether the result of nested materialized views is determined by expanding their own dependencies or consuming directly from the storage table. This determines the set of dependencies that could be recorded.
+* Coverage — which of those dependencies are actually recorded; a writer may record all, a subset, or none.
+
+The strategies below illustrate common combinations against the same shared query. Strategies 2 and 3 differ along structure; Strategies 1, 4, and 5 illustrate coverage choices.
 
 ### Shared query
 
-* `A` (the materialized view being refreshed): `SELECT ... FROM B JOIN C ON ...`
-* `B` (regular view): `SELECT ... FROM E JOIN D ON ...`
-* `C` (materialized view): `SELECT ... FROM F JOIN G ON ...`
-* `D` (materialized view): `SELECT ... FROM H WHERE ...`
-* `E`, `F`, `G`, `H`: source Iceberg tables
+* `A` (the materialized view being refreshed): `SELECT B.customer_id, C.category, SUM(B.amount) AS total FROM B JOIN C ON B.product_id = C.product_id GROUP BY B.customer_id, C.category`
+* `B` (regular view): `SELECT E.customer_id, E.product_id, E.amount FROM E JOIN D ON E.customer_id = D.customer_id`
+* `C` (materialized view): `SELECT F.product_id, G.category FROM F JOIN G ON F.category_id = G.category_id`
+* `D` (materialized view): `SELECT customer_id FROM H WHERE status = 'active'`
+* `E` (orders), `F` (products), `G` (categories), `H` (customers): source Iceberg tables
 
 ### Strategy 1: Empty refresh state (recency only)
 
-The producer leaves `source-states` empty and relies entirely on `refresh-start-timestamp-ms`. Consumers reuse the storage table based on a recency policy alone.
+The producer leaves `source-states` empty and relies entirely on `refresh-start-timestamp-ms`. Readers reuse the storage table based on a recency policy alone.
 
 `A`'s refresh state:
 
@@ -651,4 +632,4 @@ A [MV — being refreshed]
 └── N [NON-ICEBERG TABLE]               (omitted; not tracked)
 ```
 
-`N` is omitted. Consumers cannot verify `N`'s state from the refresh state alone, but know that the data queried from `N` cannot be older than `refresh-start-timestamp-ms`.
+`N` is omitted. Readers cannot verify `N`'s state from the refresh state alone, but know that the data queried from `N` cannot be older than `refresh-start-timestamp-ms`.
