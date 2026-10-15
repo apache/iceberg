@@ -39,7 +39,9 @@ import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.data.RandomRowData;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
@@ -155,6 +157,36 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
   }
 
   @Test
+  void nestedStructsInListElementsAreIndependent() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(
+                1,
+                "items",
+                Types.ListType.ofOptional(
+                    2,
+                    Types.StructType.of(
+                        Types.NestedField.optional(
+                            3,
+                            "inner",
+                            Types.StructType.of(
+                                Types.NestedField.required(4, "x", Types.IntegerType.get())))))));
+    RowData row =
+        GenericRowData.of(
+            new GenericArrayData(
+                new Object[] {
+                  GenericRowData.of(GenericRowData.of(1)), GenericRowData.of(GenericRowData.of(2))
+                }));
+
+    List<?> items = wrap(schema, row).get(0, List.class);
+    StructLike first = ((StructLike) items.get(0)).get(0, StructLike.class);
+    StructLike second = ((StructLike) items.get(1)).get(0, StructLike.class);
+
+    assertThat(first.get(0, Integer.class)).isEqualTo(1);
+    assertThat(second.get(0, Integer.class)).isEqualTo(2);
+  }
+
+  @Test
   void listOfUnknownElements() {
     Schema schema =
         new Schema(
@@ -182,6 +214,52 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
                     StringData.fromString("a"), DecimalData.fromBigDecimal(price, 9, 2))));
 
     assertThat(wrap(schema, row).get(0, Map.class)).isEqualTo(ImmutableMap.of("a", price));
+  }
+
+  @Test
+  void emptyListIsConverted() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(
+                1, "tags", Types.ListType.ofOptional(2, Types.StringType.get())));
+    RowData row = GenericRowData.of(new GenericArrayData(new Object[0]));
+
+    assertThat(wrap(schema, row).get(0, List.class)).isEmpty();
+  }
+
+  @Test
+  void nestedListIsConverted() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(
+                1,
+                "matrix",
+                Types.ListType.ofOptional(
+                    2, Types.ListType.ofOptional(3, Types.IntegerType.get()))));
+    RowData row =
+        GenericRowData.of(
+            new GenericArrayData(
+                new Object[] {
+                  new GenericArrayData(new Object[] {1, 2}), new GenericArrayData(new Object[] {3})
+                }));
+
+    assertThat(wrap(schema, row).get(0, List.class))
+        .containsExactly(ImmutableList.of(1, 2), ImmutableList.of(3));
+  }
+
+  @Test
+  void mapNullValueIsPreserved() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(
+                1,
+                "attributes",
+                Types.MapType.ofOptional(2, 3, Types.StringType.get(), Types.StringType.get())));
+    Map<Object, Object> data = Maps.newHashMap();
+    data.put(StringData.fromString("k"), null);
+    RowData row = GenericRowData.of(new GenericMapData(data));
+
+    assertThat(wrap(schema, row).get(0, Map.class)).hasSize(1).containsEntry("k", null);
   }
 
   private static StructLike wrap(Schema schema, RowData row) {
