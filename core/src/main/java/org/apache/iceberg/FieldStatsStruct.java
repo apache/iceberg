@@ -40,7 +40,7 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
   private Long valueCount = null;
   private Long nullValueCount = null;
   private Long nanValueCount = null;
-  private Integer avgValueSize = null;
+  private Long totalBytes = null;
 
   FieldStatsStruct(Types.StructType struct) {
     this.struct = struct;
@@ -57,7 +57,7 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
       long valueCount,
       long nullValueCount,
       long nanValueCount,
-      Integer avgValueSize) {
+      long totalBytes) {
     this(struct);
     setLowerBound(lowerBound);
     setUpperBound(upperBound);
@@ -65,7 +65,7 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     this.valueCount = valueCount;
     this.nullValueCount = nullValueCount;
     this.nanValueCount = nanValueCount;
-    this.avgValueSize = avgValueSize;
+    this.totalBytes = totalBytes;
   }
 
   private FieldStatsStruct(FieldStatsStruct<T> toCopy) {
@@ -76,7 +76,7 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     this.valueCount = toCopy.valueCount;
     this.nullValueCount = toCopy.nullValueCount;
     this.nanValueCount = toCopy.nanValueCount;
-    this.avgValueSize = toCopy.avgValueSize;
+    this.totalBytes = toCopy.totalBytes;
   }
 
   void fromFieldMetrics(FieldMetrics<T> fieldMetrics) {
@@ -92,7 +92,7 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
     this.valueCount = fieldMetrics.valueCount();
     this.nullValueCount = fieldMetrics.nullValueCount() < 0 ? null : fieldMetrics.nullValueCount();
     this.nanValueCount = fieldMetrics.nanValueCount() < 0 ? null : fieldMetrics.nanValueCount();
-    this.avgValueSize = fieldMetrics.avgValueSizeInBytes();
+    this.totalBytes = fieldMetrics.totalBytes() < 0 ? null : fieldMetrics.totalBytes();
   }
 
   private boolean isBinary() {
@@ -168,8 +168,13 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
   }
 
   @Override
-  public Integer avgValueSizeInBytes() {
-    return avgValueSize;
+  public boolean hasTotalBytes() {
+    return totalBytes != null;
+  }
+
+  @Override
+  public long totalBytes() {
+    return totalBytes;
   }
 
   @Override
@@ -185,7 +190,7 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
       case StatsUtil.VALUE_COUNT_OFFSET -> valueCount;
       case StatsUtil.NULL_VALUE_COUNT_OFFSET -> nullValueCount;
       case StatsUtil.NAN_VALUE_COUNT_OFFSET -> nanValueCount;
-      case StatsUtil.AVG_VALUE_SIZE_OFFSET -> avgValueSize;
+      case StatsUtil.TOTAL_BYTES_OFFSET -> totalBytes;
       default -> throw new UnsupportedOperationException("Unsupported stats offset: " + offset);
     };
   }
@@ -203,7 +208,7 @@ class FieldStatsStruct<T> implements FieldStats<T>, StructLike, Serializable {
       case StatsUtil.VALUE_COUNT_OFFSET -> this.valueCount = (Long) value;
       case StatsUtil.NULL_VALUE_COUNT_OFFSET -> this.nullValueCount = (Long) value;
       case StatsUtil.NAN_VALUE_COUNT_OFFSET -> this.nanValueCount = (Long) value;
-      case StatsUtil.AVG_VALUE_SIZE_OFFSET -> this.avgValueSize = (Integer) value;
+      case StatsUtil.TOTAL_BYTES_OFFSET -> this.totalBytes = (Long) value;
       default -> throw new UnsupportedOperationException("Unsupported stats offset: " + offset);
     }
   }

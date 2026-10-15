@@ -1039,6 +1039,74 @@ acceptedBreaks:
         \ extends org.apache.iceberg.StructLike>"
       justification: "Removing deprecated createStructReader overload scheduled for\
         \ removal in 1.12.0"
+  "1.12.0":
+    org.apache.iceberg:iceberg-core:
+      - code: "java.field.removedWithConstant"
+        old: "field org.apache.iceberg.rest.RESTCatalogProperties.SIGNER_ENDPOINT"
+        justification: "Removing deprecations for 1.13.0"
+      - code: "java.field.removedWithConstant"
+        old: "field org.apache.iceberg.rest.RESTCatalogProperties.SIGNER_URI"
+        justification: "Removing deprecations for 1.13.0"
+      - code: "java.method.noLongerDefault"
+        old: "method void org.apache.iceberg.io.PositionDeltaWriter<T>::delete(java.lang.CharSequence,\
+        \ long, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)"
+        new: "method void org.apache.iceberg.io.PositionDeltaWriter<T>::delete(java.lang.CharSequence,\
+        \ long, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)"
+        justification: "Removing deprecations for 1.13.0"
+      - code: "java.method.nowAbstract"
+        old: "method void org.apache.iceberg.io.PositionDeltaWriter<T>::delete(java.lang.CharSequence,\
+        \ long, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)"
+        new: "method void org.apache.iceberg.io.PositionDeltaWriter<T>::delete(java.lang.CharSequence,\
+        \ long, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)"
+        justification: "Removing deprecations for 1.13.0"
+      - code: "java.method.removed"
+        old: "method java.lang.String org.apache.iceberg.encryption.StandardEncryptionManager::addManifestListKeyMetadata(org.apache.iceberg.encryption.NativeEncryptionKeyMetadata)"
+        justification: "Removing deprecations for 1.13.0"
+      - code: "java.method.removed"
+        old: "method org.apache.iceberg.MetricsConfig org.apache.iceberg.MetricsConfig::fromProperties(java.util.Map<java.lang.String,\
+        \ java.lang.String>)"
+        justification: "Removing deprecations for 1.13.0"
+      - code: "java.method.removed"
+        old: "method org.apache.iceberg.RewriteTablePathUtil.RewriteResult<org.apache.iceberg.DeleteFile>\
+        \ org.apache.iceberg.RewriteTablePathUtil::rewriteDeleteManifest(org.apache.iceberg.ManifestFile,\
+        \ java.util.Set<java.lang.Long>, org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO,\
+        \ int, java.util.Map<java.lang.Integer, org.apache.iceberg.PartitionSpec>,\
+        \ java.lang.String, java.lang.String, java.lang.String) throws java.io.IOException"
+        justification: "Removing deprecations for 1.13.0"
+      - code: "java.method.removed"
+        old: "method org.apache.iceberg.rest.RESTTableOperations org.apache.iceberg.rest.RESTSessionCatalog::newTableOps(org.apache.iceberg.rest.RESTClient,\
+        \ java.lang.String, java.util.function.Supplier<java.util.Map<java.lang.String,\
+        \ java.lang.String>>, java.util.function.Supplier<java.util.Map<java.lang.String,\
+        \ java.lang.String>>, org.apache.iceberg.io.FileIO, org.apache.iceberg.TableMetadata,\
+        \ java.util.Set<org.apache.iceberg.rest.Endpoint>)"
+        justification: "Removing deprecations for 1.13.0"
+      - code: "java.method.removed"
+        old: "method void org.apache.iceberg.RewriteTablePathUtil::rewritePositionDeleteFile(org.apache.iceberg.DeleteFile,\
+        \ org.apache.iceberg.io.OutputFile, org.apache.iceberg.io.FileIO, org.apache.iceberg.PartitionSpec,\
+        \ java.lang.String, java.lang.String, org.apache.iceberg.RewriteTablePathUtil.PositionDeleteReaderWriter)\
+        \ throws java.io.IOException"
+        justification: "Removing deprecations for 1.13.0"
+      - code: "java.method.removed"
+        old: "method void org.apache.iceberg.deletes.BaseDVFileWriter::<init>(java.util.function.Supplier<org.apache.iceberg.io.OutputFile>,\
+        \ java.util.function.Function<java.lang.String, org.apache.iceberg.deletes.PositionDeleteIndex>)"
+        justification: "Removing deprecations for 1.13.0"
+      - code: "java.method.removed"
+        old: "method void org.apache.iceberg.io.BasePositionDeltaWriter<T>::delete(java.lang.CharSequence,\
+        \ long, T, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)"
+        justification: "Removing deprecations for 1.13.0"
+      - code: "java.method.removed"
+        old: "method void org.apache.iceberg.io.PositionDeltaWriter<T>::delete(java.lang.CharSequence,\
+        \ long, T, org.apache.iceberg.PartitionSpec, org.apache.iceberg.StructLike)"
+        justification: "Removing deprecations for 1.13.0"
+    org.apache.iceberg:iceberg-parquet:
+      - code: "java.method.removed"
+        old: "method <D, S> org.apache.iceberg.parquet.ParquetFormatModel<D, S, org.apache.iceberg.parquet.ParquetValueReader<?>>\
+        \ org.apache.iceberg.parquet.ParquetFormatModel<D, S, R>::create(java.lang.Class<D>,\
+        \ java.lang.Class<S>, org.apache.iceberg.formats.BaseFormatModel.WriterFunction<org.apache.iceberg.parquet.ParquetValueWriter<?>,\
+        \ S, org.apache.parquet.schema.MessageType>, org.apache.iceberg.formats.BaseFormatModel.ReaderFunction<org.apache.iceberg.parquet.ParquetValueReader<?>,\
+        \ S, org.apache.parquet.schema.MessageType>, org.apache.iceberg.parquet.VariantShreddingAnalyzer<D,\
+        \ S>, java.util.function.UnaryOperator<D>)"
+        justification: "Removing deprecations for 1.13.0"
   "1.2.0":
     org.apache.iceberg:iceberg-api:
     - code: "java.field.constantValueChanged"

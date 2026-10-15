@@ -90,9 +90,10 @@ public class CopyValue<R extends ConnectRecord<R>> implements Transformation<R> 
     Struct updatedValue = new Struct(updatedSchema);
 
     for (Field field : value.schema().fields()) {
-      updatedValue.put(field.name(), value.get(field));
+      // getWithoutDefault so an explicit null is not replaced by the schema default value
+      updatedValue.put(field.name(), value.getWithoutDefault(field.name()));
     }
-    updatedValue.put(targetField, value.get(sourceField));
+    updatedValue.put(targetField, value.getWithoutDefault(sourceField));
 
     return newRecord(record, updatedSchema, updatedValue);
   }

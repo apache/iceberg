@@ -113,6 +113,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Override
+  protected boolean supportsUnregister() {
+    return true;
+  }
+
+  @Override
   protected boolean supportsNamesWithDot() {
     // namespaces with a dot are not supported
     return false;
