@@ -53,14 +53,14 @@ public class ChangelogViewBenchmark {
   private static final int CHANGE_INTERVAL = 10;
   private static final int REVERT_INTERVAL = 20;
 
-  @Param({"100000"})
-  public long rowCount;
+  @Param("100000")
+  private long rowCount;
 
   @Param({"1", "20"})
-  public int payloadColumns;
+  private int payloadColumns;
 
   @Param({"carryovers", "updates", "net"})
-  public String operation;
+  private String operation;
 
   private SparkSession spark;
   private URI warehouse;
@@ -68,7 +68,7 @@ public class ChangelogViewBenchmark {
   private long expectedRows;
 
   @Setup
-  public void setup() throws Exception {
+  public void before() throws Exception {
     Preconditions.checkArgument(
         rowCount % REVERT_INTERVAL == 0, "Row count must be divisible by 20");
     this.warehouse = Files.createTempDirectory("changelog-benchmark-").toUri();
@@ -138,12 +138,12 @@ public class ChangelogViewBenchmark {
   }
 
   @TearDown
-  public void tearDown() throws Exception {
+  public void after() throws Exception {
     if (spark != null) {
       try {
         spark.sql("DROP VIEW IF EXISTS " + VIEW);
         spark.sql("DROP TABLE IF EXISTS " + TABLE + " PURGE");
-        FileSystem.get(warehouse, spark.sparkContext().hadoopConfiguration())
+        FileSystem.get(warehouse, spark.sessionState().newHadoopConf())
             .delete(new Path(warehouse), true);
       } finally {
         spark.stop();
