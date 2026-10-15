@@ -770,20 +770,39 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
     for (String query : new String[] {distinctAfterJoin, aggAfterJoin}) {
       AtomicReference<List<Object[]>> rowsWithSPJ = new AtomicReference<>();
       AtomicReference<List<Object[]>> rowsWithoutSPJ = new AtomicReference<>();
+      AtomicReference<Integer> shufflesWithSPJ = new AtomicReference<>();
+      AtomicReference<Integer> shufflesWithoutSPJ = new AtomicReference<>();
 
       withSQLConf(
           partiallyClusteredSpjConf,
-          () -> rowsWithSPJ.set(sql(query, tableName, tableName(OTHER_TABLE_NAME))));
+          () -> {
+            String plan =
+                executeAndKeepPlan(query, tableName, tableName(OTHER_TABLE_NAME)).toString();
+            shufflesWithSPJ.set(StringUtils.countMatches(plan, "Exchange"));
+            rowsWithSPJ.set(sql(query, tableName, tableName(OTHER_TABLE_NAME)));
+          });
 
       withSQLConf(
           DISABLED_SPJ_SQL_CONF,
-          () -> rowsWithoutSPJ.set(sql(query, tableName, tableName(OTHER_TABLE_NAME))));
+          () -> {
+            String plan =
+                executeAndKeepPlan(query, tableName, tableName(OTHER_TABLE_NAME)).toString();
+            shufflesWithoutSPJ.set(StringUtils.countMatches(plan, "Exchange"));
+            rowsWithoutSPJ.set(sql(query, tableName, tableName(OTHER_TABLE_NAME)));
+          });
 
       assertThat(rowsWithoutSPJ.get()).as("ground-truth rows should be non-empty").isNotEmpty();
       assertEquals(
           "partially clustered SPJ must not change the aggregate output",
           rowsWithoutSPJ.get(),
           rowsWithSPJ.get());
+      // The partially-clustered SPJ removes the join's shuffle(s) while the aggregate still needs
+      // its own exchange, so the SPJ plan has strictly fewer exchanges than the shuffle-join
+      // baseline. This pins that the partially-clustered join path is exercised rather than a
+      // fallback shuffle join that would return the same rows.
+      assertThat(shufflesWithSPJ.get())
+          .as("partially clustered SPJ should avoid the join shuffle")
+          .isLessThan(shufflesWithoutSPJ.get());
     }
   }
 
