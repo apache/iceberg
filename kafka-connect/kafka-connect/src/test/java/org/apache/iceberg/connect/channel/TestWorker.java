@@ -124,7 +124,8 @@ public class TestWorker extends ChannelTestBase {
 
   @Test
   public void testWorkerRegistersJmxMetrics() throws Exception {
-    when(config.connectorName()).thenReturn("jmx-test-connector");
+    String connector = "jmx-test-connector-" + UUID.randomUUID();
+    when(config.connectorName()).thenReturn(connector);
     when(config.taskId()).thenReturn("3");
 
     SinkTaskContext taskContext = mock(SinkTaskContext.class);
@@ -132,7 +133,7 @@ public class TestWorker extends ChannelTestBase {
     MBeanServer server = ManagementFactory.getPlatformMBeanServer();
     ObjectName name =
         new ObjectName(
-            "iceberg.kafka.connect:type=worker-metrics,connector=jmx-test-connector,task=3");
+            "iceberg.kafka.connect:type=worker-metrics,connector=" + connector + ",task=3");
     try {
       assertThat(server.queryNames(name, null)).isNotEmpty();
     } finally {

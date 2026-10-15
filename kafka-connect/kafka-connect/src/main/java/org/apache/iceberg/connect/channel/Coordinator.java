@@ -136,7 +136,7 @@ class Coordinator extends Channel {
       Event event =
           new Event(config.connectGroupId(), new StartCommit(commitState.currentCommitId()));
       send(event);
-      coordinatorMetrics.incStartCommit();
+      coordinatorMetrics.incStartCommitSent();
       LOG.info("Coordinator {} initiated commit {}", taskId, commitState.currentCommitId());
     }
 
@@ -235,7 +235,7 @@ class Coordinator extends Channel {
             config.connectGroupId(),
             new CommitComplete(commitState.currentCommitId(), validThroughTs));
     send(event);
-    coordinatorMetrics.incCommitComplete();
+    coordinatorMetrics.incCommitComplete(partialCommit);
 
     LOG.info(
         "Coordinator {} completed commit {}, committed to {} table(s), valid-through {}",

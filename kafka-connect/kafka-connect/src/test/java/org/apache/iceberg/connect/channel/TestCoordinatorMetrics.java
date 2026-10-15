@@ -74,13 +74,16 @@ public class TestCoordinatorMetrics {
   @Test
   public void testCounters() throws Exception {
     try (CoordinatorMetrics metrics = new CoordinatorMetrics(connector, () -> 0L, () -> 0L)) {
-      metrics.incStartCommit();
-      metrics.incStartCommit();
-      metrics.incStartCommit();
-      metrics.incCommitComplete();
+      metrics.incStartCommitSent();
+      metrics.incStartCommitSent();
+      metrics.incStartCommitSent();
+      metrics.incCommitComplete(false);
+      metrics.incCommitComplete(true);
+      metrics.incCommitComplete(true);
 
-      assertThat(readDouble("start-commit-total")).isEqualTo(3.0);
-      assertThat(readDouble("commit-complete-total")).isEqualTo(1.0);
+      assertThat(readDouble("start-commit-sent-total")).isEqualTo(3.0);
+      assertThat(readCommitDouble("full", "commit-complete-total")).isEqualTo(1.0);
+      assertThat(readCommitDouble("partial", "commit-complete-total")).isEqualTo(2.0);
     }
   }
 

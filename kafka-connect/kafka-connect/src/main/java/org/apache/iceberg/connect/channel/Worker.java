@@ -117,11 +117,12 @@ class Worker extends Channel {
 
     send(events, results.sourceOffsets());
 
-    long fileCount =
-        results.writerResults().stream()
-            .mapToLong(result -> result.dataFiles().size() + result.deleteFiles().size())
-            .sum();
-    workerMetrics.incDataFilesWritten(fileCount);
+    long dataFileCount =
+        results.writerResults().stream().mapToLong(result -> result.dataFiles().size()).sum();
+    long deleteFileCount =
+        results.writerResults().stream().mapToLong(result -> result.deleteFiles().size()).sum();
+    workerMetrics.incDataFilesWritten(dataFileCount);
+    workerMetrics.incDeleteFilesWritten(deleteFileCount);
     workerMetrics.incDataComplete();
 
     return true;

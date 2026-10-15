@@ -75,13 +75,16 @@ public class TestWorkerMetrics {
   public void testCounters() throws Exception {
     try (WorkerMetrics metrics = new WorkerMetrics(connector, taskId)) {
       metrics.incDataFilesWritten(3);
+      metrics.incDeleteFilesWritten(1);
       metrics.incDataFilesWritten(2);
-      // empty poll cycle still records 0 so data-files-written and data-complete stay comparable
+      // empty poll cycle still records 0 so the file counters and data-complete stay comparable
       metrics.incDataFilesWritten(0);
+      metrics.incDeleteFilesWritten(0);
       metrics.incDataComplete();
       metrics.incDataComplete();
 
       assertThat(readDouble("data-files-written-total")).isEqualTo(5.0);
+      assertThat(readDouble("delete-files-written-total")).isEqualTo(1.0);
       assertThat(readDouble("data-complete-total")).isEqualTo(2.0);
     }
   }

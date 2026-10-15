@@ -27,6 +27,7 @@ class WorkerMetrics extends ChannelMetrics {
 
   private final Sensor saveTime;
   private final Sensor dataFilesWritten;
+  private final Sensor deleteFilesWritten;
   private final Sensor dataComplete;
 
   WorkerMetrics(String connector, String task) {
@@ -40,7 +41,12 @@ class WorkerMetrics extends ChannelMetrics {
       this.dataFilesWritten =
           createCounterSensor(
               "data-files-written",
-              "Number of data/delete files in successfully emitted DATA_WRITTEN events",
+              "Number of data files in successfully emitted DATA_WRITTEN events",
+              tags);
+      this.deleteFilesWritten =
+          createCounterSensor(
+              "delete-files-written",
+              "Number of delete files in successfully emitted DATA_WRITTEN events",
               tags);
       this.dataComplete =
           createCounterSensor(
@@ -57,6 +63,10 @@ class WorkerMetrics extends ChannelMetrics {
 
   void incDataFilesWritten(long count) {
     dataFilesWritten.record((double) count);
+  }
+
+  void incDeleteFilesWritten(long count) {
+    deleteFilesWritten.record((double) count);
   }
 
   void incDataComplete() {

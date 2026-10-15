@@ -31,12 +31,16 @@ class CoordinatorMetrics extends ChannelMetrics {
   // Recorded from a finally block, so it covers commits that failed as well as ones that succeeded.
   private static final String COMMIT_TIME_DESC =
       "Time spent in Coordinator.commit() in microseconds, whether the commit succeeded or failed";
+  private static final String COMMIT_COMPLETE_DESC =
+      "Number of successfully emitted COMMIT_COMPLETE events";
 
-  // Commit timers are tagged by commitMode (partial vs full) so the two paths stay separable.
+  // Commit timers and counters are tagged by commit-mode (partial vs full) so the two paths stay
+  // separable.
   private final Sensor fullCommitTime;
   private final Sensor partialCommitTime;
-  private final Sensor startCommit;
-  private final Sensor commitComplete;
+  private final Sensor startCommitSent;
+  private final Sensor fullCommitComplete;
+  private final Sensor partialCommitComplete;
 
   CoordinatorMetrics(
       String connector, Supplier<Long> commitBufferSize, Supplier<Long> readyBufferSize) {
@@ -48,16 +52,17 @@ class CoordinatorMetrics extends ChannelMetrics {
           createTimerSensor("commit-time", COMMIT_TIME_DESC, metricTags(connector, TASK, PARTIAL));
       // Counters are bumped only after send() succeeds, so they count events successfully emitted;
       // a failed send leaves them unmoved even though the commit is already in progress.
-      this.startCommit =
+      this.startCommitSent =
           createCounterSensor(
-              "start-commit",
+              "start-commit-sent",
               "Number of successfully emitted START_COMMIT events",
               metricTags(connector, TASK, null));
-      this.commitComplete =
+      this.fullCommitComplete =
           createCounterSensor(
-              "commit-complete",
-              "Number of successfully emitted COMMIT_COMPLETE events",
-              metricTags(connector, TASK, null));
+              "commit-complete", COMMIT_COMPLETE_DESC, metricTags(connector, TASK, FULL));
+      this.partialCommitComplete =
+          createCounterSensor(
+              "commit-complete", COMMIT_COMPLETE_DESC, metricTags(connector, TASK, PARTIAL));
 
       addGauge(
           "commit-buffer-size",
@@ -79,11 +84,11 @@ class CoordinatorMetrics extends ChannelMetrics {
     (partialCommit ? partialCommitTime : fullCommitTime).record((double) elapsedMicros);
   }
 
-  void incStartCommit() {
-    startCommit.record(1);
+  void incStartCommitSent() {
+    startCommitSent.record(1);
   }
 
-  void incCommitComplete() {
-    commitComplete.record(1);
+  void incCommitComplete(boolean partialCommit) {
+    (partialCommit ? partialCommitComplete : fullCommitComplete).record(1);
   }
 }
