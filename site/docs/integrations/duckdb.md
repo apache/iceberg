@@ -343,12 +343,10 @@ including deleted entries, rather than only the table's current data files.
 
 Additional inspection functions include:
 
-| Function | Information |
-| --- | --- |
-| `iceberg_column_stats` | Per-file, per-column statistics, including lower and upper bounds |
-| `iceberg_partition_stats` | Partition-field summaries from manifests, not table-wide partition totals |
-| `iceberg_table_properties` | Table properties from an attached catalog |
-| `iceberg_schema_properties` | Namespace properties from an attached catalog |
+- `iceberg_column_stats`: per-file, per-column statistics, including lower and upper bounds.
+- `iceberg_partition_stats`: partition-field summaries from manifests, not table-wide partition totals.
+- `iceberg_table_properties`: table properties from an attached catalog.
+- `iceberg_schema_properties`: namespace properties from an attached catalog.
 
 For example:
 
