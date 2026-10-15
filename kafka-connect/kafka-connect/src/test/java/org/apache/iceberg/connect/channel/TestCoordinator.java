@@ -32,6 +32,7 @@ import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import org.apache.iceberg.AppendFiles;
@@ -410,6 +411,12 @@ public class TestCoordinator extends ChannelTestBase {
       assertThat(field.get(committer))
           .as("committer must clear a fenced coordinator instead of failing the task")
           .isNull();
+
+      Field execField = Coordinator.class.getDeclaredField("exec");
+      execField.setAccessible(true);
+      assertThat(((ExecutorService) execField.get(coordinator)).isShutdown())
+          .as("clearing a fenced coordinator must shut down its commit thread pool")
+          .isTrue();
     } finally {
       // The thread owns coordinator.stop(), which runs as its run loop exits, so stop the thread
       // and wait for it rather than calling stop() concurrently from the test thread.
