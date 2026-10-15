@@ -21,15 +21,15 @@ package org.apache.iceberg;
 import java.util.List;
 
 /**
- * API for re-wrapping the encryption keys of a table so that they no longer depend on a superseded
+ * API for rotating the encryption keys of a table so that they no longer depend on a superseded
  * version of the table master key.
  *
- * <p>Only the files reachable from the current snapshot are re-wrapped. Older snapshots keep
- * depending on the previous keys until they are expired.
+ * <p>Only the keys reachable from the current snapshot are rotated. Older snapshots keep depending
+ * on the previous keys until they are expired.
  *
  * <p>{@link #apply()} returns the manifests that will be replaced.
  */
-public interface RewrapEncryptionKeys extends PendingUpdate<List<ManifestFile>> {
+public interface RotateEncryptionKeys extends PendingUpdate<List<ManifestFile>> {
 
   /**
    * An enum representing the lowest key that is regenerated. The keys above it are regenerated too,
@@ -37,8 +37,13 @@ public interface RewrapEncryptionKeys extends PendingUpdate<List<ManifestFile>> 
    * left unchanged.
    */
   enum KeyRegenerationLevel {
-    /** Regenerate the key encryption key, rewriting no manifest or data file. */
+    /** Regenerate the key encryption key without committing a new snapshot. */
     KEY_ENCRYPTION_KEY,
+    /**
+     * Regenerate the manifest list key and the keys above it, committing a new snapshot without
+     * rewriting any manifest.
+     */
+    SNAPSHOT_KEY,
     /** Regenerate the manifest keys and the keys above them, rewriting every manifest (default). */
     MANIFEST_KEY
   }
@@ -46,11 +51,11 @@ public interface RewrapEncryptionKeys extends PendingUpdate<List<ManifestFile>> 
   /**
    * Sets the lowest key to regenerate.
    *
-   * <p>Consider {@link KeyRegenerationLevel#KEY_ENCRYPTION_KEY} when rewriting every manifest is
-   * too expensive.
+   * <p>Consider {@link KeyRegenerationLevel#KEY_ENCRYPTION_KEY} or {@link
+   * KeyRegenerationLevel#SNAPSHOT_KEY} when rewriting every manifest is too expensive.
    *
    * @param level the lowest key to regenerate
    * @return this for method chaining
    */
-  RewrapEncryptionKeys keyRegenerationLevel(KeyRegenerationLevel level);
+  RotateEncryptionKeys keyRegenerationLevel(KeyRegenerationLevel level);
 }

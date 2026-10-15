@@ -19,16 +19,16 @@
 package org.apache.iceberg.actions;
 
 import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.RewrapEncryptionKeys.KeyRegenerationLevel;
+import org.apache.iceberg.RotateEncryptionKeys.KeyRegenerationLevel;
 
 /**
- * An action that re-wraps the encryption keys of a table.
+ * An action that rotates the encryption keys of a table.
  *
- * <p>Similar to {@link org.apache.iceberg.RewrapEncryptionKeys} but may use a query engine to
+ * <p>Similar to {@link org.apache.iceberg.RotateEncryptionKeys} but may use a query engine to
  * distribute parts of the work.
  */
-public interface RewrapEncryptionKeys
-    extends SnapshotUpdate<RewrapEncryptionKeys, RewrapEncryptionKeys.Result> {
+public interface RotateEncryptionKeys
+    extends SnapshotUpdate<RotateEncryptionKeys, RotateEncryptionKeys.Result> {
 
   /**
    * Sets the lowest key to regenerate.
@@ -36,11 +36,11 @@ public interface RewrapEncryptionKeys
    * @param level the lowest key to regenerate
    * @return this for method chaining
    */
-  RewrapEncryptionKeys keyRegenerationLevel(KeyRegenerationLevel level);
+  RotateEncryptionKeys keyRegenerationLevel(KeyRegenerationLevel level);
 
   /** The action result that contains a summary of the execution. */
   interface Result {
     /** Returns the manifests written with new keys. */
-    Iterable<ManifestFile> rewrappedManifests();
+    Iterable<ManifestFile> addedManifests();
   }
 }
