@@ -772,13 +772,14 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
       AtomicReference<List<Object[]>> rowsWithoutSPJ = new AtomicReference<>();
       AtomicReference<Integer> shufflesWithSPJ = new AtomicReference<>();
       AtomicReference<Integer> shufflesWithoutSPJ = new AtomicReference<>();
+      AtomicReference<String> planWithSPJ = new AtomicReference<>();
 
       withSQLConf(
           partiallyClusteredSpjConf,
           () -> {
-            String plan =
-                executeAndKeepPlan(query, tableName, tableName(OTHER_TABLE_NAME)).toString();
-            shufflesWithSPJ.set(StringUtils.countMatches(plan, "Exchange"));
+            planWithSPJ.set(
+                executeAndKeepPlan(query, tableName, tableName(OTHER_TABLE_NAME)).toString());
+            shufflesWithSPJ.set(StringUtils.countMatches(planWithSPJ.get(), "Exchange"));
             rowsWithSPJ.set(sql(query, tableName, tableName(OTHER_TABLE_NAME)));
           });
 
@@ -803,6 +804,14 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
       assertThat(shufflesWithSPJ.get())
           .as("partially clustered SPJ should avoid the join shuffle")
           .isLessThan(shufflesWithoutSPJ.get());
+      // Dropping the join shuffle is also what a plain (fully clustered) SPJ does, so the exchange
+      // count alone does not prove the partially-clustered path. A GroupPartitions node reports
+      // "DistributePartitions: true" only when it splits a skewed key across tasks, which happens
+      // solely under partial clustering; a plain SPJ leaves every GroupPartitions at "false". So
+      // this additionally pins that the plan is partially clustered, not just storage-partitioned.
+      assertThat(planWithSPJ.get())
+          .as("the storage-partitioned join should be partially clustered")
+          .contains("DistributePartitions: true");
     }
   }
 
