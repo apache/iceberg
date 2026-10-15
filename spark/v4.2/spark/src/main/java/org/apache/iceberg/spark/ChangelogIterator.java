@@ -47,7 +47,7 @@ import scala.jdk.javaapi.CollectionConverters;
  * An iterator that transforms rows from changelog tables within a single Spark task.
  *
  * <p>Returned rows may be backed by a reused buffer. Callers must copy any row they retain across a
- * call to {@link #next()}.
+ * call to {@link #hasNext()} or {@link #next()}.
  */
 public abstract class ChangelogIterator implements Iterator<InternalRow> {
   private static final Seq<Expression> NO_SAME_ORDER_EXPRESSIONS =

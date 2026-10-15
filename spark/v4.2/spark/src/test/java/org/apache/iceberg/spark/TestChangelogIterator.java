@@ -47,7 +47,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import scala.Function1;
 
 public class TestChangelogIterator extends SparkTestHelperBase {
@@ -434,24 +433,30 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"carryovers", "net", "updates"})
-  void reusedRows(String mode) {
+  @MethodSource("reuseModes")
+  void reusedRows(String mode, boolean prefetch) {
     List<InternalRow> rows =
         List.of(
             row(1, "a", "same", DELETE, 0, 0L),
+            row(1, "a", "same", DELETE, 0, 0L),
+            row(1, "a", "same", INSERT, 0, 0L),
             row(1, "a", "same", INSERT, 0, 0L),
             row(2, "b", "before", DELETE, 0, 0L),
             row(2, "b", "after", INSERT, 0, 0L),
             row(3, "c", "insert", INSERT, 0, 0L),
-            row(4, "d", "delete", DELETE, 0, 0L));
+            row(4, "d", "delete", DELETE, 0, 0L),
+            row(5, "e", "insert", INSERT, 0, 0L),
+            row(6, "f", "delete", DELETE, 0, 0L));
     // a projection reuses its output buffer, so every row it hands out invalidates the previous one
     UnsafeProjection projection = UnsafeProjection.create(SCHEMA);
     Iterator<InternalRow> reused = Iterators.transform(rows.iterator(), projection::apply);
+    // Filtering prefetches in hasNext(), invalidating the previously returned row.
+    Iterator<InternalRow> input = prefetch ? Iterators.filter(reused, row -> true) : reused;
     Iterator<InternalRow> changes =
         switch (mode) {
-          case "carryovers" -> ChangelogIterator.removeCarryovers(reused, SCHEMA);
-          case "net" -> ChangelogIterator.removeNetCarryovers(reused, SCHEMA);
-          case "updates" -> ChangelogIterator.computeUpdates(reused, SCHEMA, IDENTIFIER_FIELDS);
+          case "carryovers" -> ChangelogIterator.removeCarryovers(input, SCHEMA);
+          case "net" -> ChangelogIterator.removeNetCarryovers(input, SCHEMA);
+          case "updates" -> ChangelogIterator.computeUpdates(input, SCHEMA, IDENTIFIER_FIELDS);
           default -> throw new IllegalArgumentException("Unknown mode: " + mode);
         };
     List<InternalRow> result = Lists.newArrayList(Iterators.transform(changes, InternalRow::copy));
@@ -461,8 +466,15 @@ public class TestChangelogIterator extends SparkTestHelperBase {
         .containsExactly(
             row(2, "b", "before", computesUpdates ? UPDATE_BEFORE : DELETE, 0, 0L),
             row(2, "b", "after", computesUpdates ? UPDATE_AFTER : INSERT, 0, 0L),
-            rows.get(4),
-            rows.get(5));
+            rows.get(6),
+            rows.get(7),
+            rows.get(8),
+            rows.get(9));
+  }
+
+  static Stream<Arguments> reuseModes() {
+    return Stream.of("carryovers", "net", "updates")
+        .flatMap(mode -> Stream.of(Arguments.of(mode, false), Arguments.of(mode, true)));
   }
 
   static Stream<Arguments> values() {
