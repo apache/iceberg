@@ -139,9 +139,9 @@ public abstract class ChangelogIterator implements Iterator<InternalRow> {
   }
 
   /**
-   * Builds an ordering over the given column indices. Two rows are the same record when the ordering
-   * compares them as equal, which applies Spark's own semantics for nested values, including
-   * normalizing map entry order.
+   * Builds an ordering over the given column indices. Two rows are the same record when the
+   * ordering compares them as equal, which applies Spark's own semantics for nested values,
+   * including normalizing map entry order.
    */
   protected BaseOrdering createOrdering(int[] indices) {
     List<SortOrder> sortOrders = Lists.newArrayListWithCapacity(indices.length);
@@ -158,8 +158,8 @@ public abstract class ChangelogIterator implements Iterator<InternalRow> {
   }
 
   /**
-   * Builds a projection that copies a row through unchanged except for the change type column, which
-   * is replaced with the given value.
+   * Builds a projection that copies a row through unchanged except for the change type column,
+   * which is replaced with the given value.
    */
   protected UnsafeProjection changeTypeProjection(UTF8String changeType) {
     List<Expression> fields = Lists.newArrayListWithCapacity(rowType.size());
