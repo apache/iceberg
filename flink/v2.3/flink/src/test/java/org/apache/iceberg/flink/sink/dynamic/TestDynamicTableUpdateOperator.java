@@ -144,13 +144,15 @@ class TestDynamicTableUpdateOperator {
             TABLE,
             "branch",
             inputSchema,
-            GenericRowData.of(StringData.fromString("test"), 1),
+            GenericRowData.of(1, StringData.fromString("test")),
             PartitionSpec.unpartitioned(),
             42,
             true,
             Collections.singleton(equalityField.fieldId()));
     DynamicRecordInternal output = operator.map(input);
 
+    assertThat(output.schema().findColumnName(equalityField.fieldId()))
+        .isNotEqualTo(inputSchema.findColumnName(equalityField.fieldId()));
     assertThat(output.equalityFields())
         .map(output.schema()::findColumnName)
         .containsExactly(equalityField.name());
