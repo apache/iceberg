@@ -560,7 +560,7 @@ The producer leaves `source-states` empty and relies entirely on `refresh-start-
 
 ### Strategy 2: Treat nested materialized views as tables
 
-Same as Strategy 1, but the query reads from materialized views. The producer stops at each MV boundary and records the MV's storage table snapshot ID and view version ID. No expansion beyond the MV.
+Same as Strategy 1, but the query reads from materialized view storage tables. The producer stops at each MV boundary and records the MV's storage table snapshot ID and view version ID. No expansion beyond the MV.
 
 `C` and `D` are materialized views, treated as tables.
 
@@ -581,7 +581,7 @@ A [MV — being refreshed]
 
 ### Strategy 3: Treat nested materialized views as views
 
-Same as Strategy 1, but the query reads from materialized views. The producer treats each materialized view as a regular view: expand through the MV's view definition and record the underlying tables and views. The MV's storage table snapshot ID is **not** recorded.
+Same as Strategy 1, but the query recursively expands the view definitions of the materialized views. The producer treats each materialized view as a regular view: expand through the MV's view definition and record the underlying tables and views. The MV's storage table snapshot ID is **not** recorded.
 
 `C` and `D` are materialized views, treated as views (expanded).
 
