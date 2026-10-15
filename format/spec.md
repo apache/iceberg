@@ -485,7 +485,7 @@ A data file with only new rows for the table may omit the `_last_updated_sequenc
 
 On read, if `_last_updated_sequence_number` is `null` it is assigned the `sequence_number` of the data file's manifest entry. The data sequence number of a data file is documented in [Sequence Number Inheritance](#sequence-number-inheritance).
 
-In v4 and later, `_last_updated_time` is set in the same way as `_last_updated_sequence_number`. On read, if `_last_updated_time` is `null` it is assigned the `snapshot_timestamp` of the data file's tracking metadata, documented in [Commit Timestamp Inheritance](#commit-timestamp-inheritance). If the data file's commit timestamp is unknown (for example, for files added before the table was upgraded to v4), `_last_updated_time` is `null`.
+In v4 and later, `_last_updated_time` is set in the same way as `_last_updated_sequence_number`. On read, if `_last_updated_time` is `null` it is assigned the `snapshot_timestamp` of the data file's tracking metadata, documented in [Commit Timestamp Inheritance](#commit-timestamp-inheritance).
 
 When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the snapshot root file and is documented in [Snapshot Root File First Row ID Assignment](#snapshot-root-file-first-row-id-assignment). Starting in v4, a data file in the root manifest is assigned a `first_row_id` in the same way. A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
 
@@ -1085,16 +1085,14 @@ The snapshot's `timestamp-ms` is not known until the snapshot is successfully co
 
 * An ADDED entry must have a `null` `snapshot_timestamp`.
 * An entry MODIFIED by column files must have a `null` `snapshot_timestamp`.
-* Any other entry written to a new manifest must have its inherited or previously persisted `snapshot_timestamp`.
+* Any other entry written to a new manifest must have a non-null `snapshot_timestamp` (inherited or previously persisted).
 
-When reading, a `null` commit timestamp of an ADDED or MODIFIED entry is inherited:
+When reading, a `null` commit timestamp is inherited:
 
 * For an entry in the root manifest, from the snapshot's `timestamp-ms` converted to microseconds.
 * For an entry in a leaf manifest, from the inherited or persisted `snapshot_timestamp` of the root manifest entry that tracks the leaf manifest.
 
-For an entry with any other status, a `null` commit timestamp is not inherited and indicates that the commit timestamp is unknown.
-
-Files and manifests added before a table was upgraded to v4 have an unknown commit timestamp. Manifests written before v4 do not have a `snapshot_timestamp` field and their entries must be read with a `null` commit timestamp. Rows in data files that were added or last updated before the table was upgraded to v4 must have a `null` `_last_updated_time`.
+When a table is upgraded to v4, root manifest entries for pre-v4 manifests are written with a `null` `snapshot_timestamp`. When reading, these root manifest entries inherit the upgrade snapshot's `timestamp-ms`, and data file entries in the pre-v4 manifests inherit their manifest's `snapshot_timestamp`. As a result, rows added before the upgrade have a `_last_updated_time` equal to the commit time of the upgrade, which is an upper bound of when they were last updated.
 
 ##### First Row ID Inheritance
 
@@ -2138,9 +2136,9 @@ Equality deletes are prohibited in v4.
 Row lineage changes:
 
 * When writing a manifest, ADDED entries and entries MODIFIED by column files must be written with a null `snapshot_timestamp`
-* When an ADDED or MODIFIED entry has a null `snapshot_timestamp`, readers must assign it the snapshot's `timestamp-ms` converted to microseconds in the root manifest, or the leaf manifest's `snapshot_timestamp` in a leaf manifest
+* When an entry has a null `snapshot_timestamp`, readers must assign it the snapshot's `timestamp-ms` converted to microseconds in the root manifest, or the leaf manifest's `snapshot_timestamp` in a leaf manifest
 * When writing an existing data file or leaf manifest into a new manifest, its `snapshot_timestamp` must be written into the manifest
-    * When a table is upgraded to v4, existing data files and manifests have a null `snapshot_timestamp`
+    * When a table is upgraded to v4, root manifest entries for existing manifests are written with a null `snapshot_timestamp` that is inherited from the upgrade snapshot's `timestamp-ms`
 * When a data file has a non-null `tracking.snapshot_timestamp`, readers must:
     * Replace any null or missing `_last_updated_time` with the data file's `tracking.snapshot_timestamp`
     * Read any non-null `_last_updated_time` without modification
