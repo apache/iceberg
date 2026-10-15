@@ -133,8 +133,8 @@ class RemoveCarryoverIterator extends ChangelogIterator {
   }
 
   /**
-   * The iterator returns a cached delete row if there are delete rows cached and the next row is not
-   * the same record or there is no next row.
+   * The iterator returns a cached delete row if there are delete rows cached and the next row is
+   * not the same record or there is no next row.
    */
   private boolean returnCachedDeleteRow() {
     return hasCachedDeleteRow() && hitBoundary();
