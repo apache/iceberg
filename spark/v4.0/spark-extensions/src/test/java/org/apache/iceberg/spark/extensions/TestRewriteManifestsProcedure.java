@@ -34,6 +34,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
@@ -104,6 +105,22 @@ public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
     assertThat(table.currentSnapshot().allManifests(table.io()))
         .as("Must have 1 manifest")
         .hasSize(1);
+  }
+
+  @TestTemplate
+  void rewriteManifestsWithSessionSnapshotProperty() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')", tableName);
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.SNAPSHOT_PROPERTY_PREFIX + "key", "session-value"),
+        () -> sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent));
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.currentSnapshot().summary()).containsEntry("key", "session-value");
   }
 
   @TestTemplate
