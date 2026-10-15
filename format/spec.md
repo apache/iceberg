@@ -1208,21 +1208,6 @@ A snapshot consists of the following fields:
     |            |            | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata |
 === "v4"
     | v4         | Field                        | Description |
-    |------------|------------------------------|-------------|
-    | _required_ | **`snapshot-id`**            | A unique long ID |
-    | _optional_ | **`parent-snapshot-id`**     | The snapshot ID of the snapshot's parent. Omitted for any snapshot with no parent |
-    | _required_ | **`sequence-number`**        | A monotonically increasing long that tracks the order of changes to a table |
-    | _required_ | **`timestamp-ms`**           | A timestamp when the snapshot was created, used for garbage collection and table inspection |
-    | _required_ | **`manifest-list`**          | The location of a manifest list for this snapshot that tracks manifest files with additional metadata |
-    | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` as a _required_ field (see below) |
-    | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created |
-    | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
-    | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
-    | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the manifest list key metadata |
-    | _optional_ | **`constraint-statuses`**    | A struct that records the status of the table's constraints for the snapshot, see [Constraint Validation](#constraint-validation) |
-
-=== "v4"
-    | v4         | Field                        | Description |
     | ---------- |------------------------------|-------------|
     | _required_ | **`snapshot-id`**            | A unique long ID |
     | _optional_ | **`parent-snapshot-id`**     | The snapshot ID of the snapshot's parent. Omitted for any snapshot with no parent |
@@ -1234,6 +1219,7 @@ A snapshot consists of the following fields:
     | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
     | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
     | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the root manifest key metadata |
+    | _optional_ | **`constraint-statuses`**    | A struct that records the status of the table's constraints for the snapshot, see [Constraint Validation](#constraint-validation) |
 
 When committed while the table is at version 4 or higher, a snapshot's `timestamp-ms` must be strictly greater than its parent snapshot's `timestamp-ms` on the same branch. Snapshots with no parent, and snapshots that were committed before a table was upgraded to v4 or higher, do not have this requirement.
 
