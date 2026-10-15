@@ -77,11 +77,8 @@ public class TestChangelogIterator extends SparkTestHelperBase {
                 Metadata.empty())
           });
   private static final String[] IDENTIFIER_FIELDS = new String[] {"id", "name"};
-  private static final Function1<Object, Object> TO_CATALYST =
-      CatalystTypeConverters.createToCatalystConverter(SCHEMA);
   private static final Function1<Object, Object> TO_SCALA =
       CatalystTypeConverters.createToScalaConverter(SCHEMA);
-  private static final UnsafeProjection SCHEMA_PROJECTION = UnsafeProjection.create(SCHEMA);
 
   private enum RowType {
     DELETED,
@@ -609,22 +606,17 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   }
 
   private static InternalRow row(Object... values) {
-    InternalRow internal = (InternalRow) TO_CATALYST.apply(RowFactory.create(values));
-    // the projection reuses its output buffer, so the row must be copied before it is returned
-    return SCHEMA_PROJECTION.apply(internal).copy();
+    return internalRow(SCHEMA, RowFactory.create(values));
   }
 
   private static InternalRow internalRow(StructType schema, Row row) {
     InternalRow internal =
         (InternalRow) CatalystTypeConverters.createToCatalystConverter(schema).apply(row);
+    // the projection reuses its output buffer, so the row must be copied before it is returned
     return UnsafeProjection.create(schema).apply(internal).copy();
   }
 
   private List<Object[]> internalRowsToJava(List<InternalRow> rows) {
-    List<Row> externalRows = Lists.newArrayList();
-    for (InternalRow row : rows) {
-      externalRows.add((Row) TO_SCALA.apply(row));
-    }
-    return rowsToJava(externalRows);
+    return rowsToJava(Lists.transform(rows, row -> (Row) TO_SCALA.apply(row)));
   }
 }
