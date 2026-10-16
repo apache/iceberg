@@ -42,8 +42,6 @@ private[analysis] case class LoadContextTableCatalog(
 
   override def loadTable(ident: Identifier): Table = delegate.loadTable(ident, context)
 
-  override def tableExists(ident: Identifier): Boolean = delegate.tableExists(ident)
-
   override def invalidateTable(ident: Identifier): Unit = delegate.invalidateTable(ident)
 
   override def listTables(namespace: Array[String]): Array[Identifier] =

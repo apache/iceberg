@@ -21,11 +21,13 @@ package org.apache.spark.sql.catalyst.plans.logical.views
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.plans.logical.LeafNode
-import org.apache.spark.sql.catalyst.util.quoteIfNeeded
+import org.apache.spark.sql.connector.catalog.CatalogV2Implicits.MultipartIdentifierHelper
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 case class UnResolvedRelationFromView(
     tableMultipartIdentifier: Seq[String],
+    nameParts: Seq[String],
+    viewCatalogAndNamespace: Seq[String],
     viewChain: Seq[Seq[String]],
     options: CaseInsensitiveStringMap = CaseInsensitiveStringMap.empty(),
     override val isStreaming: Boolean = false,
@@ -37,9 +39,9 @@ case class UnResolvedRelationFromView(
 
   override lazy val resolved: Boolean = false
 
-  def tableName: String = tableMultipartIdentifier.map(quoteIfNeeded).mkString(".")
+  def tableName: String = tableMultipartIdentifier.quoted
 
-  def viewName: String = viewChain.map(_.map(quoteIfNeeded).mkString(".")).mkString(" -> ")
+  def viewName: String = viewChain.map(_.quoted).mkString(" -> ")
 
   override def simpleString(maxFields: Int): String = {
     s"'UnResolvedRelationFromView [table=$tableName, views=$viewName, " +

@@ -21,17 +21,21 @@ package org.apache.iceberg.spark.extensions;
 import static org.apache.iceberg.TestHelpers.waitUntilAfter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.net.InetAddress;
 import java.nio.file.Path;
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.LoadContext;
 import org.apache.iceberg.catalog.Namespace;
@@ -45,13 +49,18 @@ import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.SparkTestHelperBase;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.iceberg.spark.source.SimpleRecord;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.view.View;
+import org.apache.spark.SparkThrowable;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -126,15 +135,12 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @BeforeAll
-  public static void startSpark() {
+  static void startSpark() {
     spark =
         SparkSession.builder()
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
-            .config("spark.ui.enabled", "false")
-            .config(
-                "spark.metrics.conf.*.sink.servlet.class",
-                "org.apache.iceberg.spark.DummyMetricsServlet")
+            .config(TestBase.DISABLE_UI)
             .config("spark.sql.extensions", IcebergSparkSessionExtensions.class.getName())
             .config("spark.sql.catalog." + CATALOG_NAME, SparkCatalog.class.getName())
             .config(
@@ -147,7 +153,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
                 "spark.sql.catalog." + OTHER_CATALOG_NAME + "." + CatalogProperties.CATALOG_IMPL,
                 ContextTrackingCatalog.class.getName())
             .config("spark.sql.catalog." + OTHER_CATALOG_NAME + ".default-namespace", "default")
-            .config("spark.sql.catalog." + OTHER_CATALOG_NAME + ".cache-enabled", "true")
+            .config("spark.sql.catalog." + OTHER_CATALOG_NAME + ".cache-enabled", "false")
             .config(
                 "spark.sql.catalog." + SESSION_CATALOG_NAME, SparkSessionCatalog.class.getName())
             .config(
@@ -156,6 +162,12 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
             .config("spark.sql.catalog." + SESSION_CATALOG_NAME + ".cache-enabled", "false")
             .config("spark.sql.warehouse.dir", warehouse.toString())
             .config("spark.sql.defaultCatalog", CATALOG_NAME)
+            // Cover Hive-enabled sessions, whose analyzer is built separately from the default one
+            .config("spark.hadoop.hive.metastore.uris", "")
+            .config(
+                "spark.hadoop.javax.jdo.option.ConnectionURL",
+                "jdbc:derby:memory:" + UUID.randomUUID() + ";create=true")
+            .enableHiveSupport()
             .getOrCreate();
 
     spark.sql(String.format("CREATE NAMESPACE IF NOT EXISTS %s.%s", CATALOG_NAME, NAMESPACE));
@@ -168,7 +180,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @AfterAll
-  public static void stopSpark() {
+  static void stopSpark() {
     if (spark != null) {
       spark.stop();
       spark = null;
@@ -176,9 +188,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @BeforeEach
-  public void before() {
-    ContextTrackingCatalog.clearCaptured();
-
+  void before() {
     spark.conf().set(SparkSQLProperties.REFERENCED_BY_ENABLED, "true");
     spark.sql(String.format("USE %s.%s", CATALOG_NAME, NAMESPACE));
     spark.sql(String.format("CREATE TABLE IF NOT EXISTS %s (id INT, data STRING)", TABLE_NAME));
@@ -189,7 +199,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @AfterEach
-  public void after() {
+  void after() {
     spark.sql(String.format("USE %s.%s", CATALOG_NAME, NAMESPACE));
     spark.sql("DROP VIEW IF EXISTS simple_view");
     spark.sql("DROP VIEW IF EXISTS view_a");
@@ -197,6 +207,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     spark.sql("DROP VIEW IF EXISTS view_c");
     spark.sql("DROP VIEW IF EXISTS time_travel_view");
     spark.sql("DROP VIEW IF EXISTS cross_view");
+    spark.sql("DROP VIEW IF EXISTS shadow_v");
     spark.sql(String.format("DROP VIEW IF EXISTS %s", VIEW_DEFAULT_VIEW_NAME));
     spark.sql(String.format("DROP TABLE IF EXISTS %s", TABLE_NAME));
     spark.sql(
@@ -213,7 +224,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @Test
-  public void referencedByIsDisabledByDefault() {
+  void referencedByIsDisabledByDefault() {
     createView("simple_view", String.format("SELECT id FROM %s", TABLE_NAME));
     spark.conf().unset(SparkSQLProperties.REFERENCED_BY_ENABLED);
     ContextTrackingCatalog.clearCaptured();
@@ -228,9 +239,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @Test
-  public void directTableAccessHasEmptyContext() {
-    ContextTrackingCatalog.clearCaptured();
-
+  void directTableAccessHasEmptyContext() {
     List<Row> rows = spark.sql(String.format("SELECT * FROM %s", TABLE_NAME)).collectAsList();
     assertThat(rows).hasSize(5);
 
@@ -240,7 +249,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @Test
-  public void singleViewPassesViewIdentifierInContext() {
+  void singleViewPassesViewIdentifierInContext() {
     createView("simple_view", String.format("SELECT id FROM %s", TABLE_NAME));
     spark.sql(String.format("REFRESH TABLE %s", TABLE_NAME));
     ContextTrackingCatalog.clearCaptured();
@@ -257,21 +266,20 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @Test
-  public void viewBodyResolvesTableQualifiedColumns() {
+  void viewBodyResolvesTableQualifiedColumns() {
     createView("view_a", String.format("SELECT %s.id FROM %s", TABLE_NAME, TABLE_NAME));
     createView(
         "view_b",
         String.format(
             "SELECT %s.%s.%s.id FROM %s.%s.%s",
             CATALOG_NAME, NAMESPACE, TABLE_NAME, CATALOG_NAME, NAMESPACE, TABLE_NAME));
-    ContextTrackingCatalog.clearCaptured();
 
     assertThat(spark.sql("SELECT * FROM view_a").collectAsList()).hasSize(5);
     assertThat(spark.sql("SELECT * FROM view_b").collectAsList()).hasSize(5);
   }
 
   @Test
-  public void referencedByUsesResolvedViewIdentifier() {
+  void referencedByUsesResolvedViewIdentifier() {
     spark.sql(
         String.format(
             "CREATE TABLE %s.%s (id INT, data STRING)",
@@ -283,7 +291,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     String viewSql = String.format("SELECT id FROM %s", VIEW_DEFAULT_TABLE_NAME);
     String schemaSql =
         String.format("SELECT id FROM %s.%s", VIEW_DEFAULT_NAMESPACE, VIEW_DEFAULT_TABLE_NAME);
-    viewCatalog()
+    viewCatalog(CATALOG_NAME)
         .buildView(TableIdentifier.of(NAMESPACE, VIEW_DEFAULT_VIEW_NAME))
         .withQuery("spark", viewSql)
         .withDefaultNamespace(VIEW_DEFAULT_NAMESPACE)
@@ -304,7 +312,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @Test
-  public void nestedViewChainAccumulatesContext() {
+  void nestedViewChainAccumulatesContext() {
     createView("view_a", String.format("SELECT id, data FROM %s", TABLE_NAME));
     createView("view_b", "SELECT id FROM view_a WHERE id <= 3");
     createView("view_c", "SELECT id FROM view_b WHERE id > 1");
@@ -319,7 +327,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @Test
-  public void timeTravelViewPassesViewIdentifierInContext() throws Exception {
+  void timeTravelViewPassesViewIdentifierInContext() throws Exception {
     long snapshotId = Spark3Util.loadIcebergTable(spark, TABLE_NAME).currentSnapshot().snapshotId();
     createView(
         "time_travel_view",
@@ -333,7 +341,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @Test
-  public void crossCatalogViewAccessDoesNotFailWhenReferencedByIsDisabled() {
+  void crossCatalogViewAccessDoesNotFailWhenReferencedByIsDisabled() {
     createCrossCatalogView();
     spark.conf().unset(SparkSQLProperties.REFERENCED_BY_ENABLED);
     ContextTrackingCatalog.clearCaptured();
@@ -341,42 +349,37 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
     List<Row> result = spark.sql("SELECT * FROM cross_view").collectAsList();
     assertThat(result).hasSize(5);
 
-    assertThat(
-            ContextTrackingCatalog.CAPTURED.stream()
-                .filter(
-                    captured ->
-                        captured.tableIdentifier.equals(
-                            TableIdentifier.of(NAMESPACE, OTHER_TABLE_NAME)))
-                .collect(Collectors.toList()))
+    assertThat(capturedLoadsOf(TableIdentifier.of(NAMESPACE, OTHER_TABLE_NAME)))
         .isNotEmpty()
         .allSatisfy(captured -> assertThat(captured.referencedBy).isEmpty());
   }
 
   @Test
-  public void crossCatalogViewAccessFailsWhenReferencedByIsEnabled() {
+  void crossCatalogViewAccessFailsWhenReferencedByIsEnabled() {
     createCrossCatalogView();
-    ContextTrackingCatalog.clearCaptured();
 
     assertThatThrownBy(() -> spark.sql("SELECT * FROM cross_view").collectAsList())
-        .hasMessageContaining("Cross-catalog view references are not supported")
-        .hasMessageContaining(OTHER_CATALOG_NAME);
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Cross-catalog view references are not supported with referenced-by enabled. "
+                + "Views from catalogs [%s] cannot reference entities in catalog [%s]",
+            CATALOG_NAME, OTHER_CATALOG_NAME);
   }
 
   @Test
-  public void versionTimeTravelViewReadsPinnedSnapshot() throws Exception {
+  void versionTimeTravelViewReadsPinnedSnapshot() throws Exception {
     long snapshotId = Spark3Util.loadIcebergTable(spark, TABLE_NAME).currentSnapshot().snapshotId();
     createView(
         "time_travel_view",
         String.format("SELECT id FROM %s VERSION AS OF %d", TABLE_NAME, snapshotId));
     appendRecords(TABLE_NAME);
-    ContextTrackingCatalog.clearCaptured();
 
     List<Row> result = spark.sql("SELECT * FROM time_travel_view").collectAsList();
     assertThat(result).hasSize(5);
   }
 
   @Test
-  public void timestampStringTimeTravelView() throws Exception {
+  void timestampStringTimeTravelView() throws Exception {
     long asOfMillis = waitUntilAfter(currentSnapshotMillis());
     String asOf = new Timestamp(asOfMillis).toString();
     createView(
@@ -393,7 +396,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @Test
-  public void timestampSecondsTimeTravelView() throws Exception {
+  void timestampSecondsTimeTravelView() throws Exception {
     long asOfSeconds = TimeUnit.MILLISECONDS.toSeconds(currentSnapshotMillis()) + 1;
     createView(
         "time_travel_view",
@@ -409,14 +412,27 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @Test
-  public void directReadOfNonIcebergTableInSessionCatalog() {
+  void timestampExpressionTimeTravelView() {
+    createView(
+        "time_travel_view",
+        String.format("SELECT id FROM %s TIMESTAMP AS OF current_timestamp()", TABLE_NAME));
+    ContextTrackingCatalog.clearCaptured();
+
+    List<Row> result = spark.sql("SELECT * FROM time_travel_view").collectAsList();
+    assertThat(result).hasSize(5);
+
+    assertCapturedTableChain(ContextTrackingCatalog.CAPTURED, TABLE_NAME, "time_travel_view");
+  }
+
+  @Test
+  void directReadOfNonIcebergTableInSessionCatalog() {
     String parquetTable = createSessionCatalogParquetTable();
 
     assertThat(spark.sql(String.format("SELECT * FROM %s", parquetTable)).count()).isEqualTo(3);
   }
 
   @Test
-  public void viewReadsNonIcebergTableInSessionCatalog() {
+  void viewReadsNonIcebergTableInSessionCatalog() {
     String parquetTable = createSessionCatalogParquetTable();
     createView(
         SESSION_CATALOG_NAME, PARQUET_VIEW_NAME, String.format("SELECT id FROM %s", parquetTable));
@@ -429,6 +445,166 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
                         SESSION_CATALOG_NAME, NAMESPACE, PARQUET_VIEW_NAME))
                 .count())
         .isEqualTo(3);
+  }
+
+  @Test
+  void directTableReadDoesNotLoadView() {
+    spark.sql(String.format("SELECT * FROM %s", TABLE_NAME)).collectAsList();
+
+    assertThat(ContextTrackingCatalog.CAPTURED_VIEWS).isEmpty();
+  }
+
+  @Test
+  void directTableReadLoadsTableAsOftenAsWhenReferencedByIsDisabled() {
+    String otherTable = String.format("%s.%s.%s", OTHER_CATALOG_NAME, NAMESPACE, OTHER_TABLE_NAME);
+    spark.sql(String.format("CREATE TABLE %s (id INT, data STRING)", otherTable));
+    appendRecords(otherTable);
+    TableIdentifier ident = TableIdentifier.of(NAMESPACE, OTHER_TABLE_NAME);
+
+    spark.conf().unset(SparkSQLProperties.REFERENCED_BY_ENABLED);
+    ContextTrackingCatalog.clearCaptured();
+    spark.sql(String.format("SELECT * FROM %s", otherTable)).collectAsList();
+    int expectedLoads = capturedLoadsOf(ident).size();
+
+    spark.conf().set(SparkSQLProperties.REFERENCED_BY_ENABLED, "true");
+    ContextTrackingCatalog.clearCaptured();
+    spark.sql(String.format("SELECT * FROM %s", otherTable)).collectAsList();
+
+    assertThat(expectedLoads).isPositive();
+    assertThat(capturedLoadsOf(ident)).hasSize(expectedLoads);
+  }
+
+  @Test
+  void tempViewShadowsIcebergViewWhenReferencedByIsDisabled() {
+    spark.conf().unset(SparkSQLProperties.REFERENCED_BY_ENABLED);
+
+    assertDescribeResolvesTempView();
+  }
+
+  @Test
+  void tempViewShadowsIcebergViewWhenReferencedByIsEnabled() {
+    assertDescribeResolvesTempView();
+  }
+
+  @Test
+  void cachedViewIsReusedByLaterQuery() {
+    createView("simple_view", String.format("SELECT id FROM %s", TABLE_NAME));
+    Dataset<Row> cached = spark.sql("SELECT * FROM simple_view");
+    cached.cache();
+    try {
+      cached.count();
+      Dataset<Row> query = spark.sql("SELECT * FROM simple_view");
+
+      assertThat(query.queryExecution().withCachedData().toString()).contains("InMemoryRelation");
+    } finally {
+      cached.unpersist();
+    }
+  }
+
+  @Test
+  void streamingReadOfViewFailsAsWhenReferencedByIsDisabled() {
+    createView("simple_view", String.format("SELECT id FROM %s", TABLE_NAME));
+
+    assertSameFailureAsReferencedByDisabled(() -> spark.readStream().table("simple_view"));
+  }
+
+  @Test
+  void deleteFromViewFailsAsWhenReferencedByIsDisabled() {
+    createView("simple_view", String.format("SELECT id FROM %s", TABLE_NAME));
+
+    assertSameFailureAsReferencedByDisabled(
+        () -> spark.sql("DELETE FROM simple_view WHERE id = 1"));
+  }
+
+  @Test
+  void tableApiReadOfViewPassesViewIdentifierInContext() {
+    createView("simple_view", String.format("SELECT id FROM %s", TABLE_NAME));
+    ContextTrackingCatalog.clearCaptured();
+
+    assertThat(spark.table("simple_view").collectAsList()).hasSize(5);
+
+    assertCapturedTableChain(ContextTrackingCatalog.CAPTURED, TABLE_NAME, "simple_view");
+  }
+
+  @Test
+  void createOrReplaceViewWithCycleFailsAsWhenReferencedByIsDisabled() {
+    createView("view_a", String.format("SELECT id FROM %s", TABLE_NAME));
+    createView("view_b", "SELECT id FROM view_a");
+
+    assertSameFailureAsReferencedByDisabled(
+        () -> spark.sql("CREATE OR REPLACE VIEW view_a AS SELECT id FROM view_b"));
+  }
+
+  @Test
+  void alterViewPropertiesUncachesView() {
+    createView("simple_view", String.format("SELECT id FROM %s", TABLE_NAME));
+    spark.catalog().cacheTable("simple_view");
+
+    spark.sql("ALTER VIEW simple_view SET TBLPROPERTIES ('key' = 'value')");
+
+    assertThat(spark.catalog().isCached("simple_view")).isFalse();
+  }
+
+  @Test
+  void viewCommandsMatchReferencedByDisabled() {
+    createView("simple_view", String.format("SELECT id FROM %s", TABLE_NAME));
+
+    for (String command : List.of("DESCRIBE TABLE simple_view", "SHOW CREATE TABLE simple_view")) {
+      spark.conf().unset(SparkSQLProperties.REFERENCED_BY_ENABLED);
+      List<Row> expected = spark.sql(command).collectAsList();
+
+      spark.conf().set(SparkSQLProperties.REFERENCED_BY_ENABLED, "true");
+      assertThat(spark.sql(command).collectAsList()).as(command).isEqualTo(expected);
+    }
+  }
+
+  @Test
+  void invalidViewSqlFailsAsWhenReferencedByIsDisabled() {
+    createViewWithoutAnalysis("simple_view", "invalid SQL");
+
+    assertSameFailureAsReferencedByDisabled(
+        () -> spark.sql("SELECT * FROM simple_view").collectAsList());
+  }
+
+  @Test
+  void viewReadingMissingTableFailsAsWhenReferencedByIsDisabled() {
+    createViewWithoutAnalysis("simple_view", "SELECT id FROM non_existing");
+
+    assertSameFailureAsReferencedByDisabled(
+        () -> spark.sql("SELECT * FROM simple_view").collectAsList());
+  }
+
+  private void assertDescribeResolvesTempView() {
+    createView("shadow_v", String.format("SELECT id FROM %s", TABLE_NAME));
+    spark.sql("CREATE TEMPORARY VIEW shadow_v AS SELECT 'x' AS temp_col");
+    try {
+      List<String> columns =
+          spark.sql("DESCRIBE TABLE shadow_v").collectAsList().stream()
+              .map(row -> row.getString(0))
+              .collect(Collectors.toList());
+
+      assertThat(columns).contains("temp_col").doesNotContain("id");
+    } finally {
+      spark.catalog().dropTempView("shadow_v");
+    }
+  }
+
+  private void assertSameFailureAsReferencedByDisabled(ThrowingCallable action) {
+    spark.conf().unset(SparkSQLProperties.REFERENCED_BY_ENABLED);
+    Throwable expected = catchThrowable(action);
+    assertThat(expected).isNotNull();
+
+    spark.conf().set(SparkSQLProperties.REFERENCED_BY_ENABLED, "true");
+    Throwable actual = catchThrowable(action);
+    if (expected instanceof SparkThrowable) {
+      assertThat(actual).isInstanceOf(SparkThrowable.class);
+      assertThat(((SparkThrowable) actual).getCondition())
+          .isEqualTo(((SparkThrowable) expected).getCondition());
+      assertThat(((SparkThrowable) actual).getMessageParameters())
+          .isEqualTo(((SparkThrowable) expected).getMessageParameters());
+    } else {
+      assertThat(actual).isInstanceOf(expected.getClass()).hasMessage(expected.getMessage());
+    }
   }
 
   private String createSessionCatalogParquetTable() {
@@ -444,7 +620,12 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   private List<ContextTrackingCatalog.CapturedContext> capturedLoadsOf(TableIdentifier ident) {
-    return ContextTrackingCatalog.CAPTURED.stream()
+    return capturedLoadsOf(ContextTrackingCatalog.CAPTURED, ident);
+  }
+
+  private List<ContextTrackingCatalog.CapturedContext> capturedLoadsOf(
+      List<ContextTrackingCatalog.CapturedContext> captures, TableIdentifier ident) {
+    return captures.stream()
         .filter(captured -> captured.tableIdentifier.equals(ident))
         .collect(Collectors.toList());
   }
@@ -454,12 +635,24 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   private void createView(String catalogName, String viewName, String sql) {
+    createView(catalogName, viewName, sql, SparkSchemaUtil.convert(spark.sql(sql).schema()));
+  }
+
+  private void createViewWithoutAnalysis(String viewName, String sql) {
+    createView(
+        CATALOG_NAME,
+        viewName,
+        sql,
+        new Schema(Types.NestedField.optional(1, "id", Types.IntegerType.get())));
+  }
+
+  private void createView(String catalogName, String viewName, String sql, Schema schema) {
     viewCatalog(catalogName)
         .buildView(TableIdentifier.of(NAMESPACE, viewName))
         .withQuery("spark", sql)
         .withDefaultNamespace(NAMESPACE)
         .withDefaultCatalog(catalogName)
-        .withSchema(SparkSchemaUtil.convert(spark.sql(sql).schema()))
+        .withSchema(schema)
         .create();
   }
 
@@ -480,7 +673,7 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
               .collect(Collectors.toList());
       Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
       df.writeTo(tableName).append();
-    } catch (org.apache.spark.sql.catalyst.analysis.NoSuchTableException e) {
+    } catch (NoSuchTableException e) {
       throw new RuntimeException(e);
     }
   }
@@ -498,26 +691,16 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
       String targetName,
       String... expectedViewNames) {
     List<ContextTrackingCatalog.CapturedContext> matching =
-        captures.stream()
-            .filter(
-                captured ->
-                    captured.tableIdentifier.equals(
-                        TableIdentifier.of(targetNamespace, targetName)))
-            .filter(captured -> captured.referencedBy != null && !captured.referencedBy.isEmpty())
+        capturedLoadsOf(captures, TableIdentifier.of(targetNamespace, targetName)).stream()
+            .filter(captured -> !captured.referencedBy.isEmpty())
             .collect(Collectors.toList());
 
     assertThat(matching).isNotEmpty();
-
-    List<TableIdentifier> viewChain = matching.get(0).referencedBy;
-    assertThat(viewChain).hasSize(expectedViewNames.length);
-    for (int index = 0; index < expectedViewNames.length; index += 1) {
-      assertThat(viewChain.get(index))
-          .isEqualTo(TableIdentifier.of(NAMESPACE, expectedViewNames[index]));
-    }
-  }
-
-  private ViewCatalog viewCatalog() {
-    return viewCatalog(CATALOG_NAME);
+    assertThat(matching.get(0).referencedBy)
+        .containsExactly(
+            Arrays.stream(expectedViewNames)
+                .map(name -> TableIdentifier.of(NAMESPACE, name))
+                .toArray(TableIdentifier[]::new));
   }
 
   private ViewCatalog viewCatalog(String catalogName) {
