@@ -49,7 +49,7 @@ public class AuthSessionCache implements AutoCloseable {
    *
    * @param name a distinctive name for the cache.
    * @param sessionTimeout the session timeout. Sessions will become eligible for eviction after
-   *     this duration of inactivity.
+   *     this duration since they were created.
    */
   public AuthSessionCache(String name, Duration sessionTimeout) {
     this(
@@ -63,7 +63,7 @@ public class AuthSessionCache implements AutoCloseable {
    * for testing mostly.
    *
    * @param sessionTimeout the session timeout. Sessions will become eligible for eviction after
-   *     this duration of inactivity.
+   *     this duration since they were created.
    * @param executor the executor to use for eviction tasks; if null, the cache will create a
    *     default executor. The executor will be closed when this cache is closed.
    * @param ticker the ticker to use for the cache.
@@ -126,7 +126,7 @@ public class AuthSessionCache implements AutoCloseable {
     Caffeine<String, AuthSession> builder =
         Caffeine.newBuilder()
             .executor(executor)
-            .expireAfterAccess(sessionTimeout)
+            .expireAfterWrite(sessionTimeout)
             .ticker(ticker)
             .removalListener(
                 (id, auth, cause) -> {

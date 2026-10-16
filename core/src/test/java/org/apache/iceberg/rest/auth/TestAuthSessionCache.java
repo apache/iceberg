@@ -88,4 +88,31 @@ class TestAuthSessionCache {
 
     cache.close();
   }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void cacheEvictionIsBasedOnWriteTimeNotAccessTime() {
+    AtomicLong ticker = new AtomicLong(0);
+    AuthSessionCache cache = new AuthSessionCache(Duration.ofHours(1), Runnable::run, ticker::get);
+    AuthSession session1 = Mockito.mock(AuthSession.class);
+
+    Function<String, AuthSession> loader = Mockito.mock(Function.class);
+    Mockito.when(loader.apply("key1")).thenReturn(session1);
+
+    // load session at time 0
+    cache.cachedSession("key1", loader);
+
+    // access the session just before the timeout; with expireAfterAccess this would reset the TTL
+    ticker.set(TimeUnit.MINUTES.toNanos(59));
+    cache.cachedSession("key1", loader);
+    Mockito.verify(session1, never()).close();
+
+    // advance to exactly the write-time timeout — session must be evicted regardless of the
+    // recent access
+    ticker.set(TimeUnit.HOURS.toNanos(1));
+    cache.sessionCache().cleanUp();
+    Mockito.verify(session1).close();
+
+    cache.close();
+  }
 }
