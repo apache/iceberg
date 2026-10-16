@@ -34,6 +34,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
   private boolean validateAddedFilesMatchOverwriteFilter = false;
   private Long startingSnapshotId = null;
   private Expression conflictDetectionFilter = null;
+  private boolean rowFilterSet = false;
   private boolean validateNewDataFiles = false;
   private boolean validateNewDeletes = false;
 
@@ -61,6 +62,14 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
 
   @Override
   public OverwriteFiles overwriteByRowFilter(Expression expr) {
+    Preconditions.checkState(
+        conflictDetectionFilter == null,
+        "Cannot overwrite by row filter when a conflict detection filter is set: %s",
+        conflictDetectionFilter);
+    Preconditions.checkState(
+        deletedDataFiles.isEmpty(),
+        "Cannot overwrite by row filter when data files are deleted explicitly");
+    this.rowFilterSet = true;
     deleteByRowFilter(expr);
     return this;
   }
@@ -87,6 +96,8 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
 
   @Override
   public OverwriteFiles deleteFile(DataFile file) {
+    Preconditions.checkState(
+        !rowFilterSet, "Cannot delete data files explicitly when overwriting by row filter");
     deletedDataFiles.add(file);
     delete(file);
     return this;
@@ -108,6 +119,8 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
   public OverwriteFiles conflictDetectionFilter(Expression newConflictDetectionFilter) {
     Preconditions.checkArgument(
         newConflictDetectionFilter != null, "Conflict detection filter cannot be null");
+    Preconditions.checkState(
+        !rowFilterSet, "Cannot set a conflict detection filter when overwriting by row filter");
     this.conflictDetectionFilter = newConflictDetectionFilter;
     return this;
   }
@@ -160,28 +173,29 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
       }
     }
 
+    Expression validationFilter = validationFilter();
+
     if (validateNewDataFiles) {
-      validateAddedDataFiles(base, startingSnapshotId, dataConflictDetectionFilter(), parent);
+      validateAddedDataFiles(base, startingSnapshotId, validationFilter, parent);
     }
 
     if (validateNewDeletes) {
       if (rowFilter() != Expressions.alwaysFalse()) {
-        Expression filter = conflictDetectionFilter != null ? conflictDetectionFilter : rowFilter();
-        validateNoNewDeleteFiles(base, startingSnapshotId, filter, parent);
-        validateDeletedDataFiles(base, startingSnapshotId, filter, parent);
+        validateNoNewDeleteFiles(base, startingSnapshotId, validationFilter, parent);
+        validateDeletedDataFiles(base, startingSnapshotId, validationFilter, parent);
       }
 
       if (!deletedDataFiles.isEmpty()) {
         validateNoNewDeletesForDataFiles(
-            base, startingSnapshotId, conflictDetectionFilter, deletedDataFiles, parent);
+            base, startingSnapshotId, validationFilter, deletedDataFiles, parent);
       }
     }
   }
 
-  private Expression dataConflictDetectionFilter() {
+  private Expression validationFilter() {
     if (conflictDetectionFilter != null) {
       return conflictDetectionFilter;
-    } else if (rowFilter() != Expressions.alwaysFalse() && deletedDataFiles.isEmpty()) {
+    } else if (rowFilter() != Expressions.alwaysFalse()) {
       return rowFilter();
     } else {
       return Expressions.alwaysTrue();
