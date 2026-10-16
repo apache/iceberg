@@ -1842,7 +1842,9 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnIsDeleted(FileFormat fileFormat) throws IOException {
-    assumeFalse(supportsBatchReads(), "DeletedColumnVector requires a delete filter");
+    assumeFalse(
+        supportsBatchReads() && fileFormat == FileFormat.PARQUET,
+        "Reading _deleted without a delete filter is not supported by the vectorized reader");
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
