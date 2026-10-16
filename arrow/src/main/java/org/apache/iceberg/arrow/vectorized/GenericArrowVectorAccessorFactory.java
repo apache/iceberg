@@ -25,6 +25,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 import java.util.stream.IntStream;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
@@ -49,6 +50,7 @@ import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.util.DecimalUtility;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Type;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -108,7 +110,7 @@ public class GenericArrowVectorAccessorFactory<
     // desc could be null when the holder is ConstantVectorHolder/PositionVectorHolder
     PrimitiveType primitive = desc == null ? null : desc.getPrimitiveType();
     if (isVectorDictEncoded) {
-      return getDictionaryVectorAccessor(dictionary, desc, vector, primitive);
+      return getDictionaryVectorAccessor(dictionary, desc, vector, primitive, holder.icebergType());
     } else {
       return getPlainVectorAccessor(vector, primitive);
     }
@@ -119,7 +121,8 @@ public class GenericArrowVectorAccessorFactory<
           Dictionary dictionary,
           ColumnDescriptor desc,
           FieldVector vector,
-          PrimitiveType primitive) {
+          PrimitiveType primitive,
+          Type icebergType) {
     Preconditions.checkState(
         vector instanceof IntVector, "Dictionary ids should be stored in IntVectors only");
     // TODO: consider moving this to logical type annotations,
@@ -171,7 +174,8 @@ public class GenericArrowVectorAccessorFactory<
           // Impala & Spark used to write timestamps as INT96 by default. For backwards
           // compatibility we try to read INT96 as timestamps. But INT96 is not recommended
           // and deprecated (see https://issues.apache.org/jira/browse/PARQUET-323)
-          return new DictionaryTimestampInt96Accessor<>((IntVector) vector, dictionary);
+          return new DictionaryTimestampInt96Accessor<>(
+              (IntVector) vector, dictionary, icebergType);
         case DOUBLE:
           return new DictionaryDoubleAccessor<>((IntVector) vector, dictionary);
         default:
@@ -490,11 +494,16 @@ public class GenericArrowVectorAccessorFactory<
       extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
     private final IntVector offsetVector;
     private final Dictionary dictionary;
+    private final ToLongFunction<ByteBuffer> converter;
 
-    DictionaryTimestampInt96Accessor(IntVector vector, Dictionary dictionary) {
+    DictionaryTimestampInt96Accessor(IntVector vector, Dictionary dictionary, Type icebergType) {
       super(vector);
       this.offsetVector = vector;
       this.dictionary = dictionary;
+      this.converter =
+          icebergType.typeId() == Type.TypeID.TIMESTAMP_NANO
+              ? ParquetUtil::extractTimestampInt96Nanos
+              : ParquetUtil::extractTimestampInt96;
     }
 
     @Override
@@ -504,7 +513,7 @@ public class GenericArrowVectorAccessorFactory<
               .decodeToBinary(offsetVector.get(rowId))
               .toByteBuffer()
               .order(ByteOrder.LITTLE_ENDIAN);
-      return ParquetUtil.extractTimestampInt96(byteBuffer);
+      return converter.applyAsLong(byteBuffer);
     }
   }
 

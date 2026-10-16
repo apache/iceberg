@@ -59,6 +59,7 @@ project(':iceberg-mr') {
     }
 
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testImplementation(testFixtures(project(':iceberg-parquet')))
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
