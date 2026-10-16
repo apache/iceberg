@@ -296,8 +296,10 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
         // committed to the table in this path are used only to delete rows from data files that are
         // being added in this commit. There is no way for data files added along with the delete
         // files to be concurrently removed, so there is no need to validate the files referenced by
-        // the position delete files that are being committed.
+        // the position delete files that are being committed. Added DVs are always validated, so
+        // the validation is limited to snapshots committed after the current branch head.
         RowDelta rowDelta = table.newRowDelta().scanManifestsWith(workerPool);
+        SinkUtil.validateAddedDVsFromBranchHead(rowDelta, table, branch, List.of(result));
 
         Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
         Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
