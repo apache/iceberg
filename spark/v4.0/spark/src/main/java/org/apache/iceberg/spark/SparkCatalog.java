@@ -109,7 +109,9 @@ import org.slf4j.LoggerFactory;
  *   <li><code>io-impl</code> - a custom {@link org.apache.iceberg.io.FileIO} implementation to use
  *   <li><code>metrics-reporter-impl</code> - a custom {@link
  *       org.apache.iceberg.metrics.MetricsReporter} implementation to use
- *   <li><code>default-namespace</code> - a namespace to use as the default
+ *   <li><code>default-namespace</code> - <b>DEPRECATED:</b> use <code>defaultDatabase</code>
+ *       instead
+ *   <li><code>defaultDatabase</code> - a namespace/database to use as the default
  *   <li><code>cache-enabled</code> - whether to enable catalog cache
  *   <li><code>cache.case-sensitive</code> - whether the catalog cache should compare table
  *       identifiers in a case sensitive way
@@ -813,7 +815,14 @@ public class SparkCatalog extends BaseCatalog {
             : catalog;
     if (catalog instanceof SupportsNamespaces) {
       this.asNamespaceCatalog = (SupportsNamespaces) catalog;
+      if (options.containsKey("defaultDatabase")) {
+        this.defaultNamespace =
+            Splitter.on('.').splitToList(options.get("defaultDatabase")).toArray(new String[0]);
+      }
       if (options.containsKey("default-namespace")) {
+        LOG.warn(
+            "The `default-namespace` property is deprecated and will be removed in the next major version"
+                + " Please use Spark's `defaultDatabase` instead.");
         this.defaultNamespace =
             Splitter.on('.').splitToList(options.get("default-namespace")).toArray(new String[0]);
       }
