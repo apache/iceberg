@@ -1416,6 +1416,19 @@ paths:
         - Catalog API
       summary: Remotely signs requests to object storage
       operationId: signRequest
+      parameters:
+        - $ref: '#/components/parameters/data-access'
+        - name: plan-id
+          in: query
+          description: >
+            An optional identifier of the scan planning request that produced the URIs being
+            signed, supplied by the client for audit and correlation purposes. A server MUST NOT
+            fail a request because the referenced plan is unknown, expired, or has been cancelled.
+            For backwards compatibility, if this is not specified, the request is not associated
+            with a plan.
+          required: false
+          schema:
+            type: string
       requestBody:
         description: The request to be signed
         content:
@@ -2157,8 +2170,20 @@ components:
         to supply access via any or none of the requested mechanisms.
 
 
+        The catalog owns the access delegation decision. This header expresses only what the
+        client supports or prefers; the server MAY respond with a different mechanism, or with
+        none of those requested.
+
+
         Specific properties and handling for `vended-credentials` and `remote-signing`
         are documented in the `LoadTableResult` schema section of this spec document.
+        Handling for `pre-signed-urls` is documented in the `RemoteSignResult`
+        schema section of this spec document.
+
+
+        When this header is supplied to the signRequest endpoint it selects between signed
+        headers and pre-signed URLs. If it is absent, or does not include `pre-signed-urls`,
+        the server MUST default to `remote-signing` for backwards compatibility.
 
       required: false
       schema:
@@ -2168,6 +2193,7 @@ components:
           enum:
             - vended-credentials
             - remote-signing
+            - pre-signed-urls
       style: simple
       explode: false
       example: "vended-credentials,remote-signing"
@@ -5853,6 +5879,25 @@ components:
           type: string
         headers:
           $ref: '#/components/schemas/MultiValuedMap'
+        url-expiration-timestamp-ms:
+          type: integer
+          format: int64
+          description: >
+            The time after which the signed `uri` is no longer valid, as milliseconds since the
+            Unix epoch. Servers MUST include this field when `signing-mechanism` is
+            `pre-signed-urls`. Clients SHOULD obtain a fresh signature before this time elapses.
+        signing-mechanism:
+          type: string
+          enum:
+            - remote-signing
+            - pre-signed-urls
+          description: >
+            The access delegation mechanism the server used to sign this request. With
+            `remote-signing` the signature is returned in `headers`. With `pre-signed-urls` the
+            returned `uri` is fully signed, `headers` is empty, and `url-expiration-timestamp-ms`
+            is set. Servers returning a pre-signed URL MUST set this field. For backwards
+            compatibility, if this is not specified, the mechanism is assumed to be
+            `remote-signing`.
 
     RemoteSigningConfig:
       description: Configuration for the remote signer client.
