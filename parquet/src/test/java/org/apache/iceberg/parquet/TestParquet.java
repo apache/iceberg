@@ -24,7 +24,10 @@ import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_B
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
@@ -48,6 +51,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
@@ -74,6 +78,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
@@ -772,6 +777,119 @@ public class TestParquet {
             createWriterFunc,
             records.toArray(new GenericData.Record[] {}));
     return Pair.of(file, size);
+  }
+
+  @Test
+  void globalCompressionCodecAppliesToAllColumns() throws Exception {
+    File file = writeIntAndStringFields(ImmutableMap.of(PARQUET_COMPRESSION, "snappy"), 5);
+
+    assertThat(readColumnCodecs(file))
+        .containsEntry("int_field", CompressionCodecName.SNAPPY)
+        .containsEntry("string_field", CompressionCodecName.SNAPPY);
+  }
+
+  @Test
+  void perColumnCompressionCodec() throws Exception {
+    File file =
+        writeIntAndStringFields(
+            ImmutableMap.of(
+                PARQUET_COMPRESSION,
+                "zstd",
+                PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "int_field",
+                "snappy"),
+            5);
+
+    assertThat(readColumnCodecs(file))
+        .containsEntry("int_field", CompressionCodecName.SNAPPY)
+        .containsEntry("string_field", CompressionCodecName.ZSTD);
+  }
+
+  @Test
+  void perColumnCompressionCodecForNonExistentColumnIsIgnored() throws Exception {
+    File file =
+        writeIntAndStringFields(
+            ImmutableMap.of(
+                PARQUET_COMPRESSION,
+                "snappy",
+                PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "non_existent_field",
+                "zstd"),
+            5);
+
+    assertThat(readColumnCodecs(file))
+        .containsEntry("int_field", CompressionCodecName.SNAPPY)
+        .containsEntry("string_field", CompressionCodecName.SNAPPY);
+  }
+
+  @Test
+  void perColumnCompressionLevelWritesSuccessfully() throws Exception {
+    File file =
+        writeIntAndStringFields(
+            ImmutableMap.of(
+                PARQUET_COMPRESSION,
+                "snappy",
+                PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "int_field",
+                "zstd",
+                PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "int_field",
+                "9"),
+            5);
+
+    assertThat(readColumnCodecs(file))
+        .containsEntry("int_field", CompressionCodecName.ZSTD)
+        .containsEntry("string_field", CompressionCodecName.SNAPPY);
+  }
+
+  @Test
+  void invalidCompressionLevelThrows() {
+    assertThatThrownBy(
+            () ->
+                writeIntAndStringFields(
+                    ImmutableMap.of(
+                        PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX + "int_field",
+                        "zstd",
+                        PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX + "int_field",
+                        "not-a-number"),
+                    1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid compression level for column int_field: not-a-number");
+  }
+
+  private File writeIntAndStringFields(Map<String, String> properties, int recordCount)
+      throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "int_field", IntegerType.get()),
+            optional(2, "string_field", Types.StringType.get()));
+
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(recordCount);
+    for (int i = 1; i <= recordCount; i++) {
+      GenericData.Record record = new GenericData.Record(avroSchema);
+      record.put("int_field", i);
+      record.put("string_field", "test");
+      records.add(record);
+    }
+
+    File file = createTempFile(temp);
+    write(
+        file,
+        schema,
+        properties,
+        ParquetAvroWriter::buildWriter,
+        records.toArray(new GenericData.Record[] {}));
+    return file;
+  }
+
+  private Map<String, CompressionCodecName> readColumnCodecs(File file) throws IOException {
+    Map<String, CompressionCodecName> codecs = Maps.newHashMap();
+    try (ParquetFileReader reader =
+        ParquetFileReader.open(ParquetIO.file(Files.localInput(file)))) {
+      for (BlockMetaData block : reader.getFooter().getBlocks()) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+          codecs.put(column.getPath().toDotString(), column.getCodec());
+        }
+      }
+    }
+    return codecs;
   }
 
   @Test

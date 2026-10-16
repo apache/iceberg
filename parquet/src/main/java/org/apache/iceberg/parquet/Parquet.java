@@ -34,6 +34,8 @@ import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.PARQUET_COMPRESSION_DEFAULT;
@@ -374,6 +376,46 @@ public class Parquet {
               });
     }
 
+    private void setColumnCompressionConfig(
+        Context context,
+        Map<String, String> colNameToParquetPathMap,
+        BiConsumer<String, CompressionCodecName> withCompressionCodec,
+        BiConsumer<String, Integer> withCompressionLevel) {
+
+      Map<String, String> columnCompressionCodec = context.columnCompressionCodec();
+      Map<String, String> columnCompressionLevel = context.columnCompressionLevel();
+
+      Sets.union(columnCompressionCodec.keySet(), columnCompressionLevel.keySet())
+          .forEach(
+              colName -> {
+                String parquetColumnPath = colNameToParquetPathMap.get(colName);
+                if (parquetColumnPath == null) {
+                  LOG.warn("Skipping per-column compression config for missing field: {}", colName);
+                  return;
+                }
+
+                String codecStr = columnCompressionCodec.get(colName);
+                if (codecStr != null) {
+                  withCompressionCodec.accept(parquetColumnPath, Context.toCodec(codecStr));
+                }
+
+                String level = columnCompressionLevel.get(colName);
+                if (level != null) {
+                  withCompressionLevel.accept(
+                      parquetColumnPath, parseCompressionLevel(colName, level));
+                }
+              });
+    }
+
+    private int parseCompressionLevel(String colName, String level) {
+      try {
+        return Integer.parseInt(level);
+      } catch (NumberFormatException e) {
+        throw new IllegalArgumentException(
+            String.format("Invalid compression level for column %s: %s", colName, level), e);
+      }
+    }
+
     private void setDictionaryEncodingConfig(
         Context context,
         Map<String, String> colNameToParquetPathMap,
@@ -390,6 +432,24 @@ public class Parquet {
                 }
                 withDictionaryEncoding.accept(parquetColumnPath, Boolean.valueOf(isEnabled));
               });
+    }
+
+    private void applyCompressionLevel(CompressionCodecName codec, String compressionLevel) {
+      if (compressionLevel == null) {
+        return;
+      }
+      switch (codec) {
+        case GZIP -> config.put("zlib.compress.level", compressionLevel);
+        case BROTLI -> config.put("compression.brotli.quality", compressionLevel);
+        case ZSTD -> {
+          // keep "io.compression.codec.zstd.level" for backwards compatibility
+          config.put("io.compression.codec.zstd.level", compressionLevel);
+          config.put("parquet.compression.codec.zstd.level", compressionLevel);
+        }
+        default -> {
+          // compression level is not supported; ignore it
+        }
+      }
     }
 
     @Override
@@ -415,23 +475,7 @@ public class Parquet {
       boolean dictionaryEnabled = context.dictionaryEnabled();
       boolean trackUncompressedRowGroupSize = context.trackUncompressedRowGroupSize();
 
-      if (compressionLevel != null) {
-        switch (codec) {
-          case GZIP:
-            config.put("zlib.compress.level", compressionLevel);
-            break;
-          case BROTLI:
-            config.put("compression.brotli.quality", compressionLevel);
-            break;
-          case ZSTD:
-            // keep "io.compression.codec.zstd.level" for backwards compatibility
-            config.put("io.compression.codec.zstd.level", compressionLevel);
-            config.put("parquet.compression.codec.zstd.level", compressionLevel);
-            break;
-          default:
-            // compression level is not supported; ignore it
-        }
-      }
+      applyCompressionLevel(codec, compressionLevel);
 
       set("parquet.avro.write-old-list-structure", "false");
       MessageType type = ParquetSchemaUtil.convert(schema, name, variantShreddingFunc);
@@ -491,6 +535,12 @@ public class Parquet {
 
         setColumnStatsConfig(context, colNameToParquetPathMap, propsBuilder::withStatisticsEnabled);
 
+        setColumnCompressionConfig(
+            context,
+            colNameToParquetPathMap,
+            propsBuilder::withCompressionCodec,
+            propsBuilder::withCompressionLevel);
+
         setDictionaryEncodingConfig(
             context, colNameToParquetPathMap, propsBuilder::withDictionaryEncoding);
 
@@ -537,6 +587,12 @@ public class Parquet {
         setColumnStatsConfig(
             context, colNameToParquetPathMap, parquetWriteBuilder::withStatisticsEnabled);
 
+        setColumnCompressionConfig(
+            context,
+            colNameToParquetPathMap,
+            parquetWriteBuilder::withCompressionCodec,
+            parquetWriteBuilder::withCompressionLevel);
+
         setDictionaryEncodingConfig(
             context, colNameToParquetPathMap, parquetWriteBuilder::withDictionaryEncoding);
 
@@ -560,6 +616,8 @@ public class Parquet {
       private final Map<String, String> columnBloomFilterNdv;
       private final Map<String, String> columnBloomFilterEnabled;
       private final Map<String, String> columnStatsEnabled;
+      private final Map<String, String> columnCompressionCodec;
+      private final Map<String, String> columnCompressionLevel;
       private final boolean dictionaryEnabled;
       private final Map<String, String> columnDictionaryEncodingEnabled;
       private final boolean trackUncompressedRowGroupSize;
@@ -580,6 +638,8 @@ public class Parquet {
           Map<String, String> columnBloomFilterNdv,
           Map<String, String> columnBloomFilterEnabled,
           Map<String, String> columnStatsEnabled,
+          Map<String, String> columnCompressionCodec,
+          Map<String, String> columnCompressionLevel,
           boolean dictionaryEnabled,
           Map<String, String> columnDictionaryEncodingEnabled,
           boolean trackUncompressedRowGroupSize) {
@@ -598,6 +658,8 @@ public class Parquet {
         this.columnBloomFilterNdv = columnBloomFilterNdv;
         this.columnBloomFilterEnabled = columnBloomFilterEnabled;
         this.columnStatsEnabled = columnStatsEnabled;
+        this.columnCompressionCodec = columnCompressionCodec;
+        this.columnCompressionLevel = columnCompressionLevel;
         this.dictionaryEnabled = dictionaryEnabled;
         this.columnDictionaryEncodingEnabled = columnDictionaryEncodingEnabled;
         this.trackUncompressedRowGroupSize = trackUncompressedRowGroupSize;
@@ -677,6 +739,12 @@ public class Parquet {
         Map<String, String> columnStatsEnabled =
             PropertyUtil.propertiesWithPrefix(config, PARQUET_COLUMN_STATS_ENABLED_PREFIX);
 
+        Map<String, String> columnCompressionCodec =
+            PropertyUtil.propertiesWithPrefix(config, PARQUET_COLUMN_COMPRESSION_CODEC_PREFIX);
+
+        Map<String, String> columnCompressionLevel =
+            PropertyUtil.propertiesWithPrefix(config, PARQUET_COLUMN_COMPRESSION_LEVEL_PREFIX);
+
         boolean dictionaryEnabled =
             PropertyUtil.propertyAsBoolean(config, ParquetOutputFormat.ENABLE_DICTIONARY, true);
 
@@ -705,6 +773,8 @@ public class Parquet {
             columnBloomFilterNdv,
             columnBloomFilterEnabled,
             columnStatsEnabled,
+            columnCompressionCodec,
+            columnCompressionLevel,
             dictionaryEnabled,
             columnDictionaryEncodingEnabled,
             trackUncompressedRowGroupSize);
@@ -781,6 +851,8 @@ public class Parquet {
             rowGroupCheckMaxRecordCount,
             PARQUET_BLOOM_FILTER_MAX_BYTES_DEFAULT,
             PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED_DEFAULT,
+            ImmutableMap.of(),
+            ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of(),
             ImmutableMap.of(),
@@ -865,6 +937,14 @@ public class Parquet {
 
       Map<String, String> columnStatsEnabled() {
         return columnStatsEnabled;
+      }
+
+      Map<String, String> columnCompressionCodec() {
+        return columnCompressionCodec;
+      }
+
+      Map<String, String> columnCompressionLevel() {
+        return columnCompressionLevel;
       }
 
       boolean dictionaryEnabled() {
