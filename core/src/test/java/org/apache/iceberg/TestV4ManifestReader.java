@@ -1199,6 +1199,29 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
+  public void statsFilterIgnoresEqualityDeleteNonKeyColumnStats(FileFormat format)
+      throws IOException {
+    // CONTENT_STATS has id in [0, 99] and data in [a, z], but only id is an equality field, so the
+    // data stats must not be used to filter out the delete file
+    TrackedFile equalityDelete =
+        unpartitionedEqualityDeleteFileWithStats(
+            "s3://bucket/table/eq-delete.parquet", CONTENT_STATS, ImmutableList.of(1));
+    ManifestFile manifest = writeManifest(format, UNPARTITIONED_TYPE, equalityDelete);
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, UNPARTITIONED_SPECS)
+            .filter(Expressions.equal("data", "zzz")) // outside data stats bounds
+            .metricsConfig(METRICS_CONFIG);
+
+    List<TrackedFile> actualFiles = read(builder);
+
+    assertThat(actualFiles)
+        .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
+        .containsExactly(equalityDelete);
+  }
+
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
   public void statsFilterManifestBoundsFiltering(FileFormat format) throws IOException {
     // DATA_MANIFEST_WITH_STATS_REF has stats {id in [0, 99], data in [a, z]}
     ManifestFile manifest =
@@ -1765,6 +1788,27 @@ class TestV4ManifestReader {
                 "s3://other/abs.parquet", "s3://bucket/db/table/data/dv.puffin"),
             unpartitionedDataFileWithDV(
                 "s3://bucket/db/table/data/rel.parquet", "s3://other/abs-dv.puffin"));
+  }
+
+  private static TrackedFile unpartitionedEqualityDeleteFileWithStats(
+      String location, ContentStats stats, List<Integer> equalityIds) {
+    return new TrackedFileStruct(
+        ADDED_TRACKING,
+        FileContent.EQUALITY_DELETES,
+        FORMAT_VERSION_V4,
+        location,
+        FileFormat.PARQUET,
+        RECORD_COUNT,
+        FILE_SIZE_IN_BYTES,
+        null, // unpartitioned
+        null, // null partition data
+        stats,
+        SortOrder.unsorted().orderId(),
+        null, // deletion vector
+        null, // manifest info
+        null, // key metadata
+        ImmutableList.of(4L), // split offsets
+        equalityIds);
   }
 
   private static TrackedFile unpartitionedFileWithoutStats(String location) {
