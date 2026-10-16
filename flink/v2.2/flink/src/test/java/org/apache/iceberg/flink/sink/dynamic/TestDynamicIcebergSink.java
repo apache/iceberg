@@ -76,6 +76,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.IcebergGenerics;
@@ -989,51 +990,64 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     runTest(rows);
   }
 
-  @Test
-  void testUpsert() throws Exception {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void testUpsert(boolean immediateUpdate) throws Exception {
+    // A restart replays the records against the already created table, which hides failures
+    Configuration configuration = new Configuration();
+    configuration.set(RestartStrategyOptions.RESTART_STRATEGY, "none");
+    env.configure(configuration);
+
+    // Field IDs differ from the ones the catalog assigns on table creation
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(0, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(1, "data", Types.StringType.get()));
+    Types.NestedField equalityField = schema.findField("id");
     List<DynamicIcebergDataImpl> rows =
         Lists.newArrayList(
             // Insert one rows
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 false),
             // Remaining rows are duplicates
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 true),
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 true),
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 true));
 
-    executeDynamicSink(rows, env, true, 1, null);
+    executeDynamicSink(rows, env, immediateUpdate, 1, null);
 
-    try (CloseableIterable<Record> iterable =
-        IcebergGenerics.read(
-                CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of("default", "t1")))
-            .build()) {
+    Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of("default", "t1"));
+    // The record's equality field ID doesn't exist in the created table, so with immediateUpdate
+    // disabled the write fails unless equality field IDs are remapped to the table schema.
+    assertThat(table.schema().findColumnName(equalityField.fieldId())).isNull();
+    try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
       List<Record> records = Lists.newArrayList();
       for (Record record : iterable) {
         records.add(record);
@@ -1048,61 +1062,70 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
   }
 
-  @Test
-  void testUpsertV3() throws Exception {
-    ImmutableMap<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
-    CATALOG_EXTENSION
-        .catalog()
-        .createTable(
-            TableIdentifier.of(DATABASE, "t1"),
-            SimpleDataUtil.SCHEMA,
-            PartitionSpec.unpartitioned(),
-            null,
-            properties);
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void testUpsertV3(boolean immediateUpdate) throws Exception {
+    // A restart replays the records against the already created table, which hides failures
+    Configuration configuration = new Configuration();
+    configuration.set(RestartStrategyOptions.RESTART_STRATEGY, "none");
+    env.configure(configuration);
 
+    Map<String, String> tableProps = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
+    TableCreator tableCreator =
+        (catalog, identifier, tableSchema, spec) ->
+            catalog.createTable(identifier, tableSchema, spec, null, tableProps);
+
+    // Field IDs differ from the ones the catalog assigns on table creation
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(0, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(1, "data", Types.StringType.get()));
+    Types.NestedField equalityField = schema.findField("id");
     List<DynamicIcebergDataImpl> rows =
         Lists.newArrayList(
             // Insert one rows
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 false),
             // Remaining rows are duplicates
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 true),
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 true),
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 true));
 
-    executeDynamicSink(rows, env, true, 1, null);
+    executeDynamicSink(rows, env, immediateUpdate, 1, null, false, Maps.newHashMap(), tableCreator);
 
-    try (CloseableIterable<Record> iterable =
-        IcebergGenerics.read(
-                CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of("default", "t1")))
-            .build()) {
+    Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of("default", "t1"));
+    assertThat(TableUtil.formatVersion(table)).isEqualTo(3);
+    // The record's equality field ID doesn't exist in the created table, so with immediateUpdate
+    // disabled the write fails unless equality field IDs are remapped to the table schema.
+    assertThat(table.schema().findColumnName(equalityField.fieldId())).isNull();
+    try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
       List<Record> records = Lists.newArrayList();
       for (Record record : iterable) {
         records.add(record);
@@ -1923,6 +1946,27 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       boolean overwrite,
       Map<String, String> writeProperties)
       throws Exception {
+    executeDynamicSink(
+        dynamicData,
+        env,
+        immediateUpdate,
+        parallelism,
+        commitHook,
+        overwrite,
+        writeProperties,
+        TableCreator.DEFAULT);
+  }
+
+  private void executeDynamicSink(
+      List<DynamicIcebergDataImpl> dynamicData,
+      StreamExecutionEnvironment env,
+      boolean immediateUpdate,
+      int parallelism,
+      @Nullable CommitHook commitHook,
+      boolean overwrite,
+      Map<String, String> writeProperties,
+      TableCreator tableCreator)
+      throws Exception {
     DataStream<DynamicIcebergDataImpl> dataStream =
         env.fromData(dynamicData, TypeInformation.of(new TypeHint<>() {}));
     env.setParallelism(parallelism);
@@ -1934,6 +1978,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .catalogLoader(CATALOG_EXTENSION.catalogLoader())
           .writeParallelism(parallelism)
           .immediateTableUpdate(immediateUpdate)
+          .tableCreator(tableCreator)
           .setSnapshotProperty("commit.retry.num-retries", "0")
           .overwrite(overwrite)
           .setAll(writeProperties)
@@ -1944,6 +1989,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .catalogLoader(CATALOG_EXTENSION.catalogLoader())
           .writeParallelism(parallelism)
           .immediateTableUpdate(immediateUpdate)
+          .tableCreator(tableCreator)
           .overwrite(overwrite)
           .setAll(writeProperties)
           .append();
