@@ -62,7 +62,7 @@ import org.apache.parquet.schema.Types;
  *       written without any typed_value. When a nested field's observations are mixed, only that
  *       field stays in the residual value; sibling fields still shred.
  *   <li>Fields below {@code MIN_FIELD_FREQUENCY} are pruned. Above {@code MAX_SHREDDED_FIELDS}, the
- *       most frequent are kept with alphabetical tie-breaking.
+ *       most frequent shreddable fields are kept with alphabetical tie-breaking.
  *   <li>Recursion into nested objects/arrays stops at {@code MAX_SHREDDING_DEPTH} (default 50).
  *   <li>New struct fields are not tracked once a node reaches {@code MAX_INTERMEDIATE_FIELDS}
  *       (default 1000) to bound memory during inference.
@@ -102,14 +102,11 @@ public abstract class VariantShreddingAnalyzer<T, S> {
     }
 
     PathNode root = buildPathTree(variantValues);
-    PhysicalType rootType = root.info.admittedType();
-    if (rootType == null) {
+    if (!pruneFields(root, root.info.observationCount)) {
       return null;
     }
 
-    pruneInfrequentFields(root, root.info.observationCount);
-
-    return buildTypedValue(root, rootType);
+    return buildTypedValue(root, root.info.admittedType());
   }
 
   protected abstract List<VariantValue> extractVariantValues(
@@ -159,20 +156,25 @@ public abstract class VariantShreddingAnalyzer<T, S> {
     return root;
   }
 
-  private static void pruneInfrequentFields(PathNode node, int totalRows) {
-    if (node.objectChildren.isEmpty() && node.arrayElement == null) {
-      return;
+  private static boolean pruneFields(PathNode node, int totalRows) {
+    PhysicalType admittedType = node.info.admittedType();
+    if (admittedType == null) {
+      return false;
     }
 
-    // Remove fields below frequency threshold
+    // Remove infrequent or unshreddable fields before applying the cap.
     node.objectChildren
         .entrySet()
         .removeIf(
             entry -> {
-              FieldInfo info = entry.getValue().info;
-              return info != null
-                  && ((double) info.observationCount / totalRows) < MIN_FIELD_FREQUENCY;
+              PathNode child = entry.getValue();
+              return ((double) child.info.observationCount / totalRows) < MIN_FIELD_FREQUENCY
+                  || !pruneFields(child, totalRows);
             });
+
+    if (node.arrayElement != null && !pruneFields(node.arrayElement, totalRows)) {
+      node.arrayElement = null;
+    }
 
     // Cap at MAX_SHREDDED_FIELDS, keep the most frequently observed
     if (node.objectChildren.size() > MAX_SHREDDED_FIELDS) {
@@ -197,15 +199,11 @@ public abstract class VariantShreddingAnalyzer<T, S> {
       node.objectChildren.entrySet().removeIf(entry -> !keep.contains(entry.getKey()));
     }
 
-    // Recurse into remaining object children
-    for (PathNode child : node.objectChildren.values()) {
-      pruneInfrequentFields(child, totalRows);
-    }
-
-    // Recurse into array elements (arrays of objects need pruning too)
-    if (node.arrayElement != null) {
-      pruneInfrequentFields(node.arrayElement, totalRows);
-    }
+    return switch (admittedType) {
+      case OBJECT -> !node.objectChildren.isEmpty();
+      case ARRAY -> node.arrayElement != null;
+      default -> true;
+    };
   }
 
   private static void traverse(PathNode node, VariantValue value, int depth) {
