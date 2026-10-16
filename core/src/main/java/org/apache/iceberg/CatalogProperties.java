@@ -154,6 +154,15 @@ public class CatalogProperties {
 
   public static final String LOCK_TABLE = "lock.table";
 
+  /**
+   * Number of times to retry reading table or view metadata during a refresh.
+   *
+   * <p>Support for this property is catalog-dependent.
+   */
+  public static final String METADATA_REFRESH_MAX_RETRIES = "metadata-refresh.max-retries";
+
+  public static final int METADATA_REFRESH_MAX_RETRIES_DEFAULT = 20;
+
   public static final String APP_ID = "app-id";
   public static final String APP_NAME = "app-name";
   public static final String USER = "user";

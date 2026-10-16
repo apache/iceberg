@@ -49,6 +49,7 @@ public class JdbcViewOperations extends BaseViewOperations {
   private final FileIO fileIO;
   private final JdbcClientPool connections;
   private final Map<String, String> catalogProperties;
+  private final int metadataRefreshMaxRetries;
 
   protected JdbcViewOperations(
       JdbcClientPool dbConnPool,
@@ -61,6 +62,7 @@ public class JdbcViewOperations extends BaseViewOperations {
     this.fileIO = fileIO;
     this.connections = dbConnPool;
     this.catalogProperties = catalogProperties;
+    this.metadataRefreshMaxRetries = JdbcUtil.metadataRefreshMaxRetries(catalogProperties);
   }
 
   @Override
@@ -90,7 +92,7 @@ public class JdbcViewOperations extends BaseViewOperations {
     String newMetadataLocation = view.get(JdbcTableOperations.METADATA_LOCATION_PROP);
     Preconditions.checkState(
         newMetadataLocation != null, "Invalid view %s: metadata location is null", viewIdentifier);
-    refreshFromMetadataLocation(newMetadataLocation);
+    refreshFromMetadataLocation(newMetadataLocation, null, metadataRefreshMaxRetries);
   }
 
   @Override
