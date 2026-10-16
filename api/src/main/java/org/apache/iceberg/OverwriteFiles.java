@@ -55,6 +55,10 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
    * <p>Files that may contain some rows that match the expression and some rows that do not will
    * result in a {@link ValidationException}.
    *
+   * <p>This cannot be combined with {@link #deleteFile(DataFile)} or {@link
+   * #conflictDetectionFilter(Expression)}; the row filter is used as the conflict detection filter
+   * for validation.
+   *
    * @param expr an expression on rows in the table
    * @return this for method chaining
    * @throws ValidationException If a file can contain both rows that match and rows that do not
@@ -72,6 +76,8 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
   /**
    * Delete a {@link DataFile} from the table.
    *
+   * <p>This cannot be combined with {@link #overwriteByRowFilter(Expression)}.
+   *
    * @param file a data file
    * @return this for method chaining
    */
@@ -79,6 +85,8 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
 
   /**
    * Deletes a set of data files from the table with their respective delete files.
+   *
+   * <p>This cannot be combined with {@link #overwriteByRowFilter(Expression)}.
    *
    * @param dataFilesToDelete the data files to be deleted from the table
    * @param deleteFilesToDelete the delete files corresponding to the data files to be deleted from
@@ -123,6 +131,8 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
   /**
    * Sets a conflict detection filter used to validate concurrently added data and delete files.
    *
+   * <p>This cannot be combined with {@link #overwriteByRowFilter(Expression)}.
+   *
    * @param conflictDetectionFilter an expression on rows in the table
    * @return this for method chaining
    */
@@ -140,8 +150,9 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
    * isolation for non-idempotent overwrite operations.
    *
    * <p>Validation uses the conflict detection filter passed to {@link
-   * #conflictDetectionFilter(Expression)} and applies to operations that happened after the
-   * snapshot passed to {@link #validateFromSnapshot(long)}. If the conflict detection filter is not
+   * #conflictDetectionFilter(Expression)}, or the row filter passed to {@link
+   * #overwriteByRowFilter(Expression)} when overwriting by row filter, and applies to operations
+   * that happened after the snapshot passed to {@link #validateFromSnapshot(long)}. If neither is
    * set, any new data added concurrently will fail this overwrite operation.
    *
    * @return this for method chaining
@@ -160,11 +171,11 @@ public interface OverwriteFiles extends SnapshotUpdate<OverwriteFiles> {
    * isolation for non-idempotent overwrite operations.
    *
    * <p>Validation uses the conflict detection filter passed to {@link
-   * #conflictDetectionFilter(Expression)} and applies to operations that happened after the
-   * snapshot passed to {@link #validateFromSnapshot(long)}. If the conflict detection filter is not
-   * set, this operation will use the row filter provided in {@link
-   * #overwriteByRowFilter(Expression)} to check for new delete files and will ensure there are no
-   * conflicting deletes for data files removed via {@link #deleteFile(DataFile)}.
+   * #conflictDetectionFilter(Expression)}, or the row filter passed to {@link
+   * #overwriteByRowFilter(Expression)} when overwriting by row filter, and applies to operations
+   * that happened after the snapshot passed to {@link #validateFromSnapshot(long)}. It checks for
+   * new delete files and ensures there are no conflicting deletes for data files removed via {@link
+   * #deleteFile(DataFile)}.
    *
    * @return this for method chaining
    */
