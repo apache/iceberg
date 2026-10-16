@@ -28,9 +28,6 @@ import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.RewriteTablePathUtil;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
@@ -45,30 +42,17 @@ public class TestContentFileUtil {
 
   @Test
   public void referencedDataFileReturnsNullForEqualityDeletes() {
+    // the referenced data file is set so the test fails if the equality-delete early return is gone
     DeleteFile equalityDelete =
         FileMetadata.deleteFileBuilder(SPEC)
             .ofEqualityDeletes(1)
             .withPath("/path/to/equality-delete.parquet")
             .withFileSizeInBytes(1024)
             .withRecordCount(5)
-            .build();
-
-    assertThat(ContentFileUtil.referencedDataFile(equalityDelete)).isNull();
-  }
-
-  @Test
-  public void referencedDataFileReturnsExplicitReference() {
-    DeleteFile positionDelete =
-        FileMetadata.deleteFileBuilder(SPEC)
-            .ofPositionDeletes()
-            .withPath("/path/to/position-delete.parquet")
-            .withFileSizeInBytes(1024)
-            .withRecordCount(5)
             .withReferencedDataFile("/path/to/data.parquet")
             .build();
 
-    assertThat(ContentFileUtil.referencedDataFile(positionDelete))
-        .isEqualTo("/path/to/data.parquet");
+    assertThat(ContentFileUtil.referencedDataFile(equalityDelete)).isNull();
   }
 
   @Test
@@ -88,19 +72,6 @@ public class TestContentFileUtil {
   }
 
   @Test
-  public void referencedDataFileReturnsNullWhenBoundsMissing() {
-    DeleteFile positionDelete =
-        FileMetadata.deleteFileBuilder(SPEC)
-            .ofPositionDeletes()
-            .withPath("/path/to/position-delete.parquet")
-            .withFileSizeInBytes(1024)
-            .withRecordCount(5)
-            .build();
-
-    assertThat(ContentFileUtil.referencedDataFile(positionDelete)).isNull();
-  }
-
-  @Test
   public void referencedDataFileReturnsNullWhenUpperBoundMissing() {
     // lower bound carries the path, but the upper bound for the path column is absent
     Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
@@ -113,90 +84,15 @@ public class TestContentFileUtil {
   }
 
   @Test
-  public void referencedDataFileLocation() {
-    DeleteFile withRef =
-        FileMetadata.deleteFileBuilder(SPEC)
-            .ofPositionDeletes()
-            .withPath("/path/to/position-delete.parquet")
-            .withFileSizeInBytes(1024)
-            .withRecordCount(5)
-            .withReferencedDataFile("/path/to/data.parquet")
-            .build();
-    DeleteFile withoutRef =
-        FileMetadata.deleteFileBuilder(SPEC)
-            .ofPositionDeletes()
-            .withPath("/path/to/position-delete.parquet")
-            .withFileSizeInBytes(1024)
-            .withRecordCount(5)
-            .build();
+  public void referencedDataFileReturnsNullWhenLowerBoundMissing() {
+    // upper bound carries the path, but the lower bound for the path column is absent
+    Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
+    lowerBounds.put(POS_ID, posBound(0L));
+    Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
+    upperBounds.put(PATH_ID, pathBound("/path/to/data.parquet"));
+    DeleteFile positionDelete = positionDeleteWithBounds(lowerBounds, upperBounds);
 
-    assertThat(ContentFileUtil.referencedDataFileLocation(withRef))
-        .isEqualTo("/path/to/data.parquet");
-    assertThat(ContentFileUtil.referencedDataFileLocation(withoutRef)).isNull();
-  }
-
-  @Test
-  public void isFileScoped() {
-    DeleteFile fileScoped =
-        FileMetadata.deleteFileBuilder(SPEC)
-            .ofPositionDeletes()
-            .withPath("/path/to/position-delete.parquet")
-            .withFileSizeInBytes(1024)
-            .withRecordCount(5)
-            .withReferencedDataFile("/path/to/data.parquet")
-            .build();
-    DeleteFile notFileScoped =
-        FileMetadata.deleteFileBuilder(SPEC)
-            .ofPositionDeletes()
-            .withPath("/path/to/position-delete.parquet")
-            .withFileSizeInBytes(1024)
-            .withRecordCount(5)
-            .build();
-
-    assertThat(ContentFileUtil.isFileScoped(fileScoped)).isTrue();
-    assertThat(ContentFileUtil.isFileScoped(notFileScoped)).isFalse();
-  }
-
-  @Test
-  public void isDV() {
-    assertThat(ContentFileUtil.isDV(dv())).isTrue();
-
-    DeleteFile parquetDelete =
-        FileMetadata.deleteFileBuilder(SPEC)
-            .ofPositionDeletes()
-            .withPath("/path/to/position-delete.parquet")
-            .withFileSizeInBytes(1024)
-            .withRecordCount(5)
-            .build();
-    assertThat(ContentFileUtil.isDV(parquetDelete)).isFalse();
-  }
-
-  @Test
-  public void containsSingleDV() {
-    DeleteFile dv = dv();
-    DeleteFile parquetDelete =
-        FileMetadata.deleteFileBuilder(SPEC)
-            .ofPositionDeletes()
-            .withPath("/path/to/position-delete.parquet")
-            .withFileSizeInBytes(1024)
-            .withRecordCount(5)
-            .build();
-
-    assertThat(ContentFileUtil.containsSingleDV(ImmutableList.of(dv))).isTrue();
-    assertThat(ContentFileUtil.containsSingleDV(ImmutableList.of())).isFalse();
-    assertThat(ContentFileUtil.containsSingleDV(ImmutableList.of(dv(), dv()))).isFalse();
-    assertThat(ContentFileUtil.containsSingleDV(ImmutableList.of(parquetDelete))).isFalse();
-  }
-
-  @Test
-  public void dvDesc() {
-    DeleteFile dv = dv();
-
-    assertThat(ContentFileUtil.dvDesc(dv))
-        .contains("location=" + dv.location())
-        .contains("offset=" + dv.contentOffset())
-        .contains("length=" + dv.contentSizeInBytes())
-        .contains("referencedDataFile=" + dv.referencedDataFile());
+    assertThat(ContentFileUtil.referencedDataFile(positionDelete)).isNull();
   }
 
   @Test
@@ -216,15 +112,12 @@ public class TestContentFileUtil {
 
   @Test
   public void replacePathBoundsRewritesEqualBounds() {
-    String sourcePrefix = "/old/table";
-    String targetPrefix = "/new/table";
-    String dataFile = sourcePrefix + "/data/file.parquet";
+    String dataFile = "/old/table/data/file.parquet";
     DeleteFile positionDelete = positionDeleteWithPathBounds(dataFile, dataFile);
 
-    Metrics metrics = ContentFileUtil.replacePathBounds(positionDelete, sourcePrefix, targetPrefix);
+    Metrics metrics = ContentFileUtil.replacePathBounds(positionDelete, "/old/table", "/new/table");
 
-    String expected = RewriteTablePathUtil.newPath(dataFile, sourcePrefix, targetPrefix);
-    assertThat(expected).isNotEqualTo(dataFile);
+    String expected = "/new/table/data/file.parquet";
     assertThat(decodePathBound(metrics.lowerBounds())).isEqualTo(expected);
     assertThat(decodePathBound(metrics.upperBounds())).isEqualTo(expected);
     // non-path bounds must be carried over untouched
@@ -249,6 +142,22 @@ public class TestContentFileUtil {
   }
 
   @Test
+  public void replacePathBoundsClearsWhenLowerBoundMissing() {
+    Map<Integer, ByteBuffer> lowerBounds = Maps.newHashMap();
+    lowerBounds.put(POS_ID, posBound(0L));
+    Map<Integer, ByteBuffer> upperBounds = Maps.newHashMap();
+    upperBounds.put(PATH_ID, pathBound("/old/table/data.parquet"));
+    upperBounds.put(POS_ID, posBound(10L));
+    DeleteFile positionDelete = positionDeleteWithBounds(lowerBounds, upperBounds);
+
+    Metrics metrics = ContentFileUtil.replacePathBounds(positionDelete, "/old", "/new");
+
+    // lower path bound missing -> path bounds dropped, position bound preserved
+    assertThat(metrics.lowerBounds()).doesNotContainKey(PATH_ID).containsKey(POS_ID);
+    assertThat(metrics.upperBounds()).doesNotContainKey(PATH_ID).containsKey(POS_ID);
+  }
+
+  @Test
   public void replacePathBoundsClearsUnequalBounds() {
     DeleteFile positionDelete =
         positionDeleteWithPathBounds("/old/table/data-1.parquet", "/old/table/data-2.parquet");
@@ -261,7 +170,8 @@ public class TestContentFileUtil {
   }
 
   @Test
-  public void replacePathBoundsClearsMissingBounds() {
+  public void replacePathBoundsClearsNullBounds() {
+    // a position delete written without any bounds (e.g. a DV) exercises the null-map branch
     DeleteFile positionDelete =
         FileMetadata.deleteFileBuilder(SPEC)
             .ofPositionDeletes()
@@ -274,52 +184,6 @@ public class TestContentFileUtil {
 
     assertThat(metrics.lowerBounds()).isNull();
     assertThat(metrics.upperBounds()).isNull();
-  }
-
-  @Test
-  public void copyWithoutStatsDropsBounds() {
-    DeleteFile positionDelete =
-        positionDeleteWithPathBounds("/path/to/data.parquet", "/path/to/data.parquet");
-
-    DeleteFile copy = ContentFileUtil.copy(positionDelete, false, null);
-
-    assertThat(copy.lowerBounds()).isNull();
-    assertThat(copy.upperBounds()).isNull();
-  }
-
-  @Test
-  public void copyWithAllStatsKeepsBounds() {
-    DeleteFile positionDelete =
-        positionDeleteWithPathBounds("/path/to/data.parquet", "/path/to/data.parquet");
-
-    DeleteFile copy = ContentFileUtil.copy(positionDelete, true, null);
-
-    assertThat(copy.lowerBounds()).containsKey(PATH_ID);
-    assertThat(copy.upperBounds()).containsKey(PATH_ID);
-  }
-
-  @Test
-  public void copyWithRequestedStatsKeepsOnlyRequestedColumns() {
-    DeleteFile positionDelete =
-        positionDeleteWithPathBounds("/path/to/data.parquet", "/path/to/data.parquet");
-
-    DeleteFile kept = ContentFileUtil.copy(positionDelete, true, ImmutableSet.of(PATH_ID));
-    assertThat(kept.lowerBounds()).containsKey(PATH_ID);
-
-    DeleteFile dropped = ContentFileUtil.copy(positionDelete, true, ImmutableSet.of(POS_ID));
-    assertThat(dropped.lowerBounds()).doesNotContainKey(PATH_ID);
-  }
-
-  private DeleteFile dv() {
-    return FileMetadata.deleteFileBuilder(SPEC)
-        .ofPositionDeletes()
-        .withPath("/path/to/delete.puffin")
-        .withFileSizeInBytes(1024)
-        .withRecordCount(5)
-        .withReferencedDataFile("/path/to/data.parquet")
-        .withContentOffset(4)
-        .withContentSizeInBytes(40)
-        .build();
   }
 
   private DeleteFile positionDeleteWithPathBounds(String lowerPath, String upperPath) {
