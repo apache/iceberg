@@ -1955,14 +1955,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       Map<String, String> writeProperties)
       throws Exception {
     executeDynamicSink(
-        dynamicData,
-        env,
-        immediateUpdate,
-        parallelism,
-        null,
-        false,
-        writeProperties,
-        TableCreator.DEFAULT);
+        dynamicData, env, immediateUpdate, parallelism, null, false, writeProperties);
     verifyResults(dynamicData, writeProperties);
   }
 
