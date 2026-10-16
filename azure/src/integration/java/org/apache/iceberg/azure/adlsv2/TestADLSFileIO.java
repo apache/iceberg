@@ -42,6 +42,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.OffsetDateTime;
 import java.util.Iterator;
+import java.util.Optional;
+import java.util.stream.Stream;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.exceptions.NotFoundException;
@@ -53,6 +55,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestADLSFileIO extends AzuriteTestBase {
@@ -142,9 +145,12 @@ public class TestADLSFileIO extends AzuriteTestBase {
 
   /** Azurite does not support ADLSv2 directory operations yet so use mocks here. */
   @SuppressWarnings("unchecked")
-  @Test
-  public void testListPrefixOperations() {
-    String prefix = "abfs://container@account.dfs.core.windows.net/dir";
+  @ParameterizedTest
+  @MethodSource("schemeAndContainerTestCases")
+  public void testListPrefixOperations(String scheme, Optional<String> container) {
+    String prefix =
+        "%s://%saccount.dfs.core.windows.net/dir"
+            .formatted(scheme, container.map(value -> value + "@").orElse(""));
 
     OffsetDateTime now = OffsetDateTime.now();
     PathItem dir =
@@ -169,11 +175,27 @@ public class TestADLSFileIO extends AzuriteTestBase {
 
     // assert that only files were returned and not directories
     FileInfo fileInfo = result.next();
-    assertThat(fileInfo.location()).isEqualTo("dir/file");
+    assertThat(fileInfo.location()).isEqualTo(prefix + "/file");
     assertThat(fileInfo.size()).isEqualTo(123L);
     assertThat(fileInfo.createdAtMillis()).isEqualTo(now.toInstant().toEpochMilli());
 
+    ADLSLocation parsed = new ADLSLocation(fileInfo.location());
+    assertThat(parsed.scheme()).isEqualTo(scheme);
+    assertThat(parsed.container()).isEqualTo(container);
+    assertThat(parsed.host()).isEqualTo("account.dfs.core.windows.net");
+    assertThat(parsed.storageAccount()).isEqualTo("account");
+    assertThat(parsed.path()).isEqualTo("dir/file");
+
     assertThat(result.hasNext()).isFalse();
+  }
+
+  private static Stream<Arguments> schemeAndContainerTestCases() {
+    return Stream.of("abfs", "abfss", "wasb", "wasbs")
+        .flatMap(
+            scheme ->
+                Stream.of(
+                    Arguments.of(scheme, Optional.empty()),
+                    Arguments.of(scheme, Optional.of("container"))));
   }
 
   /** Azurite does not support ADLSv2 directory operations yet so use mocks here. */
