@@ -148,6 +148,14 @@ public abstract class ReadFormatModelTests<T> {
     return kept.size() == schema.columns().size() ? schema : new Schema(kept);
   }
 
+  protected void assumeSupportedTypes(Schema schema) {
+    Collection<Type.TypeID> unsupportedTypeIds = unsupportedTypeIds();
+
+    Type unsupportedType =
+        TypeUtil.find(schema, type -> unsupportedTypeIds.contains(type.typeId()));
+    assumeThat(unsupportedType).as("Schema contains a type unsupported by this engine").isNull();
+  }
+
   protected Schema supportedSchema(DataGenerator generator) {
     Schema filtered = filterUnsupported(generator.schema());
     assumeThat(filtered.columns())
@@ -679,7 +687,6 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testNestedDefaultValue(FileFormat fileFormat) throws IOException {
-    assumeFalse(supportsBatchReads(), "Vectorized reads do not support nested types");
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
     Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
@@ -703,6 +710,7 @@ public abstract class ReadFormatModelTests<T> {
                 .withDoc("Used to test nested field defaults")
                 .build());
 
+    assumeSupportedTypes(writeSchema);
     List<Record> genericRecords = RandomGenericData.generate(writeSchema, 10, 1L);
     writeGenericRecords(fileFormat, writeSchema, genericRecords);
 
@@ -746,7 +754,6 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testMapNestedDefaultValue(FileFormat fileFormat) throws IOException {
-    assumeFalse(supportsBatchReads(), "Vectorized reads do not support nested types");
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
     Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
@@ -774,6 +781,7 @@ public abstract class ReadFormatModelTests<T> {
                 .withDoc("Used to test nested map value field defaults")
                 .build());
 
+    assumeSupportedTypes(writeSchema);
     List<Record> genericRecords = RandomGenericData.generate(writeSchema, 10, 1L);
     writeGenericRecords(fileFormat, writeSchema, genericRecords);
 
@@ -834,7 +842,6 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testListNestedDefaultValue(FileFormat fileFormat) throws IOException {
-    assumeFalse(supportsBatchReads(), "Vectorized reads do not support nested types");
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
     Types.NestedField idField = Types.NestedField.required(1, "id", Types.LongType.get());
@@ -860,6 +867,7 @@ public abstract class ReadFormatModelTests<T> {
                 .withDoc("Used to test nested field defaults")
                 .build());
 
+    assumeSupportedTypes(writeSchema);
     List<Record> genericRecords = RandomGenericData.generate(writeSchema, 10, 1L);
     writeGenericRecords(fileFormat, writeSchema, genericRecords);
 
@@ -934,6 +942,8 @@ public abstract class ReadFormatModelTests<T> {
         Types.NestedField.optional("nested").withId(2).ofType(writeNested).build();
     Schema writeSchema = new Schema(idField, nestedField);
 
+    assumeSupportedTypes(writeSchema);
+
     Record presentNested = GenericRecord.create(writeNested);
     presentNested.setField("a", "x");
     presentNested.setField("b", "y");
@@ -997,6 +1007,7 @@ public abstract class ReadFormatModelTests<T> {
                     Types.NestedField.required(5, "inner", Types.StringType.get())))
             .build();
     Schema writeSchema = new Schema(idField, nestedField);
+    assumeSupportedTypes(writeSchema);
     Types.StructType nestedType = nestedField.type().asStructType();
 
     // alternate present and null structs, with a different number of list elements per row so
@@ -1072,6 +1083,7 @@ public abstract class ReadFormatModelTests<T> {
                         3, "tags", Types.ListType.ofRequired(4, Types.StringType.get()))))
             .build();
     Schema writeSchema = new Schema(idField, nestedField);
+    assumeSupportedTypes(writeSchema);
     Types.StructType nestedType = nestedField.type().asStructType();
 
     List<Record> genericRecords = Lists.newArrayList();
@@ -1108,6 +1120,8 @@ public abstract class ReadFormatModelTests<T> {
             "nested",
             Types.StructType.of(Types.NestedField.required(3, "inner", Types.StringType.get())));
     Schema writeSchema = new Schema(idField, nestedField);
+
+    assumeSupportedTypes(writeSchema);
 
     Record present = GenericRecord.create(writeSchema);
     present.setField("id", 1L);
@@ -1166,6 +1180,7 @@ public abstract class ReadFormatModelTests<T> {
                 .ofType(Types.ListType.ofOptional(3, writeElement))
                 .build());
 
+    assumeSupportedTypes(writeSchema);
     Record present = GenericRecord.create(writeElement);
     present.setField("inner", "a");
     Record row = GenericRecord.create(writeSchema);
@@ -1221,6 +1236,7 @@ public abstract class ReadFormatModelTests<T> {
                 .ofType(Types.ListType.ofOptional(3, writeElement))
                 .build());
 
+    assumeSupportedTypes(writeSchema);
     Record nullList = GenericRecord.create(writeSchema);
     nullList.setField("id", 1L);
     nullList.setField("arr", null);
@@ -1274,6 +1290,8 @@ public abstract class ReadFormatModelTests<T> {
                 .withId(2)
                 .ofType(Types.MapType.ofOptional(3, 4, Types.StringType.get(), writeValue))
                 .build());
+
+    assumeSupportedTypes(writeSchema);
 
     Record present = GenericRecord.create(writeValue);
     present.setField("inner", "a");
@@ -1335,6 +1353,8 @@ public abstract class ReadFormatModelTests<T> {
                 .withId(2)
                 .ofType(Types.MapType.ofOptional(3, 4, Types.StringType.get(), writeValue))
                 .build());
+
+    assumeSupportedTypes(writeSchema);
 
     Record nullMap = GenericRecord.create(writeSchema);
     nullMap.setField("id", 1L);
