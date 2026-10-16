@@ -52,13 +52,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 
-/**
- * Reads the statistics of data and delete files and compares them against the statistics recorded
- * in manifest entries.
- *
- * <p>Recomputed statistics always respect the metrics config of the table so that they are
- * comparable with the stored statistics.
- */
 class RepairMetrics {
 
   private static final Set<Integer> POSITION_DELETE_FIELD_IDS =
@@ -73,30 +66,19 @@ class RepairMetrics {
     return mapping != null ? NameMappingParser.fromJson(mapping) : null;
   }
 
-  /**
-   * Returns the metrics config to use when recomputing the statistics of the given file.
-   *
-   * <p>Position delete files record statistics for the path and position columns only, which is a
-   * fixed config rather than the config of the table.
-   */
+  // position delete files always record stats for only the path and position columns
   static MetricsConfig metricsConfig(Table table, FileContent content) {
     return content == FileContent.POSITION_DELETES
         ? MetricsConfig.forPositionDelete()
         : MetricsConfig.forTable(table);
   }
 
-  /**
-   * Returns true if the statistics of the file can be recomputed by reading it.
-   *
-   * <p>Deletion vectors are stored as blobs inside a Puffin file, so their statistics cannot be
-   * derived by reading the file they are stored in.
-   */
+  // deletion vectors are blobs in a Puffin file, so their stats cannot be read from the file
   static boolean supportsMetrics(ContentFile<?> file) {
     FileFormat format = file.format();
     return format == FileFormat.PARQUET || format == FileFormat.ORC || format == FileFormat.AVRO;
   }
 
-  /** Recomputes recoverable statistics, preserving metrics that require writer-side tracking. */
   static Metrics readMetrics(
       InputFile input,
       ContentFile<?> file,
@@ -127,11 +109,10 @@ class RepairMetrics {
               : MetricsUtil.copyWithoutFieldCountsAndBounds(metrics, POSITION_DELETE_FIELD_IDS);
     }
 
-    // Footers cannot recover the writer-tracked statistics of some columns: the NaN counts and
-    // NaN-safe bounds of floating-point columns, and the bounding boxes of geometry and geography
-    // columns. Preserve the stored bounds of those columns so a correct file is not flagged as
-    // corrupt and rewritten with weaker statistics. Include stored NaN-count IDs so that bounds for
-    // dropped columns are preserved as well.
+    // Footers cannot recover writer-tracked stats: NaN counts and NaN-safe bounds of float columns
+    // and bounding boxes of geometry and geography columns. Keep the stored bounds of those columns
+    // so a correct file is not rewritten with weaker stats. Stored NaN-count IDs also cover columns
+    // that were dropped.
     Set<Integer> preservedBoundIds = Sets.newHashSet(normalize(file.nanValueCounts()).keySet());
     TypeUtil.indexById(schema.asStruct())
         .forEach(
@@ -157,14 +138,6 @@ class RepairMetrics {
         null);
   }
 
-  /**
-   * Returns true if the statistics recorded for the file differ from the statistics of the file
-   * itself.
-   *
-   * <p>The record count and the file size are always compared. Column level statistics are only
-   * compared when requested, because a table whose metrics config changed after a file was written
-   * reports statistics that legitimately differ from the recomputed ones.
-   */
   static boolean statsAreIncorrect(
       ContentFile<?> file, Metrics metrics, long fileSizeInBytes, boolean compareColumnMetrics) {
     if (file.fileSizeInBytes() != fileSizeInBytes) {
@@ -186,11 +159,6 @@ class RepairMetrics {
         || !boundsMatch(file.upperBounds(), metrics.upperBounds());
   }
 
-  /**
-   * Rebuilds the file with the given statistics, preserving every other field.
-   *
-   * <p>The file size is passed separately as it is not part of the metrics of a file.
-   */
   static ContentFile<?> withStats(
       ContentFile<?> file, PartitionSpec spec, Metrics metrics, long fileSizeInBytes) {
     if (file.content() == FileContent.DATA) {
@@ -211,20 +179,14 @@ class RepairMetrics {
     if (delete.content() == FileContent.EQUALITY_DELETES
         && equalityFieldIds != null
         && !equalityFieldIds.isEmpty()) {
-      // copy(DeleteFile) drops the equality field ids, so they must be set again. Otherwise the
-      // rewritten entry keeps content EQUALITY_DELETES with null equality ids, which makes reads
-      // fail once the delete is applied. An entry that already lacks them is carried through as is.
+      // copy(DeleteFile) drops the equality field ids, and an equality delete without them fails
+      // when it is applied
       builder.ofEqualityDeletes(equalityFieldIds.stream().mapToInt(Integer::intValue).toArray());
     }
 
     return builder.build();
   }
 
-  /**
-   * Returns metrics carrying the recomputed record count but the column-level statistics stored for
-   * the file, used when column metrics are not being repaired so that a flagged entry has only its
-   * record count and file size corrected.
-   */
   static Metrics recordCountOnly(ContentFile<?> file, Metrics recomputed) {
     return new Metrics(
         recomputed.recordCount(),

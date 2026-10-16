@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.spy;
@@ -38,7 +37,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
@@ -51,10 +49,8 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
 import org.apache.iceberg.Metrics;
-import org.apache.iceberg.Parameter;
-import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RewriteManifests;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -72,6 +68,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -86,13 +83,18 @@ import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
-@ExtendWith(ParameterizedTestExtension.class)
-public class TestRepairTableAction extends TestBase {
+class TestRepairTableAction extends TestBase {
 
+  private static final int DEFAULT_FORMAT_VERSION = 2;
+  private static final FileFormat DEFAULT_FILE_FORMAT = FileFormat.PARQUET;
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
   private static final Schema SCHEMA =
       new Schema(
@@ -100,32 +102,18 @@ public class TestRepairTableAction extends TestBase {
           optional(2, "c2", Types.StringType.get()),
           optional(3, "c3", Types.StringType.get()));
 
-  @Parameters(name = "formatVersion = {0}, fileFormat = {1}")
-  public static Object[] parameters() {
-    return new Object[][] {
-      {1, FileFormat.PARQUET}, {1, FileFormat.ORC}, {1, FileFormat.AVRO},
-      {2, FileFormat.PARQUET}, {2, FileFormat.ORC}, {2, FileFormat.AVRO},
-      {3, FileFormat.PARQUET}, {3, FileFormat.ORC}, {3, FileFormat.AVRO}
-    };
-  }
-
-  @Parameter private int formatVersion;
-
-  @Parameter(index = 1)
-  private FileFormat fileFormat;
-
   private String tableLocation = null;
 
   @TempDir private Path temp;
   @TempDir private File tableDir;
 
   @BeforeEach
-  public void setupTableLocation() {
+  void setupTableLocation() {
     this.tableLocation = tableDir.toURI().toString();
   }
 
-  @TestTemplate
-  public void testRepairEmptyTable() {
+  @Test
+  void repairEmptyTable() {
     Table table = createTable(PartitionSpec.unpartitioned());
 
     RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
@@ -134,27 +122,29 @@ public class TestRepairTableAction extends TestBase {
     assertThat(result.repairedEntryCount()).isEqualTo(0);
   }
 
-  @TestTemplate
-  public void testRepairTableWithCorrectStats() {
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"PARQUET", "ORC", "AVRO"})
+  void repairTableWithCorrectStats(FileFormat fileFormat) {
+    Table table = createTable(PartitionSpec.unpartitioned(), DEFAULT_FORMAT_VERSION, fileFormat);
     appendRecords(table, records(4));
 
     assertNoRepair(table, true);
   }
 
-  @TestTemplate
-  public void testNoRepairSelectedIsNoOp() throws IOException {
+  @Test
+  void noRepairSelectedIsNoOp() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
 
     DataFile original = onlyDataFile(table);
-    replaceManifestWithCorruptStats(table, original);
+    replaceManifestWithCorruptStats(table, original, DEFAULT_FORMAT_VERSION);
 
     table.refresh();
     Snapshot before = table.currentSnapshot();
     DataFile corrupt = onlyDataFile(table);
 
-    // no repair was selected, so execute() must do nothing even though the stats are incorrect
     RepairTable.Result result = SparkActions.get().repairTable(table).execute();
 
     assertThat(result.repairedManifests()).isEmpty();
@@ -169,16 +159,18 @@ public class TestRepairTableAction extends TestBase {
         .isEqualTo(corrupt.recordCount());
   }
 
-  @TestTemplate
-  public void testRepairIncorrectRecordCountAndFileSize() throws IOException {
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"PARQUET", "ORC", "AVRO"})
+  void repairIncorrectRecordCountAndFileSize(FileFormat fileFormat) throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), DEFAULT_FORMAT_VERSION, fileFormat);
     appendRecords(table, records(4));
 
     List<Object[]> expectedRows = currentRows();
     DataFile original = onlyDataFile(table);
 
-    // replace the manifest with one whose entry records a wrong record count and file size
-    replaceManifestWithCorruptStats(table, original);
+    replaceManifestWithCorruptStats(table, original, DEFAULT_FORMAT_VERSION);
 
     RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
@@ -198,9 +190,10 @@ public class TestRepairTableAction extends TestBase {
     assertNoRepair(table, false);
   }
 
-  @TestTemplate
-  public void testRepairPreservesEntryLineage() throws IOException {
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2, 3})
+  void repairPreservesEntryLineage(int formatVersion) throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), formatVersion, DEFAULT_FILE_FORMAT);
     appendRecords(table, records(4));
     appendRecords(table, records(2));
     table.rewriteManifests().clusterBy(file -> "").commit();
@@ -214,7 +207,7 @@ public class TestRepairTableAction extends TestBase {
 
     List<Row> lineageBefore = entryLineage();
 
-    replaceManifestWithCorruptStats(table, originals.get(0));
+    replaceManifestWithCorruptStats(table, originals.get(0), formatVersion);
 
     RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
@@ -225,13 +218,13 @@ public class TestRepairTableAction extends TestBase {
         .containsExactlyInAnyOrderElementsOf(lineageBefore);
   }
 
-  @TestTemplate
-  public void testDryRunDoesNotCommit() throws IOException {
+  @Test
+  void dryRunDoesNotCommit() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
 
     DataFile original = onlyDataFile(table);
-    replaceManifestWithCorruptStats(table, original);
+    replaceManifestWithCorruptStats(table, original, DEFAULT_FORMAT_VERSION);
 
     table.refresh();
     Snapshot before = table.currentSnapshot();
@@ -252,8 +245,8 @@ public class TestRepairTableAction extends TestBase {
         .isEqualTo(corrupt.recordCount());
   }
 
-  @TestTemplate
-  public void testRepairOnlyRewritesAffectedManifests() throws IOException {
+  @Test
+  void repairOnlyRewritesAffectedManifests() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(2));
     appendRecords(table, records(2));
@@ -264,9 +257,8 @@ public class TestRepairTableAction extends TestBase {
     List<ManifestFile> manifests = table.currentSnapshot().dataManifests(table.io());
     ManifestFile untouched = manifests.get(1);
 
-    // corrupt the entry of one manifest only
     DataFile fileToCorrupt = readDataFiles(table, manifests.get(0)).get(0);
-    corruptStats(table, manifests.get(0), fileToCorrupt.location());
+    corruptStats(table, manifests.get(0), fileToCorrupt.location(), DEFAULT_FORMAT_VERSION);
 
     RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
@@ -279,8 +271,8 @@ public class TestRepairTableAction extends TestBase {
         .anyMatch(manifest -> manifest.path().equals(untouched.path()));
   }
 
-  @TestTemplate
-  public void testRepairPartitionedTable() throws IOException {
+  @Test
+  void repairPartitionedTable() throws IOException {
     Table table = createTable(PartitionSpec.builderFor(SCHEMA).identity("c1").build());
 
     Dataset<Row> df =
@@ -297,7 +289,7 @@ public class TestRepairTableAction extends TestBase {
     ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
     List<DataFile> files = readDataFiles(table, manifest);
 
-    corruptStats(table, manifest, files.get(0).location());
+    corruptStats(table, manifest, files.get(0).location(), DEFAULT_FORMAT_VERSION);
 
     RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
@@ -305,17 +297,18 @@ public class TestRepairTableAction extends TestBase {
     assertThat(currentRows()).containsExactlyInAnyOrderElementsOf(expectedRows);
   }
 
-  @TestTemplate
-  public void testRepairSkipsColumnMetricsByDefault() throws IOException {
-    assumeThat(fileFormat).isNotEqualTo(FileFormat.AVRO);
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"PARQUET", "ORC"})
+  void repairSkipsColumnMetricsByDefault(FileFormat fileFormat) throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), DEFAULT_FORMAT_VERSION, fileFormat);
     appendRecords(table, records(4));
 
     DataFile original = onlyDataFile(table);
 
-    // only the column level statistics are wrong, the record count and the file size are correct
     ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
-    corruptStats(table, manifest, original.location(), false);
+    corruptStats(table, manifest, original.location(), false, DEFAULT_FORMAT_VERSION);
 
     RepairTable.Result skipped =
         SparkActions.get().repairTable(table).repairFileMetrics().execute();
@@ -337,10 +330,12 @@ public class TestRepairTableAction extends TestBase {
     assertNoRepair(table, true);
   }
 
-  @TestTemplate
-  void repairWithCustomColumnMetrics() throws IOException {
-    assumeThat(fileFormat).isNotEqualTo(FileFormat.AVRO);
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"PARQUET", "ORC"})
+  void repairWithCustomColumnMetrics(FileFormat fileFormat) throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), DEFAULT_FORMAT_VERSION, fileFormat);
     table
         .updateProperties()
         .set(TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "c2", "none")
@@ -354,7 +349,7 @@ public class TestRepairTableAction extends TestBase {
     assertThat(original.lowerBounds()).doesNotContainKey(columnId);
     assertThat(original.upperBounds()).doesNotContainKey(columnId);
 
-    replaceManifestWithCorruptStats(table, original);
+    replaceManifestWithCorruptStats(table, original, DEFAULT_FORMAT_VERSION);
 
     RepairTable.Result result =
         SparkActions.get()
@@ -378,20 +373,21 @@ public class TestRepairTableAction extends TestBase {
     assertNoRepair(table, true);
   }
 
-  @TestTemplate
-  public void testRepairPreservesColumnStatsWhenColumnMetricsDisabled() throws IOException {
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"PARQUET", "ORC", "AVRO"})
+  void repairPreservesColumnStatsWhenColumnMetricsDisabled(FileFormat fileFormat)
+      throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), DEFAULT_FORMAT_VERSION, fileFormat);
     appendRecords(table, records(4));
 
     DataFile original = onlyDataFile(table);
 
-    // the record count, file size and column stats of the entry are all wrong
     ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
-    corruptStats(table, manifest, original.location(), true);
+    corruptStats(table, manifest, original.location(), true, DEFAULT_FORMAT_VERSION);
     DataFile corrupt = onlyDataFile(table);
 
-    // repair with column metrics disabled: the record count and file size are corrected, but the
-    // wrong column stats must be left untouched rather than replaced with the recomputed ones
     RepairTable.Result result = SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
     assertThat(result.repairedEntryCount()).isEqualTo(1);
@@ -420,10 +416,12 @@ public class TestRepairTableAction extends TestBase {
     assertNoRepair(table, false);
   }
 
-  @TestTemplate
-  void renamedColumnMetricsAreUnchanged() throws IOException {
-    assumeThat(fileFormat).isNotEqualTo(FileFormat.AVRO);
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"PARQUET", "ORC"})
+  void renamedColumnMetricsAreUnchanged(FileFormat fileFormat) throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), DEFAULT_FORMAT_VERSION, fileFormat);
     table
         .updateProperties()
         .set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none")
@@ -443,10 +441,12 @@ public class TestRepairTableAction extends TestBase {
     assertThat(onlyDataFile(table).lowerBounds()).isEqualTo(original.lowerBounds());
   }
 
-  @TestTemplate
-  void repairWithCustomInferredMetricsLimit() throws IOException {
-    assumeThat(fileFormat).isNotEqualTo(FileFormat.AVRO);
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"PARQUET", "ORC"})
+  void repairWithCustomInferredMetricsLimit(FileFormat fileFormat) throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), DEFAULT_FORMAT_VERSION, fileFormat);
     table
         .updateProperties()
         .set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, "1")
@@ -460,7 +460,7 @@ public class TestRepairTableAction extends TestBase {
     assertThat(original.lowerBounds()).containsOnlyKeys(inferredId, explicitId);
     assertNoRepair(table, true);
 
-    replaceManifestWithCorruptStats(table, original);
+    replaceManifestWithCorruptStats(table, original, DEFAULT_FORMAT_VERSION);
     RepairTable.Result result =
         SparkActions.get()
             .repairTable(table)
@@ -478,10 +478,12 @@ public class TestRepairTableAction extends TestBase {
     assertNoRepair(table, true);
   }
 
-  @TestTemplate
-  void nanMetricsArePreserved() throws IOException {
-    assumeThat(fileFormat).isNotEqualTo(FileFormat.AVRO);
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"PARQUET", "ORC"})
+  void nanMetricsArePreserved(FileFormat fileFormat) throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), DEFAULT_FORMAT_VERSION, fileFormat);
     table
         .updateSchema()
         .addColumn("float_col", Types.FloatType.get())
@@ -503,7 +505,6 @@ public class TestRepairTableAction extends TestBase {
         .containsEntry(table.schema().findField("double_col").fieldId(), 1L);
     assertNoRepair(table, true);
 
-    // Retain writer-tracked metrics while making the file-level metrics incorrect.
     DataFile corrupt =
         DataFiles.builder(table.spec())
             .copy(original)
@@ -528,11 +529,9 @@ public class TestRepairTableAction extends TestBase {
     assertNoRepair(table, true);
   }
 
-  @TestTemplate
+  @Test
   void correctGeometryMetricsAreUnchanged() throws IOException {
-    assumeThat(formatVersion).isEqualTo(3);
-    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
-    Table table = createTable(PartitionSpec.unpartitioned());
+    Table table = createTable(PartitionSpec.unpartitioned(), 3, DEFAULT_FILE_FORMAT);
     table.updateSchema().addColumn("geom", Types.GeometryType.crs84()).commit();
     Record template = GenericRecord.create(table.schema());
     List<Record> rows =
@@ -541,7 +540,9 @@ public class TestRepairTableAction extends TestBase {
     DataFile file =
         FileHelpers.writeDataFile(
             table,
-            table.io().newOutputFile(temp.resolve(fileFormat.addExtension("data")).toString()),
+            table
+                .io()
+                .newOutputFile(temp.resolve(DEFAULT_FILE_FORMAT.addExtension("data")).toString()),
             rows);
     table.newFastAppend().appendFile(file).commit();
 
@@ -559,18 +560,18 @@ public class TestRepairTableAction extends TestBase {
     assertThat(unchanged.upperBounds().get(geometryId)).isEqualTo(upperBound);
   }
 
-  @TestTemplate
+  @Test
   void repairOverstatedSnapshotTotals() throws IOException {
-    repairSnapshotTotals(true);
+    repairSnapshotTotals(true, DEFAULT_FILE_FORMAT);
   }
 
-  @TestTemplate
+  @Test
   void repairUnderstatedSnapshotTotals() throws IOException {
-    repairSnapshotTotals(false);
+    repairSnapshotTotals(false, DEFAULT_FILE_FORMAT);
   }
 
-  private void repairSnapshotTotals(boolean overstated) throws IOException {
-    Table table = createTable(PartitionSpec.unpartitioned());
+  private void repairSnapshotTotals(boolean overstated, FileFormat fileFormat) throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), DEFAULT_FORMAT_VERSION, fileFormat);
     Record template = GenericRecord.create(table.schema());
     List<Record> rows = Lists.newArrayList();
     for (ThreeColumnRecord record : records(4)) {
@@ -637,40 +638,23 @@ public class TestRepairTableAction extends TestBase {
             Long.toString(dataFile.fileSizeInBytes() + deleteSize));
   }
 
-  @TestTemplate
-  public void testWithStatsPreservesEqualityFieldIds() {
-    // a rebuilt equality delete must keep its equality field ids, otherwise reading the table fails
-    // when the delete is applied. FileMetadata.Builder.copy(DeleteFile) does not carry them.
-    PartitionSpec spec = PartitionSpec.unpartitioned();
-    DeleteFile equalityDelete =
-        FileMetadata.deleteFileBuilder(spec)
-            .ofEqualityDeletes(2, 3)
-            .withPath(tableLocation + "/data/eq-delete.parquet")
-            .withFileSizeInBytes(1024)
-            .withFormat(FileFormat.PARQUET)
-            .withRecordCount(10)
-            .build();
-
-    Metrics recomputed = new Metrics(10L, null, null, null, null);
-    ContentFile<?> rebuilt = RepairMetrics.withStats(equalityDelete, spec, recomputed, 1024L);
-
-    assertThat(rebuilt.content()).isEqualTo(FileContent.EQUALITY_DELETES);
-    assertThat(((DeleteFile) rebuilt).equalityFieldIds())
-        .as("equality field ids must survive a rebuild")
-        .containsExactly(2, 3);
+  private static List<Arguments> equalityDeleteFormats() {
+    return List.of(
+        Arguments.of(2, FileFormat.PARQUET),
+        Arguments.of(2, FileFormat.ORC),
+        Arguments.of(2, FileFormat.AVRO),
+        Arguments.of(3, FileFormat.PARQUET),
+        Arguments.of(3, FileFormat.ORC),
+        Arguments.of(3, FileFormat.AVRO));
   }
 
-  @TestTemplate
-  public void testRepairEqualityDeleteStats() throws IOException {
-    assumeThat(formatVersion)
-        .as("delete files require format version 2 or higher")
-        .isGreaterThanOrEqualTo(2);
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @ParameterizedTest
+  @MethodSource("equalityDeleteFormats")
+  void repairEqualityDeleteStats(int formatVersion, FileFormat fileFormat) throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), formatVersion, fileFormat);
     appendRecords(table, records(4));
 
-    // write a real equality delete file, whose statistics on disk are correct, then commit an entry
-    // for it that records the wrong statistics, mimicking a writer that recorded them incorrectly
-    DeleteFile delete = writeEqDeletes(table, "c1", 0);
+    DeleteFile delete = writeEqDeletes(table, fileFormat, "c1", 0);
     DeleteFile corruptEntry =
         FileMetadata.deleteFileBuilder(table.spec())
             .copy(delete)
@@ -703,17 +687,21 @@ public class TestRepairTableAction extends TestBase {
     assertNoRepair(table, false);
   }
 
-  @TestTemplate
-  public void testRepairPositionDeleteStats() throws IOException {
-    assumeThat(formatVersion)
-        .as("position delete files are written in format version 2")
-        .isEqualTo(2);
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"PARQUET", "ORC", "AVRO"})
+  void repairPositionDeleteStats(FileFormat fileFormat) throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), DEFAULT_FORMAT_VERSION, fileFormat);
     appendRecords(table, records(4));
     DataFile dataFile = onlyDataFile(table);
 
     DeleteFile delete =
-        writePosDeletes(table, Lists.newArrayList(Pair.of(dataFile.location(), 0L)));
+        writePosDeletes(
+            table,
+            Lists.newArrayList(Pair.of(dataFile.location(), 0L)),
+            DEFAULT_FORMAT_VERSION,
+            fileFormat);
     DeleteFile corruptEntry =
         FileMetadata.deleteFileBuilder(table.spec())
             .copy(delete)
@@ -740,19 +728,25 @@ public class TestRepairTableAction extends TestBase {
     assertNoRepair(table, false);
   }
 
-  @TestTemplate
-  void correctPositionDeleteMetricsAreUnchanged() throws IOException {
-    positionDeleteMetricsAreUnchanged(false);
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"PARQUET", "ORC", "AVRO"})
+  void correctPositionDeleteMetricsAreUnchanged(FileFormat fileFormat) throws IOException {
+    positionDeleteMetricsAreUnchanged(false, fileFormat);
   }
 
-  @TestTemplate
-  void correctMultiFilePositionDeleteMetricsAreUnchanged() throws IOException {
-    positionDeleteMetricsAreUnchanged(true);
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"PARQUET", "ORC", "AVRO"})
+  void correctMultiFilePositionDeleteMetricsAreUnchanged(FileFormat fileFormat) throws IOException {
+    positionDeleteMetricsAreUnchanged(true, fileFormat);
   }
 
-  private void positionDeleteMetricsAreUnchanged(boolean multipleDataFiles) throws IOException {
-    assumeThat(formatVersion).isEqualTo(2);
-    Table table = createTable(PartitionSpec.unpartitioned());
+  private void positionDeleteMetricsAreUnchanged(boolean multipleDataFiles, FileFormat fileFormat)
+      throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), DEFAULT_FORMAT_VERSION, fileFormat);
     appendRecords(table, records(4));
     if (multipleDataFiles) {
       appendRecords(table, records(2));
@@ -763,25 +757,30 @@ public class TestRepairTableAction extends TestBase {
       positions.add(Pair.of(file.location(), 0L));
     }
 
-    table.newRowDelta().addDeletes(writePosDeletes(table, positions)).commit();
+    table
+        .newRowDelta()
+        .addDeletes(writePosDeletes(table, positions, DEFAULT_FORMAT_VERSION, fileFormat))
+        .commit();
     assertNoRepair(table, true);
   }
 
-  @TestTemplate
-  public void testRepairDeleteManifestHoldingBothDeleteTypes() throws IOException {
-    assumeThat(formatVersion)
-        .as("position delete files are written in format version 2")
-        .isEqualTo(2);
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @ParameterizedTest
+  @EnumSource(
+      value = FileFormat.class,
+      names = {"PARQUET", "ORC", "AVRO"})
+  void repairDeleteManifestHoldingBothDeleteTypes(FileFormat fileFormat) throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), DEFAULT_FORMAT_VERSION, fileFormat);
     appendRecords(table, records(4));
     DataFile dataFile = onlyDataFile(table);
 
     DeleteFile posDelete =
-        writePosDeletes(table, Lists.newArrayList(Pair.of(dataFile.location(), 0L)));
-    DeleteFile eqDelete = writeEqDeletes(table, "c1", 1);
+        writePosDeletes(
+            table,
+            Lists.newArrayList(Pair.of(dataFile.location(), 0L)),
+            DEFAULT_FORMAT_VERSION,
+            fileFormat);
+    DeleteFile eqDelete = writeEqDeletes(table, fileFormat, "c1", 1);
 
-    // commit both deletes together so they share a single delete manifest, whose entries then have
-    // two different content types and therefore two different metrics configs
     DeleteFile posEntry =
         FileMetadata.deleteFileBuilder(table.spec())
             .copy(posDelete)
@@ -802,9 +801,7 @@ public class TestRepairTableAction extends TestBase {
         .as("both deletes must land in a single manifest for this to exercise mixed content")
         .hasSize(1);
 
-    // enable column metrics so the metrics config actually matters: the equality delete must be
-    // repaired under the table's config, not the position delete's, which is what keying the config
-    // by content type ensures
+    // Equality and position deletes need different column metrics configs.
     RepairTable.Result result =
         SparkActions.get()
             .repairTable(table)
@@ -834,8 +831,7 @@ public class TestRepairTableAction extends TestBase {
     assertThat(repairedEq.equalityFieldIds())
         .as("equality field ids must survive the repair of a mixed manifest")
         .isEqualTo(eqDelete.equalityFieldIds());
-    // the equality delete's column stats must be recomputed under the table's config; had the
-    // position delete's config been used for it, the value counts would differ from the file
+
     assertThat(repairedEq.valueCounts())
         .as("equality delete column stats must be recomputed under its own metrics config")
         .isEqualTo(eqDelete.valueCounts());
@@ -852,22 +848,16 @@ public class TestRepairTableAction extends TestBase {
     assertNoRepair(table, true);
   }
 
-  @TestTemplate
-  public void testRepairPreservesDeletionVectorFields() throws IOException {
-    assumeThat(formatVersion)
-        .as("deletion vectors are only written in format version 3 or higher")
-        .isGreaterThanOrEqualTo(3);
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @Test
+  void repairPreservesDeletionVectorFields() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), 3, DEFAULT_FILE_FORMAT);
     appendRecords(table, records(4));
     DataFile dataFile = onlyDataFile(table);
 
-    // a deletion vector (a Puffin blob) shares a delete manifest with a repairable equality
-    // delete. repair skips the vector because its metrics cannot be read, but still rewrites the
-    // manifest to fix the equality delete, re-serializing the vector through SparkDeleteFile. its
-    // v3 fields must survive that round trip.
+    // A corrupt equality delete forces the shared manifest to rewrite the deletion vector.
     DeleteFile dv = writeDV(table, dataFile, 1);
 
-    DeleteFile eqDelete = writeEqDeletes(table, "c1", 1);
+    DeleteFile eqDelete = writeEqDeletes(table, DEFAULT_FILE_FORMAT, "c1", 1);
     DeleteFile corruptEqEntry =
         FileMetadata.deleteFileBuilder(table.spec())
             .copy(eqDelete)
@@ -877,7 +867,6 @@ public class TestRepairTableAction extends TestBase {
             .withFileSizeInBytes(eqDelete.fileSizeInBytes() + 4096)
             .build();
 
-    // commit both together so the deletion vector and the equality delete share one delete manifest
     table.newRowDelta().addDeletes(dv).addDeletes(corruptEqEntry).commit();
     table.refresh();
     assertThat(table.currentSnapshot().deleteManifests(table.io()))
@@ -920,15 +909,14 @@ public class TestRepairTableAction extends TestBase {
     assertNoRepair(table, false);
   }
 
-  @TestTemplate
-  public void testRepairSucceedsWithConcurrentAppend() throws IOException {
+  @Test
+  void repairSucceedsWithConcurrentAppend() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
 
     DataFile original = onlyDataFile(table);
-    replaceManifestWithCorruptStats(table, original);
+    replaceManifestWithCorruptStats(table, original, DEFAULT_FORMAT_VERSION);
 
-    // append concurrently, after the repair has determined what to rewrite but before it commits
     RepairTable.Result result =
         repairWithConcurrentChange(table, () -> appendRecords(table, records(2)));
 
@@ -954,19 +942,18 @@ public class TestRepairTableAction extends TestBase {
             Long.toString(dataFiles(table).stream().mapToLong(DataFile::fileSizeInBytes).sum()));
   }
 
-  @TestTemplate
-  public void testRepairFailsWhenRepairedManifestIsConcurrentlyReplaced() throws IOException {
+  @Test
+  void repairFailsWhenRepairedManifestIsConcurrentlyReplaced() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
 
     DataFile original = onlyDataFile(table);
-    replaceManifestWithCorruptRecordCount(table, original);
+    replaceManifestWithCorruptRecordCount(table, original, DEFAULT_FORMAT_VERSION);
 
     table.refresh();
     List<Object[]> rowsBeforeRepair = currentRows();
     DataFile corrupt = onlyDataFile(table);
 
-    // concurrently rewrite the very manifest the repair is about to replace
     assertThatThrownBy(
             () ->
                 repairWithConcurrentChange(
@@ -987,20 +974,19 @@ public class TestRepairTableAction extends TestBase {
         .isEqualTo(corrupt.recordCount());
   }
 
-  @TestTemplate
-  public void testRepairCleansUpManifestsOnCommitFailure() throws IOException {
+  @Test
+  void repairCleansUpManifestsOnCommitFailure() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
 
     DataFile original = onlyDataFile(table);
-    replaceManifestWithCorruptRecordCount(table, original);
+    replaceManifestWithCorruptRecordCount(table, original, DEFAULT_FORMAT_VERSION);
     table.refresh();
 
     List<Object[]> rowsBeforeRepair = currentRows();
     DataFile corrupt = onlyDataFile(table);
 
-    // fail the commit with a cleanable failure, as a table whose retries are exhausted would
-    org.apache.iceberg.RewriteManifests spyRewriteManifests = spy(table.rewriteManifests());
+    RewriteManifests spyRewriteManifests = spy(table.rewriteManifests());
     doThrow(new CommitFailedException("Injected commit failure"))
         .when(spyRewriteManifests)
         .commit();
@@ -1025,10 +1011,8 @@ public class TestRepairTableAction extends TestBase {
         .isEmpty();
   }
 
-  @TestTemplate
+  @Test
   void repairCleansUpManifestsOnWriteFailure() throws IOException {
-    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
-
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
     appendRecords(table, records(2));
@@ -1039,7 +1023,7 @@ public class TestRepairTableAction extends TestBase {
     List<DataFile> files = readDataFiles(table, manifests.get(0));
     assertThat(files).hasSize(2);
     String failingPath = files.get(1).location();
-    corruptStats(table, manifests.get(0), failingPath, true, false);
+    corruptStats(table, manifests.get(0), failingPath, true, false, DEFAULT_FORMAT_VERSION);
 
     String metadataBefore =
         ((HasTableOperations) table).operations().current().metadataFileLocation();
@@ -1071,20 +1055,19 @@ public class TestRepairTableAction extends TestBase {
         .isEqualTo(manifestsBefore);
   }
 
-  @TestTemplate
+  @Test
   void repairCleansUpManifestsOfEarlierGroupsWhenLaterGroupFails() throws IOException {
-    assumeThat(formatVersion)
-        .as("position delete files are written in format version 2")
-        .isEqualTo(2);
-
-    // the data group repairs its manifest before the delete group fails writing its own
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
     DataFile original = onlyDataFile(table);
-    replaceManifestWithCorruptRecordCount(table, original);
+    replaceManifestWithCorruptRecordCount(table, original, DEFAULT_FORMAT_VERSION);
     table.refresh();
     DeleteFile delete =
-        writePosDeletes(table, Lists.newArrayList(Pair.of(original.location(), 0L)));
+        writePosDeletes(
+            table,
+            Lists.newArrayList(Pair.of(original.location(), 0L)),
+            DEFAULT_FORMAT_VERSION,
+            DEFAULT_FILE_FORMAT);
     table
         .newRowDelta()
         .addDeletes(
@@ -1126,20 +1109,21 @@ public class TestRepairTableAction extends TestBase {
         .isEqualTo(manifestsBefore);
   }
 
-  @TestTemplate
-  void repairCleansUpManifestsOnSnapshotTotalsFailure() throws IOException {
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2, 3})
+  void repairCleansUpManifestsOnSnapshotTotalsFailure(int formatVersion) throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), formatVersion, DEFAULT_FILE_FORMAT);
     table.updateProperties().set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "false").commit();
     appendRecords(table, records(4));
     DataFile original = onlyDataFile(table);
-    replaceManifestWithCorruptRecordCount(table, original);
+    replaceManifestWithCorruptRecordCount(table, original, formatVersion);
     table.refresh();
 
     String metadataBefore =
         ((HasTableOperations) table).operations().current().metadataFileLocation();
     Set<String> manifestsBefore = manifestPaths();
     FileIO failingIO = new FailingManifestReadFileIO();
-    // Format v1 staging must still be able to read replacement manifests on the driver.
+    // V1 staging must read replacement manifests before snapshot totals fail.
     Table repairTable =
         new BaseTable(((HasTableOperations) table).operations(), table.name()) {
           @Override
@@ -1164,18 +1148,17 @@ public class TestRepairTableAction extends TestBase {
         .isEqualTo(manifestsBefore);
   }
 
-  @TestTemplate
-  public void testRepairKeepsManifestsOnCommitStateUnknown() throws IOException {
+  @Test
+  void repairKeepsManifestsOnCommitStateUnknown() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
 
     DataFile original = onlyDataFile(table);
-    replaceManifestWithCorruptStats(table, original);
+    replaceManifestWithCorruptStats(table, original, DEFAULT_FORMAT_VERSION);
     table.refresh();
 
-    // commit successfully but report the outcome as unknown
-    org.apache.iceberg.RewriteManifests rewriteManifests = table.rewriteManifests();
-    org.apache.iceberg.RewriteManifests spyRewriteManifests = spy(rewriteManifests);
+    RewriteManifests rewriteManifests = table.rewriteManifests();
+    RewriteManifests spyRewriteManifests = spy(rewriteManifests);
     doAnswer(
             invocation -> {
               rewriteManifests.commit();
@@ -1194,7 +1177,6 @@ public class TestRepairTableAction extends TestBase {
 
     table.refresh();
 
-    // the commit did succeed, so the repaired manifests must not have been deleted
     assertThat(onlyDataFile(table).recordCount())
         .as("the repair committed, so the corrected stats must be readable")
         .isEqualTo(original.recordCount());
@@ -1205,13 +1187,13 @@ public class TestRepairTableAction extends TestBase {
     }
   }
 
-  @TestTemplate
-  public void testDryRunLeavesNoManifestsBehind() throws IOException {
+  @Test
+  void dryRunLeavesNoManifestsBehind() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     appendRecords(table, records(4));
 
     DataFile original = onlyDataFile(table);
-    replaceManifestWithCorruptStats(table, original);
+    replaceManifestWithCorruptStats(table, original, DEFAULT_FORMAT_VERSION);
     table.refresh();
     Set<String> manifestsBefore = manifestPaths();
 
@@ -1224,10 +1206,6 @@ public class TestRepairTableAction extends TestBase {
         .isEqualTo(manifestsBefore);
   }
 
-  /**
-   * Runs the repair, applying the given change to the table after the manifests to repair have been
-   * determined but before the repair commits.
-   */
   private RepairTable.Result repairWithConcurrentChange(Table table, Runnable change) {
     Table spyTable = spy(table);
     when(spyTable.rewriteManifests())
@@ -1255,16 +1233,16 @@ public class TestRepairTableAction extends TestBase {
     return paths;
   }
 
-  @TestTemplate
-  public void testRepairAfterPartitionSpecEvolution() throws IOException {
-    Table table = createTable(PartitionSpec.unpartitioned());
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2, 3})
+  void repairAfterPartitionSpecEvolution(int formatVersion) throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned(), formatVersion, DEFAULT_FILE_FORMAT);
     appendRecords(table, records(4));
 
     DataFile original = onlyDataFile(table);
     assertThat(original.specId()).isEqualTo(0);
     assertThat(original.partition().size()).isEqualTo(0);
 
-    // evolve the table to a partitioned spec; the existing manifest keeps referring to spec 0
     table.updateSpec().addField("c1").commit();
     table.refresh();
     assertThat(table.spec().specId()).isEqualTo(1);
@@ -1274,8 +1252,7 @@ public class TestRepairTableAction extends TestBase {
         .as("the manifest written before the evolution must still be tagged with the old spec")
         .isEqualTo(0);
 
-    // corrupt the stats of the entry that still belongs to the original, unpartitioned spec
-    corruptStats(table, oldManifest, original.location());
+    corruptStats(table, oldManifest, original.location(), formatVersion);
 
     SparkActions.get().repairTable(table).repairFileMetrics().execute();
 
@@ -1292,11 +1269,14 @@ public class TestRepairTableAction extends TestBase {
         .isEqualTo(0);
   }
 
-  @TestTemplate
-  void repairAfterDroppingPartitionSourceColumn() throws IOException {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
-
-    Table table = createTable(PartitionSpec.builderFor(SCHEMA).bucket("c1", 16).build());
+  @ParameterizedTest
+  @ValueSource(ints = {2, 3})
+  void repairAfterDroppingPartitionSourceColumn(int formatVersion) throws IOException {
+    Table table =
+        createTable(
+            PartitionSpec.builderFor(SCHEMA).bucket("c1", 16).build(),
+            formatVersion,
+            DEFAULT_FILE_FORMAT);
     appendRecords(table, records(8));
     table.rewriteManifests().clusterBy(file -> "").commit();
 
@@ -1315,7 +1295,7 @@ public class TestRepairTableAction extends TestBase {
     table.updateSpec().removeField("c1_bucket").addField("c2").commit();
     table.updateSchema().deleteColumn("c1").commit();
     List<Row> rowsBefore = spark.read().format("iceberg").load(tableLocation).collectAsList();
-    corruptStats(table, manifest, files.get(0).location());
+    corruptStats(table, manifest, files.get(0).location(), formatVersion);
 
     String metadataBefore =
         ((HasTableOperations) table).operations().current().metadataFileLocation();
@@ -1363,6 +1343,10 @@ public class TestRepairTableAction extends TestBase {
   }
 
   private Table createTable(PartitionSpec spec) {
+    return createTable(spec, DEFAULT_FORMAT_VERSION, DEFAULT_FILE_FORMAT);
+  }
+
+  private Table createTable(PartitionSpec spec, int formatVersion, FileFormat fileFormat) {
     Map<String, String> options = Maps.newHashMap();
     options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
     options.put(TableProperties.DEFAULT_FILE_FORMAT, fileFormat.name());
@@ -1389,7 +1373,6 @@ public class TestRepairTableAction extends TestBase {
         spark.read().format("iceberg").load(tableLocation).sort("c1", "c2", "c3").collectAsList());
   }
 
-  /** Returns the snapshot id, sequence numbers and first row ID of every live entry. */
   private List<Row> entryLineage() {
     return spark
         .read()
@@ -1415,7 +1398,7 @@ public class TestRepairTableAction extends TestBase {
 
   private List<DataFile> readDataFiles(Table table, ManifestFile manifest) throws IOException {
     List<DataFile> files = Lists.newArrayList();
-    try (org.apache.iceberg.io.CloseableIterable<DataFile> reader =
+    try (CloseableIterable<DataFile> reader =
         ManifestFiles.read(manifest, table.io(), table.specs())) {
       reader.forEach(file -> files.add(file.copy()));
     }
@@ -1434,7 +1417,7 @@ public class TestRepairTableAction extends TestBase {
 
   private List<DeleteFile> readDeleteFiles(Table table, ManifestFile manifest) throws IOException {
     List<DeleteFile> files = Lists.newArrayList();
-    try (org.apache.iceberg.io.CloseableIterable<DeleteFile> reader =
+    try (CloseableIterable<DeleteFile> reader =
         ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
       reader.forEach(file -> files.add(file.copy()));
     }
@@ -1442,7 +1425,8 @@ public class TestRepairTableAction extends TestBase {
     return files;
   }
 
-  private DeleteFile writeEqDeletes(Table table, String key, Object... values) throws IOException {
+  private DeleteFile writeEqDeletes(
+      Table table, FileFormat fileFormat, String key, Object... values) throws IOException {
     Schema deleteSchema = table.schema().select(key);
     Record template = GenericRecord.create(deleteSchema);
     List<Record> deletes = Lists.newArrayList();
@@ -1456,7 +1440,8 @@ public class TestRepairTableAction extends TestBase {
     return FileHelpers.writeDeleteFile(table, output, null, deletes, deleteSchema);
   }
 
-  private DeleteFile writePosDeletes(Table table, List<Pair<CharSequence, Long>> deletes)
+  private DeleteFile writePosDeletes(
+      Table table, List<Pair<CharSequence, Long>> deletes, int formatVersion, FileFormat fileFormat)
       throws IOException {
     OutputFile output =
         Files.localOutput(
@@ -1480,69 +1465,48 @@ public class TestRepairTableAction extends TestBase {
     return deleteFiles.get(0);
   }
 
-  private void replaceManifestWithCorruptStats(Table table, DataFile file) throws IOException {
-    ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
-    corruptStats(table, manifest, file.location());
-  }
-
-  /**
-   * Corrupts the record count of the given file's entry while leaving its file size accurate. The
-   * table therefore stays readable by a scan even while the corruption is unrepaired, which lets a
-   * test that expects the repair to fail still read the table back afterwards.
-   */
-  private void replaceManifestWithCorruptRecordCount(Table table, DataFile file)
+  private void replaceManifestWithCorruptStats(Table table, DataFile file, int formatVersion)
       throws IOException {
     ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
-    corruptStats(table, manifest, file.location(), true, false);
+    corruptStats(table, manifest, file.location(), formatVersion);
   }
 
-  /**
-   * Rewrites a manifest so that the entry of the given file records an incorrect record count, file
-   * size and column statistics, mimicking a writer that recorded them incorrectly.
-   *
-   * <p>Every other entry of the manifest is carried through unchanged, along with the lineage of
-   * all entries, so that the manifest differs from the original only in the statistics of one
-   * entry.
-   */
-  private void corruptStats(Table table, ManifestFile manifest, String location)
+  private void replaceManifestWithCorruptRecordCount(Table table, DataFile file, int formatVersion)
       throws IOException {
-    corruptStats(table, manifest, location, true);
+    // Keep the real size so Parquet's eager footer read does not hit EOF after a failed repair.
+    ManifestFile manifest = table.currentSnapshot().dataManifests(table.io()).get(0);
+    corruptStats(table, manifest, file.location(), true, false, formatVersion);
   }
 
-  /**
-   * Rewrites a manifest, corrupting the statistics of the entry of the given file. When {@code
-   * corruptCounts} is false, only the column level statistics are dropped, leaving the record count
-   * and the file size correct.
-   */
+  private void corruptStats(Table table, ManifestFile manifest, String location, int formatVersion)
+      throws IOException {
+    corruptStats(table, manifest, location, true, formatVersion);
+  }
+
   private void corruptStats(
-      Table table, ManifestFile manifest, String location, boolean corruptCounts)
+      Table table, ManifestFile manifest, String location, boolean corruptCounts, int formatVersion)
       throws IOException {
-    corruptStats(table, manifest, location, corruptCounts, corruptCounts);
+    corruptStats(table, manifest, location, corruptCounts, corruptCounts, formatVersion);
   }
 
-  /**
-   * Rewrites a manifest, corrupting the statistics of the entry of the given file. The record count
-   * (along with the column statistics) and the file size are corrupted independently, so that a
-   * caller can leave the file size accurate and keep the file readable by a scan while its other
-   * statistics are wrong.
-   */
   private void corruptStats(
       Table table,
       ManifestFile manifest,
       String location,
       boolean corruptCounts,
-      boolean corruptSize)
+      boolean corruptSize,
+      int formatVersion)
       throws IOException {
     File manifestFile = File.createTempFile("corrupt-manifest", ".avro", temp.toFile());
     assertThat(manifestFile.delete()).isTrue();
     PartitionSpec spec = table.specs().get(manifest.partitionSpecId());
 
-    // the snapshot id is assigned during commit, so the manifest must be written without one
+    // Leave the snapshot ID unset so the commit can assign it.
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(
             formatVersion, spec, table.io().newOutputFile(manifestFile.getCanonicalPath()), null);
 
-    // read the lineage of each entry from the metadata table, it is not exposed by the reader
+    // The manifest reader does not expose entry lineage.
     Map<String, Row> lineageByPath = Maps.newHashMap();
     for (Row row : entryLineage()) {
       lineageByPath.put(row.getString(3), row);
@@ -1574,7 +1538,6 @@ public class TestRepairTableAction extends TestBase {
     DataFiles.Builder builder =
         DataFiles.builder(spec)
             .copy(file)
-            // drop the column level statistics, keeping the column sizes
             .withMetrics(
                 new Metrics(
                     corruptCounts ? file.recordCount() + 100 : file.recordCount(),
@@ -1598,6 +1561,7 @@ public class TestRepairTableAction extends TestBase {
         .flip();
   }
 
+  // Static failure state is shared with Spark local tasks, which do not retry.
   private static class FailingMetricsReadFileIO extends HadoopFileIO {
     private static volatile boolean manifestCreated = false;
     private final String failingPath;

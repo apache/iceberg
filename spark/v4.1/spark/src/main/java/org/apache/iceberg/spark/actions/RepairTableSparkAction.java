@@ -94,14 +94,11 @@ import org.slf4j.LoggerFactory;
 import scala.Tuple2;
 
 /**
- * An action that repairs incorrect statistics in the manifests of a table.
+ * An action that repairs incorrect statistics in the manifests of a table, rewriting only the
+ * manifests that contain an incorrect entry.
  *
- * <p>The statistics of every live manifest entry are compared against the file the entry refers to.
- * Only manifests that contain at least one incorrect entry are rewritten. Snapshot totals are
- * recomputed from the live entries when committing a repair.
- *
- * <p>Deletion vectors (delete blobs stored in Puffin files) are not verified or repaired. NaN
- * counts and floating-point bounds are preserved because footers cannot reconstruct them reliably.
+ * <p>Deletion vectors are not repaired. NaN counts and floating-point and geometry bounds are kept
+ * as stored, because file footers cannot reconstruct them reliably.
  */
 public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<RepairTableSparkAction>
     implements RepairTable {
@@ -110,15 +107,9 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
   public static final boolean USE_CACHING_DEFAULT = false;
 
   /**
-   * Whether to compare and repair column level statistics. When disabled, only record counts and
-   * file sizes are compared and repaired.
-   *
-   * <p>This is disabled by default. Recomputed column statistics reflect the current metrics config
-   * of the table, but the config a file was written under is not recorded, so a table whose config
-   * changed reports column statistics that legitimately differ from the recomputed ones. Repairing
-   * them in that case would overwrite correct statistics. Reading the footer of every candidate
-   * file happens regardless of this option; it only controls whether column statistics are
-   * compared.
+   * Whether to also repair column statistics, not only record counts and file sizes. Disabled by
+   * default: the metrics config a file was written under is not recorded, so correct column
+   * statistics can differ from the recomputed ones after the table's config changes.
    */
   public static final String REPAIR_COLUMN_METRICS = "repair-column-metrics";
 
@@ -211,8 +202,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
         repairedCount += repaired.repairedCount();
       }
     } catch (Exception e) {
-      // If a later content group fails before the commit, delete the manifests already written by
-      // earlier groups so a partial repair does not leave orphan files in the metadata directory.
+      // the manifests of earlier groups are not committed, so delete them rather than orphan them
       deleteFiles(Iterables.transform(newManifests, ManifestFile::path));
       throw e;
     }
@@ -221,7 +211,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
       return EMPTY_RESULT;
     }
 
-    // a dry run writes no manifests, so there is nothing to commit or clean up
     if (!dryRun) {
       replaceManifests(repairedManifests, newManifests);
     }
@@ -245,9 +234,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
       return RepairedManifests.empty();
     }
 
-    // A manifest is rewritten with the spec it was written under, so manifests are grouped by
-    // spec and each group is repaired separately. Rewriting a manifest of an older spec with the
-    // current spec of the table would change the partition data of its entries.
+    // rewriting a manifest with a spec other than its own would change its partition data
     Map<Integer, List<ManifestFile>> manifestsBySpecId =
         manifests.stream().collect(Collectors.groupingBy(ManifestFile::partitionSpecId));
 
@@ -263,8 +250,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
         repairedCount += repaired.repairedCount();
       }
     } catch (Exception e) {
-      // If a later spec group fails before the commit, delete the manifests already written by
-      // earlier groups so a partial repair does not leave orphan files behind.
+      // the manifests of earlier groups are not committed, so delete them rather than orphan them
       deleteFiles(Iterables.transform(newManifests, ManifestFile::path));
       throw e;
     }
@@ -279,9 +265,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     return withReusableDS(
         entryDF,
         df -> {
-          // the entries whose stats disagree with the files they refer to, as (manifest, path).
-          // cached because it is small, one row per incorrect entry, and is read by several actions
-          // below, whereas recomputing it would re-read every file.
+          // cached because it is read several times and recomputing it would read every file again
           Dataset<Row> verdicts =
               df.mapPartitions(
                       new CheckStats(newRepairContext(content)),
@@ -304,14 +288,11 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
                     .filter(manifest -> manifestsToRewrite.contains(manifest.path()))
                     .collect(Collectors.toList());
 
-            // a dry run reports what would be repaired without writing any manifests
             if (dryRun) {
               return RepairedManifests.of(rewritten, ImmutableList.of(), repairedCount);
             }
 
-            // mark every entry of the affected manifests with whether its stats need repair by
-            // joining on the file path, so the unbounded per file set stays distributed rather than
-            // being collected to the driver and broadcast back out
+            // join rather than collect the paths, which can cover every file of the table
             Dataset<Row> entriesToRewrite =
                 df.filter(df.col("manifest").isin(manifestsToRewrite.toArray()));
             Dataset<Row> markedEntries = markEntriesToRepair(entriesToRewrite, verdicts);
@@ -324,10 +305,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
         });
   }
 
-  /**
-   * Marks every entry with a boolean {@code repair} column that is true when the entry's file has
-   * incorrect statistics, by left joining the entries against the verdicts on the file path.
-   */
   private Dataset<Row> markEntriesToRepair(Dataset<Row> entries, Dataset<Row> verdicts) {
     Dataset<Row> repairedPaths =
         verdicts.select(verdicts.col("path").as("repaired_path")).distinct();
@@ -341,10 +318,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
         .select("manifest", "snapshot_id", "data_file.file_path", "repair");
   }
 
-  /**
-   * Loads the live entries of the given manifests, keeping the manifest each entry was read from so
-   * that only the manifests containing an incorrect entry are rewritten.
-   */
   private Dataset<Row> buildManifestEntryDF(List<ManifestFile> manifests) {
     Dataset<Row> manifestDF =
         spark()
@@ -370,9 +343,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
             ? new WriteDataManifests(writers, manifests, context)
             : new WriteDeleteManifests(writers, manifests, context);
 
-    // repartition by manifest so the entries of each manifest are written together and the layout
-    // of the table is preserved, rather than scattered round robin as a plain repartition(n) would.
-    // this produces about as many manifests as are being replaced.
+    // repartition by manifest so each manifest's entries stay together, keeping the table's layout
     return writeFunc
         .apply(entryDF.repartition(manifests.size(), entryDF.col("manifest")))
         .collectAsList();
@@ -424,9 +395,8 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
             try {
               updateSnapshotTotals(rewriteManifests, manifests);
             } catch (Exception e) {
-              // Validation runs before the new metadata is published, so the failure is cleanable.
-              // This lets core delete its staged copies of the replacement manifests and the
-              // handler below delete the replacement manifests themselves.
+              // validation runs before the commit is published, so core and the handler below can
+              // safely delete the staged and replacement manifests
               throw new SnapshotTotalsFailure(e);
             }
 
@@ -608,12 +578,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     }
   }
 
-  /**
-   * The state needed to read the statistics of a file on an executor.
-   *
-   * <p>The table is broadcast so that the file IO, schema and metrics config are available without
-   * being resolved for every entry.
-   */
   private static class RepairContext implements Serializable {
     private final Broadcast<Table> tableBroadcast;
     private final ManifestContent content;
@@ -664,11 +628,7 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
       return table().specs().get(id);
     }
 
-    /**
-     * Returns the metrics config for the content type of the given file. A delete manifest can hold
-     * both position and equality deletes, whose configs differ, so the config is cached per content
-     * type rather than once for the whole manifest.
-     */
+    // a delete manifest can hold both position and equality deletes, whose configs differ
     MetricsConfig metricsConfig(ContentFile<?> file) {
       if (lazyMetricsConfigs == null) {
         this.lazyMetricsConfigs = new EnumMap<>(FileContent.class);
@@ -694,10 +654,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     }
   }
 
-  /**
-   * Compares the statistics of every entry against the file the entry refers to, emitting the
-   * manifest path and file path of each entry whose statistics are incorrect.
-   */
   private static class CheckStats implements MapPartitionsFunction<Row, Tuple2<String, String>> {
     private final RepairContext context;
 
@@ -708,7 +664,6 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     @Override
     public Iterator<Tuple2<String, String>> call(Iterator<Row> rows) {
       List<Tuple2<String, String>> verdicts = Lists.newArrayList();
-      // the combined file type and the wrapper are identical for every row of the partition
       Types.StructType combinedFileType =
           DataFile.getType(Partitioning.partitionType(context.table()));
       SparkContentFile<?> fileWrapper = null;
@@ -745,8 +700,8 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
             verdicts.add(new Tuple2<>(manifest, location));
           }
         } catch (Exception e) {
-          // the stats of a file that cannot be read are left alone, as whether they are
-          // correct cannot be told without reading it
+          // A file we can't read keeps its stats as is, so skipping can only leave an entry
+          // unrepaired, never make it worse.
           LOG.warn("Skipping the entry of {} as its statistics could not be read", location, e);
         }
       }
@@ -789,14 +744,8 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
     }
   }
 
-  /**
-   * Writes the entries of the manifests being repaired, replacing the statistics of the entries
-   * that were found to be incorrect.
-   *
-   * <p>Entries are always written with {@link RollingManifestWriter#existing}, carrying the
-   * original snapshot id and sequence numbers so that the lineage of the files, and therefore the
-   * delete files that apply to them, is preserved.
-   */
+  // entries are written as existing with their original snapshot id and sequence numbers, so the
+  // delete files that apply to them still do
   private abstract static class WriteManifests<F extends ContentFile<F>>
       implements MapPartitionsFunction<Row, ManifestFile> {
 
@@ -840,9 +789,8 @@ public class RepairTableSparkAction extends BaseSnapshotUpdateSparkAction<Repair
             continue;
           }
 
-          // the files are read from the original manifest rather than the entries metadata table,
-          // which omits partition fields whose source column was dropped, so every entry keeps its
-          // original partition tuple
+          // read the original manifest, since the entries metadata table omits partition fields
+          // whose source column was dropped
           try (ManifestReader<F> reader = readManifest(manifest, context.table())) {
             for (F file : reader) {
               Row row = entries.get(file.location());
