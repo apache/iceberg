@@ -91,8 +91,10 @@ class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<I
 
   @Override
   public void close() throws Exception {
-    try (tableLoader) {
+    try {
       super.close();
+    } finally {
+      tableLoader.close();
     }
   }
 
