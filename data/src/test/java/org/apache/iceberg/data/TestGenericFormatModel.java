@@ -65,6 +65,9 @@ class TestGenericFormatModel extends BaseFormatModelTests<Record> {
       return structLikeToRecord(struct, type.asStructType());
     }
 
-    return value;
+    // Scalar constants arrive in Iceberg's internal representation (for example dates as epoch-day
+    // ints and timestamps as micro longs); convert them to the generic object model representation
+    // (LocalDate, LocalDateTime, ...) so reads match the generic comparison in DataTestHelpers.
+    return GenericDataUtil.internalToGeneric(type, value);
   }
 }

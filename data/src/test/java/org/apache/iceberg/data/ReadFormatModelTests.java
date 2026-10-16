@@ -183,6 +183,10 @@ public abstract class ReadFormatModelTests<T> {
   static final String FEATURE_VARIANT = "variant";
   static final String FEATURE_GEOSPATIAL = "geospatial";
 
+  private static final Set<Type.TypeID> VARIANT_TYPE_IDS = Set.of(Type.TypeID.VARIANT);
+  private static final Set<Type.TypeID> GEOSPATIAL_TYPE_IDS =
+      Set.of(Type.TypeID.GEOMETRY, Type.TypeID.GEOGRAPHY);
+
   private static final Map<FileFormat, String[]> MISSING_FEATURES =
       Map.of(
           FileFormat.AVRO,
@@ -1483,10 +1487,7 @@ public abstract class ReadFormatModelTests<T> {
     assumeSupports(fileFormat, FEATURE_GEOSPATIAL);
     assumeSupports(fileFormat, FEATURE_COLUMN_LEVEL_METRICS);
 
-    Schema schema =
-        new Schema(
-            Types.NestedField.required(1, "geometry_col", Types.GeometryType.crs84()),
-            Types.NestedField.optional(2, "geometry_opt_col", Types.GeometryType.crs84()));
+    Schema schema = new DataGenerators.Geometry().schema();
 
     // The spatial lower/upper bounds are the corners of the bounding box over all values, so no
     // single value needs to sit at a corner. Points are chosen so the expected corners differ from
@@ -1502,13 +1503,19 @@ public abstract class ReadFormatModelTests<T> {
 
     DataFile dataFile = writeGenericRecords(fileFormat, schema, records);
 
+    Type geometryType = schema.findType("geometry_col");
+
     // Required column box: min corner (1, 2), max corner (5, 6).
-    assertGeospatialBound(dataFile.lowerBounds().get(1), 1.0, 2.0);
-    assertGeospatialBound(dataFile.upperBounds().get(1), 5.0, 6.0);
+    assertGeospatialBound(
+        geometryType, dataFile.lowerBounds().get(1), GeospatialBound.createXY(1.0, 2.0));
+    assertGeospatialBound(
+        geometryType, dataFile.upperBounds().get(1), GeospatialBound.createXY(5.0, 6.0));
 
     // Optional column box over the two non-null values: min corner (-3, -1), max corner (2, 7).
-    assertGeospatialBound(dataFile.lowerBounds().get(2), -3.0, -1.0);
-    assertGeospatialBound(dataFile.upperBounds().get(2), 2.0, 7.0);
+    assertGeospatialBound(
+        geometryType, dataFile.lowerBounds().get(2), GeospatialBound.createXY(-3.0, -1.0));
+    assertGeospatialBound(
+        geometryType, dataFile.upperBounds().get(2), GeospatialBound.createXY(2.0, 7.0));
   }
 
   @ParameterizedTest
@@ -2450,23 +2457,22 @@ public abstract class ReadFormatModelTests<T> {
   }
 
   private static boolean supportsGenerator(FileFormat fileFormat, DataGenerator generator) {
-    boolean hasVariant =
-        TypeUtil.find(generator.schema(), type -> type.typeId() == Type.TypeID.VARIANT) != null;
-    if (hasVariant && !supportsFeature(fileFormat, FEATURE_VARIANT)) {
-      return false;
-    }
+    Schema schema = generator.schema();
+    return supportsTypes(fileFormat, schema, VARIANT_TYPE_IDS, FEATURE_VARIANT)
+        && supportsTypes(fileFormat, schema, GEOSPATIAL_TYPE_IDS, FEATURE_GEOSPATIAL);
+  }
 
-    boolean hasGeospatial =
-        TypeUtil.find(
-                generator.schema(),
-                type ->
-                    type.typeId() == Type.TypeID.GEOMETRY || type.typeId() == Type.TypeID.GEOGRAPHY)
-            != null;
-    if (hasGeospatial && !supportsFeature(fileFormat, FEATURE_GEOSPATIAL)) {
-      return false;
-    }
+  /**
+   * Returns whether the format can handle the gated types the schema uses: either the schema uses
+   * none of them, or the format supports the feature that gates them.
+   */
+  private static boolean supportsTypes(
+      FileFormat fileFormat, Schema schema, Set<Type.TypeID> typeIds, String feature) {
+    return !usesAnyType(schema.asStruct(), typeIds) || supportsFeature(fileFormat, feature);
+  }
 
-    return true;
+  private static boolean usesAnyType(Type type, Set<Type.TypeID> typeIds) {
+    return TypeUtil.find(type, nested -> typeIds.contains(nested.typeId())) != null;
   }
 
   /**
@@ -2632,11 +2638,8 @@ public abstract class ReadFormatModelTests<T> {
     return ByteBuffer.wrap(RandomUtil.wkbPoint(xCoord, yCoord));
   }
 
-  private static void assertGeospatialBound(ByteBuffer bound, double expectedX, double expectedY) {
-    assertThat(bound).as("geospatial bound should be present").isNotNull();
-    GeospatialBound point = GeospatialBound.fromByteBuffer(bound);
-    assertThat(point.x()).isEqualTo(expectedX);
-    assertThat(point.y()).isEqualTo(expectedY);
+  private static void assertGeospatialBound(Type type, ByteBuffer bound, GeospatialBound expected) {
+    assertThat((Object) Conversions.fromByteBuffer(type, bound)).isEqualTo(expected);
   }
 
   private static void assertBoundsNull(Schema schema, ContentFile<?> file) {
