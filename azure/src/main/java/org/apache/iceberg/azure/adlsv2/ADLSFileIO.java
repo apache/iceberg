@@ -205,7 +205,7 @@ public class ADLSFileIO implements DelegateFileIO {
               failureCount.incrementAndGet();
               LOG.warn("Failed to delete file {}", file, exc);
             })
-        .run(this::deleteFile);
+        .run(path -> fileClient(path).deleteIfExists());
 
     if (failureCount.get() > 0) {
       throw new BulkDeletionFailureException(failureCount.get());
