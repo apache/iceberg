@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.extensions
 import org.apache.spark.sql.SparkSessionExtensions
 import org.apache.spark.sql.catalyst.analysis.CheckViews
 import org.apache.spark.sql.catalyst.analysis.ResolveBranch
+import org.apache.spark.sql.catalyst.analysis.ResolveReferencedByViews
 import org.apache.spark.sql.catalyst.analysis.ResolveViews
 import org.apache.spark.sql.catalyst.optimizer.ReplaceStaticInvoke
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
@@ -33,8 +34,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectParser { case (_, parser) => new IcebergSparkSqlExtensionsParser(parser) }
 
     // analyzer extensions
-    // Run before Spark's ResolveRelations so Iceberg can rewrite view children with load context.
-    extensions.injectHintResolutionRule { spark => ResolveViews(spark) }
+    extensions.injectResolutionRule { spark => ResolveReferencedByViews(spark) }
     extensions.injectResolutionRule { spark => ResolveViews(spark) }
     extensions.injectPostHocResolutionRule { spark => ResolveBranch(spark) }
     extensions.injectCheckRule(_ => CheckViews)

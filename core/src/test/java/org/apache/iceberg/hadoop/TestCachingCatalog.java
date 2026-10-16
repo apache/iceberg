@@ -278,7 +278,7 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   }
 
   @Test
-  public void contextualLoadBypassesTableCache() throws IOException {
+  void contextualLoadBypassesTableCache() throws IOException {
     ContextTrackingHadoopCatalog underlyingCatalog = contextTrackingHadoopCatalog();
     TestableCachingCatalog catalog =
         TestableCachingCatalog.wrap(underlyingCatalog, EXPIRATION_TTL, ticker);
