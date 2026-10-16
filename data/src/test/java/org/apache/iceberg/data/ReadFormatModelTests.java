@@ -69,6 +69,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.formats.FileWriterBuilder;
 import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.formats.ReadBuilder;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DataWriter;
@@ -86,6 +87,7 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.RandomUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -1477,6 +1479,40 @@ public abstract class ReadFormatModelTests<T> {
 
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
+  void testDataWriterGeospatialBounds(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_GEOSPATIAL);
+    assumeSupports(fileFormat, FEATURE_COLUMN_LEVEL_METRICS);
+
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "geometry_col", Types.GeometryType.crs84()),
+            Types.NestedField.optional(2, "geometry_opt_col", Types.GeometryType.crs84()));
+
+    // The spatial lower/upper bounds are the corners of the bounding box over all values, so no
+    // single value needs to sit at a corner. Points are chosen so the expected corners differ from
+    // every input point, and the optional column exercises a skipped null.
+    List<Record> records =
+        List.of(
+            GenericRecord.create(schema)
+                .copy("geometry_col", wkbPoint(1.0, 4.0), "geometry_opt_col", wkbPoint(-3.0, 7.0)),
+            GenericRecord.create(schema)
+                .copy("geometry_col", wkbPoint(5.0, 2.0), "geometry_opt_col", null),
+            GenericRecord.create(schema)
+                .copy("geometry_col", wkbPoint(3.0, 6.0), "geometry_opt_col", wkbPoint(2.0, -1.0)));
+
+    DataFile dataFile = writeGenericRecords(fileFormat, schema, records);
+
+    // Required column box: min corner (1, 2), max corner (5, 6).
+    assertGeospatialBound(dataFile.lowerBounds().get(1), 1.0, 2.0);
+    assertGeospatialBound(dataFile.upperBounds().get(1), 5.0, 6.0);
+
+    // Optional column box over the two non-null values: min corner (-3, -1), max corner (2, 7).
+    assertGeospatialBound(dataFile.lowerBounds().get(2), -3.0, -1.0);
+    assertGeospatialBound(dataFile.upperBounds().get(2), 2.0, 7.0);
+  }
+
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
   void testDataWriterMetricsWithNoneMode(FileFormat fileFormat) throws IOException {
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
@@ -2590,6 +2626,17 @@ public abstract class ReadFormatModelTests<T> {
     }
 
     return new Object[] {min, max};
+  }
+
+  private static ByteBuffer wkbPoint(double xCoord, double yCoord) {
+    return ByteBuffer.wrap(RandomUtil.wkbPoint(xCoord, yCoord));
+  }
+
+  private static void assertGeospatialBound(ByteBuffer bound, double expectedX, double expectedY) {
+    assertThat(bound).as("geospatial bound should be present").isNotNull();
+    GeospatialBound point = GeospatialBound.fromByteBuffer(bound);
+    assertThat(point.x()).isEqualTo(expectedX);
+    assertThat(point.y()).isEqualTo(expectedY);
   }
 
   private static void assertBoundsNull(Schema schema, ContentFile<?> file) {
