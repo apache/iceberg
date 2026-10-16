@@ -32,7 +32,15 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** A cache for {@link AuthSession} instances. */
+/**
+ * A cache for {@link AuthSession} instances.
+ *
+ * <p>Cached sessions are evicted based on inactivity: a session becomes eligible for eviction once
+ * it has not been requested for the configured session timeout, and is closed when evicted. The
+ * timeout is unrelated to the lifetime of any credential a session holds, so a session that is
+ * requested regularly is never evicted for age alone. Keeping credentials valid is the
+ * responsibility of the {@link AuthSession} itself.
+ */
 public class AuthSessionCache implements AutoCloseable {
 
   private static final Logger LOG = LoggerFactory.getLogger(AuthSessionCache.class);
@@ -126,6 +134,8 @@ public class AuthSessionCache implements AutoCloseable {
     Caffeine<String, AuthSession> builder =
         Caffeine.newBuilder()
             .executor(executor)
+            // eviction tracks idleness, not credential expiration, which sessions handle
+            // themselves
             .expireAfterAccess(sessionTimeout)
             .ticker(ticker)
             .removalListener(
