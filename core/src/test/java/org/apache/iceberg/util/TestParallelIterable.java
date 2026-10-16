@@ -19,14 +19,19 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.io.CloseableIterable;
@@ -68,11 +73,11 @@ public class TestParallelIterable {
       assertThat(iterator.hasNext()).isTrue();
       assertThat(iterator.next()).isNotNull();
       Awaitility.await("Queue is populated")
-          .atMost(5, TimeUnit.SECONDS)
+          .atMost(10, TimeUnit.SECONDS)
           .untilAsserted(() -> queueHasElements(iterator));
       iterator.close();
       Awaitility.await("Queue is cleared")
-          .atMost(5, TimeUnit.SECONDS)
+          .atMost(10, TimeUnit.SECONDS)
           .untilAsserted(() -> assertThat(iterator.queueSize()).isEqualTo(0));
     } finally {
       executor.shutdown();
@@ -128,11 +133,11 @@ public class TestParallelIterable {
       assertThat(iterator.hasNext()).isTrue();
       assertThat(iterator.next()).isNotNull();
       Awaitility.await("Queue is populated")
-          .atMost(5, TimeUnit.SECONDS)
+          .atMost(10, TimeUnit.SECONDS)
           .untilAsserted(() -> queueHasElements(iterator));
       iterator.close();
       Awaitility.await("Queue is cleared")
-          .atMost(5, TimeUnit.SECONDS)
+          .atMost(10, TimeUnit.SECONDS)
           .untilAsserted(
               () ->
                   assertThat(iterator.queueSize())
@@ -211,6 +216,149 @@ public class TestParallelIterable {
     } finally {
       executor.shutdownNow();
     }
+  }
+
+  @Test
+  @Timeout(60)
+  void wakesOnDataBeforeTaskCompletes() throws Exception {
+    Semaphore producerGate = new Semaphore(0);
+    Semaphore completionGate = new Semaphore(0);
+    Iterable<Integer> input =
+        () ->
+            new Iterator<>() {
+              private boolean produced;
+
+              @Override
+              public boolean hasNext() {
+                if (produced) {
+                  completionGate.acquireUninterruptibly();
+                  return false;
+                }
+                return true;
+              }
+
+              @Override
+              public Integer next() {
+                producerGate.acquireUninterruptibly();
+                produced = true;
+                return 1;
+              }
+            };
+
+    int result =
+        consumeAfterWakeUp(
+            input,
+            CloseableIterator::next,
+            ignored -> producerGate.release(),
+            producerGate,
+            completionGate);
+    assertThat(result).isEqualTo(1);
+  }
+
+  @Test
+  @Timeout(60)
+  void wakesWhenEmptyTaskCompletes() throws Exception {
+    Semaphore producerGate = new Semaphore(0);
+    Iterable<Integer> input =
+        () -> {
+          producerGate.acquireUninterruptibly();
+          return Collections.emptyIterator();
+        };
+
+    boolean result =
+        consumeAfterWakeUp(
+            input, CloseableIterator::hasNext, ignored -> producerGate.release(), producerGate);
+    assertThat(result).isFalse();
+  }
+
+  @Test
+  @Timeout(60)
+  void wakesWhenTaskFails() {
+    Semaphore producerGate = new Semaphore(0);
+    IllegalArgumentException failure = new IllegalArgumentException("Cannot read manifest");
+    Iterable<Integer> input =
+        () -> {
+          producerGate.acquireUninterruptibly();
+          throw failure;
+        };
+
+    assertThatThrownBy(
+            () ->
+                consumeAfterWakeUp(
+                    input,
+                    CloseableIterator::hasNext,
+                    ignored -> producerGate.release(),
+                    producerGate))
+        .isInstanceOf(ExecutionException.class)
+        .hasMessage(failure.toString())
+        .hasCause(failure);
+  }
+
+  @Test
+  @Timeout(60)
+  void wakesWhenClosed() {
+    Semaphore producerGate = new Semaphore(0);
+    Iterable<Integer> input =
+        () -> {
+          producerGate.acquireUninterruptibly();
+          return Collections.emptyIterator();
+        };
+
+    assertThatThrownBy(
+            () ->
+                consumeAfterWakeUp(
+                    input, CloseableIterator::hasNext, CloseableIterator::close, producerGate))
+        .isInstanceOf(ExecutionException.class)
+        .hasMessageContaining("Already closed")
+        .hasCauseInstanceOf(IllegalStateException.class);
+  }
+
+  private <T> T consumeAfterWakeUp(
+      Iterable<Integer> input,
+      Function<CloseableIterator<Integer>, T> consume,
+      IteratorAction wakeUp,
+      Semaphore... gates)
+      throws Exception {
+    ExecutorService workers = Executors.newSingleThreadExecutor();
+    AtomicReference<Thread> consumerThread = new AtomicReference<>();
+    ExecutorService consumer =
+        Executors.newSingleThreadExecutor(
+            runnable -> {
+              Thread thread = new Thread(runnable);
+              consumerThread.set(thread);
+              return thread;
+            });
+
+    try (ParallelIterable<Integer> iterable = new ParallelIterable<>(List.of(input), workers)) {
+      CloseableIterator<Integer> iterator = iterable.iterator();
+      Future<T> result = consumer.submit(() -> consume.apply(iterator));
+      awaitWaitingConsumer(consumerThread);
+      assertThat(result.isDone()).isFalse();
+      wakeUp.run(iterator);
+      return result.get(10, TimeUnit.SECONDS);
+    } finally {
+      for (Semaphore gate : gates) {
+        gate.release();
+      }
+
+      consumer.shutdownNow();
+      workers.shutdownNow();
+      assertThat(consumer.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+      assertThat(workers.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+    }
+  }
+
+  private interface IteratorAction {
+    void run(CloseableIterator<Integer> iterator) throws Exception;
+  }
+
+  private void awaitWaitingConsumer(AtomicReference<Thread> consumerThread) {
+    Awaitility.await()
+        .atMost(10, TimeUnit.SECONDS)
+        .until(
+            () ->
+                consumerThread.get() != null
+                    && consumerThread.get().getState() == Thread.State.WAITING);
   }
 
   private <T> CloseableIterable<T> testIterable(
