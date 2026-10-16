@@ -48,15 +48,31 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     this.nextId = nextId;
   }
 
-  private int idFor(String fullName) {
-    if (baseSchema != null && fullName != null) {
-      Types.NestedField field = baseSchema.findField(fullName);
-      if (field != null) {
-        return field.fieldId();
-      }
+  private int idFor(int currentId, Type type) {
+    Types.NestedField existingField = baseField(name(currentId));
+    if (canReuseBaseId(existingField, type)) {
+      return existingField.fieldId();
     }
 
-    return nextId.get();
+    return type.isFileType() ? nextId.get(Types.FileType.NUM_NESTED_FIELDS) : nextId.get();
+  }
+
+  private static boolean canReuseBaseId(Types.NestedField baseField, Type type) {
+    if (baseField == null) {
+      return false;
+    }
+
+    // a file derives its nested field IDs from its own ID, so reusing a base ID is only safe when
+    // the base field was already a file and had reserved that block
+    return !type.isFileType() || baseField.type().isFileType();
+  }
+
+  private Types.NestedField baseField(String fullName) {
+    if (baseSchema != null && fullName != null) {
+      return baseSchema.findField(fullName);
+    }
+
+    return null;
   }
 
   private String name(int id) {
@@ -80,15 +96,17 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     // assign IDs for this struct's fields first
     List<Integer> newIds = Lists.newArrayListWithExpectedSize(length);
     for (int i = 0; i < length; i += 1) {
-      newIds.add(idFor(name(fields.get(i).fieldId())));
+      Types.NestedField field = fields.get(i);
+      newIds.add(idFor(field.fieldId(), field.type()));
     }
 
     List<Types.NestedField> newFields = Lists.newArrayListWithExpectedSize(length);
     Iterator<Type> types = futures.iterator();
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
-      Type type = types.next();
-      newFields.add(Types.NestedField.from(field).withId(newIds.get(i)).ofType(type).build());
+      int newId = newIds.get(i);
+      Type type = TypeUtil.applyAssignedId(field.type(), newId, types.next());
+      newFields.add(Types.NestedField.from(field).withId(newId).ofType(type).build());
     }
 
     return Types.StructType.of(newFields);
@@ -101,28 +119,37 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
   @Override
   public Type list(Types.ListType list, Supplier<Type> future) {
-    int newId = idFor(name(list.elementId()));
+    int newId = idFor(list.elementId(), list.elementType());
+    Type elementType = TypeUtil.applyAssignedId(list.elementType(), newId, future.get());
     if (list.isElementOptional()) {
-      return Types.ListType.ofOptional(newId, future.get());
+      return Types.ListType.ofOptional(newId, elementType);
     } else {
-      return Types.ListType.ofRequired(newId, future.get());
+      return Types.ListType.ofRequired(newId, elementType);
     }
   }
 
   @Override
   public Type map(Types.MapType map, Supplier<Type> keyFuture, Supplier<Type> valueFuture) {
-    int newKeyId = idFor(name(map.keyId()));
-    int newValueId = idFor(name(map.valueId()));
+    int newKeyId = idFor(map.keyId(), map.keyType());
+    int newValueId = idFor(map.valueId(), map.valueType());
+    Type keyType = TypeUtil.applyAssignedId(map.keyType(), newKeyId, keyFuture.get());
+    Type valueType = TypeUtil.applyAssignedId(map.valueType(), newValueId, valueFuture.get());
     if (map.isValueOptional()) {
-      return Types.MapType.ofOptional(newKeyId, newValueId, keyFuture.get(), valueFuture.get());
+      return Types.MapType.ofOptional(newKeyId, newValueId, keyType, valueType);
     } else {
-      return Types.MapType.ofRequired(newKeyId, newValueId, keyFuture.get(), valueFuture.get());
+      return Types.MapType.ofRequired(newKeyId, newValueId, keyType, valueType);
     }
   }
 
   @Override
   public Type variant(Types.VariantType variant) {
     return variant;
+  }
+
+  @Override
+  public Type file(Types.FileType file, Iterable<Type> futures) {
+    // nested fields are rebuilt from the new id assigned to the field that holds this type
+    return file;
   }
 
   @Override

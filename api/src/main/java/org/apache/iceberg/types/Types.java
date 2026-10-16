@@ -1155,6 +1155,127 @@ public class Types {
     }
   }
 
+  public static final class FileType extends NestedType {
+    public static final String NAME = "file";
+    public static final int NUM_NESTED_FIELDS = 6;
+
+    private static final String URI = "uri";
+    private static final String OFFSET = "offset";
+    private static final String SIZE = "size";
+    private static final String CONTENT_TYPE = "content_type";
+    private static final String CHECKSUM = "checksum";
+    private static final String INLINE = "inline";
+
+    public static FileType of(int baseId) {
+      return new FileType(baseId);
+    }
+
+    private final int baseId;
+    private final List<NestedField> fields;
+
+    private FileType(int baseId) {
+      this.baseId = baseId;
+      this.fields =
+          ImmutableList.of(
+              NestedField.optional(baseId + 1, URI, StringType.get()),
+              NestedField.optional(baseId + 2, OFFSET, LongType.get()),
+              NestedField.optional(baseId + 3, SIZE, LongType.get()),
+              NestedField.optional(baseId + 4, CONTENT_TYPE, StringType.get()),
+              NestedField.optional(baseId + 5, CHECKSUM, StringType.get()),
+              NestedField.optional(baseId + 6, INLINE, BinaryType.get()));
+    }
+
+    /** Returns the ID of the field that holds this type. */
+    public int baseId() {
+      return baseId;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.FILE;
+    }
+
+    @Override
+    public boolean isFileType() {
+      return true;
+    }
+
+    @Override
+    public FileType asFileType() {
+      return this;
+    }
+
+    @Override
+    public List<NestedField> fields() {
+      return fields;
+    }
+
+    public NestedField field(String name) {
+      for (NestedField field : fields) {
+        if (field.name().equals(name)) {
+          return field;
+        }
+      }
+
+      return null;
+    }
+
+    @Override
+    public NestedField field(int id) {
+      int index = id - baseId - 1;
+      if (index >= 0 && index < NUM_NESTED_FIELDS) {
+        return fields.get(index);
+      }
+
+      return null;
+    }
+
+    public NestedField caseInsensitiveField(String name) {
+      for (NestedField field : fields) {
+        if (field.name().equalsIgnoreCase(name)) {
+          return field;
+        }
+      }
+
+      return null;
+    }
+
+    @Override
+    public Type fieldType(String name) {
+      NestedField field = field(name);
+      if (field != null) {
+        return field.type();
+      }
+      return null;
+    }
+
+    /** Returns the nested fields of this type as a struct. */
+    public StructType asStruct() {
+      return StructType.of(fields());
+    }
+
+    @Override
+    public String toString() {
+      return NAME;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      } else if (!(other instanceof FileType)) {
+        return false;
+      }
+
+      return baseId == ((FileType) other).baseId;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(FileType.class, baseId);
+    }
+  }
+
   public static class ListType extends NestedType {
     public static ListType ofOptional(int elementId, Type elementType) {
       Preconditions.checkNotNull(elementType, "Element type cannot be null");
