@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import org.apache.iceberg.BaseMetastoreTableOperations;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -526,6 +527,20 @@ final class JdbcUtil {
     Properties result = new Properties();
     result.putAll(PropertyUtil.propertiesWithPrefix(properties, prefix));
     return result;
+  }
+
+  static int metadataRefreshMaxRetries(Map<String, String> properties) {
+    int maxRetries =
+        PropertyUtil.propertyAsInt(
+            properties,
+            CatalogProperties.METADATA_REFRESH_MAX_RETRIES,
+            CatalogProperties.METADATA_REFRESH_MAX_RETRIES_DEFAULT);
+    Preconditions.checkArgument(
+        maxRetries >= 0,
+        "Invalid %s: %s (must be >= 0)",
+        CatalogProperties.METADATA_REFRESH_MAX_RETRIES,
+        maxRetries);
+    return maxRetries;
   }
 
   static boolean isConstraintViolation(SQLException ex) {
