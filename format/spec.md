@@ -65,6 +65,7 @@ Version 4 of the Iceberg spec restructures metadata for improved performance and
 * Data files and their corresponding deletion vector are stored in a combined entry, removing the need for two-phase planning
 * Support for [relative locations](#file-locations-in-metadata) in metadata fields
 * Writing new [equality deletes](#equality-delete-files) is no longer allowed
+* Support for table [constraints](#constraints)
 
 The full set of changes are listed in [Appendix E](#version-4).
 
@@ -442,6 +443,8 @@ Two rows are the "same"---that is, the rows represent the same entity---if the i
 
 Identifier fields may be nested in structs but cannot be nested within maps or lists. Float, double, and optional fields cannot be used as identifier fields and a nested field cannot be used as an identifier field if it is nested in an optional struct, to avoid null values in identifiers.
 
+Identifier field IDs are replaced by a [`primary-key` constraint](#constraints) in v4 and must not be set in a v4 table schema.
+
 #### Reserved Field IDs
 
 Iceberg tables must not use field ids greater than 2147483447 (`Integer.MAX_VALUE - 200`). This id range is reserved for metadata columns that can be used in user data schemas, like the `_file` column that holds the file path in which a row was stored.
@@ -660,6 +663,115 @@ Order id `0` is reserved for the unsorted order.
 Sorting floating-point numbers should produce the following behavior: `-NaN` < `-Infinity` < `-value` < `-0` < `0` < `value` < `Infinity` < `NaN`. This aligns with the implementation of Java floating-point types comparisons.
 
 A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
+
+### Constraints
+
+Constraints are added in v4 and are not supported in v3 or earlier.
+
+A **constraint** declares a condition that a table's live rows are expected to satisfy. Its definition is stored in table metadata. Each snapshot contains the writer-reported status of each constraint that existed when the snapshot was created; see [Constraint Validation](#constraint-validation).
+
+Three constraint types are defined:
+
+* `check` -- every row must satisfy a predicate
+* `unique` -- the values of a set of fields must be distinct across the rows in which every field in the set is non-null; a row in which any field in the set is null is not compared, so more than one such row may exist
+* `primary-key` -- the values of a set of fields must be distinct across all rows and must not be null
+
+A constraint is stored separately from the table schema and must refer to fields by field ID. Constraints may evolve independently from the schema, being added, modified, or removed.
+
+#### Constraint Fields
+
+A constraint consists of the following fields:
+
+| Requirement | Field name                | Type      | Description |
+|-------------|---------------------------|-----------|-------------|
+| _required_ | **`constraint-id`**       | `int`     | ID of the constraint; unique within the table |
+| _required_ | **`type`**                | `string`  | The constraint type: `check`, `unique`, or `primary-key` |
+| _required_ | **`name`**                | `string`  | A name for the constraint that is unique within the table. Names are for human consumption and must not be used to identify a constraint in metadata |
+| _required_ | **`enforced`**            | `boolean` | Whether writers must only add or modify rows so that they satisfy the constraint |
+| _required_ | **`timestamp-ms`**        | `long`    | Timestamp in milliseconds from the unix epoch when the constraint was created or last modified. The timestamp is informational and must not be used to determine whether a constraint applies to a snapshot or whether it holds |
+| _optional_ | **`expression`**          | `expression` | The predicate that every row must satisfy, see [Check Constraint Expressions](#check-constraint-expressions). Required for a `check` constraint and must not be set for other types |
+| _optional_ | **`field-ids`**           | `list<int>`  | The set of field IDs that the constraint applies to. Must contain at least one field ID and no duplicates. Required for a `unique` or `primary-key` constraint and must not be set for a `check` constraint |
+
+The `field-ids` of a `unique` or `primary-key` constraint must only reference primitive fields and must not reference fields within a `list` or a `map`. Fields of type `float` or `double` must not be used. Fields of type `geometry` or `geography` must not be used because Iceberg does not define equality for them. Fields of type `unknown` must not be used because their values are always null. Fields of type `file` and their sub-fields must not be used.
+
+The fields of a `primary-key` constraint must be `required` and must not be nested in an optional struct, so that the schema rules out null keys even when the constraint is not enforced. The fields of a `unique` constraint may be optional or nested in optional structs, because a row in which any field is null is not compared.
+
+When a constraint is `enforced`, writers must ensure that written data conform to the constraint. When a constraint is not enforced, writers are not required to ensure that written data conform to the constraint.
+
+When a commit is retried against a new parent snapshot, every enforced constraint, including any that a concurrent commit added or changed to enforced, must hold for the rows that the commit adds or modifies in the snapshot that results from applying the commit to the new parent. `constraint-statuses` must be recomputed from the new parent.
+
+Readers may trust constraints even if not marked as enforced.
+
+A table may have at most one `primary-key` constraint. A `primary-key` constraint with `enforced=false` replaces [identifier field IDs](#identifier-field-ids), which express the same concept: a set of fields that identifies a row, which is not enforced.
+
+When a table is upgraded to v4, the `identifier-field-ids` of the table's current schema are rewritten as a single `primary-key` constraint that is not enforced. The constraint is assigned a `constraint-id` from `last-constraint-id` in the same way as any other constraint, its `name` is `pk`, and its `timestamp-ms` is the time of the upgrade. If any of those fields cannot be used in a `primary-key` constraint, such as a `geometry` or `geography` field, no constraint is created and the upgrade continues without it. Writers must not set `identifier-field-ids` in a v4 table schema, and readers must ignore `identifier-field-ids` in a v4 table.
+
+Constraint IDs are assigned from the table's `last-constraint-id`, which is treated as 0 when it is not present. Writers must assign a new constraint an ID that is higher than the table's current `last-constraint-id` and must update `last-constraint-id` to the highest assigned ID. Constraint IDs must not be reused after the constraint that used an ID is removed, because retained snapshots may still reference the removed ID. Readers must not assume that every `constraint-id` referenced by a snapshot is present in `constraints`.
+
+#### Check Constraint Expressions
+
+The `expression` of a `check` constraint is a [predicate](expressions-spec.md#predicates), not a value expression, and is serialized as described in the [Iceberg expressions spec](expressions-spec.md). It must use ID references so that it remains bound to the same fields when columns are renamed.
+
+A check expression is evaluated for each row over the values of that row. An expression may reference more than one field of the row, such as `start_date <= end_date`. A check expression:
+
+* Must not depend on more than one row, such as aggregates over rows and window functions
+* Must not depend on another table, such as subqueries
+* Must not reference a field within a `list` or a `map`, because such a field has a value for each element rather than one value for the row; it may pass a whole `list` or `map` field to a function, for example to check that a list is not empty
+
+A check expression must produce the same result every time it is evaluated for the same row. A function that depends on anything other than its arguments, such as the current time or a random value, must not be called. A [user-defined function](udf-spec.md) must not be called unless its current definition version declares `deterministic` as true. A user-defined function is a function loaded from a catalog as described in the UDF spec. Functions in the reserved `sql_functions` and `iceberg_functions` sets and engine built-in functions, as described in the [expressions spec](expressions-spec.md#apply-function), are not user-defined functions.
+
+A function definition can change without a table commit, and `constraint-statuses` does not record which function definitions were used, so a status for a `check` constraint that calls a user-defined function could become wrong without any write. Such a constraint must always be listed as `unvalidated`. When it is enforced, writers still evaluate it with the current function definitions for the rows that they add or modify.
+
+#### Constraints and Schema Evolution
+
+A constraint references fields by ID, so schema changes interact with constraints as follows. The referenced fields of a `check` constraint are the field IDs in its `expression`; the referenced fields of a `unique` or `primary-key` constraint are its `field-ids`.
+
+* Renaming or reordering a constraint-referenced field is allowed; the constraint continues to apply to the same fields.
+* Every field referenced by a constraint must exist in the table's current schema. A schema change that removes a constraint-referenced field must be rejected unless the constraint is removed in the same change.
+* A field referenced by a `check` constraint must not change type or apply type promotion, because the constraint's `expression` contains literals that are bound to the field's type. A field referenced by a `unique` or `primary-key` constraint may apply type promotions that preserve distinctness.
+
+Only `name` and `enforced` fields in a constraint definition can be updated, and `timestamp-ms` must be updated when the constraint is updated. The `expression` and `field-ids` fields must not change, as it would change the constraint requirement. Such updates must be done by removing the constraint and adding a new one with a new `constraint-id`. A new `constraint-id` ensures that statuses recorded for the old definition are not applied to the new one.
+
+#### Constraint Validation
+
+Enforcement and constraint status are tracked separately. Whether writers must verify the rows that they add or modify is a property of a constraint, tracked by `enforced`. Whether a table is known to satisfy a constraint is a property of a table's data, tracked per snapshot by `constraint-statuses`.
+
+The status of a constraint for a snapshot is one of:
+
+| Status        | Description |
+|---------------|-------------|
+| `validated`   | The constraint was checked and holds for all rows in the snapshot, or the commit did not add or modify rows and the parent snapshot's status is `validated` |
+| `valid`       | The parent snapshot's status is `validated` or `valid`, and either the writer can prove that the rows it added or modified follow the constraint or the commit did not add or modify rows. By induction, the constraint holds for all rows in the snapshot. |
+| `invalid`     | At least one row in the snapshot is known to violate the constraint, either because the constraint was checked or because the parent snapshot's status is `invalid` and the commit did not delete or modify any rows |
+| `unvalidated` | Whether the constraint holds for all rows in the snapshot is not known |
+
+A snapshot's `constraint-statuses` records, for each status, the IDs of the constraints that have that status for the snapshot:
+
+| Requirement | Field name        | Type        | Description |
+|-------------|-------------------|-------------|-------------|
+| _optional_ | **`validated`**   | `list<int>` | IDs of constraints that are `validated` for the snapshot |
+| _optional_ | **`valid`**       | `list<int>` | IDs of constraints that are `valid` for the snapshot |
+| _optional_ | **`invalid`**     | `list<int>` | IDs of constraints that are `invalid` for the snapshot |
+| _optional_ | **`unvalidated`** | `list<int>` | IDs of constraints that are `unvalidated` for the snapshot |
+
+Each list contains the `constraint-id` of every constraint that has that status for the snapshot. Every constraint that exists when the snapshot is created must be listed in exactly one of the four lists, and a `constraint-id` must not appear in more than one list. A list with no constraints may be omitted. A constraint whose ID is not present in any list did not exist when the snapshot was created, so it is `unvalidated` for the snapshot.
+
+Readers must determine the status of a constraint for a snapshot as follows:
+
+1. If the constraint's `constraint-id` is listed in `validated`, `valid`, `invalid`, or `unvalidated`, that is its status
+2. Otherwise, the constraint is `unvalidated` for the snapshot
+
+A `constraint-id` listed in a snapshot that is not in the table's `constraints` refers to a constraint that no longer exists and must be ignored.
+
+Writers must record `constraint-statuses` in every snapshot of a table that has constraints, and must place every constraint that exists when the snapshot is created into exactly one status list. A constraint must not be listed with a status unless the status's description above holds for the snapshot; `unvalidated` is the status of a constraint that cannot be listed with any other status.
+
+A commit that does not add or modify rows cannot introduce a violation. Such a commit, for example a delete or a compaction operation, may carry over the parent snapshot's `validated` or `valid` status for a constraint without checking rows again.
+
+When a constraint becomes enforced, either by being added with `enforced` set to true or by `enforced` changing from false to true, writers should validate the table and record `validated`.
+
+A snapshot's `constraint-statuses` must not be modified after the snapshot is created. A `constraint-statuses` update requires a new snapshot. A snapshot that only changes constraint statuses must use the `replace` operation, as it does not add or remove files.
+
+Writers may commit to a table where a constraint is `invalid`. An enforced constraint requires that a writer not add or modify rows so that they violate the constraint; it does not require a writer to repair existing violations.
 
 ### Manifests
 
@@ -1112,13 +1224,14 @@ A snapshot consists of the following fields:
     | _required_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
     | _required_ | **`added-rows`**             | The upper bound of the number of rows with assigned row IDs, see [Row Lineage](#row-lineage) |
     | _optional_ | **`key-id`**                 | ID of the encryption key that encrypts the root manifest key metadata |
+    | _optional_ | **`constraint-statuses`**    | A struct that records the status of the table's constraints for the snapshot, see [Constraint Validation](#constraint-validation) |
 
 When committed while the table is at version 4 or higher, a snapshot's `timestamp-ms` must be strictly greater than its parent snapshot's `timestamp-ms` on the same branch. Snapshots with no parent, and snapshots that were committed before a table was upgraded to v4 or higher, do not have this requirement.
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
 * `append` -- Only data files were added and no files were removed.
-* `replace` -- Data and delete files were added and removed without changing table data; i.e., compaction, changing the data file format, or relocating data files.
+* `replace` -- Metadata, data, and delete files were added and removed without changing table data; i.e., compaction, changing the data file format, or relocating data files.
 * `overwrite` -- Data and delete files were added and removed in a logical overwrite operation.
 * `delete` -- Data files were removed and their contents logically deleted and/or delete files were added to delete rows.
 
@@ -1362,6 +1475,8 @@ Table metadata consists of the following fields:
     | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage). |
     | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
+    | _optional_ | **`last-constraint-id`**    | An integer; the highest assigned constraint ID for the table. This is used to ensure constraints are always assigned an unused ID. See [Constraints](#constraints). |
+    | _optional_ | **`constraints`**           | A list of [constraints](#constraints) for the table. |
 
 For serialization details, see Appendix C.
 
@@ -1478,10 +1593,11 @@ Notes:
 
 When two commits happen at the same time and are based on the same version, only one commit will succeed. In most cases, the failed commit can be applied to the new current version of table metadata and retried. Updates verify the conditions under which they can be applied to a new version and retry if those conditions are met.
 
-* Append operations have no requirements and can always be applied.
+* Append operations have no requirements and can always be applied, other than the constraint requirements below.
 * Replace operations must verify that the files that will be deleted are still in the table. Examples of replace operations include format changes (replace an Avro file with a Parquet file) and compactions (several files are replaced with a single file that contains the same rows).
 * Delete operations must verify that specific files to delete are still in the table. Delete operations based on expressions can always be applied (e.g., where timestamp < X).
 * Table schema updates and partition spec changes must validate that the schema has not changed between the base version and the current version.
+* For a table with constraints, every operation must also follow the retry requirements in [Constraints](#constraints), including recomputing `constraint-statuses` from the new version.
 
 #### File System Tables
 
@@ -1843,10 +1959,12 @@ Hash results are not dependent on decimal scale, which is part of the type, not 
 
 Schemas are serialized as a JSON object with the same fields as a struct in the table below, and the following additional fields:
 
-| v1         | v2 and v3  |Field|JSON representation|Example|
-| ---------- | ---------- |--- |--- |--- |
-| _optional_ | _required_ |**`schema-id`**|`JSON int`|`0`|
-| _optional_ | _optional_ |**`identifier-field-ids`**|`JSON list of ints`|`[1, 2]`|
+| v1         | v2 and v3  | v4         |Field|JSON representation|Example|
+| ---------- | ---------- | ---------- |--- |--- |--- |
+| _optional_ | _required_ | _required_ |**`schema-id`**|`JSON int`|`0`|
+| _optional_ | _optional_ | _removed_  |**`identifier-field-ids`**|`JSON list of ints`|`[1, 2]`|
+
+In v4, [`primary-key` constraint](#constraints) replaces `identifier-field-ids`.
 
 Types are serialized according to this table:
 
@@ -1975,13 +2093,15 @@ A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/
 |**`last-partition-id`**|`JSON int`|`1000`|
 |**`properties`**|`JSON object: {`<br />&nbsp;&nbsp;`"<key>": "<val>",`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"write.format.default": "avro",`<br />&nbsp;&nbsp;`"commit.retry.num-retries": "4"`<br />`}`|
 |**`current-snapshot-id`**|`JSON long`|`3051729675574597004`|
-|**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>",`<br />&nbsp;&nbsp;`"schema-id": "<id>"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro"`<br />&nbsp;&nbsp;`"schema-id": 0`<br />`} ]`|
+|**`snapshots`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": <operation>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... },`<br />&nbsp;&nbsp;`"manifest-list": "<location>",`<br />&nbsp;&nbsp;`"schema-id": "<id>",`<br />&nbsp;&nbsp;`"constraint-statuses": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"validated": [ ... ],`<br />&nbsp;&nbsp;&nbsp;&nbsp;`... }`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 3051729675574597004,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"summary": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"operation": "append"`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`"manifest-list": "s3://b/wh/.../s1.avro",`<br />&nbsp;&nbsp;`"schema-id": 0,`<br />&nbsp;&nbsp;`"constraint-statuses": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"validated": [1],`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"unvalidated": [2]`<br />&nbsp;&nbsp;`}`<br />`} ]`|
 |**`snapshot-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"snapshot-id": ,`<br />&nbsp;&nbsp;`"timestamp-ms":`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"snapshot-id": 30517296...,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]`|
 |**`metadata-log`**|`JSON list of objects: [`<br />&nbsp;&nbsp;`{`<br />&nbsp;&nbsp;`"metadata-file": ,`<br />&nbsp;&nbsp;`"timestamp-ms":`<br />&nbsp;&nbsp;`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"metadata-file": "s3://bucket/.../v1.json",`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100...`<br />`} ]` |
 |**`sort-orders`**|`JSON sort orders (list of sort field object)`|`See above`|
 |**`default-sort-order-id`**|`JSON int`|`0`|
 |**`refs`**|`JSON map with string key and object value:`<br />`{`<br />&nbsp;&nbsp;`"<name>": {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"type": <type>,`<br />&nbsp;&nbsp;`"max-ref-age-ms": <long>,`<br />&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"test": {`<br />&nbsp;&nbsp;`"snapshot-id": 123456789000,`<br />&nbsp;&nbsp;`"type": "tag",`<br />&nbsp;&nbsp;`"max-ref-age-ms": 10000000`<br />&nbsp;&nbsp;`}`<br />`}`|
 |**`encryption-keys`**|`JSON list of encryption key objects`|`[ {"key-id": "5f819b", "key-metadata": "aWNlYmVyZwo="} ]`|
+|**`last-constraint-id`**|`JSON int`|`2`|
+|**`constraints`**|`JSON list of objects: [ {`<br />&nbsp;&nbsp;`"constraint-id": <id>,`<br />&nbsp;&nbsp;`"type": "check",`<br />&nbsp;&nbsp;`"name": "<name>",`<br />&nbsp;&nbsp;`"enforced": <boolean>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"expression": { ... }`<br />`}, {`<br />&nbsp;&nbsp;`"constraint-id": <id>,`<br />&nbsp;&nbsp;`"type": "primary-key",`<br />&nbsp;&nbsp;`"name": "<name>",`<br />&nbsp;&nbsp;`"enforced": <boolean>,`<br />&nbsp;&nbsp;`"timestamp-ms": <timestamp-in-ms>,`<br />&nbsp;&nbsp;`"field-ids": [ ... ]`<br />`},`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"constraint-id": 1,`<br />&nbsp;&nbsp;`"type": "check",`<br />&nbsp;&nbsp;`"name": "chk_amount",`<br />&nbsp;&nbsp;`"enforced": true,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"expression": { ... }`<br />`}, {`<br />&nbsp;&nbsp;`"constraint-id": 2,`<br />&nbsp;&nbsp;`"type": "primary-key",`<br />&nbsp;&nbsp;`"name": "pk_sales",`<br />&nbsp;&nbsp;`"enforced": false,`<br />&nbsp;&nbsp;`"timestamp-ms": 1515100955770,`<br />&nbsp;&nbsp;`"field-ids": [1]`<br />`} ]`|
 
 ### Name Mapping Serialization
 
@@ -2109,6 +2229,12 @@ Equality deletes are prohibited in v4.
 * Writers must not add equality delete files to v4 tables; equality deletes cannot be added as an entry to a v4 manifest
 * Upgrading a v2 or v3 table to v4 does not require rewriting data or delete files
 * Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
+
+Constraints are added in v4:
+
+* Table metadata may contain `constraints` and `last-constraint-id`
+* Snapshots may contain `constraint-statuses`
+* Upgrading a v2 or v3 table to v4 rewrites the table's `identifier-field-ids` as a `primary-key` constraint that is not enforced, unless a field cannot be used in a `primary-key` constraint
 
 ### Version 3
 
