@@ -152,7 +152,7 @@ class TestDynamicTableUpdateOperator {
     DynamicRecordInternal output = operator.map(input);
 
     assertThat(output.schema().findColumnName(equalityField.fieldId()))
-        .isNotEqualTo(inputSchema.findColumnName(equalityField.fieldId()));
+        .isNotEqualTo(equalityField.name());
     assertThat(output.equalityFields())
         .map(output.schema()::findColumnName)
         .containsExactly(equalityField.name());
