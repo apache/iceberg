@@ -68,6 +68,11 @@ class TestSparkVectorizedFormatModel extends ReadFormatModelTests<ColumnarBatch>
   }
 
   @Override
+  protected int countRows(List<ColumnarBatch> batches) {
+    return batches.stream().mapToInt(ColumnarBatch::numRows).sum();
+  }
+
+  @Override
   protected Object engineSchema(Schema schema) {
     return SparkSchemaUtil.convert(schema);
   }

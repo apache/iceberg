@@ -156,6 +156,13 @@ public abstract class ReadFormatModelTests<T> {
     assumeThat(unsupportedType).as("Schema contains a type unsupported by this engine").isNull();
   }
 
+  /**
+   * Returns the number of rows in the read result; batch engines override to sum across batches.
+   */
+  protected int countRows(List<T> records) {
+    return records.size();
+  }
+
   protected Schema supportedSchema(DataGenerator generator) {
     Schema filtered = filterUnsupported(generator.schema());
     assumeThat(filtered.columns())
@@ -495,8 +502,6 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReaderBuilderSplit(FileFormat fileFormat) throws IOException {
-
-    assumeFalse(supportsBatchReads(), "Batch reads return batches, not rows");
     assumeSupports(fileFormat, FEATURE_SPLIT);
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
@@ -522,7 +527,7 @@ public abstract class ReadFormatModelTests<T> {
       readRecords = ImmutableList.copyOf(reader);
     }
 
-    assertThat(readRecords).hasSizeGreaterThan(0).hasSizeLessThan(records.size());
+    assertThat(countRows(readRecords)).isGreaterThan(0).isLessThan(records.size());
 
     // split(fileLength, 0): empty range at the end of the file, so no records should be returned
     List<T> emptyReadRecords;
@@ -534,7 +539,7 @@ public abstract class ReadFormatModelTests<T> {
       emptyReadRecords = ImmutableList.copyOf(reader);
     }
 
-    assertThat(emptyReadRecords).isEmpty();
+    assertThat(countRows(emptyReadRecords)).isZero();
 
     // split(0, fileLength): full file range, so all records should be returned
     try (CloseableIterable<T> reader =
@@ -545,7 +550,7 @@ public abstract class ReadFormatModelTests<T> {
       readRecords = ImmutableList.copyOf(reader);
     }
 
-    assertThat(readRecords).hasSize(records.size());
+    assertThat(countRows(readRecords)).isEqualTo(records.size());
   }
 
   /** Verifies the contract of reuseContainers */
@@ -2341,7 +2346,6 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionEmptyProjection(FileFormat fileFormat) throws IOException {
-    assumeFalse(supportsBatchReads(), "Row count assertion does not apply to batches");
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema writeSchema = dataGenerator.schema();
 
@@ -2359,7 +2363,7 @@ public abstract class ReadFormatModelTests<T> {
       readRecords = ImmutableList.copyOf(reader);
     }
 
-    assertThat(readRecords).hasSameSizeAs(genericRecords);
+    assertThat(countRows(readRecords)).isEqualTo(genericRecords.size());
   }
 
   @ParameterizedTest
