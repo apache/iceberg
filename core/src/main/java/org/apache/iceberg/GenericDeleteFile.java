@@ -90,12 +90,35 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
     super(toCopy, copyStats, requestedColumnIds);
   }
 
+  /**
+   * Copy constructor that drops column-level stats and sets the referenced data file.
+   *
+   * @param toCopy a generic delete file to copy.
+   * @param referencedDataFile location of the data file that all deletes reference
+   */
+  private GenericDeleteFile(GenericDeleteFile toCopy, String referencedDataFile) {
+    super(toCopy, false /* drop stats */, null, referencedDataFile);
+  }
+
   /** Constructor for Java serialization. */
   GenericDeleteFile() {}
 
   @Override
   public DeleteFile copyWithoutStats() {
     return new GenericDeleteFile(this, false /* drop stats */, null);
+  }
+
+  /**
+   * Copies this file without column-level stats and records the referenced data file.
+   *
+   * <p>A file-scoped position delete is matched to its data file by location, so the file_path
+   * bounds that identify the data file are not needed once the location is recorded.
+   *
+   * @param referencedDataFile location of the data file that all deletes reference
+   * @return a copy without stats that references the given data file
+   */
+  DeleteFile copyWithoutStats(String referencedDataFile) {
+    return new GenericDeleteFile(this, referencedDataFile);
   }
 
   @Override
