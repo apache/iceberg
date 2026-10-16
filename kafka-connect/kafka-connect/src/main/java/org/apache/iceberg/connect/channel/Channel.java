@@ -19,6 +19,7 @@
 package org.apache.iceberg.connect.channel;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -37,6 +38,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.InvalidProducerEpochException;
 import org.apache.kafka.common.errors.ProducerFencedException;
@@ -155,6 +157,18 @@ abstract class Channel {
     return controlTopicOffsets;
   }
 
+  protected String controlTopic() {
+    return controlTopic;
+  }
+
+  protected List<PartitionInfo> controlTopicPartitions() {
+    return consumer.partitionsFor(controlTopic);
+  }
+
+  protected void assignControlTopicPartitions(Collection<TopicPartition> partitions) {
+    consumer.assign(partitions);
+  }
+
   /**
    * Commits consumer offsets in a separate Kafka transaction on the coordinator's transactional
    * producer, committing a partition's offset only when it advances past the last committed value.
@@ -226,10 +240,20 @@ abstract class Channel {
   }
 
   void start() {
-    consumer.subscribe(ImmutableList.of(controlTopic));
+    subscribeToControlTopic();
 
     // initial poll with longer duration so the consumer will initialize...
     consumeAvailable(Duration.ofSeconds(1));
+  }
+
+  /**
+   * Subscribes this channel's consumer to the control topic. Coordinator relies on real
+   * consumer-group membership (a stable, shared group id) so the broker's rebalance protocol can
+   * help detect/evict a stale coordinator. Worker overrides this with manual assignment instead,
+   * since its group is single-member and never reused -- see the override for why.
+   */
+  protected void subscribeToControlTopic() {
+    consumer.subscribe(ImmutableList.of(controlTopic));
   }
 
   void stop() {

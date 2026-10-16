@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.connect.data.Offset;
@@ -33,6 +34,10 @@ import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.PayloadType;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TopicPartitionOffset;
+import org.apache.iceberg.util.Tasks;
+import org.apache.kafka.common.PartitionInfo;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 
@@ -62,6 +67,47 @@ class Worker extends Channel {
 
   void process() {
     consumeAvailable(Duration.ZERO);
+  }
+
+  @Override
+  protected void subscribeToControlTopic() {
+    // this consumer's group id is a fresh, single-member, never-reused id (see constructor), so
+    // it gets no benefit from consumer-group management -- there is never more than one member
+    // to balance partitions against. Using assign() instead of subscribe() avoids the
+    // JoinGroup/SyncGroup protocol entirely, which otherwise exposes this reader to broker-side
+    // member-fencing failure modes for no reason, since group membership was never needed here.
+    assignControlTopicPartitions(awaitControlTopicPartitions());
+  }
+
+  // unlike subscribe(), a one-shot partitionsFor() lookup doesn't tolerate the control topic
+  // not existing yet at the moment this is called -- retry with a bounded backoff rather than
+  // silently assigning zero partitions, which would poll forever and never receive anything.
+  private List<TopicPartition> awaitControlTopicPartitions() {
+    AtomicReference<List<PartitionInfo>> partitionInfos = new AtomicReference<>();
+    // rely solely on exponentialBackoff's time cap (30s) to bound retries -- a large retry()
+    // count here would just be a second, redundant bound that has to be kept in sync with it.
+    Tasks.range(1)
+        .retry(Integer.MAX_VALUE - 1) // retry() adds 1 for maxAttempts; avoid overflow
+        .exponentialBackoff(200, 200, Duration.ofSeconds(30).toMillis(), 1)
+        .onlyRetryOn(ControlTopicNotReadyException.class)
+        .run(
+            i -> {
+              List<PartitionInfo> infos = controlTopicPartitions();
+              if (infos == null || infos.isEmpty()) {
+                throw new ControlTopicNotReadyException(controlTopic());
+              }
+              partitionInfos.set(infos);
+            });
+
+    return partitionInfos.get().stream()
+        .map(info -> new TopicPartition(info.topic(), info.partition()))
+        .collect(Collectors.toList());
+  }
+
+  private static class ControlTopicNotReadyException extends ConnectException {
+    ControlTopicNotReadyException(String controlTopic) {
+      super("Control topic " + controlTopic + " does not exist yet");
+    }
   }
 
   @Override
