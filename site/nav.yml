@@ -77,7 +77,7 @@ nav:
         - Daft: integrations/daft.md
         - Databend: https://docs.databend.com/guides/access-data-lake/iceberg
         - Dremio: https://docs.dremio.com/data-formats/apache-iceberg/
-        - DuckDB: https://duckdb.org/docs/preview/core_extensions/iceberg/overview
+        - DuckDB: integrations/duckdb.md
         - Estuary: https://docs.estuary.dev/reference/Connectors/materialization-connectors/apache-iceberg/
         - Firebolt: https://docs.firebolt.io/reference-sql/functions-reference/table-valued/read_iceberg
         - Fivetran: https://fivetran.com/docs/managed-data-lake-service
