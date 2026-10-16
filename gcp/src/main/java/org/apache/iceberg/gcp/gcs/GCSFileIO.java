@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,7 +50,6 @@ import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -327,16 +327,21 @@ public class GCSFileIO implements DelegateFileIO, SupportsStorageCredentials {
 
   @SuppressWarnings("resource")
   private void internalDeleteFiles(Stream<BlobId> blobIdsToDelete) {
-    Streams.stream(
-            Iterators.partition(
-                blobIdsToDelete.iterator(),
-                clientForStoragePath(ROOT_STORAGE_PREFIX).gcpProperties().deleteBatchSize()))
-        .forEach(
-            batch -> {
-              if (!batch.isEmpty()) {
-                clientForStoragePath(batch.get(0).toGsUtilUri()).storage().delete(batch);
-              }
-            });
+    // flush each client's batch as soon as it fills so deletePrefix never holds the whole listing
+    Map<PrefixedStorage, List<BlobId>> pendingByClient = new LinkedHashMap<>();
+    blobIdsToDelete.forEach(
+        blobId -> {
+          PrefixedStorage client = clientForStoragePath(blobId.toGsUtilUri());
+          List<BlobId> pending =
+              pendingByClient.computeIfAbsent(client, key -> Lists.newArrayList());
+          pending.add(blobId);
+          if (pending.size() >= client.gcpProperties().deleteBatchSize()) {
+            client.storage().delete(pending);
+            pendingByClient.remove(client);
+          }
+        });
+
+    pendingByClient.forEach((client, pending) -> client.storage().delete(pending));
   }
 
   @Override
