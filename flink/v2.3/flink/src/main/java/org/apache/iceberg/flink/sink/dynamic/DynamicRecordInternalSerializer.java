@@ -94,21 +94,9 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
     }
 
     dataOutputView.writeInt(toSerialize.writerKey());
-    final RowDataSerializer rowDataSerializer;
-    if (writeSchemaAndSpec) {
-      rowDataSerializer =
-          serializerCache.serializer(
-              toSerialize.tableName(), toSerialize.schema(), toSerialize.spec());
-    } else {
-      // Check that the schema id can be resolved. Not strictly necessary for serialization.
-      Tuple3<RowDataSerializer, Schema, PartitionSpec> serializer =
-          serializerCache.serializerWithSchemaAndSpec(
-              toSerialize.tableName(),
-              toSerialize.schema().schemaId(),
-              toSerialize.spec().specId());
-      rowDataSerializer = serializer.f0;
-    }
-
+    RowDataSerializer rowDataSerializer =
+        serializerCache.serializer(
+            toSerialize.tableName(), toSerialize.schema(), toSerialize.spec());
     rowDataSerializer.serialize(toSerialize.rowData(), dataOutputView);
     dataOutputView.writeBoolean(toSerialize.upsertMode());
     dataOutputView.writeInt(toSerialize.equalityFields().size());
