@@ -1862,10 +1862,10 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowLineage(FileFormat fileFormat) throws IOException {
-    // TODO: ORC's vectorized reader treats _row_id as a plain constant
-    // (VectorizedSparkOrcReaders.StructConverter) rather than applying row-lineage rules,
-    // unlike Arrow's RowIdVectorReader.
-    assumeFalse(supportsBatchReads(), "Row lineage is incorrect for vectorized ORC reads");
+    // TODO: remove when https://github.com/apache/iceberg/issues/18543 is fixed
+    assumeFalse(
+        supportsBatchReads() && fileFormat == FileFormat.ORC,
+        "Row lineage is not applied by the vectorized ORC reader, see #18543");
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema schema = dataGenerator.schema();
     List<Record> genericRecords = dataGenerator.generateRecords();
@@ -1898,10 +1898,10 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReadMetadataColumnRowLineageExistingValues(FileFormat fileFormat) throws IOException {
-    // TODO: ORC's vectorized reader treats _row_id as a plain constant
-    // (VectorizedSparkOrcReaders.StructConverter) rather than applying row-lineage rules,
-    // unlike Arrow's RowIdVectorReader.
-    assumeFalse(supportsBatchReads(), "Row lineage is incorrect for vectorized ORC reads");
+    // TODO: remove when https://github.com/apache/iceberg/issues/18543 is fixed
+    assumeFalse(
+        supportsBatchReads() && fileFormat == FileFormat.ORC,
+        "Row lineage is not applied by the vectorized ORC reader, see #18543");
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema dataSchema = dataGenerator.schema();
 
