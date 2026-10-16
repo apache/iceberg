@@ -25,11 +25,73 @@ import static org.apache.iceberg.mumbling.MumblingTestUtil.sparse;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+import org.apache.curator.shaded.com.google.common.collect.Lists;
+import org.apache.iceberg.io.IOUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
 
 class TestMumblingBitmap {
+  private static final int HEADER_SIZE = 6;
+  private static final byte[] DENSE_CONTAINER = new byte[32];
+
+  static {
+    DENSE_CONTAINER[1] = (byte) 0xFF;
+    DENSE_CONTAINER[3] = (byte) 0xFF;
+    DENSE_CONTAINER[5] = (byte) 0xFF;
+    DENSE_CONTAINER[7] = (byte) 0xFF;
+  }
+
+  private static final MumblingBitmap MUTABLE_TEST_BASE =
+      bitmap(sparse(0), dense(DENSE_CONTAINER), sparse(255));
+
+  @Test
+  public void testInvalidVersion() {
+    assertThatThrownBy(() -> new MumblingBitmap(ByteBuffer.wrap(new byte[] {0x00})))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Unsupported Mumbling bitmap version: 0");
+
+    assertThatThrownBy(() -> new MumblingBitmap(ByteBuffer.wrap(new byte[] {0x02})))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Unsupported Mumbling bitmap version: 2");
+  }
+
+  @Test
+  public void testInvalidCardinality() {
+    assertThatThrownBy(
+            () ->
+                new MumblingBitmap(
+                    ByteBuffer.wrap(new byte[] {0x01, 0x00, 0x00, 0x20, 0x00, 0x00})))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid cardinality: 2097152 (must be < 2,097,152)");
+  }
+
+  @Test
+  public void testInvalidContainerCount() {
+    assertThatThrownBy(
+            () ->
+                new MumblingBitmap(
+                    ByteBuffer.wrap(new byte[] {0x01, 0x00, 0x00, 0x1F, 0x00, 0x20})))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid container count: 8192 (must be < 8,192)");
+  }
+
+  @Test
+  public void testMaximumCardinalityAndContainers() {
+    MumblingBitmap bitmap =
+        new MumblingBitmap(
+            ByteBuffer.wrap(new byte[] {0x01, (byte) 0xFF, (byte) 0xFF, 0x1F, (byte) 0xFF, 0x1F}));
+
+    assertThat(bitmap.cardinality()).isEqualTo((8192 * 256) - 1);
+  }
 
   @Test
   void testEmptyBitmap() {
@@ -289,5 +351,396 @@ class TestMumblingBitmap {
     assertThat(bitmap.isSet(41)).isFalse();
     assertThat(bitmap.isSet(42)).isTrue();
     assertThat(bitmap.isSet(43)).isFalse();
+  }
+
+  @Test
+  public void testMutableValidatesPositions() {
+    MutableBitmap bitmap = MumblingBitmap.newMutableBitmap();
+
+    assertThatThrownBy(() -> bitmap.set(-1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot set invalid bit position: -1 < 0");
+
+    assertThatThrownBy(() -> bitmap.set(2_097_152))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot set invalid bit position: 2097152 (must be < 2,097,152)");
+  }
+
+  @Test
+  public void testMutableOverlayPassthrough() {
+    MutableBitmap bitmap = MUTABLE_TEST_BASE.asMutable();
+
+    assertThat(bitmap.cardinality()).isEqualTo(34);
+
+    assertThat(bitmap.isSet(0)).isTrue();
+    assertThat(bitmap.isSet(1)).isFalse();
+
+    assertThat(bitmap.isSet(263)).isFalse();
+    assertThat(bitmap.isSet(289)).isFalse();
+    assertThat(bitmap.isSet(305)).isFalse();
+    assertThat(bitmap.isSet(321)).isFalse();
+    for (int i = 0; i < 8; i += 1) {
+      assertThat(bitmap.isSet(264 + i)).isTrue();
+      assertThat(bitmap.isSet(280 + i)).isTrue();
+      assertThat(bitmap.isSet(296 + i)).isTrue();
+      assertThat(bitmap.isSet(312 + i)).isTrue();
+    }
+    assertThat(bitmap.isSet(272)).isFalse();
+    assertThat(bitmap.isSet(288)).isFalse();
+    assertThat(bitmap.isSet(304)).isFalse();
+    assertThat(bitmap.isSet(320)).isFalse();
+
+    assertThat(bitmap.isSet(766)).isFalse();
+    assertThat(bitmap.isSet(767)).isTrue();
+    assertThat(bitmap.isSet(768)).isFalse();
+  }
+
+  @Test
+  public void testMutableOverlaySparseUpdate() {
+    MutableBitmap bitmap = MUTABLE_TEST_BASE.asMutable();
+
+    assertThat(bitmap.cardinality()).isEqualTo(34);
+
+    assertThat(bitmap.set(1)).isTrue();
+    assertThat(bitmap.set(0)).isFalse();
+    assertThat(bitmap.set(1)).isFalse();
+
+    assertThat(bitmap.cardinality()).isEqualTo(35);
+    assertThat(bitmap.isSet(0)).isTrue();
+    assertThat(bitmap.isSet(1)).isTrue();
+    assertThat(bitmap.isSet(2)).isFalse();
+
+    assertThat(bitmap.set(766)).isTrue();
+    assertThat(bitmap.set(767)).isFalse();
+    assertThat(bitmap.set(766)).isFalse();
+
+    assertThat(bitmap.cardinality()).isEqualTo(36);
+    assertThat(bitmap.isSet(765)).isFalse();
+    assertThat(bitmap.isSet(766)).isTrue();
+    assertThat(bitmap.isSet(767)).isTrue();
+    assertThat(bitmap.isSet(768)).isFalse();
+  }
+
+  @Test
+  public void testMutableOverlayDenseUpdate() {
+    MutableBitmap bitmap = MUTABLE_TEST_BASE.asMutable();
+
+    assertThat(bitmap.cardinality()).isEqualTo(34);
+
+    for (int i = 0; i < 8; i += 1) {
+      assertThat(bitmap.set(256 + i)).isTrue();
+      assertThat(bitmap.set(256 + i)).isFalse();
+      assertThat(bitmap.set(264 + i)).isFalse(); // already set
+    }
+
+    assertThat(bitmap.cardinality()).isEqualTo(42);
+
+    assertThat(bitmap.isSet(255)).isFalse();
+    for (int i = 0; i < 16; i += 1) {
+      assertThat(bitmap.isSet(256 + i)).isTrue();
+    }
+    assertThat(bitmap.isSet(272)).isFalse();
+
+    assertThat(bitmap.set(511)).isTrue();
+    assertThat(bitmap.set(511)).isFalse();
+    assertThat(bitmap.isSet(511)).isTrue();
+
+    assertThat(bitmap.cardinality()).isEqualTo(43);
+  }
+
+  @Test
+  public void testMutableOverlaySparseToDenseUpdate() {
+    MutableBitmap bitmap = MUTABLE_TEST_BASE.asMutable();
+
+    assertThat(bitmap.cardinality()).isEqualTo(34);
+
+    for (int i = 1; i < 33; i += 1) {
+      assertThat(bitmap.set(i)).isTrue();
+      assertThat(bitmap.set(i)).isFalse();
+    }
+
+    assertThat(bitmap.cardinality()).isEqualTo(66);
+
+    for (int i = 0; i < 33; i += 1) {
+      assertThat(bitmap.isSet(i)).isTrue();
+    }
+    assertThat(bitmap.isSet(33)).isFalse();
+
+    // set positions backward so the sparse list is rewritten
+    for (int i = 254; i > 222; i -= 1) {
+      assertThat(bitmap.set(i)).isTrue();
+      assertThat(bitmap.set(i)).isFalse();
+    }
+
+    assertThat(bitmap.cardinality()).isEqualTo(98);
+  }
+
+  @Test
+  public void testOverlayNewContainer() {
+    MutableBitmap bitmap = MUTABLE_TEST_BASE.asMutable();
+
+    assertThat(bitmap.set(1024)).isTrue(); // container index 4, position 0
+    assertThat(bitmap.set(1024)).isFalse();
+    assertThat(bitmap.isSet(1024)).isTrue();
+    assertThat(bitmap.cardinality()).isEqualTo(35);
+  }
+
+  @Test
+  public void testMutableEmptySerialization() {
+    MutableBitmap empty = MumblingBitmap.newMutableBitmap();
+
+    assertThat(empty.cardinality()).isEqualTo(0);
+    assertThat(empty.buffer())
+        .isEqualTo(ByteBuffer.wrap(new byte[] {0x01, 0x00, 0x00, 0x00, 0x00, 0x00}));
+  }
+
+  @Test
+  public void testMutableNoopSerialization() {
+    MutableBitmap bitmap = MUTABLE_TEST_BASE.asMutable();
+
+    assertThat(bitmap.buffer())
+        .as("Does not reuse the original buffer")
+        .isNotSameAs(MUTABLE_TEST_BASE.buffer());
+    assertThat(bitmap.buffer()).isEqualTo(MUTABLE_TEST_BASE.buffer());
+  }
+
+  @Test
+  public void testMutableNewContainerSerialization() {
+    MutableBitmap bitmap = MUTABLE_TEST_BASE.asMutable();
+
+    assertThat(bitmap.set(1024)).isTrue(); // container 4, position 0
+    assertThat(bitmap.cardinality()).isEqualTo(35);
+    assertThat(bitmap.set(2048)).isTrue(); // container 8, position 0
+    assertThat(bitmap.cardinality()).isEqualTo(36);
+
+    MumblingBitmap result = new MumblingBitmap(bitmap.buffer());
+    assertThat(result.cardinality()).isEqualTo(36);
+    assertThat(result.descriptors()).containsExactly(1, 32, 1, 0, 1, 0, 0, 0, 1);
+
+    assertThat(result.isSet(0)).isTrue();
+
+    for (int i = 0; i < 8; i += 1) {
+      assertThat(result.isSet(264 + i)).isTrue();
+      assertThat(result.isSet(280 + i)).isTrue();
+      assertThat(result.isSet(296 + i)).isTrue();
+      assertThat(result.isSet(312 + i)).isTrue();
+    }
+
+    assertThat(result.isSet(767)).isTrue();
+
+    assertThat(result.isSet(1024)).isTrue();
+    assertThat(result.isSet(2048)).isTrue();
+  }
+
+  @Test
+  public void testMutableEmptyWithNewContainerSerialization() {
+    MutableBitmap bitmap = MumblingBitmap.newMutableBitmap();
+
+    assertThat(bitmap.set(1024)).isTrue(); // container 4, position 0
+    assertThat(bitmap.set(2048)).isTrue(); // container 8, position 0
+
+    assertThat(bitmap.cardinality()).isEqualTo(2);
+
+    MumblingBitmap result = new MumblingBitmap(bitmap.buffer());
+    assertThat(result.cardinality()).isEqualTo(2);
+    assertThat(result.descriptors()).contains(0, 0, 0, 0, 1, 0, 0, 0, 1);
+
+    assertThat(result.isSet(1024)).isTrue();
+    assertThat(result.isSet(2048)).isTrue();
+  }
+
+  @Test
+  public void testMutableSparseUpdateSerialization() {
+    MutableBitmap bitmap = MUTABLE_TEST_BASE.asMutable();
+
+    assertThat(bitmap.set(1)).isTrue();
+    assertThat(bitmap.set(766)).isTrue(); // container index 2, pos 254
+    assertThat(bitmap.cardinality()).isEqualTo(36);
+
+    ByteBuffer serialized = bitmap.buffer();
+    int[] expectedDescriptors = new int[] {2, 32, 2};
+
+    MumblingBitmap result = new MumblingBitmap(serialized);
+    assertThat(result.cardinality()).isEqualTo(36);
+    assertThat(result.descriptors()).isEqualTo(expectedDescriptors);
+
+    assertThat(bitmap.isSet(1)).isTrue();
+    assertThat(bitmap.isSet(766)).isTrue();
+
+    ByteBuffer descriptors = PFOREncoding.encode(expectedDescriptors, expectedDescriptors.length);
+    int descriptorSize = descriptors.remaining();
+    int containersOffset = HEADER_SIZE + descriptorSize;
+
+    assertThat(serialized.slice(6, descriptorSize)).isEqualTo(descriptors);
+
+    assertThat(serialized.slice(containersOffset, 2)).isEqualTo(sparse(0, 1).buffer());
+    assertThat(serialized.slice(containersOffset + 2, 32))
+        .isEqualTo(dense(DENSE_CONTAINER).buffer());
+    assertThat(serialized.slice(containersOffset + 34, 2)).isEqualTo(sparse(254, 255).buffer());
+  }
+
+  @Test
+  public void testMutableDenseUpdateSerialization() {
+    MutableBitmap bitmap = MUTABLE_TEST_BASE.asMutable();
+
+    for (int i = 0; i < 8; i += 1) {
+      assertThat(bitmap.set(256 + i)).isTrue();
+    }
+    assertThat(bitmap.set(511)).isTrue(); // last bit of the dense container
+
+    assertThat(bitmap.cardinality()).isEqualTo(43);
+
+    ByteBuffer serialized = bitmap.buffer();
+    int[] expectedDescriptors = new int[] {1, 32, 1};
+
+    MumblingBitmap result = new MumblingBitmap(serialized);
+    assertThat(result.cardinality()).isEqualTo(43);
+    assertThat(result.descriptors()).isEqualTo(expectedDescriptors);
+
+    ByteBuffer descriptors = PFOREncoding.encode(expectedDescriptors, expectedDescriptors.length);
+    int descriptorSize = descriptors.remaining();
+    int containersOffset = HEADER_SIZE + descriptorSize;
+
+    assertThat(serialized.slice(6, descriptorSize)).isEqualTo(descriptors);
+
+    assertThat(serialized.slice(containersOffset, 1)).isEqualTo(sparse(0).buffer());
+
+    byte[] denseBytes = Arrays.copyOf(DENSE_CONTAINER, 32);
+    denseBytes[0] = (byte) 0xFF;
+    denseBytes[31] = (byte) 0x01; // last bit
+    assertThat(serialized.slice(containersOffset + 1, 32)).isEqualTo(dense(denseBytes).buffer());
+
+    assertThat(serialized.slice(containersOffset + 33, 1)).isEqualTo(sparse(255).buffer());
+  }
+
+  @Test
+  public void testMutableSparseToDenseUpdateSerialization() {
+    MutableBitmap bitmap = MUTABLE_TEST_BASE.asMutable();
+
+    for (int i = 766; i > 735; i -= 1) {
+      assertThat(bitmap.set(i)).isTrue();
+    }
+    assertThat(bitmap.cardinality()).isEqualTo(65);
+
+    ByteBuffer serialized = bitmap.buffer();
+    int[] expectedDescriptors = new int[] {1, 32, 32};
+
+    MumblingBitmap result = new MumblingBitmap(serialized);
+    assertThat(result.cardinality()).isEqualTo(65);
+    assertThat(result.descriptors()).isEqualTo(expectedDescriptors);
+
+    assertThat(result.isSet(0)).isTrue();
+
+    for (int i = 0; i < 8; i += 1) {
+      assertThat(result.isSet(264 + i)).isTrue();
+      assertThat(result.isSet(280 + i)).isTrue();
+      assertThat(result.isSet(296 + i)).isTrue();
+      assertThat(result.isSet(312 + i)).isTrue();
+    }
+
+    for (int i = 736; i < 767; i += 1) {
+      assertThat(bitmap.isSet(i)).isTrue();
+    }
+
+    assertThat(result.isSet(767)).isTrue();
+
+    ByteBuffer descriptors = PFOREncoding.encode(expectedDescriptors, expectedDescriptors.length);
+    int descriptorSize = descriptors.remaining();
+    int containersOffset = HEADER_SIZE + descriptorSize;
+
+    assertThat(serialized.slice(6, descriptorSize)).isEqualTo(descriptors);
+
+    assertThat(serialized.slice(containersOffset, 1)).isEqualTo(sparse(0).buffer());
+    assertThat(serialized.slice(containersOffset + 1, 32))
+        .isEqualTo(dense(DENSE_CONTAINER).buffer());
+
+    byte[] denseBytes = new byte[32];
+    denseBytes[28] = (byte) 0xFF;
+    denseBytes[29] = (byte) 0xFF;
+    denseBytes[30] = (byte) 0xFF;
+    denseBytes[31] = (byte) 0xFF;
+    assertThat(serialized.slice(containersOffset + 33, 32)).isEqualTo(dense(denseBytes).buffer());
+  }
+
+  @Test
+  public void testMutableRandomPositions() {
+    Random positions = new Random(39826538713L);
+    int count = 0;
+
+    MutableBitmap bitmap = MumblingBitmap.newMutableBitmap();
+
+    for (int i = 0; i < 50_000; i += 1) {
+      if (bitmap.set(positions.nextInt(64_000))) {
+        count += 1;
+      }
+    }
+
+    MumblingBitmap result = new MumblingBitmap(bitmap.buffer());
+
+    assertThat(bitmap.cardinality()).isEqualTo(count);
+    assertThat(result.cardinality()).isEqualTo(count);
+
+    // check that all positions are set
+    Random validation = new Random(39826538713L);
+    for (int i = 0; i < 50_000; i += 1) {
+      int pos = validation.nextInt(64_000);
+      assertThat(bitmap.isSet(pos)).isTrue();
+      assertThat(result.isSet(pos)).isTrue();
+    }
+  }
+
+  public void testBufferSizes() throws IOException {
+    Random rand = new Random(728L);
+
+    for (int cardinality :
+        new int[] {100, 500, 1000, 2500, 5000, 10000, 15000, 20000, 25000, 30000, 35000, 40000}) {
+      ByteBuffer size = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
+      ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+      List<Set<Integer>> bitsets = Lists.newArrayList();
+
+      while (out.size() < 1024 * 1024) {
+        Set<Integer> positions = Sets.newHashSet();
+        MutableBitmap bitmap = MumblingBitmap.newMutableBitmap();
+
+        while (bitmap.cardinality() < cardinality) {
+          int position = rand.nextInt(50_000);
+          if (bitmap.set(position)) {
+            positions.add(position);
+          }
+        }
+
+        bitsets.add(positions);
+
+        ByteBuffer serialized = bitmap.buffer();
+        size.putInt(0, serialized.remaining());
+        out.write(size.array(), 0, 4);
+        IOUtil.writeFully(out, serialized);
+      }
+
+      System.err.printf(
+          "cardinality: %s, iterations: %s, uncompressed: %s, average: %s%n",
+          cardinality, bitsets.size(), out.size(), out.size() / bitsets.size());
+
+      int i = 0;
+      ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray());
+      while (in.available() > 0) {
+        IOUtil.readFully(in, size.array(), 0, 4);
+        int bitmapSize = size.getInt(0);
+        ByteBuffer serialized = ByteBuffer.allocate(bitmapSize);
+        IOUtil.readFully(in, serialized.array(), 0, bitmapSize);
+
+        MumblingBitmap result = new MumblingBitmap(serialized);
+        Set<Integer> positions = bitsets.get(i);
+
+        for (int pos : positions) {
+          assertThat(result.isSet(pos)).isTrue();
+        }
+
+        i += 1;
+      }
+
+      assertThat(i).isEqualTo(bitsets.size());
+    }
   }
 }
