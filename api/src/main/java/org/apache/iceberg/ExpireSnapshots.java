@@ -143,6 +143,10 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
    * <p>Consider {@link CleanupLevel#NONE} when data and metadata files may be more efficiently
    * removed using a distributed framework through the actions API.
    *
+   * <p>When the table property {@code gc.enabled} is false, any level other than {@link
+   * CleanupLevel#NONE} causes {@link #commit()} to fail: the expiration is not committed and no
+   * files are deleted.
+   *
    * @param level the cleanup level to use for expired snapshots
    * @return this for method chaining
    */
