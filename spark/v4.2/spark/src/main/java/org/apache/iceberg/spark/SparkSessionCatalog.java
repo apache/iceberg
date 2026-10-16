@@ -60,8 +60,6 @@ import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.catalog.ViewCatalog;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A Spark catalog that can also load non-Iceberg tables.
@@ -72,13 +70,13 @@ import org.slf4j.LoggerFactory;
 public class SparkSessionCatalog<
         T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
     extends BaseCatalog implements CatalogExtension, SparkSupportsLoadContext {
-  private static final Logger LOG = LoggerFactory.getLogger(SparkSessionCatalog.class);
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
   private String catalogName = null;
   private TableCatalog icebergCatalog = null;
   private StagingTableCatalog asStagingCatalog = null;
   private ViewCatalog asViewCatalog = null;
+  private SparkSupportsLoadContext asLoadContextCatalog = null;
   private T sessionCatalog = null;
   private boolean createParquetAsIceberg = false;
   private boolean createAvroAsIceberg = false;
@@ -209,11 +207,11 @@ public class SparkSessionCatalog<
   @Override
   public Table loadTable(Identifier ident, LoadContext context) throws NoSuchTableException {
     try {
-      if (icebergCatalog instanceof SparkSupportsLoadContext) {
-        return ((SparkSupportsLoadContext) icebergCatalog).loadTable(ident, context);
+      if (asLoadContextCatalog != null) {
+        return asLoadContextCatalog.loadTable(ident, context);
       }
 
-      logUnsupportedContext("table", ident, context);
+      checkLoadContextSupported("table", ident, context);
       return icebergCatalog.loadTable(ident);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident);
@@ -229,11 +227,11 @@ public class SparkSessionCatalog<
   public Table loadTable(Identifier ident, String version, LoadContext context)
       throws NoSuchTableException {
     try {
-      if (icebergCatalog instanceof SparkSupportsLoadContext) {
-        return ((SparkSupportsLoadContext) icebergCatalog).loadTable(ident, version, context);
+      if (asLoadContextCatalog != null) {
+        return asLoadContextCatalog.loadTable(ident, version, context);
       }
 
-      logUnsupportedContext("table", ident, context);
+      checkLoadContextSupported("table", ident, context);
       return icebergCatalog.loadTable(ident, version);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, version);
@@ -249,11 +247,11 @@ public class SparkSessionCatalog<
   public Table loadTable(Identifier ident, long timestamp, LoadContext context)
       throws NoSuchTableException {
     try {
-      if (icebergCatalog instanceof SparkSupportsLoadContext) {
-        return ((SparkSupportsLoadContext) icebergCatalog).loadTable(ident, timestamp, context);
+      if (asLoadContextCatalog != null) {
+        return asLoadContextCatalog.loadTable(ident, timestamp, context);
       }
 
-      logUnsupportedContext("table", ident, context);
+      checkLoadContextSupported("table", ident, context);
       return icebergCatalog.loadTable(ident, timestamp);
     } catch (NoSuchTableException e) {
       return getSessionCatalog().loadTable(ident, timestamp);
@@ -463,6 +461,10 @@ public class SparkSessionCatalog<
       this.asViewCatalog = (ViewCatalog) icebergCatalog;
     }
 
+    if (icebergCatalog instanceof SparkSupportsLoadContext) {
+      this.asLoadContextCatalog = (SparkSupportsLoadContext) icebergCatalog;
+    }
+
     this.createParquetAsIceberg = options.getBoolean("parquet-enabled", createParquetAsIceberg);
     this.createAvroAsIceberg = options.getBoolean("avro-enabled", createAvroAsIceberg);
     this.createOrcAsIceberg = options.getBoolean("orc-enabled", createOrcAsIceberg);
@@ -636,27 +638,31 @@ public class SparkSessionCatalog<
 
   @Override
   public View loadView(Identifier ident, LoadContext context) throws NoSuchViewException {
-    if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
-      if (asViewCatalog instanceof SparkSupportsLoadContext) {
-        return ((SparkSupportsLoadContext) asViewCatalog).loadView(ident, context);
+    if (null != asViewCatalog && null != asLoadContextCatalog) {
+      try {
+        return asLoadContextCatalog.loadView(ident, context);
+      } catch (NoSuchViewException ignored) {
+        // not an Iceberg view, so check the session catalog below
       }
-
-      logUnsupportedContext("view", ident, context);
+    } else if (null != asViewCatalog && asViewCatalog.viewExists(ident)) {
+      checkLoadContextSupported("view", ident, context);
       return asViewCatalog.loadView(ident);
-    } else if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
+    }
+
+    if (isViewCatalog() && getSessionCatalog().viewExists(ident)) {
       return getSessionCatalog().loadView(ident);
     }
 
     throw new NoSuchViewException(ident);
   }
 
-  private void logUnsupportedContext(String relationType, Identifier ident, LoadContext context) {
+  private void checkLoadContextSupported(
+      String relationType, Identifier ident, LoadContext context) {
     if (!context.referencedBy().isEmpty()) {
-      LOG.warn(
-          "Catalog {} does not support contextual load, ignoring context for {} {}",
-          catalogName,
-          relationType,
-          ident);
+      throw new UnsupportedOperationException(
+          String.format(
+              "Cannot load %s %s with referenced-by: %s does not support load context",
+              relationType, ident, icebergCatalog.getClass().getName()));
     }
   }
 
