@@ -438,6 +438,12 @@ If for any reason you have to use S3A, here are the instructions:
 To ensure integrity of uploaded objects, checksum validations for S3 writes can be turned on by setting catalog property `s3.checksum-enabled` to `true`.
 This is turned off by default.
 
+The checksum algorithm the AWS SDK uses for data integrity protection on S3 upload requests (PutObject, UploadPart) can be configured with the catalog property `s3.checksum-algorithm`.
+Valid values are the [algorithms supported by S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html), e.g. `CRC32`, `CRC32C`, `CRC64NVME`, `SHA1`, `SHA256` (case-insensitive).
+If not set, the AWS SDK default algorithm (`CRC32`) is used when the SDK calculates a checksum.
+For example, `CRC64NVME` can be used for efficient full object integrity checks of multipart uploads, and `SHA256` can be used where a cryptographic hash is required.
+Note that setting a checksum algorithm causes the SDK to calculate a checksum for these requests even when the SDK request checksum calculation is configured to `when_required`.
+
 ### S3 Tags
 
 Custom [tags](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html) can be added to S3 objects while writing and deleting.
