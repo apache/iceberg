@@ -19,23 +19,28 @@
 package org.apache.iceberg.connect.data;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.kafka.connect.sink.SinkRecord;
 
+/** Discards records while incrementing a shared counter. */
 class NoOpWriter implements RecordWriter {
+  private final AtomicLong droppedRecordCount;
+
+  NoOpWriter(AtomicLong droppedRecordCount) {
+    this.droppedRecordCount = droppedRecordCount;
+  }
+
   @Override
   public void write(SinkRecord record) {
-    // NO-OP
+    droppedRecordCount.incrementAndGet();
   }
 
   @Override
   public List<IcebergWriterResult> complete() {
-    // NO-OP
     return ImmutableList.of();
   }
 
   @Override
-  public void close() {
-    // NO-OP
-  }
+  public void close() {}
 }
