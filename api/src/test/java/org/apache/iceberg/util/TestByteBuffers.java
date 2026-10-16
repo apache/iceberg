@@ -21,6 +21,7 @@ package org.apache.iceberg.util;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import org.junit.jupiter.api.Test;
 
 public class TestByteBuffers {
@@ -37,8 +38,84 @@ public class TestByteBuffers {
   }
 
   @Test
+  public void testRead2ByteLittleEndian() {
+    ByteBuffer buffer =
+        ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0x00}).order(ByteOrder.BIG_ENDIAN);
+    assertThat(ByteBuffers.readLittleEndianUnsigned(buffer, 0, 2)).isEqualTo(255);
+    assertThat(ByteBuffers.readLittleEndianInt16(buffer, 0)).isEqualTo((short) 255);
+  }
+
+  @Test
+  public void testRead2ByteSigned() {
+    ByteBuffer buffer =
+        ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF}).order(ByteOrder.BIG_ENDIAN);
+    assertThat(ByteBuffers.readLittleEndianInt16(buffer, 0)).isEqualTo((short) -1);
+  }
+
+  @Test
   public void testRead3ByteUnsigned() {
     ByteBuffer buffer = ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF});
     assertThat(ByteBuffers.readLittleEndianUnsigned(buffer, 0, 3)).isEqualTo(16777215);
+  }
+
+  @Test
+  public void testRead3ByteLittleEndian() {
+    ByteBuffer buffer =
+        ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0x00, (byte) 0x00})
+            .order(ByteOrder.BIG_ENDIAN);
+    assertThat(ByteBuffers.readLittleEndianUnsigned(buffer, 0, 3)).isEqualTo(255);
+  }
+
+  @Test
+  public void testRead4ByteLittleEndian() {
+    ByteBuffer buffer =
+        ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0x00, (byte) 0x00, (byte) 0x00})
+            .order(ByteOrder.BIG_ENDIAN);
+    assertThat(ByteBuffers.readLittleEndianUnsigned(buffer, 0, 4)).isEqualTo(255);
+    assertThat(ByteBuffers.readLittleEndianInt32(buffer, 0)).isEqualTo(255);
+  }
+
+  @Test
+  public void testRead4ByteSigned() {
+    ByteBuffer buffer =
+        ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF})
+            .order(ByteOrder.BIG_ENDIAN);
+    assertThat(ByteBuffers.readLittleEndianInt32(buffer, 0)).isEqualTo(-1);
+  }
+
+  @Test
+  public void testRead8ByteLittleEndian() {
+    ByteBuffer buffer =
+        ByteBuffer.wrap(
+                new byte[] {
+                  (byte) 0xFF,
+                  (byte) 0x00,
+                  (byte) 0x00,
+                  (byte) 0x00,
+                  (byte) 0x00,
+                  (byte) 0x00,
+                  (byte) 0x00,
+                  (byte) 0x00
+                })
+            .order(ByteOrder.BIG_ENDIAN);
+    assertThat(ByteBuffers.readLittleEndianInt64(buffer, 0)).isEqualTo(255);
+  }
+
+  @Test
+  public void testRead8ByteSigned() {
+    ByteBuffer buffer =
+        ByteBuffer.wrap(
+                new byte[] {
+                  (byte) 0xFF,
+                  (byte) 0xFF,
+                  (byte) 0xFF,
+                  (byte) 0xFF,
+                  (byte) 0xFF,
+                  (byte) 0xFF,
+                  (byte) 0xFF,
+                  (byte) 0xFF
+                })
+            .order(ByteOrder.BIG_ENDIAN);
+    assertThat(ByteBuffers.readLittleEndianInt64(buffer, 0)).isEqualTo(-1);
   }
 }
