@@ -20,15 +20,21 @@ package org.apache.iceberg.flink;
 
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
-import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import org.apache.flink.table.data.ArrayData;
+import org.apache.flink.table.data.DecimalData;
+import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.TimestampData;
-import org.apache.flink.table.types.logical.DecimalType;
-import org.apache.flink.table.types.logical.LocalZonedTimestampType;
+import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -37,26 +43,24 @@ import org.apache.iceberg.util.UUIDUtil;
 public class RowDataWrapper implements StructLike {
 
   private final LogicalType[] types;
-  private final PositionalGetter<?>[] getters;
+  private final RowData.FieldGetter[] getters;
   private RowData rowData = null;
 
   public RowDataWrapper(RowType rowType, Types.StructType struct) {
     int size = rowType.getFieldCount();
 
     types = (LogicalType[]) Array.newInstance(LogicalType.class, size);
-    getters = (PositionalGetter[]) Array.newInstance(PositionalGetter.class, size);
+    getters = new RowData.FieldGetter[size];
 
     for (int i = 0; i < size; i++) {
       types[i] = rowType.getTypeAt(i);
-      PositionalGetter<?> getter = buildGetter(types[i], struct.fields().get(i).type());
-      if (getter == null) {
-        // Pre-build the Flink field getter once instead of recreating it on every access.
-        RowData.FieldGetter fieldGetter = FlinkRowData.createFieldGetter(types[i], i);
-        getter = (row, pos) -> fieldGetter.getFieldOrNull(row);
-      }
-
-      getters[i] = getter;
+      getters[i] = buildGetter(types[i], struct.fields().get(i).type(), i);
     }
+  }
+
+  private RowDataWrapper(LogicalType[] types, RowData.FieldGetter[] getters) {
+    this.types = types;
+    this.getters = getters;
   }
 
   public RowDataWrapper wrap(RowData data) {
@@ -75,7 +79,7 @@ public class RowDataWrapper implements StructLike {
       return null;
     }
 
-    return javaClass.cast(getters[pos].get(rowData, pos));
+    return javaClass.cast(getters[pos].getFieldOrNull(rowData));
   }
 
   @Override
@@ -84,79 +88,105 @@ public class RowDataWrapper implements StructLike {
         "Could not set a field in the RowDataWrapper because rowData is read-only");
   }
 
-  private interface PositionalGetter<T> {
-    T get(RowData data, int pos);
+  private RowDataWrapper copyFor(RowData data) {
+    return new RowDataWrapper(types, getters).wrap(data);
   }
 
-  private static PositionalGetter<?> buildGetter(LogicalType logicalType, Type type) {
-    switch (logicalType.getTypeRoot()) {
-      case TINYINT:
-        return (row, pos) -> (int) row.getByte(pos);
-      case SMALLINT:
-        return (row, pos) -> (int) row.getShort(pos);
-      case CHAR:
-      case VARCHAR:
-        return (row, pos) -> row.getString(pos).toString();
+  private static RowData.FieldGetter buildGetter(LogicalType logicalType, Type type, int pos) {
+    RowData.FieldGetter fieldGetter = FlinkRowData.createFieldGetter(logicalType, pos);
+    Function<Object, Object> converter = buildConverter(logicalType, type);
+    return row -> convertOrNull(fieldGetter.getFieldOrNull(row), converter);
+  }
 
-      case BINARY:
-      case VARBINARY:
-        if (Type.TypeID.UUID == type.typeId()) {
-          return (row, pos) -> UUIDUtil.convert(row.getBinary(pos));
-        } else {
-          return (row, pos) -> ByteBuffer.wrap(row.getBinary(pos));
-        }
+  private static Function<Object, Object> buildConverter(LogicalType logicalType, Type type) {
+    return switch (logicalType.getTypeRoot()) {
+      case TINYINT -> value -> ((Byte) value).intValue();
+      case SMALLINT -> value -> ((Short) value).intValue();
+      case CHAR, VARCHAR -> Object::toString;
+      case BINARY, VARBINARY ->
+          Type.TypeID.UUID == type.typeId()
+              ? value -> UUIDUtil.convert((byte[]) value)
+              : value -> ByteBuffer.wrap((byte[]) value);
+      case DECIMAL -> value -> ((DecimalData) value).toBigDecimal();
+      case TIME_WITHOUT_TIME_ZONE ->
+          // Flink's time is milliseconds (int), Iceberg's time is microseconds (long)
+          value -> ((Integer) value).longValue() * 1_000;
+      case TIMESTAMP_WITHOUT_TIME_ZONE ->
+          type.typeId() == Type.TypeID.TIMESTAMP_NANO
+              ? value -> DateTimeUtil.nanosFromTimestamp(((TimestampData) value).toLocalDateTime())
+              : value ->
+                  DateTimeUtil.microsFromTimestamp(((TimestampData) value).toLocalDateTime());
+      case TIMESTAMP_WITH_LOCAL_TIME_ZONE ->
+          type.typeId() == Type.TypeID.TIMESTAMP_NANO
+              ? value -> {
+                TimestampData timestampData = (TimestampData) value;
+                return timestampData.getMillisecond() * 1_000_000L
+                    + timestampData.getNanoOfMillisecond();
+              }
+              : value -> {
+                TimestampData timestampData = (TimestampData) value;
+                return timestampData.getMillisecond() * 1000L
+                    + timestampData.getNanoOfMillisecond() / 1000;
+              };
+      case ROW -> {
+        // Each value gets its own wrapper, so values read together, like list elements, don't
+        // overwrite each other. The copies share the template's getters, which hold no state.
+        RowDataWrapper template = new RowDataWrapper((RowType) logicalType, type.asStructType());
+        yield value -> template.copyFor((RowData) value);
+      }
+      case ARRAY -> {
+        LogicalType elementType = ((ArrayType) logicalType).getElementType();
+        ArrayData.ElementGetter elementGetter = FlinkRowData.createElementGetter(elementType);
+        Function<Object, Object> elementConverter =
+            buildConverter(elementType, type.asListType().elementType());
+        yield value -> toList((ArrayData) value, elementGetter, elementConverter);
+      }
+      case MAP -> {
+        MapType mapType = (MapType) logicalType;
+        Types.MapType icebergMapType = type.asMapType();
+        ArrayData.ElementGetter keyGetter = FlinkRowData.createElementGetter(mapType.getKeyType());
+        ArrayData.ElementGetter valueGetter =
+            FlinkRowData.createElementGetter(mapType.getValueType());
+        Function<Object, Object> keyConverter =
+            buildConverter(mapType.getKeyType(), icebergMapType.keyType());
+        Function<Object, Object> valueConverter =
+            buildConverter(mapType.getValueType(), icebergMapType.valueType());
+        yield value -> toMap((MapData) value, keyGetter, keyConverter, valueGetter, valueConverter);
+      }
+      default -> Function.identity();
+    };
+  }
 
-      case DECIMAL:
-        DecimalType decimalType = (DecimalType) logicalType;
-        return (row, pos) ->
-            row.getDecimal(pos, decimalType.getPrecision(), decimalType.getScale()).toBigDecimal();
-
-      case TIME_WITHOUT_TIME_ZONE:
-        // Time in RowData is in milliseconds (Integer), while iceberg's time is microseconds
-        // (Long).
-        return (row, pos) -> ((long) row.getInt(pos)) * 1_000;
-
-      case TIMESTAMP_WITHOUT_TIME_ZONE:
-        TimestampType timestampType = (TimestampType) logicalType;
-        if (type.typeId() == Type.TypeID.TIMESTAMP_NANO) {
-          return (row, pos) -> {
-            LocalDateTime localDateTime =
-                row.getTimestamp(pos, timestampType.getPrecision()).toLocalDateTime();
-            return DateTimeUtil.nanosFromTimestamp(localDateTime);
-          };
-        } else {
-          return (row, pos) -> {
-            LocalDateTime localDateTime =
-                row.getTimestamp(pos, timestampType.getPrecision()).toLocalDateTime();
-            return DateTimeUtil.microsFromTimestamp(localDateTime);
-          };
-        }
-
-      case TIMESTAMP_WITH_LOCAL_TIME_ZONE:
-        LocalZonedTimestampType lzTs = (LocalZonedTimestampType) logicalType;
-        if (type.typeId() == Type.TypeID.TIMESTAMP_NANO) {
-          return (row, pos) -> {
-            TimestampData timestampData = row.getTimestamp(pos, lzTs.getPrecision());
-            return timestampData.getMillisecond() * 1_000_000L
-                + timestampData.getNanoOfMillisecond();
-          };
-        } else {
-          return (row, pos) -> {
-            TimestampData timestampData = row.getTimestamp(pos, lzTs.getPrecision());
-            return timestampData.getMillisecond() * 1000L
-                + timestampData.getNanoOfMillisecond() / 1000;
-          };
-        }
-
-      case ROW:
-        RowType rowType = (RowType) logicalType;
-        Types.StructType structType = (Types.StructType) type;
-
-        RowDataWrapper nestedWrapper = new RowDataWrapper(rowType, structType);
-        return (row, pos) -> nestedWrapper.wrap(row.getRow(pos, rowType.getFieldCount()));
-
-      default:
-        return null;
+  private static List<Object> toList(
+      ArrayData array, ArrayData.ElementGetter getter, Function<Object, Object> converter) {
+    // Copied rather than viewed because readers may reuse containers across rows.
+    List<Object> list = Lists.newArrayListWithCapacity(array.size());
+    for (int i = 0; i < array.size(); i += 1) {
+      list.add(convertOrNull(getter.getElementOrNull(array, i), converter));
     }
+
+    return list;
+  }
+
+  private static Map<Object, Object> toMap(
+      MapData map,
+      ArrayData.ElementGetter keyGetter,
+      Function<Object, Object> keyConverter,
+      ArrayData.ElementGetter valueGetter,
+      Function<Object, Object> valueConverter) {
+    ArrayData keys = map.keyArray();
+    ArrayData values = map.valueArray();
+    Map<Object, Object> result = Maps.newHashMapWithExpectedSize(map.size());
+    for (int i = 0; i < map.size(); i += 1) {
+      result.put(
+          convertOrNull(keyGetter.getElementOrNull(keys, i), keyConverter),
+          convertOrNull(valueGetter.getElementOrNull(values, i), valueConverter));
+    }
+
+    return result;
+  }
+
+  private static Object convertOrNull(Object value, Function<Object, Object> converter) {
+    return value == null ? null : converter.apply(value);
   }
 }
