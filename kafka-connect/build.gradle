@@ -256,17 +256,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   }
 
   apply from: "${rootDir}/runtime-deps.gradle"
-
-  // Configure publishing for the distribution zip
-  afterEvaluate {
-    publishing {
-      publications {
-        apache(MavenPublication) {
-          artifact distZip
-        }
-      }
-    }
-  }
 }
 
 project(':iceberg-kafka-connect:iceberg-kafka-connect-transforms') {
