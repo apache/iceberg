@@ -1931,7 +1931,20 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     preparePartitionedTable(true);
 
     assertEstimatedRowCount(new ManifestEntriesTable(table), 4);
-    assertEstimatedRowCount(new AllEntriesTable(table), 4);
+
+    // all_entries returns each entry once per snapshot that references its manifest
+    try (CloseableIterable<FileScanTask> tasks = new AllEntriesTable(table).newScan().planFiles()) {
+      assertThat(tasks)
+          .isNotEmpty()
+          .allSatisfy(
+              task ->
+                  assertThat(task.estimatedRowsCount())
+                      .isEqualTo(
+                          4L
+                              * ((BaseEntriesTable.ManifestReadTask) task)
+                                  .referenceSnapshotIds()
+                                  .size()));
+    }
   }
 
   @TestTemplate
