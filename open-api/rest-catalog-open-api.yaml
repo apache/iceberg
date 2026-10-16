@@ -2157,6 +2157,10 @@ components:
         to supply access via any or none of the requested mechanisms.
 
 
+        The value `none` signals that the client does not need delegated access
+        from the server.
+
+
         Specific properties and handling for `vended-credentials` and `remote-signing`
         are documented in the `LoadTableResult` schema section of this spec document.
 
@@ -2168,6 +2172,7 @@ components:
           enum:
             - vended-credentials
             - remote-signing
+            - none
       style: simple
       explode: false
       example: "vended-credentials,remote-signing"
