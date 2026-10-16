@@ -2817,7 +2817,7 @@ public abstract class ReadFormatModelTests<T> {
                         projectionSchema.findType(entry.getKey()), entry.getValue())));
   }
 
-  protected static Record structLikeToRecord(StructLike structLike, Types.StructType structType) {
+  static Record structLikeToRecord(StructLike structLike, Types.StructType structType) {
     Record record = GenericRecord.create(structType);
     int sourceSize = structLike.size();
     for (int i = 0; i < structType.fields().size(); i++) {

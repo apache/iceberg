@@ -61,8 +61,8 @@ class TestGenericFormatModel extends BaseFormatModelTests<Record> {
     // PartitionData) rather than a Record. Materialize them as a Record up front, mirroring how the
     // Flink and Spark bindings convert constants into their engine representation, so reads expose
     // the same type the generic comparison in DataTestHelpers expects.
-    if (value instanceof StructLike) {
-      return structLikeToRecord((StructLike) value, type.asStructType());
+    if (value instanceof StructLike struct) {
+      return structLikeToRecord(struct, type.asStructType());
     }
 
     return value;
