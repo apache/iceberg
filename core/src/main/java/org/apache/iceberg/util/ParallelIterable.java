@@ -79,6 +79,12 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     return iter;
   }
 
+  private static void wakeUpConsumer(Semaphore taskSignal) {
+    if (taskSignal.availablePermits() == 0) {
+      taskSignal.release();
+    }
+  }
+
   @VisibleForTesting
   static class ParallelIterator<T> implements CloseableIterator<T> {
     private final Iterator<Task<T>> tasks;
@@ -109,7 +115,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     public void close() {
       // close first, avoid new task submit
       this.closed.set(true);
-      taskSignal.release();
+      wakeUpConsumer(taskSignal);
 
       try (Closer closer = Closer.create()) {
         synchronized (this) {
@@ -200,7 +206,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
 
         CompletableFuture<Optional<Task<T>>> future =
             CompletableFuture.supplyAsync(task, workerPool);
-        future.whenComplete((continuation, failure) -> taskSignal.release());
+        future.whenComplete((continuation, failure) -> wakeUpConsumer(taskSignal));
         return future;
       }
       return null;
@@ -307,7 +313,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
           }
 
           queue.add(next);
-          taskSignal.release();
+          wakeUpConsumer(taskSignal);
         }
       } catch (Throwable e) {
         try {
