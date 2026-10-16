@@ -345,4 +345,90 @@ public class TestS3FileIOCredentialRefresh {
       }
     }
   }
+
+  @Test
+  public void credentialRefreshResolvesRelativeCredentialsUri() {
+    // credentials.uri may be configured as a path relative to the catalog uri rather than an
+    // absolute URL. The refresh must resolve it against CatalogProperties.URI before fetching.
+    String nearExpiryMs = Long.toString(Instant.now().plus(3, ChronoUnit.MINUTES).toEpochMilli());
+
+    StorageCredential initialCredential =
+        StorageCredential.create(
+            "s3://bucket/path",
+            ImmutableMap.of(
+                S3FileIOProperties.ACCESS_KEY_ID,
+                "initialAccessKey",
+                S3FileIOProperties.SECRET_ACCESS_KEY,
+                "initialSecretKey",
+                S3FileIOProperties.SESSION_TOKEN,
+                "initialToken",
+                S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                nearExpiryMs));
+
+    String refreshedExpiryMs =
+        Long.toString(Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
+    LoadCredentialsResponse refreshResponse =
+        ImmutableLoadCredentialsResponse.builder()
+            .addCredentials(
+                ImmutableCredential.builder()
+                    .prefix("s3://bucket/path")
+                    .config(
+                        ImmutableMap.of(
+                            S3FileIOProperties.ACCESS_KEY_ID,
+                            "refreshedAccessKey",
+                            S3FileIOProperties.SECRET_ACCESS_KEY,
+                            "refreshedSecretKey",
+                            S3FileIOProperties.SESSION_TOKEN,
+                            "refreshedToken",
+                            S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS,
+                            refreshedExpiryMs))
+                    .build())
+            .build();
+
+    HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
+    mockServer
+        .when(mockRequest)
+        .respond(
+            response(LoadCredentialsResponseParser.toJson(refreshResponse)).withStatusCode(200));
+
+    Map<String, String> properties =
+        ImmutableMap.of(
+            AwsProperties.CLIENT_FACTORY,
+            StaticClientFactory.class.getName(),
+            VendedCredentialsProvider.URI,
+            "credentials",
+            CatalogProperties.URI,
+            CATALOG_URI,
+            "init-creation-stacktrace",
+            "false");
+
+    StaticClientFactory.client = null;
+    try (S3FileIO fileIO = new S3FileIO()) {
+      fileIO.initialize(properties);
+      fileIO.setCredentials(List.of(initialCredential));
+
+      // Trigger clientByPrefix() to build the client map and schedule the refresh.
+      fileIO.client();
+
+      // The refresh must resolve the relative "credentials" path against CatalogProperties.URI
+      // and hit the mock server at /v1/credentials.
+      Awaitility.await()
+          .atMost(10, TimeUnit.SECONDS)
+          .untilAsserted(() -> mockServer.verify(mockRequest, VerificationTimes.atLeast(1)));
+
+      Awaitility.await()
+          .atMost(10, TimeUnit.SECONDS)
+          .untilAsserted(
+              () -> {
+                List<StorageCredential> credentials = fileIO.credentials();
+                assertThat(credentials).hasSize(1);
+                assertThat(credentials.get(0).config())
+                    .containsEntry(S3FileIOProperties.ACCESS_KEY_ID, "refreshedAccessKey")
+                    .containsEntry(S3FileIOProperties.SECRET_ACCESS_KEY, "refreshedSecretKey")
+                    .containsEntry(S3FileIOProperties.SESSION_TOKEN, "refreshedToken")
+                    .containsEntry(
+                        S3FileIOProperties.SESSION_TOKEN_EXPIRES_AT_MS, refreshedExpiryMs);
+              });
+    }
+  }
 }
