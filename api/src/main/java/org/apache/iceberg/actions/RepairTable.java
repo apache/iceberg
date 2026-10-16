@@ -33,6 +33,9 @@ public interface RepairTable extends SnapshotUpdate<RepairTable, RepairTable.Res
    * Repairs incorrect metrics of manifest entries, such as record counts, file sizes and column
    * level statistics, by comparing them against the underlying data and delete files.
    *
+   * <p>Deletion vectors (delete blobs stored in Puffin files) are not verified or repaired. Metrics
+   * that cannot be reconstructed from files, such as NaN counts and NaN-safe bounds, are preserved.
+   *
    * @return this for method chaining
    */
   RepairTable repairFileMetrics();
