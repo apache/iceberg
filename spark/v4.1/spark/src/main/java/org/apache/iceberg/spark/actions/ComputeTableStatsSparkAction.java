@@ -33,6 +33,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.ComputeTableStats;
 import org.apache.iceberg.actions.ImmutableComputeTableStats;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.puffin.Blob;
@@ -87,6 +88,11 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
 
   @Override
   public Result execute() {
+    Preconditions.checkArgument(
+        !(table.encryption() instanceof StandardEncryptionManager),
+        "Cannot compute table statistics for an encrypted table: %s",
+        table.name());
+
     if (snapshot == null) {
       LOG.info("No snapshot to compute stats for table {}", table.name());
       return EMPTY_RESULT;
