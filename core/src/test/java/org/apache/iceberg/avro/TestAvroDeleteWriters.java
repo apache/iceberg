@@ -128,6 +128,57 @@ public class TestAvroDeleteWriters {
   }
 
   @Test
+  public void equalityDeleteWriterRejectsEmptyEqualityFieldIds() {
+    OutputFile out = new InMemoryOutputFile();
+
+    assertThatThrownBy(
+            () ->
+                Avro.writeDeletes(out)
+                    .createWriterFunc(DataWriter::create)
+                    .overwrite()
+                    .rowSchema(SCHEMA)
+                    .withSpec(PartitionSpec.unpartitioned())
+                    .equalityFieldIds(new int[0])
+                    .buildEqualityWriter())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Equality delete field IDs must not be null or empty");
+  }
+
+  @Test
+  public void equalityDeleteWriterRejectsDuplicateEqualityFieldIds() {
+    OutputFile out = new InMemoryOutputFile();
+
+    assertThatThrownBy(
+            () ->
+                Avro.writeDeletes(out)
+                    .createWriterFunc(DataWriter::create)
+                    .overwrite()
+                    .rowSchema(SCHEMA)
+                    .withSpec(PartitionSpec.unpartitioned())
+                    .equalityFieldIds(1, 1)
+                    .buildEqualityWriter())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Duplicate equality delete field ID: 1");
+  }
+
+  @Test
+  public void equalityDeleteWriterRejectsMissingEqualityFieldId() {
+    OutputFile out = new InMemoryOutputFile();
+
+    assertThatThrownBy(
+            () ->
+                Avro.writeDeletes(out)
+                    .createWriterFunc(DataWriter::create)
+                    .overwrite()
+                    .rowSchema(SCHEMA)
+                    .withSpec(PartitionSpec.unpartitioned())
+                    .equalityFieldIds(99)
+                    .buildEqualityWriter())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid equality delete field ID: 99");
+  }
+
+  @Test
   public void testPositionDeleteWriterWithEmptyRow() throws IOException {
     File deleteFile = temp.toFile();
 
