@@ -27,6 +27,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveStatsEvaluator;
 import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -239,12 +240,29 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       readBuilder.setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsStruct.class);
       for (Types.NestedField fieldStats : statsField.type().asStructType().fields()) {
         readBuilder.setCustomType(fieldStats.fieldId(), FieldStatsStruct.class);
+        registerCustomBoundTypes(readBuilder, fieldStats);
       }
     }
 
     CloseableIterable<TrackedFile> reader = readBuilder.build();
     addCloseable(reader);
     return reader;
+  }
+
+  private static void registerCustomBoundTypes(
+      InternalData.ReadBuilder readBuilder, Types.NestedField fieldStats) {
+    Types.StructType struct = fieldStats.type().asStructType();
+    registerStructBound(readBuilder, struct.field(StatsUtil.LOWER_BOUND_NAME));
+    registerStructBound(readBuilder, struct.field(StatsUtil.UPPER_BOUND_NAME));
+  }
+
+  private static void registerStructBound(
+      InternalData.ReadBuilder readBuilder, Types.NestedField boundField) {
+    // Geometry and geography are the only bound types represented as structs, so a struct bound
+    // is read as GeospatialBound.
+    if (boundField != null && boundField.type().isStructType()) {
+      readBuilder.setCustomType(boundField.fieldId(), GeospatialBound.class);
+    }
   }
 
   // resolves stored locations against the table location

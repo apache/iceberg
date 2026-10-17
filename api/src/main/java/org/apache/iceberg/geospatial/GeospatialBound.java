@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.geospatial;
 
+import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Objects;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -44,7 +46,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * <p>This class represents a lower or upper geospatial bound and handles serialization and
  * deserialization of these bounds to/from byte arrays, conforming to the Iceberg specification.
  */
-public class GeospatialBound {
+public class GeospatialBound implements StructLike, Serializable {
   /**
    * Parses a geospatial bound from a byte buffer according to Iceberg spec.
    *
@@ -204,16 +206,20 @@ public class GeospatialBound {
   }
 
   @SuppressWarnings("MemberName")
-  private final double x;
+  private double x;
 
   @SuppressWarnings("MemberName")
-  private final double y;
+  private double y;
 
   @SuppressWarnings("MemberName")
-  private final double z;
+  private double z;
 
   @SuppressWarnings("MemberName")
-  private final double m;
+  private double m;
+
+  private GeospatialBound() {
+    this(Double.NaN, Double.NaN, Double.NaN, Double.NaN);
+  }
 
   /** Private constructor - use factory methods instead. */
   @SuppressWarnings("ParameterName")
@@ -280,6 +286,47 @@ public class GeospatialBound {
    */
   public boolean hasM() {
     return !Double.isNaN(m);
+  }
+
+  /** Returns a new bound with the same coordinates. */
+  public GeospatialBound copy() {
+    return new GeospatialBound(x, y, z, m);
+  }
+
+  @Override
+  public int size() {
+    return 4;
+  }
+
+  @Override
+  public <T> T get(int pos, Class<T> javaClass) {
+    return switch (pos) {
+      case 0 -> javaClass.cast(x);
+      case 1 -> javaClass.cast(y);
+      case 2 -> hasZ() ? javaClass.cast(z) : null;
+      case 3 -> hasM() ? javaClass.cast(m) : null;
+      default -> throw new IllegalArgumentException("Invalid position: " + pos);
+    };
+  }
+
+  @Override
+  public <T> void set(int pos, T value) {
+    switch (pos) {
+      case 0 -> this.x = requiredCoordinate("x", value);
+      case 1 -> this.y = requiredCoordinate("y", value);
+      case 2 -> this.z = optionalCoordinate(value);
+      case 3 -> this.m = optionalCoordinate(value);
+      default -> throw new IllegalArgumentException("Invalid position: " + pos);
+    }
+  }
+
+  private static double requiredCoordinate(String coordinate, Object value) {
+    Preconditions.checkArgument(value != null, "Invalid %s coordinate: null", coordinate);
+    return (Double) value;
+  }
+
+  private static double optionalCoordinate(Object value) {
+    return value == null ? Double.NaN : (Double) value;
   }
 
   @Override
