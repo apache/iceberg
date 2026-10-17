@@ -375,8 +375,7 @@ public class SparkParquetWriters {
       long baseOffset = value.getBaseOffset();
       if (value.getBaseObject() instanceof byte[] bytes
           && baseOffset >= Platform.BYTE_ARRAY_OFFSET) {
-        // Write the backing array in place. UTF8String is often a slice of a larger array, so
-        // getBytes would copy the value out before Parquet reads it.
+        // Use the smaller wrapper for whole-array strings to avoid extra per-value allocation.
         column.writeBinary(
             repetitionLevel,
             baseOffset == Platform.BYTE_ARRAY_OFFSET && value.numBytes() == bytes.length
