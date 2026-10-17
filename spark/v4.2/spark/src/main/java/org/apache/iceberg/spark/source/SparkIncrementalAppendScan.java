@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Supplier;
 import org.apache.iceberg.IncrementalAppendScan;
 import org.apache.iceberg.Schema;
@@ -61,34 +61,13 @@ class SparkIncrementalAppendScan extends SparkRuntimeFilterableScan {
   }
 
   @Override
-  public boolean equals(Object other) {
-    if (this == other) {
-      return true;
-    }
-
-    if (other == null || getClass() != other.getClass()) {
-      return false;
-    }
-
-    SparkIncrementalAppendScan that = (SparkIncrementalAppendScan) other;
-    return table().name().equals(that.table().name())
-        && Objects.equals(table().uuid(), that.table().uuid())
-        && startSnapshotId == that.startSnapshotId
-        && Objects.equals(endSnapshotId, that.endSnapshotId)
-        && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
-        && filtersDesc().equals(that.filtersDesc())
-        && partitionPredicates().equals(that.partitionPredicates())
-        && runtimeFiltersDesc().equals(that.runtimeFiltersDesc());
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(
+  protected List<Object> equalityKey() {
+    return Arrays.asList(
         table().name(),
         table().uuid(),
         startSnapshotId,
         endSnapshotId,
-        readSchema(),
+        readSchema(), // compare Spark schemas to ignore field ids
         filtersDesc(),
         partitionPredicates(),
         runtimeFiltersDesc());

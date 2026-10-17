@@ -170,6 +170,9 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   protected abstract List<? extends ScanTaskGroup<?>> taskGroups();
 
+  // values that define scan equality, also captured by each batch created from this scan
+  protected abstract List<Object> equalityKey();
+
   @Override
   public Batch toBatch() {
     return new SparkBatch(
@@ -180,7 +183,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
         groupingKeyType(),
         taskGroups(),
         projection,
-        hashCode());
+        equalityKey());
   }
 
   @Override
@@ -285,6 +288,24 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private long totalRecords(Snapshot snapshot) {
     Map<String, String> summary = snapshot.summary();
     return PropertyUtil.propertyAsLong(summary, SnapshotSummary.TOTAL_RECORDS_PROP, Long.MAX_VALUE);
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (this == other) {
+      return true;
+    }
+
+    if (other == null || getClass() != other.getClass()) {
+      return false;
+    }
+
+    return equalityKey().equals(((SparkScan) other).equalityKey());
+  }
+
+  @Override
+  public int hashCode() {
+    return equalityKey().hashCode();
   }
 
   @Override
