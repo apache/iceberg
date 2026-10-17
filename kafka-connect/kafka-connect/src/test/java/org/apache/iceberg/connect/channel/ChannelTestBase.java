@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -43,13 +44,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.ConsumerGroupDescription;
+import org.apache.kafka.clients.admin.DescribeConsumerGroupsResult;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
+import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.MockConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.apache.kafka.clients.producer.MockProducer;
+import org.apache.kafka.common.ConsumerGroupState;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
@@ -149,6 +154,19 @@ public class ChannelTestBase {
         .filter(commit -> commit.containsKey(groupId))
         .forEach(commit -> latest.putAll(commit.get(groupId)));
     return latest;
+  }
+
+  protected DescribeConsumerGroupsResult describeConsumerGroup(
+      ConsumerGroupState state, Collection<MemberDescription> members) {
+    ConsumerGroupDescription description = mock(ConsumerGroupDescription.class);
+    when(description.state()).thenReturn(state);
+    when(description.members()).thenReturn(members);
+    DescribeConsumerGroupsResult result = mock(DescribeConsumerGroupsResult.class);
+    when(result.describedGroups())
+        .thenReturn(
+            ImmutableMap.of(CONNECT_CONSUMER_GROUP_ID, KafkaFuture.completedFuture(description)));
+    doReturn(result).when(admin).describeConsumerGroups(anyCollection());
+    return result;
   }
 
   private class Listener implements ConsumerRebalanceListener {
