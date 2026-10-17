@@ -657,13 +657,27 @@ public class ParquetValueReaders {
   }
 
   public static class StringReader extends PrimitiveReader<String> {
+    // the last value read and its string: a dictionary-encoded page hands out the same Binary
+    // instance for every occurrence of a dictionary entry, so a repeated value is decoded once
+    private Binary lastBinary = null;
+    private String lastString = null;
+
     public StringReader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
+    // an identity check on purpose: the same Binary instance is the same dictionary entry, and
+    // comparing contents would cost about as much as decoding them
+    @SuppressWarnings("ReferenceEquality")
     public String read(String reuse) {
-      return column.nextBinary().toStringUsingUTF8();
+      Binary binary = column.nextBinary();
+      if (binary != lastBinary || binary.isBackingBytesReused()) {
+        this.lastString = binary.toStringUsingUTF8();
+        this.lastBinary = binary;
+      }
+
+      return lastString;
     }
   }
 
