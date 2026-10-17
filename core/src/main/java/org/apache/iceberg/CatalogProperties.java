@@ -175,6 +175,7 @@ public class CatalogProperties {
   public static final String ENCRYPTION_KMS_TYPE_AZURE = "azure";
   public static final String ENCRYPTION_KMS_TYPE_GCP = "gcp";
   public static final String ENCRYPTION_KMS_TYPE_ALIYUN = "aliyun";
+  public static final String ENCRYPTION_KMS_TYPE_HASHICORP = "hashicorp";
 
   public static final String ENCRYPTION_KMS_IMPL = "encryption.kms-impl";
   public static final String ENCRYPTION_KMS_IMPL_AWS =
@@ -185,4 +186,6 @@ public class CatalogProperties {
       "org.apache.iceberg.gcp.GcpKeyManagementClient";
   public static final String ENCRYPTION_KMS_IMPL_ALIYUN =
       "org.apache.iceberg.aliyun.AliyunKeyManagementClient";
+  public static final String ENCRYPTION_KMS_IMPL_HASHICORP =
+      "org.apache.iceberg.hashicorp.VaultKeyManagementClient";
 }
