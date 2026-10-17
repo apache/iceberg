@@ -113,7 +113,7 @@ public class SparkOrcWriter implements OrcRowWriter<InternalRow> {
         case DOUBLE:
           return GenericOrcWriters.doubles(ORCSchemaUtil.fieldId(primitive));
         case BINARY:
-          if (Type.TypeID.UUID == iPrimitive.typeId()) {
+          if (iPrimitive != null && Type.TypeID.UUID == iPrimitive.typeId()) {
             return SparkOrcValueWriters.uuids();
           }
           return GenericOrcWriters.byteArrays();
