@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Supplier;
 import org.apache.iceberg.Scan;
 import org.apache.iceberg.ScanTask;
@@ -75,34 +75,13 @@ class SparkBatchQueryScan extends SparkRuntimeFilterableScan {
   }
 
   @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-
-    if (o == null || getClass() != o.getClass()) {
-      return false;
-    }
-
-    SparkBatchQueryScan that = (SparkBatchQueryScan) o;
-    return table().name().equals(that.table().name())
-        && Objects.equals(table().uuid(), that.table().uuid())
-        && Objects.equals(snapshot, that.snapshot)
-        && Objects.equals(branch, that.branch)
-        && readSchema().equals(that.readSchema()) // compare Spark schemas to ignore field ids
-        && filtersDesc().equals(that.filtersDesc())
-        && partitionPredicates().equals(that.partitionPredicates())
-        && runtimeFiltersDesc().equals(that.runtimeFiltersDesc());
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(
+  protected List<Object> equalityKey() {
+    return Arrays.asList(
         table().name(),
         table().uuid(),
         snapshot,
         branch,
-        readSchema(),
+        readSchema(), // compare Spark schemas to ignore field ids
         filtersDesc(),
         partitionPredicates(),
         runtimeFiltersDesc());
