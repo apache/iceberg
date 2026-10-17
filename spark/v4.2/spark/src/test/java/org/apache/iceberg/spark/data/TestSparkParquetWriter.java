@@ -60,6 +60,7 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ColumnWriter;
 import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
@@ -368,19 +369,20 @@ public class TestSparkParquetWriter {
     OFFHEAP
   }
 
-  @ParameterizedTest(name = "storage = {0}, dictionarySize = {1}")
+  @ParameterizedTest(name = "storage = {0}, dictionary = {1}, dictionaryBytes = {2}")
   @CsvSource({
-    "ARRAY, 0",
-    "ARRAY, 4096",
-    "ARRAY, 1048576",
-    "SLICE, 0",
-    "SLICE, 4096",
-    "SLICE, 1048576",
-    "OFFHEAP, 0",
-    "OFFHEAP, 4096",
-    "OFFHEAP, 1048576"
+    "ARRAY, false, 4096",
+    "ARRAY, true, 4096",
+    "ARRAY, true, 1048576",
+    "SLICE, false, 4096",
+    "SLICE, true, 4096",
+    "SLICE, true, 1048576",
+    "OFFHEAP, false, 4096",
+    "OFFHEAP, true, 4096",
+    "OFFHEAP, true, 1048576"
   })
-  void stringsWithReusedBackingMemory(Storage storage, int dictionarySize) throws IOException {
+  void stringsWithReusedBackingMemory(
+      Storage storage, boolean dictionaryEnabled, int dictionaryBytes) throws IOException {
     Schema schema = new Schema(optional(1, "text", Types.StringType.get()));
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).isTrue();
@@ -388,10 +390,15 @@ public class TestSparkParquetWriter {
     int numRows = 128;
     int padding = 13;
     String[] expectedValues = new String[numRows];
+    byte[][] expectedBytes = new byte[numRows][];
     int longestValue = 0;
     for (int id = 0; id < numRows; id += 1) {
       expectedValues[id] = stringValue(id);
-      longestValue = Math.max(longestValue, utf8Length(expectedValues[id]));
+      expectedBytes[id] =
+          expectedValues[id] == null
+              ? new byte[0]
+              : expectedValues[id].getBytes(StandardCharsets.UTF_8);
+      longestValue = Math.max(longestValue, expectedBytes[id].length);
     }
 
     // Pad on both sides so a wrong offset or length reads poison rather than running off the end.
@@ -399,30 +406,25 @@ public class TestSparkParquetWriter {
     byte[] shared = storage == Storage.SLICE ? new byte[sharedSize] : null;
     long address = storage == Storage.OFFHEAP ? Platform.allocateMemory(sharedSize) : 0;
 
-    // A dictionary size of 0 stands for "dictionary encoding off"; the size is then unused, but
-    // Parquet still rejects 0, so pass the smallest legal value.
-    boolean dictionaryEnabled = dictionarySize > 0;
-
     try (FileAppender<InternalRow> writer =
         Parquet.write(Files.localOutput(testFile))
             .schema(schema)
-            .set("parquet.enable.dictionary", Boolean.toString(dictionaryEnabled))
-            .set(PARQUET_DICT_SIZE_BYTES, Integer.toString(Math.max(dictionarySize, 1)))
+            .set(ParquetOutputFormat.ENABLE_DICTIONARY, Boolean.toString(dictionaryEnabled))
+            .set(PARQUET_DICT_SIZE_BYTES, Integer.toString(dictionaryBytes))
             .createWriterFunc(
                 type -> SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(schema), type))
             .build()) {
       for (int id = 0; id < numRows; id += 1) {
-        String expected = expectedValues[id];
-        byte[] bytes = expected == null ? new byte[0] : expected.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = expectedBytes[id];
         UTF8String value = stringWithStorage(storage, bytes, shared, address, padding);
-        writer.add(new GenericInternalRow(new Object[] {expected == null ? null : value}));
+        writer.add(
+            new GenericInternalRow(new Object[] {expectedValues[id] == null ? null : value}));
 
         // Writers must consume or copy reused storage before the next row is written.
-        Arrays.fill(bytes, (byte) '?');
-        if (shared != null) {
-          Arrays.fill(shared, (byte) '?');
-        } else if (storage == Storage.OFFHEAP) {
-          Platform.setMemory(address, (byte) '?', sharedSize);
+        switch (storage) {
+          case ARRAY -> Arrays.fill(bytes, (byte) '?');
+          case SLICE -> Arrays.fill(shared, (byte) '?');
+          case OFFHEAP -> Platform.setMemory(address, (byte) '?', sharedSize);
         }
       }
     } finally {
@@ -461,10 +463,6 @@ public class TestSparkParquetWriter {
         yield UTF8String.fromAddress(null, address + padding, bytes.length);
       }
     };
-  }
-
-  private static int utf8Length(String value) {
-    return value == null ? 0 : value.getBytes(StandardCharsets.UTF_8).length;
   }
 
   private static String stringValue(int id) {

@@ -25,6 +25,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -89,9 +90,9 @@ public class SparkParquetStringWriteBenchmark {
 
   /** Row shapes worth measuring: column count, value size, and how often rows repeat. */
   public enum Workload {
-    SHORT(120_000, 8, 32, 0),
-    WIDE(40_000, 32, 32, 0),
-    LONG(12_000, 8, 1024, 0),
+    SHORT(120_000, 8, 32, 120_000),
+    WIDE(40_000, 32, 32, 40_000),
+    LONG(12_000, 8, 1024, 12_000),
     LOW_CARDINALITY(120_000, 8, 32, 16);
 
     private final int numRows;
@@ -103,7 +104,7 @@ public class SparkParquetStringWriteBenchmark {
       this.numRows = numRows;
       this.numColumns = numColumns;
       this.length = length;
-      this.distinctRows = distinctRows > 0 ? distinctRows : numRows;
+      this.distinctRows = distinctRows;
     }
   }
 
@@ -127,16 +128,19 @@ public class SparkParquetStringWriteBenchmark {
     this.sparkSchema = SparkSchemaUtil.convert(schema);
 
     Random random = new Random(0);
-    List<InternalRow> distinctRows = Lists.newArrayListWithExpectedSize(workload.distinctRows);
+    List<InternalRow> distinct = Lists.newArrayListWithExpectedSize(workload.distinctRows);
     for (int id = 0; id < workload.distinctRows; id += 1) {
-      distinctRows.add(newRow(random, id));
+      distinct.add(newRow(random, id));
     }
 
-    // Repeat the distinct rows up to the row count. This is identity unless the workload asked for
-    // fewer distinct rows than rows, which is how the low cardinality case is expressed.
-    this.rows = Lists.newArrayListWithExpectedSize(workload.numRows);
-    for (int id = 0; id < workload.numRows; id += 1) {
-      rows.add(distinctRows.get(id % workload.distinctRows));
+    if (workload.distinctRows == workload.numRows) {
+      this.rows = distinct;
+    } else {
+      // Repeat the distinct rows up to the row count, which is how low cardinality is expressed.
+      this.rows = Lists.newArrayListWithExpectedSize(workload.numRows);
+      for (int id = 0; id < workload.numRows; id += 1) {
+        rows.add(distinct.get(id % workload.distinctRows));
+      }
     }
 
     this.dataFile = File.createTempFile("iceberg-parquet-strings", ".parquet");
@@ -153,7 +157,7 @@ public class SparkParquetStringWriteBenchmark {
     try (FileAppender<InternalRow> writer =
         Parquet.write(Files.localOutput(dataFile))
             .schema(schema)
-            .set("write.parquet.compression-codec", "uncompressed")
+            .set(TableProperties.PARQUET_COMPRESSION, "uncompressed")
             .createWriterFunc(type -> SparkParquetWriters.buildWriter(sparkSchema, type))
             .build()) {
       writer.addAll(rows);
