@@ -37,6 +37,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Testcontainers
@@ -155,6 +156,37 @@ public class TestS3InputStream {
   @Test
   public void testRangeRead() throws Exception {
     testRangeRead(s3);
+  }
+
+  @Test
+  void zeroLengthReadTailSucceedsForNonEmptyObject() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/zero-tail-nonempty.dat");
+    writeS3Data(uri, new byte[] {1});
+
+    try (RangeReadable in = newInputStream(s3, uri)) {
+      assertThat(in.readTail(new byte[0], 0, 0)).isZero();
+    }
+  }
+
+  @Test
+  void zeroLengthReadTailSucceedsForEmptyObject() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/zero-tail-empty.dat");
+    writeS3Data(uri, new byte[0]);
+
+    try (RangeReadable in = newInputStream(s3, uri)) {
+      assertThat(in.readTail(new byte[0], 0, 0)).isZero();
+    }
+  }
+
+  @Test
+  void zeroLengthReadTailFailsForMissingObject() throws Exception {
+    S3URI uri = new S3URI("s3://bucket/path/to/missing-read-tail.dat");
+
+    try (RangeReadable in = newInputStream(s3, uri)) {
+      assertThatThrownBy(() -> in.readTail(new byte[0], 0, 0))
+          .isInstanceOf(NoSuchKeyException.class)
+          .hasMessageContaining("The specified key does not exist");
+    }
   }
 
   protected void testRangeRead(S3Client s3Client) throws Exception {

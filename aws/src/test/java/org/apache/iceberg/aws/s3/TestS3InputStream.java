@@ -19,6 +19,8 @@
 package org.apache.iceberg.aws.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -39,6 +41,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @ExtendWith(MockitoExtension.class)
 public final class TestS3InputStream {
@@ -109,6 +112,29 @@ public final class TestS3InputStream {
       assertThat(readBytes.value()).isEqualTo(0);
       assertThat(readOperations.value()).isEqualTo(0);
     }
+  }
+
+  @Test
+  void zeroLengthReadTailReturnsZeroWithoutChangingBuffer() throws IOException {
+    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
+        .thenReturn(new ByteArrayInputStream(new byte[] {1}));
+    byte[] buffer = new byte[] {2};
+
+    assertThat(s3InputStream.readTail(buffer, 0, 0)).isZero();
+    assertThat(buffer).containsExactly((byte) 2);
+    verify(s3Client)
+        .getObject(
+            argThat((GetObjectRequest request) -> "bytes=-1".equals(request.range())),
+            any(ResponseTransformer.class));
+  }
+
+  @Test
+  void zeroLengthReadTailPropagatesS3Failure() {
+    var failure = S3Exception.builder().statusCode(403).message("Access denied").build();
+    when(s3Client.getObject(any(GetObjectRequest.class), any(ResponseTransformer.class)))
+        .thenThrow(failure);
+
+    assertThatThrownBy(() -> s3InputStream.readTail(new byte[0], 0, 0)).isSameAs(failure);
   }
 
   @Test
