@@ -23,6 +23,7 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.UUIDUtil;
@@ -39,13 +40,14 @@ class ParquetConversions {
       case BOOLEAN:
       case INTEGER:
       case DATE:
-      case TIME:
       case TIMESTAMP:
       case TIMESTAMP_NANO:
       case LONG:
       case FLOAT:
       case DOUBLE:
         return (T) value;
+      case TIME:
+        return (T) converterFromParquet(parquetType).apply(value);
       case STRING:
         return (T) ((Binary) value).toStringUsingUTF8();
       case UUID:
@@ -93,6 +95,8 @@ class ParquetConversions {
   static Function<Object, Object> converterFromParquet(PrimitiveType type) {
     if (type.getOriginalType() != null) {
       switch (type.getOriginalType()) {
+        case TIME_MILLIS:
+          return value -> TimeUnit.MILLISECONDS.toMicros(((Number) value).longValue());
         case UTF8:
         case ENUM:
         case JSON:
