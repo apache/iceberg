@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark;
 
 import java.nio.ByteBuffer;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
@@ -29,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
 
@@ -74,6 +76,8 @@ public class SparkValueConverter {
         return DateTimeUtils.anyToDays(object);
       case TIMESTAMP:
         return DateTimeUtils.anyToMicros(object);
+      case TIME:
+        return DateTimeUtil.microsFromTime((LocalTime) object);
       case BINARY:
         return ByteBuffer.wrap((byte[]) object);
       case INTEGER:
@@ -139,6 +143,8 @@ public class SparkValueConverter {
         } else {
           return DateTimeUtils.microsToLocalDateTime((long) object);
         }
+      case TIME:
+        return DateTimeUtil.timeFromMicros((long) object);
       case BINARY:
         return ByteBuffers.toByteArray((ByteBuffer) object);
       case INTEGER:
