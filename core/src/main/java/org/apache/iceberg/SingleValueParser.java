@@ -72,17 +72,11 @@ public class SingleValueParser {
         return defaultValue.longValue();
       case FLOAT:
         Preconditions.checkArgument(
-            defaultValue.isFloatingPointNumber(),
-            "Cannot parse default as a %s value: %s",
-            type,
-            defaultValue);
+            defaultValue.isNumber(), "Cannot parse default as a %s value: %s", type, defaultValue);
         return defaultValue.floatValue();
       case DOUBLE:
         Preconditions.checkArgument(
-            defaultValue.isFloatingPointNumber(),
-            "Cannot parse default as a %s value: %s",
-            type,
-            defaultValue);
+            defaultValue.isNumber(), "Cannot parse default as a %s value: %s", type, defaultValue);
         return defaultValue.doubleValue();
       case DECIMAL:
         Preconditions.checkArgument(
