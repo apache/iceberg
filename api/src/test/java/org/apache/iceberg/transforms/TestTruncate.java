@@ -45,6 +45,22 @@ public class TestTruncate {
   }
 
   @Test
+  void largeBinaryWidthPreservesPositionedBuffer() {
+    ByteBuffer input = ByteBuffer.wrap(new byte[] {0, 1, 2});
+    input.position(1);
+    ByteBuffer truncated =
+        Transforms.<ByteBuffer>truncate(Integer.MAX_VALUE)
+            .bind(Types.BinaryType.get())
+            .apply(input);
+
+    assertThat(truncated).isEqualTo(input);
+    assertThat(input.position()).isEqualTo(1);
+    assertThat(input.limit()).isEqualTo(input.capacity());
+    input.put(1, (byte) 3);
+    assertThat(truncated.get(truncated.position())).isEqualTo((byte) 3);
+  }
+
+  @Test
   public void testTruncateInteger() {
     Function<Object, Object> trunc = Truncate.get(10).bind(Types.IntegerType.get());
     assertThat((int) trunc.apply(0)).isZero();

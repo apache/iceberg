@@ -24,8 +24,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.ByteBuffer;
 import org.apache.iceberg.expressions.Literal;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TestBinaryUtil {
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void largeWidthPreservesPositionedBuffer(boolean readOnly) {
+    ByteBuffer input = ByteBuffer.wrap(new byte[] {0, 1, 2});
+    input.position(1);
+    if (readOnly) {
+      input = input.asReadOnlyBuffer();
+    }
+
+    ByteBuffer truncated = BinaryUtil.truncateBinaryUnsafe(input, Integer.MAX_VALUE);
+    assertThat(truncated).isEqualTo(input);
+    assertThat(truncated.isReadOnly()).isEqualTo(readOnly);
+    assertThat(input.position()).isEqualTo(1);
+    assertThat(input.limit()).isEqualTo(input.capacity());
+  }
 
   @Test
   void truncateBinaryToShorterLength() {

@@ -64,7 +64,7 @@ public class BinaryUtil {
    */
   public static ByteBuffer truncateBinaryUnsafe(ByteBuffer value, int width) {
     ByteBuffer ret = value.duplicate();
-    ret.limit(Math.min(value.limit(), value.position() + width));
+    ret.limit(value.position() + Math.min(value.remaining(), width));
     return ret;
   }
 
