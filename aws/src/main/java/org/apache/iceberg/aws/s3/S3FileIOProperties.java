@@ -488,6 +488,20 @@ public class S3FileIOProperties implements Serializable {
   public static final long S3_RETRY_MAX_WAIT_MS_DEFAULT = 20_000; // 20 seconds
 
   /**
+   * Overall time budget, in milliseconds, for a single S3 API call including all of its retry
+   * attempts. Unset (the SDK default, effectively unbounded) unless configured. Guards against a
+   * request that never completes (e.g. a stalled connection below the HTTP client's own
+   * connect/socket timeouts) leaving the calling thread parked indefinitely.
+   */
+  public static final String S3_API_CALL_TIMEOUT_MS = "s3.api-call-timeout-ms";
+
+  /**
+   * Time budget, in milliseconds, for a single attempt of an S3 API call (i.e. one retry attempt,
+   * not the whole operation). Unset (the SDK default) unless configured.
+   */
+  public static final String S3_API_CALL_ATTEMPT_TIMEOUT_MS = "s3.api-call-attempt-timeout-ms";
+
+  /**
    * Controls whether to list prefixes as directories for S3 Directory buckets Defaults value is
    * true, where it will add the "/"
    *
@@ -545,6 +559,8 @@ public class S3FileIOProperties implements Serializable {
   private int s3RetryNumRetries;
   private long s3RetryMinWaitMs;
   private long s3RetryMaxWaitMs;
+  private Long s3ApiCallTimeoutMs;
+  private Long s3ApiCallAttemptTimeoutMs;
 
   private boolean s3DirectoryBucketListPrefixAsDirectory;
   private final Map<String, String> allProperties;
@@ -584,6 +600,8 @@ public class S3FileIOProperties implements Serializable {
     this.s3RetryNumRetries = S3_RETRY_NUM_RETRIES_DEFAULT;
     this.s3RetryMinWaitMs = S3_RETRY_MIN_WAIT_MS_DEFAULT;
     this.s3RetryMaxWaitMs = S3_RETRY_MAX_WAIT_MS_DEFAULT;
+    this.s3ApiCallTimeoutMs = null;
+    this.s3ApiCallAttemptTimeoutMs = null;
     this.s3DirectoryBucketListPrefixAsDirectory =
         S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT;
     this.isS3AnalyticsAcceleratorEnabled = S3_ANALYTICS_ACCELERATOR_ENABLED_DEFAULT;
@@ -700,6 +718,20 @@ public class S3FileIOProperties implements Serializable {
         PropertyUtil.propertyAsLong(properties, S3_RETRY_MIN_WAIT_MS, S3_RETRY_MIN_WAIT_MS_DEFAULT);
     this.s3RetryMaxWaitMs =
         PropertyUtil.propertyAsLong(properties, S3_RETRY_MAX_WAIT_MS, S3_RETRY_MAX_WAIT_MS_DEFAULT);
+    this.s3ApiCallTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(properties, S3_API_CALL_TIMEOUT_MS);
+    Preconditions.checkArgument(
+        s3ApiCallTimeoutMs == null || s3ApiCallTimeoutMs > 0,
+        "%s must be positive, but was: %s",
+        S3_API_CALL_TIMEOUT_MS,
+        s3ApiCallTimeoutMs);
+    this.s3ApiCallAttemptTimeoutMs =
+        PropertyUtil.propertyAsNullableLong(properties, S3_API_CALL_ATTEMPT_TIMEOUT_MS);
+    Preconditions.checkArgument(
+        s3ApiCallAttemptTimeoutMs == null || s3ApiCallAttemptTimeoutMs > 0,
+        "%s must be positive, but was: %s",
+        S3_API_CALL_ATTEMPT_TIMEOUT_MS,
+        s3ApiCallAttemptTimeoutMs);
     this.s3DirectoryBucketListPrefixAsDirectory =
         PropertyUtil.propertyAsBoolean(
             properties,
@@ -967,6 +999,32 @@ public class S3FileIOProperties implements Serializable {
     return (long) s3RetryNumRetries() * s3RetryMaxWaitMs();
   }
 
+  public Long s3ApiCallTimeoutMs() {
+    return s3ApiCallTimeoutMs;
+  }
+
+  public void setS3ApiCallTimeoutMs(Long s3ApiCallTimeoutMs) {
+    Preconditions.checkArgument(
+        s3ApiCallTimeoutMs == null || s3ApiCallTimeoutMs > 0,
+        "%s must be positive, but was: %s",
+        S3_API_CALL_TIMEOUT_MS,
+        s3ApiCallTimeoutMs);
+    this.s3ApiCallTimeoutMs = s3ApiCallTimeoutMs;
+  }
+
+  public Long s3ApiCallAttemptTimeoutMs() {
+    return s3ApiCallAttemptTimeoutMs;
+  }
+
+  public void setS3ApiCallAttemptTimeoutMs(Long s3ApiCallAttemptTimeoutMs) {
+    Preconditions.checkArgument(
+        s3ApiCallAttemptTimeoutMs == null || s3ApiCallAttemptTimeoutMs > 0,
+        "%s must be positive, but was: %s",
+        S3_API_CALL_ATTEMPT_TIMEOUT_MS,
+        s3ApiCallAttemptTimeoutMs);
+    this.s3ApiCallAttemptTimeoutMs = s3ApiCallAttemptTimeoutMs;
+  }
+
   public boolean isS3DirectoryBucketListPrefixAsDirectory() {
     return s3DirectoryBucketListPrefixAsDirectory;
   }
@@ -1138,6 +1196,44 @@ public class S3FileIOProperties implements Serializable {
                             .build())
                     .build())
             .build());
+  }
+
+  /**
+   * Override the overall API call and per-attempt timeouts for an S3 sync or async client, if
+   * configured. Neither is set by default (SDK default, effectively unbounded), so this is a no-op
+   * unless {@link #S3_API_CALL_TIMEOUT_MS} and/or {@link #S3_API_CALL_ATTEMPT_TIMEOUT_MS} are
+   * explicitly configured. When set, a request that never completes (e.g. a connection stalled
+   * below the HTTP client's own connect/socket timeouts) throws {@code
+   * software.amazon.awssdk.core.exception.ApiCallTimeoutException} / {@code
+   * ApiCallAttemptTimeoutException} instead of leaving the calling thread parked indefinitely.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(s3FileIOProperties::applyApiCallTimeoutConfigurations)
+   *     S3AsyncClient.builder()
+   *         .applyMutation(s3FileIOProperties::applyApiCallTimeoutConfigurations)
+   * </pre>
+   */
+  public <T extends S3BaseClientBuilder<T, ?>> void applyApiCallTimeoutConfigurations(T builder) {
+    if (s3ApiCallTimeoutMs == null && s3ApiCallAttemptTimeoutMs == null) {
+      return;
+    }
+
+    ClientOverrideConfiguration.Builder configBuilder =
+        null != builder.overrideConfiguration()
+            ? builder.overrideConfiguration().toBuilder()
+            : ClientOverrideConfiguration.builder();
+
+    if (s3ApiCallTimeoutMs != null) {
+      configBuilder.apiCallTimeout(Duration.ofMillis(s3ApiCallTimeoutMs));
+    }
+
+    if (s3ApiCallAttemptTimeoutMs != null) {
+      configBuilder.apiCallAttemptTimeout(Duration.ofMillis(s3ApiCallAttemptTimeoutMs));
+    }
+
+    builder.overrideConfiguration(configBuilder.build());
   }
 
   /**

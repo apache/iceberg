@@ -48,6 +48,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         .applyMutation(s3FileIOProperties::applyServiceConfigurations)
         .applyMutation(s3FileIOProperties::applySignerConfiguration)
         .applyMutation(s3FileIOProperties::applyRetryConfigurations)
+        .applyMutation(s3FileIOProperties::applyApiCallTimeoutConfigurations)
         .build();
   }
 
@@ -66,6 +67,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
         .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(awsClientProperties::applyClientRegionConfiguration)
         .applyMutation(awsClientProperties::applyClientCredentialConfigurations)
+        .applyMutation(s3FileIOProperties::applyApiCallTimeoutConfigurations)
         .applyMutation(awsClientProperties::applyLegacyMd5Plugin)
         .applyMutation(s3FileIOProperties::applyEndpointConfigurations)
         .build();
