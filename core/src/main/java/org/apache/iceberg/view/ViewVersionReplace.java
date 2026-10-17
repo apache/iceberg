@@ -28,11 +28,15 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -80,9 +84,44 @@ class ViewVersionReplace implements ReplaceViewVersion {
             .defaultCatalog(defaultCatalog)
             .putAllSummary(EnvironmentContext.get())
             .addAllRepresentations(representations)
+            .addAllRepresentations(retainedRepresentations())
             .build();
 
     return ViewMetadata.buildFrom(base).setCurrentVersion(newVersion, schema).build();
+  }
+
+  /**
+   * Returns the SQL representations of the current version whose dialect isn't being replaced, so
+   * that replacing the version of a view that is shared by multiple engines doesn't drop the SQL of
+   * the engines that aren't performing the replacement.
+   *
+   * <p>Nothing is retained when {@link ViewProperties#REPLACE_DROP_DIALECT_ALLOWED} is enabled,
+   * because dropping those dialects is what that property asks for.
+   *
+   * @return the SQL representations of the current version that are retained
+   */
+  private List<ViewRepresentation> retainedRepresentations() {
+    if (PropertyUtil.propertyAsBoolean(
+        base.properties(),
+        ViewProperties.REPLACE_DROP_DIALECT_ALLOWED,
+        ViewProperties.REPLACE_DROP_DIALECT_ALLOWED_DEFAULT)) {
+      return ImmutableList.of();
+    }
+
+    Set<String> replacedDialects = sqlDialectsFor(representations);
+    return base.currentVersion().representations().stream()
+        .filter(SQLViewRepresentation.class::isInstance)
+        .map(SQLViewRepresentation.class::cast)
+        .filter(sql -> !replacedDialects.contains(sql.dialect().toLowerCase(Locale.ROOT)))
+        .collect(Collectors.toList());
+  }
+
+  private Set<String> sqlDialectsFor(List<ViewRepresentation> viewRepresentations) {
+    return viewRepresentations.stream()
+        .filter(SQLViewRepresentation.class::isInstance)
+        .map(SQLViewRepresentation.class::cast)
+        .map(sql -> sql.dialect().toLowerCase(Locale.ROOT))
+        .collect(Collectors.toSet());
   }
 
   @Override
