@@ -83,6 +83,21 @@ class TestAuthManagers {
   }
 
   @Test
+  void oauth2InferredFromTokenPath() {
+    try (AuthManager manager =
+        AuthManagers.loadAuthManager(
+            "test", Map.of(OAuth2Properties.TOKEN_PATH, "/var/run/secrets/token"))) {
+      assertThat(manager).isInstanceOf(OAuth2Manager.class);
+    }
+    assertThat(streamCaptor.toString())
+        .contains(
+            "Inferring rest.auth.type=oauth2 since property token-path was provided. "
+                + "Please explicitly set rest.auth.type to avoid this warning.");
+    assertThat(streamCaptor.toString())
+        .contains("Loading AuthManager implementation: org.apache.iceberg.rest.auth.OAuth2Manager");
+  }
+
+  @Test
   void noop() {
     try (AuthManager manager = AuthManagers.loadAuthManager("test", Map.of())) {
       assertThat(manager).isInstanceOf(NoopAuthManager.class);
