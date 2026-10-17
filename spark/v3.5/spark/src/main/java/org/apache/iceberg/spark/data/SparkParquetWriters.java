@@ -337,7 +337,12 @@ public class SparkParquetWriters {
 
     @Override
     public void write(int repetitionLevel, UTF8String value) {
-      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value.getBytes()));
+      // getByteBuffer exposes heap-backed slices and copies off-heap data when needed.
+      ByteBuffer bytes = value.getByteBuffer();
+      column.writeBinary(
+          repetitionLevel,
+          Binary.fromReusedByteArray(
+              bytes.array(), bytes.arrayOffset() + bytes.position(), bytes.remaining()));
     }
   }
 
