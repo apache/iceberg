@@ -79,11 +79,19 @@ public class DateTimeUtil {
   }
 
   public static long microsFromInstant(Instant instant) {
-    return ChronoUnit.MICROS.between(EPOCH, instant.atOffset(ZoneOffset.UTC));
+    long seconds = instant.getEpochSecond();
+    long micros = instant.getNano() / NANOS_PER_MICRO;
+    if (seconds < 0 && micros > 0) {
+      // Avoid underflow when the fractional second brings the result back into range.
+      return Math.addExact(
+          Math.multiplyExact(seconds + 1, MICROS_PER_SECOND), micros - MICROS_PER_SECOND);
+    }
+
+    return Math.addExact(Math.multiplyExact(seconds, MICROS_PER_SECOND), micros);
   }
 
   public static long microsFromTimestamp(LocalDateTime dateTime) {
-    return ChronoUnit.MICROS.between(EPOCH, dateTime.atOffset(ZoneOffset.UTC));
+    return microsFromInstant(dateTime.toInstant(ZoneOffset.UTC));
   }
 
   public static long nanosFromTimestamp(LocalDateTime dateTime) {
@@ -122,7 +130,7 @@ public class DateTimeUtil {
   }
 
   public static long microsFromTimestamptz(OffsetDateTime dateTime) {
-    return ChronoUnit.MICROS.between(EPOCH, dateTime);
+    return microsFromInstant(dateTime.toInstant());
   }
 
   public static long nanosFromTimestamptz(OffsetDateTime dateTime) {
