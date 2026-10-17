@@ -46,7 +46,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /** Use the IcebergSource (FLIP-27) */
-public class TestIcebergSourceSql extends TestSqlBase {
+public class TestIcebergSourceSql extends TestSourceSqlBase {
   private static final Schema SCHEMA_TS =
       new Schema(
           required(1, "t1", Types.TimestampType.withoutZone()),
