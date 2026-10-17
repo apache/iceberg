@@ -1394,6 +1394,126 @@ class RemoteSigningConfig(BaseModel):
     )
 
 
+class IndexIdentifier(BaseModel):
+    """
+    Identifies an index within a catalog, scoped to a namespace. An index is addressable by namespace and name without a table name; the indexed table is referenced by `table-uuid` in the index metadata. Index names are not stored in index metadata; the catalog maps each identifier to its current metadata file.
+    """
+
+    namespace: Namespace
+    name: str = Field(..., description='The index name, unique within the namespace')
+
+
+class IndexType(RootModel[str]):
+    root: str = Field(
+        ...,
+        description='The logical index type, which defines the class of queries the index accelerates. The index specification defines `scalar`; future specifications may define additional types. Writers MUST send the type in lower case, and readers MUST match it case-insensitively. Clients MUST ignore indexes whose type they do not support.',
+        examples=['scalar'],
+    )
+
+
+class IndexExtract(BaseModel):
+    """
+    An immutable version of the index data generated from a specific source table snapshot. Engines locate index data by matching `source-table-snapshot-id`; more than one extract may reference the same source table snapshot.
+    """
+
+    extract_id: int = Field(
+        ...,
+        alias='extract-id',
+        description="Extract identifier, unique within the index's `extracts`",
+    )
+    source_table_snapshot_id: int = Field(
+        ...,
+        alias='source-table-snapshot-id',
+        description='The source table snapshot this extract indexes',
+    )
+    timestamp_ms: int = Field(
+        ...,
+        alias='timestamp-ms',
+        description='Timestamp when the extract was created (ms from epoch)',
+    )
+    tracking_file: str = Field(
+        ...,
+        alias='tracking-file',
+        description='Location of the tracking file that lists the region files of this extract',
+    )
+    tracking_file_size_in_bytes: int = Field(
+        ...,
+        alias='tracking-file-size-in-bytes',
+        description='Total size of the tracking file in bytes',
+    )
+    properties: dict[str, str] | None = Field(
+        None, description='Properties specific to this extract'
+    )
+    key_id: str | None = Field(
+        None,
+        alias='key-id',
+        description="ID of the entry in the index's `encryption-keys` that holds the key metadata of the tracking file",
+    )
+
+
+class RegisterIndexRequest(BaseModel):
+    """
+    Request to register an existing index by metadata file location
+    """
+
+    name: str = Field(..., description='The name to register the index under')
+    metadata_location: str = Field(
+        ...,
+        alias='metadata-location',
+        description='Location of the index metadata file',
+    )
+
+
+class AssertIndexUUID(BaseModel):
+    """
+    The index UUID must match the requirement's `uuid`
+    """
+
+    type: Literal['assert-index-uuid']
+    uuid: UUID
+
+
+class AddIndexExtractUpdate(BaseUpdate):
+    """
+    Adds an extract to the index. The server MUST reject the commit if `extract-id` is already used by an extract of the index, if `source-table-snapshot-id` is not a snapshot of the indexed table, or if `key-id` does not reference an entry in the index's `encryption-keys`.
+    """
+
+    action: Literal['add-extract']
+    extract: IndexExtract
+
+
+class RemoveIndexExtractsUpdate(BaseUpdate):
+    """
+    Removes extracts from the index. IDs that do not match an extract of the index are ignored.
+    """
+
+    action: Literal['remove-extracts']
+    extract_ids: list[int] = Field(..., alias='extract-ids')
+
+
+class IndexUpdate(
+    RootModel[
+        AddIndexExtractUpdate
+        | RemoveIndexExtractsUpdate
+        | SetPropertiesUpdate
+        | RemovePropertiesUpdate
+        | AddEncryptionKeyUpdate
+        | RemoveEncryptionKeyUpdate
+    ]
+):
+    root: (
+        AddIndexExtractUpdate
+        | RemoveIndexExtractsUpdate
+        | SetPropertiesUpdate
+        | RemovePropertiesUpdate
+        | AddEncryptionKeyUpdate
+        | RemoveEncryptionKeyUpdate
+    ) = Field(
+        ...,
+        description='An update to apply to an index. The index definition cannot be updated; a different definition requires a new index.',
+    )
+
+
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: dict[str, str] | None = Field(
@@ -1574,6 +1694,10 @@ class FetchScanTasksRequest(BaseModel):
     plan_task: PlanTask = Field(..., alias='plan-task')
 
 
+class IndexRequirement(RootModel[AssertIndexUUID]):
+    root: AssertIndexUUID = Field(..., discriminator='type')
+
+
 class Term(RootModel[TermReference | TransformTerm]):
     root: TermReference | TransformTerm = Field(
         ...,
@@ -1615,6 +1739,17 @@ class FunctionDefinitionVersion(BaseModel):
         alias='timestamp-ms',
         description='Creation timestamp of this version (unix epoch millis).',
     )
+
+
+class CommitIndexRequest(BaseModel):
+    """
+    Request to commit updates to an index
+    """
+
+    requirements: list[IndexRequirement] = Field(
+        ..., description='Requirements that must be met before applying updates'
+    )
+    updates: list[IndexUpdate] = Field(..., description='Updates to apply to the index')
 
 
 class StructField(BaseModel):
@@ -2005,6 +2140,10 @@ class LoadTableResult(BaseModel):
     )
     read_restrictions: ReadRestrictions | None = Field(None, alias='read-restrictions')
     labels: Labels | None = None
+    indexes: list[LoadIndexResult] | None = Field(
+        None,
+        description='The indexes of this table, returned only when the client requests them with the `include-indexes` query parameter on the load-table endpoint. Each entry is the same result that the loadIndex endpoint returns for that index, so a planner does not need a second round-trip. Clients that do not understand indexes MUST ignore this field.',
+    )
 
 
 class ScanTasks(BaseModel):
@@ -2328,6 +2467,134 @@ class FileScanTask(BaseModel):
     )
 
 
+class IndexExpressionField(BaseModel):
+    """
+    An index field whose value is produced by evaluating a value expression for an indexed row of the source table. The same structure is used for materialized fields, which are stored in region files, and non-materialized fields, which keep only statistics in the tracking file.
+    """
+
+    field_id: int = Field(
+        ...,
+        alias='field-id',
+        description='ID of the index field, unique across `identity-fields`, `materialized-fields`, and `non-materialized-fields`. It MUST NOT be a reserved field ID.',
+    )
+    type: Literal['expr-value']
+    data_type: Type = Field(..., alias='data-type')
+    expr: ValueExpression = Field(
+        ...,
+        description='Deterministic value expression that produces `data-type`. It MUST contain only ID references (`IdReference`) to source table fields or metadata columns; named references MUST NOT be used.',
+    )
+
+
+class IndexMetadata(BaseModel):
+    """
+    Index metadata as defined by the index specification. The index definition (`table-uuid`, `index-type`, `identity-fields`, `materialized-fields`, `non-materialized-fields`, and `ordering-key`) is fixed when the index is created and does not change. A missing optional list is read as an empty list.
+    """
+
+    format_version: int = Field(
+        ...,
+        alias='format-version',
+        description='Index format version; must be `1`',
+        ge=1,
+        le=1,
+    )
+    index_uuid: UUID = Field(
+        ...,
+        alias='index-uuid',
+        description='Stable UUID assigned to the index at creation',
+    )
+    table_uuid: UUID = Field(
+        ..., alias='table-uuid', description='UUID of the indexed table'
+    )
+    location: str = Field(..., description='Index root location')
+    last_updated_ms: int = Field(
+        ...,
+        alias='last-updated-ms',
+        description='Timestamp when the index was last updated (ms from epoch)',
+    )
+    index_type: IndexType = Field(..., alias='index-type')
+    identity_fields: list[int] = Field(
+        ...,
+        alias='identity-fields',
+        description='Non-empty list of unique source table field IDs stored as is in region files. Metadata columns are not allowed.',
+        examples=[[1]],
+    )
+    materialized_fields: list[IndexExpressionField] | None = Field(
+        None,
+        alias='materialized-fields',
+        description='Expression fields whose values are stored in region files',
+    )
+    non_materialized_fields: list[IndexExpressionField] | None = Field(
+        None,
+        alias='non-materialized-fields',
+        description='Expression fields that keep only statistics in the tracking file',
+    )
+    ordering_key: list[int] = Field(
+        ...,
+        alias='ordering-key',
+        description='Non-empty list of index field IDs, from any of the three field lists, whose values in list order form the ordering key',
+        examples=[[1]],
+    )
+    properties: dict[str, str] | None = Field(
+        None, description='Index properties applicable to every extract'
+    )
+    extracts: list[IndexExtract] | None = Field(
+        None,
+        description='The extracts of the index; an index that has not been built yet has none',
+    )
+    metadata_log: MetadataLog | None = Field(None, alias='metadata-log')
+    encryption_keys: list[EncryptedKey] | None = Field(
+        None, alias='encryption-keys', description='Encryption keys used by the index'
+    )
+
+
+class CreateIndexRequest(BaseModel):
+    """
+    Request to create a new index. The request carries the full index definition, which cannot be changed after creation. The server assigns `index-uuid` and `last-updated-ms`. A new index has no extracts.
+    """
+
+    name: str = Field(
+        ...,
+        description='The name for the new index, unique within the namespace',
+        examples=['customer_id_index'],
+    )
+    table_uuid: UUID = Field(
+        ..., alias='table-uuid', description='UUID of the table to index'
+    )
+    index_type: IndexType = Field(..., alias='index-type')
+    identity_fields: list[int] = Field(..., alias='identity-fields', examples=[[1]])
+    materialized_fields: list[IndexExpressionField] | None = Field(
+        None, alias='materialized-fields'
+    )
+    non_materialized_fields: list[IndexExpressionField] | None = Field(
+        None, alias='non-materialized-fields'
+    )
+    ordering_key: list[int] = Field(..., alias='ordering-key', examples=[[1]])
+    location: str | None = Field(
+        None,
+        description='Optional index root location; if omitted, the server chooses one',
+    )
+    properties: dict[str, str] | None = Field(None, description='Index properties')
+
+
+class LoadIndexResult(BaseModel):
+    """
+    Result for loading an index. Configuration and storage credentials for reading index files follow the same rules as `LoadTableResult`, including the `X-Iceberg-Access-Delegation` header.
+    """
+
+    metadata_location: str | None = Field(
+        None,
+        alias='metadata-location',
+        description='The location of the index metadata file',
+    )
+    metadata: IndexMetadata
+    config: dict[str, str] | None = None
+    storage_credentials: list[StorageCredential] | None = Field(
+        None,
+        alias='storage-credentials',
+        description='Credentials for accessing the index files',
+    )
+
+
 class Schema(StructType):
     schema_id: int | None = Field(None, alias='schema-id')
     identifier_field_ids: list[int] | None = Field(None, alias='identifier-field-ids')
@@ -2538,6 +2805,7 @@ TableMetadata.model_rebuild()
 ViewMetadata.model_rebuild()
 AddSchemaUpdate.model_rebuild()
 ReadRestrictions.model_rebuild()
+LoadTableResult.model_rebuild()
 ScanTasks.model_rebuild()
 CommitTableRequest.model_rebuild()
 CommitViewRequest.model_rebuild()
@@ -2554,6 +2822,7 @@ FunctionStructType.model_rebuild()
 FunctionStructField.model_rebuild()
 PlanTableScanRequest.model_rebuild()
 FileScanTask.model_rebuild()
+IndexExpressionField.model_rebuild()
 CompletedPlanningResult.model_rebuild()
 FetchScanTasksResult.model_rebuild()
 ReportMetricsRequest1.model_rebuild()
