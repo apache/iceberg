@@ -80,7 +80,7 @@ public class VariantReaderBuilder extends ParquetVariantVisitor<ParquetValueRead
   @Override
   public ParquetValueReader<?> metadata(PrimitiveType metadata) {
     ColumnDescriptor desc = schema.getColumnDescription(currentPath());
-    return ParquetVariantReaders.metadata(desc);
+    return ParquetVariantReaders.metadata(schema, desc);
   }
 
   @Override
