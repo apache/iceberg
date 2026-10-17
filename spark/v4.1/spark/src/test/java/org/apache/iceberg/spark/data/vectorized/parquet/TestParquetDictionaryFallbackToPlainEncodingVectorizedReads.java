@@ -51,7 +51,7 @@ public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads
       Function<Record, Record> transform) {
     Iterable data =
         RandomGenericData.generateFallbackRecords(
-            schema, numRecords, nullPercentage, seed, numRecords / 20);
+            schema, numRecords, seed, nullPercentage, numRecords / 20);
     return transform == IDENTITY ? data : Iterables.transform(data, transform);
   }
 
