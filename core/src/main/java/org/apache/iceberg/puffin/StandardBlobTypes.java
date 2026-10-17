@@ -27,6 +27,12 @@ public final class StandardBlobTypes {
    */
   public static final String APACHE_DATASKETCHES_THETA_V1 = "apache-datasketches-theta-v1";
 
+  /**
+   * A serialized form of a KLL sketch, a very compact quantiles sketch, produced by the <a
+   * href="https://datasketches.apache.org/">Apache DataSketches</a> library
+   */
+  public static final String APACHE_DATASKETCHES_KLL_SKETCH = "apache-datasketches-kll-v1";
+
   /** A serialized deletion vector according to the Iceberg spec */
   public static final String DV_V1 = "deletion-vector-v1";
 }
