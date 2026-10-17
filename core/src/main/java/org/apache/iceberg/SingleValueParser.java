@@ -23,14 +23,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
@@ -217,7 +218,7 @@ public class SingleValueParser {
     Preconditions.checkArgument(
         keys.size() == values.size(), "Cannot parse default as a %s value: %s", type, defaultValue);
 
-    ImmutableMap.Builder<Object, Object> mapBuilder = ImmutableMap.builder();
+    Map<Object, Object> map = new LinkedHashMap<>();
 
     Iterator<JsonNode> keyIter = keys.iterator();
     Type keyType = type.asMapType().keyType();
@@ -225,10 +226,20 @@ public class SingleValueParser {
     Type valueType = type.asMapType().valueType();
 
     while (keyIter.hasNext()) {
-      mapBuilder.put(fromJson(keyType, keyIter.next()), fromJson(valueType, valueIter.next()));
+      Object key = fromJson(keyType, keyIter.next());
+      Object value = fromJson(valueType, valueIter.next());
+      Preconditions.checkArgument(
+          key != null, "Cannot parse default as a %s value: null key", type);
+      Preconditions.checkArgument(
+          value != null || type.asMapType().isValueOptional(),
+          "Cannot parse default as a %s value: null required value",
+          type);
+      Preconditions.checkArgument(
+          !map.containsKey(key), "Cannot parse default as a %s value: duplicate key %s", type, key);
+      map.put(key, value);
     }
 
-    return mapBuilder.build();
+    return Collections.unmodifiableMap(map);
   }
 
   private static List<Object> listFromJson(Type type, JsonNode defaultValue) {
