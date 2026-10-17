@@ -32,6 +32,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -124,6 +125,7 @@ class TableMetadataCache {
             true,
             table.refs().keySet(),
             table.schemas(),
+            table.schema().schemaId(),
             table.specs(),
             inputSchemasPerTableCacheMaximumSize));
   }
@@ -156,6 +158,9 @@ class TableMetadataCache {
         return lastResult;
       }
 
+      // tableSchemas is ordered with the current schema first, so its field ids win over
+      // historical schemas which match by name only (for example after a column is dropped and
+      // added again with the same name).
       for (Map.Entry<Integer, Schema> tableSchema : cached.tableSchemas.entrySet()) {
         CompareSchemasVisitor.Result result =
             CompareSchemasVisitor.visit(
@@ -223,7 +228,7 @@ class TableMetadataCache {
     } catch (NoSuchTableException | NoSuchNamespaceException e) {
       LOG.debug("Table or namespace doesn't exist {}", identifier, e);
       tableCache.put(
-          identifier, new CacheItem(cacheRefreshClock.millis(), false, null, null, null, 1));
+          identifier, new CacheItem(cacheRefreshClock.millis(), false, null, null, -1, null, 1));
       return Tuple2.of(false, e);
     }
   }
@@ -266,15 +271,35 @@ class TableMetadataCache {
         boolean tableExists,
         Set<String> branches,
         Map<Integer, Schema> tableSchemas,
+        int currentSchemaId,
         Map<Integer, PartitionSpec> specs,
         int inputSchemaCacheMaximumSize) {
       this.createdTimestampMillis = createdTimestampMillis;
       this.tableExists = tableExists;
       this.branches = branches;
-      this.tableSchemas = tableSchemas;
+      this.tableSchemas = orderSchemas(tableSchemas, currentSchemaId);
       this.specs = specs;
       this.inputSchemas =
           new LRUCache<>(inputSchemaCacheMaximumSize, CacheItem::inputSchemaEvictionListener);
+    }
+
+    static Map<Integer, Schema> orderSchemas(
+        Map<Integer, Schema> tableSchemas, int currentSchemaId) {
+      if (tableSchemas == null) {
+        return null;
+      }
+
+      Map<Integer, Schema> ordered = Maps.newLinkedHashMap();
+      Schema current = tableSchemas.get(currentSchemaId);
+      if (current != null) {
+        ordered.put(currentSchemaId, current);
+      }
+
+      tableSchemas.entrySet().stream()
+          .filter(e -> e.getKey() != currentSchemaId)
+          .sorted(Map.Entry.<Integer, Schema>comparingByKey().reversed())
+          .forEach(e -> ordered.put(e.getKey(), e.getValue()));
+      return ordered;
     }
 
     private static void inputSchemaEvictionListener(
