@@ -1271,6 +1271,7 @@ public class Parquet {
     private ReaderFunction readerFunction = null;
     private boolean filterRecords = true;
     private boolean caseSensitive = true;
+    private boolean pageIndexFilteringEnabledForPoc = false;
     private boolean callInit = false;
     private boolean reuseContainers = false;
     private int maxRecordsPerBatch = 10000;
@@ -1340,6 +1341,11 @@ public class Parquet {
 
     private static boolean canEagerFetch(long fileLength) {
       return fileLength > 0 && fileLength <= EAGER_FETCH_THRESHOLD_BYTES;
+    }
+
+    ReadBuilder enablePageIndexFilteringForPoc() {
+      this.pageIndexFilteringEnabledForPoc = true;
+      return this;
     }
 
     /**
@@ -1572,6 +1578,9 @@ public class Parquet {
                 ? messageType -> batchedReaderFuncWithSchema.apply(schema, messageType)
                 : batchedReaderFunc;
         if (batchedFunc != null) {
+          Preconditions.checkArgument(
+              !pageIndexFilteringEnabledForPoc,
+              "POC page-index filtering only supports the row-based Parquet reader");
           return new VectorizedParquetReader<>(
               file,
               schema,
@@ -1591,7 +1600,15 @@ public class Parquet {
                   .apply();
 
           return new org.apache.iceberg.parquet.ParquetReader<>(
-              file, schema, options, readBuilder, mapping, filter, reuseContainers, caseSensitive);
+              file,
+              schema,
+              options,
+              readBuilder,
+              mapping,
+              filter,
+              reuseContainers,
+              caseSensitive,
+              pageIndexFilteringEnabledForPoc);
         }
       }
 
