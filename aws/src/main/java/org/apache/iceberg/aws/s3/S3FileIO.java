@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.S3FileIOAwsClientFactories;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.io.BaseFileIO;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.CredentialSupplier;
 import org.apache.iceberg.io.DelegateFileIO;
@@ -88,10 +89,9 @@ import software.amazon.awssdk.services.s3.paginators.ListObjectVersionsIterable;
  * FileIO implementation backed by S3.
  *
  * <p>Locations used must follow the conventions for S3 URIs (e.g. s3://bucket/path...). URIs with
- * schemes s3a, s3n, https are also treated as s3 file paths. Using this FileIO with other schemes
- * will result in {@link org.apache.iceberg.exceptions.ValidationException}.
+ * schemes s3a, s3n are also treated as s3 file paths.
  */
-public class S3FileIO
+public class S3FileIO extends BaseFileIO
     implements CredentialSupplier,
         DelegateFileIO,
         SupportsRecoveryOperations,
@@ -148,13 +148,18 @@ public class S3FileIO
   }
 
   @Override
-  public InputFile newInputFile(String path) {
+  protected InputFile newInputFileForLocation(String path) {
     return S3InputFile.fromLocation(path, clientForStoragePath(path), metrics);
   }
 
   @Override
-  public InputFile newInputFile(String path, long length) {
+  protected InputFile newInputFileForLocation(String path, long length) {
     return S3InputFile.fromLocation(path, length, clientForStoragePath(path), metrics);
+  }
+
+  @Override
+  protected MetricsContext metrics() {
+    return metrics;
   }
 
   @Override
