@@ -358,63 +358,87 @@ public class TestSparkParquetWriter {
     }
   }
 
-  @ParameterizedTest
+  /** Where the bytes handed to the writer live. */
+  private enum Storage {
+    /** An exactly sized array, which the writer may pass straight to Parquet. */
+    ARRAY,
+    /** A window into a larger array, as produced by {@code UnsafeRow#getUTF8String}. */
+    SLICE,
+    /** Off-heap memory, which the writer must copy onto the heap. */
+    OFFHEAP
+  }
+
+  @ParameterizedTest(name = "storage = {0}, dictionarySize = {1}")
   @CsvSource({
-    "array, 0",
-    "array, 4096",
-    "array, 1048576",
-    "slice, 0",
-    "slice, 4096",
-    "slice, 1048576",
-    "offheap, 0",
-    "offheap, 4096",
-    "offheap, 1048576"
+    "ARRAY, 0",
+    "ARRAY, 4096",
+    "ARRAY, 1048576",
+    "SLICE, 0",
+    "SLICE, 4096",
+    "SLICE, 1048576",
+    "OFFHEAP, 0",
+    "OFFHEAP, 4096",
+    "OFFHEAP, 1048576"
   })
-  void stringsWithReusedBackingMemory(String storage, int dictionarySize) throws IOException {
+  void stringsWithReusedBackingMemory(Storage storage, int dictionarySize) throws IOException {
     Schema schema = new Schema(optional(1, "text", Types.StringType.get()));
-    File testFile = temp.resolve("strings.parquet").toFile();
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).isTrue();
+
     int numRows = 128;
     int padding = 13;
-    byte[] shared = new byte[64 * 1024];
-    long address = storage.equals("offheap") ? Platform.allocateMemory(shared.length) : 0;
+    String[] expectedValues = new String[numRows];
+    int longestValue = 0;
+    for (int id = 0; id < numRows; id += 1) {
+      expectedValues[id] = stringValue(id);
+      longestValue = Math.max(longestValue, utf8Length(expectedValues[id]));
+    }
+
+    // Pad on both sides so a wrong offset or length reads poison rather than running off the end.
+    int sharedSize = padding + longestValue + padding;
+    byte[] shared = storage == Storage.SLICE ? new byte[sharedSize] : null;
+    long address = storage == Storage.OFFHEAP ? Platform.allocateMemory(sharedSize) : 0;
+
+    // A dictionary size of 0 stands for "dictionary encoding off"; the size is then unused, but
+    // Parquet still rejects 0, so pass the smallest legal value.
+    boolean dictionaryEnabled = dictionarySize > 0;
 
     try (FileAppender<InternalRow> writer =
         Parquet.write(Files.localOutput(testFile))
             .schema(schema)
-            .set("parquet.enable.dictionary", Boolean.toString(dictionarySize > 0))
-            .set(PARQUET_DICT_SIZE_BYTES, Integer.toString(Math.max(dictionarySize, 1)))
+            .set("parquet.enable.dictionary", Boolean.toString(dictionaryEnabled))
+            .set(PARQUET_DICT_SIZE_BYTES, Integer.toString(dictionaryEnabled ? dictionarySize : 1))
             .createWriterFunc(
                 type -> SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(schema), type))
             .build()) {
       for (int id = 0; id < numRows; id += 1) {
-        String expected = stringValue(id);
+        String expected = expectedValues[id];
         byte[] bytes = expected == null ? new byte[0] : expected.getBytes(StandardCharsets.UTF_8);
         UTF8String value =
             switch (storage) {
-              case "array" -> UTF8String.fromBytes(bytes);
-              case "slice" -> {
-                Arrays.fill(shared, (byte) '!');
+              case ARRAY -> UTF8String.fromBytes(bytes);
+              case SLICE -> {
                 System.arraycopy(bytes, 0, shared, padding, bytes.length);
                 yield UTF8String.fromBytes(shared, padding, bytes.length);
               }
-              case "offheap" -> {
+              case OFFHEAP -> {
                 Platform.copyMemory(
                     bytes, Platform.BYTE_ARRAY_OFFSET, null, address + padding, bytes.length);
                 yield UTF8String.fromAddress(null, address + padding, bytes.length);
               }
-              default -> throw new IllegalArgumentException("Unknown storage: " + storage);
             };
         writer.add(new GenericInternalRow(new Object[] {expected == null ? null : value}));
 
         // Writers must consume or copy reused storage before the next row is written.
         Arrays.fill(bytes, (byte) '?');
-        Arrays.fill(shared, (byte) '?');
-        if (storage.equals("offheap")) {
-          Platform.setMemory(address, (byte) '?', shared.length);
+        if (shared != null) {
+          Arrays.fill(shared, (byte) '?');
+        } else if (storage == Storage.OFFHEAP) {
+          Platform.setMemory(address, (byte) '?', sharedSize);
         }
       }
     } finally {
-      if (storage.equals("offheap")) {
+      if (storage == Storage.OFFHEAP) {
         Platform.freeMemory(address);
       }
     }
@@ -429,10 +453,14 @@ public class TestSparkParquetWriter {
         assertThat(rows).hasNext();
         InternalRow row = rows.next();
         assertThat(row.isNullAt(0) ? null : row.getUTF8String(0).toString())
-            .isEqualTo(stringValue(id));
+            .isEqualTo(expectedValues[id]);
       }
       assertThat(rows).isExhausted();
     }
+  }
+
+  private static int utf8Length(String value) {
+    return value == null ? 0 : value.getBytes(StandardCharsets.UTF_8).length;
   }
 
   private static String stringValue(int id) {

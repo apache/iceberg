@@ -72,6 +72,7 @@ import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.VariantType;
+import org.apache.spark.unsafe.Platform;
 import org.apache.spark.unsafe.types.BinaryView;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
@@ -371,12 +372,18 @@ public class SparkParquetWriters {
 
     @Override
     public void write(int repetitionLevel, UTF8String value) {
-      // getByteBuffer exposes heap-backed slices and copies off-heap data when needed.
-      ByteBuffer bytes = value.getByteBuffer();
-      column.writeBinary(
-          repetitionLevel,
-          Binary.fromReusedByteArray(
-              bytes.array(), bytes.arrayOffset() + bytes.position(), bytes.remaining()));
+      long baseOffset = value.getBaseOffset();
+      if (value.getBaseObject() instanceof byte[] bytes
+          && baseOffset >= Platform.BYTE_ARRAY_OFFSET) {
+        // Write the backing array in place. UTF8String is often a slice of a larger array, so
+        // getBytes would copy the value out before Parquet reads it.
+        int offset = (int) (baseOffset - Platform.BYTE_ARRAY_OFFSET);
+        column.writeBinary(
+            repetitionLevel, Binary.fromReusedByteArray(bytes, offset, value.numBytes()));
+      } else {
+        // Off-heap values must be copied onto the heap.
+        column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value.getBytes()));
+      }
     }
   }
 

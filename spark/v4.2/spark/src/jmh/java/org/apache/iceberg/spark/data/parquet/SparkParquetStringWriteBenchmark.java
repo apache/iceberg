@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.data.parquet;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -28,6 +27,7 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.types.Types;
@@ -51,10 +51,16 @@ import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
 /**
- * Measures Iceberg Parquet writes of Spark strings backed by slices of larger arrays.
+ * Measures Iceberg Parquet writes of Spark strings, grouped by how the bytes of each value are
+ * stored.
  *
- * <p>Run the same benchmark on the original and patched writers in separate JVMs. Use JMH's GC
- * profiler to compare allocated bytes as well as elapsed time.
+ * <p>{@link Backing#ARRAY} values are exactly sized arrays that the writer can always hand to
+ * Parquet as-is, so they act as the baseline. {@link Backing#SLICE} values are windows into a
+ * larger array, which is what Spark produces when reading an {@code UnsafeRow}. Comparing the two
+ * in one run shows whether slices still pay for a defensive copy.
+ *
+ * <p>Compression is disabled so the measurement is not dominated by the codec. Use JMH's GC
+ * profiler ({@code -prof gc}) to compare allocated bytes alongside elapsed time.
  *
  * <p>To run for Spark 4.2:
  *
@@ -72,11 +78,38 @@ import org.openjdk.jmh.annotations.Warmup;
 @Threads(1)
 public class SparkParquetStringWriteBenchmark {
 
+  /** Leading bytes before the first value, so a slice never starts at the head of its array. */
   private static final int PADDING = 13;
-  private static final int LOW_CARDINALITY = 16;
 
-  @Param({"short", "wide", "long", "low-cardinality"})
-  public String workload;
+  /** How the bytes of each value are stored. */
+  public enum Backing {
+    ARRAY,
+    SLICE
+  }
+
+  /** Row shapes worth measuring: column count, value size, and how often rows repeat. */
+  public enum Workload {
+    SHORT(120_000, 8, 32, 0),
+    WIDE(40_000, 32, 32, 0),
+    LONG(12_000, 8, 1024, 0),
+    LOW_CARDINALITY(120_000, 8, 32, 16);
+
+    private final int numRows;
+    private final int numColumns;
+    private final int length;
+    private final int distinctRows;
+
+    Workload(int numRows, int numColumns, int length, int distinctRows) {
+      this.numRows = numRows;
+      this.numColumns = numColumns;
+      this.length = length;
+      this.distinctRows = distinctRows > 0 ? distinctRows : numRows;
+    }
+  }
+
+  @Param public Workload workload;
+
+  @Param public Backing backing;
 
   private Schema schema;
   private StructType sparkSchema;
@@ -85,48 +118,34 @@ public class SparkParquetStringWriteBenchmark {
 
   @Setup(Level.Trial)
   public void setup() throws IOException {
-    int numRows =
-        switch (workload) {
-          case "wide" -> 40000;
-          case "long" -> 12000;
-          default -> 120000;
-        };
-    int numColumns = workload.equals("wide") ? 32 : 8;
-    int length = workload.equals("long") ? 1024 : 32;
-    List<Types.NestedField> fields = new ArrayList<>();
-    for (int column = 0; column < numColumns; column += 1) {
+    List<Types.NestedField> fields = Lists.newArrayListWithExpectedSize(workload.numColumns);
+    for (int column = 0; column < workload.numColumns; column += 1) {
       fields.add(Types.NestedField.optional(column + 1, "s" + column, Types.StringType.get()));
     }
+
     this.schema = new Schema(fields);
     this.sparkSchema = SparkSchemaUtil.convert(schema);
-    this.rows = new ArrayList<>(numRows);
+
     Random random = new Random(0);
-    for (int id = 0; id < numRows; id += 1) {
-      if (workload.equals("low-cardinality")) {
-        random.setSeed(id % LOW_CARDINALITY);
-      }
-      byte[] backing = new byte[PADDING + numColumns * length + PADDING];
-      Object[] values = new Object[numColumns];
-      for (int column = 0; column < numColumns; column += 1) {
-        int offset = PADDING + column * length;
-        for (int index = 0; index < length; index += 1) {
-          backing[offset + index] = (byte) ('a' + random.nextInt(26));
-        }
-        values[column] = id % 10 == 0 ? null : UTF8String.fromBytes(backing, offset, length);
-      }
-      rows.add(new GenericInternalRow(values));
+    List<InternalRow> distinctRows = Lists.newArrayListWithExpectedSize(workload.distinctRows);
+    for (int id = 0; id < workload.distinctRows; id += 1) {
+      distinctRows.add(newRow(random, id));
     }
+
+    // Repeat the distinct rows up to the row count. This is identity unless the workload asked for
+    // fewer distinct rows than rows, which is how the low cardinality case is expressed.
+    this.rows = Lists.newArrayListWithExpectedSize(workload.numRows);
+    for (int id = 0; id < workload.numRows; id += 1) {
+      rows.add(distinctRows.get(id % workload.distinctRows));
+    }
+
     this.dataFile = File.createTempFile("iceberg-parquet-strings", ".parquet");
-    if (!dataFile.delete()) {
-      throw new IOException("Cannot delete " + dataFile);
-    }
+    dataFile.delete();
   }
 
   @TearDown(Level.Iteration)
-  public void cleanup() throws IOException {
-    if (dataFile.exists() && !dataFile.delete()) {
-      throw new IOException("Cannot delete " + dataFile);
-    }
+  public void cleanup() {
+    dataFile.delete();
   }
 
   @Benchmark
@@ -134,10 +153,41 @@ public class SparkParquetStringWriteBenchmark {
     try (FileAppender<InternalRow> writer =
         Parquet.write(Files.localOutput(dataFile))
             .schema(schema)
-            .set("write.parquet.compression-codec", "snappy")
+            .set("write.parquet.compression-codec", "uncompressed")
             .createWriterFunc(type -> SparkParquetWriters.buildWriter(sparkSchema, type))
             .build()) {
       writer.addAll(rows);
+    }
+  }
+
+  private InternalRow newRow(Random random, int id) {
+    // All values of a row share one backing array, which is the layout an UnsafeRow has.
+    byte[] shared = new byte[PADDING + workload.numColumns * workload.length];
+    Object[] values = new Object[workload.numColumns];
+    for (int column = 0; column < workload.numColumns; column += 1) {
+      int offset = PADDING + column * workload.length;
+      fillLetters(random, shared, offset, workload.length);
+      values[column] = id % 10 == 0 ? null : newValue(shared, offset, workload.length);
+    }
+
+    return new GenericInternalRow(values);
+  }
+
+  private UTF8String newValue(byte[] shared, int offset, int length) {
+    return switch (backing) {
+      case ARRAY -> {
+        // Lift the window into an exactly sized array, which the writer passes through as-is.
+        byte[] exact = new byte[length];
+        System.arraycopy(shared, offset, exact, 0, length);
+        yield UTF8String.fromBytes(exact);
+      }
+      case SLICE -> UTF8String.fromBytes(shared, offset, length);
+    };
+  }
+
+  private static void fillLetters(Random random, byte[] bytes, int offset, int length) {
+    for (int index = 0; index < length; index += 1) {
+      bytes[offset + index] = (byte) ('a' + random.nextInt(26));
     }
   }
 }
