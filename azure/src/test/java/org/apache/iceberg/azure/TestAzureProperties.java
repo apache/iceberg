@@ -28,6 +28,7 @@ import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_N
 import static org.apache.iceberg.azure.AzureProperties.ADLS_WRITE_BLOCK_SIZE;
 import static org.apache.iceberg.azure.AzureProperties.AZURE_KEYVAULT_KEY_WRAP_ALGORITHM;
 import static org.apache.iceberg.azure.AzureProperties.AZURE_KEYVAULT_URL;
+import static org.apache.iceberg.azure.AzureProperties.CREATE_STACK_TRACE_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.ArgumentMatchers.any;
@@ -78,6 +79,7 @@ public class TestAzureProperties {
                 .put(AzureProperties.ADLS_TOKEN_PROVIDER_PREFIX + "client-id", "clientId")
                 .put(AZURE_KEYVAULT_URL, "https://test-key-vault.vault.azure.net")
                 .put(AZURE_KEYVAULT_KEY_WRAP_ALGORITHM, KeyWrapAlgorithm.RSA1_5.getValue())
+                .put(CREATE_STACK_TRACE_ENABLED, "false")
                 .build());
 
     AzureProperties serdedProps = roundTripSerializer.apply(props);
@@ -85,6 +87,20 @@ public class TestAzureProperties {
     assertThat(serdedProps.adlsWriteBlockSize()).isEqualTo(props.adlsWriteBlockSize());
     assertThat(serdedProps.keyVaultUrl()).isEqualTo(props.keyVaultUrl());
     assertThat(serdedProps.keyWrapAlgorithm()).isEqualTo(props.keyWrapAlgorithm());
+    assertThat(serdedProps.isCreateStackTraceEnabled())
+        .isEqualTo(props.isCreateStackTraceEnabled());
+  }
+
+  @Test
+  public void testCreateStackTraceEnabled() {
+    assertThat(new AzureProperties(ImmutableMap.of()).isCreateStackTraceEnabled())
+        .isEqualTo(AzureProperties.CREATE_STACK_TRACE_ENABLED_DEFAULT)
+        .isTrue();
+    assertThat(new AzureProperties().isCreateStackTraceEnabled()).isTrue();
+    assertThat(
+            new AzureProperties(ImmutableMap.of(CREATE_STACK_TRACE_ENABLED, "false"))
+                .isCreateStackTraceEnabled())
+        .isFalse();
   }
 
   @Test
