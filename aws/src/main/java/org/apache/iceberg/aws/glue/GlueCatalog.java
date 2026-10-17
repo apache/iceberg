@@ -40,6 +40,8 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
@@ -96,6 +98,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
   private CloseableGroup closeableGroup;
   private Map<String, String> catalogProperties;
   private FileIOTracker fileIOTracker;
+  private KeyManagementClient keyManagementClient;
 
   // Attempt to set versionId if available on the path
   private static final DynMethods.UnboundMethod SET_VERSION_ID =
@@ -207,10 +210,17 @@ public class GlueCatalog extends BaseMetastoreCatalog
     this.lockManager = lock;
     this.uniqueTableLocation = uniqTableLocation;
 
+    if (catalogProperties != null
+        && (catalogProperties.containsKey(CatalogProperties.ENCRYPTION_KMS_TYPE)
+            || catalogProperties.containsKey(CatalogProperties.ENCRYPTION_KMS_IMPL))) {
+      this.keyManagementClient = EncryptionUtil.createKmsClient(catalogProperties);
+    }
+
     this.closeableGroup = new CloseableGroup();
     this.fileIOTracker = new FileIOTracker();
     closeableGroup.addCloseable(glue);
     closeableGroup.addCloseable(lockManager);
+    closeableGroup.addCloseable(keyManagementClient);
     closeableGroup.addCloseable(metricsReporter());
     closeableGroup.addCloseable(fileIOTracker);
     closeableGroup.setSuppressCloseFailure(true);
@@ -257,7 +267,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
               awsProperties,
               tableSpecificCatalogPropertiesBuilder.buildOrThrow(),
               hadoopConf,
-              tableIdentifier);
+              tableIdentifier,
+              keyManagementClient);
       fileIOTracker.track(glueTableOperations);
       return glueTableOperations;
     }
@@ -270,7 +281,8 @@ public class GlueCatalog extends BaseMetastoreCatalog
             awsProperties,
             catalogProperties,
             hadoopConf,
-            tableIdentifier);
+            tableIdentifier,
+            keyManagementClient);
     fileIOTracker.track(glueTableOperations);
     return glueTableOperations;
   }
