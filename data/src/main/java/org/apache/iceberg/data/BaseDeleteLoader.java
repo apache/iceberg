@@ -47,6 +47,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -103,6 +104,14 @@ public class BaseDeleteLoader implements DeleteLoader {
     StructLikeSet deleteSet = StructLikeSet.create(projection.asStruct());
     Iterables.addAll(deleteSet, Iterables.concat(deletes));
     return deleteSet;
+  }
+
+  @Override
+  public Iterable<Pair<DeleteFile, Iterable<StructLike>>> loadEqualityDeletes(
+      Iterable<Pair<DeleteFile, Schema>> deleteFiles) {
+    return execute(
+        deleteFiles,
+        pair -> Pair.of(pair.first(), getOrReadEqDeletes(pair.first(), pair.second())));
   }
 
   private Iterable<StructLike> getOrReadEqDeletes(DeleteFile deleteFile, Schema projection) {
