@@ -377,9 +377,12 @@ public class SparkParquetWriters {
           && baseOffset >= Platform.BYTE_ARRAY_OFFSET) {
         // Write the backing array in place. UTF8String is often a slice of a larger array, so
         // getBytes would copy the value out before Parquet reads it.
-        int offset = (int) (baseOffset - Platform.BYTE_ARRAY_OFFSET);
         column.writeBinary(
-            repetitionLevel, Binary.fromReusedByteArray(bytes, offset, value.numBytes()));
+            repetitionLevel,
+            baseOffset == Platform.BYTE_ARRAY_OFFSET && value.numBytes() == bytes.length
+                ? Binary.fromReusedByteArray(bytes)
+                : Binary.fromReusedByteArray(
+                    bytes, (int) (baseOffset - Platform.BYTE_ARRAY_OFFSET), value.numBytes()));
       } else {
         // Off-heap values must be copied onto the heap.
         column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value.getBytes()));

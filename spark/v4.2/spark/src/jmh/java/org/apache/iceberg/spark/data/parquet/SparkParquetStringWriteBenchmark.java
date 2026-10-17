@@ -107,9 +107,9 @@ public class SparkParquetStringWriteBenchmark {
     }
   }
 
-  @Param public Workload workload;
+  @Param private Workload workload;
 
-  @Param public Backing backing;
+  @Param private Backing backing;
 
   private Schema schema;
   private StructType sparkSchema;
@@ -117,7 +117,7 @@ public class SparkParquetStringWriteBenchmark {
   private File dataFile;
 
   @Setup(Level.Trial)
-  public void setup() throws IOException {
+  public void setupBenchmark() throws IOException {
     List<Types.NestedField> fields = Lists.newArrayListWithExpectedSize(workload.numColumns);
     for (int column = 0; column < workload.numColumns; column += 1) {
       fields.add(Types.NestedField.optional(column + 1, "s" + column, Types.StringType.get()));

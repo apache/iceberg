@@ -407,26 +407,14 @@ public class TestSparkParquetWriter {
         Parquet.write(Files.localOutput(testFile))
             .schema(schema)
             .set("parquet.enable.dictionary", Boolean.toString(dictionaryEnabled))
-            .set(PARQUET_DICT_SIZE_BYTES, Integer.toString(dictionaryEnabled ? dictionarySize : 1))
+            .set(PARQUET_DICT_SIZE_BYTES, Integer.toString(Math.max(dictionarySize, 1)))
             .createWriterFunc(
                 type -> SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(schema), type))
             .build()) {
       for (int id = 0; id < numRows; id += 1) {
         String expected = expectedValues[id];
         byte[] bytes = expected == null ? new byte[0] : expected.getBytes(StandardCharsets.UTF_8);
-        UTF8String value =
-            switch (storage) {
-              case ARRAY -> UTF8String.fromBytes(bytes);
-              case SLICE -> {
-                System.arraycopy(bytes, 0, shared, padding, bytes.length);
-                yield UTF8String.fromBytes(shared, padding, bytes.length);
-              }
-              case OFFHEAP -> {
-                Platform.copyMemory(
-                    bytes, Platform.BYTE_ARRAY_OFFSET, null, address + padding, bytes.length);
-                yield UTF8String.fromAddress(null, address + padding, bytes.length);
-              }
-            };
+        UTF8String value = stringWithStorage(storage, bytes, shared, address, padding);
         writer.add(new GenericInternalRow(new Object[] {expected == null ? null : value}));
 
         // Writers must consume or copy reused storage before the next row is written.
@@ -457,6 +445,22 @@ public class TestSparkParquetWriter {
       }
       assertThat(rows).isExhausted();
     }
+  }
+
+  private static UTF8String stringWithStorage(
+      Storage storage, byte[] bytes, byte[] shared, long address, int padding) {
+    return switch (storage) {
+      case ARRAY -> UTF8String.fromBytes(bytes);
+      case SLICE -> {
+        System.arraycopy(bytes, 0, shared, padding, bytes.length);
+        yield UTF8String.fromBytes(shared, padding, bytes.length);
+      }
+      case OFFHEAP -> {
+        Platform.copyMemory(
+            bytes, Platform.BYTE_ARRAY_OFFSET, null, address + padding, bytes.length);
+        yield UTF8String.fromAddress(null, address + padding, bytes.length);
+      }
+    };
   }
 
   private static int utf8Length(String value) {
