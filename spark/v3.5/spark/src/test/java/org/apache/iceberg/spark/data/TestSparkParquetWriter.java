@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX;
-import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,9 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Iterator;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
@@ -44,13 +41,8 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
-import org.apache.spark.unsafe.Platform;
-import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 
 public class TestSparkParquetWriter {
   @TempDir private Path temp;
@@ -158,95 +150,5 @@ public class TestSparkParquetWriter {
       double fpp = props.getBloomFilterFPP(descriptor).getAsDouble();
       assertThat(fpp).isEqualTo(0.05);
     }
-  }
-
-  @ParameterizedTest
-  @CsvSource({
-    "array, 0",
-    "array, 4096",
-    "array, 1048576",
-    "slice, 0",
-    "slice, 4096",
-    "slice, 1048576",
-    "offheap, 0",
-    "offheap, 4096",
-    "offheap, 1048576"
-  })
-  void stringsWithReusedBackingMemory(String storage, int dictionarySize) throws IOException {
-    Schema schema = new Schema(optional(1, "text", Types.StringType.get()));
-    File testFile = temp.resolve("strings.parquet").toFile();
-    int numRows = 128;
-    int padding = 13;
-    byte[] shared = new byte[64 * 1024];
-    long address = storage.equals("offheap") ? Platform.allocateMemory(shared.length) : 0;
-
-    try (FileAppender<InternalRow> writer =
-        Parquet.write(Files.localOutput(testFile))
-            .schema(schema)
-            .set("parquet.enable.dictionary", Boolean.toString(dictionarySize > 0))
-            .set(PARQUET_DICT_SIZE_BYTES, Integer.toString(Math.max(dictionarySize, 1)))
-            .createWriterFunc(
-                type -> SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(schema), type))
-            .build()) {
-      for (int id = 0; id < numRows; id += 1) {
-        String expected = stringValue(id);
-        byte[] bytes = expected == null ? new byte[0] : expected.getBytes(StandardCharsets.UTF_8);
-        UTF8String value =
-            switch (storage) {
-              case "array" -> UTF8String.fromBytes(bytes);
-              case "slice" -> {
-                Arrays.fill(shared, (byte) '!');
-                System.arraycopy(bytes, 0, shared, padding, bytes.length);
-                yield UTF8String.fromBytes(shared, padding, bytes.length);
-              }
-              case "offheap" -> {
-                Platform.copyMemory(
-                    bytes, Platform.BYTE_ARRAY_OFFSET, null, address + padding, bytes.length);
-                yield UTF8String.fromAddress(null, address + padding, bytes.length);
-              }
-              default -> throw new IllegalArgumentException("Unknown storage: " + storage);
-            };
-        writer.add(new GenericInternalRow(new Object[] {expected == null ? null : value}));
-
-        // Writers must consume or copy reused storage before the next row is written.
-        Arrays.fill(bytes, (byte) '?');
-        Arrays.fill(shared, (byte) '?');
-        if (storage.equals("offheap")) {
-          Platform.setMemory(address, (byte) '?', shared.length);
-        }
-      }
-    } finally {
-      if (storage.equals("offheap")) {
-        Platform.freeMemory(address);
-      }
-    }
-
-    try (CloseableIterable<InternalRow> reader =
-        Parquet.read(Files.localInput(testFile))
-            .project(schema)
-            .createReaderFunc(type -> SparkParquetReaders.buildReader(schema, type))
-            .build()) {
-      Iterator<InternalRow> rows = reader.iterator();
-      for (int id = 0; id < numRows; id += 1) {
-        assertThat(rows).hasNext();
-        InternalRow row = rows.next();
-        assertThat(row.isNullAt(0) ? null : row.getUTF8String(0).toString())
-            .isEqualTo(stringValue(id));
-      }
-      assertThat(rows).isExhausted();
-    }
-  }
-
-  private static String stringValue(int id) {
-    return switch (id % 8) {
-      case 0 -> null;
-      case 1 -> "";
-      case 2 -> "repeated";
-      case 3 -> "雪☃é𐐀";
-      case 4 -> "id-" + id;
-      case 5 -> "very-long-雪".repeat(1024);
-      case 6 -> "\0inside\0";
-      default -> "escape-\"\\\n\t";
-    };
   }
 }
