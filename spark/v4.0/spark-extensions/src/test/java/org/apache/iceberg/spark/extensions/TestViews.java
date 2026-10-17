@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.CatalogProperties;
@@ -69,6 +69,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestViews extends ExtensionsTestBase {
   private static final Namespace NAMESPACE = Namespace.of("default");
   private static final String SPARK_CATALOG = "spark_catalog";
+  private static final AtomicInteger NAME_SUFFIX = new AtomicInteger();
   private final String tableName = "table";
 
   @BeforeEach
@@ -986,7 +987,7 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   private String viewName(String viewName) {
-    return viewName + new Random().nextInt(1000000);
+    return viewName + NAME_SUFFIX.incrementAndGet();
   }
 
   @TestTemplate
