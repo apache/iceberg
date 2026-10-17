@@ -24,11 +24,12 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import java.time.Duration;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.Uninterruptibles;
-import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +37,17 @@ import org.slf4j.LoggerFactory;
 public class AuthSessionCache implements AutoCloseable {
 
   private static final Logger LOG = LoggerFactory.getLogger(AuthSessionCache.class);
+
+  /**
+   * A single daemon thread, shared by all cache instances for eviction tasks. A shared executor
+   * avoids registering one JVM shutdown hook per cache instance: each hook thread is constructed
+   * on the creating thread and would otherwise copy that thread's inheritable thread-locals,
+   * pinning state such as closed Spark sessions for the life of the JVM. The worker thread is
+   * created with inheritable thread-local variables disabled so it cannot pin the creating
+   * thread's state either. The executor is deliberately exposed only as a plain {@link Executor}
+   * (never an {@link ExecutorService}) so that {@link #close()} does not shut it down.
+   */
+  private static final Executor SHARED_EVICTION_EXECUTOR = newSharedEvictionExecutor();
 
   private final Duration sessionTimeout;
   private final Executor executor;
@@ -47,15 +59,14 @@ public class AuthSessionCache implements AutoCloseable {
    * Creates a new cache with the given session timeout, and with default executor and default
    * ticker for eviction tasks.
    *
-   * @param name a distinctive name for the cache.
+   * @param name a distinctive name for the cache. The name is retained for API compatibility but
+   *     no longer backs a dedicated thread pool: all instances share a single daemon eviction
+   *     thread.
    * @param sessionTimeout the session timeout. Sessions will become eligible for eviction after
    *     this duration of inactivity.
    */
   public AuthSessionCache(String name, Duration sessionTimeout) {
-    this(
-        sessionTimeout,
-        ThreadPools.newExitingWorkerPool(name + "-auth-session-evict", 1),
-        Ticker.systemTicker());
+    this(sessionTimeout, SHARED_EVICTION_EXECUTOR, Ticker.systemTicker());
   }
 
   /**
@@ -65,13 +76,35 @@ public class AuthSessionCache implements AutoCloseable {
    * @param sessionTimeout the session timeout. Sessions will become eligible for eviction after
    *     this duration of inactivity.
    * @param executor the executor to use for eviction tasks; if null, the cache will create a
-   *     default executor. The executor will be closed when this cache is closed.
+   *     default executor. An {@link ExecutorService} executor is shut down when this cache is
+   *     closed; a plain {@link Executor} is left running.
    * @param ticker the ticker to use for the cache.
    */
   AuthSessionCache(Duration sessionTimeout, Executor executor, Ticker ticker) {
     this.sessionTimeout = sessionTimeout;
     this.executor = executor;
     this.ticker = ticker;
+  }
+
+  @VisibleForTesting
+  static Executor newSharedEvictionExecutor() {
+    ThreadFactory threadFactory =
+        runnable -> {
+          // inheritThreadLocals=false so the worker thread cannot pin the creating thread's
+          // inheritable thread-locals (e.g. a Spark session bound to an InheritableThreadLocal)
+          Thread thread = new Thread(null, runnable, "iceberg-auth-session-evict", 0, false);
+          thread.setDaemon(true);
+          return thread;
+        };
+    ExecutorService service = Executors.newSingleThreadExecutor(threadFactory);
+    // Expose as a plain Executor (not the service itself) so that close() leaves the shared
+    // executor running.
+    return service::execute;
+  }
+
+  @VisibleForTesting
+  Executor executor() {
+    return executor;
   }
 
   /**

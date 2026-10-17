@@ -23,8 +23,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
 import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -87,5 +91,52 @@ class TestAuthSessionCache {
     Mockito.verify(session1).close();
 
     cache.close();
+  }
+
+  @Test
+  void defaultExecutorIsSharedAndSurvivesClose() throws InterruptedException {
+    AuthSessionCache cache1 = new AuthSessionCache("one", Duration.ofHours(1));
+    AuthSessionCache cache2 = new AuthSessionCache("two", Duration.ofHours(1));
+
+    // one shared executor for all instances, and a plain Executor (not an ExecutorService)
+    // so that close() cannot shut it down
+    assertThat(cache1.executor()).isSameAs(cache2.executor());
+    assertThat(cache1.executor()).isNotInstanceOf(ExecutorService.class);
+
+    cache1.close();
+
+    // the shared executor must still accept tasks after another instance is closed
+    Executor shared = cache2.executor();
+    CountDownLatch ran = new CountDownLatch(1);
+    shared.execute(ran::countDown);
+    assertThat(ran.await(30, TimeUnit.SECONDS)).isTrue();
+
+    cache2.close();
+  }
+
+  @Test
+  void evictionThreadDoesNotInheritThreadLocals() throws InterruptedException {
+    InheritableThreadLocal<String> local = new InheritableThreadLocal<>();
+    local.set("pinned-value");
+    try {
+      Executor executor = AuthSessionCache.newSharedEvictionExecutor();
+      AtomicReference<String> seenByChild = new AtomicReference<>("unset");
+      CountDownLatch done = new CountDownLatch(1);
+      executor.execute(
+          () -> {
+            // a child of the worker thread only sees what the worker thread inherited
+            Thread child =
+                new Thread(
+                    () -> {
+                      seenByChild.set(local.get());
+                      done.countDown();
+                    });
+            child.start();
+          });
+      assertThat(done.await(30, TimeUnit.SECONDS)).isTrue();
+      assertThat(seenByChild.get()).isNull();
+    } finally {
+      local.remove();
+    }
   }
 }
