@@ -49,9 +49,9 @@ public class TestParquetDictionaryFallbackToPlainEncodingVectorizedReads
       long seed,
       float nullPercentage,
       Function<Record, Record> transform) {
-    // TODO: take into account nullPercentage when generating fallback encoding data
     Iterable data =
-        RandomGenericData.generateFallbackRecords(schema, numRecords, seed, numRecords / 20);
+        RandomGenericData.generateFallbackRecords(
+            schema, numRecords, seed, nullPercentage, numRecords / 20);
     return transform == IDENTITY ? data : Iterables.transform(data, transform);
   }
 
