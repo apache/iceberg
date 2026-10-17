@@ -41,7 +41,7 @@ project(":iceberg-azure-bundle") {
 
   shadowJar {
     archiveClassifier.set(null)
-    zip64 true
+    zip64 = true
 
     // relocate Azure-specific versions
     relocate 'io.netty', 'org.apache.iceberg.azure.shaded.io.netty'
