@@ -19,8 +19,12 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import java.util.List;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.arrow.ArrowAllocation;
+import org.apache.iceberg.arrow.vectorized.VectorHolder.ConstantVectorHolder;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Types;
 
 /**
  * A collection of vectorized readers per column (in the expected read schema) and Arrow Vector
@@ -28,8 +32,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  */
 class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
 
-  ArrowBatchReader(List<VectorizedReader<?>> readers) {
+  private final List<Types.NestedField> fields;
+
+  ArrowBatchReader(List<VectorizedReader<?>> readers, Schema expectedSchema) {
     super(readers);
+    this.fields = expectedSchema.asStruct().fields();
   }
 
   @Override
@@ -43,16 +50,47 @@ class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
 
     ColumnVector[] columnVectors = new ColumnVector[readers.length];
     for (int i = 0; i < readers.length; i += 1) {
-      vectorHolders[i] = readers[i].read(vectorHolders[i], numRowsToRead);
-      int numRowsInVector = vectorHolders[i].numValues();
+      VectorHolder holder = readers[i].read(vectorHolders[i], numRowsToRead);
+      if (holder.isDummy()) {
+        // The column is not in the data file, so the reader returns the value it should be read as
+        // instead of a vector. Build a vector holding that value because callers read a batch as an
+        // Arrow VectorSchemaRoot, which has no way to represent a column without a vector.
+        holder = constantHolder(fields.get(i), holder, vectorHolders[i], numRowsToRead);
+      }
+
+      vectorHolders[i] = holder;
+      int numRowsInVector = holder.numValues();
       Preconditions.checkState(
           numRowsInVector == numRowsToRead,
           "Number of rows in the vector %s didn't match expected %s ",
           numRowsInVector,
           numRowsToRead);
-      // Handle null vector for constant case
-      columnVectors[i] = new ColumnVector(vectorHolders[i]);
+      columnVectors[i] = new ColumnVector(holder);
     }
     return new ColumnarBatch(numRowsToRead, columnVectors);
+  }
+
+  private VectorHolder constantHolder(
+      Types.NestedField field, VectorHolder dummyHolder, VectorHolder previous, int numRows) {
+    // The value is the same in every batch, so the vector built for the previous batch can be
+    // returned as is unless the number of rows changed.
+    if (previous != null && previous.numValues() == numRows) {
+      return previous;
+    }
+
+    closeVector(previous);
+    Object constant =
+        dummyHolder instanceof ConstantVectorHolder
+            ? ((ConstantVectorHolder<?>) dummyHolder).getConstant()
+            : null;
+
+    return ConstantVectors.holder(field, constant, numRows, ArrowAllocation.rootAllocator());
+  }
+
+  /** Releases a vector built by {@link #constantHolder} for an earlier batch. */
+  private void closeVector(VectorHolder holder) {
+    if (holder != null && holder.vector() != null) {
+      holder.vector().close();
+    }
   }
 }
