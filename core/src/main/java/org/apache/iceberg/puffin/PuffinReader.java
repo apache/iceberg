@@ -23,11 +23,13 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.RangeReadable;
@@ -41,6 +43,10 @@ import org.apache.iceberg.util.Pair;
 public class PuffinReader implements Closeable {
   // Must not be modified
   private static final byte[] MAGIC = PuffinFormat.getMagic();
+
+  // Bound read amplification and the backing arrays retained by uncompressed blob buffers.
+  static final int MAX_READ_REGION_GAP = 1024 * 1024;
+  static final int MAX_READ_REGION_SIZE = 16 * 1024 * 1024;
 
   private final long fileSize;
   private final SeekableInputStream input;
@@ -125,27 +131,46 @@ public class PuffinReader implements Closeable {
       return ImmutableList.of();
     }
 
-    // TODO inspect blob offsets and coalesce read regions close to each other
+    return () -> planReadRegions(blobs).stream().flatMap(this::readRegion).iterator();
+  }
 
-    return () ->
-        blobs.stream()
-            .sorted(Comparator.comparingLong(BlobMetadata::offset))
-            .map(
-                (BlobMetadata blobMetadata) -> {
-                  try {
-                    input.seek(blobMetadata.offset());
-                    byte[] bytes = new byte[Math.toIntExact(blobMetadata.length())];
-                    ByteStreams.readFully(input, bytes);
-                    ByteBuffer rawData = ByteBuffer.wrap(bytes);
-                    PuffinCompressionCodec codec =
-                        PuffinCompressionCodec.forName(blobMetadata.compressionCodec());
-                    ByteBuffer data = PuffinFormat.decompress(codec, rawData);
-                    return Pair.of(blobMetadata, data);
-                  } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                  }
-                })
-            .iterator();
+  private static List<ReadRegion> planReadRegions(List<BlobMetadata> blobs) {
+    List<BlobMetadata> sortedBlobs = new ArrayList<>(blobs);
+    sortedBlobs.sort(Comparator.comparingLong(BlobMetadata::offset));
+
+    List<ReadRegion> readRegions = new ArrayList<>();
+    ReadRegion currentRegion = null;
+    for (BlobMetadata blob : sortedBlobs) {
+      long blobEnd = Math.addExact(blob.offset(), blob.length());
+      if (currentRegion == null || !currentRegion.canInclude(blob.offset(), blobEnd)) {
+        currentRegion = new ReadRegion(blob, blobEnd);
+        readRegions.add(currentRegion);
+      } else {
+        currentRegion.include(blob, blobEnd);
+      }
+    }
+
+    return readRegions;
+  }
+
+  private Stream<Pair<BlobMetadata, ByteBuffer>> readRegion(ReadRegion readRegion) {
+    byte[] bytes;
+    try {
+      bytes = readInput(readRegion.offset(), readRegion.length());
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    return readRegion.blobs().stream()
+        .map(
+            blob -> {
+              int offset = Math.toIntExact(blob.offset() - readRegion.offset());
+              int length = Math.toIntExact(blob.length());
+              ByteBuffer rawData = ByteBuffer.wrap(bytes, offset, length).slice();
+              PuffinCompressionCodec codec =
+                  PuffinCompressionCodec.forName(blob.compressionCodec());
+              return Pair.of(blob, PuffinFormat.decompress(codec, rawData));
+            });
   }
 
   private static void checkMagic(byte[] data, int offset) {
@@ -202,5 +227,40 @@ public class PuffinReader implements Closeable {
     input.close();
     knownFooterSize = null;
     knownFileMetadata = null;
+  }
+
+  private static class ReadRegion {
+    private final long offset;
+    private final List<BlobMetadata> blobs = new ArrayList<>();
+    private long end;
+
+    private ReadRegion(BlobMetadata blob, long end) {
+      this.offset = blob.offset();
+      this.end = end;
+      this.blobs.add(blob);
+    }
+
+    private boolean canInclude(long blobOffset, long blobEnd) {
+      long gap = Math.max(0L, blobOffset - end);
+      long size = Math.max(end, blobEnd) - offset;
+      return gap <= MAX_READ_REGION_GAP && size <= MAX_READ_REGION_SIZE;
+    }
+
+    private void include(BlobMetadata blob, long blobEnd) {
+      this.end = Math.max(end, blobEnd);
+      this.blobs.add(blob);
+    }
+
+    private long offset() {
+      return offset;
+    }
+
+    private int length() {
+      return Math.toIntExact(end - offset);
+    }
+
+    private List<BlobMetadata> blobs() {
+      return blobs;
+    }
   }
 }
