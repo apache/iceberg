@@ -104,4 +104,60 @@ public class TestSetPartitionStatistics extends TestBase {
   private void assertTableMetadataVersion(int expected) {
     assertThat(version()).isEqualTo(expected);
   }
+
+  @TestTemplate
+  public void setPartitionStatisticsRetryWithConcurrentModification() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotId = readMetadata().currentSnapshot().snapshotId();
+
+    PartitionStatisticsFile statisticsFile =
+        ImmutableGenericPartitionStatisticsFile.builder()
+            .snapshotId(snapshotId)
+            .path("/some/partition/statistics/file.parquet")
+            .fileSizeInBytes(42L)
+            .build();
+
+    // Create a TableOperations that simulates concurrent modification
+    // On the first commit attempt, another writer modifies the table
+    TableOperations concurrentOps =
+        new TestTables.TestTableOperations("test", tableDir, table.ops().io()) {
+          private boolean firstAttempt = true;
+
+          @Override
+          public void commit(TableMetadata base, TableMetadata metadata) {
+            if (firstAttempt) {
+              firstAttempt = false;
+              table.newFastAppend().appendFile(FILE_B).commit();
+            }
+
+            super.commit(base, metadata);
+          }
+        };
+
+    SetPartitionStatistics setPartitionStats = new SetPartitionStatistics(concurrentOps);
+    setPartitionStats.setPartitionStatistics(statisticsFile);
+    setPartitionStats.commit();
+
+    assertThat(readMetadata().partitionStatisticsFiles()).containsExactly(statisticsFile);
+  }
+
+  @TestTemplate
+  public void setPartitionStatisticsRetrySuccess() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long snapshotId = readMetadata().currentSnapshot().snapshotId();
+
+    PartitionStatisticsFile statisticsFile =
+        ImmutableGenericPartitionStatisticsFile.builder()
+            .snapshotId(snapshotId)
+            .path("/some/partition/statistics/file.parquet")
+            .fileSizeInBytes(42L)
+            .build();
+
+    TestTables.TestTableOperations ops = table.ops();
+    ops.failCommits(2);
+
+    table.updatePartitionStatistics().setPartitionStatistics(statisticsFile).commit();
+
+    assertThat(readMetadata().partitionStatisticsFiles()).containsExactly(statisticsFile);
+  }
 }
