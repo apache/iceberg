@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.fail;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
@@ -391,6 +392,50 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
 
     assertThat(shufflingWriterSSGApplied).isTrue();
     assertThat(generatorSSGApplied).isTrue();
+  }
+
+  @Test
+  void forwardOrcWritePreservesReusedBinaryBuffer() throws Exception {
+    Schema schema = new Schema(Types.NestedField.required(1, "data", Types.BinaryType.get()));
+    TableIdentifier identifier = TableIdentifier.of(DATABASE, "t1");
+    Table table = CATALOG_EXTENSION.catalog().createTable(identifier, schema);
+    table
+        .updateProperties()
+        .set(TableProperties.DEFAULT_FILE_FORMAT, FileFormat.ORC.name())
+        .commit();
+    env.setParallelism(1);
+    env.getConfig().disableObjectReuse();
+    List<Byte> values = List.of((byte) 1, (byte) 2);
+
+    DynamicIcebergSink.forInput(env.fromData(0))
+        .generator(
+            (ignored, out) -> {
+              byte[] buffer = new byte[1];
+              GenericRowData row = GenericRowData.of(buffer);
+              for (byte value : values) {
+                buffer[0] = value;
+                out.collect(
+                    new DynamicRecord(
+                        TableIdentifier.of(DATABASE, "t1"),
+                        SnapshotRef.MAIN_BRANCH,
+                        schema,
+                        row,
+                        PartitionSpec.unpartitioned()));
+              }
+            })
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .writeParallelism(1)
+        .immediateTableUpdate(true)
+        .append();
+
+    env.execute();
+
+    table.refresh();
+    try (CloseableIterable<Record> records = IcebergGenerics.read(table).build()) {
+      assertThat(records)
+          .extracting(record -> record.get(0, ByteBuffer.class).get())
+          .containsExactlyInAnyOrderElementsOf(values);
+    }
   }
 
   @Test
