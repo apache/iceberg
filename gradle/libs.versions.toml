@@ -56,7 +56,7 @@ google-libraries-bom = "26.90.0"
 gcs-analytics-core = "1.5.0"
 guava = "33.7.2-jre"
 hadoop3 = "3.4.3"
-httpcomponents-httpclient5 = "5.6.4"
+httpcomponents-httpclient5 = "5.6.5"
 hive2 = { strictly = "2.3.10"} # see rich version usage explanation above
 immutables-value = "2.12.2"
 jackson-annotations = "2.22"
