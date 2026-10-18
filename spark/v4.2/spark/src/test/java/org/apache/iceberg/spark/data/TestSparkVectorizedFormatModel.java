@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import org.apache.arrow.vector.ValueVector;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DataGenerators;
@@ -31,6 +32,7 @@ import org.apache.iceberg.data.ReadFormatModelTests;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
+import org.apache.iceberg.spark.data.vectorized.IcebergArrowColumnVector;
 import org.apache.iceberg.types.Type;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.params.provider.Arguments;
@@ -70,6 +72,29 @@ class TestSparkVectorizedFormatModel extends ReadFormatModelTests<ColumnarBatch>
   @Override
   protected int countRows(List<ColumnarBatch> batches) {
     return batches.stream().mapToInt(ColumnarBatch::numRows).sum();
+  }
+
+  @Override
+  protected void assertContainersReused(ColumnarBatch first, ColumnarBatch second) {
+    assertThat(second.numCols()).isEqualTo(first.numCols());
+
+    for (int i = 0; i < first.numCols(); i++) {
+      assertThat(arrowVector(second, i)).isSameAs(arrowVector(first, i));
+    }
+  }
+
+  private ValueVector arrowVector(ColumnarBatch batch, int col) {
+    IcebergArrowColumnVector vector = (IcebergArrowColumnVector) batch.column(col);
+    return vector.vectorAccessor().getVector();
+  }
+
+  @Override
+  protected void assertContainersNotReused(ColumnarBatch first, ColumnarBatch second) {
+    assertThat(second.numCols()).isEqualTo(first.numCols());
+
+    for (int i = 0; i < first.numCols(); i++) {
+      assertThat(arrowVector(second, i)).isNotSameAs(arrowVector(first, i));
+    }
   }
 
   @Override

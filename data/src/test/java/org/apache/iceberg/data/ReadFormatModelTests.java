@@ -163,6 +163,14 @@ public abstract class ReadFormatModelTests<T> {
     return records.size();
   }
 
+  protected void assertContainersNotReused(T first, T second) {
+    assertThat(second).isNotSameAs(first);
+  }
+
+  protected void assertContainersReused(T first, T second) {
+    assertThat(second).isSameAs(first);
+  }
+
   protected Schema supportedSchema(DataGenerator generator) {
     Schema filtered = filterUnsupported(generator.schema());
     assumeThat(filtered.columns())
@@ -557,7 +565,6 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testReaderBuilderReuseContainers(FileFormat fileFormat) throws IOException {
-    assumeFalse(supportsBatchReads(), "Batch reads reuse differently");
     assumeSupports(fileFormat, FEATURE_REUSE_CONTAINERS);
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
@@ -570,31 +577,40 @@ public abstract class ReadFormatModelTests<T> {
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
 
     // Without reuseContainers: every record must be a distinct object instance
-    List<T> noReuseRecords;
-    try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(schema)
-            .build()) {
-      noReuseRecords = ImmutableList.copyOf(reader);
+    ReadBuilder<T, ?> noReuseBuilder =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile).project(schema);
+
+    if (supportsBatchReads()) {
+      noReuseBuilder.recordsPerBatch(2);
     }
 
-    for (int i = 0; i < noReuseRecords.size(); i++) {
-      for (int j = i + 1; j < noReuseRecords.size(); j++) {
-        assertThat(noReuseRecords.get(i)).isNotSameAs(noReuseRecords.get(j));
+    try (CloseableIterable<T> reader = noReuseBuilder.build()) {
+      List<T> noReuseRecords = ImmutableList.copyOf(reader);
+
+      assertThat(noReuseRecords).hasSizeGreaterThan(1);
+      for (int i = 0; i < noReuseRecords.size(); i++) {
+        for (int j = i + 1; j < noReuseRecords.size(); j++) {
+          assertContainersNotReused(noReuseRecords.get(i), noReuseRecords.get(j));
+        }
       }
     }
 
-    // With reuseContainers: all collected elements must be the same object instance
-    List<T> reuseRecords;
-    try (CloseableIterable<T> reader =
+    // With reuseContainers: verify that the underlying containers are reused
+    ReadBuilder<T, ?> builder =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(schema)
-            .reuseContainers()
-            .build()) {
-      reuseRecords = ImmutableList.copyOf(reader);
+            .reuseContainers();
+
+    if (supportsBatchReads()) {
+      builder.recordsPerBatch(2);
     }
 
-    reuseRecords.forEach(r -> assertThat(r).isSameAs(reuseRecords.get(0)));
+    try (CloseableIterable<T> reader = builder.build()) {
+      List<T> reuseRecords = ImmutableList.copyOf(reader);
+
+      assertThat(reuseRecords).hasSizeGreaterThan(1);
+      reuseRecords.forEach(r -> assertContainersReused(reuseRecords.get(0), r));
+    }
   }
 
   @ParameterizedTest
