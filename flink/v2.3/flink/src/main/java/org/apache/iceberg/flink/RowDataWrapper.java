@@ -47,6 +47,10 @@ public class RowDataWrapper implements StructLike {
   private RowData rowData = null;
 
   public RowDataWrapper(RowType rowType, Types.StructType struct) {
+    this(rowType, struct, true /* reuse struct wrappers */);
+  }
+
+  private RowDataWrapper(RowType rowType, Types.StructType struct, boolean reuseStructWrappers) {
     int size = rowType.getFieldCount();
 
     types = (LogicalType[]) Array.newInstance(LogicalType.class, size);
@@ -54,7 +58,7 @@ public class RowDataWrapper implements StructLike {
 
     for (int i = 0; i < size; i++) {
       types[i] = rowType.getTypeAt(i);
-      getters[i] = buildGetter(types[i], struct.fields().get(i).type(), i);
+      getters[i] = buildGetter(types[i], struct.fields().get(i).type(), i, reuseStructWrappers);
     }
   }
 
@@ -92,10 +96,18 @@ public class RowDataWrapper implements StructLike {
     return new RowDataWrapper(types, getters).wrap(data);
   }
 
-  private static RowData.FieldGetter buildGetter(LogicalType logicalType, Type type, int pos) {
+  private static RowData.FieldGetter buildGetter(
+      LogicalType logicalType, Type type, int pos, boolean reuseStructWrappers) {
     RowData.FieldGetter fieldGetter = FlinkRowData.createFieldGetter(logicalType, pos);
+    if (reuseStructWrappers && logicalType instanceof RowType rowType) {
+      // A struct field is read one row at a time, so its wrapper can be reused.
+      RowDataWrapper structWrapper = new RowDataWrapper(rowType, type.asStructType());
+      return row -> structWrapper.wrap((RowData) fieldGetter.getFieldOrNull(row));
+    }
+
+    // get() returns null fields before calling a getter, so values are never null here.
     Function<Object, Object> converter = buildConverter(logicalType, type);
-    return row -> convertOrNull(fieldGetter.getFieldOrNull(row), converter);
+    return row -> converter.apply(fieldGetter.getFieldOrNull(row));
   }
 
   private static Function<Object, Object> buildConverter(LogicalType logicalType, Type type) {
@@ -129,9 +141,11 @@ public class RowDataWrapper implements StructLike {
                     + timestampData.getNanoOfMillisecond() / 1000;
               };
       case ROW -> {
-        // Each value gets its own wrapper, so values read together, like list elements, don't
-        // overwrite each other. The copies share the template's getters, which hold no state.
-        RowDataWrapper template = new RowDataWrapper((RowType) logicalType, type.asStructType());
+        // Values read together, like list elements, need their own wrappers. The template
+        // doesn't reuse struct wrappers, so its getters can be shared by the copies.
+        RowDataWrapper template =
+            new RowDataWrapper(
+                (RowType) logicalType, type.asStructType(), false /* new wrapper per value */);
         yield value -> template.copyFor((RowData) value);
       }
       case ARRAY -> {
@@ -162,7 +176,7 @@ public class RowDataWrapper implements StructLike {
     // Copied rather than viewed because readers may reuse containers across rows.
     List<Object> list = Lists.newArrayListWithCapacity(array.size());
     for (int i = 0; i < array.size(); i += 1) {
-      list.add(convertOrNull(getter.getElementOrNull(array, i), converter));
+      list.add(convertElement(array, i, getter, converter));
     }
 
     return list;
@@ -179,14 +193,18 @@ public class RowDataWrapper implements StructLike {
     Map<Object, Object> result = Maps.newHashMapWithExpectedSize(map.size());
     for (int i = 0; i < map.size(); i += 1) {
       result.put(
-          convertOrNull(keyGetter.getElementOrNull(keys, i), keyConverter),
-          convertOrNull(valueGetter.getElementOrNull(values, i), valueConverter));
+          convertElement(keys, i, keyGetter, keyConverter),
+          convertElement(values, i, valueGetter, valueConverter));
     }
 
     return result;
   }
 
-  private static Object convertOrNull(Object value, Function<Object, Object> converter) {
-    return value == null ? null : converter.apply(value);
+  private static Object convertElement(
+      ArrayData array,
+      int pos,
+      ArrayData.ElementGetter getter,
+      Function<Object, Object> converter) {
+    return array.isNullAt(pos) ? null : converter.apply(getter.getElementOrNull(array, pos));
   }
 }
