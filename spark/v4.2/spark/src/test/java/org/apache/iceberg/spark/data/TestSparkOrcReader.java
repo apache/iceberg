@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.orc.GenericOrcWriter;
 import org.apache.iceberg.io.CloseableIterable;
@@ -39,6 +40,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.ShreddedObject;
+import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantMetadata;
+import org.apache.iceberg.variants.Variants;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.junit.jupiter.api.Test;
@@ -169,12 +174,21 @@ public class TestSparkOrcReader extends AvroDataTestBase {
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
-    FileAppender<Record> writer =
+    VariantMetadata metadata = Variants.metadata("name");
+    ShreddedObject payload = Variants.object(metadata);
+    payload.put("name", Variants.of("alice"));
+
+    GenericRecord record = GenericRecord.create(VARIANT_SCHEMA);
+    record.setField("id", 1L);
+    record.setField("payload", Variant.of(metadata, payload));
+
+    try (FileAppender<Record> writer =
         ORC.write(Files.localOutput(testFile))
             .createWriterFunc(GenericOrcWriter::buildWriter)
             .schema(VARIANT_SCHEMA)
-            .build();
-    writer.close();
+            .build()) {
+      writer.add(record);
+    }
 
     return testFile;
   }
