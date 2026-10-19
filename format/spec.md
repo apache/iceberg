@@ -1026,9 +1026,8 @@ Statistics are *tight* when they are exact for the live rows of a file: bounds a
 When `tight_stats` is true:
 
 * Counts are exact for all fields.
-* Bounds are exact for fixed-width primitives and for `variant`.
-* Bounds for `string` and `binary` are not exact because they may have been truncated when written.
-* `geometry` and `geography` bounds are a bounding box that contains the live values, not exact minimum and maximum values.
+* Bounds are exact for primitive types other than `string` and `binary`, whose bounds may have been truncated when written.
+* `variant`, `geometry`, and `geography` do not have exact bounds.
 
 A deletion vector does not by itself make a file's stats non-tight; `tight_stats` is the only indicator of tightness. Stats may be recomputed to restore tightness without rewriting the data file.
 
