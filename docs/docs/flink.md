@@ -173,7 +173,7 @@ Run a query:
 5 rows in set
 ```
 
-For more details, please refer to the [Python Table API](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/python/table/intro_to_table_api/).
+For more details, please refer to the [Python Table API](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/api/python/user_guide/table/index.html).
 
 ## Adding catalogs
 
@@ -360,6 +360,7 @@ Flink types are converted to Iceberg types according to the following table:
 | map                 | map                        |               |
 | multiset            | map                        |               |
 | row                 | struct                     |               |
+| variant             | variant                    | Flink 2.x only |
 | raw                 |                            | Not supported |
 | interval            |                            | Not supported |
 | structured          |                            | Not supported |
@@ -395,7 +396,7 @@ Iceberg types are converted to Flink types according to the following table:
 | nanosecond timestamp       | timestamp(9)          |               |
 | nanosecond timestamp with timezone | timestamp_ltz(9) |            |
 | unknown                    | null                  |               |
-| variant                    |                       | Not supported |
+| variant                    | variant               | Flink 2.x only |
 | geometry                   |                       | Not supported |
 | geography                  |                       | Not supported |
 

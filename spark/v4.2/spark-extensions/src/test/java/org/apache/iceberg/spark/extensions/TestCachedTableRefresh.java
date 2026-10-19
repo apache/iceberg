@@ -34,7 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -213,7 +212,6 @@ public class TestCachedTableRefresh extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  @Disabled("https://issues.apache.org/jira/browse/SPARK-55631")
   public void testCachedTableWithSessionSchemaChangeAndExternalWrite() throws IOException {
     // create table and insert initial data
     sql("CREATE TABLE %s (id INT, salary INT) USING iceberg", tableName);

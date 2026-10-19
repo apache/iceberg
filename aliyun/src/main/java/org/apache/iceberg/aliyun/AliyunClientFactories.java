@@ -20,11 +20,13 @@ package org.apache.iceberg.aliyun;
 
 import com.aliyun.credentials.models.CredentialModel;
 import com.aliyun.credentials.provider.OIDCRoleArnCredentialProvider;
+import com.aliyun.kms20160120.Client;
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
 import com.aliyun.oss.common.auth.BasicCredentials;
 import com.aliyun.oss.common.auth.Credentials;
 import com.aliyun.oss.common.auth.CredentialsProvider;
+import com.aliyun.teaopenapi.models.Config;
 import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -111,6 +113,11 @@ public class AliyunClientFactories {
           && !Strings.isNullOrEmpty(oidcTokenFile);
     }
 
+    /** Build an RRSA (OIDC role) credential provider with built-in caching and auto-refresh. */
+    private OIDCRoleArnCredentialProvider rrsaCredentialProvider() {
+      return OIDCRoleArnCredentialProvider.builder().build();
+    }
+
     @Override
     public OSS newOSSClient() {
       Preconditions.checkNotNull(
@@ -127,8 +134,7 @@ public class AliyunClientFactories {
               endpoint);
 
           // Use OIDCRoleArnCredentialProvider directly with built-in caching and auto-refresh
-          final OIDCRoleArnCredentialProvider oidcProvider =
-              OIDCRoleArnCredentialProvider.builder().build();
+          final OIDCRoleArnCredentialProvider oidcProvider = rrsaCredentialProvider();
 
           CredentialsProvider ossCredProvider =
               new CredentialsProvider() {
@@ -183,6 +189,61 @@ public class AliyunClientFactories {
     @Override
     public void initialize(Map<String, String> properties) {
       this.aliyunProperties = new AliyunProperties(properties);
+    }
+
+    /**
+     * Creates the Aliyun KMS client. Credentials are resolved in the same order as {@link
+     * #newOSSClient()}:
+     *
+     * <ol>
+     *   <li>RRSA/OIDC when its environment variables are present; this takes precedence over the
+     *       static access-key properties.
+     *   <li>otherwise the static access key / secret (+ optional security token).
+     * </ol>
+     */
+    @Override
+    public Client newKmsClient() {
+      Preconditions.checkNotNull(
+          aliyunProperties,
+          "Cannot create aliyun kms client before initializing the AliyunClientFactory.");
+      Preconditions.checkArgument(
+          !Strings.isNullOrEmpty(aliyunProperties.region()),
+          "Cannot create aliyun kms client, %s is not set.",
+          AliyunProperties.CLIENT_REGION);
+
+      // the KMS client resolves kms.<region>.aliyuncs.com from the region id
+      Config config = new Config().setRegionId(aliyunProperties.region());
+
+      // Optional endpoint override, e.g. a KMS Instance (DKMS) endpoint.
+      if (!Strings.isNullOrEmpty(aliyunProperties.kmsEndpoint())) {
+        config.setEndpoint(aliyunProperties.kmsEndpoint());
+      }
+
+      // Check if RRSA environment is available (same credential resolution order as newOSSClient)
+      if (isRrsaEnvironmentAvailable()) {
+        try {
+          LOG.info(
+              "Detected RRSA environment variables, creating KMS client with RRSA credentials");
+          // Use OIDCRoleArnCredentialProvider directly with built-in caching and auto-refresh
+          OIDCRoleArnCredentialProvider oidcProvider = rrsaCredentialProvider();
+          config.setCredential(new com.aliyun.credentials.Client(oidcProvider));
+          return new Client(config);
+        } catch (Exception e) {
+          throw new RuntimeException("Failed to create RRSA KMS client", e);
+        }
+      }
+
+      try {
+        config
+            .setAccessKeyId(aliyunProperties.accessKeyId())
+            .setAccessKeySecret(aliyunProperties.accessKeySecret());
+        if (!Strings.isNullOrEmpty(aliyunProperties.securityToken())) {
+          config.setSecurityToken(aliyunProperties.securityToken());
+        }
+        return new Client(config);
+      } catch (Exception e) {
+        throw new RuntimeException("Failed to create aliyun kms client", e);
+      }
     }
 
     @Override

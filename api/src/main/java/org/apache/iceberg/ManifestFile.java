@@ -215,6 +215,11 @@ public interface ManifestFile {
     return null;
   }
 
+  /** Returns the writer format version of the manifest, or 0 if it predates format tracking. */
+  default int formatVersion() {
+    return 0;
+  }
+
   /**
    * Copies this {@link ManifestFile manifest file}. Readers can reuse manifest file instances; use
    * this method to make defensive copies.

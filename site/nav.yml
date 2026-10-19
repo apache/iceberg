@@ -24,9 +24,10 @@ nav:
   - Docs:
     - Java:
       # First entry determines the default landing page for the Docs tab.
-      - Latest (1.11.0): '!include versioned-docs/latest/mkdocs.yml'
+      - Latest (1.12.0): '!include versioned-docs/latest/mkdocs.yml'
       - Nightly: '!include versioned-docs/nightly/mkdocs.yml'
       - Previous:
+        - 1.11.0: '!include versioned-docs/1.11.0/mkdocs.yml'
         - 1.10.2: '!include versioned-docs/1.10.2/mkdocs.yml'
         - 1.10.1: '!include versioned-docs/1.10.1/mkdocs.yml'
         - 1.10.0: '!include versioned-docs/1.10.0/mkdocs.yml'
@@ -61,6 +62,7 @@ nav:
         - DataHub: https://docs.datahub.com/docs/iceberg-catalog
         - Google BigLake metastore: https://cloud.google.com/bigquery/docs/blms-manage-resources
         - Lakekeeper: https://github.com/lakekeeper/lakekeeper
+        - SeaweedFS: https://github.com/seaweedfs/seaweedfs
       - Integrations:
         - Amazon Athena: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html
         - Amazon Data Firehose: https://docs.aws.amazon.com/firehose/latest/dev/apache-iceberg-destination.html
@@ -124,4 +126,6 @@ nav:
     - Puffin spec: puffin-spec.md
     - AES GCM Stream spec: gcm-stream-spec.md
     - UDF spec: udf-spec.md
+    - Mumbling spec: mumbling-spec.md
+    - Expressions spec: expressions-spec.md
     - Implementation status: status.md

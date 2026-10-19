@@ -39,4 +39,4 @@ jobs:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
-    - uses: apache/infrastructure-actions/allowlist-check@61dcea11f19e2bbe1263f14d72235e8da17d3ad0  # allowlist-check/v1.0.0
+    - uses: apache/infrastructure-actions/allowlist-check@df54e48ff76152790f317934c691cfa7fd7a1a46  # allowlist-check/v1.0.1

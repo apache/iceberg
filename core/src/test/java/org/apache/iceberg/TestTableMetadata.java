@@ -52,6 +52,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
@@ -72,6 +73,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -2183,5 +2185,117 @@ public class TestTableMetadata {
             .setRef("tag1", SnapshotRef.tagBuilder(snapshot.snapshotId()).build())
             .build();
     assertThat(withTag.ref("tag1").isTag()).isTrue();
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#V4_AND_ABOVE")
+  public void addSnapshotRejectsNonMonotonicTimestampAfterV4(int formatVersion) {
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            TEST_LOCATION,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
+
+    Snapshot parent =
+        new BaseSnapshot(1, 1L, null, 1_000L, null, null, null, "file:/s1.avro", 0L, 0L, null);
+    TableMetadata withParent = TableMetadata.buildFrom(base).addSnapshot(parent).build();
+
+    Snapshot child =
+        new BaseSnapshot(2, 2L, 1L, 1_000L, null, null, null, "file:/s2.avro", 0L, 0L, null);
+
+    assertThatThrownBy(() -> TableMetadata.buildFrom(withParent).addSnapshot(child))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Invalid snapshot timestamp 1000: not after parent snapshot 1 at 1000");
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#V3_AND_BELOW")
+  public void addSnapshotAllowsNonMonotonicTimestampBeforeV4(int formatVersion) {
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            "location",
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
+
+    // v1-v3 differ in sequence number and row-lineage fields.
+    long parentSequenceNumber = formatVersion == 1 ? 0L : 1L;
+    Long parentFirstRowId =
+        formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE ? 0L : null;
+    Long parentAddedRows =
+        formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE ? 10L : null;
+    Snapshot parent =
+        new BaseSnapshot(
+            parentSequenceNumber,
+            1L,
+            null,
+            1_000L,
+            null,
+            null,
+            null,
+            "file:/s1.avro",
+            parentFirstRowId,
+            parentAddedRows,
+            null);
+    TableMetadata withParent = TableMetadata.buildFrom(base).addSnapshot(parent).build();
+
+    long childSequenceNumber = formatVersion == 1 ? 0L : 2L;
+    Long childFirstRowId =
+        formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE ? parentAddedRows : null;
+    Long childAddedRows =
+        formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE ? 20L : null;
+    Snapshot child =
+        new BaseSnapshot(
+            childSequenceNumber,
+            2L,
+            1L,
+            999L,
+            null,
+            null,
+            null,
+            "file:/s2.avro",
+            childFirstRowId,
+            childAddedRows,
+            null);
+
+    TableMetadata withChild = TableMetadata.buildFrom(withParent).addSnapshot(child).build();
+    assertThat(withChild.snapshot(2L).timestampMillis()).isEqualTo(999L);
+  }
+
+  @ParameterizedTest
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
+  public void snapshotTimestampMayBeAheadOfTableMetadataLastUpdatedMillis(int formatVersion) {
+    TableMetadata base =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            TEST_LOCATION,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)));
+
+    long snapshotTs = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(2);
+    // Versions differ in sequence number and row-lineage fields.
+    long sequenceNumber = formatVersion == 1 ? 0L : 1L;
+    Long firstRowId = formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE ? 0L : null;
+    Long addedRows = formatVersion >= TableMetadata.MIN_FORMAT_VERSION_ROW_LINEAGE ? 10L : null;
+    Snapshot snapshot =
+        new BaseSnapshot(
+            sequenceNumber,
+            1L,
+            null,
+            snapshotTs,
+            null,
+            null,
+            null,
+            "file:/s1.avro",
+            firstRowId,
+            addedRows,
+            null);
+
+    TableMetadata updated =
+        TableMetadata.buildFrom(base).setBranchSnapshot(snapshot, SnapshotRef.MAIN_BRANCH).build();
+
+    assertThat(updated.currentSnapshot().timestampMillis()).isEqualTo(snapshotTs);
+    assertThat(updated.lastUpdatedMillis()).isLessThan(snapshotTs);
   }
 }

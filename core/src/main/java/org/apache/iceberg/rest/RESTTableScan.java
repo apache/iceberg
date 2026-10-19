@@ -61,7 +61,6 @@ class RESTTableScan extends DataTableScan {
   private static final Logger LOG = LoggerFactory.getLogger(RESTTableScan.class);
   private static final long MIN_SLEEP_MS = 1000; // Initial delay
   private static final long MAX_SLEEP_MS = 60 * 1000; // Max backoff delay (1 minute)
-  private static final int MAX_RETRIES = 10; // Max number of poll retries
   private static final double SCALE_FACTOR = 2.0; // Exponential scale factor
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   private static final Cache<RESTTableScan, FileIO> FILEIO_TRACKER =
@@ -257,12 +256,22 @@ class RESTTableScan extends DataTableScan {
         "Invalid value for %s: %s (must be positive)",
         RESTCatalogProperties.REST_SCAN_PLANNING_POLL_TIMEOUT_MS,
         maxWaitTimeMs);
+    int maxRetries =
+        PropertyUtil.propertyAsInt(
+            catalogProperties,
+            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_NUM_RETRIES,
+            RESTCatalogProperties.REST_SCAN_PLANNING_POLL_NUM_RETRIES_DEFAULT);
+    Preconditions.checkArgument(
+        maxRetries >= 0,
+        "Invalid value for %s: %s (must be non-negative)",
+        RESTCatalogProperties.REST_SCAN_PLANNING_POLL_NUM_RETRIES,
+        maxRetries);
 
     AtomicReference<FetchPlanningResultResponse> result = new AtomicReference<>();
     try {
       Tasks.foreach(planId)
           .exponentialBackoff(MIN_SLEEP_MS, MAX_SLEEP_MS, maxWaitTimeMs, SCALE_FACTOR)
-          .retry(MAX_RETRIES)
+          .retry(maxRetries)
           .onlyRetryOn(NotCompleteException.class)
           .onFailure(
               (id, err) -> {
@@ -310,7 +319,7 @@ class RESTTableScan extends DataTableScan {
                   + " (timeout=%d ms, maxRetries=%d)",
               planId,
               maxWaitTimeMs,
-              MAX_RETRIES),
+              maxRetries),
           e);
     }
 

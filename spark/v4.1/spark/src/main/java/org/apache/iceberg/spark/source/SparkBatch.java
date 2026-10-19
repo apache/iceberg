@@ -28,7 +28,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
-import org.apache.iceberg.MetricsUtil;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
@@ -211,8 +210,7 @@ class SparkBatch implements Batch {
       }
 
       MetricsConfig metricsConfig = MetricsConfig.forTable(table);
-      MetricsModes.MetricsMode mode =
-          MetricsUtil.metricsMode(table.schema(), metricsConfig, field.fieldId());
+      MetricsModes.MetricsMode mode = metricsConfig.columnMode(field.fieldId());
       if (mode == MetricsModes.None.get() || mode == MetricsModes.Counts.get()) {
         return false;
       }
