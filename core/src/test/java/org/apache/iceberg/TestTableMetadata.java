@@ -1284,6 +1284,90 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testNewTableMetadataPreservesFieldIds() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(3, "x", Types.LongType.get()),
+            Types.NestedField.required(4, "y", Types.LongType.get()),
+            Types.NestedField.required(
+                5,
+                "point",
+                Types.StructType.of(
+                    Types.NestedField.required(6, "lat", Types.DoubleType.get()),
+                    Types.NestedField.required(7, "long", Types.DoubleType.get()))));
+
+    PartitionSpec spec =
+        PartitionSpec.builderFor(schema)
+            .withSpecId(5)
+            .add(3, 1005, "x_partition", Transforms.bucket(4))
+            .build();
+    String location = "file://tmp/db/table";
+
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            schema, spec, SortOrder.unsorted(), location, ImmutableMap.of(), false);
+
+    // field ids are preserved exactly, including nested fields
+    assertThat(metadata.schema().asStruct()).isEqualTo(schema.asStruct());
+
+    // the schema id is reset to the initial id for a new table
+    assertThat(metadata.schema().schemaId()).isEqualTo(0);
+
+    // last-column-id tracks the highest preserved id so future columns don't collide
+    assertThat(metadata.lastColumnId()).isEqualTo(7);
+
+    // the partition spec keeps the original source id, with a new table's spec and field ids
+    PartitionSpec expected =
+        PartitionSpec.builderFor(metadata.schema())
+            .withSpecId(0)
+            .add(3, 1000, "x_partition", Transforms.bucket(4))
+            .build();
+    assertThat(metadata.spec()).isEqualTo(expected);
+  }
+
+  @Test
+  public void testNewTableMetadataReassignFieldIdsTrueMatchesDefault() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(3, "x", Types.LongType.get()),
+            Types.NestedField.required(4, "y", Types.LongType.get()),
+            Types.NestedField.required(5, "z", Types.LongType.get()));
+    String location = "file://tmp/db/table";
+
+    TableMetadata reassigned =
+        TableMetadata.newTableMetadata(
+            schema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            location,
+            ImmutableMap.of(),
+            true);
+
+    // reassignFieldIds=true matches the existing fresh, sequential id assignment
+    assertThat(reassigned.schema().columns())
+        .extracting(Types.NestedField::fieldId)
+        .containsExactly(1, 2, 3);
+    assertThat(reassigned.lastColumnId()).isEqualTo(3);
+  }
+
+  @Test
+  public void testNewTableMetadataPreserveRejectsNonPositiveFieldIds() {
+    Schema schema = new Schema(Types.NestedField.required(0, "x", Types.LongType.get()));
+
+    assertThatThrownBy(
+            () ->
+                TableMetadata.newTableMetadata(
+                    schema,
+                    PartitionSpec.unpartitioned(),
+                    SortOrder.unsorted(),
+                    "file://tmp/db/table",
+                    ImmutableMap.of(),
+                    false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("field ID must be positive");
+  }
+
+  @Test
   public void testInvalidUpdatePartitionSpecForV1Table() throws Exception {
     Schema schema = new Schema(Types.NestedField.required(1, "x", Types.LongType.get()));
 

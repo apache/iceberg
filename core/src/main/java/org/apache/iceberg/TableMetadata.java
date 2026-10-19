@@ -43,7 +43,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionUtil;
@@ -85,6 +87,51 @@ public class TableMetadata implements Serializable {
     return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties);
   }
 
+  /**
+   * Creates metadata for a new table, optionally preserving the field IDs assigned on the provided
+   * schema instead of reassigning fresh ones.
+   *
+   * <p>By default (and in the other {@code newTableMetadata} overloads) the schema's field IDs are
+   * reassigned fresh and sequentially to guarantee a consistent, canonical ID layout for a new
+   * table. Passing {@code reassignFieldIds = false} keeps the IDs already present on {@code schema}
+   * exactly as-is. This is intended for advanced use cases where the IDs are already meaningful —
+   * for example migrating or re-registering a table whose data files were written against a
+   * specific ID assignment. The provided IDs must be positive; otherwise an {@link
+   * IllegalArgumentException} is thrown.
+   *
+   * <p>The partition spec and sort order are always rebuilt against the resulting schema with a new
+   * table's initial spec and sort-order IDs. Their source field IDs follow the schema, so they are
+   * preserved as well when {@code reassignFieldIds = false}.
+   *
+   * @param schema a schema
+   * @param spec a partition spec
+   * @param sortOrder a sort order
+   * @param location a location for the table; may be null
+   * @param properties a string map of table properties
+   * @param reassignFieldIds whether to reassign fresh field IDs ({@code true}, matching the other
+   *     overloads) or preserve the schema's existing field IDs ({@code false})
+   * @return the new table metadata
+   */
+  public static TableMetadata newTableMetadata(
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      String location,
+      Map<String, String> properties,
+      boolean reassignFieldIds) {
+    int formatVersion =
+        PropertyUtil.propertyAsInt(
+            properties, TableProperties.FORMAT_VERSION, DEFAULT_TABLE_FORMAT_VERSION);
+    return newTableMetadata(
+        schema,
+        spec,
+        sortOrder,
+        location,
+        persistedProperties(properties),
+        formatVersion,
+        reassignFieldIds);
+  }
+
   private static Map<String, String> unreservedProperties(Map<String, String> rawProperties) {
     return rawProperties.entrySet().stream()
         .filter(e -> !TableProperties.RESERVED_PROPERTIES.contains(e.getKey()))
@@ -113,21 +160,42 @@ public class TableMetadata implements Serializable {
       String location,
       Map<String, String> properties,
       int formatVersion) {
+    return newTableMetadata(schema, spec, sortOrder, location, properties, formatVersion, true);
+  }
+
+  private static TableMetadata newTableMetadata(
+      Schema schema,
+      PartitionSpec spec,
+      SortOrder sortOrder,
+      String location,
+      Map<String, String> properties,
+      int formatVersion,
+      boolean reassignFieldIds) {
     Preconditions.checkArgument(
         properties.keySet().stream().noneMatch(TableProperties.RESERVED_PROPERTIES::contains),
         "Table properties should not contain reserved properties, but got %s",
         properties);
 
-    // reassign all column ids to ensure consistency
-    AtomicInteger lastColumnId = new AtomicInteger(0);
-    Schema freshSchema =
-        TypeUtil.assignFreshIds(INITIAL_SCHEMA_ID, schema, lastColumnId::incrementAndGet);
+    Schema freshSchema;
+    int lastColumnId;
+    if (reassignFieldIds) {
+      // reassign all column ids to ensure consistency
+      AtomicInteger lastColumnIdTracker = new AtomicInteger(0);
+      freshSchema =
+          TypeUtil.assignFreshIds(INITIAL_SCHEMA_ID, schema, lastColumnIdTracker::incrementAndGet);
+      lastColumnId = lastColumnIdTracker.get();
+    } else {
+      // preserve the field ids already assigned on the provided schema
+      validateFieldIdsForReuse(schema);
+      freshSchema = new Schema(INITIAL_SCHEMA_ID, schema.columns(), schema.identifierFieldIds());
+      lastColumnId = schema.highestFieldId();
+    }
 
-    // rebuild the partition spec using the new column ids
+    // rebuild the partition spec using the fresh schema's column ids
     PartitionSpec.Builder specBuilder =
         PartitionSpec.builderFor(freshSchema).withSpecId(INITIAL_SPEC_ID);
     for (PartitionField field : spec.fields()) {
-      // look up the name of the source field in the old schema to get the new schema's id
+      // look up the name of the source field in the old schema to get the fresh schema's id
       String sourceName = schema.findColumnName(field.sourceId());
       // reassign all partition fields with fresh partition field Ids to ensure consistency
       specBuilder.add(freshSchema.findField(sourceName).fieldId(), field.name(), field.transform());
@@ -148,12 +216,34 @@ public class TableMetadata implements Serializable {
 
     return new Builder()
         .setInitialFormatVersion(formatVersion)
-        .setCurrentSchema(freshSchema, lastColumnId.get())
+        .setCurrentSchema(freshSchema, lastColumnId)
         .setDefaultPartitionSpec(freshSpec)
         .setDefaultSortOrder(freshSortOrder)
         .setLocation(location)
         .setProperties(properties)
         .build();
+  }
+
+  private static void validateFieldIdsForReuse(Schema schema) {
+    // Schema construction already guarantees field ids are unique; ensure they are also positive so
+    // the preserved ids are valid for a new table.
+    List<Integer> fieldIds = Lists.newArrayList();
+    collectFieldIds(schema.asStruct(), fieldIds);
+    for (int fieldId : fieldIds) {
+      Preconditions.checkArgument(
+          fieldId > 0,
+          "Cannot preserve field IDs: field ID must be positive, but found %s",
+          fieldId);
+    }
+  }
+
+  private static void collectFieldIds(Type type, List<Integer> fieldIds) {
+    if (type.isNestedType()) {
+      for (Types.NestedField field : type.asNestedType().fields()) {
+        fieldIds.add(field.fieldId());
+        collectFieldIds(field.type(), fieldIds);
+      }
+    }
   }
 
   public static class SnapshotLogEntry implements HistoryEntry {
