@@ -43,8 +43,8 @@ Inspect the current tree and search for every version registry rather than assum
 ```bash
 git status --short --branch
 find spark -maxdepth 1 -type d -name 'v*' -print
-rg -n 'knownSparkVersions|defaultSparkVersions|sparkVersions|spark[0-9]+' \
-  gradle.properties gradle settings.gradle build.gradle spark jmh.gradle .github dev site
+rg -n 'knownSparkVersions|defaultSparkVersions|sparkVersions|sparkScalaVersions|spark[0-9]+|export-ignore' \
+  gradle.properties gradle settings.gradle build.gradle spark jmh.gradle .github .gitattributes dev site
 ```
 
 Use a clean branch based on the latest `upstream/main`, preferably in an isolated worktree when another Spark branch is active. Stop if the target version directory or a matching upstream contribution already exists.
@@ -91,10 +91,12 @@ Make the support commit after the mechanical commits. Check the current equivale
 - `spark/v<target>/build.gradle`: update the Spark line, version-catalog key, Scala/JDK constraints, module coordinates, exclusions, and optional integrations.
 - `gradle.properties`: add the line to `knownSparkVersions`. Change `defaultSparkVersions` only when the new line should become the default.
 - `settings.gradle`, `spark/build.gradle`, and `jmh.gradle`: register the core, extensions, runtime, and benchmark projects.
+- Root `build.gradle`: update `sparkScalaVersions` in `project(':iceberg-bom')` with the supported Scala variants for the new line.
 - `.gitignore`: cover generated benchmark or warehouse paths for the new tree.
 - `.github/workflows/spark-ci.yml` and `.github/workflows/cve-scan.yml`: add supported combinations while respecting the current matrix-size and JDK/Scala exclusions.
 - `dev/stage-binaries.sh` and snapshot publication workflows: add the line only when artifacts should be published. Preview source support and release publication are separate decisions.
-- Documentation and source-release rules discovered by the version search: update them only when their stated support or packaging scope includes the new line.
+- `.gitattributes`: decide whether the new source tree belongs in source releases independently of binary publication. To exclude a preview tree from `git archive`, add `export-ignore` entries for both `/spark/v<target>` and `/spark/v<target>/**`; remove both when the sources should be included.
+- Documentation discovered by the version search: update it only when its stated support includes the new line.
 
 Do not add a broad repository filter for all `org.apache.spark` artifacts when only a prerelease target needs an alternate repository. Scope any temporary repository to the exact target version so older Spark builds continue to resolve from their normal repositories.
 
