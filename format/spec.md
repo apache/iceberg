@@ -1026,7 +1026,7 @@ Statistics are *tight* when they are exact for the live rows of a file:
 * Bounds are the minimum and maximum of the live values.
 * `null_value_count` and `nan_value_count` are the counts across the live rows.
 
-`value_count` and `total_bytes` are not part of tightness. `value_count` is the number of values across all rows written to the file and is not adjusted when rows are deleted; for a field with no repeated (`list` or `map`) ancestor, the live value count is `value_count` minus the deletion vector's cardinality. `total_bytes` is an approximate optimizer input and is likewise not adjusted for deleted rows.
+`value_count` and `total_bytes` are not part of tightness. `value_count` is the number of values across all rows written to the file and is not adjusted when rows are deleted; for a field with no repeated (`list` or `map`) ancestor, the live value count is `value_count` minus the deletion vector's cardinality. `total_bytes` is an estimate and is likewise not adjusted for deleted rows.
 
 When `tight_stats` is absent, readers must assume stats are not tight.
 
