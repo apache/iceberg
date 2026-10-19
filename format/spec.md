@@ -1466,21 +1466,13 @@ If a table has no deletes or only deletion vectors, implementations are encourag
 #### Encryption Keys
 
 Keys used for table encryption can be tracked in table metadata as a list named `encryption-keys`, or embedded directly in the metadata object that references the encrypted file, such as the `encryption-key` field of a v4 snapshot. The schema of each key is a struct with the following fields:
-=== "v1 - v3"
-    | v1 | v2 |     v3     | Field name                    | Type                  | Description |
-    |----|----|------------|-------------------------------|-----------------------|-------------|
-    |    |    | _required_ | **`key-id`**                  | `string`              | ID of the encryption key |
-    |    |    | _required_ | **`encrypted-key-metadata`**  | `string`              | Encrypted key and metadata, base64 encoded [1] |
-    |    |    | _optional_ | **`encrypted-by-id`**         | `string`              | Optional ID of the key used to encrypt or wrap `key-metadata` |
-    |    |    | _optional_ | **`properties`**              | `map<string, string>` | A string to string map of additional metadata used by the table's encryption scheme |
-
-=== "v4"
-    | v4         | Field name                    | Type                  | Description |
-    | ---------- |-------------------------------|-----------------------|-------------|
-    | _optional_ | **`key-id`**                  | `string`              | ID of the encryption key [2] |
-    | _required_ | **`encrypted-key-metadata`**  | `string`              | Encrypted key and metadata, base64 encoded [1] |
-    | _optional_ | **`encrypted-by-id`**         | `string`              | Optional ID of the key used to encrypt or wrap `key-metadata` |
-    | _optional_ | **`properties`**              | `map<string, string>` | A string to string map of additional metadata used by the table's encryption scheme |
+=== "v1 - v4"
+    | v1 and v2 |     v3     |     v4     | Field name                    | Type                  | Description |
+    |-----------|------------|------------|-------------------------------|-----------------------|-------------|
+    |           | _required_ | _optional_ | **`key-id`**                  | `string`              | ID of the encryption key [2] |
+    |           | _required_ | _required_ | **`encrypted-key-metadata`**  | `string`              | Encrypted key and metadata, base64 encoded [1] |
+    |           | _optional_ | _optional_ | **`encrypted-by-id`**         | `string`              | Optional ID of the key used to encrypt or wrap `key-metadata` |
+    |           | _optional_ | _optional_ | **`properties`**              | `map<string, string>` | A string to string map of additional metadata used by the table's encryption scheme |
 
 Notes:
 
