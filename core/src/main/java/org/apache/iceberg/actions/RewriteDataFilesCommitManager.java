@@ -41,6 +41,7 @@ public class RewriteDataFilesCommitManager {
   private final boolean useStartingSequenceNumber;
   private final Map<String, String> snapshotProperties;
   private final String branch;
+  private final Object commitLock = new Object();
 
   // constructor used for testing
   public RewriteDataFilesCommitManager(Table table) {
@@ -109,7 +110,18 @@ public class RewriteDataFilesCommitManager {
       rewrite.toBranch(branch);
     }
 
-    rewrite.commit();
+    // Concurrent commits to the same table conflict and retry, so commit one at a time. Manifests
+    // are written first so that work stays concurrent: commit() reuses them, or applies again and
+    // cleans up if apply() failed.
+    try {
+      rewrite.apply();
+    } catch (RuntimeException e) {
+      LOG.warn("Failed to apply rewrite before committing, retrying in commit", e);
+    }
+
+    synchronized (commitLock) {
+      rewrite.commit();
+    }
   }
 
   /**
@@ -150,11 +162,11 @@ public class RewriteDataFilesCommitManager {
   }
 
   /**
-   * A service that commits file groups as rewrites complete. Commits are serialized and may run in
-   * the thread offering a file group. Failed commits permit partial progress. No groups may be
-   * offered after the service is closed.
+   * An async service which allows for committing multiple file groups as their rewrites complete.
+   * The service also allows for partial-progress since commits can fail. Once the service has been
+   * closed no new file groups should not be offered.
    *
-   * @param rewritesPerCommit positive number of file groups to include in a commit
+   * @param rewritesPerCommit number of file groups to include in a commit
    * @return the service for handling commits
    */
   public CommitService service(int rewritesPerCommit) {
