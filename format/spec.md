@@ -785,6 +785,7 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
     | _optional_ | 102      | **`partition`**          | `struct<...>`                                         | Partition data tuple for the file; null if unpartitioned. |
     | _optional_ | 140      | **`sort_order_id`**      | `int`                                                 | ID representing sort order for this file. If missing or unknown, the order is assumed to be unsorted. |
     | _optional_ | 146      | **`content_stats`**      | `content_stats` struct                                | Field-level stats. See [Content Stats](#content-stats). |
+    | _optional_ | 151      | **`tight_stats`**        | `boolean`                                             | When true, the file's `content_stats` are exact for its live rows. See [Stats Tightness](#stats-tightness). |
     | _optional_ | 150      | **`manifest_info`**      | `manifest_info` struct                                | Manifest-specific stats. See [Manifest Info](#manifest-info-fields). |
     | _optional_ | 148      | **`deletion_vector`**    | `deletion_vector` struct                              | Row-level deletion vector for a data file. See [Deletion Vector](#deletion-vector-fields). |
     | _optional_ | 158      | **`column_files`**       | `list<159: column_file>`                              | Column files associated with this file. See [Column File](#column-file-fields). |
@@ -868,6 +869,8 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
     - `column_files`:
         - `column_files` may only be set if the tracked file is a data file or a v4 leaf manifest.
         - A field ID may appear in `field_ids` of at most one column file in a tracked file's `column_files`.
+    - `tight_stats`:
+        - `tight_stats` may be true only if `content_stats` are exact for the file's live rows; setting or updating a `deletion_vector` without recomputing stats makes them inexact.
 
     <a id="updating-tracking-metadata"></a>
     When a file is added to the dataset, its tracked file must set status to ADDED and store the snapshot ID in which the file was added.
@@ -949,7 +952,6 @@ Each stats struct holds statistics for one table field. It may contain the follo
 |-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
 | _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types |
 | _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types |
-| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry` and `geography` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
 | _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
@@ -961,7 +963,6 @@ For example, stats for a `required` `int` field named `id` with field-id `2` are
 10_400: optional struct id (default null) {
   10_401: optional int lower_bound; // type matches the field type (int)
   10_402: optional int upper_bound; // type matches the field type (int)
-  10_403: optional boolean tight_bounds;
   10_404: optional long value_count;
 
   // null_value_count is only used for optional fields
@@ -1011,11 +1012,25 @@ For example, stats for an optional `geometry` field named `location` with field-
   10_804: optional long value_count;
   10_805: optional long null_value_count;
   10_807: optional long total_bytes;
-  // tight_bounds and nan_value_count are omitted for geo types
+  // nan_value_count is omitted for geo types
 }
 ```
 
 For `variant`, both bounds are unshredded `variant` that store variant field bounds by normalized JSON paths as field names. See [Bounds for Variant](#bounds-for-variant) for details on producing these bounds.
+
+<a id="stats-tightness"></a>
+###### Stats Tightness
+
+Statistics are *tight* when they are exact for the live rows of a file: bounds are the minimum and maximum of the live values and the counts (`value_count`, `null_value_count`, and `nan_value_count`) are exact. When `tight_stats` is absent, readers must assume stats are not tight.
+
+When `tight_stats` is true:
+
+* Counts are exact for all fields.
+* Bounds are exact for fixed-width primitives and for `variant`.
+* Bounds for `string` and `binary` are not exact because they may have been truncated when written.
+* `geometry` and `geography` bounds are a bounding box that contains the live values, not exact minimum and maximum values.
+
+A deletion vector does not by itself make a file's stats non-tight; `tight_stats` is the only indicator of tightness. Stats may be recomputed to restore tightness without rewriting the data file.
 
 ###### Content Stats in Manifests
 
@@ -1029,7 +1044,6 @@ For example, stats for a table with a required int, `id`, and an optional string
   10_400: optional struct id (default null) {
     10_401: optional int lower_bound;
     10_402: optional int upper_bound;
-    10_403: optional boolean tight_bounds;
     10_404: optional long value_count;
   }
 
@@ -1037,7 +1051,6 @@ For example, stats for a table with a required int, `id`, and an optional string
   10_600: optional struct data (default null) {
     10_601: optional string lower_bound;
     10_602: optional string upper_bound;
-    10_603: optional boolean tight_bounds;
     10_604: optional long value_count;
     10_605: optional long null_value_count;
     10_607: optional long total_bytes;
