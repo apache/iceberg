@@ -35,12 +35,15 @@ import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestBase;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -53,7 +56,7 @@ class TestRewriteDataFilesCommitManager extends TestBase {
     table
         .updateProperties()
         .set(TableProperties.COMMIT_NUM_RETRIES, "0")
-        // test tables otherwise assign sequential snapshot IDs, which concurrent producers reuse
+        // test tables otherwise assign sequential snapshot IDs, and a reused ID drops a commit
         .set("random-snapshot-ids", "true")
         .commit();
     AppendFiles append = table.newFastAppend();
@@ -94,6 +97,15 @@ class TestRewriteDataFilesCommitManager extends TestBase {
     }
 
     assertThat(table.snapshots()).hasSize(numGroups + 1);
+    Set<String> referencedFiles = Sets.newHashSet();
+    for (Snapshot snapshot : table.snapshots()) {
+      referencedFiles.add(new File(snapshot.manifestListLocation()).getName());
+      for (ManifestFile manifest : snapshot.allManifests(table.io())) {
+        referencedFiles.add(new File(manifest.path()).getName());
+      }
+    }
+
+    assertThat(metadataFiles("")).containsExactlyInAnyOrderElementsOf(referencedFiles);
   }
 
   @TestTemplate
@@ -153,7 +165,7 @@ class TestRewriteDataFilesCommitManager extends TestBase {
   private List<String> metadataFiles(String prefix) {
     return Arrays.stream(metadataDir.listFiles())
         .map(File::getName)
-        .filter(name -> name.startsWith(prefix) && name.endsWith(".avro"))
+        .filter(name -> name.startsWith(prefix))
         .toList();
   }
 }

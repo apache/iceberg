@@ -77,13 +77,13 @@ public class RewritePositionDeletesCommitManager {
 
     snapshotProperties.forEach(rewriteFiles::set);
 
-    // Concurrent commits to the same table conflict and retry, so commit one at a time. Manifests
-    // are written first so that work stays concurrent: commit() reuses them, or applies again and
-    // cleans up if apply() failed.
+    // Concurrent commits through this manager would conflict with each other, so run them one at a
+    // time. Manifests are written first so that work stays concurrent: commit() reuses them, or
+    // applies again and cleans up if apply() failed.
     try {
       rewriteFiles.apply();
     } catch (RuntimeException e) {
-      LOG.warn("Failed to apply rewrite before committing, retrying in commit", e);
+      LOG.debug("Failed to apply rewrite before committing, applying again in commit", e);
     }
 
     synchronized (commitLock) {
