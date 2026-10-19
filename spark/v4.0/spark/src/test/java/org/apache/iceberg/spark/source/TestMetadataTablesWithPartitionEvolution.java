@@ -670,6 +670,13 @@ public class TestMetadataTablesWithPartitionEvolution extends CatalogTestBase {
       df = df.filter(filter);
     }
 
+    if (tableType == ALL_ENTRIES) {
+      // all_entries lists entries once per snapshot; keep the current snapshot's entries
+      long currentSnapshotId =
+          validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+      df = df.filter("reference_snapshot_id = " + currentSnapshotId);
+    }
+
     DataType expectedType = spark.sessionState().sqlParser().parseDataType(expectedTypeAsString);
     switch (tableType) {
       case PARTITIONS:

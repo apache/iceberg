@@ -18,11 +18,17 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.types.TypeUtil;
 
 /**
  * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete
  * and data files.
+ *
+ * <p>Each entry is returned once for every snapshot that references its manifest, and the
+ * reference_snapshot_id column holds that snapshot's ID.
  *
  * <p>WARNING: this table exposes internal details, like files that have been deleted. For a table
  * of the live data files, use {@link DataFilesTable}.
@@ -35,6 +41,11 @@ public class AllEntriesTable extends BaseEntriesTable {
 
   AllEntriesTable(Table table, String name) {
     super(table, name);
+  }
+
+  @Override
+  Schema entrySchema() {
+    return TypeUtil.join(super.entrySchema(), new Schema(AllManifestsTable.REF_SNAPSHOT_ID));
   }
 
   @Override
@@ -64,9 +75,15 @@ public class AllEntriesTable extends BaseEntriesTable {
 
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
-      CloseableIterable<ManifestFile> manifests =
-          reachableManifests(snapshot -> snapshot.allManifests(table().io()));
-      return BaseEntriesTable.planFiles(table(), manifests, tableSchema(), schema(), context());
+      Map<ManifestFile, List<Long>> manifests =
+          reachableManifestsWithReferenceSnapshots(snapshot -> snapshot.allManifests(table().io()));
+      return BaseEntriesTable.planFiles(
+          table(),
+          CloseableIterable.withNoopClose(manifests.keySet()),
+          manifests::get,
+          tableSchema(),
+          schema(),
+          context());
     }
   }
 }

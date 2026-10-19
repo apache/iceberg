@@ -118,7 +118,8 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       assertThat(tasks).hasSize(2);
-      assertThat(allRows(tasks)).hasSize(4);
+      // the first manifest is also referenced by the second snapshot, so its entries appear twice
+      assertThat(allRows(tasks)).hasSize(6);
     }
   }
 

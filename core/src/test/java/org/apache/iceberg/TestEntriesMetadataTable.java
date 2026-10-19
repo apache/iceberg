@@ -28,7 +28,10 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -215,5 +218,86 @@ public class TestEntriesMetadataTable extends TestBase {
         }
       }
     }
+  }
+
+  @TestTemplate
+  public void allEntriesTableSchema() {
+    Table allEntriesTable = new AllEntriesTable(table);
+
+    Schema entrySchema =
+        TypeUtil.join(
+            ManifestEntry.getSchema(table.spec().partitionType()),
+            new Schema(AllManifestsTable.REF_SNAPSHOT_ID));
+    Schema expectedSchema =
+        TypeUtil.join(entrySchema, MetricsUtil.readableMetricsSchema(table.schema(), entrySchema));
+
+    assertThat(allEntriesTable.schema().asStruct()).isEqualTo(expectedSchema.asStruct());
+  }
+
+  @TestTemplate
+  public void allEntriesTableReferenceSnapshotIds() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    long firstSnapshotId = table.currentSnapshot().snapshotId();
+    table.newFastAppend().appendFile(FILE_B).commit();
+    long secondSnapshotId = table.currentSnapshot().snapshotId();
+
+    TableScan scan = new AllEntriesTable(table).newScan();
+    List<Types.NestedField> columns = scan.schema().columns();
+    int refSnapshotIdPos = columns.indexOf(scan.schema().findField("reference_snapshot_id"));
+    int dataFilePos = columns.indexOf(scan.schema().findField("data_file"));
+    int filePathPos =
+        scan.schema().findField("data_file").type().asStructType().fields().stream()
+            .map(Types.NestedField::name)
+            .toList()
+            .indexOf("file_path");
+    int readableMetricsPos = columns.indexOf(scan.schema().findField("readable_metrics"));
+
+    List<Pair<Long, String>> rows = Lists.newArrayList();
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      for (FileScanTask task : tasks) {
+        try (CloseableIterable<StructLike> taskRows = task.asDataTask().rows()) {
+          for (StructLike row : taskRows) {
+            assertThat(row.size()).isEqualTo(columns.size());
+            assertThat(row.get(readableMetricsPos, Object.class))
+                .isInstanceOf(MetricsUtil.ReadableMetricsStruct.class);
+            StructLike dataFile = row.get(dataFilePos, StructLike.class);
+            rows.add(
+                Pair.of(
+                    row.get(refSnapshotIdPos, Long.class),
+                    dataFile.get(filePathPos, String.class)));
+          }
+        }
+      }
+    }
+
+    // the first manifest is referenced by both snapshots, so FILE_A appears once per snapshot
+    assertThat(rows)
+        .containsExactlyInAnyOrder(
+            Pair.of(firstSnapshotId, FILE_A.location()),
+            Pair.of(secondSnapshotId, FILE_A.location()),
+            Pair.of(secondSnapshotId, FILE_B.location()));
+  }
+
+  @TestTemplate
+  public void allEntriesTableRowsWithoutReferenceSnapshotId() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+
+    TableScan scan = new AllEntriesTable(table).newScan().select("status");
+
+    int rowCount = 0;
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      for (FileScanTask task : tasks) {
+        try (CloseableIterable<StructLike> taskRows = task.asDataTask().rows()) {
+          for (StructLike row : taskRows) {
+            assertThat(row.size()).isEqualTo(1);
+            rowCount += 1;
+          }
+        }
+      }
+    }
+
+    // the row count must not depend on whether reference_snapshot_id is projected
+    assertThat(rowCount).isEqualTo(3);
   }
 }
