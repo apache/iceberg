@@ -31,6 +31,7 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,9 +81,12 @@ class TableUpdater {
       // The lookup cannot tell a missing table from a missing namespace: the Glue catalog, for
       // instance, reports a table in a namespace that does not exist as NoSuchTableException. Ask
       // the catalog directly.
-      if (catalog instanceof SupportsNamespaces && !identifier.namespace().isEmpty()) {
+      if (catalog instanceof SupportsNamespaces) {
         SupportsNamespaces catalogWithNameSpace = (SupportsNamespaces) catalog;
-        if (!catalogWithNameSpace.namespaceExists(identifier.namespace())) {
+        // A table without a namespace has none to create, and some catalogs, like the Hadoop
+        // catalog, do not accept the empty namespace in the call.
+        if (!identifier.namespace().isEmpty()
+            && !catalogWithNameSpace.namespaceExists(identifier.namespace())) {
           LOG.info("Namespace {} not found during table search. Creating namespace", identifier);
           try {
             catalogWithNameSpace.createNamespace(identifier.namespace());
@@ -90,6 +94,12 @@ class TableUpdater {
             LOG.debug("Namespace {} created concurrently", identifier.namespace(), e);
           }
         }
+      } else if (exists.f1 instanceof NoSuchNamespaceException) {
+        throw new UnsupportedOperationException(
+            String.format(
+                "Cannot create the namespace of table %s: catalog %s does not support namespaces",
+                identifier, catalog.name()),
+            exists.f1);
       }
 
       LOG.info("Table {} not found during table search. Creating table.", identifier);
