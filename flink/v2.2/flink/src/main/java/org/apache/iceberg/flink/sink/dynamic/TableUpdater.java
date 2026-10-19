@@ -78,7 +78,7 @@ class TableUpdater {
       TableIdentifier identifier, Schema schema, PartitionSpec spec, TableCreator tableCreator) {
     Tuple2<Boolean, Exception> exists = cache.exists(identifier);
     if (Boolean.FALSE.equals(exists.f0)) {
-      if (exists.f1 instanceof NoSuchNamespaceException) {
+      if (exists.f1 instanceof NoSuchNamespaceException || namespaceIsMissing(identifier)) {
         SupportsNamespaces catalogWithNameSpace = (SupportsNamespaces) catalog;
         LOG.info("Namespace {} not found during table search. Creating namespace", identifier);
         try {
@@ -98,6 +98,18 @@ class TableUpdater {
         findOrCreateTable(identifier, schema, spec, tableCreator);
       }
     }
+  }
+
+  /**
+   * Some catalogs, such as the Glue catalog, report a table in a namespace that does not exist as a
+   * {@link org.apache.iceberg.exceptions.NoSuchTableException} rather than a {@link
+   * NoSuchNamespaceException}, so the lookup alone cannot tell a missing table from a missing
+   * namespace. Ask the catalog directly.
+   */
+  private boolean namespaceIsMissing(TableIdentifier identifier) {
+    return catalog instanceof SupportsNamespaces
+        && !identifier.namespace().isEmpty()
+        && !((SupportsNamespaces) catalog).namespaceExists(identifier.namespace());
   }
 
   private void findOrCreateBranch(TableIdentifier identifier, String branch) {
