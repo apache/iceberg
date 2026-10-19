@@ -785,7 +785,7 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
     | _optional_ | 102      | **`partition`**          | `struct<...>`                                         | Partition data tuple for the file; null if unpartitioned. |
     | _optional_ | 140      | **`sort_order_id`**      | `int`                                                 | ID representing sort order for this file. If missing or unknown, the order is assumed to be unsorted. |
     | _optional_ | 146      | **`content_stats`**      | `content_stats` struct                                | Field-level stats. See [Content Stats](#content-stats). |
-    | _optional_ | 151      | **`tight_stats`**        | `boolean`                                             | When true, the file's `content_stats` are exact for its live rows. See [Stats Tightness](#stats-tightness). |
+    | _optional_ | 151      | **`tight_stats`**        | `boolean`                                             | When true, the file's `content_stats` are tight. See [Stats Tightness](#stats-tightness). |
     | _optional_ | 150      | **`manifest_info`**      | `manifest_info` struct                                | Manifest-specific stats. See [Manifest Info](#manifest-info-fields). |
     | _optional_ | 148      | **`deletion_vector`**    | `deletion_vector` struct                              | Row-level deletion vector for a data file. See [Deletion Vector](#deletion-vector-fields). |
     | _optional_ | 158      | **`column_files`**       | `list<159: column_file>`                              | Column files associated with this file. See [Column File](#column-file-fields). |
@@ -870,7 +870,7 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
         - `column_files` may only be set if the tracked file is a data file or a v4 leaf manifest.
         - A field ID may appear in `field_ids` of at most one column file in a tracked file's `column_files`.
     - `tight_stats`:
-        - `tight_stats` may be true only if `content_stats` are exact for the file's live rows; setting or updating a `deletion_vector` without recomputing stats makes them inexact.
+        - `tight_stats` may be true only if `content_stats` are tight; attaching or updating a `deletion_vector` without recomputing stats makes them no longer tight. See [Stats Tightness](#stats-tightness).
 
     <a id="updating-tracking-metadata"></a>
     When a file is added to the dataset, its tracked file must set status to ADDED and store the snapshot ID in which the file was added.
