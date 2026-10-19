@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.actions;
 
-import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.RotateEncryptionKeys.KeyRegenerationLevel;
 
 /**
@@ -28,7 +27,7 @@ import org.apache.iceberg.RotateEncryptionKeys.KeyRegenerationLevel;
  * distribute parts of the work.
  */
 public interface RotateEncryptionKeys
-    extends SnapshotUpdate<RotateEncryptionKeys, RotateEncryptionKeys.Result> {
+    extends Action<RotateEncryptionKeys, RotateEncryptionKeys.Result> {
 
   /**
    * Sets the lowest key to regenerate.
@@ -40,7 +39,7 @@ public interface RotateEncryptionKeys
 
   /** The action result that contains a summary of the execution. */
   interface Result {
-    /** Returns the manifests written with new keys. */
-    Iterable<ManifestFile> addedManifests();
+    /** Returns the number of manifests rewritten to regenerate their keys. */
+    long rewrittenManifestsCount();
   }
 }

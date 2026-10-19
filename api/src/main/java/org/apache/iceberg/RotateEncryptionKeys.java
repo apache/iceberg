@@ -27,7 +27,8 @@ import java.util.List;
  * <p>Only the keys reachable from the current snapshot are rotated. Older snapshots keep depending
  * on the previous keys until they are expired.
  *
- * <p>{@link #apply()} returns the manifests that will be replaced.
+ * <p>{@link #apply()} returns the manifests that the current snapshot references once the keys are
+ * rotated.
  */
 public interface RotateEncryptionKeys extends PendingUpdate<List<ManifestFile>> {
 
@@ -40,8 +41,8 @@ public interface RotateEncryptionKeys extends PendingUpdate<List<ManifestFile>> 
     /** Regenerate the key encryption key without committing a new snapshot. */
     KEY_ENCRYPTION_KEY,
     /**
-     * Regenerate the manifest list key and the keys above it, committing a new snapshot without
-     * rewriting any manifest.
+     * Regenerate the encryption key used for the snapshot and the keys above it, committing a new
+     * snapshot.
      */
     SNAPSHOT_KEY,
     /** Regenerate the manifest keys and the keys above them, rewriting every manifest (default). */
@@ -49,13 +50,34 @@ public interface RotateEncryptionKeys extends PendingUpdate<List<ManifestFile>> 
   }
 
   /**
-   * Sets the lowest key to regenerate.
-   *
-   * <p>Consider {@link KeyRegenerationLevel#KEY_ENCRYPTION_KEY} or {@link
-   * KeyRegenerationLevel#SNAPSHOT_KEY} when rewriting every manifest is too expensive.
+   * Sets the lowest encryption key to regenerate.
    *
    * @param level the lowest key to regenerate
    * @return this for method chaining
    */
   RotateEncryptionKeys keyRegenerationLevel(KeyRegenerationLevel level);
+
+  /**
+   * Deletes a {@link ManifestFile manifest file} from the table.
+   *
+   * <p>Only allowed when the lowest key to regenerate is {@link KeyRegenerationLevel#MANIFEST_KEY}.
+   *
+   * @param manifest a manifest to delete
+   * @return this for method chaining
+   */
+  RotateEncryptionKeys deleteManifest(ManifestFile manifest);
+
+  /**
+   * Adds a {@link ManifestFile manifest file}, encrypted with a newly generated key, to replace the
+   * deleted manifests. The added manifests must contain the live files of the deleted manifests as
+   * existing files.
+   *
+   * <p>Only allowed when the lowest key to regenerate is {@link KeyRegenerationLevel#MANIFEST_KEY}.
+   * If the commit fails, the manifest is never deleted and it is up to the caller whether to delete
+   * or reuse it.
+   *
+   * @param manifest a manifest to add
+   * @return this for method chaining
+   */
+  RotateEncryptionKeys addManifest(ManifestFile manifest);
 }
