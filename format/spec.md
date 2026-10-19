@@ -2114,7 +2114,7 @@ The binary single-value serialization can be used to store the lower and upper b
 
 ### Version 4
 
-The `file` type is added in v4. Writing `file` into a v3 or earlier schema is invalid.
+The `file` type is added in v4.
 
 Relative path support is added in v4.
 
