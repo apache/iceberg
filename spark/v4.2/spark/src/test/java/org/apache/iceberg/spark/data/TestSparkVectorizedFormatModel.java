@@ -57,7 +57,9 @@ class TestSparkVectorizedFormatModel extends ReadFormatModelTests<ColumnarBatch>
           Type.TypeID.STRUCT,
           Type.TypeID.LIST,
           Type.TypeID.MAP,
-          Type.TypeID.UUID);
+          Type.TypeID.UUID,
+          Type.TypeID.GEOMETRY,
+          Type.TypeID.GEOGRAPHY);
 
   @Override
   protected Collection<Type.TypeID> unsupportedTypeIds() {
