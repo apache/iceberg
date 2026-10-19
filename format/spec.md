@@ -1021,14 +1021,23 @@ For `variant`, both bounds are unshredded `variant` that store variant field bou
 <a id="stats-tightness"></a>
 ###### Stats Tightness
 
-Statistics are *tight* when they are exact for the live rows of a file: bounds are the minimum and maximum of the live values and the counts (`value_count`, `null_value_count`, and `nan_value_count`) are exact. When `tight_stats` is absent, readers must assume stats are not tight.
+Statistics are *tight* when they are exact for the live rows of a file:
+
+* Bounds are the minimum and maximum of the live values.
+* `null_value_count` and `nan_value_count` are the counts across the live rows.
+
+`value_count` and `total_bytes` are not part of tightness. `value_count` is the number of values across all rows written to the file and is not adjusted when rows are deleted; for a field with no repeated (`list` or `map`) ancestor, the live value count is `value_count` minus the deletion vector's cardinality. `total_bytes` is an approximate optimizer input and is likewise not adjusted for deleted rows.
+
+When `tight_stats` is absent, readers must assume stats are not tight.
 
 When `tight_stats` is true:
 
-* Counts are exact for all fields.
+* `null_value_count` and `nan_value_count` are exact for the live rows.
 * Bounds are exact for primitive types other than `string` and `binary`, whose bounds may have been truncated when written.
 * `variant` bounds are stored per leaf field and are optional; a leaf field may have no bound, but any bound that is present is exact.
 * `geometry` and `geography` bounds are a bounding box that contains the live values, not exact minimum and maximum values.
+
+A `variant` value is null only when the variant itself is null; a non-null variant that encodes a variant null is not counted as a null value. Variants do not have a `nan_value_count`.
 
 A deletion vector does not by itself make a file's stats non-tight; `tight_stats` is the only indicator of tightness. Stats may be recomputed to restore tightness without rewriting the data file.
 
