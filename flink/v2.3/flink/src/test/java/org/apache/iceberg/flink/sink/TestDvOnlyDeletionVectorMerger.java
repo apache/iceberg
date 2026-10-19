@@ -243,9 +243,11 @@ class TestDvOnlyDeletionVectorMerger {
         .extracting(DeleteFile::location)
         .hasSize(2)
         .contains(vector(keptVector).location());
-    assertThat(merged.newDeletionVectors())
-        .singleElement()
-        .satisfies(dv -> assertVector(dv, compacted, 1L));
+
+    Map<String, DeleteFile> byDataFile = Maps.newHashMap();
+    merged.deletionVectors().forEach(dv -> byDataFile.put(dv.referencedDataFile(), dv));
+    assertVector(byDataFile.get(compacted.location()), compacted, 1L);
+
     assertThat(merged.obsoleteFiles())
         .as("Only the file of the vector that was merged again is obsolete")
         .hasSize(1)
@@ -289,13 +291,14 @@ class TestDvOnlyDeletionVectorMerger {
     table.refresh();
     DvOnlyDeletionVectorMerger.Merged merged = merger.merge(checkpoint, baseline);
 
-    assertThat(merged.newDeletionVectors())
-        .singleElement()
-        .satisfies(dv -> assertVector(dv, first, 1L, 2L));
     assertThat(merged.deletionVectors())
         .extracting(DeleteFile::location)
         .hasSize(2)
         .contains(vector(secondVector).location());
+
+    Map<String, DeleteFile> byDataFile = Maps.newHashMap();
+    merged.deletionVectors().forEach(dv -> byDataFile.put(dv.referencedDataFile(), dv));
+    assertVector(byDataFile.get(first.location()), first, 1L, 2L);
     assertThat(merged.replacedDeletionVectors())
         .singleElement()
         .extracting(DeleteFile::location)

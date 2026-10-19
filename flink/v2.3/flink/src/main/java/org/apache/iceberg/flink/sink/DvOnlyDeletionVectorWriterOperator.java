@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.Map;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
@@ -56,7 +55,6 @@ import org.slf4j.LoggerFactory;
  * produced them. The buffer is empty whenever a snapshot is taken, so a restore replays it from
  * upstream.
  */
-@Internal
 class DvOnlyDeletionVectorWriterOperator
     extends AbstractStreamOperator<CommittableMessage<SinkWriteResult>>
     implements OneInputStreamOperator<DVPosition, CommittableMessage<SinkWriteResult>> {

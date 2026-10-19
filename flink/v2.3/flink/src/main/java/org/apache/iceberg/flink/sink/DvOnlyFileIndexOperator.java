@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
@@ -64,7 +63,6 @@ import org.slf4j.LoggerFactory;
  * file that is gone, so the mapping is allowed to be generous but never short. It is discarded as a
  * whole once the file leaves the table, which is the only point at which entries stop being useful.
  */
-@Internal
 class DvOnlyFileIndexOperator extends AbstractStreamOperator<DvOnlyRecord>
     implements TwoInputStreamOperator<DvOnlyRecord, DvOnlyRecord, DvOnlyRecord> {
 

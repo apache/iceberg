@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.Serializable;
-import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.flink.maintenance.operator.DVPosition;
 import org.apache.iceberg.flink.maintenance.operator.SerializedEqualityValues;
 
@@ -31,13 +30,11 @@ import org.apache.iceberg.flink.maintenance.operator.SerializedEqualityValues;
  * @param key serialized equality field values of the row
  * @param position file, offset, spec and partition of the row
  */
-@Internal
-public record PkIndexEntry(SerializedEqualityValues key, DVPosition position)
-    implements Serializable {
+record PkIndexEntry(SerializedEqualityValues key, DVPosition position) implements Serializable {
 
   /**
    * Data sequence number of every position in the DV-only write path, whether its data file is
    * committed or not. Deletes there are ordered by checkpoint rather than by sequence number.
    */
-  public static final long UNKNOWN_SEQUENCE = -1L;
+  static final long UNKNOWN_SEQUENCE = -1L;
 }

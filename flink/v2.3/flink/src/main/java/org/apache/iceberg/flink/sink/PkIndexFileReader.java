@@ -23,7 +23,6 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
-import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
@@ -43,7 +42,6 @@ import org.apache.iceberg.util.ContentFileUtil;
  * <p>Only the equality fields and the row position are read, and rows already covered by a deletion
  * vector are skipped since they are not live.
  */
-@Internal
 class PkIndexFileReader {
 
   private final Table table;

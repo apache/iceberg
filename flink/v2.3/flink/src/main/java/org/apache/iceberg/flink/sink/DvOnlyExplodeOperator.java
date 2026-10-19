@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessageTypeInfo;
@@ -42,7 +41,6 @@ import org.apache.iceberg.flink.maintenance.operator.SerializedEqualityValues;
  * {@link IcebergWriteAggregator} ignores incoming summaries and emits a single one of its own, so
  * the pre-commit topology is free to repartition.
  */
-@Internal
 class DvOnlyExplodeOperator extends AbstractStreamOperator<DvOnlyRecord>
     implements OneInputStreamOperator<CommittableMessage<SinkWriteResult>, DvOnlyRecord> {
 

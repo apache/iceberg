@@ -19,12 +19,10 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.Serializable;
-import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.flink.maintenance.operator.DVPosition;
 import org.apache.iceberg.flink.maintenance.operator.SerializedEqualityValues;
 
-@Internal
-public record DvOnlyRecord(
+record DvOnlyRecord(
     Type type,
     SerializedEqualityValues key,
     DVPosition position,
@@ -35,12 +33,12 @@ public record DvOnlyRecord(
     implements Serializable {
 
   /** Used by records that do not belong to a checkpoint of this job. */
-  public static final long NO_CHECKPOINT = -1L;
+  static final long NO_CHECKPOINT = -1L;
 
   /** Used by records that are not tied to an index generation. */
-  public static final long NO_GENERATION = -1L;
+  static final long NO_GENERATION = -1L;
 
-  public enum Type {
+  enum Type {
     /** Delete of a key that no row written in the same checkpoint matched. */
     DELETE,
     /** Row written during the current checkpoint, indexed once that checkpoint resolves. */
@@ -60,11 +58,11 @@ public record DvOnlyRecord(
     CLEANUP
   }
 
-  public static DvOnlyRecord delete(SerializedEqualityValues key, long checkpointId) {
+  static DvOnlyRecord delete(SerializedEqualityValues key, long checkpointId) {
     return new DvOnlyRecord(Type.DELETE, key, null, null, null, checkpointId, NO_GENERATION);
   }
 
-  public static DvOnlyRecord addRow(PkIndexEntry entry, long checkpointId) {
+  static DvOnlyRecord addRow(PkIndexEntry entry, long checkpointId) {
     return new DvOnlyRecord(
         Type.ADD_ROW,
         entry.key(),
@@ -75,7 +73,7 @@ public record DvOnlyRecord(
         NO_GENERATION);
   }
 
-  public static DvOnlyRecord bootstrapRow(PkIndexEntry entry) {
+  static DvOnlyRecord bootstrapRow(PkIndexEntry entry) {
     return new DvOnlyRecord(
         Type.BOOTSTRAP_ROW,
         entry.key(),
@@ -86,22 +84,22 @@ public record DvOnlyRecord(
         NO_GENERATION);
   }
 
-  public static DvOnlyRecord dropPositions(SerializedEqualityValues key, String filePath) {
+  static DvOnlyRecord dropPositions(SerializedEqualityValues key, String filePath) {
     return new DvOnlyRecord(
         Type.DROP_POSITIONS, key, null, filePath, null, NO_CHECKPOINT, NO_GENERATION);
   }
 
-  public static DvOnlyRecord readFile(String filePath, byte[] readTask, long generation) {
+  static DvOnlyRecord readFile(String filePath, byte[] readTask, long generation) {
     return new DvOnlyRecord(
         Type.READ_FILE, null, null, filePath, readTask, NO_CHECKPOINT, generation);
   }
 
-  public static DvOnlyRecord dropFile(String filePath) {
+  static DvOnlyRecord dropFile(String filePath) {
     return new DvOnlyRecord(
         Type.DROP_FILE, null, null, filePath, null, NO_CHECKPOINT, NO_GENERATION);
   }
 
-  public static DvOnlyRecord cleanup(long generation, long committedCheckpointId) {
+  static DvOnlyRecord cleanup(long generation, long committedCheckpointId) {
     return new DvOnlyRecord(
         Type.CLEANUP, null, null, null, null, committedCheckpointId, generation);
   }

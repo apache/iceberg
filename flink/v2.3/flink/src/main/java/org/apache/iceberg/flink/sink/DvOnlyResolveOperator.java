@@ -20,10 +20,10 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.flink.annotation.Internal;
-import org.apache.flink.api.common.state.ListState;
-import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.state.MapState;
+import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
@@ -58,17 +58,17 @@ import org.slf4j.LoggerFactory;
  * DvOnlyFileIndexOperator}, and the rows of the replacement files are reported the same way as the
  * rows the index started with.
  */
-@Internal
 class DvOnlyResolveOperator extends AbstractStreamOperator<DVPosition>
     implements OneInputStreamOperator<DvOnlyRecord, DVPosition> {
 
   private static final Logger LOG = LoggerFactory.getLogger(DvOnlyResolveOperator.class);
 
-  private static final ListStateDescriptor<DVPosition> LIVE_POSITIONS_DESCRIPTOR =
-      new ListStateDescriptor<>("dvOnlyLivePositions", TypeInformation.of(DVPosition.class));
+  private static final MapStateDescriptor<DVPosition, Boolean> LIVE_POSITIONS_DESCRIPTOR =
+      new MapStateDescriptor<>(
+          "dvOnlyLivePositions", TypeInformation.of(DVPosition.class), Types.BOOLEAN);
 
-  /** Location of the live rows of one key. */
-  private transient ListState<DVPosition> livePositions;
+  /** Live positions of one key, kept as a set so that a file read again cannot duplicate one. */
+  private transient MapState<DVPosition, Boolean> livePositions;
 
   /** Changes accumulated for the current checkpoint, keyed by equality values. */
   private transient Map<SerializedEqualityValues, PendingChange> pending;
@@ -78,7 +78,7 @@ class DvOnlyResolveOperator extends AbstractStreamOperator<DVPosition>
     super.open();
     DvOnlyExecution.checkStreaming(
         getOperatorConfig(), getRuntimeContext().getUserCodeClassLoader());
-    livePositions = getRuntimeContext().getListState(LIVE_POSITIONS_DESCRIPTOR);
+    livePositions = getRuntimeContext().getMapState(LIVE_POSITIONS_DESCRIPTOR);
     pending = Maps.newLinkedHashMap();
   }
 
@@ -129,60 +129,39 @@ class DvOnlyResolveOperator extends AbstractStreamOperator<DVPosition>
   }
 
   // A row the table already holds enters the index right away, so a delete of the current
-  // checkpoint can resolve it. It may be reported again when its data file is read again.
+  // checkpoint can resolve it. Reporting it again when its data file is read again.
   private void indexCommittedRow(DVPosition position) throws Exception {
-    Iterable<DVPosition> indexed = livePositions.get();
-    if (indexed != null) {
-      for (DVPosition existing : indexed) {
-        if (existing.position() == position.position()
-            && existing.dataFilePath().equals(position.dataFilePath())) {
-          return;
-        }
-      }
-    }
-
-    livePositions.add(position);
+    livePositions.put(position, true);
   }
 
   private int apply(PendingChange change) throws Exception {
     int resolved = 0;
     if (change.deleted) {
-      Iterable<DVPosition> indexed = livePositions.get();
-      if (indexed != null) {
-        for (DVPosition position : indexed) {
-          output.collect(new StreamRecord<>(position));
-          resolved++;
-        }
-
-        livePositions.clear();
+      for (DVPosition position : livePositions.keys()) {
+        output.collect(new StreamRecord<>(position));
+        resolved++;
       }
+
+      livePositions.clear();
     }
 
     for (DVPosition position : change.added) {
-      livePositions.add(position);
+      livePositions.put(position, true);
     }
 
     return resolved;
   }
 
   private void dropPositions(DvOnlyRecord record) throws Exception {
-    Iterable<DVPosition> indexed = livePositions.get();
-    if (indexed == null) {
-      return;
-    }
-
-    List<DVPosition> kept = Lists.newArrayList();
-    boolean dropped = false;
-    for (DVPosition position : indexed) {
+    List<DVPosition> dropped = Lists.newArrayList();
+    for (DVPosition position : livePositions.keys()) {
       if (record.filePath().equals(position.dataFilePath())) {
-        dropped = true;
-      } else {
-        kept.add(position);
+        dropped.add(position);
       }
     }
 
-    if (dropped) {
-      livePositions.update(kept);
+    for (DVPosition position : dropped) {
+      livePositions.remove(position);
     }
   }
 

@@ -58,7 +58,11 @@ public class DeltaManifestsSerializer implements SimpleVersionedSerializer<Delta
   public byte[] serialize(DeltaManifests deltaManifests) throws IOException {
     Preconditions.checkNotNull(
         deltaManifests, "DeltaManifests to be serialized should not be null");
-    return writeVersion == VERSION_2 ? serializeV2(deltaManifests) : serializeV3(deltaManifests);
+    return switch (writeVersion) {
+      case VERSION_2 -> serializeV2(deltaManifests);
+      case VERSION_3 -> serializeV3(deltaManifests);
+      default -> throw new IllegalArgumentException("Unrecognized write version: " + writeVersion);
+    };
   }
 
   private static byte[] serializeV2(DeltaManifests deltaManifests) throws IOException {

@@ -19,6 +19,8 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.Objects;
 import org.apache.flink.annotation.Internal;
 
 /**
@@ -53,5 +55,28 @@ public record DVPosition(
 
   public boolean isAbort() {
     return ABORT_FILE_PATH.equals(dataFilePath);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+
+    if (!(o instanceof DVPosition other)) {
+      return false;
+    }
+
+    return position == other.position
+        && specId == other.specId
+        && dataSequenceNumber == other.dataSequenceNumber
+        && Objects.equals(dataFilePath, other.dataFilePath)
+        && Arrays.equals(partition, other.partition);
+  }
+
+  @Override
+  public int hashCode() {
+    int result = Objects.hash(dataFilePath, position, specId, dataSequenceNumber);
+    return 31 * result + Arrays.hashCode(partition);
   }
 }

@@ -22,13 +22,11 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.List;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.util.InstantiationUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-@Internal
 class PkIndexReadTask implements Serializable {
 
   private final DataFile file;
@@ -36,8 +34,16 @@ class PkIndexReadTask implements Serializable {
 
   PkIndexReadTask(DataFile file, List<DeleteFile> deletes) {
     Preconditions.checkNotNull(file, "Data file cannot be null");
-    this.file = file;
-    this.deletes = deletes == null ? new DeleteFile[0] : deletes.toArray(new DeleteFile[0]);
+    this.file = file.copyWithoutStats();
+    if (deletes == null) {
+      this.deletes = new DeleteFile[0];
+    } else {
+      this.deletes = new DeleteFile[deletes.size()];
+      int index = 0;
+      for (DeleteFile delete : deletes) {
+        this.deletes[index++] = delete.copyWithoutStats();
+      }
+    }
   }
 
   DataFile file() {

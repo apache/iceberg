@@ -199,7 +199,8 @@ class DvOnlyDeletionVectorMerger {
         continue;
       }
 
-      SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+      SnapshotChanges changes =
+          SnapshotChanges.builderFor(table).snapshot(snapshot).executeWith(workerPool).build();
       for (DataFile file : changes.removedDataFiles()) {
         rewrites.recordRemoval(file, snapshot.snapshotId());
       }
@@ -386,8 +387,8 @@ class DvOnlyDeletionVectorMerger {
 
   /**
    * The deletion vectors to commit for one checkpoint and the snapshot they were computed from.
-   * Vectors of the checkpoint that were still valid are committed as they were written; only the
-   * others were merged again, which is what {@link #newDeletionVectors()} holds.
+   * Vectors of the checkpoint that were still valid are committed as they were written; the others
+   * were merged again and are listed in {@link #writtenFiles()}.
    */
   static class Merged {
     private final Snapshot head;
@@ -444,10 +445,6 @@ class DvOnlyDeletionVectorMerger {
 
     List<String> referencedDataFiles() {
       return Lists.transform(deletionVectors, DeleteFile::referencedDataFile);
-    }
-
-    List<DeleteFile> newDeletionVectors() {
-      return newDeletionVectors;
     }
 
     Set<String> writtenFiles() {

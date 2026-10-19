@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.Serializable;
-import org.apache.flink.annotation.Internal;
 
 /**
  * What {@link DvOnlyCoordinator} keeps across restarts.
@@ -30,8 +29,7 @@ import org.apache.flink.annotation.Internal;
  * @param committedCheckpointId last checkpoint of this sink seen committed to the branch
  * @param keyFingerprint identifies the equality fields the index is keyed by
  */
-@Internal
-public record DvOnlyIndexState(
+record DvOnlyIndexState(
     boolean built,
     Long baselineSnapshotId,
     long generation,

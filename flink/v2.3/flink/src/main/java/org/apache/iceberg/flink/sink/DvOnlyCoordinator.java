@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -88,7 +87,6 @@ import org.slf4j.LoggerFactory;
  * makes a replay after a failed checkpoint harmless: indexing a file twice yields the same
  * positions and dropping a file twice is a no-op.
  */
-@Internal
 class DvOnlyCoordinator extends AbstractStreamOperator<DvOnlyRecord>
     implements OneInputStreamOperator<CommittableMessage<SinkWriteResult>, DvOnlyRecord> {
 
@@ -315,7 +313,8 @@ class DvOnlyCoordinator extends AbstractStreamOperator<DvOnlyRecord>
   }
 
   private void collectChanges(Snapshot snapshot, Set<String> removed, Map<String, DataFile> added) {
-    SnapshotChanges changes = SnapshotChanges.builderFor(table).snapshot(snapshot).build();
+    SnapshotChanges changes =
+        SnapshotChanges.builderFor(table).snapshot(snapshot).executeWith(workerPool).build();
     for (DataFile file : changes.removedDataFiles()) {
       if (added.remove(file.location()) == null) {
         removed.add(file.location());
