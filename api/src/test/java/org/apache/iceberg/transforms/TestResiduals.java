@@ -290,6 +290,44 @@ public class TestResiduals {
   }
 
   @Test
+  public void testStartsWithWithNullStringPartition() {
+    Schema schema = new Schema(Types.NestedField.optional(50, "category", Types.StringType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("category").build();
+
+    ResidualEvaluator resEval =
+        ResidualEvaluator.of(spec, Expressions.startsWith("category", "a"), true);
+
+    Expression residual = resEval.residualFor(Row.of("abc"));
+    assertThat(residual).isEqualTo(alwaysTrue());
+
+    residual = resEval.residualFor(Row.of("bcd"));
+    assertThat(residual).isEqualTo(alwaysFalse());
+
+    residual = resEval.residualFor(Row.of((Object) null));
+    assertThat(residual).as("null startsWith a => false").isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  public void testNotStartsWithWithNullStringPartition() {
+    Schema schema = new Schema(Types.NestedField.optional(50, "category", Types.StringType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("category").build();
+
+    ResidualEvaluator resEval =
+        ResidualEvaluator.of(spec, Expressions.notStartsWith("category", "a"), true);
+
+    Expression residual = resEval.residualFor(Row.of("bcd"));
+    assertThat(residual).isEqualTo(alwaysTrue());
+
+    residual = resEval.residualFor(Row.of("abc"));
+    assertThat(residual).isEqualTo(alwaysFalse());
+
+    residual = resEval.residualFor(Row.of((Object) null));
+    assertThat(residual).as("null notStartsWith a => true").isEqualTo(alwaysTrue());
+  }
+
+  @Test
   public void testIsNaN() {
     Schema schema =
         new Schema(
