@@ -82,9 +82,10 @@ import org.slf4j.LoggerFactory;
  * {@link #advancePhase()}.
  *
  * <p>An {@link EqualityConvertPlan} with the current cycle's metadata is emitted via the {@link
- * #METADATA_STREAM} side output after the read commands. A {@link EqualityConvertPlan#cycleStart}
- * marker is emitted first, before any phase watermark, so the committer can hold back watermarks
- * until the plan arrives.
+ * #METADATA_STREAM} side output after the read commands. The planner emits phase watermarks before
+ * that plan. A {@link EqualityConvertPlan#cycleStart} marker is emitted first, before any phase
+ * watermark. The marker tells the committer a cycle has started, and the committer holds watermarks
+ * until the commit.
  *
  * <p>Assumes a single equality-field set supplied via the builder; staging eq-deletes with a
  * different {@code equalityFieldIds} fail fast in {@link #retrieveStagingFiles}. Concurrent writes
