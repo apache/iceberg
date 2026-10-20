@@ -869,8 +869,6 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
     - `column_files`:
         - `column_files` may only be set if the tracked file is a data file or a v4 leaf manifest.
         - A field ID may appear in `field_ids` of at most one column file in a tracked file's `column_files`.
-    - `tight_stats`:
-        - `tight_stats` may be true only if `content_stats` are tight. See [Stats Tightness](#stats-tightness).
 
     <a id="updating-tracking-metadata"></a>
     When a file is added to the dataset, its tracked file must set status to ADDED and store the snapshot ID in which the file was added.
@@ -1020,11 +1018,14 @@ For `variant`, both bounds are unshredded `variant` that store variant field bou
 
 ###### Stats Tightness
 
-Statistics are *tight* when the bounds, `null_value_count`, and `nan_value_count` are exact for the live rows of a file:
+Statistics are _tight_ when the bounds, `null_value_count`, and `nan_value_count` are exact for the live rows of a file:
 
-* Bounds are the minimum and maximum of the live values. Bounds for `string` and `binary` are never tight because they may be truncated when written, and bounds for `geometry` and `geography` are a bounding box, not exact minimum and maximum values.
-* `variant` bounds are stored per leaf field and are optional; a leaf field may have no bound, but any bound that is present is exact.
-* `null_value_count` and `nan_value_count` are the counts across the live rows. A `variant` value is null only when the variant itself is null; a non-null variant that encodes a variant null is not counted as a null value.
+* `lower_bound` and `upper_bound` for fixed-width types are equal to the minimum and maximum of the live values.
+* `null_value_count` and `nan_value_count` are the counts across the live rows.
+
+Bounds for `string` and `binary` are never tight because they may be truncated when written. Bounds for `geometry` and `geography` are a bounding box, not exact minimum and maximum values.
+
+`variant` bounds are stored per leaf field and are optional; a leaf field may have no bound, but any bound that is present is exact. A `variant` value is null only when the variant itself is null; a non-null variant that encodes a variant null is not counted as a null value.
 
 Statistics other than the bounds, `null_value_count`, and `nan_value_count` are not part of tightness. In particular, `value_count` is the number of values across all rows written to the file and is not adjusted when rows are deleted; for a field with no repeated (`list` or `map`) ancestor, the live value count is `value_count` minus the deletion vector's cardinality.
 
