@@ -94,6 +94,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
@@ -995,11 +996,11 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {1, 2, 3})
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   void formatVersionInTableParametersOnCreate(int formatVersion) throws Exception {
     Schema schema = getTestSchema();
     TableIdentifier tableIdentifier = TableIdentifier.of(DB_NAME, "tbl");
-    String location = temp.resolve("tbl").toString();
+    String location = temp.resolve("tbl").toUri().toString();
 
     try {
       catalog
