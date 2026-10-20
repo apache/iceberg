@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
@@ -203,31 +204,35 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
     assertThat(catalog.tableExists(tableIdentifier)).isTrue();
   }
 
+  private static Catalog catalogWithoutNamespaceSupport(Supplier<RuntimeException> lookupFailure) {
+    return new Catalog() {
+      @Override
+      public List<TableIdentifier> listTables(Namespace namespace) {
+        throw new UnsupportedOperationException();
+      }
+
+      @Override
+      public Table loadTable(TableIdentifier identifier) {
+        throw lookupFailure.get();
+      }
+
+      @Override
+      public boolean dropTable(TableIdentifier identifier, boolean purge) {
+        throw new UnsupportedOperationException();
+      }
+
+      @Override
+      public void renameTable(TableIdentifier from, TableIdentifier to) {
+        throw new UnsupportedOperationException();
+      }
+    };
+  }
+
   @Test
   void testMissingNamespaceOfCatalogWithoutNamespaceSupportFails() {
     Catalog catalog =
-        new Catalog() {
-          @Override
-          public List<TableIdentifier> listTables(Namespace namespace) {
-            throw new UnsupportedOperationException();
-          }
-
-          @Override
-          public Table loadTable(TableIdentifier identifier) {
-            throw new NoSuchNamespaceException(
-                "Namespace does not exist: %s", identifier.namespace());
-          }
-
-          @Override
-          public boolean dropTable(TableIdentifier identifier, boolean purge) {
-            throw new UnsupportedOperationException();
-          }
-
-          @Override
-          public void renameTable(TableIdentifier from, TableIdentifier to) {
-            throw new UnsupportedOperationException();
-          }
-        };
+        catalogWithoutNamespaceSupport(
+            () -> new NoSuchNamespaceException("Namespace does not exist"));
     TableIdentifier tableIdentifier =
         TableIdentifier.of(Namespace.of("missing_namespace"), "myTable");
     TableMetadataCache cache =
@@ -245,6 +250,31 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageContaining("does not support namespaces")
         .hasCauseInstanceOf(NoSuchNamespaceException.class);
+  }
+
+  @Test
+  void testCatalogWithoutNamespaceSupportFailsWhateverTheLookupReported() {
+    Catalog catalog =
+        catalogWithoutNamespaceSupport(() -> new NoSuchTableException("Table does not exist"));
+    TableIdentifier tableIdentifier = TableIdentifier.of(Namespace.of("some_namespace"), "myTable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    // The first answer carries the exception of the lookup, the second one comes from the cache and
+    // carries none: both must fail the same way.
+    assertThat(cache.exists(tableIdentifier).f1).isInstanceOf(NoSuchTableException.class);
+    assertThat(cache.exists(tableIdentifier).f1).isNull();
+    assertThatThrownBy(
+            () ->
+                tableUpdater.update(
+                    tableIdentifier,
+                    SnapshotRef.MAIN_BRANCH,
+                    SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    TableCreator.DEFAULT))
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("does not support namespaces");
   }
 
   @Test

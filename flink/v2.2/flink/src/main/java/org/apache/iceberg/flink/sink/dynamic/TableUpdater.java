@@ -103,10 +103,10 @@ class TableUpdater {
             LOG.debug("Namespace {} created concurrently", identifier.namespace(), e);
           }
         }
-      } else if (exists.f1 instanceof NoSuchNamespaceException) {
+      } else {
         throw new UnsupportedOperationException(
             String.format(
-                "Cannot create the namespace of table %s: catalog %s does not support namespaces",
+                "Cannot create table %s: catalog %s does not support namespaces, so the namespace of the table cannot be created if it is missing",
                 identifier, catalog.name()),
             exists.f1);
       }
