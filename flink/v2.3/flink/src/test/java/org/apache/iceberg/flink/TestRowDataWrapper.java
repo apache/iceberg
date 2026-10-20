@@ -152,8 +152,10 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
 
     List<?> points = wrap(schema, row).get(0, List.class);
     assertThat(points).hasSize(2);
-    assertThat(((StructLike) points.get(0)).get(0, Integer.class)).isEqualTo(1);
-    assertThat(((StructLike) points.get(1)).get(0, Integer.class)).isEqualTo(2);
+    StructLike first = (StructLike) points.get(0);
+    StructLike second = (StructLike) points.get(1);
+    assertThat(first.get(0, Integer.class)).isEqualTo(1);
+    assertThat(second.get(0, Integer.class)).isEqualTo(2);
   }
 
   @Test

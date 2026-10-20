@@ -20,8 +20,13 @@ package org.apache.iceberg.flink;
 
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.Map;
+import java.util.AbstractList;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
+import java.util.RandomAccess;
+import java.util.Set;
 import java.util.function.Function;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
@@ -33,8 +38,7 @@ import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
@@ -105,11 +109,16 @@ public class RowDataWrapper implements StructLike {
       return row -> structWrapper.wrap((RowData) fieldGetter.getFieldOrNull(row));
     }
 
-    // get() returns null fields before calling a getter, so values are never null here.
     Function<Object, Object> converter = buildConverter(logicalType, type);
+    if (converter == null) {
+      return fieldGetter;
+    }
+
+    // get() returns null fields before calling a getter, so values are never null here.
     return row -> converter.apply(fieldGetter.getFieldOrNull(row));
   }
 
+  // Returns null when values are already in Iceberg's representation.
   private static Function<Object, Object> buildConverter(LogicalType logicalType, Type type) {
     return switch (logicalType.getTypeRoot()) {
       case TINYINT -> value -> ((Byte) value).intValue();
@@ -153,7 +162,7 @@ public class RowDataWrapper implements StructLike {
         ArrayData.ElementGetter elementGetter = FlinkRowData.createElementGetter(elementType);
         Function<Object, Object> elementConverter =
             buildConverter(elementType, type.asListType().elementType());
-        yield value -> toList((ArrayData) value, elementGetter, elementConverter);
+        yield value -> new ArrayDataList((ArrayData) value, elementGetter, elementConverter);
       }
       case MAP -> {
         MapType mapType = (MapType) logicalType;
@@ -165,39 +174,11 @@ public class RowDataWrapper implements StructLike {
             buildConverter(mapType.getKeyType(), icebergMapType.keyType());
         Function<Object, Object> valueConverter =
             buildConverter(mapType.getValueType(), icebergMapType.valueType());
-        yield value -> toMap((MapData) value, keyGetter, keyConverter, valueGetter, valueConverter);
+        yield value ->
+            new MapDataMap((MapData) value, keyGetter, keyConverter, valueGetter, valueConverter);
       }
-      default -> Function.identity();
+      default -> null;
     };
-  }
-
-  private static List<Object> toList(
-      ArrayData array, ArrayData.ElementGetter getter, Function<Object, Object> converter) {
-    // Copied rather than viewed because readers may reuse containers across rows.
-    List<Object> list = Lists.newArrayListWithCapacity(array.size());
-    for (int i = 0; i < array.size(); i += 1) {
-      list.add(convertElement(array, i, getter, converter));
-    }
-
-    return list;
-  }
-
-  private static Map<Object, Object> toMap(
-      MapData map,
-      ArrayData.ElementGetter keyGetter,
-      Function<Object, Object> keyConverter,
-      ArrayData.ElementGetter valueGetter,
-      Function<Object, Object> valueConverter) {
-    ArrayData keys = map.keyArray();
-    ArrayData values = map.valueArray();
-    Map<Object, Object> result = Maps.newHashMapWithExpectedSize(map.size());
-    for (int i = 0; i < map.size(); i += 1) {
-      result.put(
-          convertElement(keys, i, keyGetter, keyConverter),
-          convertElement(values, i, valueGetter, valueConverter));
-    }
-
-    return result;
   }
 
   private static Object convertElement(
@@ -205,6 +186,101 @@ public class RowDataWrapper implements StructLike {
       int pos,
       ArrayData.ElementGetter getter,
       Function<Object, Object> converter) {
-    return array.isNullAt(pos) ? null : converter.apply(getter.getElementOrNull(array, pos));
+    if (array.isNullAt(pos)) {
+      return null;
+    }
+
+    Object value = getter.getElementOrNull(array, pos);
+    return converter != null ? converter.apply(value) : value;
+  }
+
+  private static class ArrayDataList extends AbstractList<Object> implements RandomAccess {
+    private final ArrayData array;
+    private final ArrayData.ElementGetter getter;
+    private final Function<Object, Object> converter;
+
+    private ArrayDataList(
+        ArrayData array, ArrayData.ElementGetter getter, Function<Object, Object> converter) {
+      this.array = array;
+      this.getter = getter;
+      this.converter = converter;
+    }
+
+    @Override
+    public Object get(int index) {
+      Preconditions.checkElementIndex(index, array.size());
+      return convertElement(array, index, getter, converter);
+    }
+
+    @Override
+    public int size() {
+      return array.size();
+    }
+  }
+
+  private static class MapDataMap extends AbstractMap<Object, Object> {
+    private final MapData map;
+    private final ArrayData.ElementGetter keyGetter;
+    private final Function<Object, Object> keyConverter;
+    private final ArrayData.ElementGetter valueGetter;
+    private final Function<Object, Object> valueConverter;
+
+    private MapDataMap(
+        MapData map,
+        ArrayData.ElementGetter keyGetter,
+        Function<Object, Object> keyConverter,
+        ArrayData.ElementGetter valueGetter,
+        Function<Object, Object> valueConverter) {
+      this.map = map;
+      this.keyGetter = keyGetter;
+      this.keyConverter = keyConverter;
+      this.valueGetter = valueGetter;
+      this.valueConverter = valueConverter;
+    }
+
+    @Override
+    public int size() {
+      return map.size();
+    }
+
+    @Override
+    public Set<Entry<Object, Object>> entrySet() {
+      return new AbstractSet<>() {
+        @Override
+        public Iterator<Entry<Object, Object>> iterator() {
+          return new EntryIterator();
+        }
+
+        @Override
+        public int size() {
+          return map.size();
+        }
+      };
+    }
+
+    private class EntryIterator implements Iterator<Entry<Object, Object>> {
+      private final ArrayData keys = map.keyArray();
+      private final ArrayData values = map.valueArray();
+      private int pos = 0;
+
+      @Override
+      public boolean hasNext() {
+        return pos < map.size();
+      }
+
+      @Override
+      public Entry<Object, Object> next() {
+        if (!hasNext()) {
+          throw new NoSuchElementException();
+        }
+
+        Entry<Object, Object> entry =
+            new SimpleImmutableEntry<>(
+                convertElement(keys, pos, keyGetter, keyConverter),
+                convertElement(values, pos, valueGetter, valueConverter));
+        pos += 1;
+        return entry;
+      }
+    }
   }
 }
