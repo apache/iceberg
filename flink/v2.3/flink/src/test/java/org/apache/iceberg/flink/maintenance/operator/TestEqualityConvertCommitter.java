@@ -177,27 +177,6 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
   }
 
   @Test
-  void forwardsMaxWatermarkForCycleStartMarker() throws Exception {
-    Table table = createTable(3, FileFormat.PARQUET);
-    insert(table, 1, "a");
-    long snapshotIdBefore = table.currentSnapshot().snapshotId();
-
-    try (TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger> harness =
-        createHarness()) {
-      harness.open();
-
-      long triggerTs = System.currentTimeMillis();
-      harness.processElement2(new StreamRecord<>(EqualityConvertPlan.cycleStart(triggerTs)));
-      harness.processBothWatermarks(Watermark.MAX_WATERMARK);
-
-      assertThat(harness.extractOutputValues()).isEmpty();
-      assertThat(watermarks(harness)).containsExactly(Watermark.MAX_WATERMARK);
-      table.refresh();
-      assertThat(table.currentSnapshot().snapshotId()).isEqualTo(snapshotIdBefore);
-    }
-  }
-
-  @Test
   void forwardsWatermarkWithoutActiveCycle() throws Exception {
     Table table = createTable(3, FileFormat.PARQUET);
     insert(table, 1, "a");

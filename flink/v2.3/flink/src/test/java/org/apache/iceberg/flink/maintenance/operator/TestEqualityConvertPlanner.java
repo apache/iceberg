@@ -203,7 +203,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       List<StreamRecord<EqualityConvertPlan>> metadata =
           Lists.newArrayList(harness.getSideOutput(EqualityConvertPlanner.METADATA_STREAM));
       assertThat(metadata).hasSize(2);
-      assertThat(metadata.get(0).getValue().cycleStart()).isTrue();
+      assertThat(metadata.get(0).getValue().doneTimestamp()).isEqualTo(Long.MAX_VALUE);
       assertThat(metadata.get(1).getValue().dataFiles()).isEmpty();
     }
   }
@@ -282,7 +282,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       List<StreamRecord<EqualityConvertPlan>> metadata =
           Lists.newArrayList(harness.getSideOutput(EqualityConvertPlanner.METADATA_STREAM));
       assertThat(metadata).hasSize(2);
-      assertThat(metadata.get(0).getValue().cycleStart()).isTrue();
+      assertThat(metadata.get(0).getValue().doneTimestamp()).isEqualTo(Long.MAX_VALUE);
       assertThat(metadata.get(1).getValue().dataFiles()).hasSize(1);
     }
   }
@@ -408,7 +408,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       List<StreamRecord<EqualityConvertPlan>> metadata =
           Lists.newArrayList(harness.getSideOutput(EqualityConvertPlanner.METADATA_STREAM));
       assertThat(metadata).hasSize(2);
-      assertThat(metadata.get(0).getValue().cycleStart()).isTrue();
+      assertThat(metadata.get(0).getValue().doneTimestamp()).isEqualTo(Long.MAX_VALUE);
       EqualityConvertPlan result = metadata.get(1).getValue();
       assertThat(result.dataFiles()).isEmpty();
       assertThat(result.stagingDVFiles()).hasSize(1);

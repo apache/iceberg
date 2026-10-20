@@ -165,16 +165,6 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
       return;
     }
 
-    if (planResult.cycleStart()) {
-      // The marker's done timestamp is maximal, so only an end-of-input watermark reaches here
-      // before the plan replaces the marker. Forward that watermark and drop the marker; there is
-      // nothing to commit.
-      bufferedResults.clear();
-      planResult = null;
-      super.processWatermark(mark);
-      return;
-    }
-
     try {
       commitIfNeeded();
     } catch (Exception e) {

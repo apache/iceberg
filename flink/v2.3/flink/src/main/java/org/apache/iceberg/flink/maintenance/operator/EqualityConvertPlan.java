@@ -34,9 +34,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
  * #NO_OP_STAGING_SNAPSHOT_ID}. Use {@link #noOp(Long, long, long)} to construct one and {@link
  * #noOp()} to check.
  *
- * <p>A cycle-start marker is encoded by {@link #stagingSnapshotId()} == {@link
- * #CYCLE_START_STAGING_SNAPSHOT_ID}. Use {@link #cycleStart(long)} to construct one and {@link
- * #cycleStart()} to check. It is never a plan: consumers must not treat it as one.
+ * <p>A cycle-start marker is a no-op plan whose done timestamp is never reached. Use {@link
+ * #cycleStart(long)} to construct one.
  *
  * @param dataFiles new staging data files committed in the cycle
  * @param stagingDVFiles staging DVs passed through to main, used by DVWriter to merge with
@@ -64,16 +63,10 @@ public record EqualityConvertPlan(
     implements Serializable {
 
   public static final long NO_OP_STAGING_SNAPSHOT_ID = -1L;
-  public static final long CYCLE_START_STAGING_SNAPSHOT_ID = -2L;
 
   /** Returns {@code true} if this cycle has nothing to commit. */
   public boolean noOp() {
     return stagingSnapshotId == NO_OP_STAGING_SNAPSHOT_ID;
-  }
-
-  /** Returns {@code true} if this is a cycle-start marker rather than a plan. */
-  public boolean cycleStart() {
-    return stagingSnapshotId == CYCLE_START_STAGING_SNAPSHOT_ID;
   }
 
   /** No-op cycle: empty file lists, sentinel staging snapshot id. */
@@ -90,17 +83,10 @@ public record EqualityConvertPlan(
   }
 
   /**
-   * Cycle-start marker. The done timestamp is maximal so no watermark can act on it if a consumer
-   * fails to filter it out.
+   * Cycle-start marker: a no-op plan whose done timestamp is never reached, so consumers hold it
+   * until the cycle's actual plan replaces it.
    */
   public static EqualityConvertPlan cycleStart(long triggerTimestamp) {
-    return new EqualityConvertPlan(
-        ImmutableList.of(),
-        ImmutableList.of(),
-        ImmutableList.of(),
-        CYCLE_START_STAGING_SNAPSHOT_ID,
-        null,
-        triggerTimestamp,
-        Long.MAX_VALUE);
+    return noOp(null, triggerTimestamp, Long.MAX_VALUE);
   }
 }
