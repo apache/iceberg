@@ -1073,7 +1073,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
-  void metadataRefreshMaxRetries() {
+  public void testMetadataRefreshMaxRetries() {
     try (JdbcCatalog jdbcCatalog =
         initCatalog(
             "test_jdbc_catalog_refresh_retries",
@@ -1097,7 +1097,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
-  void invalidMetadataRefreshMaxRetries() {
+  public void testInvalidMetadataRefreshMaxRetries() {
     assertThatThrownBy(
             () ->
                 initCatalog(

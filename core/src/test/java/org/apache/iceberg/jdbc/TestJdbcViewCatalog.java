@@ -105,7 +105,7 @@ public class TestJdbcViewCatalog extends ViewCatalogTests<JdbcCatalog> {
   }
 
   @Test
-  void metadataRefreshMaxRetries() {
+  public void testMetadataRefreshMaxRetries() {
     try (JdbcCatalog jdbcCatalog =
         initCatalog(ImmutableMap.of(JdbcUtil.METADATA_REFRESH_MAX_RETRIES_PROPERTY, "0"))) {
       TableIdentifier identifier = TableIdentifier.of("namespace1", "view");
