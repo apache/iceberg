@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 import org.apache.iceberg.ChangelogOperation;
@@ -52,6 +53,9 @@ import scala.Function1;
 public class TestChangelogIterator extends SparkTestHelperBase {
 
   private static final DataType BINARY_ARRAY = DataTypes.createArrayType(DataTypes.BinaryType);
+  private static final float FLOAT_NAN_WITH_PAYLOAD = Float.intBitsToFloat(0x7fc00001);
+  private static final double DOUBLE_NAN_WITH_PAYLOAD =
+      Double.longBitsToDouble(0x7ff8000000000001L);
   private static final String DELETE = ChangelogOperation.DELETE.name();
   private static final String INSERT = ChangelogOperation.INSERT.name();
   private static final String UPDATE_BEFORE = ChangelogOperation.UPDATE_BEFORE.name();
@@ -349,31 +353,83 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             row(BINARY_ARRAY, List.of(new byte[] {2}, new byte[] {1}), INSERT, 0)));
   }
 
-  @Test
-  void removeCarryoversWithSignedZerosInArrays() {
-    DataType type = DataTypes.createArrayType(DataTypes.DoubleType);
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("signedZeros")
+  void retainChangesWithDifferentSignedZeros(
+      DataType type, Object before, Object after, boolean unsafe) {
+    List<InternalRow> rows =
+        List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe));
+
+    assertRows(type, ChangelogIterator.removeCarryovers(rows.iterator(), schema(type)), rows);
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("signedZeros")
+  void retainNetChangesWithDifferentSignedZeros(
+      DataType type, Object before, Object after, boolean unsafe) {
+    List<InternalRow> rows =
+        List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 1, unsafe));
+
+    assertRows(type, ChangelogIterator.removeNetCarryovers(rows.iterator(), schema(type)), rows);
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("signedZeros")
+  void computeUpdatesWithDifferentSignedZeros(
+      DataType type, Object before, Object after, boolean unsafe) {
+    List<InternalRow> rows =
+        List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe));
+    Iterator<InternalRow> changes =
+        ChangelogIterator.computeUpdates(rows.iterator(), schema(type), new String[] {"id"});
+
+    assertThat(Lists.newArrayList(Iterators.transform(changes, InternalRow::copy)))
+        .containsExactly(row(type, before, UPDATE_BEFORE, 0), row(type, after, UPDATE_AFTER, 0));
+  }
+
+  @ParameterizedTest(name = "{0}: {1} -> {2}")
+  @MethodSource("nanValues")
+  void removeCarryoversWithNaN(DataType type, Object before, Object after, boolean unsafe) {
     assertRemoved(
-        type, List.of(row(type, List.of(-0.0), DELETE, 0), row(type, List.of(0.0), INSERT, 0)));
+        type, List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe)));
+  }
+
+  @ParameterizedTest(name = "{0}: {1} -> {2}")
+  @MethodSource("nanChanges")
+  void retainChangesFromNaNToNonNaN(DataType type, Object before, Object after, boolean unsafe) {
+    assertRetained(
+        type, List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("sameSignedZeros")
+  void removeCarryoversWithSameSignedZeros(
+      DataType type, Object before, Object after, boolean unsafe) {
+    assertRemoved(
+        type, List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe)));
   }
 
   @Test
-  void removeCarryoversWithSignedZerosInStructs() {
-    StructType type =
-        new StructType().add("binary", DataTypes.BinaryType).add("number", DataTypes.DoubleType);
-    assertRemoved(
+  void removeCarryoversWithReorderedSignedZeroMapKeys() {
+    DataType type = DataTypes.createMapType(DataTypes.DoubleType, DataTypes.StringType);
+    Map<Double, String> before = new LinkedHashMap<>();
+    before.put(-0.0D, "negative");
+    before.put(0.0D, "positive");
+    Map<Double, String> after = new LinkedHashMap<>();
+    after.put(0.0D, "positive");
+    after.put(-0.0D, "negative");
+    assertRemoved(type, List.of(row(type, before, DELETE, 0), row(type, after, INSERT, 0)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("signedZeros")
+  void distinguishSignedZeroIdentifiers(
+      DataType type, Object before, Object after, boolean unsafe) {
+    List<InternalRow> rows =
+        List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe));
+    assertRows(
         type,
-        List.of(
-            row(type, RowFactory.create(new byte[] {1}, -0.0), DELETE, 0),
-            row(type, RowFactory.create(new byte[] {1}, 0.0), INSERT, 0)));
-  }
-
-  @Test
-  void removeCarryoversWithNaN() {
-    assertRemoved(
-        DataTypes.DoubleType,
-        List.of(
-            row(DataTypes.DoubleType, Double.NaN, DELETE, 0),
-            row(DataTypes.DoubleType, Double.NaN, INSERT, 0)));
+        ChangelogIterator.computeUpdates(rows.iterator(), schema(type), new String[] {"value"}),
+        rows);
   }
 
   @Test
@@ -472,6 +528,44 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   static Stream<Arguments> reuseModes() {
     return Stream.of("carryovers", "net", "updates")
         .flatMap(mode -> Stream.of(Arguments.of(mode, false), Arguments.of(mode, true)));
+  }
+
+  static Stream<Arguments> signedZeros() {
+    return Stream.of(
+            floatingPointValues(DataTypes.FloatType, -0.0F, 0.0F),
+            floatingPointValues(DataTypes.FloatType, 0.0F, -0.0F),
+            floatingPointValues(DataTypes.DoubleType, -0.0D, 0.0D),
+            floatingPointValues(DataTypes.DoubleType, 0.0D, -0.0D))
+        .flatMap(Function.identity());
+  }
+
+  static Stream<Arguments> sameSignedZeros() {
+    return Stream.of(
+            floatingPointValues(DataTypes.FloatType, -0.0F, -0.0F),
+            floatingPointValues(DataTypes.FloatType, 0.0F, 0.0F),
+            floatingPointValues(DataTypes.DoubleType, -0.0D, -0.0D),
+            floatingPointValues(DataTypes.DoubleType, 0.0D, 0.0D))
+        .flatMap(Function.identity());
+  }
+
+  static Stream<Arguments> nanValues() {
+    return Stream.of(
+            floatingPointValues(DataTypes.FloatType, Float.NaN, Float.NaN),
+            floatingPointValues(DataTypes.FloatType, Float.NaN, FLOAT_NAN_WITH_PAYLOAD),
+            floatingPointValues(DataTypes.FloatType, Float.NaN, -FLOAT_NAN_WITH_PAYLOAD),
+            floatingPointValues(DataTypes.DoubleType, Double.NaN, Double.NaN),
+            floatingPointValues(DataTypes.DoubleType, Double.NaN, DOUBLE_NAN_WITH_PAYLOAD),
+            floatingPointValues(DataTypes.DoubleType, Double.NaN, -DOUBLE_NAN_WITH_PAYLOAD))
+        .flatMap(Function.identity());
+  }
+
+  static Stream<Arguments> nanChanges() {
+    return Stream.of(
+            floatingPointValues(DataTypes.FloatType, Float.NaN, 0.0F),
+            floatingPointValues(DataTypes.FloatType, Float.NaN, Float.POSITIVE_INFINITY),
+            floatingPointValues(DataTypes.DoubleType, Double.NaN, 0.0D),
+            floatingPointValues(DataTypes.DoubleType, Double.NaN, Double.POSITIVE_INFINITY))
+        .flatMap(Function.identity());
   }
 
   static Stream<Arguments> values() {
@@ -583,12 +677,15 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   }
 
   private static void assertRetained(DataType type, List<InternalRow> rows) {
-    assertThat(ChangelogIterator.removeCarryovers(rows.iterator(), schema(type)))
-        .toIterable()
-        .containsExactlyElementsOf(rows);
-    assertThat(ChangelogIterator.removeNetCarryovers(rows.iterator(), schema(type)))
-        .toIterable()
-        .containsExactlyElementsOf(rows);
+    assertRows(type, ChangelogIterator.removeCarryovers(rows.iterator(), schema(type)), rows);
+    assertRows(type, ChangelogIterator.removeNetCarryovers(rows.iterator(), schema(type)), rows);
+  }
+
+  private static void assertRows(
+      DataType type, Iterator<InternalRow> actual, List<InternalRow> expected) {
+    UnsafeProjection projection = UnsafeProjection.create(schema(type));
+    assertThat(Lists.newArrayList(Iterators.transform(actual, row -> projection.apply(row).copy())))
+        .containsExactlyElementsOf(Lists.transform(expected, row -> projection.apply(row).copy()));
   }
 
   private static StructType schema(DataType type) {
@@ -605,6 +702,15 @@ public class TestChangelogIterator extends SparkTestHelperBase {
         schema(type), RowFactory.create(1, value, operation, ordinal, (long) ordinal));
   }
 
+  private static InternalRow row(
+      DataType type, Object value, String operation, int ordinal, boolean unsafe) {
+    Row external = RowFactory.create(1, value, operation, ordinal, (long) ordinal);
+    return unsafe
+        ? internalRow(schema(type), external)
+        : (InternalRow)
+            CatalystTypeConverters.createToCatalystConverter(schema(type)).apply(external);
+  }
+
   private static InternalRow row(Object... values) {
     return internalRow(SCHEMA, RowFactory.create(values));
   }
@@ -618,5 +724,33 @@ public class TestChangelogIterator extends SparkTestHelperBase {
 
   private List<Object[]> internalRowsToJava(List<InternalRow> rows) {
     return rowsToJava(Lists.transform(rows, row -> (Row) TO_SCALA.apply(row)));
+  }
+
+  private static Stream<Arguments> floatingPointValues(DataType type, Object before, Object after) {
+    StructType struct = new StructType().add("number", type);
+    return Stream.of(
+            Arguments.of(type, before, after),
+            Arguments.of(
+                DataTypes.createArrayType(type),
+                Arrays.asList(before, null),
+                Arrays.asList(after, null)),
+            Arguments.of(struct, RowFactory.create(before), RowFactory.create(after)),
+            Arguments.of(
+                DataTypes.createMapType(DataTypes.StringType, type),
+                Map.of("key", before),
+                Map.of("key", after)),
+            Arguments.of(
+                DataTypes.createMapType(type, DataTypes.StringType),
+                Map.of(before, "value"),
+                Map.of(after, "value")),
+            Arguments.of(
+                DataTypes.createArrayType(struct),
+                Arrays.asList(RowFactory.create(before), null),
+                Arrays.asList(RowFactory.create(after), null)))
+        .flatMap(
+            args ->
+                Stream.of(
+                    Arguments.of(args.get()[0], args.get()[1], args.get()[2], false),
+                    Arguments.of(args.get()[0], args.get()[1], args.get()[2], true)));
   }
 }

@@ -29,20 +29,15 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.catalyst.expressions.Ascending$;
 import org.apache.spark.sql.catalyst.expressions.BaseOrdering;
 import org.apache.spark.sql.catalyst.expressions.BoundReference;
 import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.Literal;
-import org.apache.spark.sql.catalyst.expressions.NullsFirst$;
-import org.apache.spark.sql.catalyst.expressions.RowOrdering;
-import org.apache.spark.sql.catalyst.expressions.SortOrder;
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
-import org.apache.spark.sql.catalyst.optimizer.InsertMapSortExpression;
+import org.apache.spark.sql.catalyst.optimizer.ChangelogValueUtil;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
-import scala.collection.immutable.Seq;
 import scala.jdk.javaapi.CollectionConverters;
 
 /**
@@ -130,31 +125,9 @@ public abstract class ChangelogIterator implements Iterator<InternalRow> {
     return Iterators.filter(changelogIterator, Objects::nonNull);
   }
 
-  private BoundReference boundReference(int index) {
-    return new BoundReference(index, rowType.fields()[index].dataType(), true);
-  }
-
-  private static <T> Seq<T> emptySeq() {
-    return CollectionConverters.asScala(List.<T>of()).toSeq();
-  }
-
-  /**
-   * Builds an ordering over the given column indices. Two rows are the same record when the
-   * ordering compares them as equal, which applies Spark's own semantics for nested values,
-   * including normalizing map entry order.
-   */
+  /** Builds a record ordering that distinguishes signed zeros and treats NaNs as equal. */
   protected BaseOrdering createOrdering(int[] indices) {
-    List<SortOrder> sortOrders = Lists.newArrayListWithCapacity(indices.length);
-    for (int index : indices) {
-      sortOrders.add(
-          new SortOrder(
-              InsertMapSortExpression.insertMapSortRecursively(boundReference(index)),
-              Ascending$.MODULE$,
-              NullsFirst$.MODULE$,
-              emptySeq()));
-    }
-
-    return RowOrdering.create(CollectionConverters.asScala(sortOrders).toSeq(), emptySeq());
+    return ChangelogValueUtil.createOrdering(rowType, indices);
   }
 
   /**
@@ -178,5 +151,9 @@ public abstract class ChangelogIterator implements Iterator<InternalRow> {
     return IntStream.range(0, totalColumnCount)
         .filter(index -> !metadataColumnIndices.contains(index))
         .toArray();
+  }
+
+  private BoundReference boundReference(int index) {
+    return new BoundReference(index, rowType.fields()[index].dataType(), true);
   }
 }
