@@ -1020,7 +1020,7 @@ For `variant`, both bounds are unshredded `variant` that store variant field bou
 
 Statistics are _tight_ when the bounds, `null_value_count`, and `nan_value_count` are exact for the live rows of a file:
 
-* `lower_bound` and `upper_bound` for fixed-width types are equal to the minimum and maximum of the live values.
+* `lower_bound` and `upper_bound` for fixed-length types are equal to the minimum and maximum of the live values.
 * `null_value_count` and `nan_value_count` are the counts across the live rows.
 
 Bounds for `string` and `binary` are never tight because they may be truncated when written. Bounds for `geometry` and `geography` are a bounding box, not exact minimum and maximum values.
@@ -1029,7 +1029,7 @@ Bounds for `string` and `binary` are never tight because they may be truncated w
 
 Statistics other than the bounds, `null_value_count`, and `nan_value_count` are not part of tightness. In particular, `value_count` is the number of values across all rows written to the file and is not adjusted when rows are deleted; for a field with no repeated (`list` or `map`) ancestor, the live value count is `value_count` minus the deletion vector's cardinality.
 
-When `tight_stats` is absent, readers must assume stats are not tight. A deletion vector does not by itself make a file's stats non-tight; `tight_stats` is the only indicator of tightness. Stats may be recomputed to restore tightness without rewriting the data file.
+When `tight_stats` is absent, readers must assume stats are not tight; `tight_stats` is the only indicator of tightness. Stats may be recomputed to restore tightness without rewriting the data file.
 
 ###### Content Stats in Manifests
 
