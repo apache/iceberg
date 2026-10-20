@@ -55,6 +55,7 @@ class TestRewriteDataFilesCommitManager extends TestBase {
     int numGroups = 8;
     table
         .updateProperties()
+        // fail on the first conflict instead of hiding it behind a retry
         .set(TableProperties.COMMIT_NUM_RETRIES, "0")
         // test tables otherwise assign sequential snapshot IDs, and a reused ID drops a commit
         .set("random-snapshot-ids", "true")
@@ -97,42 +98,23 @@ class TestRewriteDataFilesCommitManager extends TestBase {
     }
 
     assertThat(table.snapshots()).hasSize(numGroups + 1);
-    Set<String> referencedFiles = Sets.newHashSet();
-    for (Snapshot snapshot : table.snapshots()) {
-      referencedFiles.add(new File(snapshot.manifestListLocation()).getName());
-      for (ManifestFile manifest : snapshot.allManifests(table.io())) {
-        referencedFiles.add(new File(manifest.path()).getName());
-      }
-    }
-
-    assertThat(metadataFiles("")).containsExactlyInAnyOrderElementsOf(referencedFiles);
-  }
-
-  @TestTemplate
-  void commitRemovesUnusedManifestLists() throws IOException {
-    table.newAppend().appendFile(FILE_A).commit();
-    RewriteDataFilesCommitManager commitManager = new RewriteDataFilesCommitManager(table);
-
-    commitManager.commitFileGroups(Set.of(group(planFiles(), FILE_C)));
-
-    assertThat(table.snapshots()).hasSize(2);
-    assertThat(metadataFiles("snap-")).hasSize(2);
+    assertThat(metadataFiles()).containsExactlyInAnyOrderElementsOf(referencedMetadataFiles());
   }
 
   @TestTemplate
   void failedCommitRemovesWrittenManifests() throws IOException {
-    table.newAppend().appendFile(FILE_A).commit();
-    table.newAppend().appendFile(FILE_B).commit();
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     RewriteDataFilesCommitManager commitManager = new RewriteDataFilesCommitManager(table);
     RewriteFileGroup group = group(planFiles(), FILE_C);
     table.newDelete().deleteFile(FILE_B).commit();
-    List<String> metadataFilesBeforeCommit = metadataFiles("");
+    List<String> metadataFilesBeforeCommit = metadataFiles();
 
+    // apply() rewrites the manifest holding FILE_A before the missing FILE_B fails validation
     assertThatThrownBy(() -> commitManager.commitFileGroups(Set.of(group)))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Missing required files to delete");
 
-    assertThat(metadataFiles("")).containsExactlyInAnyOrderElementsOf(metadataFilesBeforeCommit);
+    assertThat(metadataFiles()).containsExactlyInAnyOrderElementsOf(metadataFilesBeforeCommit);
   }
 
   private List<FileScanTask> planFiles() throws IOException {
@@ -162,10 +144,19 @@ class TestRewriteDataFilesCommitManager extends TestBase {
     return DataFiles.builder(SPEC).copy(file).withPath(path).build();
   }
 
-  private List<String> metadataFiles(String prefix) {
-    return Arrays.stream(metadataDir.listFiles())
-        .map(File::getName)
-        .filter(name -> name.startsWith(prefix))
-        .toList();
+  private List<String> metadataFiles() {
+    return Arrays.stream(metadataDir.listFiles()).map(File::getName).toList();
+  }
+
+  private Set<String> referencedMetadataFiles() {
+    Set<String> referencedFiles = Sets.newHashSet();
+    for (Snapshot snapshot : table.snapshots()) {
+      referencedFiles.add(new File(snapshot.manifestListLocation()).getName());
+      for (ManifestFile manifest : snapshot.allManifests(table.io())) {
+        referencedFiles.add(new File(manifest.path()).getName());
+      }
+    }
+
+    return referencedFiles;
   }
 }

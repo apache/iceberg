@@ -110,9 +110,9 @@ public class RewriteDataFilesCommitManager {
       rewrite.toBranch(branch);
     }
 
-    // Concurrent commits through this manager would conflict with each other, so run them one at a
-    // time. Manifests are written first so that work stays concurrent: commit() reuses them, or
-    // applies again and cleans up if apply() failed.
+    // Commits through this manager conflict with each other, so they are serialized. Calling
+    // apply() first writes manifests outside the lock for commit() to reuse. A failure is left to
+    // commit(), which applies again and either succeeds or fails and cleans up.
     try {
       rewrite.apply();
     } catch (RuntimeException e) {
