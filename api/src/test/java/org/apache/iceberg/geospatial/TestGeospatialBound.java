@@ -118,6 +118,7 @@ public class TestGeospatialBound {
     GeospatialBound bound = GeospatialBound.createXY(1.0, 2.0);
     bound.set(0, 9.0);
     bound.set(1, 8.0);
+    // An XY bound still accepts z and m; set does not lock the dimensions it was created with.
     bound.set(2, 7.0);
     bound.set(3, 6.0);
     assertThat(bound.get(0, Double.class)).isEqualTo(9.0);

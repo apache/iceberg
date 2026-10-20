@@ -3823,6 +3823,7 @@ components:
         - $ref: '#/components/schemas/AssertViewUUID'
 
     AssertViewUUID:
+      type: object
       description: The view UUID must match the requirement's `uuid`
       required:
         - type

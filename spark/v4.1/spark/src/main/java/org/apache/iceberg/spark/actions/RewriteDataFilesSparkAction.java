@@ -487,7 +487,9 @@ public class RewriteDataFilesSparkAction
   private RewriteDataFiles.Result executeRemoveDanglingDeletes(
       ImmutableRewriteDataFiles.Result rewriteResult) {
     RemoveDanglingDeletesSparkAction.Result result =
-        new RemoveDanglingDeletesSparkAction(spark(), table).toBranch(branch).execute();
+        new RemoveDanglingDeletesSparkAction(spark(), table, commitSummary())
+            .toBranch(branch)
+            .execute();
     return rewriteResult.withRemovedDeleteFilesCount(
         rewriteResult.removedDeleteFilesCount() + Iterables.size(result.removedDeleteFiles()));
   }
