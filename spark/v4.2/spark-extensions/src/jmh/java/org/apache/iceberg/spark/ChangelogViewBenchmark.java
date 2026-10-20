@@ -59,6 +59,9 @@ public class ChangelogViewBenchmark {
   @Param({"1", "20"})
   private int payloadColumns;
 
+  @Param("string")
+  private String payloadType;
+
   @Param({"carryovers", "updates", "net"})
   private String operation;
 
@@ -71,6 +74,9 @@ public class ChangelogViewBenchmark {
   public void before() throws Exception {
     Preconditions.checkArgument(
         rowCount % REVERT_INTERVAL == 0, "Row count must be divisible by 20");
+    Preconditions.checkArgument(
+        !payloadType.equals("map") || operation.equals("updates"),
+        "Map payloads require the updates operation");
     this.warehouse = Files.createTempDirectory("changelog-benchmark-").toUri();
     this.spark =
         SparkSession.builder()
@@ -154,11 +160,17 @@ public class ChangelogViewBenchmark {
   private String inputQuery(String revision) {
     StringBuilder query = new StringBuilder("SELECT id, ").append(revision).append(" AS revision");
     for (int index = 0; index < payloadColumns; index++) {
-      query
-          .append(", sha2(concat(cast(id AS STRING), '")
-          .append(index)
-          .append("'), 256) AS payload_")
-          .append(index);
+      String value = "IF(id % 3 = 0, -0.0D, IF(id % 3 = 1, 0.0D, cast('NaN' AS DOUBLE)))";
+      String payload =
+          switch (payloadType) {
+            case "string" -> "sha2(concat(cast(id AS STRING), '" + index + "'), 256)";
+            case "double" -> value;
+            case "array" ->
+                "array(" + value + ", cast(id AS DOUBLE), cast(null AS DOUBLE), " + value + ")";
+            case "map" -> "map('a', IF(id % 2 = 0, -0.0D, 0.0D), 'b', cast(id AS DOUBLE))";
+            default -> throw new IllegalArgumentException("Unknown payload type: " + payloadType);
+          };
+      query.append(", ").append(payload).append(" AS payload_").append(index);
     }
 
     return query.append(" FROM range(0, ").append(rowCount).append(", 1, 4)").toString();

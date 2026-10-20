@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.procedures;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -40,12 +41,17 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.OrderUtils;
+import org.apache.spark.sql.catalyst.optimizer.ChangelogValueUtil;
+import org.apache.spark.sql.classic.ExpressionColumnNode;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.procedures.BoundProcedure;
 import org.apache.spark.sql.connector.catalog.procedures.ProcedureParameter;
 import org.apache.spark.sql.connector.read.Scan;
+import org.apache.spark.sql.functions;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -180,6 +186,16 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return asScanIterator(OUTPUT_TYPE, toOutputRows(viewName));
   }
 
+  @Override
+  public String name() {
+    return NAME;
+  }
+
+  @Override
+  public String description() {
+    return "CreateChangelogViewProcedure";
+  }
+
   private Dataset<Row> computeUpdateImages(String[] identifierColumns, Dataset<Row> df) {
     Preconditions.checkArgument(
         identifierColumns.length > 0,
@@ -256,7 +272,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return applyIterator(
         df,
         repartitionSpec,
-        sortSpec(df, repartitionSpec, false),
+        false,
         rows -> ChangelogIterator.computeUpdates(rows, schema, identifierFields));
   }
 
@@ -266,7 +282,7 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return applyIterator(
         df,
         repartitionSpec,
-        sortSpec(df, repartitionSpec, netChanges),
+        netChanges,
         rows ->
             netChanges
                 ? ChangelogIterator.removeNetCarryovers(rows, schema)
@@ -281,16 +297,65 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   private Dataset<Row> applyIterator(
       Dataset<Row> df,
       Column[] repartitionSpec,
-      Column[] sortSpec,
+      boolean netChanges,
       FlatMapFunction<Iterator<InternalRow>, InternalRow> transform) {
+    Dataset<Row> sorted =
+        ChangelogValueUtil.containsFloatingPoint(df.schema())
+            ? repartitionAndSort(df, repartitionSpec, netChanges)
+            : df.repartition(repartitionSpec)
+                .sortWithinPartitions(sortSpec(df, repartitionSpec, netChanges));
     JavaRDD<InternalRow> changes =
-        df.repartition(repartitionSpec)
-            .sortWithinPartitions(sortSpec)
-            .queryExecution()
-            .toRdd()
-            .toJavaRDD()
-            .mapPartitions(transform);
+        sorted.queryExecution().toRdd().toJavaRDD().mapPartitions(transform);
     return spark().internalCreateDataFrame(changes.rdd(), df.schema(), false /* isStreaming */);
+  }
+
+  private Dataset<Row> repartitionAndSort(
+      Dataset<Row> df, Column[] repartitionSpec, boolean netChanges) {
+    Column[] partitionKeys = new Column[repartitionSpec.length];
+    Column[] sortKeys = new Column[repartitionSpec.length];
+    Column[] originalColumns =
+        Arrays.stream(df.columns())
+            .map(CreateChangelogViewProcedure::delimitedName)
+            .map(df::col)
+            .toArray(Column[]::new);
+    List<Column> projection = Lists.newArrayList(originalColumns);
+    Set<String> names =
+        Arrays.stream(df.columns())
+            .map(name -> name.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toSet());
+    for (int index = 0; index < repartitionSpec.length; index++) {
+      Expression expression =
+          df.select(repartitionSpec[index]).queryExecution().analyzed().output().apply(0);
+      DataType type = expression.dataType();
+      if (ChangelogValueUtil.containsFloatingPoint(type)) {
+        Column key =
+            new Column(ExpressionColumnNode.apply(ChangelogValueUtil.canonicalize(expression)));
+        partitionKeys[index] = key;
+        if (type.equals(DataTypes.FloatType) || type.equals(DataTypes.DoubleType)) {
+          sortKeys[index] = key;
+        } else {
+          String name = "__changelog_key_" + index;
+          while (!names.add(name.toLowerCase(Locale.ROOT))) {
+            name += "_";
+          }
+          projection.add(key.as(name));
+          sortKeys[index] = functions.col(name);
+        }
+      } else {
+        partitionKeys[index] = repartitionSpec[index];
+        sortKeys[index] = repartitionSpec[index];
+      }
+    }
+
+    Dataset<Row> partitioned = df.repartition(partitionKeys);
+    if (projection.size() > originalColumns.length) {
+      partitioned = partitioned.select(projection.toArray(new Column[0]));
+    }
+    Dataset<Row> sorted = partitioned.sortWithinPartitions(sortSpec(df, sortKeys, netChanges));
+    if (projection.size() > originalColumns.length) {
+      sorted = sorted.select(originalColumns);
+    }
+    return sorted;
   }
 
   /**
@@ -328,15 +393,5 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
   private InternalRow[] toOutputRows(String viewName) {
     InternalRow row = newInternalRow(UTF8String.fromString(viewName));
     return new InternalRow[] {row};
-  }
-
-  @Override
-  public String name() {
-    return NAME;
-  }
-
-  @Override
-  public String description() {
-    return "CreateChangelogViewProcedure";
   }
 }

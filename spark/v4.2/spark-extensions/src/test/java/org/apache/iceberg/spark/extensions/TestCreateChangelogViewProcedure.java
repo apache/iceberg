@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -50,32 +51,6 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
   public void createTableWithTwoColumns() {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
     sql("ALTER TABLE %s ADD PARTITION FIELD data", tableName);
-  }
-
-  private void createTableWithThreeColumns() {
-    sql("CREATE TABLE %s (id INT, data STRING, age INT) USING iceberg", tableName);
-    sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
-  }
-
-  /** The initial and updated values must encode 0x01 and 0x02 respectively. */
-  private void assertBinaryNetChanges(String initial, String updated, String projection) {
-    sql("INSERT INTO %s VALUES (1, %s), (2, %s)", tableName, initial, initial);
-    sql("INSERT OVERWRITE %s VALUES (1, %s), (2, %s)", tableName, updated, initial);
-
-    List<Object[]> result =
-        sql(
-            "CALL %s.system.create_changelog_view(table => '%s', net_changes => true)",
-            catalogName, tableName);
-    String viewName = (String) result.get(0)[0];
-    assertEquals(
-        "Net changes should contain only the final rows",
-        ImmutableList.of(row(1, "02", INSERT), row(2, "01", INSERT)),
-        sql("SELECT id, %s, _change_type FROM %s ORDER BY id", projection, viewName));
-  }
-
-  private void createTableWithIdentifierField() {
-    sql("CREATE TABLE %s (id INT NOT NULL, data STRING) USING iceberg", tableName);
-    sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
   }
 
   @TestTemplate
@@ -743,5 +718,152 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Identifier field is required as table contains unorderable columns: [data]");
+  }
+
+  @TestTemplate
+  void preserveSignedZeroChanges() {
+    sql("CREATE TABLE %s (id INT, f FLOAT, d DOUBLE) USING iceberg", tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, 0.0F, -0.0D), (2, -0.0F, -0.0D), (3, 0.0F, 0.0D), (4, null, null), (5, cast('NaN' as float), cast('NaN' as double))",
+        tableName);
+    long startSnapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql(
+        "INSERT OVERWRITE %s VALUES (1, -0.0F, 0.0D), (2, -0.0F, -0.0D), (3, 0.0F, 0.0D), (4, null, null), (5, cast('NaN' as float), cast('NaN' as double))",
+        tableName);
+
+    assertSignedZeroChanges(startSnapshotId, "f, d", List.of("carryovers", "updates", "net"));
+  }
+
+  @TestTemplate
+  void preserveNestedSignedZeroChanges() {
+    sql(
+        "CREATE TABLE %s (id INT, data ARRAY<STRUCT<f:FLOAT,d:DOUBLE>>, __changelog_key_1 INT) USING iceberg",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, array(named_struct('f', 0.0F, 'd', -0.0D), null), 7), (2, null, 7), (3, array(null), 7)",
+        tableName);
+    long startSnapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql(
+        "INSERT OVERWRITE %s VALUES (1, array(named_struct('f', -0.0F, 'd', 0.0D), null), 7), (2, null, 7), (3, array(null), 7)",
+        tableName);
+
+    assertSignedZeroChanges(
+        startSnapshotId, "data[0].f, data[0].d", List.of("carryovers", "updates", "net"));
+  }
+
+  @TestTemplate
+  void preserveSignedZeroChangesInMaps() {
+    sql(
+        "CREATE TABLE %s (id INT, data MAP<STRING,STRUCT<f:FLOAT,d:DOUBLE>>) USING iceberg",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, map('a', named_struct('f', 0.0F, 'd', -0.0D))), (2, map('a', named_struct('f', -0.0F, 'd', -0.0D), 'b', null))",
+        tableName);
+    long startSnapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql(
+        "INSERT OVERWRITE %s VALUES (1, map('a', named_struct('f', -0.0F, 'd', 0.0D))), (2, map('b', null, 'a', named_struct('f', -0.0F, 'd', -0.0D)))",
+        tableName);
+
+    assertSignedZeroChanges(startSnapshotId, "data['a'].f, data['a'].d", List.of("updates"));
+  }
+
+  @TestTemplate
+  void removeMixedSignedZeroCarryovers() {
+    sql("CREATE TABLE %s (data ARRAY<DOUBLE>) USING iceberg", tableName);
+    sql(
+        "INSERT INTO %s VALUES (array(0.0D)), (array(-0.0D)), (array(0.0D)), (array(-0.0D))",
+        tableName);
+    long startSnapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql(
+        "INSERT OVERWRITE %s VALUES (array(-0.0D)), (array(0.0D)), (array(-0.0D)), (array(0.0D))",
+        tableName);
+
+    for (boolean adaptive : List.of(false, true)) {
+      withSQLConf(
+          Map.of(
+              "spark.sql.shuffle.partitions",
+              "1",
+              "spark.sql.adaptive.enabled",
+              Boolean.toString(adaptive)),
+          () -> {
+            for (String mode : List.of("carryovers", "net")) {
+              String view = createFloatingPointChangelog(startSnapshotId, mode);
+              assertThat(sql("SELECT * FROM %s", view)).isEmpty();
+            }
+          });
+    }
+  }
+
+  private void createTableWithThreeColumns() {
+    sql("CREATE TABLE %s (id INT, data STRING, age INT) USING iceberg", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD id", tableName);
+  }
+
+  /** The initial and updated values must encode 0x01 and 0x02 respectively. */
+  private void assertBinaryNetChanges(String initial, String updated, String projection) {
+    sql("INSERT INTO %s VALUES (1, %s), (2, %s)", tableName, initial, initial);
+    sql("INSERT OVERWRITE %s VALUES (1, %s), (2, %s)", tableName, updated, initial);
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.create_changelog_view(table => '%s', net_changes => true)",
+            catalogName, tableName);
+    String viewName = (String) result.get(0)[0];
+    assertEquals(
+        "Net changes should contain only the final rows",
+        ImmutableList.of(row(1, "02", INSERT), row(2, "01", INSERT)),
+        sql("SELECT id, %s, _change_type FROM %s ORDER BY id", projection, viewName));
+  }
+
+  private void createTableWithIdentifierField() {
+    sql("CREATE TABLE %s (id INT NOT NULL, data STRING) USING iceberg", tableName);
+    sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
+  }
+
+  private void assertSignedZeroChanges(
+      long startSnapshotId, String projection, List<String> modes) {
+    for (boolean adaptive : List.of(false, true)) {
+      withSQLConf(
+          Map.of(
+              "spark.sql.shuffle.partitions",
+              "1",
+              "spark.sql.adaptive.enabled",
+              Boolean.toString(adaptive)),
+          () -> {
+            for (String mode : modes) {
+              String view = createFloatingPointChangelog(startSnapshotId, mode);
+              List<Object[]> rows = sql("SELECT id, %s, _change_type FROM %s", projection, view);
+              assertThat(rows).hasSize(2);
+              for (Object[] result : rows) {
+                assertThat(result[0]).isEqualTo(1);
+                boolean before = result[3].equals(DELETE) || result[3].equals(UPDATE_BEFORE);
+                assertThat(result[3])
+                    .isEqualTo(
+                        mode.equals("updates")
+                            ? (before ? UPDATE_BEFORE : UPDATE_AFTER)
+                            : (before ? DELETE : INSERT));
+                assertThat(Float.floatToRawIntBits((Float) result[1]))
+                    .isEqualTo(Float.floatToRawIntBits(before ? 0.0F : -0.0F));
+                assertThat(Double.doubleToRawLongBits((Double) result[2]))
+                    .isEqualTo(Double.doubleToRawLongBits(before ? -0.0D : 0.0D));
+              }
+            }
+          });
+    }
+  }
+
+  private String createFloatingPointChangelog(long startSnapshotId, String mode) {
+    String options =
+        switch (mode) {
+          case "updates" -> "identifier_columns => array('id')";
+          case "net" -> "net_changes => true";
+          case "carryovers" -> "compute_updates => false";
+          default -> throw new IllegalArgumentException("Unknown mode: " + mode);
+        };
+    return (String)
+        sql(
+                "CALL %s.system.create_changelog_view(table => '%s', options => map('start-snapshot-id', '%s'), %s)",
+                catalogName, tableName, startSnapshotId, options)
+            .get(0)[0];
   }
 }
