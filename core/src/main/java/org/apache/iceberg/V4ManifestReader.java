@@ -252,11 +252,11 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private static void registerCustomBoundTypes(
       InternalData.ReadBuilder readBuilder, Types.NestedField fieldStats) {
     Types.StructType struct = fieldStats.type().asStructType();
-    registerStructBound(readBuilder, struct.field(StatsUtil.LOWER_BOUND_NAME));
-    registerStructBound(readBuilder, struct.field(StatsUtil.UPPER_BOUND_NAME));
+    registerGeoBoundType(readBuilder, struct.field(StatsUtil.LOWER_BOUND_NAME));
+    registerGeoBoundType(readBuilder, struct.field(StatsUtil.UPPER_BOUND_NAME));
   }
 
-  private static void registerStructBound(
+  private static void registerGeoBoundType(
       InternalData.ReadBuilder readBuilder, Types.NestedField boundField) {
     // Geometry and geography are the only bound types represented as structs, so a struct bound
     // is read as GeospatialBound.
