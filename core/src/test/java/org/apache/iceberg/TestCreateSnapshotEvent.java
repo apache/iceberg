@@ -19,10 +19,12 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listener;
 import org.apache.iceberg.events.Listeners;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -75,6 +77,30 @@ public class TestCreateSnapshotEvent extends TestBase {
         .containsEntry("deleted-data-files", "1")
         .containsEntry("total-records", "1")
         .containsEntry("total-data-files", "1");
+  }
+
+  @TestTemplate
+  void snapshotEventAfterTransactionCommit() {
+    Transaction transaction = table.newTransaction();
+    transaction.newAppend().appendFile(FILE_A).commit();
+    assertThat(currentEvent).isNull();
+
+    transaction.commitTransaction();
+    assertThat(currentEvent).isNotNull();
+    assertThat(currentEvent.snapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
+  }
+
+  @TestTemplate
+  void noSnapshotEventWhenTransactionCommitFails() {
+    table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "0").commit();
+    Transaction transaction = table.newTransaction();
+    transaction.newAppend().appendFile(FILE_A).commit();
+    table.ops().failCommits(1);
+
+    assertThatThrownBy(transaction::commitTransaction)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
+    assertThat(currentEvent).isNull();
   }
 
   class MyListener implements Listener<CreateSnapshotEvent> {
