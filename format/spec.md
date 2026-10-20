@@ -1092,7 +1092,7 @@ When reading, a `null` commit timestamp is inherited:
 * For an entry in the root manifest, from the snapshot's `timestamp-ms` converted to microseconds.
 * For an entry in a leaf manifest, from the inherited or persisted `snapshot_timestamp` of the root manifest entry that tracks the leaf manifest.
 
-When a table is upgraded to v4, root manifest entries for pre-v4 manifests are written with a `null` `snapshot_timestamp`. When reading, these root manifest entries inherit the upgrade snapshot's `timestamp-ms`, and data file entries in the pre-v4 manifests inherit their manifest's `snapshot_timestamp`. As a result, rows added before the upgrade have a `_last_updated_time` equal to the commit time of the upgrade, which is an upper bound of when they were last updated.
+Manifest lists and manifests written before a table was upgraded to v4 do not have a `snapshot_timestamp` field and are read as if it is `null`. When reading a manifest list written before v4, each manifest inherits the snapshot's `timestamp-ms` converted to microseconds, and entries in a manifest written before v4 inherit the commit timestamp of their manifest. As a result, rows in the table at the time of the upgrade have a `_last_updated_time` equal to the commit time of the last snapshot before the upgrade.
 
 ##### First Row ID Inheritance
 
@@ -2137,8 +2137,8 @@ Row lineage changes:
 
 * When writing a manifest, ADDED entries and entries MODIFIED by column files must be written with a null `snapshot_timestamp`
 * When an entry has a null `snapshot_timestamp`, readers must assign it the snapshot's `timestamp-ms` converted to microseconds in the root manifest, or the leaf manifest's `snapshot_timestamp` in a leaf manifest
+    * Manifest lists and manifests written before v4 must be read with a null `snapshot_timestamp` and use the same inheritance rules
 * When writing an existing data file or leaf manifest into a new manifest, its `snapshot_timestamp` must be written into the manifest
-    * When a table is upgraded to v4, root manifest entries for existing manifests are written with a null `snapshot_timestamp` that is inherited from the upgrade snapshot's `timestamp-ms`
 * When a data file has a non-null `tracking.snapshot_timestamp`, readers must:
     * Replace any null or missing `_last_updated_time` with the data file's `tracking.snapshot_timestamp`
     * Read any non-null `_last_updated_time` without modification
