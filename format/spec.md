@@ -2139,10 +2139,7 @@ Row lineage changes:
 * When an entry has a null `snapshot_timestamp`, readers must assign it the snapshot's `timestamp-ms` converted to microseconds in the root manifest, or the leaf manifest's `snapshot_timestamp` in a leaf manifest
     * Manifest lists and manifests written before v4 must be read with a null `snapshot_timestamp` and use the same inheritance rules
 * When writing an existing data file or leaf manifest into a new manifest, its `snapshot_timestamp` must be written into the manifest
-* When a data file has a non-null `tracking.snapshot_timestamp`, readers must:
-    * Replace any null or missing `_last_updated_time` with the data file's `tracking.snapshot_timestamp`
-    * Read any non-null `_last_updated_time` without modification
-* When a data file has a null `tracking.snapshot_timestamp`, readers must produce null for `_last_updated_time`
+* Readers must replace any null or missing `_last_updated_time` with the data file's `tracking.snapshot_timestamp`, and read any non-null `_last_updated_time` without modification
 * When writing an existing row into a new data file, writers must write `_last_updated_time` if it is non-null
 
 ### Version 3
