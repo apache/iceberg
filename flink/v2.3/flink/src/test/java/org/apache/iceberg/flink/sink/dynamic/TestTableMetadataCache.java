@@ -286,11 +286,9 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
       schemas.put(id, SCHEMA);
     }
 
-    assertThat(TableMetadataCache.CacheItem.orderSchemas(schemas, 3).keySet())
-        .containsExactly(3, 2, 1, 0);
+    assertThat(TableMetadataCache.orderSchemas(schemas, 3).keySet()).containsExactly(3, 2, 1, 0);
 
     // after a rollback the current schema is not the one with the highest id
-    assertThat(TableMetadataCache.CacheItem.orderSchemas(schemas, 1).keySet())
-        .containsExactly(1, 3, 2, 0);
+    assertThat(TableMetadataCache.orderSchemas(schemas, 1).keySet()).containsExactly(1, 3, 2, 0);
   }
 }

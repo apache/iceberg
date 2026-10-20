@@ -124,8 +124,7 @@ class TableMetadataCache {
             cacheRefreshClock.millis(),
             true,
             table.refs().keySet(),
-            table.schemas(),
-            table.schema().schemaId(),
+            orderSchemas(table.schemas(), table.schema().schemaId()),
             table.specs(),
             inputSchemasPerTableCacheMaximumSize));
   }
@@ -232,7 +231,7 @@ class TableMetadataCache {
     } catch (NoSuchTableException | NoSuchNamespaceException e) {
       LOG.debug("Table or namespace doesn't exist {}", identifier, e);
       tableCache.put(
-          identifier, new CacheItem(cacheRefreshClock.millis(), false, null, null, -1, null, 1));
+          identifier, new CacheItem(cacheRefreshClock.millis(), false, null, null, null, 1));
       return Tuple2.of(false, e);
     }
   }
@@ -261,6 +260,25 @@ class TableMetadataCache {
     tableCache.remove(identifier);
   }
 
+  /**
+   * Orders the schemas with the current schema first, followed by the rest from newest to oldest.
+   * The current schema is not necessarily the one with the highest id, for example after a
+   * rollback.
+   */
+  static Map<Integer, Schema> orderSchemas(Map<Integer, Schema> tableSchemas, int currentSchemaId) {
+    Map<Integer, Schema> ordered = Maps.newLinkedHashMap();
+    Schema current = tableSchemas.get(currentSchemaId);
+    if (current != null) {
+      ordered.put(currentSchemaId, current);
+    }
+
+    tableSchemas.entrySet().stream()
+        .filter(e -> e.getKey() != currentSchemaId)
+        .sorted(Map.Entry.<Integer, Schema>comparingByKey().reversed())
+        .forEach(e -> ordered.put(e.getKey(), e.getValue()));
+    return ordered;
+  }
+
   /** Handles timeout for missing items only. Caffeine performance causes noticeable delays. */
   static class CacheItem {
     private final long createdTimestampMillis;
@@ -275,35 +293,15 @@ class TableMetadataCache {
         boolean tableExists,
         Set<String> branches,
         Map<Integer, Schema> tableSchemas,
-        int currentSchemaId,
         Map<Integer, PartitionSpec> specs,
         int inputSchemaCacheMaximumSize) {
       this.createdTimestampMillis = createdTimestampMillis;
       this.tableExists = tableExists;
       this.branches = branches;
-      this.tableSchemas = orderSchemas(tableSchemas, currentSchemaId);
+      this.tableSchemas = tableSchemas;
       this.specs = specs;
       this.inputSchemas =
           new LRUCache<>(inputSchemaCacheMaximumSize, CacheItem::inputSchemaEvictionListener);
-    }
-
-    static Map<Integer, Schema> orderSchemas(
-        Map<Integer, Schema> tableSchemas, int currentSchemaId) {
-      if (tableSchemas == null) {
-        return null;
-      }
-
-      Map<Integer, Schema> ordered = Maps.newLinkedHashMap();
-      Schema current = tableSchemas.get(currentSchemaId);
-      if (current != null) {
-        ordered.put(currentSchemaId, current);
-      }
-
-      tableSchemas.entrySet().stream()
-          .filter(e -> e.getKey() != currentSchemaId)
-          .sorted(Map.Entry.<Integer, Schema>comparingByKey().reversed())
-          .forEach(e -> ordered.put(e.getKey(), e.getValue()));
-      return ordered;
     }
 
     private static void inputSchemaEvictionListener(
