@@ -248,6 +248,34 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+  void testUnexpectedFailureOfTheTableLookupIsNotSwallowed() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    RuntimeException failure = new RuntimeException("catalog unavailable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS) {
+          @Override
+          Tuple2<Boolean, Exception> exists(TableIdentifier identifier) {
+            return Tuple2.of(false, failure);
+          }
+        };
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    assertThatThrownBy(
+            () ->
+                tableUpdater.update(
+                    tableIdentifier,
+                    SnapshotRef.MAIN_BRANCH,
+                    SCHEMA,
+                    PartitionSpec.unpartitioned(),
+                    TableCreator.DEFAULT))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Unexpected failure looking up table")
+        .hasCause(failure);
+    assertThat(catalog.tableExists(tableIdentifier)).isFalse();
+  }
+
+  @Test
   void testSpecCreation() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");

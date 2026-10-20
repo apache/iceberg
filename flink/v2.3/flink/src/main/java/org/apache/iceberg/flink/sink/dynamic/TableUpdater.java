@@ -32,6 +32,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,9 +79,17 @@ class TableUpdater {
       TableIdentifier identifier, Schema schema, PartitionSpec spec, TableCreator tableCreator) {
     Tuple2<Boolean, Exception> exists = cache.exists(identifier);
     if (Boolean.FALSE.equals(exists.f0)) {
-      // The lookup cannot tell a missing table from a missing namespace: the Glue catalog, for
-      // instance, reports a table in a namespace that does not exist as NoSuchTableException. Ask
-      // the catalog directly.
+      if (exists.f1 != null
+          && !(exists.f1 instanceof NoSuchTableException)
+          && !(exists.f1 instanceof NoSuchNamespaceException)) {
+        throw new IllegalStateException(
+            String.format("Unexpected failure looking up table %s", identifier), exists.f1);
+      }
+
+      // Create the namespace if it is missing. Tasks that get here at the same time can all find it
+      // missing and try to create it, which is not an error. The lookup of the table is not used to
+      // tell: which exception it throws for a missing namespace is up to the catalog (Glue throws
+      // NoSuchTableException), and an answer from the cache carries none.
       if (catalog instanceof SupportsNamespaces) {
         SupportsNamespaces catalogWithNameSpace = (SupportsNamespaces) catalog;
         // A table without a namespace has none to create, and some catalogs, like the Hadoop
