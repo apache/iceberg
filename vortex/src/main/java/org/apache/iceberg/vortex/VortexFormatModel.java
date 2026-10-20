@@ -470,6 +470,7 @@ public class VortexFormatModel<D, S, R>
 
       return new VortexIterable<>(
           inputFile,
+          schema,
           projection,
           filterPredicate,
           splitByteRange,

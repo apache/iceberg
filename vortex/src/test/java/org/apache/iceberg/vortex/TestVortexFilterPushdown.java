@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.LocalTime;
 import java.util.List;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.Files;
@@ -43,6 +44,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -58,7 +60,16 @@ public class TestVortexFilterPushdown {
       new Schema(
           required(1, "id", Types.LongType.get()),
           optional(2, "s", Types.StringType.get()),
-          optional(3, "f", Types.DoubleType.get()));
+          optional(3, "f", Types.DoubleType.get()),
+          optional(4, "t", Types.TimeType.get()));
+
+  // Same field positions as SCHEMA, with the time field held as Iceberg's internal micros.
+  private static final Schema INTERNAL_SCHEMA =
+      new Schema(
+          required(1, "id", Types.LongType.get()),
+          optional(2, "s", Types.StringType.get()),
+          optional(3, "f", Types.DoubleType.get()),
+          optional(4, "t", Types.LongType.get()));
 
   // Covers nulls, NaN, and the three characters that are special to Vortex's LIKE patterns.
   private static final List<Record> ROWS =
@@ -80,6 +91,7 @@ public class TestVortexFilterPushdown {
     record.setField("id", id);
     record.setField("s", text);
     record.setField("f", value);
+    record.setField("t", id == 3L ? null : LocalTime.ofSecondOfDay(id));
     return record;
   }
 
@@ -139,11 +151,21 @@ public class TestVortexFilterPushdown {
   }
 
   @Test
-  public void testLargeInSetIsNotPushedDown() throws IOException {
-    // Expanding a set this large costs more than the scan it saves, so the predicate is dropped
-    // and the engine applies it. The scan returns a superset; every matching row must survive.
-    // The values are distinct so the set really exceeds the expansion limit, and only 2 and 6
-    // fall in the file's id range.
+  public void testNotInMatchesNull() throws IOException {
+    // Iceberg's notIn is the negation of in, which is false for null, so the null row matches.
+    // Vortex's NOT IN drops nulls, so they have to be added back.
+    assertPushdown(Expressions.notIn("s", "alpha", "beta"), List.of(2L, 3L, 5L, 6L, 7L, 8L), true);
+  }
+
+  @Test
+  public void testTimePredicates() throws IOException {
+    assertPushdown(Expressions.greaterThan("t", "00:00:06"), List.of(7L, 8L), true);
+    assertPushdown(Expressions.in("t", "00:00:01", "00:00:08"), List.of(1L, 8L), true);
+  }
+
+  @Test
+  public void testLargeInSet() throws IOException {
+    // Only 2 and 6 fall in the file's id range.
     Long[] values = new Long[300];
     values[0] = 2L;
     values[1] = 6L;
@@ -151,7 +173,7 @@ public class TestVortexFilterPushdown {
       values[i] = (long) (100 + i);
     }
 
-    assertPushdown(Expressions.in("id", (Object[]) values), List.of(2L, 6L), false);
+    assertPushdown(Expressions.in("id", (Object[]) values), List.of(2L, 6L), true);
   }
 
   @Test
@@ -183,12 +205,24 @@ public class TestVortexFilterPushdown {
     Evaluator evaluator = new Evaluator(SCHEMA.asStruct(), filter);
     List<Long> ids = Lists.newArrayList();
     for (Record record : ROWS) {
-      if (evaluator.eval(record)) {
+      if (evaluator.eval(internal(record))) {
         ids.add((Long) record.getField("id"));
       }
     }
 
     return ids;
+  }
+
+  /** Converts the time field to the micros that Iceberg's {@link Evaluator} expects. */
+  private static Record internal(Record record) {
+    Record internal = GenericRecord.create(INTERNAL_SCHEMA);
+    internal.setField("id", record.getField("id"));
+    internal.setField("s", record.getField("s"));
+    internal.setField("f", record.getField("f"));
+
+    LocalTime time = (LocalTime) record.getField("t");
+    internal.setField("t", time == null ? null : DateTimeUtil.microsFromTime(time));
+    return internal;
   }
 
   private List<Long> scan(Expression filter) throws IOException {

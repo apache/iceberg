@@ -72,6 +72,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       rowReaderFunc;
   private final Function<org.apache.arrow.vector.types.pojo.Schema, VortexBatchReader<T>>
       batchReaderFunction;
+  private final Schema expectedSchema;
   private final List<Types.NestedField> projection;
   private final NameMapping nameMapping;
   private final boolean caseSensitive;
@@ -79,6 +80,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
 
   VortexIterable(
       InputFile inputFile,
+      Schema expectedSchema,
       List<Types.NestedField> projection,
       Optional<Expression> filterPredicate,
       long[] splitByteRange,
@@ -93,6 +95,7 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       boolean caseSensitive,
       int workerThreads) {
     this.inputFile = inputFile;
+    this.expectedSchema = expectedSchema;
     this.projection = projection;
     this.filterPredicate = filterPredicate;
     this.splitByteRange = splitByteRange;
@@ -168,13 +171,18 @@ public class VortexIterable<T> extends CloseableGroup implements CloseableIterab
       fileArrowSchema = VortexSchemas.withFieldIds(fileArrowSchema, mapping);
     }
 
+    // The filter binds to the expected schema and resolves columns against the id-tagged file
+    // schema, the same way the projection below does.
+    org.apache.arrow.vector.types.pojo.Schema filterArrowSchema = fileArrowSchema;
     Optional<dev.vortex.api.Expression> scanFilter =
         filterPredicate.map(
-            icebergExpression -> {
-              Schema icebergFileSchema = VortexSchemas.convert(vortexArrowSchema);
-              return ConvertFilterToVortex.convert(
-                  icebergFileSchema, icebergExpression, caseSensitive);
-            });
+            icebergExpression ->
+                ConvertFilterToVortex.convert(
+                    expectedSchema,
+                    VortexSchemas.convert(vortexArrowSchema),
+                    filterArrowSchema,
+                    icebergExpression,
+                    caseSensitive));
 
     // Vortex resolves projected columns by name and errors on any name not in the file. Each
     // expected column is bound to the file column with the same Iceberg id (so a column renamed

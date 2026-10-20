@@ -122,11 +122,20 @@ public class TestConvertFilterToVortex {
   }
 
   @Test
-  public void testTimeLiteralRemainsUnconverted() {
-    Expression result =
-        ConvertFilterToVortex.convert(SCHEMA, Expressions.equal("time", "12:34:56.123456"));
+  public void testTimeLiteral() {
+    assertConverted(Expressions.equal("time", "12:34:56.123456"));
+    assertConverted(Expressions.in("time", "12:34:56.123456", "23:59:59.999999"));
+  }
 
-    assertThat(result).isSameAs(ConvertFilterToVortex.ALWAYS_TRUE);
+  @Test
+  public void testLargeIn() {
+    Long[] values = new Long[1000];
+    for (int i = 0; i < values.length; i++) {
+      values[i] = (long) i;
+    }
+
+    assertConverted(Expressions.in("id", (Object[]) values));
+    assertConverted(Expressions.notIn("id", (Object[]) values));
   }
 
   @Test
@@ -146,13 +155,12 @@ public class TestConvertFilterToVortex {
     assertNullConverted(Types.FixedType.ofLength(4));
     assertNullConverted(Types.DecimalType.of(20, 4));
     assertNullConverted(Types.DateType.get());
+    assertNullConverted(Types.TimeType.get());
     assertNullConverted(Types.TimestampType.withoutZone());
     assertNullConverted(Types.TimestampType.withZone());
     assertNullConverted(Types.TimestampNanoType.withoutZone());
     assertNullConverted(Types.TimestampNanoType.withZone());
     assertNullConverted(Types.UUIDType.get());
-    assertThat(ConvertFilterToVortex.toVortexLiteral(null, Types.TimeType.get()))
-        .isSameAs(ConvertFilterToVortex.UNCONVERTIBLE);
   }
 
   private static void assertConverted(org.apache.iceberg.expressions.Expression expression) {

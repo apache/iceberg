@@ -23,8 +23,10 @@ import dev.vortex.api.Expression.BinaryOp;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
@@ -33,7 +35,9 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -55,13 +59,19 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
   // could not be translated to a Vortex expression.
   static final Expression UNCONVERTIBLE = Expression.literal(true);
 
-  private static final int SET_PREDICATE_LIMIT = 200;
-
+  private final Schema expectedSchema;
   private final Schema fileSchema;
+  private final Map<Integer, Types.NestedField> fileFields;
   private final boolean caseSensitive;
 
-  private ConvertFilterToVortex(Schema fileSchema, boolean caseSensitive) {
+  private ConvertFilterToVortex(
+      Schema expectedSchema,
+      Schema fileSchema,
+      Map<Integer, Types.NestedField> fileFields,
+      boolean caseSensitive) {
+    this.expectedSchema = expectedSchema;
     this.fileSchema = fileSchema;
+    this.fileFields = fileFields;
     this.caseSensitive = caseSensitive;
   }
 
@@ -69,11 +79,71 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
     return convert(schema, expr, true);
   }
 
+  /** Converts a filter for a file whose columns carry the same names, ids and types as schema. */
   public static Expression convert(
       Schema schema, org.apache.iceberg.expressions.Expression expr, boolean caseSensitive) {
+    Map<Integer, Types.NestedField> fileFields = TypeUtil.indexById(schema.asStruct());
+    return convert(new ConvertFilterToVortex(schema, schema, fileFields, caseSensitive), expr);
+  }
+
+  /**
+   * Converts a filter written against the expected read schema for a file. {@code fileSchema} is
+   * the file's schema converted to Iceberg, with synthesized ids, and {@code fileArrowSchema} is
+   * the same schema with the file's Iceberg ids attached.
+   *
+   * <p>The filter binds to the expected schema, and each column then resolves to the file column
+   * with the same Iceberg id (or the same name when the file carries no ids), the same way the scan
+   * projection does. A column renamed since the file was written therefore filters its physical
+   * column, and a predicate on a column the file does not have is left to the engine.
+   */
+  static Expression convert(
+      Schema expectedSchema,
+      Schema fileSchema,
+      org.apache.arrow.vector.types.pojo.Schema fileArrowSchema,
+      org.apache.iceberg.expressions.Expression expr,
+      boolean caseSensitive) {
+    Map<Integer, Types.NestedField> fileFields = Maps.newHashMap();
+    indexFileFields(
+        expectedSchema.asStruct(), fileArrowSchema.getFields(), fileSchema.asStruct(), fileFields);
+
+    return convert(
+        new ConvertFilterToVortex(expectedSchema, fileSchema, fileFields, caseSensitive), expr);
+  }
+
+  /**
+   * Maps each expected field id to the matching field of the converted file schema. The converted
+   * schema has the file's names and types but synthesized ids, so the match goes through the Arrow
+   * fields, which carry the real ids.
+   */
+  private static void indexFileFields(
+      Types.StructType expected,
+      List<Field> arrowFields,
+      Types.StructType file,
+      Map<Integer, Types.NestedField> fileFields) {
+    VortexSchemas.FieldBinding binding = VortexSchemas.FieldBinding.of(arrowFields);
+    for (Types.NestedField expectedField : expected.fields()) {
+      Field arrowField = binding.resolve(expectedField);
+      Types.NestedField fileField = arrowField == null ? null : file.field(arrowField.getName());
+      if (fileField == null) {
+        continue;
+      }
+
+      fileFields.put(expectedField.fieldId(), fileField);
+
+      if (expectedField.type().isStructType() && fileField.type().isStructType()) {
+        indexFileFields(
+            expectedField.type().asStructType(),
+            arrowField.getChildren(),
+            fileField.type().asStructType(),
+            fileFields);
+      }
+    }
+  }
+
+  private static Expression convert(
+      ConvertFilterToVortex visitor, org.apache.iceberg.expressions.Expression expr) {
     org.apache.iceberg.expressions.Expression pushedNot = Expressions.rewriteNot(expr);
-    Expression converted =
-        ExpressionVisitors.visit(pushedNot, new ConvertFilterToVortex(schema, caseSensitive));
+    Expression converted = ExpressionVisitors.visit(pushedNot, visitor);
     if (converted == UNCONVERTIBLE) {
       return ALWAYS_TRUE;
     } else {
@@ -134,7 +204,59 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
       return UNCONVERTIBLE;
     }
 
-    Expression vortexTerm = column(term.fieldId());
+    Types.NestedField fileField = fileFields.get(term.fieldId());
+    if (fileField == null) {
+      // The file has no such column, e.g. one added after the file was written. The reader fills
+      // it with a default or null, which the engine filters.
+      return UNCONVERTIBLE;
+    } else if (fileField.type().equals(term.type())) {
+      return filePredicate(pred, fileField);
+    } else {
+      return promotedPredicate(pred, fileField);
+    }
+  }
+
+  /**
+   * Converts a predicate on a column written before a type promotion, by binding it again to the
+   * type the file holds.
+   *
+   * <p>Only int to long is handled: a long literal converts to int exactly, or to an above-max or
+   * below-max bound that folds the predicate to always true or false. Literals of the other
+   * promotions round or lose precision when converted to the file type, which can drop matching
+   * rows, so those predicates are left to the engine.
+   */
+  private <T> Expression promotedPredicate(BoundPredicate<T> pred, Types.NestedField fileField) {
+    if (pred.term().type().typeId() != Type.TypeID.LONG
+        || fileField.type().typeId() != Type.TypeID.INTEGER) {
+      return UNCONVERTIBLE;
+    }
+
+    String name = fileSchema.findColumnName(fileField.fieldId());
+    UnboundPredicate<T> filePred;
+    if (pred.isLiteralPredicate()) {
+      filePred = Expressions.predicate(pred.op(), name, pred.asLiteralPredicate().literal());
+    } else if (pred.isSetPredicate()) {
+      filePred = Expressions.predicate(pred.op(), name, pred.asSetPredicate().literalSet());
+    } else {
+      filePred = Expressions.predicate(pred.op(), name);
+    }
+
+    org.apache.iceberg.expressions.Expression bound = filePred.bind(fileSchema.asStruct(), true);
+    if (bound instanceof BoundPredicate<?> boundPred) {
+      return filePredicate(boundPred, fileField);
+    } else if (bound == Expressions.alwaysTrue()) {
+      return ALWAYS_TRUE;
+    } else if (bound == Expressions.alwaysFalse()) {
+      return ALWAYS_FALSE;
+    }
+
+    return UNCONVERTIBLE;
+  }
+
+  /** Converts a predicate whose term has the type of {@code fileField}. */
+  private <T> Expression filePredicate(BoundPredicate<T> pred, Types.NestedField fileField) {
+    Type termType = pred.term().type();
+    Expression vortexTerm = column(fileField.fieldId());
     if (vortexTerm == UNCONVERTIBLE) {
       return UNCONVERTIBLE;
     }
@@ -142,10 +264,10 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
     if (pred.isLiteralPredicate()) {
       org.apache.iceberg.expressions.Literal<T> icebergLit = pred.asLiteralPredicate().literal();
       if (pred.op() == Operation.STARTS_WITH || pred.op() == Operation.NOT_STARTS_WITH) {
-        return fromStartsWith(pred.op(), vortexTerm, icebergLit.value(), term.type());
+        return fromStartsWith(pred.op(), vortexTerm, icebergLit.value(), termType);
       }
 
-      Expression vortexLit = toVortexLiteral(icebergLit.value(), term.type());
+      Expression vortexLit = toVortexLiteral(icebergLit.value(), termType);
       if (vortexLit == UNCONVERTIBLE) {
         return UNCONVERTIBLE;
       }
@@ -153,14 +275,7 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
     } else if (pred.isUnaryPredicate()) {
       return fromUnaryPredicate(pred.op(), vortexTerm);
     } else if (pred.isSetPredicate()) {
-      Set<T> literalSet = pred.asSetPredicate().literalSet();
-      if (literalSet.size() > SET_PREDICATE_LIMIT) {
-        // Expanding a huge set into a chain of equalities makes the native expression more
-        // expensive than the scan it saves, so the predicate is dropped and applied by the engine.
-        return UNCONVERTIBLE;
-      }
-
-      return fromSetPredicate(pred.op(), vortexTerm, literalSet, term.type());
+      return fromSetPredicate(pred.op(), vortexTerm, pred.asSetPredicate().literalSet(), termType);
     } else {
       return UNCONVERTIBLE;
     }
@@ -180,7 +295,7 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
   }
 
   private org.apache.iceberg.expressions.Expression bind(UnboundPredicate<?> pred) {
-    return pred.bind(fileSchema.asStruct(), caseSensitive);
+    return pred.bind(expectedSchema.asStruct(), caseSensitive);
   }
 
   private Expression column(int fieldId) {
@@ -233,8 +348,7 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
             decimal.unscaledValue(), decimalType.precision(), decimalType.scale());
       }
       case DATE -> Expression.literalDate((Integer) value, Expression.TimeUnit.DAYS);
-        // Vortex has no time literal and no time DType, so a time predicate cannot be expressed.
-      case TIME -> UNCONVERTIBLE;
+      case TIME -> Expression.literalTime((Long) value, Expression.TimeUnit.MICROSECONDS);
       case TIMESTAMP -> {
         Types.TimestampType timestampType = (Types.TimestampType) termType;
         String timezone = timestampType.shouldAdjustToUTC() ? "UTC" : null;
@@ -264,6 +378,7 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
         yield Expression.nullLiteralDecimal(decimalType.precision(), decimalType.scale());
       }
       case DATE -> Expression.nullLiteralDate(Expression.TimeUnit.DAYS);
+      case TIME -> Expression.nullLiteralTime(Expression.TimeUnit.MICROSECONDS);
       case TIMESTAMP -> {
         Types.TimestampType timestampType = (Types.TimestampType) termType;
         String timezone = timestampType.shouldAdjustToUTC() ? "UTC" : null;
@@ -356,24 +471,35 @@ public final class ConvertFilterToVortex extends ExpressionVisitors.ExpressionVi
     return pattern.append('%').toString();
   }
 
+  /**
+   * Translates IN / NOT_IN into a Vortex list membership test against a list literal.
+   *
+   * <p>Vortex NOT IN uses SQL null rules and does not match null, but Iceberg's {@code notIn} does
+   * (it is defined as the negation of {@code in}, which is false for null), so nulls are added back
+   * explicitly.
+   */
   private <T> Expression fromSetPredicate(
-      org.apache.iceberg.expressions.Expression.Operation op,
-      Expression term,
-      Set<T> literalSet,
-      Type termType) {
-    Expression[] eqExprs = new Expression[literalSet.size()];
+      Operation op, Expression term, Set<T> literalSet, Type termType) {
+    Expression elementType = toVortexNullLiteral(termType);
+    if (elementType == UNCONVERTIBLE) {
+      return UNCONVERTIBLE;
+    }
+
+    Expression[] elements = new Expression[literalSet.size()];
     int idx = 0;
     for (T value : literalSet) {
       Expression vortexLit = toVortexLiteral(value, termType);
       if (vortexLit == UNCONVERTIBLE) {
         return UNCONVERTIBLE;
       }
-      eqExprs[idx++] = Expression.binary(BinaryOp.EQ, term, vortexLit);
+
+      elements[idx++] = vortexLit;
     }
 
+    Expression list = Expression.literalList(elementType, false, elements);
     return switch (op) {
-      case IN -> eqExprs.length == 1 ? eqExprs[0] : Expression.or(eqExprs);
-      case NOT_IN -> Expression.not(eqExprs.length == 1 ? eqExprs[0] : Expression.or(eqExprs));
+      case IN -> Expression.in(term, list);
+      case NOT_IN -> Expression.or(Expression.isNull(term), Expression.notIn(term, list));
       default -> UNCONVERTIBLE;
     };
   }
