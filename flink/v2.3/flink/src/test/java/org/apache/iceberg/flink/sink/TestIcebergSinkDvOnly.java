@@ -30,6 +30,9 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.runtime.typeutils.ExternalTypeInfo;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.types.Row;
@@ -44,6 +47,7 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
@@ -56,19 +60,19 @@ import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.BoundedTestSource;
+import org.apache.iceberg.io.TaskWriter;
+import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.SerializableSupplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
-/**
- * Covers the write path that resolves equality deletes inside the sink. The table must never end up
- * with an equality delete, and its rows must match what the upsert stream expresses.
- */
 @Timeout(value = 180)
 class TestIcebergSinkDvOnly {
 
@@ -336,6 +340,55 @@ class TestIcebergSinkDvOnly {
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("position delete file")
         .hasMessageContaining(positionDeletes.location());
+  }
+
+  @Test
+  void splitsTheWriterPayloadIntoBoundedResults() throws Exception {
+    TaskWriter<RowData> writer = dvOnlyWriter();
+    for (int id = 1; id <= 3; id++) {
+      writer.write(GenericRowData.of(id, StringData.fromString("v" + id)));
+    }
+
+    WriteResult written = writer.complete();
+    List<SinkWriteResult> results = IcebergSinkWriter.toSinkWriteResults(writer, written, 2);
+
+    assertThat(results).hasSize(2);
+    assertThat(results).allSatisfy(result -> assertThat(result.deleteKeys()).hasSizeLessThan(3));
+    assertThat(results.stream().mapToInt(result -> result.deleteKeys().size()).sum()).isEqualTo(3);
+    assertThat(results.stream().mapToInt(result -> result.liveRows().size()).sum()).isEqualTo(3);
+  }
+
+  @Test
+  void commitsTheFilesOfTheWriterOnlyOnce() throws Exception {
+    TaskWriter<RowData> writer = dvOnlyWriter();
+    for (int id = 1; id <= 3; id++) {
+      writer.write(GenericRowData.of(id, StringData.fromString("v" + id)));
+    }
+
+    WriteResult written = writer.complete();
+    List<SinkWriteResult> results = IcebergSinkWriter.toSinkWriteResults(writer, written, 2);
+
+    assertThat(written.dataFiles()).isNotEmpty();
+    assertThat(results.get(0).writeResult().dataFiles()).hasSameSizeAs(written.dataFiles());
+    assertThat(results.subList(1, results.size()))
+        .allSatisfy(result -> assertThat(result.writeResult().dataFiles()).isEmpty());
+  }
+
+  private TaskWriter<RowData> dvOnlyWriter() {
+    SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
+    SerializableSupplier<Table> tableSupplier = () -> serializableTable;
+    RowDataTaskWriterFactory factory =
+        new RowDataTaskWriterFactory(
+            tableSupplier,
+            SimpleDataUtil.ROW_TYPE,
+            Long.MAX_VALUE,
+            FileFormat.PARQUET,
+            table.properties(),
+            ImmutableSet.of(table.schema().findField("id").fieldId()),
+            true,
+            true);
+    factory.initialize(1, 1);
+    return factory.create();
   }
 
   private void runDvOnlySink(String uidSuffix, List<List<Row>> elementsPerCheckpoint)

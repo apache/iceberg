@@ -19,6 +19,9 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.Serializable;
+import java.util.List;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.flink.maintenance.operator.DVPosition;
 import org.apache.iceberg.flink.maintenance.operator.SerializedEqualityValues;
 
@@ -27,7 +30,8 @@ record DvOnlyRecord(
     SerializedEqualityValues key,
     DVPosition position,
     String filePath,
-    byte[] readTask,
+    DataFile file,
+    DeleteFile[] deletes,
     long checkpointId,
     long generation)
     implements Serializable {
@@ -59,7 +63,7 @@ record DvOnlyRecord(
   }
 
   static DvOnlyRecord delete(SerializedEqualityValues key, long checkpointId) {
-    return new DvOnlyRecord(Type.DELETE, key, null, null, null, checkpointId, NO_GENERATION);
+    return new DvOnlyRecord(Type.DELETE, key, null, null, null, null, checkpointId, NO_GENERATION);
   }
 
   static DvOnlyRecord addRow(PkIndexEntry entry, long checkpointId) {
@@ -68,6 +72,7 @@ record DvOnlyRecord(
         entry.key(),
         entry.position(),
         entry.position().dataFilePath(),
+        null,
         null,
         checkpointId,
         NO_GENERATION);
@@ -80,27 +85,40 @@ record DvOnlyRecord(
         entry.position(),
         entry.position().dataFilePath(),
         null,
+        null,
         NO_CHECKPOINT,
         NO_GENERATION);
   }
 
   static DvOnlyRecord dropPositions(SerializedEqualityValues key, String filePath) {
     return new DvOnlyRecord(
-        Type.DROP_POSITIONS, key, null, filePath, null, NO_CHECKPOINT, NO_GENERATION);
+        Type.DROP_POSITIONS, key, null, filePath, null, null, NO_CHECKPOINT, NO_GENERATION);
   }
 
-  static DvOnlyRecord readFile(String filePath, byte[] readTask, long generation) {
+  static DvOnlyRecord readFile(DataFile file, List<DeleteFile> deletes, long generation) {
+    DeleteFile[] attached = new DeleteFile[deletes.size()];
+    for (int i = 0; i < attached.length; i++) {
+      attached[i] = deletes.get(i).copyWithoutStats();
+    }
+
     return new DvOnlyRecord(
-        Type.READ_FILE, null, null, filePath, readTask, NO_CHECKPOINT, generation);
+        Type.READ_FILE,
+        null,
+        null,
+        file.location(),
+        file.copyWithoutStats(),
+        attached,
+        NO_CHECKPOINT,
+        generation);
   }
 
   static DvOnlyRecord dropFile(String filePath) {
     return new DvOnlyRecord(
-        Type.DROP_FILE, null, null, filePath, null, NO_CHECKPOINT, NO_GENERATION);
+        Type.DROP_FILE, null, null, filePath, null, null, NO_CHECKPOINT, NO_GENERATION);
   }
 
   static DvOnlyRecord cleanup(long generation, long committedCheckpointId) {
     return new DvOnlyRecord(
-        Type.CLEANUP, null, null, null, null, committedCheckpointId, generation);
+        Type.CLEANUP, null, null, null, null, null, committedCheckpointId, generation);
   }
 }

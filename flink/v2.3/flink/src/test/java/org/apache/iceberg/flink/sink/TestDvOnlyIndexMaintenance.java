@@ -94,7 +94,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void theFirstCheckpointIndexesTheWholeBranch() throws Exception {
+  void indexesTheWholeBranchAtTheFirstCheckpoint() throws Exception {
     DataFile file = appendFile("initial", row(1, "a"), row(2, "b"));
 
     try (OneInputStreamOperatorTestHarness<CommittableMessage<SinkWriteResult>, DvOnlyRecord>
@@ -108,14 +108,13 @@ class TestDvOnlyIndexMaintenance {
               record -> {
                 assertThat(record.type()).isEqualTo(DvOnlyRecord.Type.READ_FILE);
                 assertThat(record.filePath()).isEqualTo(file.location());
-                assertThat(PkIndexReadTask.decode(record.readTask()).file().location())
-                    .isEqualTo(file.location());
+                assertThat(record.file().location()).isEqualTo(file.location());
               });
     }
   }
 
   @Test
-  void anEmptyBranchNeedsNoIndexing() throws Exception {
+  void requestsNothingForAnEmptyBranch() throws Exception {
     try (OneInputStreamOperatorTestHarness<CommittableMessage<SinkWriteResult>, DvOnlyRecord>
         harness = coordinatorHarness()) {
       harness.open();
@@ -126,7 +125,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void aRewriteDropsTheOldFileAndIndexesItsReplacement() throws Exception {
+  void dropsTheOldFileAndIndexesItsReplacementAfterARewrite() throws Exception {
     DataFile initial = appendFile("initial", row(1, "a"), row(2, "b"));
 
     try (OneInputStreamOperatorTestHarness<CommittableMessage<SinkWriteResult>, DvOnlyRecord>
@@ -153,7 +152,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void aCheckpointWithoutTableChangesRequestsNothing() throws Exception {
+  void requestsNothingWithoutTableChanges() throws Exception {
     appendFile("initial", row(1, "a"));
 
     try (OneInputStreamOperatorTestHarness<CommittableMessage<SinkWriteResult>, DvOnlyRecord>
@@ -169,7 +168,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void aCommitOfThisSinkLeavesTheIndexAlone() throws Exception {
+  void skipsCommitsOfThisSink() throws Exception {
     appendFile("initial", row(1, "a"));
 
     try (OneInputStreamOperatorTestHarness<CommittableMessage<SinkWriteResult>, DvOnlyRecord>
@@ -193,7 +192,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void anAppendOfAnotherWriterIsIndexed() throws Exception {
+  void indexesAppendsOfAnotherWriter() throws Exception {
     appendFile("initial", row(1, "a"));
 
     try (OneInputStreamOperatorTestHarness<CommittableMessage<SinkWriteResult>, DvOnlyRecord>
@@ -216,7 +215,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void anExpiredBaselineIndexesTheWholeBranchAgain() throws Exception {
+  void indexesTheWholeBranchAgainWhenTheBaselineExpired() throws Exception {
     DataFile initial = appendFile("initial", row(1, "a"));
     long indexedSnapshotId = table.currentSnapshot().snapshotId();
 
@@ -238,7 +237,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void aRebuildBroadcastsACleanupForItsGeneration() throws Exception {
+  void broadcastsACleanupForTheGenerationOfARebuild() throws Exception {
     appendFile("initial", row(1, "a"));
     long indexedSnapshotId = table.currentSnapshot().snapshotId();
 
@@ -272,7 +271,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void anIncrementalUpdateBroadcastsNoCleanup() throws Exception {
+  void broadcastsNoCleanupOnAnIncrementalUpdate() throws Exception {
     appendFile("initial", row(1, "a"));
 
     try (OneInputStreamOperatorTestHarness<CommittableMessage<SinkWriteResult>, DvOnlyRecord>
@@ -287,7 +286,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void aCleanupDropsACommittedFileTheRebuildDidNotRead() throws Exception {
+  void dropsACommittedFileTheRebuildDidNotRead() throws Exception {
     try (KeyedTwoInputStreamOperatorTestHarness<String, DvOnlyRecord, DvOnlyRecord, DvOnlyRecord>
         harness = fileIndexHarness()) {
       harness.open();
@@ -306,7 +305,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void aCleanupKeepsAFileOfAnUncommittedCheckpoint() throws Exception {
+  void keepsAFileOfAnUncommittedCheckpointOnCleanup() throws Exception {
     try (KeyedTwoInputStreamOperatorTestHarness<String, DvOnlyRecord, DvOnlyRecord, DvOnlyRecord>
         harness = fileIndexHarness()) {
       harness.open();
@@ -319,7 +318,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void aCleanupKeepsAFileReadForItsGeneration() throws Exception {
+  void keepsAFileReadForTheCurrentGenerationOnCleanup() throws Exception {
     DataFile file = appendFile("initial", row(1, "a"));
 
     try (KeyedTwoInputStreamOperatorTestHarness<String, DvOnlyRecord, DvOnlyRecord, DvOnlyRecord>
@@ -334,7 +333,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void aCleanupDropsAFileReadForAnEarlierGeneration() throws Exception {
+  void dropsAFileReadForAnEarlierGenerationOnCleanup() throws Exception {
     DataFile file = appendFile("initial", row(1, "a"));
 
     try (KeyedTwoInputStreamOperatorTestHarness<String, DvOnlyRecord, DvOnlyRecord, DvOnlyRecord>
@@ -351,7 +350,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void theEndOfTheInputUpdatesTheIndexAndReportsTheBaseline() throws Exception {
+  void updatesTheIndexAndReportsTheBaselineWhenTheInputEnds() throws Exception {
     DataFile file = appendFile("initial", row(1, "a"));
     long head = table.currentSnapshot().snapshotId();
 
@@ -382,7 +381,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void aFileReadTwiceIsForgottenOnce() throws Exception {
+  void dropsAKeyAddedTwiceToAFileOnce() throws Exception {
     try (KeyedTwoInputStreamOperatorTestHarness<String, DvOnlyRecord, DvOnlyRecord, DvOnlyRecord>
         harness = fileIndexHarness()) {
       harness.open();
@@ -397,7 +396,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void aRowReportedTwiceIsIndexedOnce() throws Exception {
+  void indexesARowReportedTwiceOnce() throws Exception {
     try (KeyedOneInputStreamOperatorTestHarness<SerializedEqualityValues, DvOnlyRecord, DVPosition>
         harness = resolveHarness()) {
       harness.open();
@@ -411,7 +410,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void theEndOfTheInputResolvesPendingDeletes() throws Exception {
+  void resolvesPendingDeletesWhenTheInputEnds() throws Exception {
     try (KeyedOneInputStreamOperatorTestHarness<SerializedEqualityValues, DvOnlyRecord, DVPosition>
         harness = resolveHarness()) {
       harness.open();
@@ -426,7 +425,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void droppingAFileAsksItsKeysToForgetIt() throws Exception {
+  void asksEveryKeyOfADroppedFileToForgetIt() throws Exception {
     try (KeyedTwoInputStreamOperatorTestHarness<String, DvOnlyRecord, DvOnlyRecord, DvOnlyRecord>
         harness = fileIndexHarness()) {
       harness.open();
@@ -450,7 +449,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void aFileIsForgottenOnlyOnce() throws Exception {
+  void ignoresARepeatedDropOfAFile() throws Exception {
     try (KeyedTwoInputStreamOperatorTestHarness<String, DvOnlyRecord, DvOnlyRecord, DvOnlyRecord>
         harness = fileIndexHarness()) {
       harness.open();
@@ -465,7 +464,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void aDroppedPositionIsNotResolvedAnyMore() throws Exception {
+  void doesNotResolveADroppedPosition() throws Exception {
     try (KeyedOneInputStreamOperatorTestHarness<SerializedEqualityValues, DvOnlyRecord, DVPosition>
         harness = resolveHarness()) {
       harness.open();
@@ -488,7 +487,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void droppingOneFileKeepsThePositionsOfTheOthers() throws Exception {
+  void keepsThePositionsOfOtherFilesWhenDroppingOne() throws Exception {
     try (KeyedOneInputStreamOperatorTestHarness<SerializedEqualityValues, DvOnlyRecord, DVPosition>
         harness = resolveHarness()) {
       harness.open();
@@ -505,7 +504,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   @Test
-  void aDeleteOfAnUnknownKeyResolvesToNothing() throws Exception {
+  void resolvesNothingForAnUnknownKey() throws Exception {
     try (KeyedOneInputStreamOperatorTestHarness<SerializedEqualityValues, DvOnlyRecord, DVPosition>
         harness = resolveHarness()) {
       harness.open();
@@ -561,8 +560,7 @@ class TestDvOnlyIndexMaintenance {
   }
 
   private static DvOnlyRecord readFile(DataFile file, long generation) {
-    return DvOnlyRecord.readFile(
-        file.location(), new PkIndexReadTask(file, ImmutableList.of()).encode(), generation);
+    return DvOnlyRecord.readFile(file, ImmutableList.of(), generation);
   }
 
   private static RowData row(int id, String data) {

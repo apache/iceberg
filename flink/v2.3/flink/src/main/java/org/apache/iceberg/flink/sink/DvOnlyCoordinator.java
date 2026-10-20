@@ -341,10 +341,7 @@ class DvOnlyCoordinator extends AbstractStreamOperator<DvOnlyRecord>
   }
 
   private void requestRead(DataFile file, List<DeleteFile> deletes) {
-    output.collect(
-        new StreamRecord<>(
-            DvOnlyRecord.readFile(
-                file.location(), new PkIndexReadTask(file, deletes).encode(), generation)));
+    output.collect(new StreamRecord<>(DvOnlyRecord.readFile(file, deletes, generation)));
   }
 
   @Override

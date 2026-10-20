@@ -57,13 +57,13 @@ class PkIndexFileReader {
   /**
    * Reports every live row of one data file.
    *
-   * @param task the data file and the delete files that apply to it
+   * @param file the data file
+   * @param deletes the delete files that apply to the data file
    * @param out receives one entry per live row
    * @return the number of rows reported
    */
-  long read(PkIndexReadTask task, Consumer<PkIndexEntry> out) {
-    DataFile file = task.file();
-    PositionDeleteIndex deleted = deletedPositions(file, task.deletes());
+  long read(DataFile file, List<DeleteFile> deletes, Consumer<PkIndexEntry> out) {
+    PositionDeleteIndex deleted = deletedPositions(file, deletes);
     byte[] partition =
         keyReader.encodePartition(file.partition(), spec(file.specId()).partitionType());
     try {
@@ -86,7 +86,7 @@ class PkIndexFileReader {
     }
   }
 
-  private PositionDeleteIndex deletedPositions(DataFile file, DeleteFile[] deletes) {
+  private PositionDeleteIndex deletedPositions(DataFile file, List<DeleteFile> deletes) {
     List<DeleteFile> attached = Lists.newArrayList();
     for (DeleteFile deleteFile : deletes) {
       if (ContentFileUtil.isDV(deleteFile)) {

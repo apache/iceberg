@@ -258,7 +258,8 @@ class DvOnlyDeletionVectorMerger {
                   FilePositions.forPartition(replacement.specId(), replacement.partition());
               newReader()
                   .read(
-                      new PkIndexReadTask(replacement, ImmutableList.of()),
+                      replacement,
+                      ImmutableList.of(),
                       entry -> {
                         if (keys.contains(entry.key())) {
                           file.add(entry.position().position());
@@ -336,7 +337,8 @@ class DvOnlyDeletionVectorMerger {
     try {
       newReader()
           .read(
-              new PkIndexReadTask(removedFile, ImmutableList.of()),
+              removedFile,
+              ImmutableList.of(),
               entry -> {
                 if (positions.positions().contains(entry.position().position())) {
                   keys.add(entry.key());

@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -140,7 +141,8 @@ class DvOnlyFileIndexOperator extends AbstractStreamOperator<DvOnlyRecord>
   private void indexFile(DvOnlyRecord record) throws IOException {
     long rows =
         reader.read(
-            PkIndexReadTask.decode(record.readTask()),
+            record.file(),
+            Arrays.asList(record.deletes()),
             entry -> {
               register(entry.key());
               output.collect(new StreamRecord<>(DvOnlyRecord.bootstrapRow(entry)));
