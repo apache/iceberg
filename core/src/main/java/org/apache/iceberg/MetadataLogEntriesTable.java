@@ -24,9 +24,11 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.SnapshotUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class MetadataLogEntriesTable extends BaseMetadataTable {
+  private static final Logger LOG = LoggerFactory.getLogger(MetadataLogEntriesTable.class);
 
   private static final Types.NestedField LATEST_SNAPSHOT_ID =
       Types.NestedField.optional(3, "latest_snapshot_id", Types.LongType.get());
@@ -93,13 +95,6 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
         });
   }
 
-  /**
-   * Returns the latest snapshot recorded in the metadata file of the given log entry.
-   *
-   * <p>The snapshot is read from the entry's own metadata file because expiring snapshots trims the
-   * current snapshot log. If that file no longer exists, this falls back to the current snapshot
-   * log.
-   */
   private Snapshot latestSnapshot(
       TableMetadata.MetadataLogEntry metadataLogEntry, TableMetadata current) {
     TableMetadata metadata;
@@ -109,7 +104,11 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
       try {
         metadata = TableMetadataParser.read(table().io(), metadataLogEntry.file());
       } catch (NotFoundException e) {
-        return latestSnapshotAsOfTime(metadataLogEntry.timestampMillis());
+        LOG.warn(
+            "Metadata file {} was not found, setting snapshot details to null",
+            metadataLogEntry.file(),
+            e);
+        return null;
       }
     }
 
@@ -120,15 +119,6 @@ public class MetadataLogEntriesTable extends BaseMetadataTable {
     }
 
     return metadata.snapshot(Iterables.getLast(snapshotLog).snapshotId());
-  }
-
-  private Snapshot latestSnapshotAsOfTime(long timestampMillis) {
-    try {
-      return table().snapshot(SnapshotUtil.snapshotIdAsOfTime(table(), timestampMillis));
-    } catch (IllegalArgumentException e) {
-      // no snapshot in the current snapshot log is older than the entry
-      return null;
-    }
   }
 
   private class MetadataLogScan extends StaticTableScan {
