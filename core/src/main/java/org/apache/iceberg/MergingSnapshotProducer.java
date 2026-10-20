@@ -1180,13 +1180,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       // this triggers a rewrite of all delete manifests even if there is only one new delete file
       // if there is a relevant use case in the future, the behavior can be optimized
       cachedNewDeleteManifests.clear();
-      // On cache invalidation of delete files, clear the summary because any new DV could require a
-      // merge,
-      // and the summary cannot be generated until after merging is complete.
-      addedDeleteFilesSummary.clear();
     }
 
     if (cachedNewDeleteManifests.isEmpty()) {
+      // Rebuild the summary with the manifests because any new DV could require a merge, and the
+      // summary cannot be generated until after merging is complete. This also discards entries
+      // left by a previous attempt that failed to write its manifests.
+      addedDeleteFilesSummary.clear();
       List<DeleteFile> mergedDVs = mergeDVs();
       Map<Integer, List<DeleteFile>> newDeleteFilesBySpec =
           Streams.stream(Iterables.concat(mergedDVs, DeleteFileSet.of(v2Deletes)))
