@@ -870,7 +870,7 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
         - `column_files` may only be set if the tracked file is a data file or a v4 leaf manifest.
         - A field ID may appear in `field_ids` of at most one column file in a tracked file's `column_files`.
     - `tight_stats`:
-        - `tight_stats` may be true only if `content_stats` are tight; attaching or updating a `deletion_vector` without recomputing stats makes them no longer tight. See [Stats Tightness](#stats-tightness).
+        - `tight_stats` may be true only if `content_stats` are tight. See [Stats Tightness](#stats-tightness).
 
     <a id="updating-tracking-metadata"></a>
     When a file is added to the dataset, its tracked file must set status to ADDED and store the snapshot ID in which the file was added.
@@ -1018,28 +1018,17 @@ For example, stats for an optional `geometry` field named `location` with field-
 
 For `variant`, both bounds are unshredded `variant` that store variant field bounds by normalized JSON paths as field names. See [Bounds for Variant](#bounds-for-variant) for details on producing these bounds.
 
-<a id="stats-tightness"></a>
 ###### Stats Tightness
 
-Statistics are *tight* when they are exact for the live rows of a file:
+Statistics are *tight* when the bounds, `null_value_count`, and `nan_value_count` are exact for the live rows of a file:
 
-* Bounds are the minimum and maximum of the live values.
-* `null_value_count` and `nan_value_count` are the counts across the live rows.
-
-`value_count` and `total_bytes` are not part of tightness. `value_count` is the number of values across all rows written to the file and is not adjusted when rows are deleted; for a field with no repeated (`list` or `map`) ancestor, the live value count is `value_count` minus the deletion vector's cardinality. `total_bytes` is an estimate and is likewise not adjusted for deleted rows.
-
-When `tight_stats` is absent, readers must assume stats are not tight.
-
-When `tight_stats` is true:
-
-* `null_value_count` and `nan_value_count` are exact for the live rows.
-* Bounds are exact for primitive types other than `string` and `binary`, whose bounds may have been truncated when written.
+* Bounds are the minimum and maximum of the live values. Bounds for `string` and `binary` are never tight because they may be truncated when written, and bounds for `geometry` and `geography` are a bounding box, not exact minimum and maximum values.
 * `variant` bounds are stored per leaf field and are optional; a leaf field may have no bound, but any bound that is present is exact.
-* `geometry` and `geography` bounds are a bounding box that contains the live values, not exact minimum and maximum values.
+* `null_value_count` and `nan_value_count` are the counts across the live rows. A `variant` value is null only when the variant itself is null; a non-null variant that encodes a variant null is not counted as a null value.
 
-A `variant` value is null only when the variant itself is null; a non-null variant that encodes a variant null is not counted as a null value. Variants do not have a `nan_value_count`.
+Statistics other than the bounds, `null_value_count`, and `nan_value_count` are not part of tightness. In particular, `value_count` is the number of values across all rows written to the file and is not adjusted when rows are deleted; for a field with no repeated (`list` or `map`) ancestor, the live value count is `value_count` minus the deletion vector's cardinality.
 
-A deletion vector does not by itself make a file's stats non-tight; `tight_stats` is the only indicator of tightness. Stats may be recomputed to restore tightness without rewriting the data file.
+When `tight_stats` is absent, readers must assume stats are not tight. A deletion vector does not by itself make a file's stats non-tight; `tight_stats` is the only indicator of tightness. Stats may be recomputed to restore tightness without rewriting the data file.
 
 ###### Content Stats in Manifests
 
