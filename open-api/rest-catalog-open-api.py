@@ -1188,19 +1188,13 @@ class RemoteSignBatchElement(BaseModel):
     )
 
 
-class SignStatus(RootModel[Literal['completed', 'failed']]):
-    root: Literal['completed', 'failed'] = Field(
-        ..., description='Status of signing one element of a batch'
-    )
-
-
 class CompletedSignResult(RemoteSignResult):
     """
     A successfully signed batch element
     """
 
-    status: Literal['completed'] = Field(
-        ..., description='Status of signing one element of a batch'
+    index: int = Field(
+        ..., description='The 0-based position of the element in `requests`', ge=0
     )
 
 
@@ -1209,18 +1203,10 @@ class FailedSignResult(BaseModel):
     A batch element that could not be signed
     """
 
-    status: Literal['failed'] = Field(
-        ..., description='Status of signing one element of a batch'
+    index: int = Field(
+        ..., description='The 0-based position of the element in `requests`', ge=0
     )
     error: ErrorModel
-
-
-class RemoteSignBatchResult(RootModel[CompletedSignResult | FailedSignResult]):
-    root: CompletedSignResult | FailedSignResult = Field(
-        ...,
-        description='The result of signing one element of a batch',
-        discriminator='status',
-    )
 
 
 class RemoteSignBatchResponse(BaseModel):
@@ -1228,8 +1214,11 @@ class RemoteSignBatchResponse(BaseModel):
     The result of a batch remote request signing operation.
     """
 
-    results: list[RemoteSignBatchResult] = Field(
-        ..., description='Results for each element of the request, in request order'
+    completed: list[CompletedSignResult] = Field(
+        ..., description='Elements that were signed'
+    )
+    failed: list[FailedSignResult] = Field(
+        ..., description='Elements that could not be signed'
     )
 
 
@@ -1245,6 +1234,12 @@ class RemoteSigningConfig(BaseModel):
     headers: MultiValuedMap | None = Field(
         None,
         description='Static headers the signer client MUST include unchanged in every request to the signing endpoint.\n',
+    )
+    sign_batch_max_size: int | None = Field(
+        None,
+        alias='sign-batch-max-size',
+        description='The maximum number of elements in one `batchSignRequests` request for this table.',
+        ge=1,
     )
 
 
@@ -1436,9 +1431,9 @@ class RemoteSignBatchRequest(BaseModel):
 
     region: str
     method: Literal['PUT', 'GET', 'HEAD', 'POST', 'DELETE', 'PATCH', 'OPTIONS']
-    provider: str | None = Field(
-        None,
-        description='The storage provider for every element of the batch. If this is not specified, the provider is assumed to be `s3`, as in `RemoteSignRequest`.',
+    provider: str = Field(
+        ...,
+        description='The storage provider for every element of the batch. The provider should correspond to the scheme used for a storage native URI. For example `s3` for AWS S3 paths.',
     )
     properties: dict[str, str] | None = None
     requests: list[RemoteSignBatchElement] = Field(..., min_length=1)

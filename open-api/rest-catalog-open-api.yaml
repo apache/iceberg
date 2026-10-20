@@ -1441,12 +1441,18 @@ paths:
         - Catalog API
       summary: Remotely signs a batch of requests to object storage
       operationId: batchSignRequests
-      description: >
+      description:
         Signs a batch of requests to object storage on the client's behalf.
 
-        A server MAY
-        advertise its batch size limit as `sign-batch-max-size` in `CatalogConfig`. If not the value is not advertised, the server
-        SHOULD use a default batch size of 100 elements. A batch above the server's limit is rejected with 413.
+
+        A server that supports this operation for a table MUST set `sign-batch-max-size` in the
+        table's `RemoteSigningConfig`. A client MUST NOT send more elements than that value. A
+        batch above the server's limit is rejected with 413.
+
+
+        A 200 response means the batch was processed. Each element of `requests` is reported once,
+        by its 0-based index, in either `completed` or `failed`.
+
 
         `X-Iceberg-Access-Delegation` applies to the batch as a whole.
       requestBody:
@@ -1468,7 +1474,7 @@ paths:
         406:
           $ref: '#/components/responses/UnsupportedOperationResponse'
         413:
-          $ref: '#/components/responses/ContentTooLargeResponse'
+          $ref: '#/components/responses/BatchContentTooLargeResponse'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
         503:
@@ -5521,6 +5527,7 @@ components:
       required:
         - region
         - method
+        - provider
         - requests
       properties:
         region:
@@ -5530,8 +5537,8 @@ components:
           enum: ["PUT", "GET", "HEAD", "POST", "DELETE", "PATCH", "OPTIONS"]
         provider:
           type: string
-          description: The storage provider for every element of the batch. If this is not specified, the
-            provider is assumed to be `s3`, as in `RemoteSignRequest`.
+          description: The storage provider for every element of the batch. The provider should correspond
+            to the scheme used for a storage native URI. For example `s3` for AWS S3 paths.
         properties:
           type: object
           additionalProperties:
@@ -5557,59 +5564,50 @@ components:
           type: string
           description: Optional body of the request to send to the signing API, as in `RemoteSignRequest`.
 
-    SignStatus:
-      description: Status of signing one element of a batch
-      type: string
-      enum: ["completed", "failed"]
-
     CompletedSignResult:
       description: A successfully signed batch element
       allOf:
         - $ref: '#/components/schemas/RemoteSignResult'
         - type: object
           required:
-            - status
+            - index
           properties:
-            status:
-              $ref: '#/components/schemas/SignStatus'
-              const: "completed"
+            index:
+              type: integer
+              minimum: 0
+              description: The 0-based position of the element in `requests`
 
     FailedSignResult:
       description: A batch element that could not be signed
       type: object
       required:
-        - status
+        - index
         - error
       properties:
-        status:
-          $ref: '#/components/schemas/SignStatus'
-          const: "failed"
+        index:
+          type: integer
+          minimum: 0
+          description: The 0-based position of the element in `requests`
         error:
           $ref: '#/components/schemas/ErrorModel'
-
-    RemoteSignBatchResult:
-      type: object
-      description: The result of signing one element of a batch
-      discriminator:
-        propertyName: status
-        mapping:
-          completed: '#/components/schemas/CompletedSignResult'
-          failed: '#/components/schemas/FailedSignResult'
-      oneOf:
-        - $ref: '#/components/schemas/CompletedSignResult'
-        - $ref: '#/components/schemas/FailedSignResult'
 
     RemoteSignBatchResponse:
       description: The result of a batch remote request signing operation.
       type: object
       required:
-        - results
+        - completed
+        - failed
       properties:
-        results:
-          description: Results for each element of the request, in request order
+        completed:
+          description: Elements that were signed
           type: array
           items:
-            $ref: '#/components/schemas/RemoteSignBatchResult'
+            $ref: '#/components/schemas/CompletedSignResult'
+        failed:
+          description: Elements that could not be signed
+          type: array
+          items:
+            $ref: '#/components/schemas/FailedSignResult'
 
     RemoteSigningConfig:
       description: Configuration for the remote signer client.
@@ -5628,6 +5626,10 @@ components:
           description: >
             Static headers the signer client MUST include unchanged in every request to the signing
             endpoint.
+        sign-batch-max-size:
+          type: integer
+          minimum: 1
+          description: The maximum number of elements in one `batchSignRequests` request for this table.
 
   #############################
   # Reusable Response Objects #
@@ -5807,10 +5809,9 @@ components:
             }
           }
 
-    ContentTooLargeResponse:
+    BatchContentTooLargeResponse:
       description:
-        The request body exceeds a limit the server enforces, such as the maximum number of
-        elements in a batch.
+        The batch has more elements than the server accepts, as set in `sign-batch-max-size`.
       content:
         application/json:
           schema:
@@ -5962,7 +5963,7 @@ components:
             $ref: '#/components/schemas/RemoteSignResult'
 
     RemoteSignBatchResponse:
-      description: The results of signing each element of a batch, in request order.
+      description: The outcome of signing each element of a batch.
       content:
         application/json:
           schema:
