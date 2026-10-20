@@ -398,7 +398,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   /**
    * Returns the snapshot summary from the implementation with updated totals and, for replace
-   * commits, the properties carried forward from the replaced snapshot.
+   * commits, the listed custom properties carried forward from the current head of the target
+   * branch.
    */
   private Map<String, String> summary(TableMetadata previous) {
     Map<String, String> summary = summary();
