@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.Map;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
@@ -67,12 +66,7 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
 
   @Override
   protected InputFilesDecryptor newInputFilesDecryptor() {
-    return InputFilesDecryptor.fromFiles(
-        () ->
-            taskGroup().tasks().stream()
-                .<ContentFile<?>>map(PositionDeletesScanTask::file)
-                .iterator(),
-        encryptingFileIO());
+    return InputFilesDecryptor.fromPositionDeletesTasks(taskGroup().tasks(), encryptingFileIO());
   }
 
   @SuppressWarnings("resource") // handled by BaseReader
