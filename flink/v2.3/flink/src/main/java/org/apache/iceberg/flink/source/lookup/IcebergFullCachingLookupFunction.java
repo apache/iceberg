@@ -36,7 +36,6 @@ import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.expressions.Expression;
@@ -44,7 +43,6 @@ import org.apache.iceberg.flink.FlinkRowData;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,7 +59,8 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergFullCachingLookupFunction.class);
 
-  private static final String METRIC_GROUP = "icebergLookupCache";
+  private static final String METRIC_GROUP = "cache";
+  private static final long UNINITIALIZED = -1L;
 
   private final TableLoader tableLoader;
   private final RowType projectedRowType;
@@ -77,9 +76,12 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
   private transient RowData.FieldGetter[] keyGetters;
   private transient InMemoryLookupCache cache;
 
-  private transient Counter lookupMissCounter;
+  private transient Counter missCounter;
+  private transient Counter loadCounter;
+  private transient Counter loadFailuresCounter;
   private transient volatile long currentSnapshotId;
-  private transient volatile int cachedRows;
+  private transient volatile long cachedRecords;
+  private transient volatile long latestLoadTimeMs;
 
   public IcebergFullCachingLookupFunction(
       TableLoader tableLoader,
@@ -105,11 +107,15 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
         Arrays.toString(lookupKeyIndexes));
 
     MetricGroup metricGroup = context.getMetricGroup().addGroup(METRIC_GROUP);
-    this.lookupMissCounter = metricGroup.counter("lookupMiss");
+    this.missCounter = metricGroup.counter("missCount");
+    this.loadCounter = metricGroup.counter("loadCount");
+    this.loadFailuresCounter = metricGroup.counter("numLoadFailures");
     this.currentSnapshotId = IcebergLookupReader.CURRENT_SNAPSHOT;
-    this.cachedRows = 0;
+    this.cachedRecords = 0L;
+    this.latestLoadTimeMs = UNINITIALIZED;
     metricGroup.gauge("snapshotId", () -> currentSnapshotId);
-    metricGroup.gauge("cachedRows", () -> cachedRows);
+    metricGroup.gauge("numCachedRecords", () -> cachedRecords);
+    metricGroup.gauge("latestLoadTime", () -> latestLoadTimeMs);
 
     tableLoader.open();
     this.table = tableLoader.loadTable();
@@ -141,7 +147,7 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
 
     List<RowData> hit = cache.get(keySerializer.toBinaryRow(keyRow));
     if (hit == null) {
-      lookupMissCounter.inc();
+      missCounter.inc();
       return Collections.emptyList();
     }
 
@@ -174,38 +180,31 @@ public class IcebergFullCachingLookupFunction extends LookupFunction {
         projectedRowType.getFieldNames(),
         pushedFilters);
 
-    InMemoryLookupCache loaded = createCache(snapshot);
-    int rowCnt = 0;
+    InMemoryLookupCache loaded = new InMemoryLookupCache();
+    long rowCnt = 0L;
     long start = System.currentTimeMillis();
     try (CloseableIterable<RowData> rows = reader.read(snapshotId)) {
       for (RowData row : rows) {
         loaded.add(extractKey(row), rowSerializer.toBinaryRow(row).copy());
         rowCnt++;
       }
+    } catch (IOException | RuntimeException e) {
+      loadFailuresCounter.inc();
+      throw e;
+    } finally {
+      this.latestLoadTimeMs = System.currentTimeMillis() - start;
     }
 
     this.cache = loaded;
     this.currentSnapshotId = snapshotId;
-    this.cachedRows = rowCnt;
+    this.cachedRecords = rowCnt;
+    loadCounter.inc();
 
     LOG.info(
         "IcebergFullCachingLookupFunction loading finished, snapshot={}, rows={}, cost={} ms",
         snapshot == null ? "none" : snapshotId,
         rowCnt,
-        System.currentTimeMillis() - start);
-  }
-
-  private InMemoryLookupCache createCache(Snapshot snapshot) {
-    if (snapshot != null && pushedFilters.isEmpty()) {
-      Long totalRecords =
-          PropertyUtil.propertyAsNullableLong(
-              snapshot.summary(), SnapshotSummary.TOTAL_RECORDS_PROP);
-      if (totalRecords != null) {
-        return new InMemoryLookupCache((int) Math.min(totalRecords, Integer.MAX_VALUE));
-      }
-    }
-
-    return new InMemoryLookupCache();
+        latestLoadTimeMs);
   }
 
   private BinaryRowData extractKey(RowData row) {

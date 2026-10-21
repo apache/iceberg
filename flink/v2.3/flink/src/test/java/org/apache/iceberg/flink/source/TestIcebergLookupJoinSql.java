@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.TableEnvironment;
-import org.apache.flink.table.api.config.TableConfigOptions;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -76,10 +75,20 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
 
   @Test
   void lookupJoinWithFilterConditionInJoin() throws Exception {
-    createDimTable(
-        dimRecord(1L, "alice", "beijing"),
-        dimRecord(2L, "bob", "shanghai"),
-        dimRecord(3L, "carol", "beijing"));
+    Table dimTable =
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, DIM_SCHEMA);
+    GenericAppenderHelper helper =
+        new GenericAppenderHelper(dimTable, FileFormat.PARQUET, temporaryFolder);
+    helper.appendToTable(
+        helper.writeFile(
+            Lists.newArrayList(
+                dimRecord(1L, "alice", "beijing"), dimRecord(3L, "carol", "beijing"))));
+    DataFile shanghaiFile = helper.writeFile(Lists.newArrayList(dimRecord(2L, "bob", "shanghai")));
+    helper.appendToTable(shanghaiFile);
+
+    // The filter must be pushed to the dimension table scan, which skips this file by its
+    // column stats. Otherwise loading the cache fails on the missing file.
+    dimTable.io().deleteFile(shanghaiFile.location());
 
     TableEnvironment streamEnv = getStreamingTableEnv();
     createOrdersTable(streamEnv, "orders_with_filter", 4);
@@ -322,8 +331,6 @@ class TestIcebergLookupJoinSql extends TestSqlBase {
         "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
         CATALOG_EXTENSION.warehouse());
     SqlHelpers.sql(tableEnvironment, "use catalog iceberg_catalog");
-
-    tableConf.set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
   }
 
   private String createEmptyProbeAndUnreadableDimTable() throws IOException {

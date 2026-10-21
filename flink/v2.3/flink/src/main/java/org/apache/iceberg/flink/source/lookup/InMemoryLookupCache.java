@@ -19,6 +19,8 @@
 package org.apache.iceberg.flink.source.lookup;
 
 import java.io.Closeable;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
@@ -35,17 +37,29 @@ class InMemoryLookupCache implements Closeable {
     this.cache = Maps.newHashMap();
   }
 
-  InMemoryLookupCache(int expectedSize) {
-    this.cache = Maps.newHashMapWithExpectedSize(expectedSize);
-  }
-
   @Nullable
   List<RowData> get(BinaryRowData key) {
     return cache.get(key);
   }
 
   void add(BinaryRowData key, BinaryRowData row) {
-    cache.computeIfAbsent(key, k -> Lists.newArrayList()).add(row);
+    cache.compute(key, (k, existing) -> append(existing, row));
+  }
+
+  private static List<RowData> append(@Nullable List<RowData> existing, RowData row) {
+    if (existing == null) {
+      return Collections.singletonList(row);
+    }
+
+    if (existing instanceof ArrayList) {
+      existing.add(row);
+      return existing;
+    }
+
+    List<RowData> rows = Lists.newArrayListWithCapacity(2);
+    rows.add(existing.get(0));
+    rows.add(row);
+    return rows;
   }
 
   @Override

@@ -97,9 +97,6 @@ SELECT * FROM table /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'st
 Iceberg supports Flink lookup join, which enriches a stream with data from an Iceberg dimension table:
 
 ```sql
--- The OPTIONS hint used in this section requires dynamic table options, which are disabled by default.
-SET table.dynamic-table-options.enabled=true;
-
 SELECT o.order_id, o.user_id, u.name, u.city
 FROM orders AS o
 LEFT JOIN iceberg_catalog.db.user_dim
