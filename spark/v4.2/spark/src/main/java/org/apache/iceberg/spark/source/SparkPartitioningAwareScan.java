@@ -306,6 +306,18 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     return evaluator.eval(task.partition());
   }
 
+  /**
+   * Returns the planned tasks that match all partition predicates in the scan.
+   *
+   * <p>Tasks from specs where a predicate cannot be evaluated are kept.
+   */
+  protected synchronized List<T> tasksMatchingPartitionPredicates() {
+    Map<Integer, PartitionPredicateEvaluator> evaluatorsBySpecId = Maps.newHashMap();
+    return tasks().stream()
+        .filter(task -> matchesPartitionPredicates(task, evaluatorsBySpecId))
+        .collect(Collectors.toList());
+  }
+
   private static List<PartitionField> activePartitionFields(PartitionSpec spec) {
     return spec.fields().stream()
         .filter(field -> !field.transform().isVoid())
