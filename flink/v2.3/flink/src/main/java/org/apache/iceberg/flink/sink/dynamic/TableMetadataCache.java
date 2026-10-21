@@ -178,6 +178,9 @@ class TableMetadataCache {
   private ResolvedSchemaInfo resolveSchema(
       TableIdentifier identifier, CacheItem cached, Schema input, boolean allowRefresh) {
     Schema compatible = null;
+    // tableSchemas is ordered current schema first, then newest to oldest. This way a historical
+    // schema that only matches by name (a column dropped and added again with the same name)
+    // does not win over the current schema.
     for (Schema tableSchema : cached.tableSchemas.values()) {
       CompareSchemasVisitor.Result result =
           CompareSchemasVisitor.visit(input, tableSchema, caseSensitive, dropUnusedColumns);
