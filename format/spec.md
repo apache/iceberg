@@ -1016,6 +1016,8 @@ For example, stats for an optional `geometry` field named `location` with field-
 
 For `variant`, both bounds are unshredded `variant` that store variant field bounds by normalized JSON paths as field names. See [Bounds for Variant](#bounds-for-variant) for details on producing these bounds.
 
+A `variant` value is null only when the variant itself is null; a non-null variant that encodes a variant null is not counted as a null value.
+
 ###### Stats Tightness
 
 Statistics are _tight_ when the bounds, `value_count`, `null_value_count`, and `nan_value_count` are exact for the live rows of a file:
@@ -1023,9 +1025,9 @@ Statistics are _tight_ when the bounds, `value_count`, `null_value_count`, and `
 * `lower_bound` and `upper_bound` for fixed-length types are equal to the minimum and maximum of the live values.
 * `value_count`, `null_value_count`, and `nan_value_count` are the counts across the live rows.
 
-Bounds for `string` and `binary` are never tight because they may be truncated when written. Bounds for `geometry` and `geography` are a bounding box, not exact minimum and maximum values.
+Regardless of `tight_stats`, bounds for `string` and `binary` are never tight because they may be truncated when written, and bounds for `geometry` and `geography` are never tight because they are a bounding box rather than exact minimum and maximum values.
 
-`variant` bounds are stored per leaf field and are optional; a leaf field may have no bound, and each present bound follows the rules above for its type. A `variant` value is null only when the variant itself is null; a non-null variant that encodes a variant null is not counted as a null value.
+For `variant`, `lower_bound` and `upper_bound` hold one bound per normalized JSON path. A path may be omitted, which means that path has no bound. Whether a present bound is tight follows the same rules as above for that path's value type.
 
 Statistics other than the bounds, `value_count`, `null_value_count`, and `nan_value_count` are not part of tightness.
 
