@@ -266,7 +266,7 @@ class TableMetadataCache {
    * rollback.
    */
   static Map<Integer, Schema> orderSchemas(Map<Integer, Schema> tableSchemas, int currentSchemaId) {
-    Map<Integer, Schema> ordered = Maps.newLinkedHashMap();
+    Map<Integer, Schema> ordered = Maps.newLinkedHashMapWithExpectedSize(tableSchemas.size());
     Schema current = tableSchemas.get(currentSchemaId);
     if (current != null) {
       ordered.put(currentSchemaId, current);
