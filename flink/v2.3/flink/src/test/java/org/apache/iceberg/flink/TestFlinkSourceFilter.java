@@ -20,16 +20,22 @@ package org.apache.iceberg.flink;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.stream.Stream;
 import org.apache.flink.table.data.GenericArrayData;
 import org.apache.flink.table.data.GenericMapData;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class TestFlinkSourceFilter {
   private static final Schema SCHEMA =
@@ -48,6 +54,8 @@ class TestFlinkSourceFilter {
                   Types.NestedField.optional(
                       8, "nested_tags", Types.ListType.ofOptional(9, Types.StringType.get())))));
 
+  private static final RowType ROW_TYPE = FlinkSchemaUtil.convert(SCHEMA);
+
   private static final RowData ROW =
       GenericRowData.of(
           1L,
@@ -56,29 +64,35 @@ class TestFlinkSourceFilter {
               ImmutableMap.of(StringData.fromString("k"), StringData.fromString("v"))),
           GenericRowData.of(new GenericArrayData(new Object[] {StringData.fromString("b")})));
 
-  @Test
-  void notNullOnListColumn() {
-    FlinkSourceFilter filter = new FlinkSourceFilter(SCHEMA, Expressions.notNull("tags"), true);
-    assertThat(filter.filter(ROW)).isTrue();
+  private static final RowData ROW_WITH_NULL_COLLECTIONS =
+      GenericRowData.of(2L, null, null, new GenericRowData(1));
+
+  private static Stream<Arguments> collectionColumns() {
+    return Stream.of("tags", "attributes", "nested.nested_tags")
+        .flatMap(column -> Stream.of(Arguments.of(column, false), Arguments.of(column, true)));
   }
 
-  @Test
-  void isNullOnListColumn() {
-    FlinkSourceFilter filter = new FlinkSourceFilter(SCHEMA, Expressions.isNull("tags"), true);
-    assertThat(filter.filter(ROW)).isFalse();
+  @ParameterizedTest(name = "{0}, binary={1}")
+  @MethodSource("collectionColumns")
+  void nonNullCollectionIsNotNull(String column, boolean binary) {
+    RowData row = binary ? toBinary(ROW) : ROW;
+    assertThat(matches(Expressions.notNull(column), row)).isTrue();
+    assertThat(matches(Expressions.isNull(column), row)).isFalse();
   }
 
-  @Test
-  void notNullOnMapColumn() {
-    FlinkSourceFilter filter =
-        new FlinkSourceFilter(SCHEMA, Expressions.notNull("attributes"), true);
-    assertThat(filter.filter(ROW)).isTrue();
+  @ParameterizedTest(name = "{0}, binary={1}")
+  @MethodSource("collectionColumns")
+  void nullCollectionIsNull(String column, boolean binary) {
+    RowData row = binary ? toBinary(ROW_WITH_NULL_COLLECTIONS) : ROW_WITH_NULL_COLLECTIONS;
+    assertThat(matches(Expressions.isNull(column), row)).isTrue();
+    assertThat(matches(Expressions.notNull(column), row)).isFalse();
   }
 
-  @Test
-  void notNullOnListNestedInStruct() {
-    FlinkSourceFilter filter =
-        new FlinkSourceFilter(SCHEMA, Expressions.notNull("nested.nested_tags"), true);
-    assertThat(filter.filter(ROW)).isTrue();
+  private static boolean matches(Expression expression, RowData row) {
+    return new FlinkSourceFilter(SCHEMA, expression, true).filter(row);
+  }
+
+  private static RowData toBinary(RowData row) {
+    return new RowDataSerializer(ROW_TYPE).toBinaryRow(row);
   }
 }
