@@ -36,6 +36,7 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TestFlinkSourceFilter {
   private static final Schema SCHEMA =
@@ -67,6 +68,8 @@ class TestFlinkSourceFilter {
   private static final RowData ROW_WITH_NULL_COLLECTIONS =
       GenericRowData.of(2L, null, null, new GenericRowData(1));
 
+  private static final RowData ROW_WITH_NULL_STRUCT = GenericRowData.of(3L, null, null, null);
+
   private static Stream<Arguments> collectionColumns() {
     return Stream.of("tags", "attributes", "nested.nested_tags")
         .flatMap(column -> Stream.of(Arguments.of(column, false), Arguments.of(column, true)));
@@ -86,6 +89,14 @@ class TestFlinkSourceFilter {
     RowData row = binary ? toBinary(ROW_WITH_NULL_COLLECTIONS) : ROW_WITH_NULL_COLLECTIONS;
     assertThat(matches(Expressions.isNull(column), row)).isTrue();
     assertThat(matches(Expressions.notNull(column), row)).isFalse();
+  }
+
+  @ParameterizedTest(name = "binary={0}")
+  @ValueSource(booleans = {false, true})
+  void listInNullStructIsNull(boolean binary) {
+    RowData row = binary ? toBinary(ROW_WITH_NULL_STRUCT) : ROW_WITH_NULL_STRUCT;
+    assertThat(matches(Expressions.isNull("nested.nested_tags"), row)).isTrue();
+    assertThat(matches(Expressions.notNull("nested.nested_tags"), row)).isFalse();
   }
 
   private static boolean matches(Expression expression, RowData row) {

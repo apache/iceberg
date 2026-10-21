@@ -32,6 +32,8 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
+import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.RecordWrapperTestBase;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -46,6 +48,8 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestRowDataWrapper extends RecordWrapperTestBase {
 
@@ -108,8 +112,9 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
     assertThat(expected).isExhausted();
   }
 
-  @Test
-  void listElementsAreConverted() {
+  @ParameterizedTest(name = "binary={0}")
+  @ValueSource(booleans = {false, true})
+  void listElementsAreConverted(boolean binary) {
     Schema schema =
         new Schema(
             Types.NestedField.optional(
@@ -117,11 +122,12 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
     RowData row =
         GenericRowData.of(new GenericArrayData(new Object[] {StringData.fromString("a"), null}));
 
-    assertThat(wrap(schema, row).get(0, List.class)).containsExactly("a", null);
+    assertThat(wrap(schema, row, binary).get(0, List.class)).containsExactly("a", null);
   }
 
-  @Test
-  void listOfTimestampsIsConvertedToMicros() {
+  @ParameterizedTest(name = "binary={0}")
+  @ValueSource(booleans = {false, true})
+  void listOfTimestampsIsConvertedToMicros(boolean binary) {
     Schema schema =
         new Schema(
             Types.NestedField.optional(
@@ -131,12 +137,13 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
         GenericRowData.of(
             new GenericArrayData(new Object[] {TimestampData.fromLocalDateTime(time)}));
 
-    assertThat(wrap(schema, row).get(0, List.class))
+    assertThat(wrap(schema, row, binary).get(0, List.class))
         .containsExactly(DateTimeUtil.microsFromTimestamp(time));
   }
 
-  @Test
-  void listOfStructsHasIndependentElements() {
+  @ParameterizedTest(name = "binary={0}")
+  @ValueSource(booleans = {false, true})
+  void listOfStructsHasIndependentElements(boolean binary) {
     Schema schema =
         new Schema(
             Types.NestedField.optional(
@@ -150,7 +157,7 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
         GenericRowData.of(
             new GenericArrayData(new Object[] {GenericRowData.of(1), GenericRowData.of(2)}));
 
-    List<?> points = wrap(schema, row).get(0, List.class);
+    List<?> points = wrap(schema, row, binary).get(0, List.class);
     assertThat(points).hasSize(2);
     StructLike first = (StructLike) points.get(0);
     StructLike second = (StructLike) points.get(1);
@@ -158,8 +165,9 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
     assertThat(second.get(0, Integer.class)).isEqualTo(2);
   }
 
-  @Test
-  void nestedStructsInListElementsAreIndependent() {
+  @ParameterizedTest(name = "binary={0}")
+  @ValueSource(booleans = {false, true})
+  void nestedStructsInListElementsAreIndependent(boolean binary) {
     Schema schema =
         new Schema(
             Types.NestedField.optional(
@@ -180,7 +188,7 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
                   GenericRowData.of(GenericRowData.of(1)), GenericRowData.of(GenericRowData.of(2))
                 }));
 
-    List<?> items = wrap(schema, row).get(0, List.class);
+    List<?> items = wrap(schema, row, binary).get(0, List.class);
     StructLike first = ((StructLike) items.get(0)).get(0, StructLike.class);
     StructLike second = ((StructLike) items.get(1)).get(0, StructLike.class);
 
@@ -196,11 +204,13 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
                 1, "unknowns", Types.ListType.ofOptional(2, Types.UnknownType.get())));
     RowData row = GenericRowData.of(new GenericArrayData(new Object[] {null}));
 
-    assertThat(wrap(schema, row).get(0, List.class)).containsExactly((Object) null);
+    // RowDataSerializer has no serializer for Flink's NULL type, so this case has no binary variant
+    assertThat(wrap(schema, row, false).get(0, List.class)).containsExactly((Object) null);
   }
 
-  @Test
-  void mapKeysAndValuesAreConverted() {
+  @ParameterizedTest(name = "binary={0}")
+  @ValueSource(booleans = {false, true})
+  void mapKeysAndValuesAreConverted(boolean binary) {
     Schema schema =
         new Schema(
             Types.NestedField.optional(
@@ -215,22 +225,24 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
                 ImmutableMap.of(
                     StringData.fromString("a"), DecimalData.fromBigDecimal(price, 9, 2))));
 
-    assertThat(wrap(schema, row).get(0, Map.class)).isEqualTo(ImmutableMap.of("a", price));
+    assertThat(wrap(schema, row, binary).get(0, Map.class)).isEqualTo(ImmutableMap.of("a", price));
   }
 
-  @Test
-  void emptyListIsConverted() {
+  @ParameterizedTest(name = "binary={0}")
+  @ValueSource(booleans = {false, true})
+  void emptyListIsConverted(boolean binary) {
     Schema schema =
         new Schema(
             Types.NestedField.optional(
                 1, "tags", Types.ListType.ofOptional(2, Types.StringType.get())));
     RowData row = GenericRowData.of(new GenericArrayData(new Object[0]));
 
-    assertThat(wrap(schema, row).get(0, List.class)).isEmpty();
+    assertThat(wrap(schema, row, binary).get(0, List.class)).isEmpty();
   }
 
-  @Test
-  void nestedListIsConverted() {
+  @ParameterizedTest(name = "binary={0}")
+  @ValueSource(booleans = {false, true})
+  void nestedListIsConverted(boolean binary) {
     Schema schema =
         new Schema(
             Types.NestedField.optional(
@@ -245,12 +257,13 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
                   new GenericArrayData(new Object[] {1, 2}), new GenericArrayData(new Object[] {3})
                 }));
 
-    assertThat(wrap(schema, row).get(0, List.class))
+    assertThat(wrap(schema, row, binary).get(0, List.class))
         .containsExactly(ImmutableList.of(1, 2), ImmutableList.of(3));
   }
 
-  @Test
-  void mapNullValueIsPreserved() {
+  @ParameterizedTest(name = "binary={0}")
+  @ValueSource(booleans = {false, true})
+  void mapNullValueIsPreserved(boolean binary) {
     Schema schema =
         new Schema(
             Types.NestedField.optional(
@@ -261,10 +274,12 @@ public class TestRowDataWrapper extends RecordWrapperTestBase {
     data.put(StringData.fromString("k"), null);
     RowData row = GenericRowData.of(new GenericMapData(data));
 
-    assertThat(wrap(schema, row).get(0, Map.class)).hasSize(1).containsEntry("k", null);
+    assertThat(wrap(schema, row, binary).get(0, Map.class)).hasSize(1).containsEntry("k", null);
   }
 
-  private static StructLike wrap(Schema schema, RowData row) {
-    return new RowDataWrapper(FlinkSchemaUtil.convert(schema), schema.asStruct()).wrap(row);
+  private static StructLike wrap(Schema schema, RowData row, boolean binary) {
+    RowType rowType = FlinkSchemaUtil.convert(schema);
+    RowData data = binary ? new RowDataSerializer(rowType).toBinaryRow(row) : row;
+    return new RowDataWrapper(rowType, schema.asStruct()).wrap(data);
   }
 }
