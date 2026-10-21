@@ -21,15 +21,26 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.function.ToLongFunction;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.transforms.PartitionSpecVisitor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.BinaryUtil;
+import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.UnicodeUtil;
 
 class StatsUtil {
   private StatsUtil() {}
@@ -324,5 +335,182 @@ class StatsUtil {
     }
 
     return true;
+  }
+
+  /** Inclusive source column bounds for a partition value. Upper is null when unbounded. */
+  record PartitionSourceBounds(Object lower, Object upper) {}
+
+  /**
+   * Returns the source column bounds for a partition value, or null for a NaN identity value.
+   *
+   * @throws IllegalArgumentException if the transform does not preserve order or the value is null
+   */
+  static PartitionSourceBounds sourceBoundsFor(
+      Schema schema, PartitionField field, Object partitionValue) {
+    Preconditions.checkArgument(
+        field.transform().preservesOrder(),
+        "Cannot derive source column bounds from partition field that does not preserve order: %s",
+        field);
+    Preconditions.checkArgument(
+        partitionValue != null, "Cannot derive source column bounds from null partition value");
+    Type sourceType = schema.findType(field.sourceId());
+    Preconditions.checkArgument(
+        sourceType != null, "Cannot find source column for partition field: %s", field);
+    return PartitionSpecVisitor.visit(
+        schema, field, new PartitionSourceBoundsVisitor(sourceType, partitionValue));
+  }
+
+  private static class PartitionSourceBoundsVisitor
+      implements PartitionSpecVisitor<PartitionSourceBounds> {
+    private final Type sourceType;
+    private final Object value;
+
+    private PartitionSourceBoundsVisitor(Type sourceType, Object value) {
+      this.sourceType = sourceType;
+      this.value = value;
+    }
+
+    @Override
+    public PartitionSourceBounds identity(int fieldId, String sourceName, int sourceId) {
+      // convert to the source type, which may have been promoted after the value was written
+      Object bound =
+          switch (sourceType.typeId()) {
+            case LONG -> ((Number) value).longValue();
+            case DOUBLE -> ((Number) value).doubleValue();
+            default -> value;
+          };
+
+      if (bound instanceof ByteBuffer buffer) {
+        bound = ByteBuffers.copy(buffer);
+      }
+
+      // NaN cannot be used as a bound
+      if (bound instanceof Double d && d.isNaN() || bound instanceof Float f && f.isNaN()) {
+        return null;
+      }
+
+      return new PartitionSourceBounds(bound, bound);
+    }
+
+    @Override
+    public PartitionSourceBounds truncate(int fieldId, String sourceName, int sourceId, int width) {
+      // source values are at most width - 1 larger than the partition value, unscaled for decimals
+      return switch (sourceType.typeId()) {
+        case INTEGER -> {
+          int lower = (Integer) value;
+          yield new PartitionSourceBounds(
+              lower, (int) Math.min(Integer.MAX_VALUE, (long) lower + width - 1));
+        }
+        case LONG -> {
+          long lower = ((Number) value).longValue();
+          yield new PartitionSourceBounds(
+              lower, lower > Long.MAX_VALUE - (width - 1) ? Long.MAX_VALUE : lower + width - 1);
+        }
+        case DECIMAL -> {
+          BigDecimal lower = (BigDecimal) value;
+          int precision = ((Types.DecimalType) sourceType).precision();
+          BigInteger maxUnscaled = BigInteger.TEN.pow(precision).subtract(BigInteger.ONE);
+          BigInteger unscaledUpper =
+              lower.unscaledValue().add(BigInteger.valueOf(width - 1)).min(maxUnscaled);
+          yield new PartitionSourceBounds(lower, new BigDecimal(unscaledUpper, lower.scale()));
+        }
+        case STRING -> truncatedString(value.toString(), width);
+        case BINARY -> truncatedBinary((ByteBuffer) value, width);
+        default ->
+            throw new UnsupportedOperationException("Unsupported truncate source: " + sourceType);
+      };
+    }
+
+    private static PartitionSourceBounds truncatedString(String prefix, int width) {
+      if (prefix.codePointCount(0, prefix.length()) < width) {
+        // a prefix shorter than the width was not truncated, so every value equals it
+        return new PartitionSourceBounds(prefix, prefix);
+      }
+
+      // add a character so truncateStringMax returns the next higher prefix
+      return new PartitionSourceBounds(
+          prefix, UnicodeUtil.truncateStringMax(prefix + "\u0000", width));
+    }
+
+    private static PartitionSourceBounds truncatedBinary(ByteBuffer value, int width) {
+      ByteBuffer prefix = ByteBuffers.copy(value);
+      if (prefix.remaining() < width) {
+        // a prefix shorter than the width was not truncated, so every value equals it
+        return new PartitionSourceBounds(prefix, prefix);
+      }
+
+      // add a byte so truncateBinaryMax returns the next higher prefix
+      ByteBuffer extended = ByteBuffer.allocate(prefix.remaining() + 1);
+      extended.put(prefix.duplicate()).put((byte) 0).flip();
+      return new PartitionSourceBounds(prefix, BinaryUtil.truncateBinaryMax(extended, width));
+    }
+
+    @Override
+    public PartitionSourceBounds year(int fieldId, String sourceName, int sourceId) {
+      return timeBoundsFor(ChronoUnit.YEARS);
+    }
+
+    @Override
+    public PartitionSourceBounds month(int fieldId, String sourceName, int sourceId) {
+      return timeBoundsFor(ChronoUnit.MONTHS);
+    }
+
+    @Override
+    public PartitionSourceBounds day(int fieldId, String sourceName, int sourceId) {
+      return timeBoundsFor(ChronoUnit.DAYS);
+    }
+
+    @Override
+    public PartitionSourceBounds hour(int fieldId, String sourceName, int sourceId) {
+      return timeBoundsFor(ChronoUnit.HOURS);
+    }
+
+    private PartitionSourceBounds timeBoundsFor(ChronoUnit unit) {
+      long periods = (Integer) value;
+      // the lower bound starts one unit earlier for 0 or less since older writers had a bug that
+      // rounded pre-1970 values toward zero, except for day transforms on dates
+      long lowerPeriods = periods <= 0 ? periods - 1 : periods;
+      return switch (sourceType.typeId()) {
+        case DATE -> {
+          long dateLowerPeriods = unit == ChronoUnit.DAYS ? periods : lowerPeriods;
+          yield new PartitionSourceBounds(
+              (int) Math.max(Integer.MIN_VALUE, daysFromEpoch(dateLowerPeriods, unit)),
+              (int) Math.min(Integer.MAX_VALUE, daysFromEpoch(periods + 1, unit) - 1));
+        }
+        case TIMESTAMP ->
+            new PartitionSourceBounds(
+                unitsFromEpoch(DateTimeUtil::microsFromTimestamptz, lowerPeriods, unit),
+                before(unitsFromEpoch(DateTimeUtil::microsFromTimestamptz, periods + 1, unit)));
+        case TIMESTAMP_NANO ->
+            new PartitionSourceBounds(
+                unitsFromEpoch(DateTimeUtil::nanosFromTimestamptz, lowerPeriods, unit),
+                before(unitsFromEpoch(DateTimeUtil::nanosFromTimestamptz, periods + 1, unit)));
+        default ->
+            throw new UnsupportedOperationException("Unsupported time source: " + sourceType);
+      };
+    }
+
+    private static long daysFromEpoch(long periods, ChronoUnit unit) {
+      return ChronoUnit.DAYS.between(
+          DateTimeUtil.EPOCH_DAY, DateTimeUtil.EPOCH_DAY.plus(periods, unit));
+    }
+
+    private static long unitsFromEpoch(
+        ToLongFunction<OffsetDateTime> fromEpoch, long periods, ChronoUnit unit) {
+      OffsetDateTime time = DateTimeUtil.EPOCH.plus(periods, unit);
+      try {
+        return fromEpoch.applyAsLong(time);
+      } catch (ArithmeticException e) {
+        return time.isBefore(DateTimeUtil.EPOCH) ? Long.MIN_VALUE : Long.MAX_VALUE;
+      }
+    }
+
+    private static long before(long exclusiveUpper) {
+      if (exclusiveUpper == Long.MAX_VALUE || exclusiveUpper == Long.MIN_VALUE) {
+        return exclusiveUpper;
+      }
+
+      return exclusiveUpper - 1;
+    }
   }
 }
