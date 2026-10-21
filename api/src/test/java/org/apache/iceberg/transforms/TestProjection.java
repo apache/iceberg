@@ -412,4 +412,17 @@ public class TestProjection {
     Evaluator evaluator = new Evaluator(spec.partitionType(), projected);
     assertThat(evaluator.eval(TestHelpers.Row.of(DateTimeUtil.isoTimestampToNanos(ts)))).isTrue();
   }
+
+  @Test
+  void identityStrictProjectionOfTimestampNanoNotIn() {
+    String ts = "1970-01-02T00:00:00.000000001";
+    Schema schema = new Schema(optional(1, "ts", Types.TimestampNanoType.withoutZone()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("ts").build();
+    Expression notIn = Expressions.notIn("ts", ts, "1970-01-03T00:00:00");
+
+    Expression projected = Projections.strict(spec).project(notIn);
+
+    Evaluator evaluator = new Evaluator(spec.partitionType(), projected);
+    assertThat(evaluator.eval(TestHelpers.Row.of(DateTimeUtil.isoTimestampToNanos(ts)))).isFalse();
+  }
 }
