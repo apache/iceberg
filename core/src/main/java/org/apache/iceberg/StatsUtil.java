@@ -49,7 +49,6 @@ class StatsUtil {
   // Offsets used for individual stats columns
   static final int LOWER_BOUND_OFFSET = 1;
   static final int UPPER_BOUND_OFFSET = 2;
-  static final int TIGHT_BOUNDS_OFFSET = 3;
   static final int VALUE_COUNT_OFFSET = 4;
   static final int NULL_VALUE_COUNT_OFFSET = 5;
   static final int NAN_VALUE_COUNT_OFFSET = 6;
@@ -198,10 +197,6 @@ class StatsUtil {
     return statId >= baseId && statId < (baseId + NUM_RESERVED_FIELD_STATS_IDS);
   }
 
-  private static boolean tracksTightBounds(Type type) {
-    return !type.isVariantType() && !isGeoType(type);
-  }
-
   private static boolean isFloatingPoint(Type type) {
     return type.typeId() == Type.TypeID.FLOAT || type.typeId() == Type.TypeID.DOUBLE;
   }
@@ -270,15 +265,6 @@ class StatsUtil {
     if (mode.hasBounds()) {
       fields.add(lowerBoundField(type, baseId));
       fields.add(upperBoundField(type, baseId));
-
-      if (tracksTightBounds(type)) {
-        fields.add(
-            optional(
-                baseId + TIGHT_BOUNDS_OFFSET,
-                "tight_bounds",
-                Types.BooleanType.get(),
-                "True if lower=min and upper=max; false otherwise"));
-      }
     }
 
     fields.add(

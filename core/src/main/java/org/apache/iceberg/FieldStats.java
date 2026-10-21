@@ -37,12 +37,6 @@ public interface FieldStats<T> {
   /** The upper bound */
   T upperBound();
 
-  /**
-   * Whether {@link #lowerBound()} and {@link #upperBound()} are equal to the min and max values for
-   * the column.
-   */
-  boolean tightBounds();
-
   /** Whether a value count is tracked for this field. */
   boolean hasValueCount();
 
