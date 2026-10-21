@@ -301,7 +301,7 @@ For details on how to serialize a schema to JSON, see Appendix C.
 
 A `vector(E, D)` contains exactly D elements of type E, and every element is non-null. `float` and `double` elements must be finite: `NaN`, `+Infinity`, and `-Infinity` are invalid. The vector value may be null only when the vector field is optional.
 
-A `vector` must not be promoted to another type. No type other than `unknown` may be promoted to `vector`. The element type and dimension must not change. A `list` of element type E is not a `vector(E, D)`, even when every value has length D.
+A `vector` must not be promoted to another type. No type other than `unknown` may be promoted to `vector`. The element type and dimension must not change. A `list` of element type E is not a `vector(E, D)`, even if every list instance contains exactly D elements.
 
 Equality of vector values is element-wise, using the equality rules of element type.
 
