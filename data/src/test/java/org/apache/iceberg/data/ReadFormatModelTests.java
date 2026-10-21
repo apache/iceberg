@@ -119,17 +119,30 @@ public abstract class ReadFormatModelTests<T> {
     return false;
   }
 
-  protected void assertRecordsEqual(Schema schema, List<Record> expected, List<T> actual) {
-    assertThat(actual).hasSize(expected.size());
-    assertEquals(schema, convertToEngineRecords(expected, schema), actual);
+  protected void assertRecordsEqual(
+      Schema schema, List<Record> expected, CloseableIterable<T> actual) {
+    int rowOffset = 0;
+
+    for (T recordOrBatch : actual) {
+      int numRows = countRows(List.of(recordOrBatch));
+      assertThat(rowOffset + numRows).isLessThanOrEqualTo(expected.size());
+      assertEquals(
+          schema,
+          convertToEngineRecords(expected.subList(rowOffset, rowOffset + numRows), schema),
+          List.of(recordOrBatch));
+
+      rowOffset += numRows;
+    }
+
+    assertThat(rowOffset).isEqualTo(expected.size());
   }
 
   @TempDir private File tableDir;
 
   /**
    * Returns the set of type IDs that this engine cannot handle. The base implementation returns an
-   * empty collection; engines override to declare which top-level columns should be excluded from
-   * test schemas.
+   * empty collection, engines override to declare which types should be filtered from test schemas
+   * or cause tests to be skipped.
    */
   protected Collection<Type.TypeID> unsupportedTypeIds() {
     return Set.of();
@@ -159,7 +172,7 @@ public abstract class ReadFormatModelTests<T> {
   }
 
   /**
-   * Returns the number of rows in the read result; batch engines override to sum across batches.
+   * Returns the number of rows in the read result, batch engines override to sum across batches.
    */
   protected int countRows(List<T> records) {
     return records.size();
@@ -289,13 +302,16 @@ public abstract class ReadFormatModelTests<T> {
 
     // Read back and verify
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
-    try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(schema)
-            .build()) {
-      readRecords = ImmutableList.copyOf(reader);
-      assertRecordsEqual(schema, genericRecords, readRecords);
+
+    ReadBuilder<T, ?> builder =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile).project(schema);
+
+    if (supportsBatchReads()) {
+      builder.recordsPerBatch(2);
+    }
+
+    try (CloseableIterable<T> reader = builder.build()) {
+      assertRecordsEqual(schema, genericRecords, reader);
     }
   }
 
@@ -330,13 +346,16 @@ public abstract class ReadFormatModelTests<T> {
 
     // Read back and verify
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
-    try (CloseableIterable<T> reader =
-        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
-            .project(schema)
-            .build()) {
-      readRecords = ImmutableList.copyOf(reader);
-      assertRecordsEqual(schema, genericRecords, readRecords);
+
+    ReadBuilder<T, ?> builder =
+        FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile).project(schema);
+
+    if (supportsBatchReads()) {
+      builder.recordsPerBatch(2);
+    }
+
+    try (CloseableIterable<T> reader = builder.build()) {
+      assertRecordsEqual(schema, genericRecords, reader);
     }
   }
 
@@ -398,13 +417,12 @@ public abstract class ReadFormatModelTests<T> {
     List<Record> projectedGenericRecords = project(genericRecords, projectedSchema);
 
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
+
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(projectedSchema)
             .build()) {
-      readRecords = ImmutableList.copyOf(reader);
-      assertRecordsEqual(projectedSchema, projectedGenericRecords, readRecords);
+      assertRecordsEqual(projectedSchema, projectedGenericRecords, reader);
     }
   }
 
@@ -451,7 +469,7 @@ public abstract class ReadFormatModelTests<T> {
       readRecords = ImmutableList.copyOf(reader);
     }
 
-    assertThat(readRecords).hasSizeGreaterThan(0).hasSizeLessThan(genericRecords.size());
+    assertThat(countRows(readRecords)).isGreaterThan(0).isLessThan(genericRecords.size());
   }
 
   /**
@@ -2460,14 +2478,13 @@ public abstract class ReadFormatModelTests<T> {
     NameMapping nameMapping = MappingUtil.create(icebergSchema);
 
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
+
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(icebergSchema)
             .withNameMapping(nameMapping)
             .build()) {
-      readRecords = ImmutableList.copyOf(reader);
-      assertRecordsEqual(icebergSchema, genericRecords, readRecords);
+      assertRecordsEqual(icebergSchema, genericRecords, reader);
     }
   }
 
@@ -2948,8 +2965,7 @@ public abstract class ReadFormatModelTests<T> {
     }
 
     try (CloseableIterable<T> reader = readerBuilder.build()) {
-      readRecords = ImmutableList.copyOf(reader);
-      assertRecordsEqual(projectionSchema, expectedRecords, readRecords);
+      assertRecordsEqual(projectionSchema, expectedRecords, reader);
     }
   }
 
@@ -2991,13 +3007,12 @@ public abstract class ReadFormatModelTests<T> {
       throws IOException {
     List<Record> expectedGenericRecords = sourceRecords.stream().map(converter).toList();
     InputFile inputFile = encryptedFile.encryptingOutputFile().toInputFile();
-    List<T> readRecords;
+
     try (CloseableIterable<T> reader =
         FormatModelRegistry.readBuilder(fileFormat, engineType(), inputFile)
             .project(readSchema)
             .build()) {
-      readRecords = ImmutableList.copyOf(reader);
-      assertRecordsEqual(readSchema, expectedGenericRecords, readRecords);
+      assertRecordsEqual(readSchema, expectedGenericRecords, reader);
     }
   }
 }

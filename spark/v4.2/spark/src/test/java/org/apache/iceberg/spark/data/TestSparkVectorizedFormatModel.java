@@ -30,6 +30,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.DataGenerators;
 import org.apache.iceberg.data.ReadFormatModelTests;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.data.vectorized.IcebergArrowColumnVector;
@@ -86,6 +87,8 @@ class TestSparkVectorizedFormatModel extends ReadFormatModelTests<ColumnarBatch>
   }
 
   private ValueVector arrowVector(ColumnarBatch batch, int col) {
+    assertThat(batch.column(col)).isInstanceOf(IcebergArrowColumnVector.class);
+
     IcebergArrowColumnVector vector = (IcebergArrowColumnVector) batch.column(col);
     return vector.vectorAccessor().getVector();
   }
@@ -127,16 +130,21 @@ class TestSparkVectorizedFormatModel extends ReadFormatModelTests<ColumnarBatch>
 
   @Override
   protected void assertRecordsEqual(
-      Schema schema, List<Record> expected, List<ColumnarBatch> actual) {
-    int rowId = 0;
+      Schema schema, List<Record> expected, CloseableIterable<ColumnarBatch> actual) {
+    int rowOffset = 0;
+
     for (ColumnarBatch batch : actual) {
+      assertThat(rowOffset + batch.numRows()).isLessThanOrEqualTo(expected.size());
+
       for (int i = 0; i < batch.numRows(); i++) {
         TestHelpers.assertEquals(
-            schema, InternalRowConverter.convert(schema, expected.get(rowId)), batch.getRow(i));
-        rowId++;
+            schema,
+            InternalRowConverter.convert(schema, expected.get(rowOffset + i)),
+            batch.getRow(i));
       }
+      rowOffset += batch.numRows();
     }
 
-    assertThat(rowId).isEqualTo(expected.size());
+    assertThat(rowOffset).isEqualTo(expected.size());
   }
 }
