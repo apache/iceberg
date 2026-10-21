@@ -70,12 +70,27 @@ public class FileSystemWalker {
     listDirRecursivelyWithFileIO(io, dir, specs, filter).forEachRemaining(fileConsumer);
   }
 
+  /**
+   * Recursively lists files in the specified directory that satisfy the given conditions, skipping
+   * hidden paths.
+   *
+   * <p>Files are listed lazily as the returned iterator is consumed.
+   *
+   * @param io FileIO implementation interface supporting prefix operations
+   * @param dir Base directory to start recursive listing, with or without a trailing slash; only
+   *     locations under {@code dir + "/"} are listed
+   * @param specs Map of {@link PartitionSpec partition specs} for this table. Used to prevent
+   *     partition directories from being filtered as hidden paths.
+   * @param filter File filter condition, only files satisfying this condition will be returned.
+   * @return an iterator of matching file locations
+   */
   public static Iterator<String> listDirRecursivelyWithFileIO(
       SupportsPrefixOperations io,
       String dir,
       Map<Integer, PartitionSpec> specs,
       Predicate<FileInfo> filter) {
     PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(specs);
+    String baseDir = new Path(dir).toString();
     String listPath = dir;
     if (!dir.endsWith("/")) {
       listPath = dir + "/";
@@ -87,7 +102,7 @@ public class FileSystemWalker {
             files,
             file -> {
               Path path = new Path(file.location());
-              return !isHiddenPath(dir, path, pathFilter) && filter.test(file);
+              return !isHiddenPath(baseDir, path, pathFilter) && filter.test(file);
             }),
         FileInfo::location);
   }
@@ -126,7 +141,7 @@ public class FileSystemWalker {
     PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(specs);
     listDirRecursivelyWithFileIO(
         io,
-        dir,
+        new Path(dir).toString(),
         dir,
         pathFilter,
         filter,
@@ -274,7 +289,8 @@ public class FileSystemWalker {
   /**
    * Determines if a path is hidden by checking its hierarchy against the base directory.
    *
-   * @param baseDir The root directory to use as the stopping point for recursion
+   * @param baseDir The root directory to use as the stopping point for recursion, normalized by
+   *     {@link Path#toString()} so that it has no trailing slash
    * @param path The path to check for hidden status
    * @param pathFilter Filter used to evaluate path visibility
    * @return {@code true} if the path is hidden, {@code false} otherwise

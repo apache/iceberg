@@ -329,6 +329,29 @@ public class TestFileSystemWalker {
   }
 
   @Test
+  void skipsHiddenPathsWhenWalkingRemainingSubPrefix() {
+    List<String> remainingDirs = Lists.newArrayList();
+    Predicate<FileInfo> fileFilter = fileInfo -> fileInfo.location().endsWith(".txt");
+    FileSystemWalker.listDirRecursivelyWithFileIO(
+        fileIO, basePath, specs, fileFilter, 1, Integer.MAX_VALUE, remainingDirs::add, file -> {});
+    String hiddenDirPrefix = Paths.get("file://", basePath, "hidden_dir").toString() + "/";
+    assertThat(remainingDirs).contains(hiddenDirPrefix);
+
+    List<String> foundFiles = Lists.newArrayList();
+    FileSystemWalker.listDirRecursivelyWithFileIO(
+        fileIO,
+        hiddenDirPrefix,
+        specs,
+        fileFilter,
+        Integer.MAX_VALUE,
+        Integer.MAX_VALUE,
+        dir -> {},
+        foundFiles::add);
+
+    assertThat(foundFiles).isEmpty();
+  }
+
+  @Test
   void streamsSubPrefixesAfterMaxDirectSubDirsExceeded() {
     List<String> remainingDirs = Lists.newArrayList();
     PrefixListingPage firstPage =
