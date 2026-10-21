@@ -397,7 +397,8 @@ public class TestArrowReader {
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
-  void dictionaryEncodedTimestampMillisAreReadAsMicros(boolean adjustToUTC) throws Exception {
+  public void testDictionaryEncodedTimestampMillisAreReadCorrectly(boolean adjustToUTC)
+      throws Exception {
     tables = new HadoopTables();
     Types.TimestampType timestampType =
         adjustToUTC ? Types.TimestampType.withZone() : Types.TimestampType.withoutZone();
