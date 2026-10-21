@@ -24,3 +24,17 @@ the following copyright notice:
 | See the License for the specific language governing permissions and
 | limitations under the License.
 
+--------------------------------------------------------------------------------
+
+This project includes code from Presto, developed at Facebook, with the
+following copyright notice:
+
+| Copyright 2016 Facebook and contributors.
+
+--------------------------------------------------------------------------------
+
+This project includes code from Delta Lake, developed at The Delta Lake Project,
+with the following copyright notice:
+
+| Copyright (2021) The Delta Lake Project Authors.
+

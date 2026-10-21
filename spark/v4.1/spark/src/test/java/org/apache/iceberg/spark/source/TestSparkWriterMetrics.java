@@ -38,7 +38,6 @@ public class TestSparkWriterMetrics extends TestWriterMetrics<InternalRow> {
         .dataSchema(sourceTable.schema())
         .dataFileFormat(fileFormat)
         .deleteFileFormat(fileFormat)
-        .positionDeleteRowSchema(sourceTable.schema())
         .build();
   }
 

@@ -57,6 +57,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestADLSFileIO extends AzuriteTestBase {
 
@@ -145,10 +146,14 @@ public class TestADLSFileIO extends AzuriteTestBase {
 
   /** Azurite does not support ADLSv2 directory operations yet so use mocks here. */
   @SuppressWarnings("unchecked")
-  @Test
-  public void testListPrefixOperations() {
-    String prefix = "abfs://container@account.dfs.core.windows.net/dir";
-
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "abfss://container@account.dfs.core.windows.net/dir",
+        "abfs://account.dfs.core.windows.net/dir",
+        "wasbs://container@account.blob.core.windows.net/dir"
+      })
+  public void testListPrefixOperations(String prefix) {
     OffsetDateTime now = OffsetDateTime.now();
     PathItem dir =
         new PathItem("tag", now, 0L, "group", true, "dir", "owner", "permissions", now, null);
@@ -172,8 +177,7 @@ public class TestADLSFileIO extends AzuriteTestBase {
 
     // assert that only files were returned and not directories
     FileInfo fileInfo = result.next();
-    assertThat(fileInfo.location())
-        .isEqualTo("abfs://container@account.dfs.core.windows.net/dir/file");
+    assertThat(fileInfo.location()).isEqualTo(prefix + "/file");
     assertThat(fileInfo.size()).isEqualTo(123L);
     assertThat(fileInfo.createdAtMillis()).isEqualTo(now.toInstant().toEpochMilli());
 

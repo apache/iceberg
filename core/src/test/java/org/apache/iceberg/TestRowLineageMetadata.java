@@ -127,7 +127,7 @@ public class TestRowLineageMetadata {
             1,
             2,
             1L,
-            0,
+            1,
             DataOperations.APPEND,
             null,
             1,
@@ -163,7 +163,7 @@ public class TestRowLineageMetadata {
 
     Snapshot invalidNewRows =
         new BaseSnapshot(
-            1, 2, 1L, 0, DataOperations.APPEND, null, 1, "foo", added.nextRowId() - 1, 10L, null);
+            1, 2, 1L, 1, DataOperations.APPEND, null, 1, "foo", added.nextRowId() - 1, 10L, null);
 
     assertThatThrownBy(() -> TableMetadata.buildFrom(added).addSnapshot(invalidNewRows))
         .isInstanceOf(ValidationException.class)

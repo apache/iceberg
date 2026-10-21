@@ -198,25 +198,6 @@ public class SparkSchemaUtil {
    *
    * @param baseSchema a Schema on which conversion is based
    * @param sparkType a Spark StructType
-   * @return the equivalent Schema
-   * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
-   * @deprecated since 1.11.0, will be removed in 1.12.0
-   */
-  @Deprecated
-  public static Schema convertWithFreshIds(Schema baseSchema, StructType sparkType) {
-    return convertWithFreshIds(baseSchema, sparkType, true);
-  }
-
-  /**
-   * Convert a Spark {@link StructType struct} to a {@link Schema} based on the given schema.
-   *
-   * <p>This conversion will assign new ids for fields that are not found in the base schema.
-   *
-   * <p>Data types, field order, and nullability will match the spark type. This conversion may
-   * return a schema that is not compatible with base schema.
-   *
-   * @param baseSchema a Schema on which conversion is based
-   * @param sparkType a Spark StructType
    * @param caseSensitive when false, case of field names in schema is ignored
    * @return the equivalent Schema
    * @throws IllegalArgumentException if the type cannot be converted or there are missing ids
@@ -247,32 +228,6 @@ public class SparkSchemaUtil {
   public static Schema prune(Schema schema, StructType requestedType) {
     return new Schema(
         TypeUtil.visit(schema, new PruneColumnsWithoutReordering(requestedType, ImmutableSet.of()))
-            .asNestedType()
-            .asStructType()
-            .fields());
-  }
-
-  /**
-   * Prune columns from a {@link Schema} using a {@link StructType Spark type} projection.
-   *
-   * <p>This requires that the Spark type is a projection of the Schema. Nullability and types must
-   * match.
-   *
-   * <p>The filters list of {@link Expression} is used to ensure that columns referenced by filters
-   * are projected.
-   *
-   * @param schema a Schema
-   * @param requestedType a projection of the Spark representation of the Schema
-   * @param filters a list of filters
-   * @return a Schema corresponding to the Spark projection
-   * @throws IllegalArgumentException if the Spark type does not match the Schema
-   * @deprecated since 1.11.0, will be removed in 1.12.0
-   */
-  @Deprecated
-  public static Schema prune(Schema schema, StructType requestedType, List<Expression> filters) {
-    Set<Integer> filterRefs = Binder.boundReferences(schema.asStruct(), filters, true);
-    return new Schema(
-        TypeUtil.visit(schema, new PruneColumnsWithoutReordering(requestedType, filterRefs))
             .asNestedType()
             .asStructType()
             .fields());

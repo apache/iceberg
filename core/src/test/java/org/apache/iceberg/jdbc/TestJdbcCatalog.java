@@ -24,9 +24,12 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -54,6 +57,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.Transaction;
@@ -65,6 +69,7 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -109,6 +114,11 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
   @Override
   protected boolean supportsEmptyNamespace() {
+    return true;
+  }
+
+  @Override
+  protected boolean supportsUnregister() {
     return true;
   }
 
@@ -1060,6 +1070,41 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Set<String> allProperties = ImmutableSet.of("key_1", "key_3");
     catalog.removeProperties(testNamespace, allProperties);
     assertThat(catalog.namespaceExists(testNamespace)).isTrue();
+  }
+
+  @Test
+  public void testMetadataRefreshMaxRetries() {
+    try (JdbcCatalog jdbcCatalog =
+        initCatalog(
+            "test_jdbc_catalog_refresh_retries",
+            ImmutableMap.of(JdbcUtil.METADATA_REFRESH_MAX_RETRIES_PROPERTY, "1"))) {
+      TableIdentifier tableIdent = TableIdentifier.of("db", "tbl");
+      jdbcCatalog.buildTable(tableIdent, SCHEMA).create();
+
+      try (MockedStatic<TableMetadataParser> mockedStatic =
+          Mockito.mockStatic(TableMetadataParser.class)) {
+        mockedStatic
+            .when(() -> TableMetadataParser.read(any(FileIO.class), anyString()))
+            .thenThrow(new UncheckedIOException(new IOException("Read timed out")));
+
+        assertThatThrownBy(() -> jdbcCatalog.loadTable(tableIdent))
+            .isInstanceOf(UncheckedIOException.class)
+            .hasMessageContaining("Read timed out");
+        mockedStatic.verify(
+            () -> TableMetadataParser.read(any(FileIO.class), anyString()), times(2));
+      }
+    }
+  }
+
+  @Test
+  public void testInvalidMetadataRefreshMaxRetries() {
+    assertThatThrownBy(
+            () ->
+                initCatalog(
+                    "test_jdbc_catalog_invalid_refresh_retries",
+                    ImmutableMap.of(JdbcUtil.METADATA_REFRESH_MAX_RETRIES_PROPERTY, "-1")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid jdbc.metadata-refresh-max-retries: -1 (must be >= 0)");
   }
 
   @Test

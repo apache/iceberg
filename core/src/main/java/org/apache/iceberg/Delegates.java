@@ -233,6 +233,11 @@ class Delegates {
     }
 
     @Override
+    public Map<Integer, Long> totalBytes() {
+      return wrapped.totalBytes();
+    }
+
+    @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
       return wrapped.lowerBounds();
     }

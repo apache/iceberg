@@ -124,7 +124,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   }
 
   @Override
-  public void filter(Predicate[] predicates) {
+  public synchronized void filter(Predicate[] predicates) {
     Expression runtimeFilterExpr = convertRuntimeFilters(predicates);
 
     if (runtimeFilterExpr != Expressions.alwaysTrue()) {

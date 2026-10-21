@@ -96,6 +96,11 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     }
 
     @Override
+    public Table unregisterTable(TableIdentifier ident) {
+      return BaseSessionCatalog.this.unregisterTable(context, ident);
+    }
+
+    @Override
     public boolean tableExists(TableIdentifier ident) {
       return BaseSessionCatalog.this.tableExists(context, ident);
     }
@@ -164,6 +169,11 @@ public abstract class BaseSessionCatalog implements SessionCatalog {
     @Override
     public boolean namespaceExists(Namespace namespace) {
       return BaseSessionCatalog.this.namespaceExists(context, namespace);
+    }
+
+    @Override
+    public Table loadTable(TableIdentifier identifier, LoadContext loadContext) {
+      return BaseSessionCatalog.this.loadTable(context, identifier, loadContext);
     }
   }
 }

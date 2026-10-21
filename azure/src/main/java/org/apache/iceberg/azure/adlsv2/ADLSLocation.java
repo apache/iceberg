@@ -65,7 +65,6 @@ class ADLSLocation {
     ValidationException.check(matcher.matches(), "Invalid ADLS URI: %s", location);
 
     this.scheme = matcher.group(1);
-
     String authority = matcher.group(2);
     String[] parts = authority.split("@", -1);
     if (parts.length > 1) {
@@ -82,7 +81,7 @@ class ADLSLocation {
     this.path = uriPath == null ? "" : uriPath.startsWith("/") ? uriPath.substring(1) : uriPath;
   }
 
-  /** Returns the scheme used for accessing this location. */
+  /** Returns URI scheme (abfs, abfss, wasb, or wasbs). */
   public String scheme() {
     return scheme;
   }

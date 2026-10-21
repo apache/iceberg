@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
@@ -38,7 +39,7 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.PrefixListingPage;
 import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class EncryptingFileIO implements FileIO, Serializable {
   public static EncryptingFileIO combine(FileIO io, EncryptionManager em) {
@@ -69,11 +70,21 @@ public class EncryptingFileIO implements FileIO, Serializable {
   }
 
   public Map<String, InputFile> bulkDecrypt(Iterable<? extends ContentFile<?>> files) {
-    Iterable<InputFile> decrypted = em.decrypt(Iterables.transform(files, this::wrap));
-
     ImmutableMap.Builder<String, InputFile> builder = ImmutableMap.builder();
-    for (InputFile in : decrypted) {
-      builder.put(in.location(), in);
+
+    List<EncryptedInputFile> encryptedFiles = Lists.newArrayList();
+    for (ContentFile<?> file : files) {
+      if (file.keyMetadata() != null) {
+        encryptedFiles.add(wrap(file));
+      } else {
+        builder.put(file.location(), io.newInputFile(file.location(), file.fileSizeInBytes()));
+      }
+    }
+
+    if (!encryptedFiles.isEmpty()) {
+      for (InputFile file : em.decrypt(encryptedFiles)) {
+        builder.put(file.location(), file);
+      }
     }
 
     return builder.buildKeepingLast();

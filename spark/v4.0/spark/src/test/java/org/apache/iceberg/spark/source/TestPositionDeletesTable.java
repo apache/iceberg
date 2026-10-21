@@ -61,6 +61,7 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -82,7 +83,6 @@ import org.apache.iceberg.util.StructLikeSet;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.functions;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -181,35 +181,6 @@ public class TestPositionDeletesTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testPartitionedTable() throws IOException {
-    assumeThat(formatVersion).as("DVs don't have row info in PositionDeletesTable").isEqualTo(2);
-    // Create table with two partitions
-    String tableName = "partitioned_table";
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
-    Table tab = createTable(tableName, SCHEMA, spec);
-
-    DataFile dataFileA = dataFile(tab, "a");
-    DataFile dataFileB = dataFile(tab, "b");
-
-    tab.newAppend().appendFile(dataFileA).appendFile(dataFileB).commit();
-
-    // Add position deletes for both partitions
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesA = deleteFile(tab, dataFileA, "a");
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileB, "b");
-
-    tab.newRowDelta().addDeletes(deletesA.second()).addDeletes(deletesB.second()).commit();
-
-    // Select deletes from one partition
-    StructLikeSet actual = actual(tableName, tab, "row.data='b'");
-    GenericRecord partitionB = GenericRecord.create(tab.spec().partitionType());
-    partitionB.setField("data", "b");
-    StructLikeSet expected = expected(tab, deletesB.first(), partitionB, deletesB.second());
-
-    assertThat(actual).as("Position Delete table should contain expected rows").isEqualTo(expected);
-    dropTable(tableName);
-  }
-
-  @TestTemplate
   public void testArrayColumnFilter() throws IOException {
     assumeThat(formatVersion)
         .as("Row content in position_deletes is required for array column filter test")
@@ -244,13 +215,13 @@ public class TestPositionDeletesTable extends CatalogTestBase {
         ImmutableList.of(
             positionDelete(schemaWithArray, dFile.location(), 0L, 1, "a", ImmutableList.of(1, 2)),
             positionDelete(schemaWithArray, dFile.location(), 1L, 2, "b", ImmutableList.of(3, 4)));
+    // written before 1.12.0: the delete writers no longer accept a row schema
     DeleteFile posDeletes =
-        FileHelpers.writePosDeleteFile(
+        FileHelpers.testOnlyPosDeleteFileWithRow(
             tab,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
-            TestHelpers.Row.of(),
-            deletes,
-            formatVersion);
+            null,
+            posDeleteRecords(tab, deletes));
     tab.newRowDelta().addDeletes(posDeletes).commit();
 
     // Filter directly on array column: row.arr_col = array(1, 2)
@@ -259,71 +230,6 @@ public class TestPositionDeletesTable extends CatalogTestBase {
 
     assertThat(actual)
         .as("Filtering position_deletes by row.arr_col = array(1, 2) should return matching row")
-        .isEqualTo(expected);
-    dropTable(tableName);
-  }
-
-  @TestTemplate
-  public void testSelect() throws IOException {
-    assumeThat(formatVersion).as("DVs don't have row info in PositionDeletesTable").isEqualTo(2);
-    // Create table with two partitions
-    String tableName = "select";
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
-    Table tab = createTable(tableName, SCHEMA, spec);
-
-    DataFile dataFileA = dataFile(tab, "a");
-    DataFile dataFileB = dataFile(tab, "b");
-
-    tab.newAppend().appendFile(dataFileA).appendFile(dataFileB).commit();
-
-    // Add position deletes for both partitions
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesA = deleteFile(tab, dataFileA, "a");
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileB, "b");
-
-    tab.newRowDelta().addDeletes(deletesA.second()).addDeletes(deletesB.second()).commit();
-
-    // Select certain columns
-    Dataset<Row> df =
-        spark
-            .read()
-            .format("iceberg")
-            .load("default." + tableName + ".position_deletes")
-            .withColumn("input_file", functions.input_file_name())
-            .select("row.id", "pos", "delete_file_path", "input_file");
-    List<Object[]> actual = rowsToJava(df.collectAsList());
-
-    // Select cols from expected delete values
-    List<Object[]> expected = Lists.newArrayList();
-    BiFunction<PositionDelete<?>, DeleteFile, Object[]> toRow =
-        (delete, file) -> {
-          int rowData = delete.get(2, GenericRecord.class).get(0, Integer.class);
-          long pos = delete.get(1, Long.class);
-          return row(rowData, pos, file.location(), file.location());
-        };
-    expected.addAll(
-        deletesA.first().stream()
-            .map(d -> toRow.apply(d, deletesA.second()))
-            .collect(Collectors.toList()));
-    expected.addAll(
-        deletesB.first().stream()
-            .map(d -> toRow.apply(d, deletesB.second()))
-            .collect(Collectors.toList()));
-
-    // Sort and compare
-    Comparator<Object[]> comp =
-        (o1, o2) -> {
-          int result = Integer.compare((int) o1[0], (int) o2[0]);
-          if (result != 0) {
-            return result;
-          } else {
-            return ((String) o1[2]).compareTo((String) o2[2]);
-          }
-        };
-    actual.sort(comp);
-    expected.sort(comp);
-    assertThat(actual)
-        .as("Position Delete table should contain expected rows")
-        .usingRecursiveComparison()
         .isEqualTo(expected);
     dropTable(tableName);
   }
@@ -417,7 +323,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
 
     List<PositionDelete<?>> deletes = Lists.newArrayList();
     for (long i = 0; i < records; i++) {
-      deletes.add(positionDelete(tab.schema(), dFile.location(), i, (int) i, String.valueOf(i)));
+      deletes.add(positionDelete(dFile.location(), i));
     }
     DeleteFile posDeletes =
         FileHelpers.writePosDeleteFile(
@@ -748,133 +654,6 @@ public class TestPositionDeletesTable extends CatalogTestBase {
 
     StructLikeSet actual = actual(tableName, tab, String.format("spec_id = %d", dataSpec));
     assertThat(actual).as("Position Delete table should contain expected rows").isEqualTo(expected);
-    dropTable(tableName);
-  }
-
-  @TestTemplate
-  public void testSchemaEvolutionAdd() throws Exception {
-    // Create table with original schema
-    String tableName = "schema_evolution_add";
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
-    Table tab = createTable(tableName, SCHEMA, spec);
-
-    // Add files with original schema
-    DataFile dataFileA = dataFile(tab, "a");
-    DataFile dataFileB = dataFile(tab, "b");
-    tab.newAppend().appendFile(dataFileA).appendFile(dataFileB).commit();
-
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesA = deleteFile(tab, dataFileA, "a");
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileB, "b");
-    tab.newRowDelta().addDeletes(deletesA.second()).addDeletes(deletesB.second()).commit();
-
-    // Add files with new schema
-    tab.updateSchema()
-        .addColumn("new_col_1", Types.IntegerType.get())
-        .addColumn("new_col_2", Types.IntegerType.get())
-        .commit();
-
-    // Add files with new schema
-    DataFile dataFileC = dataFile(tab, "c");
-    DataFile dataFileD = dataFile(tab, "d");
-    tab.newAppend().appendFile(dataFileA).appendFile(dataFileB).commit();
-
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesC = deleteFile(tab, dataFileC, "c");
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesD = deleteFile(tab, dataFileD, "d");
-    tab.newRowDelta().addDeletes(deletesC.second()).addDeletes(deletesD.second()).commit();
-
-    // Select deletes from old schema
-    GenericRecord partitionRecordTemplate = GenericRecord.create(Partitioning.partitionType(tab));
-    Record partitionA = partitionRecordTemplate.copy("data", "a");
-    // pad expected delete rows with null values for new columns
-    List<PositionDelete<?>> expectedDeletesA = deletesA.first();
-    expectedDeletesA.forEach(
-        d -> {
-          GenericRecord nested = d.get(2, GenericRecord.class);
-          GenericRecord padded = GenericRecord.create(tab.schema().asStruct());
-          padded.set(0, nested.get(0));
-          padded.set(1, nested.get(1));
-          padded.set(2, null);
-          padded.set(3, null);
-          d.set(2, padded);
-        });
-    StructLikeSet expectedA = expected(tab, expectedDeletesA, partitionA, deletesA.second());
-    StructLikeSet actualA = actual(tableName, tab, "partition.data = 'a' AND pos >= 0");
-    assertThat(actualA)
-        .as("Position Delete table should contain expected rows")
-        .isEqualTo(expectedA);
-
-    // Select deletes from new schema
-    Record partitionC = partitionRecordTemplate.copy("data", "c");
-    StructLikeSet expectedC = expected(tab, deletesC.first(), partitionC, deletesC.second());
-    StructLikeSet actualC = actual(tableName, tab, "partition.data = 'c' and pos >= 0");
-
-    assertThat(actualC)
-        .as("Position Delete table should contain expected rows")
-        .isEqualTo(expectedC);
-    dropTable(tableName);
-  }
-
-  @TestTemplate
-  public void testSchemaEvolutionRemove() throws Exception {
-    // Create table with original schema
-    String tableName = "schema_evolution_remove";
-    Schema oldSchema =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.IntegerType.get()),
-            Types.NestedField.required(2, "data", Types.StringType.get()),
-            Types.NestedField.optional(3, "new_col_1", Types.IntegerType.get()),
-            Types.NestedField.optional(4, "new_col_2", Types.IntegerType.get()));
-    PartitionSpec spec = PartitionSpec.builderFor(oldSchema).identity("data").build();
-    Table tab = createTable(tableName, oldSchema, spec);
-
-    // Add files with original schema
-    DataFile dataFileA = dataFile(tab, "a");
-    DataFile dataFileB = dataFile(tab, "b");
-    tab.newAppend().appendFile(dataFileA).appendFile(dataFileB).commit();
-
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesA = deleteFile(tab, dataFileA, "a");
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileB, "b");
-    tab.newRowDelta().addDeletes(deletesA.second()).addDeletes(deletesB.second()).commit();
-
-    // Add files with new schema
-    tab.updateSchema().deleteColumn("new_col_1").deleteColumn("new_col_2").commit();
-
-    // Add files with new schema
-    DataFile dataFileC = dataFile(tab, "c");
-    DataFile dataFileD = dataFile(tab, "d");
-    tab.newAppend().appendFile(dataFileA).appendFile(dataFileB).commit();
-
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesC = deleteFile(tab, dataFileC, "c");
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesD = deleteFile(tab, dataFileD, "d");
-    tab.newRowDelta().addDeletes(deletesC.second()).addDeletes(deletesD.second()).commit();
-
-    // Select deletes from old schema
-    GenericRecord partitionRecordTemplate = GenericRecord.create(Partitioning.partitionType(tab));
-    Record partitionA = partitionRecordTemplate.copy("data", "a");
-    // remove deleted columns from expected result
-    List<PositionDelete<?>> expectedDeletesA = deletesA.first();
-    expectedDeletesA.forEach(
-        d -> {
-          GenericRecord nested = d.get(2, GenericRecord.class);
-          GenericRecord padded = GenericRecord.create(tab.schema().asStruct());
-          padded.set(0, nested.get(0));
-          padded.set(1, nested.get(1));
-          d.set(2, padded);
-        });
-    StructLikeSet expectedA = expected(tab, expectedDeletesA, partitionA, deletesA.second());
-    StructLikeSet actualA = actual(tableName, tab, "partition.data = 'a' AND pos >= 0");
-    assertThat(actualA)
-        .as("Position Delete table should contain expected rows")
-        .isEqualTo(expectedA);
-
-    // Select deletes from new schema
-    Record partitionC = partitionRecordTemplate.copy("data", "c");
-    StructLikeSet expectedC = expected(tab, deletesC.first(), partitionC, deletesC.second());
-    StructLikeSet actualC = actual(tableName, tab, "partition.data = 'c' and pos >= 0");
-
-    assertThat(actualC)
-        .as("Position Delete table should contain expected rows")
-        .isEqualTo(expectedC);
     dropTable(tableName);
   }
 
@@ -1269,228 +1048,6 @@ public class TestPositionDeletesTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testWriteSchemaEvolutionAdd() throws Exception {
-    // Create table with original schema
-    String tableName = "write_schema_evolution_add";
-    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
-    Table tab = createTable(tableName, SCHEMA, spec);
-
-    // Add files with original schema
-    DataFile dataFileA = dataFile(tab, "a");
-    DataFile dataFileB = dataFile(tab, "b");
-    tab.newAppend().appendFile(dataFileA).appendFile(dataFileB).commit();
-
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesA = deleteFile(tab, dataFileA, "a");
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileB, "b");
-    tab.newRowDelta().addDeletes(deletesA.second()).addDeletes(deletesB.second()).commit();
-
-    // Add files with new schema
-    tab.updateSchema()
-        .addColumn("new_col_1", Types.IntegerType.get())
-        .addColumn("new_col_2", Types.IntegerType.get())
-        .commit();
-
-    // Add files with new schema
-    DataFile dataFileC = dataFile(tab, "c");
-    DataFile dataFileD = dataFile(tab, "d");
-    tab.newAppend().appendFile(dataFileA).appendFile(dataFileB).commit();
-
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesC = deleteFile(tab, dataFileC, "c");
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesD = deleteFile(tab, dataFileD, "d");
-    tab.newRowDelta().addDeletes(deletesC.second()).addDeletes(deletesD.second()).commit();
-
-    Table posDeletesTable =
-        MetadataTableUtils.createMetadataTableInstance(tab, MetadataTableType.POSITION_DELETES);
-    String posDeletesTableName = catalogName + ".default." + tableName + ".position_deletes";
-
-    // rewrite files of old schema
-    try (CloseableIterable<ScanTask> tasks = tasks(posDeletesTable, "data", "a")) {
-      String fileSetID = UUID.randomUUID().toString();
-      stageTask(tab, fileSetID, tasks);
-
-      Dataset<Row> scanDF =
-          spark
-              .read()
-              .format("iceberg")
-              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
-              .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
-              .load(posDeletesTableName);
-
-      assertThat(scanDF.javaRDD().getNumPartitions()).isEqualTo(1);
-      scanDF
-          .writeTo(posDeletesTableName)
-          .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
-          .append();
-
-      commit(tab, posDeletesTable, fileSetID, 1);
-    }
-
-    // Select deletes from old schema
-    GenericRecord partitionRecordTemplate = GenericRecord.create(Partitioning.partitionType(tab));
-    Record partitionA = partitionRecordTemplate.copy("data", "a");
-    // pad expected delete rows with null values for new columns
-    List<PositionDelete<?>> expectedDeletesA = deletesA.first();
-    expectedDeletesA.forEach(
-        d -> {
-          GenericRecord nested = d.get(2, GenericRecord.class);
-          GenericRecord padded = GenericRecord.create(tab.schema().asStruct());
-          padded.set(0, nested.get(0));
-          padded.set(1, nested.get(1));
-          padded.set(2, null);
-          padded.set(3, null);
-          d.set(2, padded);
-        });
-    StructLikeSet expectedA = expected(tab, expectedDeletesA, partitionA, deletesA.second(), false);
-    StructLikeSet actualA =
-        actual(
-            tableName,
-            tab,
-            "partition.data = 'a'",
-            formatVersion >= 3 ? NON_PATH_V3_COLS : NON_PATH_COLS);
-    assertThat(actualA)
-        .as("Position Delete table should contain expected rows")
-        .isEqualTo(expectedA);
-
-    // rewrite files of new schema
-    try (CloseableIterable<ScanTask> tasks = tasks(posDeletesTable, "data", "c")) {
-      String fileSetID = UUID.randomUUID().toString();
-      stageTask(tab, fileSetID, tasks);
-
-      Dataset<Row> scanDF =
-          spark
-              .read()
-              .format("iceberg")
-              .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
-              .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
-              .load(posDeletesTableName);
-
-      assertThat(scanDF.javaRDD().getNumPartitions()).isEqualTo(1);
-      scanDF
-          .writeTo(posDeletesTableName)
-          .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
-          .append();
-
-      commit(tab, posDeletesTable, fileSetID, 1);
-    }
-
-    // Select deletes from new schema
-    Record partitionC = partitionRecordTemplate.copy("data", "c");
-    StructLikeSet expectedC = expected(tab, deletesC.first(), partitionC, deletesC.second(), false);
-    StructLikeSet actualC =
-        actual(
-            tableName,
-            tab,
-            "partition.data = 'c'",
-            formatVersion >= 3 ? NON_PATH_V3_COLS : NON_PATH_COLS);
-
-    assertThat(actualC)
-        .as("Position Delete table should contain expected rows")
-        .isEqualTo(expectedC);
-    dropTable(tableName);
-  }
-
-  @TestTemplate
-  public void testWriteSchemaEvolutionRemove() throws Exception {
-    // Create table with original schema
-    String tableName = "write_schema_evolution_remove";
-    Schema oldSchema =
-        new Schema(
-            Types.NestedField.required(1, "id", Types.IntegerType.get()),
-            Types.NestedField.required(2, "data", Types.StringType.get()),
-            Types.NestedField.optional(3, "new_col_1", Types.IntegerType.get()),
-            Types.NestedField.optional(4, "new_col_2", Types.IntegerType.get()));
-    PartitionSpec spec = PartitionSpec.builderFor(oldSchema).identity("data").build();
-    Table tab = createTable(tableName, oldSchema, spec);
-
-    // Add files with original schema
-    DataFile dataFileA = dataFile(tab, "a");
-    DataFile dataFileB = dataFile(tab, "b");
-    tab.newAppend().appendFile(dataFileA).appendFile(dataFileB).commit();
-
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesA = deleteFile(tab, dataFileA, "a");
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesB = deleteFile(tab, dataFileB, "b");
-    tab.newRowDelta().addDeletes(deletesA.second()).addDeletes(deletesB.second()).commit();
-
-    // Add files with new schema
-    tab.updateSchema().deleteColumn("new_col_1").deleteColumn("new_col_2").commit();
-
-    // Add files with new schema
-    DataFile dataFileC = dataFile(tab, "c");
-    DataFile dataFileD = dataFile(tab, "d");
-    tab.newAppend().appendFile(dataFileA).appendFile(dataFileB).commit();
-
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesC = deleteFile(tab, dataFileC, "c");
-    Pair<List<PositionDelete<?>>, DeleteFile> deletesD = deleteFile(tab, dataFileD, "d");
-    tab.newRowDelta().addDeletes(deletesC.second()).addDeletes(deletesD.second()).commit();
-
-    Table posDeletesTable =
-        MetadataTableUtils.createMetadataTableInstance(tab, MetadataTableType.POSITION_DELETES);
-    String posDeletesTableName = catalogName + ".default." + tableName + ".position_deletes";
-
-    // rewrite files
-    for (String partValue : ImmutableList.of("a", "b", "c", "d")) {
-      try (CloseableIterable<ScanTask> tasks = tasks(posDeletesTable, "data", partValue)) {
-        String fileSetID = UUID.randomUUID().toString();
-        stageTask(tab, fileSetID, tasks);
-
-        Dataset<Row> scanDF =
-            spark
-                .read()
-                .format("iceberg")
-                .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
-                .option(SparkReadOptions.FILE_OPEN_COST, Integer.MAX_VALUE)
-                .load(posDeletesTableName);
-        assertThat(scanDF.javaRDD().getNumPartitions()).isEqualTo(1);
-        scanDF
-            .writeTo(posDeletesTableName)
-            .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, fileSetID)
-            .append();
-
-        commit(tab, posDeletesTable, fileSetID, 1);
-      }
-    }
-
-    // Select deletes from old schema
-    GenericRecord partitionRecordTemplate = GenericRecord.create(Partitioning.partitionType(tab));
-    Record partitionA = partitionRecordTemplate.copy("data", "a");
-    // remove deleted columns from expected result
-    List<PositionDelete<?>> expectedDeletesA = deletesA.first();
-    expectedDeletesA.forEach(
-        d -> {
-          GenericRecord nested = d.get(2, GenericRecord.class);
-          GenericRecord padded = GenericRecord.create(tab.schema().asStruct());
-          padded.set(0, nested.get(0));
-          padded.set(1, nested.get(1));
-          d.set(2, padded);
-        });
-    StructLikeSet expectedA = expected(tab, expectedDeletesA, partitionA, deletesA.second(), false);
-    StructLikeSet actualA =
-        actual(
-            tableName,
-            tab,
-            "partition.data = 'a'",
-            formatVersion >= 3 ? NON_PATH_V3_COLS : NON_PATH_COLS);
-    assertThat(actualA)
-        .as("Position Delete table should contain expected rows")
-        .isEqualTo(expectedA);
-
-    // Select deletes from new schema
-    Record partitionC = partitionRecordTemplate.copy("data", "c");
-    StructLikeSet expectedC = expected(tab, deletesC.first(), partitionC, deletesC.second(), false);
-    StructLikeSet actualC =
-        actual(
-            tableName,
-            tab,
-            "partition.data = 'c'",
-            formatVersion >= 3 ? NON_PATH_V3_COLS : NON_PATH_COLS);
-
-    assertThat(actualC)
-        .as("Position Delete table should contain expected rows")
-        .isEqualTo(expectedC);
-    dropTable(tableName);
-  }
-
-  @TestTemplate
   public void testNormalWritesNotAllowed() throws IOException {
     String tableName = "test_normal_write_not_allowed";
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("data").build();
@@ -1571,12 +1128,6 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     validationCatalog.dropTable(TableIdentifier.of("default", name), false);
   }
 
-  private PositionDelete<GenericRecord> positionDelete(CharSequence path, Long position) {
-    PositionDelete<GenericRecord> posDelete = PositionDelete.create();
-    posDelete.set(path, position, null);
-    return posDelete;
-  }
-
   private PositionDelete<GenericRecord> positionDelete(
       Schema tableSchema, CharSequence path, Long position, Object... values) {
     PositionDelete<GenericRecord> posDelete = PositionDelete.create();
@@ -1584,7 +1135,29 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     for (int i = 0; i < values.length; i++) {
       nested.set(i, values[i]);
     }
-    posDelete.set(path, position, nested);
+    posDelete.set(path, position);
+    posDelete.set(2, nested);
+    return posDelete;
+  }
+
+  /** Converts position deletes into records of the position delete schema, including the row. */
+  private List<Record> posDeleteRecords(Table table, List<PositionDelete<?>> deletes) {
+    Schema schema = DeleteSchemaUtil.posDeleteSchema(table.schema());
+    return deletes.stream()
+        .map(
+            delete -> {
+              GenericRecord record = GenericRecord.create(schema);
+              record.set(0, delete.path());
+              record.set(1, delete.pos());
+              record.set(2, delete.get(2, GenericRecord.class));
+              return record;
+            })
+        .collect(Collectors.toList());
+  }
+
+  private PositionDelete<GenericRecord> positionDelete(CharSequence path, Long position) {
+    PositionDelete<GenericRecord> posDelete = PositionDelete.create();
+    posDelete.set(path, position);
     return posDelete;
   }
 
@@ -1623,7 +1196,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
               GenericRecord record = GenericRecord.create(finalSchema);
               record.setField("file_path", p.path());
               record.setField("pos", p.pos());
-              record.setField("row", formatVersion >= 3 ? null : p.row());
+              record.setField("row", formatVersion >= 3 ? null : p.get(2, GenericRecord.class));
               if (partitionStruct != null) {
                 record.setField("partition", partitionStruct);
               }
@@ -1740,27 +1313,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     // fill columns with partition source fields, or preset values
     List<PositionDelete<?>> deletes =
         Lists.newArrayList(
-            positionDelete(
-                tab.schema(),
-                dataFile.location(),
-                0L,
-                idPartition != null ? idPartition : 29,
-                dataPartition != null ? dataPartition : "c"),
-            positionDelete(
-                tab.schema(),
-                dataFile.location(),
-                1L,
-                idPartition != null ? idPartition : 61,
-                dataPartition != null ? dataPartition : "r"));
-
-    // fill remaining columns with incremental values
-    List<Types.NestedField> cols = tab.schema().columns();
-    if (cols.size() > 2) {
-      for (int i = 2; i < cols.size(); i++) {
-        final int pos = i;
-        deletes.forEach(d -> d.get(2, GenericRecord.class).set(pos, pos));
-      }
-    }
+            positionDelete(dataFile.location(), 0L), positionDelete(dataFile.location(), 1L));
 
     TestHelpers.Row partitionInfo = TestHelpers.Row.of(partFieldValues);
 

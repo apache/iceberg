@@ -33,6 +33,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,6 +44,7 @@ import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BulkDeletionFailureException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.puffin.Blob;
@@ -52,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
@@ -68,8 +71,12 @@ public class TestRemoveSnapshots extends TestBase {
     return Arrays.asList(
         new Object[] {1, true},
         new Object[] {2, true},
+        new Object[] {3, true},
+        new Object[] {4, true},
         new Object[] {1, false},
-        new Object[] {2, false});
+        new Object[] {2, false},
+        new Object[] {3, false},
+        new Object[] {4, false});
   }
 
   private long waitUntilAfter(long timestampMillis) {
@@ -2135,6 +2142,119 @@ public class TestRemoveSnapshots extends TestBase {
     assertThatThrownBy(() -> table.expireSnapshots().cleanupLevel(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Invalid cleanup level: null");
+  }
+
+  @TestTemplate
+  void expireDoesNotDeletePuffinFileSharedByLiveDeletionVectors() {
+    assumeThat(formatVersion).as("Deletion vectors require V3 or later").isGreaterThanOrEqualTo(3);
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    // one Puffin file with deletion vectors for FILE_A and FILE_B
+    String sharedPuffinPath = "/path/to/shared-dvs-" + UUID.randomUUID() + ".puffin";
+    DeleteFile dvA = deletionVector(sharedPuffinPath, FILE_A, 4L);
+    DeleteFile dvB = deletionVector(sharedPuffinPath, FILE_B, 44L);
+    table.newRowDelta().addDeletes(dvA).addDeletes(dvB).commit();
+
+    // replace FILE_A's deletion vector; FILE_B's stays in the shared Puffin file
+    DeleteFile newDvA =
+        deletionVector("/path/to/new-dv-" + UUID.randomUUID() + ".puffin", FILE_A, 4L);
+    table
+        .newRowDelta()
+        .validateFromSnapshot(table.currentSnapshot().snapshotId())
+        .removeDeletes(dvA)
+        .addDeletes(newDvA)
+        .commit();
+
+    table.newAppend().appendFile(FILE_C).commit();
+
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(deletedFiles)
+        .as("Puffin file with a live deletion vector must not be deleted")
+        .doesNotContain(sharedPuffinPath);
+  }
+
+  @TestTemplate
+  void expireDeletesPuffinFileWhenAllSharedDeletionVectorsReplaced() {
+    assumeThat(formatVersion).as("Deletion vectors require V3 or later").isGreaterThanOrEqualTo(3);
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+
+    String sharedPuffinPath = "/path/to/shared-dvs-" + UUID.randomUUID() + ".puffin";
+    DeleteFile dvA = deletionVector(sharedPuffinPath, FILE_A, 4L);
+    DeleteFile dvB = deletionVector(sharedPuffinPath, FILE_B, 44L);
+    table.newRowDelta().addDeletes(dvA).addDeletes(dvB).commit();
+
+    DeleteFile newDvA =
+        deletionVector("/path/to/new-dv-a-" + UUID.randomUUID() + ".puffin", FILE_A, 4L);
+    DeleteFile newDvB =
+        deletionVector("/path/to/new-dv-b-" + UUID.randomUUID() + ".puffin", FILE_B, 4L);
+    table
+        .newRowDelta()
+        .validateFromSnapshot(table.currentSnapshot().snapshotId())
+        .removeDeletes(dvA)
+        .removeDeletes(dvB)
+        .addDeletes(newDvA)
+        .addDeletes(newDvB)
+        .commit();
+
+    table.newAppend().appendFile(FILE_C).commit();
+
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(deletedFiles).contains(sharedPuffinPath);
+  }
+
+  private DeleteFile deletionVector(String puffinPath, DataFile dataFile, long contentOffset) {
+    return FileMetadata.deleteFileBuilder(table.spec())
+        .ofPositionDeletes()
+        .withPath(puffinPath)
+        .withFileSizeInBytes(100L)
+        .withPartition(dataFile.partition())
+        .withRecordCount(1L)
+        .withReferencedDataFile(dataFile.location())
+        .withContentOffset(contentOffset)
+        .withContentSizeInBytes(40L)
+        .build();
+  }
+
+  @TestTemplate
+  void readManifestsProjectsManifestContent() throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files are only supported in V2 and later")
+        .isGreaterThanOrEqualTo(2);
+
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).commit();
+
+    Snapshot snapshot = table.currentSnapshot();
+    Map<String, ManifestContent> expected =
+        snapshot.allManifests(table.io()).stream()
+            .collect(Collectors.toMap(ManifestFile::path, ManifestFile::content));
+    assertThat(expected).containsValue(ManifestContent.DELETES);
+
+    FileCleanupStrategy cleanup =
+        incrementalCleanup
+            ? new IncrementalFileCleanup(table.io(), null, null, null)
+            : new ReachableFileCleanup(table.io(), null, null, null);
+
+    Map<String, ManifestContent> actual = Maps.newHashMap();
+    try (CloseableIterable<ManifestFile> manifests = cleanup.readManifests(snapshot)) {
+      for (ManifestFile manifest : manifests) {
+        actual.put(manifest.path(), manifest.content());
+      }
+    }
+
+    assertThat(actual).isEqualTo(expected);
   }
 
   private StatisticsFile writeStatsFile(

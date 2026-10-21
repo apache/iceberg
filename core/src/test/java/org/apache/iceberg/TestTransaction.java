@@ -28,10 +28,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -39,6 +43,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
@@ -321,6 +326,68 @@ public class TestTransaction extends TestBase {
 
     assertThat(Sets.newHashSet(table.currentSnapshot().allManifests(table.io())))
         .isEqualTo(appendManifests);
+  }
+
+  @TestTemplate
+  public void testTransactionRetryCleansUpWhenCatalogReturnsStaleMetadata() throws IOException {
+    File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    String tableName = "txnStaleMetadataCleanupTest";
+    // fail the first two commits, each after a concurrent metadata update, so the transaction
+    // re-applies twice and writes a new manifest list each time. after the successful commit,
+    // serve stale metadata from current() to simulate a catalog that caches table pointers.
+    AtomicInteger injectedFailures = new AtomicInteger(0);
+    AtomicBoolean captureStaleMetadata = new AtomicBoolean(false);
+    AtomicReference<TableMetadata> staleMetadata = new AtomicReference<>(null);
+    TestTables.LocalFileIO spyFileIO = Mockito.spy(new TestTables.LocalFileIO());
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations(tableName, location, spyFileIO) {
+          @Override
+          public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+            if (injectedFailures.getAndDecrement() > 0) {
+              TestTables.load(location, tableName)
+                  .updateProperties()
+                  .set("conflict-" + injectedFailures.get(), "true")
+                  .commit();
+              throw new CommitFailedException("Injected failure");
+            }
+            super.commit(base, updatedMetadata);
+            if (captureStaleMetadata.get()) {
+              staleMetadata.compareAndSet(null, base);
+            }
+          }
+
+          @Override
+          public TableMetadata current() {
+            if (staleMetadata.get() != null) {
+              return staleMetadata.get();
+            }
+            return super.current();
+          }
+        };
+    TestTables.TestTable txnTable =
+        TestTables.create(
+            location, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
+
+    txnTable.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "3").commit();
+
+    Transaction txn = txnTable.newTransaction();
+    txn.newFastAppend().appendFile(FILE_A).commit();
+
+    injectedFailures.set(2);
+    captureStaleMetadata.set(true);
+    txn.commitTransaction();
+
+    // clean-up must run off the transaction's committed metadata, not the stale catalog state
+    ArgumentCaptor<String> deletedPaths = ArgumentCaptor.forClass(String.class);
+    Mockito.verify(spyFileIO, Mockito.atLeastOnce()).deleteFile(deletedPaths.capture());
+    List<String> deletedManifestLists =
+        deletedPaths.getAllValues().stream()
+            .filter(path -> path.contains("snap-"))
+            .collect(Collectors.toList());
+    assertThat(deletedManifestLists).hasSize(2).doesNotHaveDuplicates();
+    assertThat(deletedManifestLists)
+        .doesNotContain(
+            TestTables.load(location, tableName).currentSnapshot().manifestListLocation());
   }
 
   @TestTemplate
@@ -613,6 +680,116 @@ public class TestTransaction extends TestBase {
     assertThat(new File(appendManifest.path())).doesNotExist();
 
     assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
+  }
+
+  @TestTemplate
+  public void testTransactionCleanupReadsOnlyOwnManifestLists() throws IOException {
+    File location = java.nio.file.Files.createTempDirectory(temp, "junit").toFile();
+    String tableName = "txnCleanupOwnManifestListsTest";
+    // record the manifest lists opened after the last successful commit
+    List<String> manifestListsRead = Lists.newArrayList();
+    AtomicInteger injectedFailures = new AtomicInteger(0);
+    TestTables.LocalFileIO trackingFileIO =
+        new TestTables.LocalFileIO() {
+          @Override
+          public InputFile newInputFile(String path) {
+            if (path.contains("snap-")) {
+              manifestListsRead.add(path);
+            }
+            return super.newInputFile(path);
+          }
+        };
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations(tableName, location, trackingFileIO) {
+          @Override
+          public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+            if (injectedFailures.getAndDecrement() > 0) {
+              // another writer commits between the failed attempt and the retry
+              TestTables.load(location, tableName).newFastAppend().appendFile(FILE_A).commit();
+              throw new CommitFailedException("Injected failure");
+            }
+            super.commit(base, updatedMetadata);
+            manifestListsRead.clear();
+          }
+        };
+    TestTables.TestTable txnTable =
+        TestTables.create(
+            location, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
+    // each table operations instance numbers snapshots on its own, so use random ids
+    txnTable.updateProperties().set("random-snapshot-ids", "true").commit();
+
+    Transaction txn = txnTable.newTransaction();
+    txn.newFastAppend().appendFile(FILE_A).commit();
+    String firstManifestList = txn.table().currentSnapshot().manifestListLocation();
+
+    // round trip through JSON so the snapshots the transaction loads have no cached manifest lists
+    TestTables.TestTableOperations concurrentOps =
+        new TestTables.TestTableOperations(tableName, location) {
+          @Override
+          public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+            super.commit(
+                base, TableMetadataParser.fromJson(TableMetadataParser.toJson(updatedMetadata)));
+          }
+        };
+    Table concurrentTable = new BaseTable(concurrentOps, tableName);
+    concurrentTable.newFastAppend().appendFile(FILE_B).commit();
+    concurrentTable.newFastAppend().appendFile(FILE_C).commit();
+    concurrentTable.newFastAppend().appendFile(FILE_D).commit();
+
+    injectedFailures.set(1);
+    txn.commitTransaction();
+
+    Table committedTable = TestTables.load(location, tableName);
+    assertThat(committedTable.snapshots()).hasSize(5);
+    String committedManifestList = committedTable.currentSnapshot().manifestListLocation();
+    assertThat(manifestListsRead).containsExactly(committedManifestList);
+    assertThat(new File(committedManifestList)).exists();
+    assertThat(((BaseTransaction) txn).deletedFiles()).contains(firstManifestList);
+    assertThat(new File(firstManifestList)).doesNotExist();
+  }
+
+  @TestTemplate
+  public void testTransactionRetryKeepsManifestReusedByRetry() throws IOException {
+    // use only one retry, merge any two manifests, and keep appended manifests as they are
+    table
+        .updateProperties()
+        .set(TableProperties.COMMIT_NUM_RETRIES, "1")
+        .set(TableProperties.MANIFEST_MIN_MERGE_COUNT, "2")
+        .set(TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED, "true")
+        .commit();
+
+    table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
+    ManifestFile baseManifest = table.currentSnapshot().allManifests(table.io()).get(0);
+
+    ManifestFile appendManifest = writeManifestWithName("input.m0", FILE_D);
+
+    // size the merge bins so two manifests merge and three do not
+    long targetSize = (baseManifest.length() + appendManifest.length()) * 5 / 4;
+    table
+        .updateProperties()
+        .set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, String.valueOf(targetSize))
+        .commit();
+
+    Transaction txn = table.newTransaction();
+    txn.newAppend().appendManifest(appendManifest).commit();
+
+    // the first attempt merges the appended manifest and enqueues it for deletion
+    assertThat(txn.table().currentSnapshot().allManifests(table.io())).hasSize(1);
+    ManifestFile mergedManifest = txn.table().currentSnapshot().allManifests(table.io()).get(0);
+    assertThat(((BaseTransaction) txn).deletedFiles()).contains(appendManifest.path());
+
+    // a third manifest overflows the bin, so the retry keeps the appended manifest as is
+    table.newFastAppend().appendFile(FILE_C).commit();
+
+    txn.commitTransaction();
+
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .extracting(ManifestFile::path)
+        .contains(appendManifest.path())
+        .doesNotContain(mergedManifest.path());
+    assertThat(new File(appendManifest.path())).exists();
+    assertThat(new File(mergedManifest.path())).doesNotExist();
   }
 
   @TestTemplate

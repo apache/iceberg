@@ -75,8 +75,8 @@ class RCKUtils {
                 e ->
                     e.getKey()
                         .replaceFirst(CATALOG_ENV_PREFIX, "")
-                        .replaceAll("__", "-")
-                        .replaceAll("_", ".")
+                        .replace("__", "-")
+                        .replace('_', '.')
                         .toLowerCase(Locale.ROOT),
                 Map.Entry::getValue,
                 (m1, m2) -> {

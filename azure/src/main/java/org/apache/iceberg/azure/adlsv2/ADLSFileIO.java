@@ -220,7 +220,6 @@ public class ADLSFileIO implements DelegateFileIO {
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
     ADLSLocation location = new ADLSLocation(prefix);
-    String baseUri = toBaseUri(location);
 
     ListPathsOptions options = new ListPathsOptions();
     options.setPath(location.path());
@@ -230,7 +229,7 @@ public class ADLSFileIO implements DelegateFileIO {
       try {
         return client(location).listPaths(options, null).stream()
             .filter(pathItem -> !pathItem.isDirectory())
-            .map(pathItem -> createFileInfo(baseUri, pathItem))
+            .map(pathItem -> createFileInfo(location, pathItem))
             .iterator();
       } catch (DataLakeStorageException e) {
         // other FileIO implementations return an empty iterator if nothing
@@ -251,7 +250,6 @@ public class ADLSFileIO implements DelegateFileIO {
     }
 
     ADLSLocation location = new ADLSLocation(prefix);
-    String baseUri = toBaseUri(location);
 
     ListPathsOptions options = new ListPathsOptions();
     options.setPath(location.path());
@@ -260,7 +258,7 @@ public class ADLSFileIO implements DelegateFileIO {
     return () -> {
       try {
         return Streams.stream(client(location).listPaths(options, null).iterableByPage())
-            .map(response -> createPrefixListingPage(baseUri, response.getElements()))
+            .map(response -> createPrefixListingPage(location, response.getElements()))
             .iterator();
       } catch (DataLakeStorageException e) {
         if (e.getStatusCode() != 404) {
@@ -277,26 +275,22 @@ public class ADLSFileIO implements DelegateFileIO {
     return "/".equals(delimiter);
   }
 
-  private String toBaseUri(ADLSLocation location) {
-    return String.format(
-        "%s://%s@%s/", location.scheme(), location.container().orElse(""), location.host());
-  }
-
-  private FileInfo createFileInfo(String baseUri, PathItem pathItem) {
+  private static FileInfo createFileInfo(ADLSLocation location, PathItem pathItem) {
     return new FileInfo(
-        baseUri + pathItem.getName(),
+        fullyQualifiedLocation(location, pathItem.getName()),
         pathItem.getContentLength(),
         pathItem.getCreationTime().toInstant().toEpochMilli());
   }
 
-  private PrefixListingPage createPrefixListingPage(String baseUri, Iterable<PathItem> pathItems) {
+  private static PrefixListingPage createPrefixListingPage(
+      ADLSLocation location, Iterable<PathItem> pathItems) {
     List<FileInfo> files = Lists.newArrayList();
     List<String> subPrefixes = Lists.newArrayList();
     for (PathItem pathItem : pathItems) {
       if (pathItem.isDirectory()) {
-        subPrefixes.add(baseUri + pathItem.getName() + "/");
+        subPrefixes.add(fullyQualifiedLocation(location, pathItem.getName()) + "/");
       } else {
-        files.add(createFileInfo(baseUri, pathItem));
+        files.add(createFileInfo(location, pathItem));
       }
     }
 
@@ -326,5 +320,11 @@ public class ADLSFileIO implements DelegateFileIO {
     }
 
     DelegateFileIO.super.close();
+  }
+
+  private static String fullyQualifiedLocation(ADLSLocation location, String path) {
+    String host = location.host();
+    String authority = location.container().map(container -> container + "@" + host).orElse(host);
+    return String.format("%s://%s/%s", location.scheme(), authority, path);
   }
 }

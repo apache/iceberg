@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteManifests;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.actions.RewriteManifestsSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
@@ -54,9 +56,11 @@ class RewriteManifestsProcedure extends BaseProcedure {
       optionalInParameter("use_caching", DataTypes.BooleanType);
   private static final ProcedureParameter SPEC_ID_PARAM =
       optionalInParameter("spec_id", DataTypes.IntegerType);
+  private static final ProcedureParameter SORT_BY_PARAM =
+      optionalInParameter("sort_by", STRING_ARRAY);
 
   private static final ProcedureParameter[] PARAMETERS =
-      new ProcedureParameter[] {TABLE_PARAM, USE_CACHING_PARAM, SPEC_ID_PARAM};
+      new ProcedureParameter[] {TABLE_PARAM, USE_CACHING_PARAM, SPEC_ID_PARAM, SORT_BY_PARAM};
 
   // counts are not nullable since the action result is never null
   private static final StructType OUTPUT_TYPE =
@@ -96,6 +100,7 @@ class RewriteManifestsProcedure extends BaseProcedure {
     Identifier tableIdent = input.ident(TABLE_PARAM);
     Boolean useCaching = input.asBoolean(USE_CACHING_PARAM, null);
     Integer specId = input.asInt(SPEC_ID_PARAM, null);
+    String[] sortBy = input.asStringArray(SORT_BY_PARAM, null);
 
     return modifyIcebergTable(
         tableIdent,
@@ -108,6 +113,12 @@ class RewriteManifestsProcedure extends BaseProcedure {
 
           if (specId != null) {
             action.specId(specId);
+          }
+
+          if (sortBy != null) {
+            Preconditions.checkArgument(
+                sortBy.length > 0, "sort_by must not be empty when provided");
+            action.sortBy(Arrays.asList(sortBy));
           }
 
           RewriteManifests.Result result = action.execute();

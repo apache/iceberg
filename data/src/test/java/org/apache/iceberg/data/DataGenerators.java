@@ -44,7 +44,10 @@ class DataGenerators {
         new StructOfPrimitive(),
         new ListOfPrimitive(),
         new MapOfPrimitive(),
-        new TimestampNano()
+        new TimestampNano(),
+        new Variant(),
+        new Geometry(),
+        new Geography()
       };
 
   private DataGenerators() {}
@@ -98,6 +101,55 @@ class DataGenerators {
     @Override
     public String toString() {
       return "DefaultSchema";
+    }
+  }
+
+  static class Variant implements DataGenerator {
+    private final Schema schema =
+        new Schema(Types.NestedField.required(1, "variant_col", Types.VariantType.get()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "Variant";
+    }
+  }
+
+  static class Geometry implements DataGenerator {
+    private final Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "geometry_col", Types.GeometryType.crs84()),
+            Types.NestedField.optional(2, "geometry_opt_col", Types.GeometryType.crs84()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "Geometry";
+    }
+  }
+
+  static class Geography implements DataGenerator {
+    private final Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "geography_col", Types.GeographyType.crs84()),
+            Types.NestedField.optional(2, "geography_opt_col", Types.GeographyType.crs84()));
+
+    @Override
+    public Schema schema() {
+      return schema;
+    }
+
+    @Override
+    public String toString() {
+      return "Geography";
     }
   }
 

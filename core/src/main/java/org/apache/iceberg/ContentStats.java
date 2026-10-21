@@ -21,7 +21,7 @@ package org.apache.iceberg;
 import java.util.Set;
 import org.apache.iceberg.types.Types;
 
-interface ContentStats {
+public interface ContentStats {
 
   /** Returns an iterable of the {@link FieldStats} held by this container struct */
   Iterable<FieldStats<?>> fieldStats();

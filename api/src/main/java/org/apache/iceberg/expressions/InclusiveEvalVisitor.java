@@ -21,7 +21,6 @@ package org.apache.iceberg.expressions;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.NaNUtil;
@@ -316,31 +315,18 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
     }
 
     Comparator<T> comparator = ((BoundTerm<T>) term).comparator();
-
-    literals =
-        literals.stream()
-            .filter(v -> comparator.compare(lower, v) <= 0)
-            .collect(Collectors.toList());
-    // if all values are less than lower bound, rows cannot match
-    if (literals.isEmpty()) {
-      return ROWS_CANNOT_MATCH;
-    }
-
     T upper = evalUpperBound(term);
-    if (null == upper) {
-      return ROWS_MIGHT_MATCH;
+
+    // rows might match if any literal falls within [lower, upper]; a null upper means no upper
+    // bound
+    for (T literal : literals) {
+      if (comparator.compare(lower, literal) <= 0
+          && (null == upper || comparator.compare(upper, literal) >= 0)) {
+        return ROWS_MIGHT_MATCH;
+      }
     }
 
-    literals =
-        literals.stream()
-            .filter(v -> comparator.compare(upper, v) >= 0)
-            .collect(Collectors.toList());
-    // if remaining values are greater than upper bound, rows cannot match
-    if (literals.isEmpty()) {
-      return ROWS_CANNOT_MATCH;
-    }
-
-    return ROWS_MIGHT_MATCH;
+    return ROWS_CANNOT_MATCH;
   }
 
   @Override

@@ -35,7 +35,7 @@ COPY --chown=iceberg:iceberg open-api/build/libs/iceberg-open-api-test-fixtures-
 COPY --chown=iceberg:iceberg docker/iceberg-rest-fixture/entrypoint.sh /usr/lib/iceberg-rest/entrypoint.sh
 
 ENV CATALOG_CATALOG__IMPL=org.apache.iceberg.jdbc.JdbcCatalog
-ENV CATALOG_URI=jdbc:sqlite:/tmp/iceberg_catalog.db
+ENV CATALOG_URI=jdbc:sqlite:/tmp/iceberg_catalog.db?journal_mode=WAL
 ENV CATALOG_JDBC_USER=user
 ENV CATALOG_JDBC_PASSWORD=password
 ENV CATALOG_JDBC_STRICT__MODE=true

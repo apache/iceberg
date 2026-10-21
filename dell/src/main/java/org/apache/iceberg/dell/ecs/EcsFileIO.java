@@ -59,6 +59,11 @@ public class EcsFileIO implements FileIO {
   }
 
   @Override
+  public InputFile newInputFile(String path, long length) {
+    return EcsInputFile.fromLocation(path, length, client(), dellProperties, metrics);
+  }
+
+  @Override
   public OutputFile newOutputFile(String path) {
     return EcsOutputFile.fromLocation(path, client(), dellProperties, metrics);
   }
