@@ -247,9 +247,8 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
                     SCHEMA,
                     PartitionSpec.unpartitioned(),
                     TableCreator.DEFAULT))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageContaining("does not support namespaces")
-        .hasCauseInstanceOf(NoSuchNamespaceException.class);
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("does not support namespaces");
   }
 
   @Test
@@ -273,7 +272,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
                     SCHEMA,
                     PartitionSpec.unpartitioned(),
                     TableCreator.DEFAULT))
-        .isInstanceOf(UnsupportedOperationException.class)
+        .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("does not support namespaces");
   }
 
@@ -301,7 +300,7 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
                     TableCreator.DEFAULT))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Unexpected failure looking up table")
-        .hasCause(failure);
+        .hasMessageContaining("catalog unavailable");
     assertThat(catalog.tableExists(tableIdentifier)).isFalse();
   }
 
