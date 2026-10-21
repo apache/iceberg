@@ -1171,18 +1171,12 @@ public class Types {
     }
 
     private final int baseId;
-    private final List<NestedField> fields;
+
+    // Lazy and derived from baseId
+    private transient List<NestedField> fieldList = null;
 
     private FileType(int baseId) {
       this.baseId = baseId;
-      this.fields =
-          ImmutableList.of(
-              NestedField.optional(baseId + 1, URI, StringType.get()),
-              NestedField.optional(baseId + 2, OFFSET, LongType.get()),
-              NestedField.optional(baseId + 3, SIZE, LongType.get()),
-              NestedField.optional(baseId + 4, CONTENT_TYPE, StringType.get()),
-              NestedField.optional(baseId + 5, CHECKSUM, StringType.get()),
-              NestedField.optional(baseId + 6, INLINE, BinaryType.get()));
     }
 
     /** Returns the ID of the field that holds this type. */
@@ -1207,11 +1201,11 @@ public class Types {
 
     @Override
     public List<NestedField> fields() {
-      return fields;
+      return lazyFieldList();
     }
 
     public NestedField field(String name) {
-      for (NestedField field : fields) {
+      for (NestedField field : fields()) {
         if (field.name().equals(name)) {
           return field;
         }
@@ -1224,14 +1218,14 @@ public class Types {
     public NestedField field(int id) {
       int index = id - baseId - 1;
       if (index >= 0 && index < NUM_NESTED_FIELDS) {
-        return fields.get(index);
+        return fields().get(index);
       }
 
       return null;
     }
 
     public NestedField caseInsensitiveField(String name) {
-      for (NestedField field : fields) {
+      for (NestedField field : fields()) {
         if (field.name().equalsIgnoreCase(name)) {
           return field;
         }
@@ -1273,6 +1267,21 @@ public class Types {
     @Override
     public int hashCode() {
       return Objects.hash(FileType.class, baseId);
+    }
+
+    private List<NestedField> lazyFieldList() {
+      if (fieldList == null) {
+        this.fieldList =
+            ImmutableList.of(
+                NestedField.optional(baseId + 1, URI, StringType.get()),
+                NestedField.optional(baseId + 2, OFFSET, LongType.get()),
+                NestedField.optional(baseId + 3, SIZE, LongType.get()),
+                NestedField.optional(baseId + 4, CONTENT_TYPE, StringType.get()),
+                NestedField.optional(baseId + 5, CHECKSUM, StringType.get()),
+                NestedField.optional(baseId + 6, INLINE, BinaryType.get()));
+      }
+
+      return fieldList;
     }
   }
 

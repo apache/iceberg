@@ -25,6 +25,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestSerializableTypes {
   @Test
@@ -100,15 +102,17 @@ public class TestSerializableTypes {
         .isEqualTo(Types.DecimalType.of(38, 2));
   }
 
-  @Test
-  public void testFiles() throws Exception {
+  @ParameterizedTest
+  @MethodSource("org.apache.iceberg.TestHelpers#serializers")
+  public void testFiles(TestHelpers.RoundTripSerializer<Type> serializer) throws Exception {
     Types.FileType file = Types.FileType.of(5);
 
-    Type copy = TestHelpers.roundTripSerialize(file);
+    Type copy = serializer.apply(file);
 
     assertThat(copy).as("File serialization should be equal to starting type").isEqualTo(file);
     assertThat(copy.isFileType()).as("File serialization should preserve the file type").isTrue();
     assertThat(copy.asFileType().baseId()).isEqualTo(5);
+    assertThat(copy.asFileType().fields()).isEqualTo(file.fields());
   }
 
   @Test
