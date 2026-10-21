@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -289,6 +290,157 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     ResolvedSchema resolvedSchema = FlinkSchemaUtil.toResolvedSchema(rowType);
     return new DataFormatConverters.RowConverter(
         resolvedSchema.getColumnDataTypes().toArray(DataType[]::new));
+  }
+
+  @Test
+  void testHashDistributionWithAlternatingSchemaVariantsImmediateUpdate() throws Exception {
+    runAlternatingSchemaVariants("alternating_variants_immediate", true);
+  }
+
+  @Test
+  void testHashDistributionWithAlternatingSchemaVariants() throws Exception {
+    runAlternatingSchemaVariants("alternating_variants", false);
+  }
+
+  /**
+   * Two writer-schema variants of one table with independently assigned field IDs: event_date has
+   * id 2 / position 1 in variant A and id 3 / position 2 in variant B. Each variant brings its own
+   * identity(event_date) spec. Records alternate between the variants with HASH distribution.
+   */
+  private void runAlternatingSchemaVariants(String tableName, boolean immediateUpdate)
+      throws Exception {
+    Schema variantA =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.StringType.get()),
+            Types.NestedField.optional(2, "event_date", Types.DateType.get()));
+    Schema variantB =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.StringType.get()),
+            Types.NestedField.optional(2, "extra", Types.StringType.get()),
+            Types.NestedField.optional(3, "event_date", Types.DateType.get()));
+    PartitionSpec specA = PartitionSpec.builderFor(variantA).identity("event_date").build();
+    PartitionSpec specB = PartitionSpec.builderFor(variantB).identity("event_date").build();
+
+    List<DynamicIcebergDataImpl> rows = Lists.newArrayList();
+    for (int i = 0; i < 6; i++) {
+      boolean useVariantA = i % 2 == 0;
+      DynamicIcebergDataImpl row =
+          new DynamicIcebergDataImpl(
+              useVariantA ? variantA : variantB,
+              tableName,
+              SnapshotRef.MAIN_BRANCH,
+              useVariantA ? specA : specB);
+      row.rowProvided =
+          useVariantA
+              ? Row.of("a" + i, LocalDate.of(2026, 10, 1 + i))
+              : Row.of("b" + i, "x" + i, LocalDate.of(2026, 10, 1 + i));
+      rows.add(row);
+    }
+
+    env =
+        StreamExecutionEnvironment.getExecutionEnvironment(
+            MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
+    executeDynamicSink(rows, env, immediateUpdate, 1, null);
+
+    Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, tableName));
+    List<Record> actual;
+    try (CloseableIterable<Record> records = IcebergGenerics.read(table).build()) {
+      actual = Lists.newArrayList(records);
+    }
+    assertThat(actual).hasSize(6);
+  }
+
+  /**
+   * The table exists with (id, event_date); records list the columns in the other order, so they
+   * need a data conversion, and go to a branch that does not exist yet, so they take the update
+   * path although the table schema and spec are known.
+   */
+  @Test
+  void testHashDistributionToNewBranchWithDataConversion() throws Exception {
+    String tableName = "hash_new_branch_conversion";
+    Schema tableSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.StringType.get()),
+            Types.NestedField.optional(2, "event_date", Types.DateType.get()));
+    PartitionSpec tableSpec = PartitionSpec.builderFor(tableSchema).identity("event_date").build();
+    CATALOG_EXTENSION
+        .catalog()
+        .createTable(TableIdentifier.of(DATABASE, tableName), tableSchema, tableSpec);
+
+    Schema reordered =
+        new Schema(
+            Types.NestedField.optional(1, "event_date", Types.DateType.get()),
+            Types.NestedField.optional(2, "id", Types.StringType.get()));
+    PartitionSpec reorderedSpec =
+        PartitionSpec.builderFor(reordered).identity("event_date").build();
+
+    List<DynamicIcebergDataImpl> rows = Lists.newArrayList();
+    for (int i = 0; i < 4; i++) {
+      DynamicIcebergDataImpl row =
+          new DynamicIcebergDataImpl(reordered, tableName, "b1", reorderedSpec);
+      row.rowProvided = Row.of(LocalDate.of(2026, 10, 1 + i), "r" + i);
+      rows.add(row);
+    }
+
+    env =
+        StreamExecutionEnvironment.getExecutionEnvironment(
+            MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
+    executeDynamicSink(rows, env, false, 1, null);
+
+    Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, tableName));
+    List<Record> actual;
+    try (CloseableIterable<Record> records =
+        IcebergGenerics.read(table).useSnapshot(table.refs().get("b1").snapshotId()).build()) {
+      actual = Lists.newArrayList(records);
+    }
+    assertThat(actual).hasSize(4);
+  }
+
+  /**
+   * The table exists with (id, event_date) and a main branch, and records list the columns in the
+   * other order. No table update is needed, so the row is converted to the table layout before it
+   * is keyed.
+   */
+  @Test
+  void testHashDistributionWithReorderedColumns() throws Exception {
+    String tableName = "hash_reordered_columns";
+    Schema tableSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.StringType.get()),
+            Types.NestedField.optional(2, "event_date", Types.DateType.get()));
+    PartitionSpec tableSpec = PartitionSpec.builderFor(tableSchema).identity("event_date").build();
+    CATALOG_EXTENSION
+        .catalog()
+        .createTable(TableIdentifier.of(DATABASE, tableName), tableSchema, tableSpec)
+        .newFastAppend()
+        .commit();
+
+    Schema reordered =
+        new Schema(
+            Types.NestedField.optional(1, "event_date", Types.DateType.get()),
+            Types.NestedField.optional(2, "id", Types.StringType.get()));
+    PartitionSpec reorderedSpec =
+        PartitionSpec.builderFor(reordered).identity("event_date").build();
+
+    List<DynamicIcebergDataImpl> rows = Lists.newArrayList();
+    for (int i = 0; i < 4; i++) {
+      DynamicIcebergDataImpl row =
+          new DynamicIcebergDataImpl(reordered, tableName, SnapshotRef.MAIN_BRANCH, reorderedSpec);
+      row.rowProvided = Row.of(LocalDate.of(2026, 10, 1 + i), "r" + i);
+      rows.add(row);
+    }
+
+    env =
+        StreamExecutionEnvironment.getExecutionEnvironment(
+            MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
+    executeDynamicSink(rows, env, false, 1, null);
+
+    Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, tableName));
+    List<Record> actual;
+    try (CloseableIterable<Record> records = IcebergGenerics.read(table).build()) {
+      actual = Lists.newArrayList(records);
+    }
+    assertThat(actual).hasSize(4);
   }
 
   @Test
