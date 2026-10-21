@@ -2157,8 +2157,8 @@ components:
         to supply access via any or none of the requested mechanisms.
 
 
-        The value `none` signals that the client does not need delegated access
-        from the server.
+        The value `none` signals that the client is able to operate without any
+        access delegation mechanism.
 
 
         Specific properties and handling for `vended-credentials` and `remote-signing`
