@@ -74,7 +74,6 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.util.CollectionAccumulator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -156,7 +155,7 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected Dataset<FileInfo> contentFileDS(
-      Table table, Set<Long> snapshotIds, CollectionAccumulator<String> missingManifests) {
+      Table table, Set<Long> snapshotIds, SetAccumulator<String> missingManifests) {
     Table serializableTable = SerializableTableWithSize.copyOf(table);
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(serializableTable);
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
@@ -416,9 +415,9 @@ abstract class BaseSparkAction<ThisT> {
 
   private static class ReadManifest implements FlatMapFunction<ManifestFileBean, FileInfo> {
     private final Broadcast<Table> table;
-    private final CollectionAccumulator<String> missingManifests;
+    private final SetAccumulator<String> missingManifests;
 
-    ReadManifest(Broadcast<Table> table, CollectionAccumulator<String> missingManifests) {
+    ReadManifest(Broadcast<Table> table, SetAccumulator<String> missingManifests) {
       this.table = table;
       this.missingManifests = missingManifests;
     }
@@ -459,7 +458,7 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   private static void recordMissingManifest(
-      String location, CollectionAccumulator<String> missingManifests, NotFoundException cause) {
+      String location, SetAccumulator<String> missingManifests, NotFoundException cause) {
     LOG.warn("Skipping manifest missing from storage: {}", location, cause);
     missingManifests.add(location);
   }
@@ -467,14 +466,14 @@ abstract class BaseSparkAction<ThisT> {
   private static class BestEffortManifestIterator implements Iterator<FileInfo> {
     private final Supplier<CloseableIterator<FileInfo>> open;
     private final String manifestLocation;
-    private final CollectionAccumulator<String> missingManifests;
+    private final SetAccumulator<String> missingManifests;
     private CloseableIterator<FileInfo> entries;
     private boolean missing = false;
 
     BestEffortManifestIterator(
         Supplier<CloseableIterator<FileInfo>> open,
         String manifestLocation,
-        CollectionAccumulator<String> missingManifests) {
+        SetAccumulator<String> missingManifests) {
       this.open = open;
       this.manifestLocation = manifestLocation;
       this.missingManifests = missingManifests;

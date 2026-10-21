@@ -47,7 +47,6 @@ import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.util.CollectionAccumulator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,10 +72,6 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   public static final String STREAM_RESULTS = "stream-results";
   public static final boolean STREAM_RESULTS_DEFAULT = false;
 
-  public static final String BEST_EFFORT = "best-effort-on-missing-metadata";
-
-  public static final boolean BEST_EFFORT_DEFAULT = false;
-
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsSparkAction.class);
 
   private final Table table;
@@ -90,11 +85,12 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   private Dataset<FileInfo> expiredFileDS = null;
   private Boolean cleanExpiredMetadata = null;
 
-  private Set<String> missingManifestListLocations = null;
-  private CollectionAccumulator<String> missingManifests = null;
+  private final Set<String> missingManifestListLocations = Sets.newConcurrentHashSet();
+  private final SetAccumulator<String> missingManifests = new SetAccumulator<>();
 
   ExpireSnapshotsSparkAction(SparkSession spark, Table table) {
     super(spark);
+    spark.sparkContext().register(missingManifests, "expire-snapshots-missing-manifests");
     this.table = table;
     this.ops = ((HasTableOperations) table).operations();
 
@@ -234,27 +230,15 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   }
 
   private ExpireSnapshots.Result doExecute() {
-    boolean bestEffort = bestEffort();
     Dataset<FileInfo> expiredFiles = expireFiles();
-    if (bestEffort) {
-      missingManifests.reset();
-    }
-
-    ExpireSnapshots.Result result;
-    if (streamResults()) {
-      result = deleteFiles(expiredFiles.toLocalIterator());
-    } else {
-      result = deleteFiles(expiredFiles.collectAsList().iterator());
-    }
-
-    if (bestEffort) {
-      failIfMissingFiles();
-    }
-
+    Iterator<FileInfo> filesToDelete =
+        streamResults() ? expiredFiles.toLocalIterator() : expiredFiles.collectAsList().iterator();
+    ExpireSnapshots.Result result = deleteFiles(filesToDelete);
+    failIfMissingMetadata();
     return result;
   }
 
-  private void failIfMissingFiles() {
+  private void failIfMissingMetadata() {
     Set<String> missingFiles = Sets.newTreeSet(missingManifestListLocations);
     missingFiles.addAll(missingManifests.value());
 
@@ -271,10 +255,6 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     return PropertyUtil.propertyAsBoolean(options(), STREAM_RESULTS, STREAM_RESULTS_DEFAULT);
   }
 
-  private boolean bestEffort() {
-    return PropertyUtil.propertyAsBoolean(options(), BEST_EFFORT, BEST_EFFORT_DEFAULT);
-  }
-
   private Dataset<FileInfo> fileDS(TableMetadata metadata) {
     Table staticTable = newStaticTable(metadata, table.io());
     return contentFileDS(staticTable)
@@ -287,40 +267,35 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
       TableMetadata metadata, Set<Long> deletedSnapshotIds) {
     Table staticTable = newStaticTable(metadata, table.io());
 
-    Set<Long> resolvableSnapshotIds;
-    if (bestEffort()) {
-      this.missingManifestListLocations = Sets.newConcurrentHashSet();
-      this.missingManifests =
-          spark().sparkContext().collectionAccumulator("expire-snapshots-missing-manifests");
-
-      Set<Long> resolvable = Sets.newConcurrentHashSet();
-      Tasks.foreach(
-              deletedSnapshotIds.stream().map(metadata::snapshot).collect(Collectors.toList()))
-          .executeWith(ThreadPools.getWorkerPool())
-          .run(
-              snapshot -> {
-                long snapshotId = snapshot.snapshotId();
-                String manifestListLocation = snapshot.manifestListLocation();
-                if (manifestListLocation != null
-                    && !table.io().newInputFile(manifestListLocation).exists()) {
-                  LOG.warn(
-                      "Manifest list {} of expired snapshot {} is missing; skipping its files",
-                      manifestListLocation,
-                      snapshotId);
-                  missingManifestListLocations.add(manifestListLocation);
-                } else {
-                  resolvable.add(snapshotId);
-                }
-              });
-      resolvableSnapshotIds = resolvable;
-    } else {
-      resolvableSnapshotIds = deletedSnapshotIds;
-    }
+    Set<Long> resolvableSnapshotIds = resolvableSnapshotIds(metadata, deletedSnapshotIds);
 
     return contentFileDS(staticTable, resolvableSnapshotIds, missingManifests)
         .union(manifestDS(staticTable, resolvableSnapshotIds))
         .union(manifestListDS(staticTable, resolvableSnapshotIds))
         .union(statisticsFileDS(staticTable, resolvableSnapshotIds));
+  }
+
+  private Set<Long> resolvableSnapshotIds(TableMetadata metadata, Set<Long> deletedSnapshotIds) {
+    Set<Long> resolvable = Sets.newConcurrentHashSet();
+    Tasks.foreach(deletedSnapshotIds.stream().map(metadata::snapshot).collect(Collectors.toList()))
+        .executeWith(ThreadPools.getWorkerPool())
+        .run(
+            snapshot -> {
+              long snapshotId = snapshot.snapshotId();
+              String manifestListLocation = snapshot.manifestListLocation();
+              if (manifestListLocation != null
+                  && !table.io().newInputFile(manifestListLocation).exists()) {
+                LOG.warn(
+                    "Manifest list {} of expired snapshot {} is missing; skipping its files",
+                    manifestListLocation,
+                    snapshotId);
+                missingManifestListLocations.add(manifestListLocation);
+              } else {
+                resolvable.add(snapshotId);
+              }
+            });
+
+    return resolvable;
   }
 
   private Set<Long> findExpiredSnapshotIds(

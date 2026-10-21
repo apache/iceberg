@@ -1421,16 +1421,16 @@ public class TestExpireSnapshotsAction extends TestBase {
 
   @TestTemplate
   public void testExpireWithMissingManifestListReachableOnlyFromExpiredSnapshots() {
-    assertBestEffortExpireSkipsMissingMetadata(Snapshot::manifestListLocation);
+    assertExpireSkipsMissingMetadata(Snapshot::manifestListLocation);
   }
 
   @TestTemplate
   public void testExpireWithMissingManifestReachableOnlyFromExpiredSnapshots() {
-    assertBestEffortExpireSkipsMissingMetadata(
+    assertExpireSkipsMissingMetadata(
         snapshot -> Iterables.getOnlyElement(snapshot.allManifests(table.io())).path());
   }
 
-  private void assertBestEffortExpireSkipsMissingMetadata(
+  private void assertExpireSkipsMissingMetadata(
       Function<Snapshot, String> missingLocationResolver) {
     table.newAppend().appendFile(FILE_A).commit();
     String missingLocation = missingLocationResolver.apply(table.currentSnapshot());
@@ -1450,7 +1450,6 @@ public class TestExpireSnapshotsAction extends TestBase {
                 SparkActions.get()
                     .expireSnapshots(table)
                     .expireOlderThan(end)
-                    .option(ExpireSnapshotsSparkAction.BEST_EFFORT, "true")
                     .deleteWith(deletedFiles::add)
                     .execute())
         .isInstanceOf(NotFoundException.class)
@@ -1463,47 +1462,6 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(deletedFiles)
         .as("Should leave files reachable only through the missing metadata as orphans")
         .doesNotContain(FILE_A.location());
-  }
-
-  @TestTemplate
-  public void testExpireFailsFastByDefaultOnMissingManifestListFromExpiredSnapshots() {
-    assertDefaultExpireFailsFastOnMissingMetadata(Snapshot::manifestListLocation);
-  }
-
-  @TestTemplate
-  public void testExpireFailsFastByDefaultOnMissingManifestFromExpiredSnapshots() {
-    assertDefaultExpireFailsFastOnMissingMetadata(
-        snapshot -> Iterables.getOnlyElement(snapshot.allManifests(table.io())).path());
-  }
-
-  private void assertDefaultExpireFailsFastOnMissingMetadata(
-      Function<Snapshot, String> missingLocationResolver) {
-    table.newAppend().appendFile(FILE_A).commit();
-    String missingLocation = missingLocationResolver.apply(table.currentSnapshot());
-
-    table.newOverwrite().deleteFile(FILE_A).addFile(FILE_B).commit();
-    table.newOverwrite().deleteFile(FILE_B).addFile(FILE_C).commit();
-    table.newAppend().appendFile(FILE_D).commit();
-
-    long end = rightAfterSnapshot();
-
-    table.io().deleteFile(missingLocation);
-
-    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
-
-    assertThatThrownBy(
-            () ->
-                SparkActions.get()
-                    .expireSnapshots(table)
-                    .expireOlderThan(end)
-                    .deleteWith(deletedFiles::add)
-                    .execute())
-        .isInstanceOf(Exception.class)
-        .hasMessageContaining(missingLocation);
-
-    assertThat(deletedFiles)
-        .as("Must not delete any file when metadata is missing and best-effort is disabled")
-        .isEmpty();
   }
 
   @TestTemplate
@@ -1537,7 +1495,6 @@ public class TestExpireSnapshotsAction extends TestBase {
             .expireSnapshots(table)
             .expireOlderThan(end)
             .retainLast(1)
-            .option(ExpireSnapshotsSparkAction.BEST_EFFORT, "true")
             .deleteWith(deletedFiles::add);
     if (streamResults) {
       action.option("stream-results", "true");
