@@ -1025,7 +1025,7 @@ Statistics are _tight_ when the bounds, `null_value_count`, and `nan_value_count
 
 Bounds for `string` and `binary` are never tight because they may be truncated when written. Bounds for `geometry` and `geography` are a bounding box, not exact minimum and maximum values.
 
-`variant` bounds are stored per leaf field and are optional; a leaf field may have no bound, but any bound that is present is exact. A `variant` value is null only when the variant itself is null; a non-null variant that encodes a variant null is not counted as a null value.
+`variant` bounds are stored per leaf field and are optional; a leaf field may have no bound, and each present bound follows the rules above for its type. A `variant` value is null only when the variant itself is null; a non-null variant that encodes a variant null is not counted as a null value.
 
 Statistics other than the bounds, `null_value_count`, and `nan_value_count` are not part of tightness. In particular, `value_count` is the number of values across all rows written to the file and is not adjusted when rows are deleted; for a field with no repeated (`list` or `map`) ancestor, the live value count is `value_count` minus the deletion vector's cardinality.
 
