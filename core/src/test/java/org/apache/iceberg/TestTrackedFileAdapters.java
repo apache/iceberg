@@ -210,6 +210,7 @@ class TestTrackedFileAdapters {
             PARTITIONED_SPEC_ID,
             PARTITION,
             CONTENT_STATS,
+            null,
             3,
             dv,
             null,
@@ -296,6 +297,7 @@ class TestTrackedFileAdapters {
             1024L,
             PARTITIONED_SPEC_ID,
             PARTITION,
+            null,
             null,
             null,
             dv,
@@ -427,6 +429,7 @@ class TestTrackedFileAdapters {
         PARTITIONED_SPEC_ID,
         PARTITION,
         null, // contentStats
+        null, // tightStats
         3, // sortOrderId
         dv, // deletionVector
         null, // manifestInfo
@@ -469,6 +472,7 @@ class TestTrackedFileAdapters {
             null, // specId
             null, // partition
             null, // contentStats
+            null, // tightStats
             null, // sortOrderId
             null, // deletionVector
             MANIFEST_INFO,
@@ -576,6 +580,7 @@ class TestTrackedFileAdapters {
             null,
             null,
             null,
+            null,
             deletionVector(),
             null,
             null,
@@ -625,6 +630,7 @@ class TestTrackedFileAdapters {
             0L,
             0L,
             99,
+            null,
             null,
             null,
             null,
@@ -927,6 +933,7 @@ class TestTrackedFileAdapters {
         FileFormat.PARQUET,
         1L,
         1L,
+        null,
         null,
         null,
         null,
