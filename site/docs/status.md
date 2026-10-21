@@ -281,7 +281,7 @@ able to read and write geometry values is `N`. Table-format write support is lis
 | dropView       | Y    | Y         | N    | Y  | N   |
 | listView       | Y    | Y         | N    | Y  | N   |
 | viewExists     | Y    | Y         | N    | Y  | N   |
-| replaceView    | Y    | N         | N    | N  | N   |
+| replaceView    | Y    | N         | N    | Y  | N   |
 | renameView     | Y    | N         | N    | Y  | N   |
 
 #### Namespace Operations
