@@ -110,8 +110,10 @@ public class TestADLSFileIO extends AzuriteTestBase {
     AZURITE_CONTAINER.createFile(path2, new byte[] {123});
     assertThat(AZURITE_CONTAINER.fileClient(path2).exists()).isTrue();
 
+    String missingLocation = AZURITE_CONTAINER.location("path/to/missing");
+
     ADLSFileIO io = createFileIO();
-    io.deleteFiles(ImmutableList.of(location1, location2));
+    io.deleteFiles(ImmutableList.of(location1, location2, missingLocation));
 
     assertThat(AZURITE_CONTAINER.fileClient(path1).exists()).isFalse();
     assertThat(AZURITE_CONTAINER.fileClient(path2).exists()).isFalse();
