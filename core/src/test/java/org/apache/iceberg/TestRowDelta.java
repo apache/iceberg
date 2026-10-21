@@ -1436,6 +1436,38 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  void equalityDeleteValidatesAllConcurrentDeletes() {
+    commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_A2), branch);
+    long startingSnapshotId = latestSnapshot(table, branch).snapshotId();
+
+    DeleteFile equalityDeletes =
+        newEqualityDeleteFile(
+            FILE_A.specId(), "data_bucket=0", table.schema().findField("id").fieldId());
+    RowDelta rowDelta = updateOfFileA(startingSnapshotId, equalityDeletes);
+
+    commit(table, table.newRowDelta().addDeletes(newDeletes(FILE_A2)), branch);
+
+    assertThatThrownBy(() -> commit(table, rowDelta, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found new conflicting delete files");
+  }
+
+  @TestTemplate
+  void conflictingDeleteFilesValidationTakesPrecedenceOverModifiedDataFiles() {
+    commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_A2), branch);
+    long startingSnapshotId = latestSnapshot(table, branch).snapshotId();
+
+    RowDelta rowDelta =
+        updateOfFileA(startingSnapshotId, newDeletes(FILE_A)).validateNoConflictingDeleteFiles();
+
+    commit(table, table.newRowDelta().addDeletes(newDeletes(FILE_A2)), branch);
+
+    assertThatThrownBy(() -> commit(table, rowDelta, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found new conflicting delete files");
+  }
+
+  @TestTemplate
   void concurrentDeleteForRemovedDataFileConflictsWithModifiedDataFiles() {
     commit(table, table.newAppend().appendFile(FILE_A).appendFile(FILE_A2), branch);
     long startingSnapshotId = latestSnapshot(table, branch).snapshotId();
