@@ -268,11 +268,8 @@ public class ADLSFileIO implements DelegateFileIO {
   }
 
   private static String fullyQualifiedLocation(ADLSLocation location, String path) {
-    return location
-        .container()
-        .map(
-            container ->
-                String.format("%s://%s@%s/%s", location.scheme(), container, location.host(), path))
-        .orElseGet(() -> String.format("%s://%s/%s", location.scheme(), location.host(), path));
+    String host = location.host();
+    String authority = location.container().map(container -> container + "@" + host).orElse(host);
+    return String.format("%s://%s/%s", location.scheme(), authority, path);
   }
 }
