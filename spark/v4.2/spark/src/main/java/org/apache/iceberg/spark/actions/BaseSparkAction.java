@@ -22,12 +22,11 @@ import static org.apache.iceberg.MetadataTableType.ALL_MANIFESTS;
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.lit;
 
-import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -424,12 +423,17 @@ abstract class BaseSparkAction<ThisT> {
 
     @Override
     public Iterator<FileInfo> call(ManifestFileBean manifest) {
-      if (missingManifests == null) {
+      try {
         return new ClosingIterator<>(entries(manifest));
-      }
+      } catch (NotFoundException e) {
+        if (missingManifests == null) {
+          throw e;
+        }
 
-      return new BestEffortManifestIterator(
-          () -> entries(manifest), manifest.path(), missingManifests);
+        LOG.warn("Skipping manifest missing from storage: {}", manifest.path(), e);
+        missingManifests.add(manifest.path());
+        return Collections.emptyIterator();
+      }
     }
 
     public CloseableIterator<FileInfo> entries(ManifestFileBean manifest) {
@@ -454,81 +458,6 @@ abstract class BaseSparkAction<ThisT> {
 
     static FileInfo toFileInfo(ContentFile<?> file) {
       return new FileInfo(file.location(), file.content().toString());
-    }
-  }
-
-  private static void recordMissingManifest(
-      String location, SetAccumulator<String> missingManifests, NotFoundException cause) {
-    LOG.warn("Skipping manifest missing from storage: {}", location, cause);
-    missingManifests.add(location);
-  }
-
-  private static class BestEffortManifestIterator implements Iterator<FileInfo> {
-    private final Supplier<CloseableIterator<FileInfo>> open;
-    private final String manifestLocation;
-    private final SetAccumulator<String> missingManifests;
-    private CloseableIterator<FileInfo> entries;
-    private boolean missing = false;
-
-    BestEffortManifestIterator(
-        Supplier<CloseableIterator<FileInfo>> open,
-        String manifestLocation,
-        SetAccumulator<String> missingManifests) {
-      this.open = open;
-      this.manifestLocation = manifestLocation;
-      this.missingManifests = missingManifests;
-    }
-
-    @Override
-    public boolean hasNext() {
-      if (missing) {
-        return false;
-      }
-
-      try {
-        if (entries == null) {
-          entries = open.get();
-        }
-
-        if (entries.hasNext()) {
-          return true;
-        }
-
-        closeQuietly();
-        return false;
-      } catch (NotFoundException e) {
-        missing = true;
-        recordMissingManifest(manifestLocation, missingManifests, e);
-        closeQuietly();
-        return false;
-      } catch (RuntimeException e) {
-        closeQuietly();
-        throw e;
-      }
-    }
-
-    @Override
-    public FileInfo next() {
-      if (!hasNext()) {
-        throw new NoSuchElementException();
-      }
-
-      try {
-        return entries.next();
-      } catch (RuntimeException e) {
-        closeQuietly();
-        throw e;
-      }
-    }
-
-    private void closeQuietly() {
-      if (entries != null) {
-        try {
-          entries.close();
-        } catch (IOException ignored) {
-          // best-effort: the manifest is either fully read or being skipped
-        }
-      }
     }
   }
 }
