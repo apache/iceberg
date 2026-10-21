@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Collections;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
@@ -118,6 +119,43 @@ class TestDynamicTableUpdateOperator {
     DynamicRecordInternal output2 = operator.map(input);
     assertThat(output2).isEqualTo(output);
     assertThat(catalog.loadTable(table).schema().schemaId()).isEqualTo(output.schema().schemaId());
+  }
+
+  @Test
+  void testEqualityFieldIdsRemappedToTableSchema() throws Exception {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier table = TableIdentifier.of(TABLE);
+
+    DynamicTableUpdateOperator operator =
+        new DynamicTableUpdateOperator(
+            CATALOG_EXTENSION.catalogLoader(),
+            TableCreator.DEFAULT,
+            flinkDynamicSinkConfiguration(CASE_SENSITIVE, PRESERVE_COLUMNS));
+    operator.open(null);
+
+    catalog.createTable(table, SCHEMA1);
+    Schema inputSchema =
+        new Schema(
+            Types.NestedField.required(2, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(1, "data", Types.StringType.get()));
+    Types.NestedField equalityField = inputSchema.findField("id");
+    DynamicRecordInternal input =
+        new DynamicRecordInternal(
+            TABLE,
+            "branch",
+            inputSchema,
+            GenericRowData.of(1, StringData.fromString("test")),
+            PartitionSpec.unpartitioned(),
+            42,
+            true,
+            Collections.singleton(equalityField.fieldId()));
+    DynamicRecordInternal output = operator.map(input);
+
+    assertThat(output.schema().findColumnName(equalityField.fieldId()))
+        .isNotEqualTo(equalityField.name());
+    assertThat(output.equalityFields())
+        .map(output.schema()::findColumnName)
+        .containsExactly(equalityField.name());
   }
 
   @ParameterizedTest
