@@ -46,6 +46,9 @@ project(":iceberg-gcp-bundle") {
     archiveClassifier.set(null)
     zip64 true
 
+    // merge META-INF/services files instead of keeping one copy per name, and apply relocations
+    mergeServiceFiles()
+
     // relocate GCP-specific versions
     relocate 'com.fasterxml.jackson', 'org.apache.iceberg.gcp.shaded.com.fasterxml.jackson'
     relocate 'com.google.common', 'org.apache.iceberg.gcp.shaded.com.google.common'

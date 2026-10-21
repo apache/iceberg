@@ -43,6 +43,9 @@ project(":iceberg-azure-bundle") {
     archiveClassifier.set(null)
     zip64 true
 
+    // merge META-INF/services files instead of keeping one copy per name, and apply relocations
+    mergeServiceFiles()
+
     // relocate Azure-specific versions
     relocate 'io.netty', 'org.apache.iceberg.azure.shaded.io.netty'
     relocate 'com.fasterxml.jackson', 'org.apache.iceberg.azure.shaded.com.fasterxml.jackson'
