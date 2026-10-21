@@ -720,8 +720,6 @@ A check expression is evaluated for each row over the values of that row. An exp
 
 A check expression must produce the same result every time it is evaluated for the same row. A function that depends on anything other than its arguments, such as the current time or a random value, must not be called. A [user-defined function](udf-spec.md) must not be called unless its current definition version declares `deterministic` as true. A user-defined function is a function loaded from a catalog as described in the UDF spec. Functions in the reserved `sql_functions` and `iceberg_functions` sets and engine built-in functions, as described in the [expressions spec](expressions-spec.md#apply-function), are not user-defined functions.
 
-A function definition can change without a table commit, and `constraint-statuses` does not record which function definitions were used, so a status for a `check` constraint that calls a user-defined function could become wrong without any write. Such a constraint must always be listed as `unvalidated`. When it is enforced, writers still evaluate it with the current function definitions for the rows that they add or modify.
-
 #### Constraints and Schema Evolution
 
 A constraint references fields by ID, so schema changes interact with constraints as follows. The referenced fields of a `check` constraint are the field IDs in its `expression`; the referenced fields of a `unique` or `primary-key` constraint are its `field-ids`.
