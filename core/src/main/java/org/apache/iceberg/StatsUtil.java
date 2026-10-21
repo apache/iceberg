@@ -49,10 +49,10 @@ class StatsUtil {
   // Offsets used for individual stats columns
   static final int LOWER_BOUND_OFFSET = 1;
   static final int UPPER_BOUND_OFFSET = 2;
-  static final int VALUE_COUNT_OFFSET = 4;
-  static final int NULL_VALUE_COUNT_OFFSET = 5;
-  static final int NAN_VALUE_COUNT_OFFSET = 6;
-  static final int TOTAL_BYTES_OFFSET = 7;
+  static final int VALUE_COUNT_OFFSET = 3;
+  static final int NULL_VALUE_COUNT_OFFSET = 4;
+  static final int NAN_VALUE_COUNT_OFFSET = 5;
+  static final int TOTAL_BYTES_OFFSET = 6;
 
   static final String LOWER_BOUND_NAME = "lower_bound";
   static final String UPPER_BOUND_NAME = "upper_bound";
