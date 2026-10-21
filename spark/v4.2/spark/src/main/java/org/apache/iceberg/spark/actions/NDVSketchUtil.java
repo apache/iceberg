@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.actions;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import org.apache.datasketches.hll.HllSketch;
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.theta.CompactSketch;
 import org.apache.datasketches.theta.Sketch;
@@ -38,7 +39,9 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.expressions.aggregate.AggregateFunction;
 import org.apache.spark.sql.classic.ExpressionColumnNode;
+import org.apache.spark.sql.stats.HLLSketchAgg;
 import org.apache.spark.sql.stats.ThetaSketchAgg;
 
 public class NDVSketchUtil {
@@ -49,43 +52,65 @@ public class NDVSketchUtil {
 
   static List<Blob> generateBlobs(
       SparkSession spark, Table table, Snapshot snapshot, List<String> columns) {
-    Row sketches = computeNDVSketches(spark, table, snapshot, columns);
+    return generateBlobs(
+        spark, table, snapshot, columns, StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1);
+  }
+
+  static List<Blob> generateBlobs(
+      SparkSession spark, Table table, Snapshot snapshot, List<String> columns, String blobType) {
+    Row sketches = computeNDVSketches(spark, table, snapshot, columns, blobType);
     Schema schema = table.schemas().get(snapshot.schemaId());
     List<Blob> blobs = Lists.newArrayListWithExpectedSize(columns.size());
 
     for (int i = 0; i < columns.size(); i++) {
       Types.NestedField field = schema.findField(columns.get(i));
-      Sketch sketch = CompactSketch.wrap(Memory.wrap((byte[]) sketches.get(i)));
-      blobs.add(toBlob(field, sketch, snapshot));
+      byte[] bytes = (byte[]) sketches.get(i);
+      blobs.add(toBlob(field, blobType, bytes, estimate(blobType, bytes), snapshot));
     }
     return blobs;
   }
 
-  private static Blob toBlob(Types.NestedField field, Sketch sketch, Snapshot snapshot) {
+  private static long estimate(String blobType, byte[] bytes) {
+    return switch (blobType) {
+      case StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1 -> {
+        Sketch sketch = CompactSketch.wrap(Memory.wrap(bytes));
+        yield (long) sketch.getEstimate();
+      }
+      case StandardBlobTypes.APACHE_DATASKETCHES_HLL_V1 ->
+          (long) HllSketch.heapify(Memory.wrap(bytes)).getEstimate();
+      default -> throw new IllegalArgumentException("Unsupported NDV blob type: " + blobType);
+    };
+  }
+
+  private static Blob toBlob(
+      Types.NestedField field, String blobType, byte[] bytes, long ndv, Snapshot snapshot) {
     return new Blob(
-        StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
+        blobType,
         ImmutableList.of(field.fieldId()),
         snapshot.snapshotId(),
         snapshot.sequenceNumber(),
-        ByteBuffer.wrap(sketch.toByteArray()),
+        ByteBuffer.wrap(bytes),
         PuffinCompressionCodec.ZSTD,
-        ImmutableMap.of(
-            APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY,
-            String.valueOf((long) sketch.getEstimate())));
+        ImmutableMap.of(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, String.valueOf(ndv)));
   }
 
   private static Row computeNDVSketches(
-      SparkSession spark, Table table, Snapshot snapshot, List<String> colNames) {
+      SparkSession spark, Table table, Snapshot snapshot, List<String> colNames, String blobType) {
     Dataset<Row> inputDF = SparkTableUtil.loadTable(spark, table, snapshot.snapshotId());
-    return inputDF.select(toAggColumns(colNames)).first();
+    return inputDF.select(toAggColumns(colNames, blobType)).first();
   }
 
-  private static Column[] toAggColumns(List<String> colNames) {
-    return colNames.stream().map(NDVSketchUtil::toAggColumn).toArray(Column[]::new);
+  private static Column[] toAggColumns(List<String> colNames, String blobType) {
+    return colNames.stream().map(name -> toAggColumn(name, blobType)).toArray(Column[]::new);
   }
 
-  private static Column toAggColumn(String colName) {
-    ThetaSketchAgg agg = new ThetaSketchAgg(colName);
+  private static Column toAggColumn(String colName, String blobType) {
+    AggregateFunction agg =
+        switch (blobType) {
+          case StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1 -> new ThetaSketchAgg(colName);
+          case StandardBlobTypes.APACHE_DATASKETCHES_HLL_V1 -> new HLLSketchAgg(colName);
+          default -> throw new IllegalArgumentException("Unsupported NDV blob type: " + blobType);
+        };
     return new Column(ExpressionColumnNode.apply(agg.toAggregateExpression()));
   }
 }
