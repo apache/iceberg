@@ -950,10 +950,10 @@ Each stats struct holds statistics for one table field. It may contain the follo
 |-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
 | _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types |
 | _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types |
-| _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
-| _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
-| _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
-| _optional_  | 7      | `total_bytes`             | `long`                    | `string`, `binary`, `variant`, `geometry`, `geography` | Estimated uncompressed bytes in memory of non-null values. The estimate depends on the in-memory representation |
+| _optional_  | 3      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
+| _optional_  | 4      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
+| _optional_  | 5      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
+| _optional_  | 6      | `total_bytes`             | `long`                    | `string`, `binary`, `variant`, `geometry`, `geography` | Estimated uncompressed bytes in memory of non-null values. The estimate depends on the in-memory representation |
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
@@ -961,7 +961,7 @@ For example, stats for a `required` `int` field named `id` with field-id `2` are
 10_400: optional struct id (default null) {
   10_401: optional int lower_bound; // type matches the field type (int)
   10_402: optional int upper_bound; // type matches the field type (int)
-  10_404: optional long value_count;
+  10_403: optional long value_count;
 
   // null_value_count is only used for optional fields
   // nan_value_count is only used for float and double
@@ -1007,9 +1007,9 @@ For example, stats for an optional `geometry` field named `location` with field-
     10_816: optional double z;
     10_817: optional double m;
   }
-  10_804: optional long value_count;
-  10_805: optional long null_value_count;
-  10_807: optional long total_bytes;
+  10_803: optional long value_count;
+  10_804: optional long null_value_count;
+  10_806: optional long total_bytes;
   // nan_value_count is omitted for geo types
 }
 ```
@@ -1043,16 +1043,16 @@ For example, stats for a table with a required int, `id`, and an optional string
   10_400: optional struct id (default null) {
     10_401: optional int lower_bound;
     10_402: optional int upper_bound;
-    10_404: optional long value_count;
+    10_403: optional long value_count;
   }
 
   // stats struct for table field 3: optional string data
   10_600: optional struct data (default null) {
     10_601: optional string lower_bound;
     10_602: optional string upper_bound;
-    10_604: optional long value_count;
-    10_605: optional long null_value_count;
-    10_607: optional long total_bytes;
+    10_603: optional long value_count;
+    10_604: optional long null_value_count;
+    10_606: optional long total_bytes;
   }
 }
 ```
