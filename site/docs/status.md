@@ -29,11 +29,11 @@ This section lists the libraries that implement the Apache Iceberg specification
 
 | Library | Released Version |
 |---------|------------------|
-| [Java](https://mvnrepository.com/artifact/org.apache.iceberg) | [1.11.0](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.11.0) |
+| [Java](https://mvnrepository.com/artifact/org.apache.iceberg) | [1.12.0](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.12.0) |
 | [PyIceberg](https://pypi.org/project/pyiceberg/) | [0.12.0](https://github.com/apache/iceberg-python/releases/tag/pyiceberg-0.12.0) |
 | [Rust](https://crates.io/crates/iceberg) | [0.10.1](https://github.com/apache/iceberg-rust/releases/tag/v0.10.1) |
-| [Go](https://pkg.go.dev/github.com/apache/iceberg-go) | [0.6.0](https://github.com/apache/iceberg-go/releases/tag/v0.6.0) |
-| [C++](https://github.com/apache/iceberg-cpp/releases) | [0.3.0](https://github.com/apache/iceberg-cpp/releases/tag/v0.3.0) |
+| [Go](https://pkg.go.dev/github.com/apache/iceberg-go) | [0.7.0](https://github.com/apache/iceberg-go/releases/tag/v0.7.0) |
+| [C++](https://github.com/apache/iceberg-cpp/releases) | [0.4.0](https://github.com/apache/iceberg-cpp/releases/tag/v0.4.0) |
 
 ## Data Types
 
@@ -85,8 +85,8 @@ able to read and write geometry values is `N`. Table-format write support is lis
     | fixed          | Y    | Y         | Y    | Y  | Y   |
     | binary         | Y    | Y         | Y    | Y  | Y   |
     | variant        | Y    | N         | N    | Y  | N   |
-    | geometry       | N    | N         | N    | N  | N   |
-    | geography      | N    | N         | N    | N  | N   |
+    | geometry       | Y    | N         | N    | Y  | Y   |
+    | geography      | Y    | N         | N    | Y  | Y   |
     | list           | Y    | Y         | Y    | Y  | Y   |
     | map            | Y    | Y         | Y    | Y  | Y   |
     | struct         | Y    | Y         | Y    | Y  | Y   |
@@ -106,10 +106,10 @@ able to read and write geometry values is `N`. Table-format write support is lis
     |---------------------------------|------|-----------|------|----|-----|
     | Read table metadata             | Y    | Y         | Y    | Y  | Y   |
     | Write table metadata            | Y    | N         | Y    | Y  | Y   |
-    | Read initial column defaults    | Y    | Y         | Y    | Y  | N   |
+    | Read initial column defaults    | Y    | Y         | Y    | Y  | Y   |
     | Read multi-argument transforms  | N    | N         | N    | N  | N   |
     | Write multi-argument transforms | N    | N         | N    | N  | N   |
-    | Read row lineage columns        | Y    | N         | N    | Y  | N   |
+    | Read row lineage columns        | Y    | N         | N    | Y  | Y   |
     | Write row lineage               | Y    | N         | N    | Y  | Y   |
     | Read encrypted tables           | Y    | N         | N    | N  | N   |
     | Write encrypted tables          | Y    | N         | N    | N  | N   |
@@ -120,7 +120,7 @@ able to read and write geometry values is `N`. Table-format write support is lis
 |---------|------|-----------|------|----|-----|
 | Parquet | Y    | Y         | Y    | Y  | Y   |
 | ORC     | Y    | N         | N    | N  | N   |
-| Puffin  | Y    | N         | N    | N  | N   |
+| Puffin  | Y    | N         | N    | Y  | Y   |
 | Avro    | Y    | N         | N    | N  | Y   |
 
 ## File IO
@@ -129,7 +129,7 @@ able to read and write geometry values is `N`. Table-format write support is lis
 |-------------------|------|-----------|------|----|------|
 | Local Filesystem  | Y    | Y         | Y    | Y  | Y    |
 | Hadoop Filesystem | Y    | Y         | Y    | Y  | N    |
-| S3 Compatible     | Y    | Y         | Y    | Y  | N    |
+| S3 Compatible     | Y    | Y         | Y    | Y  | Y    |
 | GCS Compatible    | Y    | Y         | Y    | Y  | N    |
 | ADLS Compatible   | Y    | Y         | Y    | Y  | N    |
 
@@ -171,30 +171,30 @@ able to read and write geometry values is `N`. Table-format write support is lis
     | Operation         | Java | PyIceberg | Rust | Go | C++ |
     |-------------------|------|-----------|------|----|-----|
     | Append data files | Y    | Y         | Y    | Y  | Y   |
-    | Rewrite files     | Y    | Y         | N    | Y  | N   |
-    | Rewrite manifests | Y    | Y         | N    | N  | N   |
-    | Overwrite files   | Y    | Y         | N    | Y  | N   |
-    | Delete files      | Y    | Y         | N    | Y  | N   |
+    | Rewrite files     | Y    | Y         | N    | Y  | Y   |
+    | Rewrite manifests | Y    | Y         | N    | Y  | N   |
+    | Overwrite files   | Y    | Y         | N    | Y  | Y   |
+    | Delete files      | Y    | Y         | N    | Y  | Y   |
 
 === "V2"
     | Operation         | Java | PyIceberg | Rust | Go | C++ |
     |-------------------|------|-----------|------|----|-----|
     | Append data files | Y    | Y         | Y    | Y  | Y   |
-    | Rewrite files     | Y    | Y         | N    | Y  | N   |
-    | Rewrite manifests | Y    | Y         | N    | N  | N   |
-    | Overwrite files   | Y    | Y         | N    | Y  | N   |
-    | Delete files      | Y    | Y         | N    | Y  | N   |
-    | Row delta         | Y    | N         | N    | Y  | N   |
+    | Rewrite files     | Y    | Y         | N    | Y  | Y   |
+    | Rewrite manifests | Y    | Y         | N    | Y  | N   |
+    | Overwrite files   | Y    | Y         | N    | Y  | Y   |
+    | Delete files      | Y    | Y         | N    | Y  | Y   |
+    | Row delta         | Y    | N         | N    | Y  | Y   |
 
 === "V3"
     | Operation         | Java | PyIceberg | Rust | Go | C++ |
     |-------------------|------|-----------|------|----|-----|
     | Append data files | Y    | N         | Y    | Y  | Y   |
-    | Rewrite files     | Y    | N         | N    | Y  | N   |
-    | Rewrite manifests | Y    | N         | N    | N  | N   |
-    | Overwrite files   | Y    | N         | N    | Y  | N   |
-    | Delete files      | Y    | N         | N    | Y  | N   |
-    | Row delta         | Y    | N         | N    | Y  | N   |
+    | Rewrite files     | Y    | N         | N    | Y  | Y   |
+    | Rewrite manifests | Y    | N         | N    | Y  | N   |
+    | Overwrite files   | Y    | N         | N    | Y  | Y   |
+    | Delete files      | Y    | N         | N    | Y  | Y   |
+    | Row delta         | Y    | N         | N    | Y  | Y   |
 
 ## Table Read Operations
 
@@ -229,7 +229,7 @@ able to read and write geometry values is `N`. Table-format write support is lis
     | Read data file              | Y    | Y         | Y    | Y  | Y   |
     | Read with position deletes  | Y    | Y         | Y    | Y  | Y   |
     | Read with equality deletes  | Y    | N         | Y    | Y  | Y   |
-    | Read with deletion vectors  | Y    | Y         | N    | N  | N   |
+    | Read with deletion vectors  | Y    | Y         | N    | Y  | Y   |
 
 ## Table Write Operations
 
@@ -254,7 +254,7 @@ able to read and write geometry values is `N`. Table-format write support is lis
     |------------------------|------|-----------|------|----|-----|
     | Append data            | Y    | N         | Y    | Y  | Y   |
     | Write equality deletes | Y    | N         | Y    | Y  | Y   |
-    | Write deletion vectors | Y    | N         | N    | Y  | N   |
+    | Write deletion vectors | Y    | N         | N    | Y  | Y   |
 
 ## Catalogs
 
@@ -282,7 +282,7 @@ able to read and write geometry values is `N`. Table-format write support is lis
 | listView       | Y    | Y         | N    | Y  | N   |
 | viewExists     | Y    | Y         | N    | Y  | N   |
 | replaceView    | Y    | N         | N    | N  | N   |
-| renameView     | Y    | N         | N    | N  | N   |
+| renameView     | Y    | N         | N    | Y  | N   |
 
 #### Namespace Operations
 
