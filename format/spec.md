@@ -750,7 +750,9 @@ A check expression is evaluated for each row over the values of that row. An exp
 * Must not depend on another table, such as subqueries
 * Must not reference a field within a `list` or a `map`, because such a field has a value for each element rather than one value for the row; it may pass a whole `list` or `map` field to a function, for example to check that a list is not empty
 
-A check expression must produce the same result every time it is evaluated for the same row. A function that depends on anything other than its arguments, such as the current time or a random value, must not be called. A [user-defined function](udf-spec.md) must not be called unless its current definition version declares `deterministic` as true. Functions in the reserved `sql_functions` and `iceberg_functions` sets and engine built-in functions, as described in the [expressions spec](expressions-spec.md#apply-function), are not user-defined functions. The behavior of a user-defined function is assumed not to change. A writer or a reader is not required to detect a change to a user-defined function or to recompute `constraint-statuses` when the function changes.
+A check expression must be pure. Its result must depend only on the values of the fields it references in the row, and evaluating it must have no side effects.
+
+A [user-defined function](udf-spec.md) used in a check expression must declare `deterministic` as true and is expected to preserve its behavior across definition versions. Readers and writers are not required to detect behavioral changes or recompute `constraint-statuses` if such a change occurs.
 
 #### Constraints and Schema Evolution
 
@@ -764,7 +766,9 @@ Only `name` and `enforced` fields in a constraint definition can be updated, and
 
 #### Constraint Validation
 
-Enforcement and constraint status are tracked separately. Whether writers must verify the rows that they add or modify is a property of a constraint, tracked by `enforced`. Whether a table is known to satisfy a constraint is a property of a table's data, tracked per snapshot by `constraint-statuses`.
+Enforcement of a constraint is controlled by the `enforced` field within the constraint definition. When true, writers must verify that the rows that they add or modify follow the constraint.
+
+The validation status of each constraint is tracked within snapshot metadata in the `constraint-statuses` field.
 
 The status of a constraint for a snapshot is one of:
 
@@ -772,7 +776,7 @@ The status of a constraint for a snapshot is one of:
 |---------------|-------------|
 | `validated`   | The constraint was checked and holds for all rows in the snapshot, or the commit did not add or modify rows and the parent snapshot's status is `validated` |
 | `valid`       | The parent snapshot's status is `validated` or `valid`, and either the writer can prove that the rows it added or modified follow the constraint or the commit did not add or modify rows. By induction, the constraint holds for all rows in the snapshot. |
-| `invalid`     | At least one row in the snapshot is known to violate the constraint, either because the constraint was checked or because the parent snapshot's status is `invalid` and the commit did not delete or modify any rows |
+| `invalid`     | At least one row in the snapshot is known to violate the constraint |
 | `unvalidated` | Whether the constraint holds for all rows in the snapshot is not known |
 
 A snapshot's `constraint-statuses` records, for each status, the IDs of the constraints that have that status for the snapshot:
@@ -784,16 +788,11 @@ A snapshot's `constraint-statuses` records, for each status, the IDs of the cons
 | _optional_ | **`invalid`**     | `list<int>` | IDs of constraints that are `invalid` for the snapshot |
 | _optional_ | **`unvalidated`** | `list<int>` | IDs of constraints that are `unvalidated` for the snapshot |
 
-Each list contains the `constraint-id` of every constraint that has that status for the snapshot. Every constraint that exists when the snapshot is created must be listed in exactly one of the four lists, and a `constraint-id` must not appear in more than one list. A list with no constraints may be omitted. A constraint whose ID is not present in any list did not exist when the snapshot was created, so it is `unvalidated` for the snapshot.
-
-Readers must determine the status of a constraint for a snapshot as follows:
-
-1. If the constraint's `constraint-id` is listed in `validated`, `valid`, `invalid`, or `unvalidated`, that is its status
-2. Otherwise, the constraint is `unvalidated` for the snapshot
+Each list contains the `constraint-id` of every constraint that has that status for the snapshot. Every constraint that exists when the snapshot is created must be listed in exactly one of the four lists. A list with no constraints may be omitted. A constraint whose ID is not present in any list did not exist when the snapshot was created, so it may be treated as `unvalidated` for the snapshot.
 
 A `constraint-id` listed in a snapshot that is not in the table's `constraints` refers to a constraint that no longer exists and must be ignored.
 
-Writers must record `constraint-statuses` in every snapshot of a table that has constraints, and must place every constraint that exists when the snapshot is created into exactly one status list. A constraint must not be listed with a status unless the status's description above holds for the snapshot; `unvalidated` is the status of a constraint that cannot be listed with any other status.
+Writers must not list a constraint with a status unless the status's description above holds for the snapshot.
 
 A commit that does not add or modify rows cannot introduce a violation. Such a commit, for example a delete or a compaction operation, may carry over the parent snapshot's `validated` or `valid` status for a constraint without checking rows again.
 
