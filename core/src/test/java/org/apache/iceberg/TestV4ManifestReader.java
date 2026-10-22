@@ -169,7 +169,7 @@ class TestV4ManifestReader {
             ID_PARTITIONED.specId(),
             idPartition(7),
             CONTENT_STATS,
-            null, // tight stats
+            true, // tight stats
             SortOrder.unsorted().orderId(),
             DV,
             null, // manifest info
@@ -200,7 +200,7 @@ class TestV4ManifestReader {
             ID_PARTITIONED.specId(),
             idPartition(7),
             CONTENT_STATS,
-            null, // tight stats
+            true, // tight stats
             SortOrder.unsorted().orderId(),
             DV,
             null, // manifest info
@@ -233,7 +233,7 @@ class TestV4ManifestReader {
             ID_PARTITIONED.specId(),
             idPartition(7),
             CONTENT_STATS,
-            null, // tight stats
+            false, // tight stats
             SortOrder.unsorted().orderId(),
             DV,
             null, // manifest info

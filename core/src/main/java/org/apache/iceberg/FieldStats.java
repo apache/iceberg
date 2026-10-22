@@ -37,6 +37,17 @@ public interface FieldStats<T> {
   /** The upper bound */
   T upperBound();
 
+  /**
+   * Returns whether the bounds are known to be exact.
+   *
+   * @deprecated since 1.13.0, will be removed in 2.0.0; use {@link ContentFile#tightStats()}
+   *     instead.
+   */
+  @Deprecated
+  default boolean tightBounds() {
+    return false;
+  }
+
   /** Whether a value count is tracked for this field. */
   boolean hasValueCount();
 

@@ -100,6 +100,14 @@ public interface ContentFile<F> {
   Map<Integer, ByteBuffer> upperBounds();
 
   /**
+   * Returns whether the file's bounds and value counts are tight for its live rows, or null if
+   * unknown.
+   */
+  default Boolean tightStats() {
+    return null;
+  }
+
+  /**
    * Returns map from column ID to the total uncompressed size in memory in bytes of non-null values
    * if collected, null otherwise.
    *
