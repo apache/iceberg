@@ -1031,7 +1031,7 @@ For `variant`, `lower_bound` and `upper_bound` hold one bound per normalized JSO
 
 Statistics other than the bounds, `value_count`, `null_value_count`, and `nan_value_count` are not part of tightness.
 
-When `tight_stats` is absent, readers must assume stats are not tight; `tight_stats` is the only indicator of tightness. Stats may be recomputed to restore tightness without rewriting the data file.
+When `tight_stats` is absent, readers must assume stats are not tight. Stats may be recomputed to restore tightness without rewriting the data file.
 
 ###### Content Stats in Manifests
 
