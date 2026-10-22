@@ -487,7 +487,7 @@ Stats-only fields are used to track stats for derived values that are not part o
 
 The `partition-value` type stores stats for the output of a partition field, identified by a `partition-field-id` type-specific field. The bound type is the partition field's result type and `data-type` is omitted. This may be used to store bucket partition values in stats for filtering.
 
-The `expr-value` type stores stats for the result of a [value expression](https://iceberg.apache.org/expressions-spec#value-expressions), stored in the `expr` field. Expressions must use only ID references. The output type of the value expression must be stored in the `data-type` field.
+The `expr-value` type stores stats for the result of a [value expression](expressions-spec.md#value-expressions), stored in the `expr` field. Expressions must use only ID references. The output type of the value expression must be stored in the `data-type` field.
 
 Readers must not fail when an unsupported stats-only field `type` is found; stats for unsupported types must be ignored.
 
