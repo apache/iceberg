@@ -40,7 +40,7 @@ public interface FieldStats<T> {
   /**
    * Returns whether the bounds are known to be exact.
    *
-   * @deprecated since 1.13.0, will be removed in 2.0.0; use {@link ContentFile#tightStats()}
+   * @deprecated since 1.13.0, will be removed in 1.14.0; use {@link ContentFile#tightStats()}
    *     instead.
    */
   @Deprecated
