@@ -485,13 +485,13 @@ Stats-only fields are used to track stats for derived values that are not part o
 * An optional **`data-type`** that determines the bound type; must be a primitive or variant
 * Type-specific fields that define how derived values are produced
 
-The `partition-value` type stores stats for the output of a partition field, identified by a `partition-field-id` type-specific field. The bound type is the partition field's result type and `data-type` is omitted. This may be used in v4 to filter by bucket partition values.
+The `partition-value` type stores stats for the output of a partition field, identified by a `partition-field-id` type-specific field. The bound type is the partition field's result type and `data-type` is omitted. This may be used to store bucket partition values in stats for filtering.
 
 The `expr-value` type stores stats for the result of a [value expression](https://iceberg.apache.org/expressions-spec#value-expressions), stored in the `expr` field. Expressions must use only ID references. The output type of the value expression must be stored in the `data-type` field.
 
 Readers must not fail when an unsupported stats-only field `type` is found; stats for unsupported types must be ignored.
 
-Writers must preserve existing stats for stats-only fields listed in a table's `stats-fields` if the `data-type` is known (either set or specified by a supported type). Writers should produce stats when possible for stats-only fields. A writer should produce no stats by setting the field stats struct to null when an expression is not supported, produces a different output type when bound, or binding fails.
+Writers must preserve existing stats for stats-only fields listed in a table's `stats-fields` if the `data-type` is known (either set or specified by a supported type). Writers should produce stats when possible for stats-only fields. A writer should produce no stats by setting the field stats struct to null if an expression is not supported, produces an incompatible output type when bound, or binding fails.
 
 The data type of a stats-only field may only change according to the type promotion rules above.
 
