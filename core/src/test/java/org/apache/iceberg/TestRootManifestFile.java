@@ -75,6 +75,26 @@ class TestRootManifestFile {
   }
 
   @Test
+  void toStringRedactsKeyMetadata() {
+    RootManifestFile root =
+        new RootManifestFile(
+            LOCATION,
+            LENGTH,
+            SNAPSHOT_ID,
+            SEQUENCE_NUMBER,
+            FIRST_ROW_ID,
+            ByteBuffer.wrap(new byte[] {9, 8, 7}));
+
+    assertThat(root.toString())
+        .contains("location=" + LOCATION)
+        .contains("length=" + LENGTH)
+        .contains("snapshot_id=" + SNAPSHOT_ID)
+        .contains("sequence_number=" + SEQUENCE_NUMBER)
+        .contains("first_row_id=" + FIRST_ROW_ID)
+        .contains("key_metadata=(redacted)");
+  }
+
+  @Test
   void unsupportedAccessorsThrow() {
     RootManifestFile root =
         new RootManifestFile(LOCATION, LENGTH, SNAPSHOT_ID, SEQUENCE_NUMBER, FIRST_ROW_ID, null);

@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -144,5 +145,17 @@ class RootManifestFile implements ManifestFile {
             : ByteBuffer.wrap(Arrays.copyOf(keyMetadata, keyMetadata.length));
     return new RootManifestFile(
         location, length, snapshotId, sequenceNumber, firstRowId, keyMetadataCopy);
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("location", location)
+        .add("length", length)
+        .add("snapshot_id", snapshotId)
+        .add("sequence_number", sequenceNumber)
+        .add("first_row_id", firstRowId)
+        .add("key_metadata", keyMetadata == null ? "null" : "(redacted)")
+        .toString();
   }
 }
