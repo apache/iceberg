@@ -26,7 +26,6 @@ import static org.apache.iceberg.V4TestHelpers.SNAPSHOT_ID;
 import static org.apache.iceberg.V4TestHelpers.dataFile;
 import static org.apache.iceberg.V4TestHelpers.dataFileWithDV;
 import static org.apache.iceberg.V4TestHelpers.dataFileWithStats;
-import static org.apache.iceberg.V4TestHelpers.deleteFile;
 import static org.apache.iceberg.V4TestHelpers.deletionVector;
 import static org.apache.iceberg.V4TestHelpers.manifestRef;
 import static org.apache.iceberg.V4TestHelpers.manifestRefWithStats;
@@ -82,7 +81,7 @@ class TestV4ManifestReader {
   private static final DeletionVector DV = deletionVector("s3://bucket/dv.puffin");
 
   private static final ManifestInfo MANIFEST_INFO =
-      new ManifestInfoStruct(49, 51, 0, 0, 1, 4_900L, 5_100L, 0L, 0L, 100L, 1L, null);
+      new ManifestInfoStruct(49, 51, 0, 0, 1, 4_900L, 5_100L, 0L, 0L, 100L, 1L, null, 4);
 
   private static final Schema TABLE_SCHEMA =
       new Schema(
@@ -110,10 +109,10 @@ class TestV4ManifestReader {
 
   private static final FieldStatsStruct<Integer> ID_STATS =
       new FieldStatsStruct<>(
-          STATS_TYPE.fieldType("id").asStructType(), 0, 99, true, RECORD_COUNT, 0, 0, null);
+          STATS_TYPE.fieldType("id").asStructType(), 0, 99, true, RECORD_COUNT, 0, 0, 0L);
   private static final FieldStatsStruct<String> DATA_STATS =
       new FieldStatsStruct<>(
-          STATS_TYPE.fieldType("data").asStructType(), "a", "z", false, RECORD_COUNT, 20, 0, null);
+          STATS_TYPE.fieldType("data").asStructType(), "a", "z", false, RECORD_COUNT, 20, 0, 2L);
   private static final ContentStatsStruct CONTENT_STATS = new ContentStatsStruct(STATS_TYPE);
 
   static {
@@ -139,12 +138,6 @@ class TestV4ManifestReader {
       dataFileWithStats("s3://bucket/table/file-c.parquet", CONTENT_STATS);
   private static final TrackedFile FILE_D =
       unpartitionedFileWithoutStats("s3://bucket/table/file-d.parquet");
-  private static final TrackedFile EQ_DELETES_A =
-      idPartitionedDeleteFileWithoutStats(
-          "s3://bucket/table/id=1/eq-deletes-a.parquet", idPartition(1));
-  private static final TrackedFile EQ_DELETES_B =
-      idPartitionedDeleteFileWithoutStats(
-          "s3://bucket/table/id=2/eq-deletes-b.parquet", idPartition(2));
   private static final TrackedFile DATA_MANIFEST_REF =
       manifestRefWithoutStats(FileContent.DATA_MANIFEST, "s3://bucket/table/data-leaf.parquet");
   private static final TrackedFile DELETE_MANIFEST_REF =
@@ -168,7 +161,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
             RECORD_COUNT,
@@ -180,8 +172,7 @@ class TestV4ManifestReader {
             DV,
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            ImmutableList.of(50L, 100L),
-            null); // equality field IDs
+            ImmutableList.of(50L, 100L));
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -200,7 +191,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
             RECORD_COUNT,
@@ -212,8 +202,7 @@ class TestV4ManifestReader {
             DV,
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            ImmutableList.of(50L, 100L),
-            null); // equality field IDs
+            ImmutableList.of(50L, 100L));
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -234,7 +223,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/data/file.parquet",
             FileFormat.PARQUET,
             RECORD_COUNT,
@@ -246,8 +234,7 @@ class TestV4ManifestReader {
             DV,
             null, // manifest info
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            ImmutableList.of(50L, 100L),
-            null); // equality field IDs
+            ImmutableList.of(50L, 100L));
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, file);
 
@@ -265,44 +252,11 @@ class TestV4ManifestReader {
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  public void readEqualityDelete(FileFormat format) throws IOException {
-    TrackedFile delete =
-        new TrackedFileStruct(
-            ADDED_TRACKING,
-            FileContent.EQUALITY_DELETES,
-            FORMAT_VERSION_V4,
-            "s3://bucket/eq-delete.parquet",
-            FileFormat.PARQUET,
-            RECORD_COUNT,
-            FILE_SIZE_IN_BYTES,
-            ID_PARTITIONED.specId(),
-            idPartition(7),
-            CONTENT_STATS,
-            SortOrder.unsorted().orderId(),
-            null, // dv
-            null, // manifest info
-            ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            null, // split offsets
-            ImmutableList.of(1, 2));
-
-    ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, delete);
-
-    V4ManifestReader.Builder builder =
-        V4ManifestReader.builder(manifest, IO, TABLE_SCHEMA, ID_PARTITIONING_SPECS)
-            .metricsConfig(METRICS_CONFIG);
-    TrackedFile actual = readOne(builder);
-
-    assertThat(actual).usingComparator(FILE_COMPARATOR).isEqualTo(delete);
-  }
-
-  @ParameterizedTest
-  @FieldSource("MANIFEST_FORMATS")
   public void readManifestFile(FileFormat format) throws IOException {
     TrackedFile manifestRef =
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA_MANIFEST,
-            FORMAT_VERSION_V4,
             "s3://bucket/leaf-manifest.parquet",
             FileFormat.PARQUET,
             RECORD_COUNT,
@@ -314,8 +268,7 @@ class TestV4ManifestReader {
             null, // dv
             MANIFEST_INFO,
             ByteBuffer.wrap(new byte[] {1, 2, 3}), // key metadata
-            null, // split offsets
-            ImmutableList.of(1, 2));
+            null); // split offsets
 
     ManifestFile manifest = writeManifest(format, ID_PARTITIONED_TYPE, manifestRef);
 
@@ -1163,7 +1116,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/table/empty-file.parquet",
             FileFormat.PARQUET,
             0, // file contains no records
@@ -1175,8 +1127,7 @@ class TestV4ManifestReader {
             null,
             null,
             null,
-            List.of(4L),
-            null);
+            List.of(4L));
 
     ManifestFile manifest =
         writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(emptyTrackedFile, FILE_D));
@@ -1200,7 +1151,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/table/very-old.avro",
             FileFormat.AVRO,
             -1, // mimic invalid record count in old Avro metadata
@@ -1212,8 +1162,7 @@ class TestV4ManifestReader {
             null,
             null,
             null,
-            List.of(4L),
-            null);
+            List.of(4L));
 
     ManifestFile manifest =
         writeManifest(format, UNPARTITIONED_TYPE, ImmutableList.of(invalidRecordCountFile, FILE_D));
@@ -1385,7 +1334,6 @@ class TestV4ManifestReader {
         new TrackedFileStruct(
             ADDED_TRACKING,
             FileContent.DATA,
-            FORMAT_VERSION_V4,
             "s3://bucket/table/bucket=7/data-file.parquet",
             FileFormat.AVRO,
             10,
@@ -1397,8 +1345,7 @@ class TestV4ManifestReader {
             null, // dv
             null, // manifest info
             null, // key metadata
-            List.of(4L),
-            null); // eq delete ids
+            List.of(4L));
 
     ManifestFile manifest =
         writeManifest(
@@ -1431,13 +1378,7 @@ class TestV4ManifestReader {
         writeManifest(
             format,
             ID_PARTITIONED_TYPE,
-            ImmutableList.of(
-                FILE_A,
-                FILE_B,
-                EQ_DELETES_A,
-                EQ_DELETES_B,
-                DATA_MANIFEST_REF,
-                DELETE_MANIFEST_REF));
+            ImmutableList.of(FILE_A, FILE_B, DATA_MANIFEST_REF, DELETE_MANIFEST_REF));
 
     ScanMetrics metrics = ScanMetrics.of(new DefaultMetricsContext());
     V4ManifestReader.Builder builder =
@@ -1448,14 +1389,14 @@ class TestV4ManifestReader {
 
     assertThat(read(builder))
         .usingComparatorForType(FILE_COMPARATOR, TrackedFile.class)
-        .containsExactly(FILE_A, EQ_DELETES_A, DATA_MANIFEST_REF, DELETE_MANIFEST_REF);
+        .containsExactly(FILE_A, DATA_MANIFEST_REF, DELETE_MANIFEST_REF);
 
     assertThat(metrics.skippedDataFiles().value())
         .as("one data file is pruned by the partition filter")
         .isEqualTo(1L);
     assertThat(metrics.skippedDeleteFiles().value())
-        .as("one delete file is pruned by the partition filter")
-        .isEqualTo(1L);
+        .as("no delete files are present")
+        .isEqualTo(0L);
     assertThat(metrics.skippedDataManifests().value())
         .as("manifests have no partition and are not pruned")
         .isEqualTo(0L);
@@ -1843,16 +1784,6 @@ class TestV4ManifestReader {
   private static TrackedFile idPartitionedDataFileWithoutStats(
       String location, PartitionData partition) {
     return dataFile(location, ID_PARTITIONED.specId(), partition);
-  }
-
-  private static TrackedFile idPartitionedDeleteFileWithoutStats(
-      String location, PartitionData partition) {
-    return deleteFile(
-        FileContent.EQUALITY_DELETES,
-        location,
-        ID_PARTITIONED.specId(),
-        partition,
-        ImmutableList.of(1));
   }
 
   private static TrackedFile unpartitionedDataFileWithDV(String location, String dvLocation) {

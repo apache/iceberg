@@ -139,7 +139,7 @@ and every Iceberg table version is stored as a [Glue TableVersion](https://docs.
 You can start using Glue catalog by specifying the `catalog-impl` as `org.apache.iceberg.aws.glue.GlueCatalog`
 or by setting `catalog-type` as `glue`,
 just like what is shown in the [enabling AWS integration](#enabling-aws-integration) section above.
-More details about loading the catalog can be found in individual engine pages, such as [Spark](spark-configuration.md#loading-a-custom-catalog) and [Flink](flink.md#creating-catalogs-and-using-catalogs).
+More details about loading the catalog can be found in individual engine pages, such as [Spark](spark-configuration.md#loading-a-custom-catalog) and [Flink](flink.md#adding-catalogs).
 
 #### Glue Catalog ID
 
