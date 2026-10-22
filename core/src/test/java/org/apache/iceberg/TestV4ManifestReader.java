@@ -1812,6 +1812,41 @@ class TestV4ManifestReader {
         .isNotSameAs(files.get(1).contentStats().statsFor(1).lowerBound());
   }
 
+  @ParameterizedTest
+  @FieldSource("MANIFEST_FORMATS")
+  public void readPartialGeospatialBound(FileFormat format) throws IOException {
+    Schema schema =
+        new Schema(
+            optional(1, "geom", Types.GeometryType.crs84()),
+            optional(2, "geog", Types.GeographyType.crs84()));
+    MetricsConfig metricsConfig = MetricsTestUtil.from(ImmutableMap.of(), schema);
+    Types.StructType statsType = StatsUtil.statsWriteSchema(schema, metricsConfig);
+
+    GeospatialBound geomLower = GeospatialBound.createXYZM(1.0, 2.0, 3.0, 4.0);
+    GeospatialBound geomUpper = GeospatialBound.createXYZM(5.0, 6.0, 7.0, 8.0);
+    GeospatialBound geogLower = GeospatialBound.createXY(-10.0, -20.0);
+    GeospatialBound geogUpper = GeospatialBound.createXY(30.0, 40.0);
+    TrackedFile file =
+        dataFileWithStats(
+            "s3://bucket/table/geo-partial.parquet",
+            contentStats(statsType, geomLower, geomUpper, geogLower, geogUpper));
+
+    ManifestFile manifest =
+        writeManifest(format, UNPARTITIONED_TYPE, statsType, ImmutableList.of(file));
+
+    V4ManifestReader.Builder builder =
+        V4ManifestReader.builder(manifest, IO, schema, UNPARTITIONED_SPECS)
+            .metricsConfig(metricsConfig)
+            // selecting m still reads the full geometry and geography bound structs
+            .select(
+                "content_stats.geom.lower_bound.m",
+                "content_stats.geom.upper_bound.m",
+                "content_stats.geog.lower_bound.m",
+                "content_stats.geog.upper_bound.m");
+
+    assertGeospatialBounds(readOne(builder), geomLower, geomUpper, geogLower, geogUpper);
+  }
+
   private static ContentStats contentStats(
       Types.StructType statsType,
       GeospatialBound geomLower,
