@@ -21,6 +21,7 @@ package org.apache.spark.sql.catalyst.analysis
 import org.apache.iceberg.catalog.LoadContext
 import org.apache.iceberg.spark.SparkSupportsLoadContext
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.analysis.ResolveReferencedByViews.CheckedForView
 import org.apache.spark.sql.catalyst.expressions.Alias
 import org.apache.spark.sql.catalyst.expressions.Cast
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
@@ -35,6 +36,7 @@ import org.apache.spark.sql.catalyst.trees.CurrentOrigin
 import org.apache.spark.sql.catalyst.trees.TreeNodeTag
 import org.apache.spark.sql.connector.catalog.CatalogManager
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
+import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 import org.apache.spark.sql.connector.catalog.DelegatingTable
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.LookupCatalog
@@ -54,9 +56,6 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 case class ResolveReferencedByViews(spark: SparkSession)
     extends Rule[LogicalPlan]
     with LookupCatalog {
-
-  import ResolveReferencedByViews.CheckedForView
-  import org.apache.spark.sql.connector.catalog.CatalogV2Implicits._
 
   protected lazy val catalogManager: CatalogManager = spark.sessionState.catalogManager
 
@@ -132,7 +131,15 @@ case class ResolveReferencedByViews(spark: SparkSession)
         case _: NoSuchTableException =>
           ViewUtil
             .loadView(catalog, tableIdent, context)
-            .map(view => createViewRelation(tableParts, catalog, tableIdent, view, viewChain))
+            .map { view =>
+              if (viewChain.size >= conf.maxNestedViewDepth) {
+                throw QueryCompilationErrors.viewDepthExceedsMaxResolutionDepthError(
+                  tableIdent.toQualifiedNameParts(catalog),
+                  conf.maxNestedViewDepth,
+                  u)
+              }
+              createViewRelation(tableParts, catalog, tableIdent, view, viewChain)
+            }
             .getOrElse(throw tableOrViewNotFound(u))
       }
   }

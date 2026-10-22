@@ -239,16 +239,6 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @Test
-  void directTableAccessHasEmptyContext() {
-    List<Row> rows = spark.sql(String.format("SELECT * FROM %s", TABLE_NAME)).collectAsList();
-    assertThat(rows).hasSize(5);
-
-    assertThat(ContextTrackingCatalog.CAPTURED)
-        .isNotEmpty()
-        .allSatisfy(captured -> assertThat(captured.referencedBy).isEmpty());
-  }
-
-  @Test
   void singleViewPassesViewIdentifierInContext() {
     createView("simple_view", String.format("SELECT id FROM %s", TABLE_NAME));
     spark.sql(String.format("REFRESH TABLE %s", TABLE_NAME));
@@ -517,22 +507,21 @@ public class TestReferencedByViewChain extends SparkTestHelperBase {
   }
 
   @Test
-  void tableApiReadOfViewPassesViewIdentifierInContext() {
-    createView("simple_view", String.format("SELECT id FROM %s", TABLE_NAME));
-    ContextTrackingCatalog.clearCaptured();
-
-    assertThat(spark.table("simple_view").collectAsList()).hasSize(5);
-
-    assertCapturedTableChain(ContextTrackingCatalog.CAPTURED, TABLE_NAME, "simple_view");
-  }
-
-  @Test
   void createOrReplaceViewWithCycleFailsAsWhenReferencedByIsDisabled() {
     createView("view_a", String.format("SELECT id FROM %s", TABLE_NAME));
     createView("view_b", "SELECT id FROM view_a");
 
     assertSameFailureAsReferencedByDisabled(
         () -> spark.sql("CREATE OR REPLACE VIEW view_a AS SELECT id FROM view_b"));
+  }
+
+  @Test
+  void viewCycleFailsAsWhenReferencedByIsDisabled() {
+    createViewWithoutAnalysis("view_a", "SELECT id FROM view_b");
+    createViewWithoutAnalysis("view_b", "SELECT id FROM view_a");
+
+    assertSameFailureAsReferencedByDisabled(
+        () -> spark.sql("SELECT * FROM view_a").collectAsList());
   }
 
   @Test

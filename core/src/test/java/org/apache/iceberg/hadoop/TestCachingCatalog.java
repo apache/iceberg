@@ -297,6 +297,23 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   }
 
   @Test
+  void contextualLoadUsesCanonicalIdentifierWhenCaseInsensitive() throws IOException {
+    ContextTrackingHadoopCatalog underlyingCatalog = contextTrackingHadoopCatalog();
+    Catalog catalog = CachingCatalog.wrap(underlyingCatalog, false, EXPIRATION_TTL.toMillis());
+    Namespace namespace = Namespace.of("db");
+    TableIdentifier tableIdent = TableIdentifier.of(namespace, "tbl");
+    catalog.createTable(tableIdent, SCHEMA, SPEC, ImmutableMap.of());
+
+    LoadContext context =
+        LoadContext.builder()
+            .referencedBy(Lists.newArrayList(TableIdentifier.of(namespace, "view")))
+            .build();
+    catalog.loadTable(TableIdentifier.of(Namespace.of("DB"), "TBL"), context);
+
+    assertThat(underlyingCatalog.loadIdentifiers()).containsExactly(tableIdent);
+  }
+
+  @Test
   public void testCacheExpirationEagerlyRemovesMetadataTables() throws IOException {
     TestableCachingCatalog catalog =
         TestableCachingCatalog.wrap(hadoopCatalog(), EXPIRATION_TTL, ticker);
@@ -472,12 +489,18 @@ public class TestCachingCatalog extends HadoopTableTestBase {
   }
 
   private static class ContextTrackingHadoopCatalog extends HadoopCatalog {
+    private final List<TableIdentifier> loadIdentifiers = Lists.newArrayList();
     private final List<LoadContext> loadContexts = Lists.newArrayList();
 
     @Override
     public Table loadTable(TableIdentifier identifier, LoadContext context) {
+      loadIdentifiers.add(identifier);
       loadContexts.add(context);
       return super.loadTable(identifier);
+    }
+
+    private List<TableIdentifier> loadIdentifiers() {
+      return loadIdentifiers;
     }
 
     private List<LoadContext> loadContexts() {
