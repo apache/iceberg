@@ -175,7 +175,7 @@ public class CachingCatalog implements Catalog {
       return loadTable(ident);
     }
 
-    return catalog.loadTable(ident, context);
+    return catalog.loadTable(canonicalizeIdentifier(ident), context);
   }
 
   @Override
