@@ -64,6 +64,23 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
         (type, value) -> value);
   }
 
+  public VectorizedReaderBuilder(
+      Schema expectedSchema,
+      MessageType parquetSchema,
+      boolean setArrowValidityVector,
+      Map<Integer, ?> idToConstant,
+      Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
+      BufferAllocator bufferAllocator) {
+    this(
+        expectedSchema,
+        parquetSchema,
+        setArrowValidityVector,
+        idToConstant,
+        readerFactory,
+        (type, value) -> value,
+        bufferAllocator);
+  }
+
   protected VectorizedReaderBuilder(
       Schema expectedSchema,
       MessageType parquetSchema,
