@@ -212,6 +212,11 @@ class TrackedFileAdapters {
     public Map<Integer, ByteBuffer> upperBounds() {
       return ContentStatsBackedMap.upperBounds(file().contentStats());
     }
+
+    @Override
+    public Boolean tightStats() {
+      return file().tightStats();
+    }
   }
 
   /** Adapts a TrackedFile DATA entry to the {@link DataFile} interface. */
@@ -628,6 +633,11 @@ class TrackedFileAdapters {
     }
 
     @Override
+    public Boolean tightStats() {
+      return file.tightStats();
+    }
+
+    @Override
     public Integer sortOrderId() {
       return file.sortOrderId();
     }
@@ -745,6 +755,11 @@ class TrackedFileAdapters {
 
     @Override
     public ContentStats contentStats() {
+      return null;
+    }
+
+    @Override
+    public Boolean tightStats() {
       return null;
     }
 
