@@ -51,6 +51,7 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.plans.physical.KeyGroupedPartitioning;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.UnionExec;
+import org.apache.spark.sql.execution.adaptive.QueryStageExec;
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
@@ -993,6 +994,131 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
     }
 
     return null;
+  }
+
+  @TestTemplate
+  void broadcastJoinOrdersByExpressionAscending() {
+    checkBroadcastJoinOrdering("ASC");
+  }
+
+  @TestTemplate
+  void broadcastJoinOrdersByExpressionDescending() {
+    checkBroadcastJoinOrdering("DESC");
+  }
+
+  @TestTemplate
+  void subsetJoinKeysWithMixedPartitionTypes() {
+    checkSubsetJoinKeysWithMixedPartitionTypes(false);
+  }
+
+  @TestTemplate
+  void partiallyClusteredSubsetJoinKeysWithMixedPartitionTypes() {
+    checkSubsetJoinKeysWithMixedPartitionTypes(true);
+  }
+
+  private void checkSubsetJoinKeysWithMixedPartitionTypes(boolean partiallyClustered) {
+    sql(
+        "CREATE TABLE %s (id STRING, part STRING, data STRING) USING iceberg "
+            + "PARTITIONED BY (part, bucket(32, id), bucket(32, data)) TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(tableName, planningMode);
+    sql(
+        "INSERT INTO %s VALUES ('a', '2026-05-01', 'aa'), ('a', '2026-05-02', 'cc'), "
+            + "('b', '2026-05-01', 'bb'), ('c', '2026-05-02', 'aa')",
+        tableName);
+    sql(
+        "CREATE TABLE %s (id STRING, part STRING, data STRING) USING iceberg "
+            + "PARTITIONED BY (bucket(32, id)) TBLPROPERTIES (%s)",
+        tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(tableName(OTHER_TABLE_NAME), planningMode);
+    sql(
+        "INSERT INTO %s VALUES ('a', '2026-05-01', 'xx'), ('b', '2026-05-01', 'yy'), "
+            + "('d', '2026-05-01', 'zz')",
+        tableName(OTHER_TABLE_NAME));
+    String query =
+        String.format(
+            "SELECT /*+ MERGE(l, r) */ l.id, l.part, l.data, r.data FROM %s l JOIN %s r "
+                + "ON l.id = r.id ORDER BY l.id, l.part, l.data, r.data",
+            tableName, tableName(OTHER_TABLE_NAME));
+    AtomicReference<List<Object[]>> expected = new AtomicReference<>();
+    withSQLConf(DISABLED_SPJ_SQL_CONF, () -> expected.set(sql(query)));
+    assertThat(expected.get()).hasSize(3);
+    withSQLConf(
+        ENABLED_SPJ_SQL_CONF,
+        () ->
+            withSQLConf(
+                ImmutableMap.of(
+                    SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(),
+                    "true",
+                    SQLConf.SKEW_JOIN_ENABLED().key(),
+                    "true",
+                    SQLConf.V2_BUCKETING_PARTIALLY_CLUSTERED_DISTRIBUTION_ENABLED().key(),
+                    Boolean.toString(partiallyClustered)),
+                () -> {
+                  SparkPlan plan = executeAndKeepPlan(query);
+                  assertThat(plan.toString()).contains("SortMergeJoin");
+                  assertThat(hasNonLeadingPartitionKeyProjection(plan))
+                      .as("SPJ should project the trailing bucket join key")
+                      .isTrue();
+                  assertEquals(
+                      "SPJ must preserve rows for mixed partition types",
+                      expected.get(),
+                      sql(query));
+                }));
+  }
+
+  private boolean hasNonLeadingPartitionKeyProjection(SparkPlan plan) {
+    if (plan instanceof QueryStageExec stage) {
+      return hasNonLeadingPartitionKeyProjection(stage.plan());
+    }
+
+    if (plan instanceof BatchScanExec scan
+        && scan.spjParams().joinKeyPositions().isDefined()
+        && CollectionConverters.asJava(scan.spjParams().joinKeyPositions().get())
+            .equals(List.of(1))) {
+      return true;
+    }
+
+    for (SparkPlan child : CollectionConverters.asJava(plan.children())) {
+      if (hasNonLeadingPartitionKeyProjection(child)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private void checkBroadcastJoinOrdering(String direction) {
+    sql(
+        "CREATE TABLE %s (id BIGINT) USING iceberg " + "PARTITIONED BY (id) TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(planningMode);
+    sql("INSERT INTO %s VALUES (-3), (-2), (-1), (1), (2), (3)", tableName);
+
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName(OTHER_TABLE_NAME));
+    configurePlanningMode(tableName(OTHER_TABLE_NAME), planningMode);
+    sql("INSERT INTO %s VALUES (1), (2), (3)", tableName(OTHER_TABLE_NAME));
+
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.V2_BUCKETING_SORTING_ENABLED().key(),
+            "true",
+            SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(),
+            "false"),
+        () -> {
+          for (String joinKey : List.of("-p.id", "4 - p.id")) {
+            assertPartitioningAwarePlan(
+                1,
+                2,
+                "SELECT /*+ BROADCAST(p) */ p.id FROM %s i JOIN %s p "
+                    + "ON i.id = %s ORDER BY %s %s",
+                tableName,
+                tableName(OTHER_TABLE_NAME),
+                joinKey,
+                joinKey,
+                direction);
+          }
+        });
   }
 
   private void checkJoin(String sourceColumnName, String sourceColumnType, String transform)
