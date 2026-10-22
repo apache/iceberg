@@ -25,18 +25,9 @@ import static org.apache.iceberg.mumbling.MumblingTestUtil.sparse;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Random;
-import java.util.Set;
-import org.apache.curator.shaded.com.google.common.collect.Lists;
-import org.apache.iceberg.io.IOUtil;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
 
 class TestMumblingBitmap {
@@ -69,9 +60,9 @@ class TestMumblingBitmap {
     assertThatThrownBy(
             () ->
                 new MumblingBitmap(
-                    ByteBuffer.wrap(new byte[] {0x01, 0x00, 0x00, 0x20, 0x00, 0x00})))
+                    ByteBuffer.wrap(new byte[] {0x01, 0x01, 0x00, 0x20, 0x00, 0x00})))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Invalid cardinality: 2097152 (must be < 2,097,152)");
+        .hasMessage("Invalid cardinality: 2097153 (must be <= 2,097,152)");
   }
 
   @Test
@@ -79,9 +70,9 @@ class TestMumblingBitmap {
     assertThatThrownBy(
             () ->
                 new MumblingBitmap(
-                    ByteBuffer.wrap(new byte[] {0x01, 0x00, 0x00, 0x1F, 0x00, 0x20})))
+                    ByteBuffer.wrap(new byte[] {0x01, 0x00, 0x00, 0x20, 0x01, 0x20})))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Invalid container count: 8192 (must be < 8,192)");
+        .hasMessage("Invalid container count: 8193 (must be <= 8,192)");
   }
 
   @Test
@@ -357,10 +348,12 @@ class TestMumblingBitmap {
   public void testMutableValidatesPositions() {
     MutableBitmap bitmap = MumblingBitmap.newMutableBitmap();
 
+    assertThat(bitmap.set(0)).isTrue();
     assertThatThrownBy(() -> bitmap.set(-1))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot set invalid bit position: -1 < 0");
 
+    assertThat(bitmap.set(2_097_151)).isTrue();
     assertThatThrownBy(() -> bitmap.set(2_097_152))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot set invalid bit position: 2097152 (must be < 2,097,152)");
@@ -476,7 +469,7 @@ class TestMumblingBitmap {
   }
 
   @Test
-  public void testOverlayNewContainer() {
+  public void testMutableOverlayNewContainer() {
     MutableBitmap bitmap = MUTABLE_TEST_BASE.asMutable();
 
     assertThat(bitmap.set(1024)).isTrue(); // container index 4, position 0
@@ -689,58 +682,100 @@ class TestMumblingBitmap {
     }
   }
 
-  public void testBufferSizes() throws IOException {
-    Random rand = new Random(728L);
+  @Test
+  public void testRelocatedBuffer() {
+    MumblingBitmap bitmap = new MumblingBitmap(relocate(MUTABLE_TEST_BASE.buffer()));
 
-    for (int cardinality :
-        new int[] {100, 500, 1000, 2500, 5000, 10000, 15000, 20000, 25000, 30000, 35000, 40000}) {
-      ByteBuffer size = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
-      ByteArrayOutputStream out = new ByteArrayOutputStream();
+    assertThat(bitmap.cardinality()).isEqualTo(34);
+    assertThat(bitmap.descriptors()).containsExactly(1, 32, 1);
 
-      List<Set<Integer>> bitsets = Lists.newArrayList();
+    assertThat(bitmap.isSet(0)).isTrue();
+    assertThat(bitmap.isSet(1)).isFalse();
 
-      while (out.size() < 1024 * 1024) {
-        Set<Integer> positions = Sets.newHashSet();
-        MutableBitmap bitmap = MumblingBitmap.newMutableBitmap();
-
-        while (bitmap.cardinality() < cardinality) {
-          int position = rand.nextInt(50_000);
-          if (bitmap.set(position)) {
-            positions.add(position);
-          }
-        }
-
-        bitsets.add(positions);
-
-        ByteBuffer serialized = bitmap.buffer();
-        size.putInt(0, serialized.remaining());
-        out.write(size.array(), 0, 4);
-        IOUtil.writeFully(out, serialized);
-      }
-
-      System.err.printf(
-          "cardinality: %s, iterations: %s, uncompressed: %s, average: %s%n",
-          cardinality, bitsets.size(), out.size(), out.size() / bitsets.size());
-
-      int i = 0;
-      ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray());
-      while (in.available() > 0) {
-        IOUtil.readFully(in, size.array(), 0, 4);
-        int bitmapSize = size.getInt(0);
-        ByteBuffer serialized = ByteBuffer.allocate(bitmapSize);
-        IOUtil.readFully(in, serialized.array(), 0, bitmapSize);
-
-        MumblingBitmap result = new MumblingBitmap(serialized);
-        Set<Integer> positions = bitsets.get(i);
-
-        for (int pos : positions) {
-          assertThat(result.isSet(pos)).isTrue();
-        }
-
-        i += 1;
-      }
-
-      assertThat(i).isEqualTo(bitsets.size());
+    assertThat(bitmap.isSet(263)).isFalse();
+    for (int i = 0; i < 8; i += 1) {
+      assertThat(bitmap.isSet(264 + i)).isTrue();
+      assertThat(bitmap.isSet(280 + i)).isTrue();
+      assertThat(bitmap.isSet(296 + i)).isTrue();
+      assertThat(bitmap.isSet(312 + i)).isTrue();
     }
+    assertThat(bitmap.isSet(272)).isFalse();
+    assertThat(bitmap.isSet(320)).isFalse();
+
+    assertThat(bitmap.isSet(766)).isFalse();
+    assertThat(bitmap.isSet(767)).isTrue();
+    assertThat(bitmap.isSet(768)).isFalse();
+  }
+
+  @Test
+  public void testRelocatedBufferUpdateSerialization() {
+    MutableBitmap bitmap = new MumblingBitmap(relocate(MUTABLE_TEST_BASE.buffer())).asMutable();
+
+    // containers 0 and 1 are not modified and must be copied from the relocated buffer
+    assertThat(bitmap.set(766)).isTrue(); // container 2, sparse
+    assertThat(bitmap.set(1027)).isTrue(); // container 4, new sparse
+    assertThat(bitmap.set(1031)).isTrue(); // container 4, new sparse
+    assertThat(bitmap.cardinality()).isEqualTo(37);
+
+    ByteBuffer serialized = bitmap.buffer();
+    assertThat(serialized.position()).isEqualTo(0);
+
+    int[] expectedDescriptors = new int[] {1, 32, 2, 0, 2};
+
+    MumblingBitmap result = new MumblingBitmap(serialized);
+    assertThat(result.cardinality()).isEqualTo(37);
+    assertThat(result.descriptors()).isEqualTo(expectedDescriptors);
+
+    assertThat(result.isSet(0)).isTrue();
+    assertThat(result.isSet(1)).isFalse();
+
+    assertThat(result.isSet(263)).isFalse();
+    for (int i = 0; i < 8; i += 1) {
+      assertThat(result.isSet(264 + i)).isTrue();
+      assertThat(result.isSet(280 + i)).isTrue();
+      assertThat(result.isSet(296 + i)).isTrue();
+      assertThat(result.isSet(312 + i)).isTrue();
+    }
+    assertThat(result.isSet(272)).isFalse();
+    assertThat(result.isSet(320)).isFalse();
+
+    assertThat(result.isSet(765)).isFalse();
+    assertThat(result.isSet(766)).isTrue();
+    assertThat(result.isSet(767)).isTrue();
+
+    assertThat(result.isSet(1024)).isFalse();
+    assertThat(result.isSet(1027)).isTrue();
+    assertThat(result.isSet(1028)).isFalse();
+    assertThat(result.isSet(1031)).isTrue();
+    assertThat(result.isSet(1032)).isFalse();
+
+    ByteBuffer descriptors = PFOREncoding.encode(expectedDescriptors, expectedDescriptors.length);
+    int descriptorSize = descriptors.remaining();
+    int containersOffset = HEADER_SIZE + descriptorSize;
+
+    assertThat(serialized.slice(HEADER_SIZE, descriptorSize)).isEqualTo(descriptors);
+
+    assertThat(serialized.slice(containersOffset, 1)).isEqualTo(sparse(0).buffer());
+    assertThat(serialized.slice(containersOffset + 1, 32))
+        .isEqualTo(dense(DENSE_CONTAINER).buffer());
+    assertThat(serialized.slice(containersOffset + 33, 2)).isEqualTo(sparse(254, 255).buffer());
+    assertThat(serialized.slice(containersOffset + 35, 2)).isEqualTo(sparse(3, 7).buffer());
+  }
+
+  /** Copy into a buffer with garbage padding outside of position and limit. */
+  private static ByteBuffer relocate(ByteBuffer serialized) {
+    int prefix = 17;
+    int suffix = 13;
+    int length = serialized.remaining();
+
+    byte[] bytes = new byte[prefix + length + suffix];
+    Arrays.fill(bytes, (byte) 0xA5);
+    serialized.duplicate().get(bytes, prefix, length);
+
+    ByteBuffer relocated = ByteBuffer.wrap(bytes);
+    relocated.position(prefix);
+    relocated.limit(prefix + length);
+
+    return relocated;
   }
 }

@@ -21,10 +21,10 @@ package org.apache.iceberg.mumbling;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.NavigableMap;
-import org.apache.curator.shaded.com.google.common.collect.Maps;
 import org.apache.iceberg.ManifestBitmap;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ByteBuffers;
 
 /**
@@ -50,6 +50,7 @@ class MumblingBitmap implements ManifestBitmap {
   private static final int HEADER_SIZE = 6;
   private static final int DENSE_CONTAINER_BIT = 0b0010_0000;
   private static final int DENSE_CONTAINER_SIZE = 32;
+  private static final int MAX_SPARSE_CARDINALITY = 31;
   private static final int MAX_CONTAINER_COUNT = 8_192;
   private static final int MAX_CARDINALITY = 2_097_152;
 
@@ -74,12 +75,12 @@ class MumblingBitmap implements ManifestBitmap {
     this.containerCount = ByteBuffers.readLittleEndianUnsigned(data, 4, 2);
 
     Preconditions.checkState(
-        containerCount < MAX_CONTAINER_COUNT,
-        "Invalid container count: %s (must be < 8,192)",
+        containerCount <= MAX_CONTAINER_COUNT,
+        "Invalid container count: %s (must be <= 8,192)",
         containerCount);
     Preconditions.checkState(
-        cardinality < MAX_CARDINALITY,
-        "Invalid cardinality: %s (must be < 2,097,152)",
+        cardinality <= MAX_CARDINALITY,
+        "Invalid cardinality: %s (must be <= 2,097,152)",
         cardinality);
   }
 
@@ -102,8 +103,8 @@ class MumblingBitmap implements ManifestBitmap {
   @Override
   public boolean isSet(int pos) {
     Preconditions.checkArgument(pos >= 0, "Invalid bit position: %s < 0", pos);
-    int containerIndex = pos >>> 8;
-    int posInContainer = pos & 0xFF;
+    int containerIndex = containerIndex(pos);
+    int posInContainer = posInContainer(pos);
 
     if (containerIndex >= containerCount) {
       return false;
@@ -116,12 +117,12 @@ class MumblingBitmap implements ManifestBitmap {
       // Dense: 32-byte bitset, MSB of byte 0 is position 0
       int byteIndex = containerStart + denseByteIndex(posInContainer);
       int bitShift = denseBitShift(posInContainer);
-      return ((data.get(byteIndex) >>> bitShift) & 0b1) == 0b1;
+      return ((ByteBuffers.readByte(data, byteIndex) >>> bitShift) & 0b1) == 0b1;
 
     } else {
       // Sparse: sorted list of set positions; scan until found or exceeded
       for (int i = 0; i < descriptor; i += 1) {
-        int stored = data.get(containerStart + i) & 0xFF;
+        int stored = ByteBuffers.readByte(data, containerStart + i);
         if (stored == posInContainer) {
           return true;
         }
@@ -208,9 +209,9 @@ class MumblingBitmap implements ManifestBitmap {
       Container overlay = overlays.get(containerIndex);
       if (overlay == null) {
         if (containerIndex < baseContainerCount) {
-          overlay =
-              new Container(
-                  base.buffer(), base.offset(containerIndex), base.descriptor(containerIndex));
+          ByteBuffer src = base.buffer();
+          int offset = src.position() + base.offset(containerIndex);
+          overlay = new Container(src, offset, base.descriptor(containerIndex));
         } else {
           overlay = new Container();
         }
@@ -297,7 +298,8 @@ class MumblingBitmap implements ManifestBitmap {
         int offset = base.offset(startIndex);
         int sizeToCopy = sizeOfContainers(descriptorArray, startIndex, endIndexExclusive);
         if (sizeToCopy > 0) {
-          buffer.put(currentPos, base.buffer(), offset, sizeToCopy);
+          ByteBuffer src = base.buffer();
+          buffer.put(currentPos, src, src.position() + offset, sizeToCopy);
         }
 
         return sizeToCopy;
@@ -370,9 +372,9 @@ class MumblingBitmap implements ManifestBitmap {
     }
 
     private boolean setInternal(int posInContainer) {
-      if (cardinality < 31) {
+      if (cardinality < MAX_SPARSE_CARDINALITY) {
         return sparseSet(sparse, cardinality, posInContainer);
-      } else if (cardinality > 31) {
+      } else if (cardinality > MAX_SPARSE_CARDINALITY) {
         return denseSet(dense, posInContainer);
       } else {
         // convert to dense, reuse converted buffer if it is present
@@ -407,9 +409,9 @@ class MumblingBitmap implements ManifestBitmap {
     }
 
     private static byte[] convertToDense(byte[] sparse, int cardinality) {
-      byte[] dense = new byte[32];
+      byte[] dense = new byte[DENSE_CONTAINER_SIZE];
       for (int i = 0; i < cardinality; i += 1) {
-        denseSet(dense, (sparse[i] & 0xFF));
+        denseSet(dense, sparse[i] & 0xFF);
       }
 
       return dense;
@@ -429,7 +431,7 @@ class MumblingBitmap implements ManifestBitmap {
     private static int denseCardinality(byte[] bytes) {
       int cardinality = 0;
       for (int i = 0; i < bytes.length; i += 1) {
-        cardinality += Integer.bitCount(bytes[i]);
+        cardinality += Integer.bitCount(bytes[i] & 0xFF);
       }
 
       return cardinality;
@@ -444,7 +446,7 @@ class MumblingBitmap implements ManifestBitmap {
     int bytesRead = PFOREncoding.decode(data, HEADER_SIZE, descriptorArray, 0, containerCount);
 
     int[] offsetArray = new int[containerCount + 1];
-    int firstContainerOffset = data.position() + HEADER_SIZE + bytesRead;
+    int firstContainerOffset = HEADER_SIZE + bytesRead;
     descriptorsToOffsets(firstContainerOffset, descriptorArray, offsetArray);
 
     // update the references last so that only valid values are available
