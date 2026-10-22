@@ -903,6 +903,8 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
             withSQLConf(
                 ENABLED_SPJ_SQL_CONF,
                 () -> {
+                  assertEquals(
+                      "SPJ must preserve computed-key ordering", expected.get(), sql(query));
                   SparkPlan plan = executeAndKeepPlan(query);
                   assertThat(plan.toString()).contains("BroadcastHashJoin");
                   assertThat(countShuffles(plan))
@@ -911,8 +913,6 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
                   if (direction.equals("DESC")) {
                     assertThat(plan.toString()).contains("GroupPartitions");
                   }
-                  assertEquals(
-                      "SPJ must preserve computed-key ordering", expected.get(), sql(query));
                 });
           }
         });
