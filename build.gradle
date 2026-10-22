@@ -120,7 +120,7 @@ allprojects {
     exclusiveContent {
       forRepository {
         maven {
-          url 'https://repository.apache.org/content/repositories/orgapachespark-1533/'
+          url 'https://repository.apache.org/content/repositories/orgapachespark-1541/'
         }
       }
       filter {
