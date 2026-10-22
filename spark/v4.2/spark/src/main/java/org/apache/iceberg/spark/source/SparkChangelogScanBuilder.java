@@ -33,6 +33,7 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
+import org.apache.spark.sql.connector.expressions.filter.PartitionPredicate;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.SupportsPushDownLimit;
@@ -60,7 +61,8 @@ public class SparkChangelogScanBuilder extends BaseSparkScanBuilder
     List<Predicate> pushable = Lists.newArrayList();
 
     for (Predicate predicate : predicates) {
-      if (isChangelogColumnPredicate(predicate)) {
+      // the changelog scan does not evaluate partition predicates, so Spark must evaluate them
+      if (isChangelogColumnPredicate(predicate) || predicate instanceof PartitionPredicate) {
         postScanPredicates.add(predicate);
       } else {
         pushable.add(predicate);

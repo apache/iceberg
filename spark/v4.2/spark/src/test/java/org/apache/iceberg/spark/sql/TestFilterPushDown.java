@@ -211,7 +211,7 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
 
     checkFilters(
         "dep LIKE '%d5' AND id IN (1, 5)" /* query predicate */,
-        "EndsWith(dep, d5) AND id IN (1,5)" /* Spark post scan filter */,
+        "id IN (1,5)" /* Spark post scan filter */,
         "dep IS NOT NULL, id IN (1, 5)" /* Iceberg scan filters */,
         ImmutableList.of(row(5, 500, "d5")));
   }
@@ -240,6 +240,44 @@ public class TestFilterPushDown extends TestBaseWithCatalog {
                     sql("SELECT * FROM %s WHERE is_d2(dep)", tableName)));
 
     assertInputPartitions(plan, 1);
+  }
+
+  @TestTemplate
+  void partitionPredicatePushdownKeepsFilterForEvolvedSpec() {
+    sql(
+        "CREATE TABLE %s (p0 STRING, p1 STRING, data STRING) USING iceberg PARTITIONED BY (p0)",
+        tableName);
+    configurePlanningMode(planningMode);
+
+    setSmallSplitSize();
+    sql("INSERT INTO %s VALUES ('a', 'x', 'd1')", tableName);
+    sql("INSERT INTO %s VALUES ('a', 'y', 'd2')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    table.updateSpec().addField("p1").commit();
+    sql("REFRESH TABLE %s", tableName);
+
+    sql("INSERT INTO %s VALUES ('b', 'x', 'd3')", tableName);
+    sql("INSERT INTO %s VALUES ('b', 'y', 'd4')", tableName);
+
+    assertThat(sql("SELECT data FROM %s WHERE p1 LIKE '%%x'", tableName))
+        .as("Rows must match")
+        .containsExactlyInAnyOrder(row("d1"), row("d3"));
+  }
+
+  @TestTemplate
+  void partitionPredicateCountMatchesFilteredRows() {
+    sql("CREATE TABLE %s (id INT, dep STRING) USING iceberg PARTITIONED BY (dep)", tableName);
+    configurePlanningMode(planningMode);
+
+    setSmallSplitSize();
+    sql("INSERT INTO %s VALUES (1, 'd1')", tableName);
+    sql("INSERT INTO %s VALUES (2, 'd2')", tableName);
+    sql("INSERT INTO %s VALUES (3, 'd3')", tableName);
+
+    assertThat(sql("SELECT count(*) FROM %s WHERE dep LIKE '%%2'", tableName))
+        .as("Count must match")
+        .containsExactly(row(1L));
   }
 
   @TestTemplate

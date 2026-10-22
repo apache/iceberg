@@ -69,7 +69,6 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   private final Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan;
   private final boolean preserveDataGrouping;
   private final List<PartitionPredicate> partitionPredicates;
-  private final List<PartitionField> partitionPredicateFields;
   private final StructType partitionPredicateType;
 
   private Set<PartitionSpec> specs = null; // lazy cache of scanned specs
@@ -101,7 +100,6 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     this.scan = scan;
     this.preserveDataGrouping = readConf.preserveDataGrouping();
     this.partitionPredicates = Lists.newArrayList(partitionPredicates);
-    this.partitionPredicateFields = activePartitionFields(table.spec());
     this.partitionPredicateType = activePartitionType(table.spec());
 
     if (scan == null) {
@@ -337,6 +335,34 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     return StructType.of(activeFields);
   }
 
+  static boolean canEvaluatePredicate(
+      PartitionPredicate predicate, PartitionSpec currentTableSpec, PartitionSpec fileSpec) {
+    List<PartitionField> currentFields = activePartitionFields(currentTableSpec);
+    Map<Integer, PartitionField> fileFieldsById = Maps.newHashMap();
+    for (PartitionField field : activePartitionFields(fileSpec)) {
+      fileFieldsById.put(field.fieldId(), field);
+    }
+
+    for (NamedReference reference : predicate.references()) {
+      if (!(reference instanceof PartitionFieldReference partitionReference)) {
+        return false;
+      }
+
+      int ordinal = partitionReference.ordinal();
+      if (ordinal < 0 || ordinal >= currentFields.size()) {
+        return false;
+      }
+
+      PartitionField currentField = currentFields.get(ordinal);
+      PartitionField fileField = fileFieldsById.get(currentField.fieldId());
+      if (fileField == null || !fileField.transform().equals(currentField.transform())) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   private class PartitionPredicateEvaluator {
     private final StructProjection partitionProjection;
     private final StructInternalRow partitionKey;
@@ -362,41 +388,12 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
     }
 
     private boolean[] findEvaluablePredicates(PartitionSpec spec) {
-      Map<Integer, PartitionField> fieldsById = Maps.newHashMap();
-      for (PartitionField field : spec.fields()) {
-        if (!field.transform().isVoid()) {
-          fieldsById.put(field.fieldId(), field);
-        }
-      }
-
       boolean[] result = new boolean[partitionPredicates.size()];
       for (int pos = 0; pos < partitionPredicates.size(); pos += 1) {
-        result[pos] = canEvaluatePredicate(partitionPredicates.get(pos), fieldsById);
+        result[pos] = canEvaluatePredicate(partitionPredicates.get(pos), table().spec(), spec);
       }
 
       return result;
-    }
-
-    private boolean canEvaluatePredicate(
-        PartitionPredicate predicate, Map<Integer, PartitionField> fieldsById) {
-      for (NamedReference reference : predicate.references()) {
-        if (!(reference instanceof PartitionFieldReference partitionReference)) {
-          return false;
-        }
-
-        int ordinal = partitionReference.ordinal();
-        if (ordinal < 0 || ordinal >= partitionPredicateFields.size()) {
-          return false;
-        }
-
-        PartitionField currentField = partitionPredicateFields.get(ordinal);
-        PartitionField specField = fieldsById.get(currentField.fieldId());
-        if (specField == null || !specField.transform().equals(currentField.transform())) {
-          return false;
-        }
-      }
-
-      return true;
     }
   }
 }

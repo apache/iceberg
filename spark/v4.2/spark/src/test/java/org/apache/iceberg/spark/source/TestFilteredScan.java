@@ -577,10 +577,51 @@ public class TestFilteredScan {
     assertThat(builder.supportsIterativePushdown()).isTrue();
     assertThat(builder.pushPredicates(new Predicate[] {dataPredicate}))
         .containsExactly(dataPredicate);
-    assertThat(builder.pushPredicates(new Predicate[] {partitionPredicate}))
-        .containsExactly(partitionPredicate);
+    assertThat(builder.pushPredicates(new Predicate[] {partitionPredicate})).isEmpty();
     assertThat(builder.pushedPredicates()).containsExactly(dataPredicate, partitionPredicate);
 
+    assertThat(builder.build().toBatch().planInputPartitions()).hasSize(1);
+  }
+
+  @TestTemplate
+  void partitionPredicateIsReturnedByChangelogScanBuilder() {
+    Table table = buildPartitionedTable("partition_predicate_changelog", PARTITION_BY_DATA);
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
+    SparkChangelogScanBuilder builder =
+        new SparkChangelogScanBuilder(spark, table, table.schema(), options);
+    PartitionPredicate partitionPredicate = dataEndsWith("tion");
+
+    assertThat(builder.pushPredicates(new Predicate[] {partitionPredicate}))
+        .containsExactly(partitionPredicate);
+  }
+
+  @TestTemplate
+  void partitionPredicateOnInitialFieldIsNotReturnedAfterSpecEvolution() {
+    Table table = buildPartitionedTable("partition_predicate_evolved", PARTITION_BY_DATA);
+    table.updateSpec().addField("id").commit();
+
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
+    SparkScanBuilder builder = new SparkScanBuilder(spark, table, options);
+    PartitionPredicate partitionPredicate = dataEndsWith("tion");
+
+    assertThat(builder.pushPredicates(new Predicate[] {partitionPredicate})).isEmpty();
+  }
+
+  @TestTemplate
+  void partitionPredicateIsNotReturnedWhenFieldOrdinalDiffersAcrossSpecs() {
+    PartitionSpec idAndData =
+        PartitionSpec.builderFor(SCHEMA).identity("id").identity("data").build();
+    Table table = buildPartitionedTable("partition_predicate_ordinals", idAndData);
+    table.updateSpec().removeField("id").commit();
+
+    CaseInsensitiveStringMap options =
+        new CaseInsensitiveStringMap(ImmutableMap.of("path", table.location()));
+    SparkScanBuilder builder = new SparkScanBuilder(spark, table, options);
+    PartitionPredicate partitionPredicate = dataEndsWith("tion");
+
+    assertThat(builder.pushPredicates(new Predicate[] {partitionPredicate})).isEmpty();
     assertThat(builder.build().toBatch().planInputPartitions()).hasSize(1);
   }
 

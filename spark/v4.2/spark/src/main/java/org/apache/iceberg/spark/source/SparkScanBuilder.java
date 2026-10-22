@@ -211,6 +211,11 @@ public class SparkScanBuilder extends BaseSparkScanBuilder
       return false;
     }
 
+    if (!partitionPredicates().isEmpty()) {
+      LOG.info("Skipping aggregate pushdown: partition predicates are not applied to aggregates");
+      return false;
+    }
+
     return true;
   }
 

@@ -165,9 +165,12 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
         partitionPredicates.add(partitionPredicate);
         pushablePredicates.add(predicate);
 
-        // TODO: Currently, all partition predicates are returned to Spark for re-evaluation.
-        // Optimize by returning only predicates that cannot be evaluated against all scanned specs.
-        postScanPredicates.add(predicate);
+        if (canEvaluateOnAllSpecs(partitionPredicate)) {
+          LOG.info(
+              "Partition predicate fully evaluated by Iceberg across all specs: {}", predicate);
+        } else {
+          postScanPredicates.add(predicate);
+        }
         continue;
       }
 
@@ -197,6 +200,12 @@ abstract class BaseSparkScanBuilder implements ScanBuilder {
     this.pushedPredicates.addAll(pushablePredicates);
 
     return postScanPredicates.toArray(new Predicate[0]);
+  }
+
+  private boolean canEvaluateOnAllSpecs(PartitionPredicate predicate) {
+    return table.specs().values().stream()
+        .allMatch(
+            spec -> SparkPartitioningAwareScan.canEvaluatePredicate(predicate, table.spec(), spec));
   }
 
   // logic necessary for SupportsPushDownV2Filters
