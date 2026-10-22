@@ -29,6 +29,7 @@ import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.table.catalog.CatalogBaseTable;
 import org.apache.flink.table.catalog.CatalogView;
 import org.apache.flink.table.catalog.ObjectPath;
+import org.apache.flink.table.catalog.exceptions.TableAlreadyExistException;
 import org.apache.flink.table.catalog.exceptions.TableNotExistException;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.Parameters;
@@ -331,6 +332,234 @@ public class TestFlinkCatalogView extends CatalogTestBase {
         .create();
 
     assertSameElements(expectedRows(), sql("SELECT * FROM %s", VIEW_NAME));
+  }
+
+  @TestTemplate
+  public void testCreateViewViaSql() {
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+
+    assertSameElements(expectedRows(), sql("SELECT * FROM %s", VIEW_NAME));
+
+    View view = viewCatalog().loadView(TableIdentifier.of(icebergNamespace, VIEW_NAME));
+    // the expanded query is stored: every reference is fully qualified, so resolution does not
+    // depend on the reader's session
+    assertThat(view.sqlFor("flink").sql())
+        .containsIgnoringCase(
+            String.format("FROM `%s`.`%s`.`%s`", catalogName, DATABASE, TABLE_NAME));
+    assertThat(view.currentVersion().defaultNamespace()).isEqualTo(icebergNamespace);
+    assertThat(view.currentVersion().defaultCatalog()).isEqualTo(catalogName);
+    assertThat(view.schema().columns())
+        .extracting(Types.NestedField::name)
+        .containsExactly("id", "data");
+  }
+
+  @TestTemplate
+  public void testCreateViewWithCommentAndColumnList() {
+    sql(
+        "CREATE VIEW %s (view_id, view_data) COMMENT 'a view comment' AS SELECT id, data FROM %s",
+        VIEW_NAME, TABLE_NAME);
+
+    View view = viewCatalog().loadView(TableIdentifier.of(icebergNamespace, VIEW_NAME));
+    assertThat(view.properties()).containsEntry(ViewProperties.COMMENT, "a view comment");
+    assertThat(view.schema().columns())
+        .extracting(Types.NestedField::name)
+        .containsExactly("view_id", "view_data");
+  }
+
+  @TestTemplate
+  public void testCreateViewIfNotExists() {
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+    // IF NOT EXISTS is silent
+    sql("CREATE VIEW IF NOT EXISTS %s AS SELECT id FROM %s", VIEW_NAME, TABLE_NAME);
+    // the view was not replaced: it still exists with its original query
+    View view = viewCatalog().loadView(TableIdentifier.of(icebergNamespace, VIEW_NAME));
+    assertThat(view.sqlFor("flink").sql()).containsIgnoringCase("data");
+
+    // without IF NOT EXISTS, creation fails
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS SELECT id FROM %s", VIEW_NAME, TABLE_NAME))
+        .hasMessageContaining("Could not execute CreateTable")
+        .cause()
+        .isInstanceOf(TableAlreadyExistException.class)
+        .hasMessageContaining(VIEW_NAME);
+  }
+
+  @TestTemplate
+  public void testCreateViewOverExistingTableFails() {
+    assertThatThrownBy(() -> sql("CREATE VIEW %s AS SELECT id FROM %s", TABLE_NAME, TABLE_NAME))
+        .hasMessageContaining("Could not execute CreateTable")
+        .cause()
+        .isInstanceOf(TableAlreadyExistException.class)
+        .hasMessageContaining(TABLE_NAME);
+
+    // the table was not touched by the failed attempt
+    assertSameElements(expectedRows(), sql("SELECT * FROM %s", TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testCreateViewWithMetadataTableNameFails() {
+    assertThatThrownBy(() -> sql("CREATE VIEW shadow$snapshots AS SELECT id FROM %s", TABLE_NAME))
+        .hasMessageContaining("Could not execute CreateTable")
+        .cause()
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot create view")
+        .hasMessageContaining("metadata table");
+
+    assertThat(sql("SHOW VIEWS")).isEmpty();
+  }
+
+  @TestTemplate
+  public void testCreateViewWithUnqualifiedCrossDatabaseReference() {
+    // the stored expanded query fully qualifies the reference at creation time, so the view
+    // resolves against the table the creator saw, regardless of the reader's session database
+    sql("CREATE DATABASE %s.db2", catalogName);
+    sql("USE db2");
+    try {
+      sql("CREATE TABLE cross_t (id BIGINT)");
+      sql("INSERT INTO cross_t VALUES (7)");
+      sql("CREATE VIEW %s.%s.cross_view AS SELECT id FROM cross_t", catalogName, DATABASE);
+
+      assertSameElements(
+          Lists.newArrayList(Row.of(7L)),
+          sql("SELECT * FROM %s.%s.cross_view", catalogName, DATABASE));
+
+      // reading from the view's own database, where an unqualified cross_t would not resolve
+      sql("USE %s", DATABASE);
+      assertSameElements(Lists.newArrayList(Row.of(7L)), sql("SELECT * FROM cross_view"));
+    } finally {
+      sql("USE %s", DATABASE);
+      sql("DROP TABLE IF EXISTS %s.db2.cross_t", catalogName);
+      dropDatabase(catalogName + ".db2", true);
+    }
+  }
+
+  @TestTemplate
+  public void testCreateViewWithQualifiedCrossDatabaseReference() {
+    // an explicitly qualified reference is stored as written, so it resolves the same way from
+    // any session
+    sql("CREATE DATABASE %s.db2", catalogName);
+    try {
+      sql("CREATE TABLE %s.db2.other_t (id BIGINT)", catalogName);
+      sql("INSERT INTO %s.db2.other_t VALUES (9)", catalogName);
+      sql("CREATE VIEW cross_view AS SELECT id FROM db2.other_t");
+
+      assertSameElements(Lists.newArrayList(Row.of(9L)), sql("SELECT * FROM cross_view"));
+      // the result does not depend on the reader's session database
+      sql("USE db2");
+      assertSameElements(
+          Lists.newArrayList(Row.of(9L)),
+          sql("SELECT * FROM %s.%s.cross_view", catalogName, DATABASE));
+    } finally {
+      sql("USE %s", DATABASE);
+      sql("DROP TABLE IF EXISTS %s.db2.other_t", catalogName);
+      dropDatabase(catalogName + ".db2", true);
+    }
+  }
+
+  @TestTemplate
+  public void testCreateViewNotSupportedByCatalog() {
+    // a catalog without view support (HadoopCatalog) rejects CREATE VIEW with a clear error
+    String noViewCatalog = catalogName + "_noviews";
+    sql(
+        "CREATE CATALOG %s WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='file://%s/noviews')",
+        noViewCatalog, warehouseRoot());
+    try {
+      sql("CREATE DATABASE %s.no_view_db", noViewCatalog);
+      assertThatThrownBy(
+              () ->
+                  sql(
+                      "CREATE VIEW %s.no_view_db.unsupported_view AS SELECT id, data FROM %s",
+                      noViewCatalog, TABLE_NAME))
+          .hasMessageContaining("Could not execute CreateTable")
+          .cause()
+          .isInstanceOf(UnsupportedOperationException.class)
+          .hasMessageContaining("Creating a view is not supported by catalog");
+    } finally {
+      dropDatabase(noViewCatalog + ".no_view_db", true);
+      dropCatalog(noViewCatalog, true);
+    }
+  }
+
+  @TestTemplate
+  public void testDropView() {
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+    assertThat(sql("SHOW VIEWS")).containsExactly(Row.of(VIEW_NAME));
+
+    sql("DROP VIEW %s", VIEW_NAME);
+    assertThat(sql("SHOW VIEWS")).isEmpty();
+    assertThat(viewCatalog().viewExists(TableIdentifier.of(icebergNamespace, VIEW_NAME))).isFalse();
+  }
+
+  @TestTemplate
+  public void testDropViewIfExists() {
+    sql("DROP VIEW IF EXISTS nonexistent_view");
+    assertThatThrownBy(() -> sql("DROP VIEW nonexistent_view"))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("View with identifier")
+        .hasMessageContaining("nonexistent_view")
+        .hasMessageContaining("does not exist");
+  }
+
+  @TestTemplate
+  public void testDropNonexistentViewThroughCatalogApi() {
+    // SQL never reaches the catalog for a missing object; the catalog API reports it itself
+    assertThatThrownBy(
+            () ->
+                getTableEnv()
+                    .getCatalog(catalogName)
+                    .get()
+                    .dropTable(new ObjectPath(DATABASE, "nonexistent_view"), false))
+        .isInstanceOf(TableNotExistException.class)
+        .hasMessageContaining("nonexistent_view");
+  }
+
+  @TestTemplate
+  public void testRenameView() {
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+    sql("ALTER VIEW %s RENAME TO renamed_view", VIEW_NAME);
+
+    assertThat(sql("SHOW VIEWS")).containsExactly(Row.of("renamed_view"));
+    assertSameElements(expectedRows(), sql("SELECT * FROM renamed_view"));
+  }
+
+  @TestTemplate
+  public void testRenameViewToMetadataTableNameFails() {
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s RENAME TO shadow$snapshots", VIEW_NAME))
+        .hasMessageContaining("Could not execute ALTER VIEW")
+        .cause()
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot rename")
+        .hasMessageContaining("metadata table");
+
+    // the view was not touched by the failed attempt
+    assertThat(sql("SHOW VIEWS")).containsExactly(Row.of(VIEW_NAME));
+  }
+
+  @TestTemplate
+  public void testRenameViewToExistingObjectFails() {
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+    viewCatalog()
+        .buildView(TableIdentifier.of(icebergNamespace, "second_view"))
+        .withSchema(VIEW_SCHEMA)
+        .withDefaultNamespace(icebergNamespace)
+        .withQuery("flink", "SELECT id FROM test_table")
+        .create();
+
+    assertThatThrownBy(() -> sql("ALTER VIEW %s RENAME TO second_view", VIEW_NAME))
+        .hasMessageContaining("Could not execute ALTER VIEW")
+        .cause()
+        .isInstanceOf(TableAlreadyExistException.class)
+        .hasMessageContaining("second_view");
+  }
+
+  @TestTemplate
+  public void testAlterViewAsIsRejected() {
+    sql("CREATE VIEW %s AS SELECT id, data FROM %s", VIEW_NAME, TABLE_NAME);
+    assertThatThrownBy(() -> sql("ALTER VIEW %s AS SELECT id FROM %s", VIEW_NAME, TABLE_NAME))
+        .hasMessageContaining("Could not execute AlterTable")
+        .rootCause()
+        .hasMessageContaining("Altering a view is not supported");
   }
 
   @TestTemplate

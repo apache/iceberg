@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -35,10 +36,7 @@ interface TrackedFile {
           134,
           "content_type",
           Types.IntegerType.get(),
-          "Type of content: 0=DATA, 2=EQUALITY_DELETES, 3=DATA_MANIFEST, 4=DELETE_MANIFEST");
-  Types.NestedField FORMAT_VERSION =
-      Types.NestedField.required(
-          157, "format_version", Types.IntegerType.get(), "Format version of this file");
+          "Type of content: 0=DATA, 3=DATA_MANIFEST, 4=DELETE_MANIFEST");
   Types.NestedField LOCATION =
       Types.NestedField.required(100, "location", Types.StringType.get(), "Location of the file");
   Types.NestedField FILE_FORMAT =
@@ -89,24 +87,12 @@ interface TrackedFile {
           "split_offsets",
           Types.ListType.ofRequired(133, Types.LongType.get()),
           "Split offsets for the data file");
-  Types.NestedField EQUALITY_IDS =
-      Types.NestedField.optional(
-          135,
-          "equality_ids",
-          Types.ListType.ofRequired(136, Types.IntegerType.get()),
-          "Field ids used to determine row equality in equality delete files");
 
-  /**
-   * Returns the schema for the given partition and content stats types.
-   *
-   * <p>The partition and content stats fields use {@link Types.UnknownType} when their types have
-   * no fields, so that they are not stored in manifest files.
-   */
-  static Schema schema(Types.StructType partitionType, Types.StructType contentStatsType) {
-    return new Schema(
+  private static List<Types.NestedField> fields(
+      Types.StructType partitionType, Types.StructType contentStatsType) {
+    return ImmutableList.of(
         TRACKING,
         CONTENT_TYPE,
-        FORMAT_VERSION,
         LOCATION,
         FILE_FORMAT,
         RECORD_COUNT,
@@ -123,12 +109,29 @@ interface TrackedFile {
         DELETION_VECTOR,
         MANIFEST_INFO,
         KEY_METADATA,
-        SPLIT_OFFSETS,
-        EQUALITY_IDS);
+        SPLIT_OFFSETS);
   }
 
   private static Type typeOrUnknown(Types.StructType structType) {
     return structType.fields().isEmpty() ? Types.UnknownType.get() : structType;
+  }
+
+  /**
+   * Returns the schema for the given partition and content stats types.
+   *
+   * <p>The partition and content stats fields use {@link Types.UnknownType} when their types have
+   * no fields, so that they are not stored in manifest files.
+   */
+  static Schema schema(Types.StructType partitionType, Types.StructType contentStatsType) {
+    return new Schema(fields(partitionType, contentStatsType));
+  }
+
+  static Schema readSchema(Types.StructType partitionType, Types.StructType contentStatsType) {
+    List<Types.NestedField> nonEmptyFields =
+        fields(partitionType, contentStatsType).stream()
+            .filter(field -> field.type().typeId() != Type.TypeID.UNKNOWN)
+            .toList();
+    return new Schema(nonEmptyFields);
   }
 
   /** Returns the tracking information for this entry. */
@@ -136,9 +139,6 @@ interface TrackedFile {
 
   /** Returns the type of content stored by this entry. */
   FileContent contentType();
-
-  /** Returns the format version of this file. */
-  int formatVersion();
 
   /** Returns the location of the file. */
   String location();
@@ -155,7 +155,9 @@ interface TrackedFile {
   /** Returns the ID of the partition spec used to partition this file, or null. */
   Integer specId();
 
-  /** Returns partition for this file as a {@link StructLike}, or null. */
+  /**
+   * Returns the partition for this file as a struct with the partition spec's output type, or null.
+   */
   StructLike partition();
 
   /** Returns the content stats for this entry. */
@@ -175,9 +177,6 @@ interface TrackedFile {
 
   /** Returns the list of recommended split locations, or null. */
   List<Long> splitOffsets();
-
-  /** Returns the set of field IDs used for equality comparison in equality delete files. */
-  List<Integer> equalityIds();
 
   /** Copies this tracked file. */
   TrackedFile copy();

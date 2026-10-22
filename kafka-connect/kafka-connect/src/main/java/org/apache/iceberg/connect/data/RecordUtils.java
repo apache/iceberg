@@ -35,7 +35,6 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
@@ -48,10 +47,10 @@ import org.apache.kafka.connect.data.Struct;
 class RecordUtils {
 
   @SuppressWarnings("unchecked")
-  static Object extractFromRecordValue(Object recordValue, String fieldName) {
-    List<String> fields = Splitter.on('.').splitToList(fieldName);
+  static Object extractFromRecordValue(
+      Object recordValue, List<String> fields, IcebergSinkConfig config) {
     if (recordValue instanceof Struct) {
-      return valueFromStruct((Struct) recordValue, fields);
+      return valueFromStruct((Struct) recordValue, fields, config.replaceNullWithDefault());
     } else if (recordValue instanceof Map) {
       return valueFromMap((Map<String, ?>) recordValue, fields);
     } else {
@@ -60,25 +59,28 @@ class RecordUtils {
     }
   }
 
-  private static Object valueFromStruct(Struct parent, List<String> fields) {
+  private static Object valueFromStruct(
+      Struct parent, List<String> fields, boolean replaceNullWithDefault) {
     Struct struct = parent;
     for (int idx = 0; idx < fields.size() - 1; idx++) {
-      Object value = fieldValueFromStruct(struct, fields.get(idx));
+      Object value = fieldValueFromStruct(struct, fields.get(idx), replaceNullWithDefault);
       if (value == null) {
         return null;
       }
       Preconditions.checkState(value instanceof Struct, "Expected a struct type");
       struct = (Struct) value;
     }
-    return fieldValueFromStruct(struct, fields.get(fields.size() - 1));
+    return fieldValueFromStruct(struct, fields.get(fields.size() - 1), replaceNullWithDefault);
   }
 
-  private static Object fieldValueFromStruct(Struct struct, String fieldName) {
+  private static Object fieldValueFromStruct(
+      Struct struct, String fieldName, boolean replaceNullWithDefault) {
     Field structField = struct.schema().field(fieldName);
     if (structField == null) {
       return null;
     }
-    return struct.get(structField);
+    // Struct.get() substitutes the schema default value when the stored value is null
+    return replaceNullWithDefault ? struct.get(structField) : struct.getWithoutDefault(fieldName);
   }
 
   @SuppressWarnings("unchecked")

@@ -68,11 +68,6 @@ import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
-  @Override
-  protected boolean useHttpCompression() {
-    return false;
-  }
-
   private static final ResourcePaths RESOURCE_PATHS =
       ResourcePaths.forCatalogProperties(
           ImmutableMap.of(
@@ -775,8 +770,9 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
           Supplier<Map<String, String>> mutationHeaders,
           FileIO io,
           TableMetadata current,
-          Set<Endpoint> endpoints) {
-        super(client, path, readHeaders, mutationHeaders, io, current, endpoints);
+          Set<Endpoint> endpoints,
+          Map<String, String> readQueryParams) {
+        super(client, path, readHeaders, mutationHeaders, io, current, endpoints, readQueryParams);
       }
     }
 
@@ -795,9 +791,17 @@ public class TestFreshnessAwareLoading extends TestBaseWithRESTServer {
           Supplier<Map<String, String>> mutationHeaders,
           FileIO fileIO,
           TableMetadata current,
-          Set<Endpoint> supportedEndpoints) {
+          Set<Endpoint> supportedEndpoints,
+          Map<String, String> readQueryParams) {
         return new CustomTableOps(
-            restClient, path, readHeaders, mutationHeaders, fileIO, current, supportedEndpoints);
+            restClient,
+            path,
+            readHeaders,
+            mutationHeaders,
+            fileIO,
+            current,
+            supportedEndpoints,
+            readQueryParams);
       }
     }
 

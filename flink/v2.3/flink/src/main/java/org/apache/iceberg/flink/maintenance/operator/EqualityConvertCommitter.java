@@ -143,12 +143,21 @@ public class EqualityConvertCommitter extends AbstractStreamOperator<Trigger>
 
   @Override
   public void processElement2(StreamRecord<EqualityConvertPlan> record) {
+    // Includes the cycle-start marker. Its maximal done timestamp holds watermarks until the real
+    // plan replaces it.
     planResult = record.getValue();
   }
 
   @Override
   public void processWatermark(Watermark mark) throws Exception {
-    if (planResult == null || mark.getTimestamp() < planResult.doneTimestamp()) {
+    if (planResult == null) {
+      // No cycle in flight: the watermark comes from another task's trigger or a recovery trigger
+      // sharing the maintenance lock. Holding it back would keep that lock forever.
+      super.processWatermark(mark);
+      return;
+    }
+
+    if (mark.getTimestamp() < planResult.doneTimestamp()) {
       // Hold back watermarks until the cycle commits so the LockRemover keeps the maintenance lock
       // for the whole cycle. Forwarding the planner's mid-cycle phase watermarks will release the
       // lock early and could let the next trigger run a concurrent cycle on the same staging

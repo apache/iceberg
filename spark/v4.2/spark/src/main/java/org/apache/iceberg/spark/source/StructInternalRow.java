@@ -35,6 +35,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -183,8 +184,9 @@ class StructInternalRow extends InternalRow {
   }
 
   private UTF8String getUTF8StringInternal(int ordinal) {
-    CharSequence seq = struct.get(ordinal, CharSequence.class);
-    return UTF8String.fromString(seq.toString());
+    return (UTF8String)
+        SparkUtil.internalToSpark(
+            type.fields().get(ordinal).type(), struct.get(ordinal, Object.class));
   }
 
   @Override

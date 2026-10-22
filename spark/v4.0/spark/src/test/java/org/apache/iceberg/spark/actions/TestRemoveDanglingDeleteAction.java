@@ -19,8 +19,10 @@
 package org.apache.iceberg.spark.actions;
 
 import java.net.InetAddress;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
 import org.apache.iceberg.actions.TestRemoveDanglingDeleteFilesAction;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.spark.sql.SparkSession;
 import org.junit.jupiter.api.AfterAll;
@@ -36,6 +38,7 @@ public class TestRemoveDanglingDeleteAction extends TestRemoveDanglingDeleteFile
         SparkSession.builder()
             .master("local[2]")
             .config("spark.driver.host", InetAddress.getLoopbackAddress().getHostAddress())
+            .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
             .config(TestBase.DISABLE_UI)
             .getOrCreate();
   }
@@ -52,7 +55,7 @@ public class TestRemoveDanglingDeleteAction extends TestRemoveDanglingDeleteFile
   }
 
   @Override
-  protected RemoveDanglingDeleteFiles removeDanglingDeleteFiles() {
-    return new RemoveDanglingDeletesSparkAction(spark, table);
+  protected RemoveDanglingDeleteFiles removeDanglingDeleteFiles(Table actionTable) {
+    return new RemoveDanglingDeletesSparkAction(spark, actionTable, ImmutableMap.of());
   }
 }

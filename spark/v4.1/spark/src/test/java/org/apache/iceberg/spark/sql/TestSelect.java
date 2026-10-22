@@ -705,6 +705,23 @@ public class TestSelect extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void requiredNestedDoubleInOptionalStructFilter() {
+    String nestedStructTable = tableName("nested_double_struct_table");
+    sql("DROP TABLE IF EXISTS %s", nestedStructTable);
+    sql(
+        "CREATE TABLE %s (id INT NOT NULL, stats STRUCT<measurement: DOUBLE NOT NULL>) "
+            + "USING iceberg",
+        nestedStructTable);
+    sql("INSERT INTO %s VALUES (0, NULL), (1, STRUCT(CAST(34.0 AS DOUBLE)))", nestedStructTable);
+
+    List<Object[]> result =
+        sql("SELECT id FROM %s WHERE stats.measurement IS NULL", nestedStructTable);
+
+    sql("DROP TABLE IF EXISTS %s", nestedStructTable);
+    assertEquals("Should return all expected rows", ImmutableList.of(row(0)), result);
+  }
+
+  @TestTemplate
   public void simpleTypesInFilter() {
     String tableName = tableName("simple_types_table");
     sql(
