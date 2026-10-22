@@ -159,20 +159,10 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
             newData.f1,
             isForward);
       } else {
-        // Shuffled records with immediateUpdate=false go to the update side output
-        // The schema, the spec and the row used for the key must describe the same layout: the
-        // spec resolves partition source fields by ID in the schema, and the schema reads them by
-        // position from the row. Use the table's layout only when both the table schema and spec
-        // are known, otherwise stay with the record's own schema, spec and row.
-        boolean keyByTable = foundSchema.resolvedTableSchema() != null && foundSpec != null;
-        int writerKey =
-            keyByTable
-                ? hashKeyGenerator.generateKey(
-                    data,
-                    foundSchema.resolvedTableSchema(),
-                    foundSpec,
-                    (RowData) foundSchema.recordConverter().convert(data.rowData()))
-                : hashKeyGenerator.generateKey(data, null, null, null);
+        // Shuffled records with immediateUpdate=false go to the update side output.
+        // Key them with the record's own schema, spec and row: the raw row is laid out by the
+        // record's schema, so the table's schema or spec cannot be used with it.
+        int writerKey = hashKeyGenerator.generateKey(data, null, null, null);
         context.output(
             updateStream,
             new DynamicRecordInternal(
