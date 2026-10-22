@@ -4262,7 +4262,7 @@ components:
         - metadata
       properties:
         metadata-location:
-          type: [ string, "null"]
+          type: [ string, "null" ]
           description: May be null if the table is staged as part of a transaction
         metadata:
           $ref: '#/components/schemas/TableMetadata'
