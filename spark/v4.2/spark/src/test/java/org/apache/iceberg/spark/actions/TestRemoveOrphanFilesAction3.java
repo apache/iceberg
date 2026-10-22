@@ -28,6 +28,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkSessionCatalog;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.connector.catalog.Identifier;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -43,7 +44,13 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     String[] database = {"default"};
     Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
+    TableInfo tableInfo =
+        new TableInfo.Builder()
+            .withSchema(SparkSchemaUtil.convert(SCHEMA))
+            .withPartitions(transforms)
+            .withProperties(properties)
+            .build();
+    cat.createTable(id, tableInfo);
     SparkTable table = (SparkTable) cat.loadTable(id);
 
     sql("INSERT INTO mycat.default.%s VALUES (1,1,1)", id.name());
@@ -73,7 +80,13 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     String[] database = {"default"};
     Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
+    TableInfo tableInfo =
+        new TableInfo.Builder()
+            .withSchema(SparkSchemaUtil.convert(SCHEMA))
+            .withPartitions(transforms)
+            .withProperties(properties)
+            .build();
+    cat.createTable(id, tableInfo);
     SparkTable table = (SparkTable) cat.loadTable(id);
 
     sql("INSERT INTO hadoop.default.%s VALUES (1,1,1)", id.name());
@@ -103,7 +116,13 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     String[] database = {"default"};
     Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
+    TableInfo tableInfo =
+        new TableInfo.Builder()
+            .withSchema(SparkSchemaUtil.convert(SCHEMA))
+            .withPartitions(transforms)
+            .withProperties(properties)
+            .build();
+    cat.createTable(id, tableInfo);
     SparkTable table = (SparkTable) cat.loadTable(id);
 
     sql("INSERT INTO hive.default.%s VALUES (1,1,1)", id.name());
@@ -137,7 +156,13 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     String[] database = {"default"};
     Identifier id = Identifier.of(database, randomName("table"));
     Transform[] transforms = {};
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
+    TableInfo tableInfo =
+        new TableInfo.Builder()
+            .withSchema(SparkSchemaUtil.convert(SCHEMA))
+            .withPartitions(transforms)
+            .withProperties(properties)
+            .build();
+    cat.createTable(id, tableInfo);
     SparkTable table = (SparkTable) cat.loadTable(id);
 
     sql("INSERT INTO default.%s VALUES (1,1,1)", id.name());
@@ -170,7 +195,13 @@ public class TestRemoveOrphanFilesAction3 extends TestRemoveOrphanFilesAction {
     Identifier id = Identifier.of(database, "sessioncattest");
     Transform[] transforms = {};
     cat.dropTable(id);
-    cat.createTable(id, SparkSchemaUtil.convert(SCHEMA), transforms, properties);
+    TableInfo tableInfo =
+        new TableInfo.Builder()
+            .withSchema(SparkSchemaUtil.convert(SCHEMA))
+            .withPartitions(transforms)
+            .withProperties(properties)
+            .build();
+    cat.createTable(id, tableInfo);
     SparkTable table = (SparkTable) cat.loadTable(id);
 
     sql("INSERT INTO default.sessioncattest VALUES (1,1,1)");

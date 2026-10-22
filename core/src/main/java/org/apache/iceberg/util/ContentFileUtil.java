@@ -176,7 +176,7 @@ public class ContentFileUtil {
         file.nanValueCounts(),
         lowerBounds == null ? null : Collections.unmodifiableMap(lowerBounds),
         upperBounds == null ? null : Collections.unmodifiableMap(upperBounds),
-        file.avgValueSizes(),
+        file.totalBytes(),
         null /* originalTypes */);
   }
 
@@ -200,7 +200,7 @@ public class ContentFileUtil {
         file.nanValueCounts(),
         lowerBounds == null ? null : Collections.unmodifiableMap(lowerBounds),
         upperBounds == null ? null : Collections.unmodifiableMap(upperBounds),
-        file.avgValueSizes(),
+        file.totalBytes(),
         null /* originalTypes */);
   }
 }

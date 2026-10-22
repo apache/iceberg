@@ -33,6 +33,8 @@ import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
+import org.apache.flink.types.RowKind;
+import org.apache.flink.types.variant.Variant;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.flink.DataGenerator;
 import org.apache.iceberg.flink.DataGenerators;
@@ -74,6 +76,40 @@ class TestRowDataConverter {
   void testAddColumn() {
     assertThat(convert(SimpleDataUtil.createRowData(1, "a"), SCHEMA, SCHEMA2))
         .isEqualTo(GenericRowData.of(1, StringData.fromString("a"), null));
+  }
+
+  @Test
+  void testPreservesRowKind() {
+    RowData deleteRow = SimpleDataUtil.createRowData(1, "a");
+    deleteRow.setRowKind(RowKind.DELETE);
+
+    assertThat(convert(deleteRow, SCHEMA, SCHEMA2).getRowKind()).isEqualTo(RowKind.DELETE);
+  }
+
+  @Test
+  void testVariantWithDataConversion() {
+    Schema sourceSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "payload", Types.VariantType.get()));
+    Schema targetSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "payload", Types.VariantType.get()));
+    assertThat(
+            CompareSchemasVisitor.visit(
+                sourceSchema,
+                targetSchema,
+                true /* caseSensitive */,
+                false /* dropUnusedColumns */))
+        .isEqualTo(CompareSchemasVisitor.Result.DATA_CONVERSION_NEEDED);
+
+    Variant variant = Variant.newBuilder().object().add("k", Variant.newBuilder().of(1L)).build();
+    RowData row = GenericRowData.of(42, variant);
+
+    RowData converted = convert(row, sourceSchema, targetSchema);
+    assertThat(converted.getLong(0)).isEqualTo(42L);
+    assertThat(converted.getVariant(1)).isSameAs(variant);
   }
 
   @Test
@@ -286,9 +322,16 @@ class TestRowDataConverter {
   }
 
   private static RowData convert(RowData sourceData, Schema sourceSchema, Schema targetSchema) {
+    return convert(sourceData, sourceSchema, targetSchema, true);
+  }
+
+  private static RowData convert(
+      RowData sourceData, Schema sourceSchema, Schema targetSchema, boolean caseSensitive) {
     return (RowData)
         DataConverter.get(
-                FlinkSchemaUtil.convert(sourceSchema), FlinkSchemaUtil.convert(targetSchema))
+                FlinkSchemaUtil.convert(sourceSchema),
+                FlinkSchemaUtil.convert(targetSchema),
+                caseSensitive)
             .convert(sourceData);
   }
 }

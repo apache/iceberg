@@ -39,9 +39,12 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StaticTableOperations;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
@@ -49,6 +52,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
@@ -89,6 +93,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   private JdbcClientPool connections;
   private Map<String, String> catalogProperties;
   private boolean uniqueTableLocation;
+  private int metadataRefreshMaxRetries;
   private final Function<Map<String, String>, FileIO> ioBuilder;
   private final Function<Map<String, String>, JdbcClientPool> clientPoolBuilder;
   private boolean initializeCatalogTables;
@@ -126,6 +131,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
             properties,
             CatalogProperties.UNIQUE_TABLE_LOCATION,
             CatalogProperties.UNIQUE_TABLE_LOCATION_DEFAULT);
+    this.metadataRefreshMaxRetries = JdbcUtil.metadataRefreshMaxRetries(properties);
 
     if (name != null) {
       this.catalogName = name;
@@ -280,7 +286,13 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
     return new JdbcTableOperations(
-        connections, io, catalogName, tableIdentifier, catalogProperties, schemaVersion);
+        connections,
+        io,
+        catalogName,
+        tableIdentifier,
+        catalogProperties,
+        schemaVersion,
+        metadataRefreshMaxRetries);
   }
 
   @Override
@@ -288,13 +300,48 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     if (schemaVersion != JdbcUtil.SchemaVersion.V1) {
       throw new UnsupportedOperationException(VIEW_WARNING_LOG_MESSAGE);
     }
-    return new JdbcViewOperations(connections, io, catalogName, viewIdentifier, catalogProperties);
+    return new JdbcViewOperations(
+        connections, io, catalogName, viewIdentifier, catalogProperties, metadataRefreshMaxRetries);
   }
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier table) {
     String tableLocation = LocationUtil.tableLocation(table, uniqueTableLocation);
     return SLASH.join(defaultNamespaceLocation(table.namespace()), tableLocation);
+  }
+
+  @Override
+  public Table unregisterTable(TableIdentifier identifier) {
+    Preconditions.checkArgument(
+        identifier != null && isValidIdentifier(identifier), "Invalid identifier: %s", identifier);
+    TableOperations ops = newTableOps(identifier);
+    TableMetadata metadata = ops.current();
+
+    if (metadata == null) {
+      throw new NoSuchTableException("Table does not exist: %s", identifier);
+    }
+
+    if (!dropTableIfMetadataMatches(identifier, metadata.metadataFileLocation())) {
+      throw new CommitFailedException(
+          "Cannot unregister table %s: metadata location has changed or table was dropped",
+          identifier);
+    }
+
+    StaticTableOperations staticOps =
+        new StaticTableOperations(metadata, ops.io(), ops.locationProvider());
+    return new BaseTable(staticOps, identifier.name(), metricsReporter());
+  }
+
+  private boolean dropTableIfMetadataMatches(TableIdentifier identifier, String metadataLocation) {
+    return execute(
+            (schemaVersion == JdbcUtil.SchemaVersion.V1)
+                ? JdbcUtil.V1_UNREGISTER_TABLE_SQL
+                : JdbcUtil.V0_UNREGISTER_TABLE_SQL,
+            catalogName,
+            JdbcUtil.namespaceToString(identifier.namespace()),
+            identifier.name(),
+            metadataLocation)
+        == 1;
   }
 
   @Override

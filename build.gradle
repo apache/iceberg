@@ -30,7 +30,7 @@ buildscript {
   dependencies {
     classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.11'
     classpath 'com.palantir.baseline:gradle-baseline-java:6.90.0'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:8.10.2'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:8.10.4'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.3'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
@@ -38,7 +38,7 @@ buildscript {
     classpath 'org.revapi:gradle-revapi:1.8.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.5.7'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:4.3.0'
-    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.25.0'
+    classpath 'org.openapitools:openapi-generator-gradle-plugin:7.26.0'
   }
 }
 
@@ -144,7 +144,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.11.0"
+      oldVersion = "1.12.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -276,6 +276,27 @@ subprojects {
       }
       exceptionFormat "full"
     }
+
+    def failedTests = []
+    addTestListener(new TestListener() {
+      void afterTest(TestDescriptor descriptor, TestResult result) {
+        if (result.resultType == TestResult.ResultType.FAILURE) {
+          failedTests << "${descriptor.className}.${descriptor.name}"
+        }
+      }
+      
+      void afterSuite(TestDescriptor descriptor, TestResult result) {
+        if (descriptor.parent == null && !failedTests.isEmpty()) {
+          println "\nFailures:"
+          failedTests.each { testName ->
+            println "  ${testName}"
+          }
+        }
+      }
+      
+      void beforeTest(TestDescriptor descriptor) {}
+      void beforeSuite(TestDescriptor descriptor) {}
+    })
 
     systemProperty 'project.version', project.version
   }
@@ -504,6 +525,7 @@ project(':iceberg-aliyun') {
     implementation project(':iceberg-common')
 
     compileOnly libs.aliyun.sdk.oss
+    compileOnly libs.aliyun.sdk.kms
     compileOnly libs.aliyun.credentials.java
     compileOnly libs.aliyun.tea
     compileOnly libs.jaxb.api
@@ -519,6 +541,8 @@ project(':iceberg-aliyun') {
     testImplementation platform(libs.jackson.bom)
     testImplementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.mockito.core
     testImplementation libs.junit.pioneer
   }
 }
@@ -543,7 +567,7 @@ project(':iceberg-aws') {
     compileOnly(platform(libs.awssdk.bom))
     compileOnly(libs.awssdk.s3accessgrants)
     compileOnly("software.amazon.awssdk:url-connection-client")
-    compileOnly("software.amazon.awssdk:apache-client")
+    compileOnly("software.amazon.awssdk:apache5-client")
     compileOnly("software.amazon.awssdk:auth")
     compileOnly("software.amazon.awssdk:http-auth-aws-crt")
     compileOnly("software.amazon.awssdk:s3")
@@ -573,7 +597,6 @@ project(':iceberg-aws') {
     testImplementation libs.sqlite.jdbc
     testImplementation libs.testcontainers
     testImplementation libs.testcontainers.junit.jupiter
-    testImplementation libs.testcontainers.minio
     testImplementation libs.httpcomponents.httpclient5
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
@@ -827,6 +850,8 @@ project(':iceberg-gcp') {
     classpath = sourceSets.integration.runtimeClasspath
     jvmArgs += project.property('extraJvmArgs')
   }
+
+  check.dependsOn integrationTest
 }
 
 project(':iceberg-hive-metastore') {

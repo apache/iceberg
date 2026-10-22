@@ -38,6 +38,7 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.MetricsTestUtil;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
@@ -75,10 +76,10 @@ public class TestVortexMetrics {
 
   @Test
   void summaryMetricsInCountsMode() throws Exception {
-    MetricsConfig countsConfig =
-        MetricsConfig.fromProperties(
-            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts"));
     Schema schema = new Schema(optional(1, "name", Types.StringType.get()));
+    MetricsConfig countsConfig =
+        MetricsTestUtil.from(
+            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts"), schema);
     FileAppender<Record> appender = buildAppender(schema, "counts.vortex", countsConfig);
     appender.add(stringRecord(schema, "Alice"));
     appender.close();
@@ -92,10 +93,10 @@ public class TestVortexMetrics {
 
   @Test
   void summaryMetricsInNoneMode() throws Exception {
-    MetricsConfig noneConfig =
-        MetricsConfig.fromProperties(
-            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none"));
     Schema schema = new Schema(optional(1, "name", Types.StringType.get()));
+    MetricsConfig noneConfig =
+        MetricsTestUtil.from(
+            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none"), schema);
     FileAppender<Record> appender = buildAppender(schema, "none.vortex", noneConfig);
     appender.add(stringRecord(schema, "Alice"));
     appender.close();
@@ -111,10 +112,10 @@ public class TestVortexMetrics {
   @Test
   void summaryMetricsRespectTruncateMode() throws Exception {
     // Iceberg truncation applies on top of whatever bounds Vortex reports.
-    MetricsConfig truncateConfig =
-        MetricsConfig.fromProperties(
-            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(3)"));
     Schema schema = new Schema(optional(1, "name", Types.StringType.get()));
+    MetricsConfig truncateConfig =
+        MetricsTestUtil.from(
+            ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "truncate(3)"), schema);
     FileAppender<Record> appender = buildAppender(schema, "truncate.vortex", truncateConfig);
     appender.add(stringRecord(schema, "abcdef"));
     appender.close();

@@ -184,20 +184,25 @@ public class StandardEncryptionManager implements EncryptionManager {
     return unwrappedKeyCache().get(encryptedKeyMetadata.encryptedById());
   }
 
-  public String addManifestListKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
-    String manifestListKeyID = generateKeyId();
+  /**
+   * Encrypts and registers key metadata.
+   *
+   * @return the encrypted metadata and its wrapping key
+   */
+  public FileEncryptionKeys registerKeyMetadata(NativeEncryptionKeyMetadata keyMetadata) {
+    String fileKeyID = generateKeyId();
     String keyEncryptionKeyID = keyEncryptionKeyID();
-    String keyEncryptionKeyTimestamp =
-        encryptionKeys.get(keyEncryptionKeyID).properties().get(KEY_TIMESTAMP);
+    EncryptedKey keyEncryptionKey = encryptionKeys.get(keyEncryptionKeyID);
+    String keyEncryptionKeyTimestamp = keyEncryptionKey.properties().get(KEY_TIMESTAMP);
     ByteBuffer encryptedKeyMetadata =
         EncryptionUtil.encryptManifestListKeyMetadata(
             unwrappedKeyCache().get(keyEncryptionKeyID), keyEncryptionKeyTimestamp, keyMetadata);
     BaseEncryptedKey key =
-        new BaseEncryptedKey(manifestListKeyID, encryptedKeyMetadata, keyEncryptionKeyID, null);
+        new BaseEncryptedKey(fileKeyID, encryptedKeyMetadata, keyEncryptionKeyID, null);
 
     encryptionKeys.put(key.keyId(), key);
 
-    return manifestListKeyID;
+    return new FileEncryptionKeys(keyEncryptionKey, key);
   }
 
   private String generateKeyId() {
@@ -210,6 +215,25 @@ public class StandardEncryptionManager implements EncryptionManager {
     byte[] newKey = new byte[dataKeyLength];
     workerRNG().nextBytes(newKey);
     return ByteBuffer.wrap(newKey);
+  }
+
+  /** Encrypted key metadata and its wrapping key. */
+  public static final class FileEncryptionKeys {
+    private final EncryptedKey keyEncryptionKey;
+    private final EncryptedKey fileKey;
+
+    private FileEncryptionKeys(EncryptedKey keyEncryptionKey, EncryptedKey fileKey) {
+      this.keyEncryptionKey = keyEncryptionKey;
+      this.fileKey = fileKey;
+    }
+
+    public EncryptedKey keyEncryptionKey() {
+      return keyEncryptionKey;
+    }
+
+    public EncryptedKey fileKey() {
+      return fileKey;
+    }
   }
 
   private class StandardEncryptedOutputFile implements NativeEncryptionOutputFile {

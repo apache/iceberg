@@ -8,6 +8,8 @@
   - com.google.thirdparty.publicsuffix.PublicSuffixTrie$ChunksCharSequence
   - com.google.thirdparty.publicsuffix.PublicSuffixType
 [dev.vortex:vortex-jni (classifier=all), io.netty:netty-buffer]
+  - io.netty.buffer.AbstractPooledDerivedByteBuf$PooledNonRetainedDuplicateByteBuf
+  - io.netty.buffer.AbstractPooledDerivedByteBuf$PooledNonRetainedSlicedByteBuf
   - io.netty.buffer.AdaptivePoolingAllocator
   - io.netty.buffer.AdaptivePoolingAllocator$1
   - io.netty.buffer.AdaptivePoolingAllocator$AdaptiveByteBuf
@@ -27,16 +29,30 @@
   - io.netty.buffer.AdaptivePoolingAllocator$SizeClassChunkController
   - io.netty.buffer.AdaptivePoolingAllocator$SizeClassChunkManagementStrategy
   - io.netty.buffer.AdaptivePoolingAllocator$SizeClassedChunk
+  - io.netty.buffer.ByteBufInputStream
+  - io.netty.buffer.ByteBufUtil
+  - io.netty.buffer.ByteBufUtil$2
+  - io.netty.buffer.ByteBufUtil$HexUtil
+  - io.netty.buffer.ByteBufUtil$ThreadLocalDirectByteBuf
+  - io.netty.buffer.ByteBufUtil$ThreadLocalDirectByteBuf$1
+  - io.netty.buffer.ByteBufUtil$ThreadLocalUnsafeDirectByteBuf
+  - io.netty.buffer.ByteBufUtil$ThreadLocalUnsafeDirectByteBuf$1
   - io.netty.buffer.PooledByteBufAllocator
+  - io.netty.buffer.PooledDirectByteBuf
 [dev.vortex:vortex-jni (classifier=all), io.netty:netty-common]
   - io.netty.util.AsciiString
   - io.netty.util.AsciiString$AsciiCaseInsensitiveCharEqualityComparator
   - io.netty.util.AsciiString$DefaultCharEqualityComparator
   - io.netty.util.AsciiString$GeneralCaseInsensitiveCharEqualityComparator
+  - io.netty.util.HashedWheelTimer
+  - io.netty.util.HashedWheelTimer$HashedWheelBucket
+  - io.netty.util.HashedWheelTimer$HashedWheelTimeout
+  - io.netty.util.HashedWheelTimer$Worker
   - io.netty.util.Recycler$BlockingMessageQueue
   - io.netty.util.Recycler$GuardedLocalPool
   - io.netty.util.Recycler$LocalPool
   - io.netty.util.Recycler$UnguardedLocalPool
+  - io.netty.util.concurrent.AutoScalingEventExecutorChooserFactory$AutoScalingEventExecutorChooser$UtilizationMonitor
   - io.netty.util.concurrent.GlobalEventExecutor
   - io.netty.util.concurrent.GlobalEventExecutor$2
   - io.netty.util.concurrent.GlobalEventExecutor$3
@@ -72,6 +88,9 @@
   - io.netty.util.internal.PlatformDependent0$8
   - io.netty.util.internal.PlatformDependent0$9
   - io.netty.util.internal.ThrowableUtil
+  - io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueue
+  - io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueue$WeakIterator
+  - io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess
 [dev.vortex:vortex-jni (classifier=all), org.apache.arrow:arrow-c-data]
   - org.apache.arrow.c.ArrayStreamExporter$ExportedArrayStreamPrivateData
   - org.apache.arrow.c.jni.JniWrapper

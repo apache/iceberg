@@ -45,7 +45,7 @@ class TestTrackingBuilder {
 
     assertThat(tracking.status()).isEqualTo(EntryStatus.ADDED);
     assertThat(tracking.snapshotId()).isEqualTo(42L);
-    assertThat(tracking.dvSnapshotId()).isEqualTo(42L);
+    assertThat(tracking.modifiedSnapshotId()).isEqualTo(42L);
     assertThat(tracking.deletedPositions()).isNull();
     assertThat(tracking.replacedPositions()).isNull();
     // sequence numbers and firstRowId remain null; populated by inheritance
@@ -62,7 +62,7 @@ class TestTrackingBuilder {
     assertThat(existing.snapshotId()).isEqualTo(SOURCE_TRACKING_ADDED.snapshotId());
     assertThat(existing.dataSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.dataSequenceNumber());
     assertThat(existing.fileSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.fileSequenceNumber());
-    assertThat(existing.dvSnapshotId()).isEqualTo(SOURCE_TRACKING_ADDED.dvSnapshotId());
+    assertThat(existing.modifiedSnapshotId()).isEqualTo(SOURCE_TRACKING_ADDED.modifiedSnapshotId());
     assertThat(existing.firstRowId()).isEqualTo(SOURCE_TRACKING_ADDED.firstRowId());
   }
 
@@ -74,7 +74,7 @@ class TestTrackingBuilder {
     assertThat(deleted.snapshotId()).isEqualTo(999L);
     assertThat(deleted.dataSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.dataSequenceNumber());
     assertThat(deleted.fileSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.fileSequenceNumber());
-    assertThat(deleted.dvSnapshotId()).isEqualTo(SOURCE_TRACKING_ADDED.dvSnapshotId());
+    assertThat(deleted.modifiedSnapshotId()).isEqualTo(SOURCE_TRACKING_ADDED.modifiedSnapshotId());
     assertThat(deleted.firstRowId()).isEqualTo(SOURCE_TRACKING_ADDED.firstRowId());
   }
 
@@ -86,7 +86,7 @@ class TestTrackingBuilder {
     assertThat(replaced.snapshotId()).isEqualTo(999L);
     assertThat(replaced.dataSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.dataSequenceNumber());
     assertThat(replaced.fileSequenceNumber()).isEqualTo(SOURCE_TRACKING_ADDED.fileSequenceNumber());
-    assertThat(replaced.dvSnapshotId()).isEqualTo(SOURCE_TRACKING_ADDED.dvSnapshotId());
+    assertThat(replaced.modifiedSnapshotId()).isEqualTo(SOURCE_TRACKING_ADDED.modifiedSnapshotId());
     assertThat(replaced.firstRowId()).isEqualTo(SOURCE_TRACKING_ADDED.firstRowId());
   }
 
@@ -110,7 +110,7 @@ class TestTrackingBuilder {
   }
 
   @Test
-  void dvUpdatedProducesModifiedAndAdvancesDvSnapshotId() {
+  void dvUpdatedProducesModifiedAndAdvancesModifiedSnapshotId() {
     Tracking modified = TrackingBuilder.from(SOURCE_TRACKING_ADDED, 999L).dvUpdated().build();
 
     assertThat(modified.status()).isEqualTo(EntryStatus.MODIFIED);
@@ -118,8 +118,8 @@ class TestTrackingBuilder {
     assertThat(modified.snapshotId())
         .isEqualTo(SOURCE_TRACKING_ADDED.snapshotId())
         .isNotEqualTo(999L);
-    // only the DV snapshot id advances to the commit snapshot
-    assertThat(modified.dvSnapshotId()).isEqualTo(999L);
+    // only the modified snapshot id advances to the commit snapshot
+    assertThat(modified.modifiedSnapshotId()).isEqualTo(999L);
   }
 
   @Test
@@ -255,8 +255,8 @@ class TestTrackingBuilder {
     assertThat(carried.snapshotId())
         .isEqualTo(SOURCE_TRACKING_MODIFIED.snapshotId())
         .isNotEqualTo(999L);
-    assertThat(carried.dvSnapshotId())
-        .isEqualTo(SOURCE_TRACKING_MODIFIED.dvSnapshotId())
+    assertThat(carried.modifiedSnapshotId())
+        .isEqualTo(SOURCE_TRACKING_MODIFIED.modifiedSnapshotId())
         .isNotEqualTo(999L);
     assertThat(carried.dataSequenceNumber())
         .isEqualTo(SOURCE_TRACKING_MODIFIED.dataSequenceNumber());
@@ -272,11 +272,12 @@ class TestTrackingBuilder {
     Tracking modified =
         TrackingBuilder.from(SOURCE_TRACKING_ADDED, 999L).deletedPositions(deletedBytes).build();
     assertThat(modified.status()).isEqualTo(EntryStatus.MODIFIED);
-    // the entry snapshot id is preserved; only the DV snapshot id advances to the commit snapshot
+    // the entry snapshot id is preserved; only the modified snapshot id advances to the commit
+    // snapshot
     assertThat(modified.snapshotId())
         .isEqualTo(SOURCE_TRACKING_ADDED.snapshotId())
         .isNotEqualTo(999L);
-    assertThat(modified.dvSnapshotId()).isEqualTo(999L);
+    assertThat(modified.modifiedSnapshotId()).isEqualTo(999L);
     assertThat(modified.deletedPositions()).isEqualTo(deletedBytes);
   }
 }

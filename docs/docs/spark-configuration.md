@@ -206,6 +206,7 @@ val spark = SparkSession.builder()
 | spark.sql.iceberg.executor-cache.max-entry-size        | 67108864 (64MB)                                                | Max size per cache entry (bytes)                                                                                                |
 | spark.sql.iceberg.executor-cache.max-total-size        | 134217728 (128MB)                                              | Max total executor cache size (bytes)                                                                                           |
 | spark.sql.iceberg.executor-cache.locality.enabled      | false                                                          | Enables locality-aware executor cache usage                                                                                     |
+| spark.sql.iceberg.snapshot-property._custom-key_       | null                                                           | Adds an entry with custom-key and corresponding value to the summary of snapshots committed by writes and by the `rewrite_data_files`, `rewrite_position_delete_files`, and `rewrite_manifests` procedures. Write options and properties set on an action take precedence |
 | spark.sql.iceberg.merge-schema                         | false                                                          | Enables modifying the table schema to match the write schema. Only adds missing columns                                         |
 | spark.sql.iceberg.view.schema-binding-mode             | BINDING                                                        | Coercion applied to view columns: `BINDING` (widening only), `COMPENSATION` (any ANSI cast)                                     |
 | spark.sql.iceberg.report-column-stats                  | true                                                           | Report Puffin Table Statistics if available to Spark's Cost Based Optimizer. CBO must be enabled for this to be effective       |
@@ -233,7 +234,7 @@ spark.read
 | file-open-cost  | As per table property | Overrides this table's read.split.open-file-cost                                                                                                                              |
 | vectorization-enabled  | As per table property | Overrides this table's read.parquet.vectorization.enabled                                                                                                                     |
 | batch-size  | As per table property | Overrides this table's read.parquet.vectorization.batch-size                                                                                                                  |
-| stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used                                                             |
+| stream-from-timestamp | (none) | A timestamp in milliseconds to stream from; if before the oldest known ancestor snapshot, the oldest will be used. Only applies until the query has a position. A query restarted from a checkpoint continues from its saved position |
 | streaming-max-files-per-micro-batch | INT_MAX | Maximum number of files per microbatch                                                                                                                                        |
 | streaming-max-rows-per-micro-batch  | INT_MAX | "Soft maximum" number of rows per microbatch; always includes all rows in next unprocessed file, excludes additional files if their inclusion would exceed the soft max limit |
 | async-micro-batch-planning-enabled      | false                     | Enables asynchronous microbatch planning to reduce planning latency by pre-fetching file scan tasks                                                                           |
@@ -270,7 +271,7 @@ df.writeTo("catalog.db.table")
 | delete-granularity | file | Override this table's delete granularity for this write |
 | shred-variants | false | Overrides this table's write.parquet.shred-variants for this write |
 | variant-inference-buffer-size | 100 | Overrides this table's write.parquet.variant-inference-buffer-size for this write |
-| use-merge-append-for-streaming | false | Use a merge append instead of a fast append for streaming appends, so manifests are merged on commit rather than accumulating as small manifests |
+| use-merge-append-for-streaming | true | Use a merge append instead of a fast append for streaming appends, so manifests are merged on commit rather than accumulating as small manifests |
 
 CommitMetadata provides an interface to add custom metadata to a snapshot summary during a SQL execution, which can be beneficial for purposes such as auditing or change tracking. If properties start with `snapshot-property.`, then that prefix will be removed from each property. Here is an example:
 
@@ -285,4 +286,18 @@ CommitMetadata.withCommitProperties(properties,
             return 0;
         },
         RuntimeException.class);
+```
+
+Custom metadata can also be added to snapshot summaries for an entire Spark session by setting properties with the `spark.sql.iceberg.snapshot-property.` prefix. The prefix is removed from each property. These properties apply to writes and to the `rewrite_data_files`, `rewrite_position_delete_files`, and `rewrite_manifests` procedures. Session properties act as defaults. A property set explicitly, through a write option, `CommitMetadata`, or `snapshotProperty()` on a Spark action, overrides a session property with the same key. Here is an example:
+
+```sql
+SET spark.sql.iceberg.snapshot-property.created-by=maintenance-job;
+CALL catalog.system.rewrite_data_files(table => 'db.sample');
+```
+
+```java
+SparkActions.get(spark)
+    .rewriteDataFiles(table)
+    .snapshotProperty("created-by", "backfill-job")
+    .execute();
 ```
