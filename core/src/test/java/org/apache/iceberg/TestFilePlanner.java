@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.V4TestHelpers.ADDED_TRACKING;
 import static org.apache.iceberg.V4TestHelpers.FILE_SIZE_IN_BYTES;
+import static org.apache.iceberg.V4TestHelpers.FORMAT_VERSION_V4;
 import static org.apache.iceberg.V4TestHelpers.RECORD_COUNT;
 import static org.apache.iceberg.V4TestHelpers.SNAPSHOT_ID;
 import static org.apache.iceberg.V4TestHelpers.dataFile;
@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.UnaryOperator;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -47,17 +46,16 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
+import org.mockito.Mockito;
 
 class TestFilePlanner {
   private static final long SEQUENCE_NUMBER = 7L;
@@ -313,14 +311,11 @@ class TestFilePlanner {
             format,
             unionType,
             ImmutableList.of(
-                dataFile(
-                    PARTITIONED_FILE, BY_ID_SPEC.specId(), idPartition(unionType, 1), null, null),
+                dataFile(PARTITIONED_FILE, BY_ID_SPEC.specId(), idPartition(unionType, 1)),
                 dataFile(
                     UNPARTITIONED_FILE,
                     UNPARTITIONED_WITH_SCHEMA.specId(),
-                    idPartition(unionType, null),
-                    null,
-                    null)));
+                    idPartition(unionType, null))));
 
     List<FileScanTask> tasks = plan(root, MIXED_SPECS);
 
@@ -352,14 +347,11 @@ class TestFilePlanner {
             format,
             unionType,
             ImmutableList.of(
-                dataFile(
-                    PARTITIONED_FILE, BY_ID_SPEC.specId(), idPartition(unionType, 1), null, null),
+                dataFile(PARTITIONED_FILE, BY_ID_SPEC.specId(), idPartition(unionType, 1)),
                 dataFile(
                     UNPARTITIONED_FILE,
                     UNPARTITIONED_WITH_SCHEMA.specId(),
-                    idPartition(unionType, null),
-                    null,
-                    null)));
+                    idPartition(unionType, null))));
 
     Expression filter = Expressions.and(Expressions.equal("id", 1), Expressions.equal("data", "x"));
     List<FileScanTask> tasks = plan(root, MIXED_SPECS, planner -> planner.filterData(filter));
@@ -382,14 +374,11 @@ class TestFilePlanner {
             format,
             unionType,
             ImmutableList.of(
-                dataFile(
-                    PARTITIONED_FILE, BY_ID_SPEC.specId(), idPartition(unionType, 1), null, null),
+                dataFile(PARTITIONED_FILE, BY_ID_SPEC.specId(), idPartition(unionType, 1)),
                 dataFile(
                     UNPARTITIONED_FILE,
                     UNPARTITIONED_WITH_SCHEMA.specId(),
-                    idPartition(unionType, null),
-                    null,
-                    null)));
+                    idPartition(unionType, null))));
 
     Expression filter = Expressions.and(Expressions.equal("id", 1), Expressions.equal("data", "x"));
     List<FileScanTask> tasks =
@@ -414,13 +403,14 @@ class TestFilePlanner {
             ImmutableList.of(
                 unpartitionedDataFile("root-data.parquet"), dataManifest(leaf.path())));
 
-    List<FileScanTask> tasks = plan(root, UNPARTITIONED_SPECS);
+    List<FileScanTask> tasks =
+        plan(root, UNPARTITIONED_SPECS, planner -> planner.tableLocation(TABLE_LOCATION));
 
     assertThat(tasks)
         .extracting(task -> task.file().location())
         .as("relative paths resolve against the table location in both the root and leaf readers")
         .containsExactlyInAnyOrder(
-            "s3://bucket/db/table/root-data.parquet", "s3://bucket/db/table/leaf-data.parquet");
+            TABLE_LOCATION + "/root-data.parquet", TABLE_LOCATION + "/leaf-data.parquet");
   }
 
   @ParameterizedTest
@@ -431,21 +421,16 @@ class TestFilePlanner {
     ManifestFile root =
         writeManifest(format, EMPTY_PARTITION, ImmutableList.of(dataManifest(leaf.path())));
 
-    RecordingFileIO recordingIO = new RecordingFileIO(fileIO);
-    FilePlanner planner =
-        new FilePlanner(recordingIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS)
-            .tableLocation(TABLE_LOCATION);
-    planner.planFiles().close();
+    FileIO io = Mockito.spy(fileIO);
+    new FilePlanner(io, root, TABLE_SCHEMA, UNPARTITIONED_SPECS).planFiles().close();
 
-    assertThat(recordingIO.opened(root.path())).as("the root is read eagerly").isTrue();
-    assertThat(recordingIO.opened(leaf.path()))
-        .as("leaf readers open lazily, so closing without iterating leaves them unopened")
-        .isFalse();
+    Mockito.verify(io).newInputFile(root.path());
+    Mockito.verify(io, Mockito.never()).newInputFile(leaf.path());
   }
 
   @ParameterizedTest
   @FieldSource("MANIFEST_FORMATS")
-  void leafOpenedOnlyWhenPrecedingLeafExhausted(FileFormat format) throws IOException {
+  void leafFilesOpenedLazily(FileFormat format) throws IOException {
     ManifestFile leaf1 =
         writeManifest(
             format,
@@ -459,29 +444,22 @@ class TestFilePlanner {
             EMPTY_PARTITION,
             ImmutableList.of(dataManifest(leaf1.path()), dataManifest(leaf2.path())));
 
-    RecordingFileIO recordingIO = new RecordingFileIO(fileIO);
+    FileIO io = Mockito.spy(fileIO);
     FilePlanner planner =
-        new FilePlanner(recordingIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS)
-            .tableLocation(TABLE_LOCATION)
-            .planWith(null);
+        new FilePlanner(io, root, TABLE_SCHEMA, UNPARTITIONED_SPECS).planWith(null);
 
     try (CloseableIterable<FileScanTask> plan = planner.planFiles()) {
       CloseableIterator<FileScanTask> tasks = plan.iterator();
+
       assertThat(tasks.next().file().location()).isEqualTo(FILE_A);
-      assertThat(recordingIO.opened(leaf1.path()))
-          .as("leaf1 opens to produce the first task")
-          .isTrue();
-      assertThat(recordingIO.opened(leaf2.path()))
-          .as("leaf2 stays closed until leaf1 is exhausted")
-          .isFalse();
+      Mockito.verify(io).newInputFile(leaf1.path());
+      Mockito.verify(io, Mockito.never()).newInputFile(leaf2.path());
 
       assertThat(tasks.next().file().location()).isEqualTo(FILE_B);
-      assertThat(recordingIO.opened(leaf2.path()))
-          .as("reading the last file in leaf1 does not open leaf2")
-          .isFalse();
+      Mockito.verify(io, Mockito.never()).newInputFile(leaf2.path());
 
       assertThat(tasks.next().file().location()).isEqualTo(FILE_C);
-      assertThat(recordingIO.opened(leaf2.path())).as("leaf2 opens once leaf1 is drained").isTrue();
+      Mockito.verify(io).newInputFile(leaf2.path());
       assertThat(tasks).isExhausted();
     }
   }
@@ -495,9 +473,7 @@ class TestFilePlanner {
             EMPTY_PARTITION,
             ImmutableList.of(deleteManifest("s3://bucket/db/table/deletes.avro")));
 
-    FilePlanner planner =
-        new FilePlanner(fileIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS)
-            .tableLocation(TABLE_LOCATION);
+    FilePlanner planner = new FilePlanner(fileIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS);
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("v3 and earlier deletes are not yet supported");
@@ -508,31 +484,13 @@ class TestFilePlanner {
   void v3ManifestLeafUnsupported(FileFormat format) throws IOException {
     String leafLocation = "s3://bucket/db/table/v3-leaf." + format.name().toLowerCase(Locale.ROOT);
     TrackedFile v3Leaf =
-        new TrackedFileStruct(
-            ADDED_TRACKING,
-            FileContent.DATA_MANIFEST,
-            3, // format version the v4 reader rejects
-            leafLocation,
-            FileFormat.fromFileName(leafLocation),
-            RECORD_COUNT,
-            FILE_SIZE_IN_BYTES,
-            null, // specId
-            null, // partition
-            null, // contentStats
-            null, // sortOrderId
-            null, // deletionVector
-            dataManifestInfo(1),
-            null, // keyMetadata
-            null, // splitOffsets
-            null); // equalityIds
+        manifestRef(FileContent.DATA_MANIFEST, leafLocation, dataManifestInfo(1, 0));
     ManifestFile root = writeManifest(format, EMPTY_PARTITION, ImmutableList.of(v3Leaf));
 
-    FilePlanner planner =
-        new FilePlanner(fileIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS)
-            .tableLocation(TABLE_LOCATION);
+    FilePlanner planner = new FilePlanner(fileIO, root, TABLE_SCHEMA, UNPARTITIONED_SPECS);
     assertThatThrownBy(() -> Lists.newArrayList(planner.planFiles()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot read manifest with format version 3: only 4 is supported");
+        .hasMessage("Cannot read manifest with format version 0: only 4 is supported");
   }
 
   @ParameterizedTest
@@ -597,9 +555,7 @@ class TestFilePlanner {
       Map<Integer, PartitionSpec> specsById,
       UnaryOperator<FilePlanner> configure)
       throws IOException {
-    FilePlanner planner =
-        configure.apply(
-            new FilePlanner(fileIO, root, TABLE_SCHEMA, specsById).tableLocation(TABLE_LOCATION));
+    FilePlanner planner = configure.apply(new FilePlanner(fileIO, root, TABLE_SCHEMA, specsById));
     try (CloseableIterable<FileScanTask> tasks = planner.planFiles()) {
       return Lists.newArrayList(tasks);
     }
@@ -646,11 +602,15 @@ class TestFilePlanner {
             RECORD_COUNT,
             0, // nullValueCount
             0, // nanValueCount
-            null)); // avgValueSize
+            0L)); // totalBytes
     return stats;
   }
 
   private static ManifestInfo dataManifestInfo(int addedFiles) {
+    return dataManifestInfo(addedFiles, FORMAT_VERSION_V4);
+  }
+
+  private static ManifestInfo dataManifestInfo(int addedFiles, int formatVersion) {
     return ManifestInfoStruct.builder()
         .addedFilesCount(addedFiles)
         .existingFilesCount(0)
@@ -663,6 +623,7 @@ class TestFilePlanner {
         .replacedRowsCount(0)
         .modifiedRowsCount(0)
         .minSequenceNumber(0L)
+        .formatVersion(formatVersion)
         .build();
   }
 
@@ -695,64 +656,5 @@ class TestFilePlanner {
         SEQUENCE_NUMBER,
         FIRST_ROW_ID,
         /* keyMetadata= */ null);
-  }
-
-  private static class RecordingFileIO implements FileIO {
-    private final FileIO delegate;
-    private final Set<String> openedPaths = Sets.newHashSet();
-
-    private RecordingFileIO(FileIO delegate) {
-      this.delegate = delegate;
-    }
-
-    private boolean opened(String location) {
-      return openedPaths.contains(location);
-    }
-
-    @Override
-    public InputFile newInputFile(String path) {
-      return new RecordingInputFile(delegate.newInputFile(path), openedPaths);
-    }
-
-    @Override
-    public OutputFile newOutputFile(String path) {
-      return delegate.newOutputFile(path);
-    }
-
-    @Override
-    public void deleteFile(String path) {
-      delegate.deleteFile(path);
-    }
-  }
-
-  private static class RecordingInputFile implements InputFile {
-    private final InputFile delegate;
-    private final Set<String> openedPaths;
-
-    private RecordingInputFile(InputFile delegate, Set<String> openedPaths) {
-      this.delegate = delegate;
-      this.openedPaths = openedPaths;
-    }
-
-    @Override
-    public long getLength() {
-      return delegate.getLength();
-    }
-
-    @Override
-    public SeekableInputStream newStream() {
-      openedPaths.add(delegate.location());
-      return delegate.newStream();
-    }
-
-    @Override
-    public String location() {
-      return delegate.location();
-    }
-
-    @Override
-    public boolean exists() {
-      return delegate.exists();
-    }
   }
 }
