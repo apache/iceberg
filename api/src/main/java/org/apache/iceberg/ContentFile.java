@@ -100,7 +100,7 @@ public interface ContentFile<F> {
   Map<Integer, ByteBuffer> upperBounds();
 
   /**
-   * Returns whether the file's stats are tight for its live rows, or null if unknown.
+   * Returns whether the file's stats are tight, or null if unknown.
    */
   default Boolean tightStats() {
     return null;
