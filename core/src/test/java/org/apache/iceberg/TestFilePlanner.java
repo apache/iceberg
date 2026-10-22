@@ -598,7 +598,6 @@ class TestFilePlanner {
             STATS_TYPE.fieldType("id").asStructType(),
             lower,
             upper,
-            true, // tightBounds
             RECORD_COUNT,
             0, // nullValueCount
             0, // nanValueCount
