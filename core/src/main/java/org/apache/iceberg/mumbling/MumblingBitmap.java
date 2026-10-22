@@ -178,7 +178,7 @@ class MumblingBitmap implements ManifestBitmap {
     private final int baseContainerCount;
     private int cardinality = 0;
 
-    public Mutable(MumblingBitmap base) {
+    private Mutable(MumblingBitmap base) {
       this.base = base;
       this.baseContainerCount = base.descriptors().length;
       this.cardinality = base.cardinality();
@@ -264,8 +264,8 @@ class MumblingBitmap implements ManifestBitmap {
 
       for (Map.Entry<Integer, Container> entry : overlays.entrySet()) {
         int containerIndex = entry.getKey();
-        int cardinality = entry.getValue().cardinality();
-        descriptors[containerIndex] = Math.min(cardinality, DENSE_CONTAINER_SIZE);
+        int containerCardinality = entry.getValue().cardinality();
+        descriptors[containerIndex] = Math.min(containerCardinality, DENSE_CONTAINER_SIZE);
       }
 
       return descriptors;
