@@ -708,8 +708,6 @@ Three constraint types are defined:
 * `unique` -- the values of a set of fields must be distinct across the rows in which every field in the set is non-null; a row in which any field in the set is null is not compared, so more than one such row may exist
 * `primary-key` -- the values of a set of fields must be distinct across all rows and must not be null
 
-Readers must ignore a constraint with an unknown type. Writers must not commit to a table that has a constraint with an unknown type.
-
 A constraint is stored separately from the table schema and must refer to fields by field ID. Constraints may evolve independently from the schema, being added, modified, or removed.
 
 #### Constraint Fields
