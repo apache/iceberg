@@ -174,7 +174,7 @@ class TestMapBackedContentStats {
   }
 
   @Test
-  void countsAndTightBounds() {
+  void counts() {
     MapBackedContentStats stats = new MapBackedContentStats(SCHEMA).wrap(FILE_WITH_STATS);
 
     FieldStats<?> id = stats.statsFor(1);
@@ -188,8 +188,6 @@ class TestMapBackedContentStats {
     assertThatThrownBy(id::nanValueCount)
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("Long.longValue()");
-    // ContentFile maps have no tight-bounds flag so the view always reports false.
-    assertThat(id.tightBounds()).isFalse();
     // FILE_WITH_STATS has no avg-size map.
     assertThat(id.avgValueSizeInBytes()).isNull();
 

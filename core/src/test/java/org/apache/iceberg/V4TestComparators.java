@@ -62,6 +62,7 @@ class V4TestComparators {
             .thenComparing(TrackedFile::specId, natural())
             .thenComparing(TrackedFile::partition, partitionComparator)
             .thenComparing(TrackedFile::contentStats, CONTENT_STATS)
+            .thenComparing(TrackedFile::tightStats, natural())
             .thenComparing(TrackedFile::sortOrderId, natural())
             .thenComparing(TrackedFile::deletionVector, DELETION_VECTOR)
             .thenComparing(TrackedFile::manifestInfo, MANIFEST_INFO)
@@ -165,8 +166,7 @@ class V4TestComparators {
       comparator =
           comparator
               .thenComparing(FieldStats::lowerBound, comparator(type))
-              .thenComparing(FieldStats::upperBound, comparator(type))
-              .thenComparing(FieldStats::tightBounds);
+              .thenComparing(FieldStats::upperBound, comparator(type));
 
       if (type.typeId() == Type.TypeID.FLOAT || type.typeId() == Type.TypeID.DOUBLE) {
         comparator =
