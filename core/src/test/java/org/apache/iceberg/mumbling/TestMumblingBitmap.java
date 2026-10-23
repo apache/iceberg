@@ -66,13 +66,27 @@ class TestMumblingBitmap {
   }
 
   @Test
-  public void testInvalidContainerCount() {
-    assertThatThrownBy(
-            () ->
-                new MumblingBitmap(
-                    ByteBuffer.wrap(new byte[] {0x01, 0x00, 0x00, 0x20, 0x01, 0x20})))
+  public void testInvalidDescriptor() {
+    ByteBuffer descriptor33 =
+        ByteBuffer.wrap(
+            new byte[] {0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x08, 0x00, 0x00, 0b0010_0001});
+    assertThatThrownBy(() -> new MumblingBitmap(descriptor33).descriptors())
         .isInstanceOf(IllegalStateException.class)
-        .hasMessage("Invalid container count: 8193 (must be <= 8,192)");
+        .hasMessage("Invalid descriptor, not sparse or dense: 33");
+
+    ByteBuffer descriptor64 =
+        ByteBuffer.wrap(
+            new byte[] {0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x08, 0x00, 0x00, 0b0100_0000});
+    assertThatThrownBy(() -> new MumblingBitmap(descriptor64).descriptors())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid descriptor, not sparse or dense: 64");
+
+    ByteBuffer descriptor128 =
+        ByteBuffer.wrap(
+            new byte[] {0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x08, 0x00, 0x00, (byte) 0b1000_0000});
+    assertThatThrownBy(() -> new MumblingBitmap(descriptor128).descriptors())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid descriptor, not sparse or dense: 128");
   }
 
   @Test
@@ -369,9 +383,9 @@ class TestMumblingBitmap {
     assertThat(bitmap.isSet(1)).isFalse();
 
     assertThat(bitmap.isSet(263)).isFalse();
-    assertThat(bitmap.isSet(289)).isFalse();
-    assertThat(bitmap.isSet(305)).isFalse();
-    assertThat(bitmap.isSet(321)).isFalse();
+    assertThat(bitmap.isSet(279)).isFalse();
+    assertThat(bitmap.isSet(295)).isFalse();
+    assertThat(bitmap.isSet(311)).isFalse();
     for (int i = 0; i < 8; i += 1) {
       assertThat(bitmap.isSet(264 + i)).isTrue();
       assertThat(bitmap.isSet(280 + i)).isTrue();
