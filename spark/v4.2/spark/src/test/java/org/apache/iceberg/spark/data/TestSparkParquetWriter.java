@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.data;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX;
@@ -40,11 +41,15 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.MetricsTestUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
@@ -52,9 +57,12 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
@@ -203,52 +211,6 @@ public class TestSparkParquetWriter {
     }
   }
 
-  private static byte[] pointWkb(double xCoordinate, double yCoordinate) {
-    return pointWkb(ByteOrder.LITTLE_ENDIAN, xCoordinate, yCoordinate);
-  }
-
-  private static byte[] pointWkb(ByteOrder byteOrder, double xCoordinate, double yCoordinate) {
-    return ByteBuffer.allocate(21)
-        .order(byteOrder)
-        .put(byteOrder == ByteOrder.LITTLE_ENDIAN ? (byte) 1 : (byte) 0)
-        .putInt(1)
-        .putDouble(xCoordinate)
-        .putDouble(yCoordinate)
-        .array();
-  }
-
-  private static byte[] geometryCollectionWkb() {
-    return ByteBuffer.allocate(51)
-        .order(ByteOrder.BIG_ENDIAN)
-        .put((byte) 0)
-        .putInt(7)
-        .putInt(2)
-        .put(pointWkb(ByteOrder.BIG_ENDIAN, 30.0, 10.0))
-        .put(pointWkb(ByteOrder.LITTLE_ENDIAN, 40.0, 20.0))
-        .array();
-  }
-
-  private static byte[] lineStringWkb(
-      double firstX, double firstY, double secondX, double secondY) {
-    return ByteBuffer.allocate(41)
-        .order(ByteOrder.LITTLE_ENDIAN)
-        .put((byte) 1)
-        .putInt(2)
-        .putInt(2)
-        .putDouble(firstX)
-        .putDouble(firstY)
-        .putDouble(secondX)
-        .putDouble(secondY)
-        .array();
-  }
-
-  private static byte[] bufferBytes(ByteBuffer buffer) {
-    ByteBuffer copy = buffer.duplicate();
-    byte[] bytes = new byte[copy.remaining()];
-    copy.get(bytes);
-    return bytes;
-  }
-
   @Test
   public void testGeospatialTotalBytesMetrics() throws IOException {
     Schema geoSchema =
@@ -300,14 +262,6 @@ public class TestSparkParquetWriter {
     assertThat(geogMetrics.valueCount()).isEqualTo(2);
     assertThat(geogMetrics.nullValueCount()).isEqualTo(1);
     assertThat(geogMetrics.totalBytes()).isEqualTo(21L);
-  }
-
-  private static int fieldId(MessageType parquetSchema, String column) {
-    return parquetSchema
-        .getColumnDescription(new String[] {column})
-        .getPrimitiveType()
-        .getId()
-        .intValue();
   }
 
   @Test
@@ -447,6 +401,78 @@ public class TestSparkParquetWriter {
       }
       assertThat(rows).isExhausted();
     }
+
+    MetricsConfig metricsConfig =
+        MetricsTestUtil.from(Map.of(DEFAULT_WRITE_METRICS_MODE, "full"), schema);
+    Metrics metrics = ParquetUtil.fileMetrics(Files.localInput(testFile), metricsConfig);
+    List<String> sortedValues =
+        Arrays.stream(expectedValues)
+            .filter(Objects::nonNull)
+            .sorted(Comparators.charSequences())
+            .toList();
+    int fieldId = schema.findField("text").fieldId();
+    assertThat(metrics.lowerBounds())
+        .containsEntry(
+            fieldId, Conversions.toByteBuffer(Types.StringType.get(), sortedValues.get(0)));
+    assertThat(metrics.upperBounds())
+        .containsEntry(
+            fieldId,
+            Conversions.toByteBuffer(
+                Types.StringType.get(), sortedValues.get(sortedValues.size() - 1)));
+  }
+
+  private static byte[] pointWkb(double xCoordinate, double yCoordinate) {
+    return pointWkb(ByteOrder.LITTLE_ENDIAN, xCoordinate, yCoordinate);
+  }
+
+  private static byte[] pointWkb(ByteOrder byteOrder, double xCoordinate, double yCoordinate) {
+    return ByteBuffer.allocate(21)
+        .order(byteOrder)
+        .put(byteOrder == ByteOrder.LITTLE_ENDIAN ? (byte) 1 : (byte) 0)
+        .putInt(1)
+        .putDouble(xCoordinate)
+        .putDouble(yCoordinate)
+        .array();
+  }
+
+  private static byte[] geometryCollectionWkb() {
+    return ByteBuffer.allocate(51)
+        .order(ByteOrder.BIG_ENDIAN)
+        .put((byte) 0)
+        .putInt(7)
+        .putInt(2)
+        .put(pointWkb(ByteOrder.BIG_ENDIAN, 30.0, 10.0))
+        .put(pointWkb(ByteOrder.LITTLE_ENDIAN, 40.0, 20.0))
+        .array();
+  }
+
+  private static byte[] lineStringWkb(
+      double firstX, double firstY, double secondX, double secondY) {
+    return ByteBuffer.allocate(41)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .put((byte) 1)
+        .putInt(2)
+        .putInt(2)
+        .putDouble(firstX)
+        .putDouble(firstY)
+        .putDouble(secondX)
+        .putDouble(secondY)
+        .array();
+  }
+
+  private static byte[] bufferBytes(ByteBuffer buffer) {
+    ByteBuffer copy = buffer.duplicate();
+    byte[] bytes = new byte[copy.remaining()];
+    copy.get(bytes);
+    return bytes;
+  }
+
+  private static int fieldId(MessageType parquetSchema, String column) {
+    return parquetSchema
+        .getColumnDescription(new String[] {column})
+        .getPrimitiveType()
+        .getId()
+        .intValue();
   }
 
   private static UTF8String stringWithStorage(
