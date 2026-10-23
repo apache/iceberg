@@ -866,8 +866,9 @@ public abstract class DeleteFileIndexTestBase<
                         Conversions.toByteBuffer(Types.IntegerType.get(), 4))))
             .build();
 
+    DeleteFile uuidEqDeletesWithSeq = withDataSequenceNumber(2, uuidEqDeletes);
     DeleteFileIndex index =
-        DeleteFileIndex.builderFor(Collections.singletonList(withDataSequenceNumber(2, uuidEqDeletes)))
+        DeleteFileIndex.builderFor(Collections.singletonList(uuidEqDeletesWithSeq))
             .specsById(ImmutableMap.of(uuidSpec.specId(), uuidSpec))
             .build();
 
