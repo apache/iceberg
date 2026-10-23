@@ -1416,7 +1416,7 @@ Table metadata consists of the following fields:
     | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
     | _required_ | **`next-row-id`**           | A `long` higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage). |
     | _optional_ | **`encryption-keys`**       | A list (optional) of [encryption keys](#encryption-keys) used for table encryption. |
-    | _optional_ | **`stats-fields`**     | A list (optional) of [stats-only fields](#stats-only-fields) used to track stats for derived values. |
+    | _optional_ | **`stats-fields`**          | A list (optional) of [stats-only fields](#stats-only-fields) used to track stats for derived values. |
 
 For serialization details, see Appendix C.
 
@@ -2041,7 +2041,7 @@ A metadata JSON file may be compressed with [GZIP](https://datatracker.ietf.org/
 |**`default-sort-order-id`**|`JSON int`|`0`|
 |**`refs`**|`JSON map with string key and object value:`<br />`{`<br />&nbsp;&nbsp;`"<name>": {`<br />&nbsp;&nbsp;`"snapshot-id": <id>,`<br />&nbsp;&nbsp;`"type": <type>,`<br />&nbsp;&nbsp;`"max-ref-age-ms": <long>,`<br />&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`...`<br />`}`|`{`<br />&nbsp;&nbsp;`"test": {`<br />&nbsp;&nbsp;`"snapshot-id": 123456789000,`<br />&nbsp;&nbsp;`"type": "tag",`<br />&nbsp;&nbsp;`"max-ref-age-ms": 10000000`<br />&nbsp;&nbsp;`}`<br />`}`|
 |**`encryption-keys`**|`JSON list of encryption key objects`|`[ {"key-id": "5f819b", "key-metadata": "aWNlYmVyZwo="} ]`|
-|**`stats-only-fields`**|`JSON list of stats-only field objects`|`[ {"field-id": 102, "type": "partition-value", "partition-field-id": 1001} ]`|
+|**`stats-fields`**|`JSON list of stats-only field objects`|`[ {"field-id": 102, "type": "partition-value", "partition-field-id": 1001} ]`|
 
 ### Name Mapping Serialization
 
