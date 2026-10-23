@@ -37,7 +37,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Testcontainers
@@ -179,13 +178,11 @@ public class TestS3InputStream {
   }
 
   @Test
-  void zeroLengthReadTailFailsForMissingObject() throws Exception {
+  void zeroLengthReadTailSucceedsForMissingObject() throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/missing-read-tail.dat");
 
     try (RangeReadable in = newInputStream(s3, uri)) {
-      assertThatThrownBy(() -> in.readTail(new byte[0], 0, 0))
-          .isInstanceOf(NoSuchKeyException.class)
-          .hasMessageContaining("The specified key does not exist");
+      assertThat(in.readTail(new byte[0], 0, 0)).isZero();
     }
   }
 
