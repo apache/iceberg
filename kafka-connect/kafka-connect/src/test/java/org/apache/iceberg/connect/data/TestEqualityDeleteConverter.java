@@ -52,6 +52,7 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.CloseableIterable;
@@ -544,6 +545,59 @@ public class TestEqualityDeleteConverter {
     assertThat(onBranch.baseSnapshotId()).isEqualTo(table.snapshot("staging").snapshotId());
     assertThat(onBranch.dvFiles()).hasSize(1);
     assertThat(onBranch.dvFiles().get(0).recordCount()).isEqualTo(1L);
+  }
+
+  @Test
+  public void testConvertOnBranchThatDoesNotExistYet() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned());
+    WriteResult first = write(table, insert(1L, "a", "v1"), insert(2L, "a", "v1"));
+    commit(table, first.dataFiles(), first.deleteFiles(), ImmutableList.of());
+    WriteResult second = write(table, delete(1L, "a"), insert(3L, "a", "v1"));
+
+    // a commit creating the branch builds on main, so the deletes are resolved against main
+    EqualityDeleteConverter.Result result =
+        new EqualityDeleteConverter(table, "staging").convert(Arrays.asList(second.deleteFiles()));
+    assertThat(result.baseSnapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
+    assertThat(result.dvFiles()).hasSize(1);
+
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .toBranch("staging")
+            .validateFromSnapshot(result.baseSnapshotId())
+            .conflictDetectionFilter(result.conflictFilter())
+            .validateNoConflictingDataFiles()
+            .validateNoConflictingDeleteFiles();
+    Arrays.stream(second.dataFiles()).forEach(rowDelta::addRows);
+    result.dvFiles().forEach(rowDelta::addDeletes);
+    rowDelta.commit();
+
+    assertThat(readRows(table, table.snapshot("staging").snapshotId()))
+        .containsExactlyInAnyOrder("2|a|v1", "3|a|v1");
+  }
+
+  @Test
+  public void testConflictFilterCoversKeysWithoutSnapshot() {
+    Table table = createTable(PartitionSpec.unpartitioned());
+    WriteResult deletes = write(table, delete(1L, "a"));
+
+    EqualityDeleteConverter.Result result =
+        new EqualityDeleteConverter(table, null).convert(Arrays.asList(deletes.deleteFiles()));
+    assertThat(result.baseSnapshotId()).isNull();
+    assertThat(result.dvFiles()).isEmpty();
+
+    // another writer makes the first commit, with a row the equality delete would have removed
+    WriteResult concurrent = write(table, insert(1L, "a", "v1"));
+    table.newAppend().appendFile(concurrent.dataFiles()[0]).commit();
+
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .conflictDetectionFilter(result.conflictFilter())
+            .validateNoConflictingDataFiles();
+    assertThatThrownBy(rowDelta::commit)
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found conflicting files that can contain records matching");
   }
 
   @Test

@@ -105,9 +105,14 @@ final class KeyFilters {
    * Comparisons the key filter may cost per data file entry when planning against the snapshot:
    * {@link #COMPARISON_BUDGET} divided by the snapshot's {@code total-data-files}, kept between
    * {@link #MIN_COMPARISONS_PER_FILE} and {@link #MAX_COMPARISONS_PER_FILE}. A snapshot without the
-   * count gets the minimum.
+   * count gets the minimum; a missing snapshot, an empty branch, has no data files and gets the
+   * maximum.
    */
   static int comparisonsPerFile(Snapshot snapshot) {
+    if (snapshot == null) {
+      return MAX_COMPARISONS_PER_FILE;
+    }
+
     String value = snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP);
     if (value == null) {
       return MIN_COMPARISONS_PER_FILE;

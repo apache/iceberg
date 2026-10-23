@@ -61,6 +61,7 @@ public class TestKeyFilters {
     assertThat(KeyFilters.comparisonsPerFile(snapshot("not a number"))).isEqualTo(200);
     // an empty table can afford the largest filter
     assertThat(KeyFilters.comparisonsPerFile(snapshot("0"))).isEqualTo(1000);
+    assertThat(KeyFilters.comparisonsPerFile(null)).isEqualTo(1000);
   }
 
   @Test

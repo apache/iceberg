@@ -106,21 +106,52 @@ public class EqualityDeleteConverter {
 
   /**
    * Converts the given equality delete files into deletion vectors on the current snapshot of the
-   * branch. The table is expected to be refreshed by the caller.
+   * branch. A branch that does not exist yet is resolved against the current snapshot of main,
+   * which a commit creating the branch builds on. The table is expected to be refreshed by the
+   * caller.
    */
   public Result convert(List<DeleteFile> eqDeleteFiles) {
-    Snapshot base = branch == null ? table.currentSnapshot() : table.snapshot(branch);
-    if (base == null) {
-      // there are no rows an equality delete could remove
-      LOG.info(
-          "Table {} has no snapshot on branch {}, {} equality delete file(s) match no rows",
-          table.name(),
-          branch == null ? "main" : branch,
-          eqDeleteFiles.size());
-      return Result.empty();
+    Snapshot base =
+        branch == null || !table.refs().containsKey(branch)
+            ? table.currentSnapshot()
+            : table.snapshot(branch);
+    int comparisonsPerFile = KeyFilters.comparisonsPerFile(base);
+    long start = System.currentTimeMillis();
+
+    // the conflict filter covers the keys even when the branch has no snapshot, so that the commit
+    // detects rows another writer commits to the branch first
+    Map<DeleteGroup, StructLikeSet> keysByGroup = Maps.newLinkedHashMap();
+    Expression conflictFilter = Expressions.alwaysFalse();
+    long deletedKeys = 0L;
+    for (Map.Entry<DeleteGroup, List<DeleteFile>> entry :
+        groupDeleteFiles(eqDeleteFiles).entrySet()) {
+      DeleteGroup group = entry.getKey();
+      Schema keySchema = keySchema(group.equalityFieldIds());
+      StructLikeSet keys = deleteLoader.loadEqualityDeletes(entry.getValue(), keySchema);
+      if (keys.isEmpty()) {
+        continue;
+      }
+
+      keysByGroup.put(group, keys);
+      deletedKeys += keys.size();
+      conflictFilter =
+          Expressions.or(
+              conflictFilter,
+              Expressions.and(
+                  KeyFilters.partitionFilter(table.schema(), group.spec(), group.partition()),
+                  KeyFilters.keyFilter(keySchema, keys, comparisonsPerFile)));
     }
 
-    Map<DeleteGroup, List<DeleteFile>> groups = groupDeleteFiles(eqDeleteFiles);
+    if (base == null) {
+      LOG.info(
+          "Table {} has no snapshot on branch {}, {} equality delete file(s) with {} key(s) "
+              + "match no rows",
+          table.name(),
+          branch == null ? "main" : branch,
+          eqDeleteFiles.size(),
+          deletedKeys);
+      return new Result(null, ImmutableList.of(), ImmutableList.of(), conflictFilter, 0);
+    }
 
     OutputFileFactory fileFactory =
         OutputFileFactory.builderFor(table, 1, System.currentTimeMillis())
@@ -132,32 +163,18 @@ public class EqualityDeleteConverter {
     Map<String, PositionDeleteIndex> previousDeletes = Maps.newHashMap();
     BaseDVFileWriter dvWriter = new BaseDVFileWriter(fileFactory, previousDeletes::get);
 
-    Expression conflictFilter = Expressions.alwaysFalse();
-    int comparisonsPerFile = KeyFilters.comparisonsPerFile(base);
     long matchedRows = 0L;
-    long deletedKeys = 0L;
     int scannedDataFiles = 0;
-
-    long start = System.currentTimeMillis();
     try {
-      for (Map.Entry<DeleteGroup, List<DeleteFile>> entry : groups.entrySet()) {
+      for (Map.Entry<DeleteGroup, StructLikeSet> entry : keysByGroup.entrySet()) {
         DeleteGroup group = entry.getKey();
-        Schema keySchema = keySchema(group.equalityFieldIds());
-        StructLikeSet keys = deleteLoader.loadEqualityDeletes(entry.getValue(), keySchema);
-        if (keys.isEmpty()) {
-          continue;
-        }
-
-        deletedKeys += keys.size();
-        conflictFilter =
-            Expressions.or(
-                conflictFilter,
-                Expressions.and(
-                    KeyFilters.partitionFilter(table.schema(), group.spec(), group.partition()),
-                    KeyFilters.keyFilter(keySchema, keys, comparisonsPerFile)));
-
         KeyPositionResolver.Resolution resolution =
-            resolver.resolve(base, keySchema, keys, group.spec(), group.partition());
+            resolver.resolve(
+                base,
+                keySchema(group.equalityFieldIds()),
+                entry.getValue(),
+                group.spec(),
+                group.partition());
         scannedDataFiles += resolution.scannedDataFiles();
 
         for (KeyPositionResolver.FileMatches matches : resolution.matches()) {
@@ -239,9 +256,6 @@ public class EqualityDeleteConverter {
 
   /** Outcome of a conversion, to be committed together with the data files of the batch. */
   public static class Result {
-    private static final Result EMPTY =
-        new Result(null, ImmutableList.of(), ImmutableList.of(), Expressions.alwaysFalse(), 0);
-
     private final Long baseSnapshotId;
     private final List<DeleteFile> dvFiles;
     private final List<DeleteFile> rewrittenDvFiles;
@@ -261,11 +275,12 @@ public class EqualityDeleteConverter {
       this.scannedDataFiles = scannedDataFiles;
     }
 
-    static Result empty() {
-      return EMPTY;
-    }
-
-    /** Snapshot the positions were resolved against, or null when the branch had no snapshot. */
+    /**
+     * Snapshot the positions were resolved against, or null when there was no snapshot to resolve
+     * against. A result without a snapshot has no deletion vectors, but the commit must still
+     * validate that no data files matching {@link #conflictFilter()} were added, without a starting
+     * snapshot, so that rows another writer commits to the branch first are detected.
+     */
     public Long baseSnapshotId() {
       return baseSnapshotId;
     }
@@ -286,7 +301,7 @@ public class EqualityDeleteConverter {
 
     /**
      * Row filter covering every deleted key, for detecting data or delete files that were added
-     * concurrently for those keys.
+     * concurrently for those keys. It covers the keys also when {@link #baseSnapshotId()} is null.
      */
     public Expression conflictFilter() {
       return conflictFilter;
