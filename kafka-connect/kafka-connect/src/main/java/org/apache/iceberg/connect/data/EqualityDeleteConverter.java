@@ -115,7 +115,6 @@ public class EqualityDeleteConverter {
         branch == null || !table.refs().containsKey(branch)
             ? table.currentSnapshot()
             : table.snapshot(branch);
-    int comparisonsPerFile = KeyFilters.comparisonsPerFile(base);
     long start = System.currentTimeMillis();
 
     // the conflict filter covers the keys even when the branch has no snapshot, so that the commit
@@ -139,7 +138,7 @@ public class EqualityDeleteConverter {
               conflictFilter,
               Expressions.and(
                   KeyFilters.partitionFilter(table.schema(), group.spec(), group.partition()),
-                  KeyFilters.keyFilter(keySchema, keys, comparisonsPerFile)));
+                  KeyFilters.keyFilter(keySchema, keys)));
     }
 
     if (base == null) {

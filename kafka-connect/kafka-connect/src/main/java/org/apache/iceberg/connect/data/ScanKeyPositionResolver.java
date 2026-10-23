@@ -60,11 +60,11 @@ import org.apache.iceberg.util.ThreadPools;
  *
  * <p>The candidate files are planned with the filters of {@link KeyFilters}: the partition of the
  * equality delete files is pinned through its transform and the keys are matched with {@code IN}
- * lists while they fit the comparison budget the table's data file count allows, with value ranges
- * split at the largest gaps of the leading key column above that. Only the key columns and the row
- * position of the candidate files are read, in parallel, and a row is matched by comparing its key
- * with the deleted set. A cluster of hot keys and a few scattered keys therefore cost the files
- * that hold them; keys spread evenly over a large table still match most files of the partition.
+ * lists, or with the bounds of the leading key column when there are more keys than the lists may
+ * hold. Only the key columns and the row position of the candidate files are read, in parallel, and
+ * a row is matched by comparing its key with the deleted set. A cluster of hot keys therefore costs
+ * the files that hold it; keys spread evenly over a large table still match most files of the
+ * partition.
  *
  * <p>The filters only prune. A candidate is resolved only if the deletes apply to it under the scan
  * planning rules: an unpartitioned delete applies to every data file, a partitioned delete only to
@@ -95,8 +95,7 @@ class ScanKeyPositionResolver implements KeyPositionResolver {
     // the plan filter carries the partition pin and the key filter; only the key filter is passed
     // to the file readers, whose row group filters evaluate column references,
     // not partition transforms
-    Expression keyFilter =
-        KeyFilters.keyFilter(keySchema, keys, KeyFilters.comparisonsPerFile(base));
+    Expression keyFilter = KeyFilters.keyFilter(keySchema, keys);
     Expression planFilter =
         Expressions.and(
             KeyFilters.partitionFilter(table.schema(), deleteSpec, deletePartition), keyFilter);

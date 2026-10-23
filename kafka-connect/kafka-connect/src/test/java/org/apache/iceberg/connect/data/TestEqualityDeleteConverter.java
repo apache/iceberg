@@ -350,8 +350,8 @@ public class TestEqualityDeleteConverter {
     commit(table, dataFiles.toArray(new DataFile[0]), new DeleteFile[0], ImmutableList.of());
 
     // keys of bucket 0 spread over all three batches, more than IN lists may hold, so they are
-    // matched with id ranges, which bucket(4, id) cannot project: only the pinned bucket prunes
-    // the files of the other buckets
+    // matched with the bounds of the ids, which bucket(4, id) cannot project: only the pinned
+    // bucket prunes the files of the other buckets
     Function<Object, Integer> bucket = Transforms.bucket(4).bind(Types.LongType.get());
     List<Long> bucketZeroIds = Lists.newArrayList();
     for (long id = 0; id < 3L * rowsPerBatch; id++) {
@@ -421,7 +421,7 @@ public class TestEqualityDeleteConverter {
   }
 
   @Test
-  public void testKeysAboveTheListLimitAreMatchedWithRanges() throws IOException {
+  public void testKeysAboveTheListLimitAreMatchedWithBounds() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
 
     // 30 data files with 100 consecutive ids each
@@ -451,8 +451,8 @@ public class TestEqualityDeleteConverter {
     EqualityDeleteConverter.Result result =
         new EqualityDeleteConverter(table, null).convert(Arrays.asList(second.deleteFiles()));
 
-    // the ranges skip the files between the two clusters
-    assertThat(result.plannedDataFiles()).isEqualTo(12);
+    // the bounds of the two clusters cover the files between them too
+    assertThat(result.plannedDataFiles()).isEqualTo(fileCount);
 
     commit(table, second.dataFiles(), result.dvFiles(), result.rewrittenDvFiles());
     Set<String> expectedRows = Sets.newHashSet();

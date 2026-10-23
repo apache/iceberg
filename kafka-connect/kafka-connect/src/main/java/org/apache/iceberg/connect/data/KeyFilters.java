@@ -18,16 +18,12 @@
  */
 package org.apache.iceberg.connect.data;
 
-import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
-import java.util.function.ToDoubleFunction;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -38,7 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.Comparators;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 
@@ -56,16 +51,9 @@ final class KeyFilters {
   // with several lists of at most this size
   @VisibleForTesting static final int IN_PREDICATE_LIMIT = 200;
 
-  // The filters are evaluated once per data file entry during planning, so their size is chosen
-  // from the table's data file count: a budget of comparisons for the whole plan, divided by the
-  // number of data files. The budget is what a fixed cap of 100 value ranges (200 comparisons per
-  // file) would spend on a table with one million data files, so such a table keeps that cost
-  // and smaller tables get a finer filter. The lower bound is that same cap and applies when the
-  // count is missing; the upper bound limits what the filter costs when every file is read
-  // anyway, e.g. keys spread over a small table, where a finer filter only adds evaluation time.
-  @VisibleForTesting static final long COMPARISON_BUDGET = 200_000_000L;
-  @VisibleForTesting static final int MIN_COMPARISONS_PER_FILE = 200;
-  @VisibleForTesting static final int MAX_COMPARISONS_PER_FILE = 1_000;
+  // the filters are evaluated once per data file entry during planning; above this many keys the
+  // lists are replaced by the bounds of the leading key column, two comparisons per entry
+  @VisibleForTesting static final int MAX_LISTED_KEYS = 1_000;
 
   private KeyFilters() {}
 
@@ -102,65 +90,17 @@ final class KeyFilters {
   }
 
   /**
-   * Comparisons the key filter may cost per data file entry when planning against the snapshot:
-   * {@link #COMPARISON_BUDGET} divided by the snapshot's {@code total-data-files}, kept between
-   * {@link #MIN_COMPARISONS_PER_FILE} and {@link #MAX_COMPARISONS_PER_FILE}. A snapshot without the
-   * count gets the minimum; a missing snapshot, an empty branch, has no data files and gets the
-   * maximum.
+   * Filter for the deleted keys. Up to {@link #MAX_LISTED_KEYS} keys are matched with {@code IN}
+   * lists of at most {@link #IN_PREDICATE_LIMIT} keys each, one list per key column. More keys are
+   * matched with the minimum and maximum of the leading key column, which may also cover files that
+   * hold no deleted key.
    */
-  static int comparisonsPerFile(Snapshot snapshot) {
-    if (snapshot == null) {
-      return MAX_COMPARISONS_PER_FILE;
-    }
-
-    String value = snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP);
-    if (value == null) {
-      return MIN_COMPARISONS_PER_FILE;
-    }
-
-    long dataFiles;
-    try {
-      dataFiles = Long.parseLong(value);
-    } catch (NumberFormatException e) {
-      return MIN_COMPARISONS_PER_FILE;
-    }
-
-    if (dataFiles <= 0) {
-      return MAX_COMPARISONS_PER_FILE;
-    }
-
-    long perFile = COMPARISON_BUDGET / dataFiles;
-    return (int) Math.max(MIN_COMPARISONS_PER_FILE, Math.min(MAX_COMPARISONS_PER_FILE, perFile));
-  }
-
-  /**
-   * Filter for the deleted keys within a budget of comparisons per data file entry.
-   *
-   * <p>While the keys fit the budget they are matched with {@code IN} lists, {@link
-   * #IN_PREDICATE_LIMIT} keys per list and one list per key column, which matches exactly the files
-   * that hold a deleted key. A list costs one comparison per value, so the keys fit when their
-   * number times the number of key columns is within the budget. Above that the keys are matched
-   * with value ranges on the leading key column, two comparisons each, split at the largest gaps; a
-   * range may also cover files without a deleted key.
-   */
-  static Expression keyFilter(Schema keySchema, StructLikeSet keys, int comparisonsPerFile) {
-    long listComparisons = (long) keys.size() * primitiveColumns(keySchema);
-    if (listComparisons <= comparisonsPerFile) {
+  static Expression keyFilter(Schema keySchema, StructLikeSet keys) {
+    if (keys.size() <= MAX_LISTED_KEYS) {
       return listFilter(keySchema, keys);
     }
 
-    return rangeFilter(keySchema, keys, Math.max(1, comparisonsPerFile / 2));
-  }
-
-  private static int primitiveColumns(Schema keySchema) {
-    int count = 0;
-    for (Types.NestedField column : keySchema.columns()) {
-      if (column.type().isPrimitiveType()) {
-        count++;
-      }
-    }
-
-    return count;
+    return boundsFilter(keySchema, keys);
   }
 
   /** {@code IN} lists of at most {@link #IN_PREDICATE_LIMIT} keys each, joined with {@code OR}. */
@@ -210,14 +150,9 @@ final class KeyFilters {
     return filter;
   }
 
-  /**
-   * Sorts the values of the leading key column and splits them into at most {@code maxRanges}
-   * ranges. Numeric and temporal keys are split at the largest gaps, so a cluster of hot keys and a
-   * few scattered keys each get a tight range; other types are split into ranges with an equal
-   * number of keys.
-   */
+  /** The minimum and maximum of the leading key column over the given keys. */
   @SuppressWarnings("unchecked")
-  private static Expression rangeFilter(Schema keySchema, StructLikeSet keys, int maxRanges) {
+  private static Expression boundsFilter(Schema keySchema, StructLikeSet keys) {
     Types.NestedField lead = null;
     int leadPos = -1;
     List<Types.NestedField> columns = keySchema.columns();
@@ -233,115 +168,36 @@ final class KeyFilters {
       return Expressions.alwaysTrue();
     }
 
-    List<Object> values = Lists.newArrayListWithCapacity(keys.size());
+    Comparator<Object> comparator =
+        (Comparator<Object>) Comparators.forType(lead.type().asPrimitiveType());
+    Object min = null;
+    Object max = null;
     boolean hasNull = false;
     for (StructLike key : keys) {
       Object value = key.get(leadPos, Object.class);
       if (value == null) {
         hasNull = true;
       } else {
-        values.add(value);
+        if (min == null || comparator.compare(value, min) < 0) {
+          min = value;
+        }
+
+        if (max == null || comparator.compare(value, max) > 0) {
+          max = value;
+        }
       }
     }
 
-    Expression filter = Expressions.alwaysFalse();
-    if (!values.isEmpty()) {
-      Comparator<Object> comparator =
-          (Comparator<Object>) Comparators.forType(lead.type().asPrimitiveType());
-      values.sort(comparator);
-      for (int[] range : splitIntoRanges(values, numericConverter(lead.type()), maxRanges)) {
-        Object min = values.get(range[0]);
-        Object max = values.get(range[1]);
-        filter =
-            Expressions.or(
-                filter,
-                Expressions.and(
-                    Expressions.greaterThanOrEqual(lead.name(), min),
-                    Expressions.lessThanOrEqual(lead.name(), max)));
-      }
-    }
-
+    Expression filter =
+        min == null
+            ? Expressions.alwaysFalse()
+            : Expressions.and(
+                Expressions.greaterThanOrEqual(lead.name(), min),
+                Expressions.lessThanOrEqual(lead.name(), max));
     if (hasNull) {
       filter = Expressions.or(filter, Expressions.isNull(lead.name()));
     }
 
     return filter;
-  }
-
-  /**
-   * Returns index ranges [first, last] over the sorted values, at most {@code maxRanges} of them.
-   * With a numeric converter the ranges are separated at the largest gaps between neighboring
-   * values, and only at gaps that leave out at least one value; otherwise the values are split into
-   * ranges of equal size.
-   */
-  @VisibleForTesting
-  static List<int[]> splitIntoRanges(
-      List<Object> sortedValues, ToDoubleFunction<Object> numeric, int maxRanges) {
-    int size = sortedValues.size();
-    int rangeCount = Math.min(maxRanges, size);
-    List<Integer> splits = Lists.newArrayListWithCapacity(rangeCount);
-
-    if (numeric != null) {
-      // a split after index i separates values i and i + 1. Only a gap wide enough to leave out a
-      // value can exclude a data file, so adjacent integers are never split; of the remaining gaps
-      // the widest are kept. Contiguous keys therefore form a single range however many they are.
-      double minGap = isIntegral(sortedValues.get(0)) ? 1.0 : 0.0;
-      List<Integer> byGap = Lists.newArrayList();
-      for (int i = 0; i < size - 1; i++) {
-        double gap =
-            numeric.applyAsDouble(sortedValues.get(i + 1))
-                - numeric.applyAsDouble(sortedValues.get(i));
-        if (gap > minGap) {
-          byGap.add(i);
-        }
-      }
-
-      byGap.sort(
-          Comparator.comparingDouble(
-                  (Integer i) ->
-                      numeric.applyAsDouble(sortedValues.get(i + 1))
-                          - numeric.applyAsDouble(sortedValues.get(i)))
-              .reversed());
-      splits.addAll(byGap.subList(0, Math.min(rangeCount - 1, byGap.size())));
-    } else {
-      for (int i = 1; i < rangeCount; i++) {
-        splits.add((int) ((long) i * size / rangeCount) - 1);
-      }
-    }
-
-    splits.sort(Comparator.naturalOrder());
-
-    List<int[]> ranges = Lists.newArrayListWithCapacity(rangeCount);
-    int first = 0;
-    for (int split : splits) {
-      ranges.add(new int[] {first, split});
-      first = split + 1;
-    }
-
-    ranges.add(new int[] {first, size - 1});
-    return ranges;
-  }
-
-  private static boolean isIntegral(Object value) {
-    return value instanceof Long || value instanceof Integer;
-  }
-
-  /** Converts internal key representations to a number for gap comparison, or null. */
-  private static ToDoubleFunction<Object> numericConverter(Type type) {
-    switch (type.typeId()) {
-      case INTEGER:
-      case LONG:
-      case FLOAT:
-      case DOUBLE:
-      case DATE:
-      case TIME:
-      case TIMESTAMP:
-      case TIMESTAMP_NANO:
-        return value -> ((Number) value).doubleValue();
-      case DECIMAL:
-        return value -> ((BigDecimal) value).doubleValue();
-      default:
-        return null;
-    }
   }
 }
