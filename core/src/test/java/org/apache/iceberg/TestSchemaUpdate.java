@@ -1303,6 +1303,159 @@ public class TestSchemaUpdate {
   }
 
   @Test
+  void moveRenamedColumnByNewName() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
+    Schema expected =
+        new Schema(
+            required(2, "payload", Types.StringType.get()),
+            required(1, "id", Types.LongType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, 2).renameColumn("data", "payload").moveFirst("payload").apply();
+
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  void moveRenamedNestedColumnByNewName() {
+    Schema schema =
+        new Schema(
+            optional(
+                1,
+                "points",
+                Types.ListType.ofOptional(
+                    2,
+                    Types.StructType.of(
+                        required(3, "x", Types.LongType.get()),
+                        required(4, "y", Types.LongType.get())))));
+    Schema expected =
+        new Schema(
+            optional(
+                1,
+                "points",
+                Types.ListType.ofOptional(
+                    2,
+                    Types.StructType.of(
+                        required(4, "y", Types.LongType.get()),
+                        required(3, "z", Types.LongType.get())))));
+
+    Schema actual =
+        new SchemaUpdate(schema, 4)
+            .renameColumn("points.x", "z")
+            .moveAfter("points.z", "points.y")
+            .apply();
+
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  void moveRenamedNestedColumnByNewFullName() {
+    Schema schema =
+        new Schema(
+            optional(
+                1,
+                "points",
+                Types.ListType.ofOptional(
+                    2,
+                    Types.StructType.of(
+                        required(3, "x", Types.LongType.get()),
+                        required(4, "y", Types.LongType.get())))));
+    Schema expected =
+        new Schema(
+            optional(
+                1,
+                "points",
+                Types.ListType.ofOptional(
+                    2,
+                    Types.StructType.of(
+                        required(4, "y", Types.LongType.get()),
+                        required(3, "z", Types.LongType.get())))));
+
+    Schema actual =
+        new SchemaUpdate(schema, 4)
+            .renameColumn("points.x", "z")
+            .moveAfter("points.element.z", "points.element.y")
+            .apply();
+
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  void moveRenamedColumnByNewNameIgnoringCase() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
+    Schema expected =
+        new Schema(
+            required(2, "payload", Types.StringType.get()),
+            required(1, "id", Types.LongType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, 2)
+            .caseSensitive(false)
+            .renameColumn("DATA", "payload")
+            .moveFirst("PAYLOAD")
+            .apply();
+
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  void columnRenamedToDeletedColumnNameIsResolvedByThatName() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()),
+            optional(2, "data", Types.StringType.get()),
+            optional(3, "raw", Types.StringType.get()));
+    Schema expected =
+        new Schema(
+            optional(3, "data", Types.StringType.get(), "raw payload"),
+            required(1, "id", Types.LongType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, 3)
+            .deleteColumn("data")
+            .renameColumn("raw", "data")
+            .updateColumnDoc("data", "raw payload")
+            .moveFirst("data")
+            .apply();
+
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  void moveBySupersededRenameFails() {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
+
+    UpdateSchema update =
+        new SchemaUpdate(schema, 2).renameColumn("data", "payload").renameColumn("data", "body");
+
+    assertThatThrownBy(() -> update.moveFirst("payload"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot move missing column: payload");
+  }
+
+  @Test
+  void updateRenamedColumnByNewName() {
+    Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
+    Schema expected = new Schema(optional(1, "key", Types.LongType.get(), "unique key"));
+
+    Schema actual =
+        new SchemaUpdate(schema, 1)
+            .renameColumn("id", "key")
+            .updateColumn("key", Types.LongType.get())
+            .updateColumnDoc("key", "unique key")
+            .makeColumnOptional("key")
+            .apply();
+
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
   public void testMoveTopLevelColumnFirst() {
     Schema schema =
         new Schema(
