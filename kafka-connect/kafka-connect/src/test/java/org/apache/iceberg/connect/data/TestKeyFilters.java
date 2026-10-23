@@ -23,7 +23,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.Map;
+import java.util.function.ToDoubleFunction;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -36,12 +38,15 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.Test;
 
 public class TestKeyFilters {
+
+  private static final ToDoubleFunction<Object> NUMERIC = value -> ((Number) value).doubleValue();
 
   private static final Schema KEY_SCHEMA =
       new Schema(Types.NestedField.required(1, "id", Types.LongType.get()));
@@ -128,6 +133,64 @@ public class TestKeyFilters {
     // 150 keys x 2 columns = 300 comparisons: within a budget of 300, above a budget of 299
     assertThat(KeyFilters.keyFilter(TWO_COLUMN_KEY_SCHEMA, keys, 300).toString()).contains(" in (");
     assertThat(KeyFilters.keyFilter(TWO_COLUMN_KEY_SCHEMA, keys, 299).toString()).contains(" <= ");
+  }
+
+  @Test
+  public void testAdjacentIntegersFormOneRange() {
+    // 200 consecutive values and a cluster of 100 far away: the only gap that leaves out a value
+    // is the one between 199 and 1000
+    List<int[]> ranges = KeyFilters.splitIntoRanges(clusters(), NUMERIC, 100);
+
+    assertThat(ranges).hasSize(2);
+    assertThat(ranges.get(0)).containsExactly(0, 199);
+    assertThat(ranges.get(1)).containsExactly(200, 299);
+  }
+
+  @Test
+  public void testScatteredValuesAreCappedAtTheRangeLimit() {
+    List<Object> scattered = Lists.newArrayList();
+    for (long value = 0; value < 300; value++) {
+      scattered.add(value * 10);
+    }
+
+    List<int[]> ranges = KeyFilters.splitIntoRanges(scattered, NUMERIC, 100);
+
+    // every gap leaves out values, so the widest ones split the values and the ranges still cover
+    // every value
+    assertThat(ranges).hasSize(100);
+    assertThat(ranges.get(0)[0]).isEqualTo(0);
+    assertThat(ranges.get(ranges.size() - 1)[1]).isEqualTo(scattered.size() - 1);
+    for (int i = 1; i < ranges.size(); i++) {
+      assertThat(ranges.get(i)[0]).isEqualTo(ranges.get(i - 1)[1] + 1);
+    }
+  }
+
+  @Test
+  public void testValuesWithoutNumericGapsAreSplitEvenly() {
+    List<int[]> ranges = KeyFilters.splitIntoRanges(clusters(), null, 100);
+
+    assertThat(ranges).hasSize(100);
+    assertThat(ranges).allMatch(range -> range[1] - range[0] + 1 == 3);
+  }
+
+  @Test
+  public void testFewerValuesThanRangesGetOneRangeEach() {
+    List<int[]> ranges = KeyFilters.splitIntoRanges(clusters().subList(0, 5), null, 100);
+
+    assertThat(ranges).hasSize(5);
+    assertThat(ranges).allMatch(range -> range[0] == range[1]);
+  }
+
+  private static List<Object> clusters() {
+    List<Object> values = Lists.newArrayList();
+    for (long value = 0; value < 200; value++) {
+      values.add(value);
+    }
+    for (long value = 1000; value < 1100; value++) {
+      values.add(value);
+    }
+
+    return values;
   }
 
   private static Snapshot snapshot(String totalDataFiles) {

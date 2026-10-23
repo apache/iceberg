@@ -530,49 +530,6 @@ public class TestEqualityDeleteConverter {
   }
 
   @Test
-  public void testSplitIntoRanges() {
-    // 200 consecutive values and a cluster of 100 far away
-    List<Object> values = Lists.newArrayList();
-    for (long value = 0; value < 200; value++) {
-      values.add(value);
-    }
-    for (long value = 1000; value < 1100; value++) {
-      values.add(value);
-    }
-
-    // adjacent integers are never split, so the only split is the gap between 199 and 1000
-    List<int[]> ranges =
-        KeyFilters.splitIntoRanges(values, value -> ((Number) value).doubleValue(), 100);
-    assertThat(ranges).hasSize(2);
-    assertThat(ranges.get(0)).containsExactly(0, 199);
-    assertThat(ranges.get(1)).containsExactly(200, 299);
-
-    // with scattered values every gap qualifies and the range count is capped
-    List<Object> scattered = Lists.newArrayList();
-    for (long value = 0; value < 300; value++) {
-      scattered.add(value * 10);
-    }
-    List<int[]> capped =
-        KeyFilters.splitIntoRanges(scattered, value -> ((Number) value).doubleValue(), 100);
-    assertThat(capped).hasSize(100);
-    assertThat(capped.get(0)[0]).isEqualTo(0);
-    assertThat(capped.get(capped.size() - 1)[1]).isEqualTo(scattered.size() - 1);
-    for (int i = 1; i < capped.size(); i++) {
-      assertThat(capped.get(i)[0]).isEqualTo(capped.get(i - 1)[1] + 1);
-    }
-
-    // without a numeric converter the values are split into ranges of equal size
-    List<int[]> equalRanges = KeyFilters.splitIntoRanges(values, null, 100);
-    assertThat(equalRanges).hasSize(100);
-    assertThat(equalRanges).allMatch(range -> range[1] - range[0] + 1 == 3);
-
-    // fewer values than ranges: one range per value
-    List<int[]> single = KeyFilters.splitIntoRanges(values.subList(0, 5), null, 100);
-    assertThat(single).hasSize(5);
-    assertThat(single).allMatch(range -> range[0] == range[1]);
-  }
-
-  @Test
   public void testConvertOnBranch() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     WriteResult first = write(table, insert(1L, "a", "v1"), insert(2L, "a", "v1"));
