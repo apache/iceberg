@@ -38,9 +38,12 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DataFileSet;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -736,7 +739,6 @@ public class TestOverwriteWithValidation extends TestBase {
             .overwriteByRowFilter(EXPRESSION_DAY_2)
             .addFile(FILE_DAY_2_MODIFIED)
             .validateFromSnapshot(firstSnapshot.snapshotId())
-            .conflictDetectionFilter(EXPRESSION_DAY_2)
             .validateNoConflictingData()
             .validateNoConflictingDeletes();
 
@@ -839,7 +841,6 @@ public class TestOverwriteWithValidation extends TestBase {
             .overwriteByRowFilter(EXPRESSION_DAY_2)
             .addFile(FILE_DAY_2_MODIFIED)
             .validateFromSnapshot(firstSnapshot.snapshotId())
-            .conflictDetectionFilter(EXPRESSION_DAY_2)
             .validateNoConflictingData()
             .validateNoConflictingDeletes();
 
@@ -935,6 +936,57 @@ public class TestOverwriteWithValidation extends TestBase {
 
     validateBranchFiles(table, branch, FILE_DAY_1, FILE_DAY_2_MODIFIED);
     validateBranchDeleteFiles(table, branch, FILE_DAY_1_POS_DELETES);
+  }
+
+  @TestTemplate
+  public void testCannotSetBothRowFilterAndConflictDetectionFilter() {
+    assertThatThrownBy(
+            () ->
+                table
+                    .newOverwrite()
+                    .overwriteByRowFilter(EXPRESSION_DAY_2)
+                    .conflictDetectionFilter(EXPRESSION_DAY_2))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageStartingWith(
+            "Cannot set a conflict detection filter when overwriting by row filter");
+
+    assertThatThrownBy(
+            () ->
+                table
+                    .newOverwrite()
+                    .conflictDetectionFilter(EXPRESSION_DAY_2)
+                    .overwriteByRowFilter(EXPRESSION_DAY_2))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageStartingWith(
+            "Cannot overwrite by row filter when a conflict detection filter is set");
+  }
+
+  @TestTemplate
+  public void testCannotSetBothRowFilterAndDeleteFile() {
+    assertThatThrownBy(
+            () ->
+                table.newOverwrite().overwriteByRowFilter(EXPRESSION_DAY_2).deleteFile(FILE_DAY_2))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageStartingWith(
+            "Cannot delete data files explicitly when overwriting by row filter");
+
+    assertThatThrownBy(
+            () ->
+                table.newOverwrite().deleteFile(FILE_DAY_2).overwriteByRowFilter(EXPRESSION_DAY_2))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageStartingWith(
+            "Cannot overwrite by row filter when data files are deleted explicitly");
+
+    assertThatThrownBy(
+            () ->
+                table
+                    .newOverwrite()
+                    .overwriteByRowFilter(EXPRESSION_DAY_2)
+                    .deleteFiles(
+                        DataFileSet.of(ImmutableList.of(FILE_DAY_2)), DeleteFileSet.create()))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageStartingWith(
+            "Cannot delete data files explicitly when overwriting by row filter");
   }
 
   @TestTemplate
