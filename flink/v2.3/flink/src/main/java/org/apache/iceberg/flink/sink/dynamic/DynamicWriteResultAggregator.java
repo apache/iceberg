@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
@@ -64,6 +65,7 @@ class DynamicWriteResultAggregator
 
   private final CatalogLoader catalogLoader;
   private final int cacheMaximumSize;
+  private final long cacheRefreshMs;
 
   private long lastCheckpointId = CheckpointIDCounter.INITIAL_CHECKPOINT_ID - 1;
 
@@ -76,10 +78,13 @@ class DynamicWriteResultAggregator
   private transient int subTaskId;
   private transient int attemptId;
   private transient Catalog catalog;
+  private transient long cachesClearedNanos;
 
-  DynamicWriteResultAggregator(CatalogLoader catalogLoader, int cacheMaximumSize) {
+  DynamicWriteResultAggregator(
+      CatalogLoader catalogLoader, int cacheMaximumSize, long cacheRefreshMs) {
     this.catalogLoader = catalogLoader;
     this.cacheMaximumSize = cacheMaximumSize;
+    this.cacheRefreshMs = cacheRefreshMs;
   }
 
   @Override
@@ -99,6 +104,7 @@ class DynamicWriteResultAggregator
     this.specs = new LRUCache<>(cacheMaximumSize);
     this.outputFileFactoriesAndFormatVersions = new LRUCache<>(cacheMaximumSize);
     this.catalog = catalogLoader.loadCatalog();
+    this.cachesClearedNanos = System.nanoTime();
   }
 
   @Override
@@ -117,6 +123,7 @@ class DynamicWriteResultAggregator
     }
 
     this.lastCheckpointId = checkpointId;
+    expireCaches();
 
     Collection<CommittableWithLineage<DynamicCommittable>> committables =
         Sets.newHashSetWithExpectedSize(resultsByTableKeyAndSpec.size());
@@ -146,6 +153,15 @@ class DynamicWriteResultAggregator
                     new CommittableWithLineage<>(c.getCommittable(), checkpointId, subTaskId))));
     LOG.info("Emitted {} commit message to downstream committer operator", count);
     resultsByTableKeyAndSpec.clear();
+  }
+
+  private void expireCaches() {
+    long nowNanos = System.nanoTime();
+    if (TimeUnit.NANOSECONDS.toMillis(nowNanos - cachesClearedNanos) >= cacheRefreshMs) {
+      specs.clear();
+      outputFileFactoriesAndFormatVersions.clear();
+      cachesClearedNanos = nowNanos;
+    }
   }
 
   /**
