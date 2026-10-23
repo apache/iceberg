@@ -334,6 +334,29 @@ public class TestChangelogTable extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  void historicalAvroRowLineageAfterUpgradeToV3() {
+    assumeThat(formatVersion).isEqualTo(2);
+    sql(
+        "CREATE TABLE %s (id INT, data STRING) USING iceberg "
+            + "TBLPROPERTIES ('format-version'='2', 'write.format.default'='avro')",
+        tableName);
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b')", tableName);
+
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='3')", tableName);
+
+    List<Object[]> rows =
+        sql(
+            "SELECT id, _change_type, _row_id, _last_updated_sequence_number "
+                + "FROM %s.changes ORDER BY id",
+            tableName);
+
+    assertEquals(
+        "Historical rows should have null lineage metadata",
+        ImmutableList.of(row(1, "INSERT", null, null), row(2, "INSERT", null, null)),
+        rows);
+  }
+
+  @TestTemplate
   void rowLineageMetadataColumnsOnDeleteInV3() {
     assumeThat(formatVersion).isEqualTo(3);
     createTable();
