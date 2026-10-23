@@ -478,7 +478,7 @@ Identifier fields may be nested in structs but cannot be nested within maps or l
 
 Stats are tracked in manifests by field ID. Schema fields have assigned IDs, but additional field IDs may be assigned to track stats for derived values. For instance, lower and upper bounds for `to_lower_case(name)` are useful for case-insensitive file pruning.
 
-Stats-only fields are used to track stats for derived values that are not part of the table schema and are not materialized. A stats-only field consists of:
+These additional _stats-only fields_ are used to track stats for derived values that are not part of the table schema and are not materialized. A stats-only field consists of:
 
 * A **`field-id`** assigned by incrementing the table's `last-column-id`
 * A **`type`** that can be `partition-value` or `expr-value`
@@ -491,7 +491,7 @@ The `expr-value` type stores stats for the result of a [value expression](expres
 
 Readers must not fail when an unsupported stats-only field `type` is found; stats for unsupported types must be ignored.
 
-Writers must preserve existing stats for stats-only fields listed in a table's `stats-fields` if the `data-type` is known (either set or specified by a supported type). Writers should produce stats when possible for stats-only fields. A writer should produce no stats by setting the field stats struct to null if an expression is not supported, produces an incompatible output type when bound, or binding fails.
+Writers must preserve existing stats for stats-only fields listed in a table's `stats-fields` if the `data-type` is known (either set or specified by a supported type). Writers should produce stats when possible for stats-only fields. A writer should set the field stats struct to null if an expression is unsupported, produces an incompatible output type when bound, or binding fails.
 
 The data type of a stats-only field may only change according to the type promotion rules above.
 
