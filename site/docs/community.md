@@ -30,7 +30,7 @@ Community discussions happen across various mailing lists, on the apache-iceberg
 
 Most community discussions, design proposals, and votes happen on the dev list, `dev@iceberg.apache.org`.
 
-To subscribe to a list, send an email to its subscribe address below and reply to the confirmation email you receive. To unsubscribe, do the same using the list's unsubscribe address (for example, `dev-unsubscribe@iceberg.apache.org`). See the [ASF guide to subscribing](https://www.apache.org/foundation/mailinglists.html#subscribing) for details.
+To subscribe to a list, send an empty email (no subject or body needed) to its subscribe address below, then reply to the confirmation email you receive. To unsubscribe, do the same using the list's unsubscribe address (for example, `dev-unsubscribe@iceberg.apache.org`). See the [ASF guide to subscribing](https://www.apache.org/foundation/mailinglists.html#subscribing) for details.
 
 | List | Description | Subscribe | Archive |
 |------|-------------|-----------|---------|
