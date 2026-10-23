@@ -92,7 +92,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   }
 
   @Override
-  public void filter(Predicate[] predicates) {
+  public synchronized void filter(Predicate[] predicates) {
     for (Predicate predicate : predicates) {
       // Spark can only pass IN predicates at the moment
       if (isFilePathInPredicate(predicate)) {

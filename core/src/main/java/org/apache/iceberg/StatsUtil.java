@@ -53,7 +53,7 @@ class StatsUtil {
   static final int VALUE_COUNT_OFFSET = 4;
   static final int NULL_VALUE_COUNT_OFFSET = 5;
   static final int NAN_VALUE_COUNT_OFFSET = 6;
-  static final int AVG_VALUE_SIZE_OFFSET = 7;
+  static final int TOTAL_BYTES_OFFSET = 7;
 
   static final String LOWER_BOUND_NAME = "lower_bound";
   static final String UPPER_BOUND_NAME = "upper_bound";
@@ -305,9 +305,7 @@ class StatsUtil {
     }
 
     if (isVariableLength(type)) {
-      fields.add(
-          optional(
-              baseId + AVG_VALUE_SIZE_OFFSET, "avg_value_size_in_bytes", Types.IntegerType.get()));
+      fields.add(optional(baseId + TOTAL_BYTES_OFFSET, "total_bytes", Types.LongType.get()));
     }
 
     return Types.StructType.of(fields);

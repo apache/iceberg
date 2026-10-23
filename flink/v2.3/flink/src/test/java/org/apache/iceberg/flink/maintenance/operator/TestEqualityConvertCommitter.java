@@ -134,6 +134,67 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
   }
 
   @Test
+  void holdsBackPhaseWatermarkBeforePlanArrives() throws Exception {
+    Table table = createTable(3, FileFormat.PARQUET);
+    insert(table, 1, "a");
+
+    DataFile stagingDataFile = getFirstDataFile(table);
+    long snapshotIdBefore = table.currentSnapshot().snapshotId();
+
+    try (TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger> harness =
+        createHarness()) {
+      harness.open();
+
+      long triggerTs = System.currentTimeMillis();
+      long doneTs = triggerTs + 10;
+
+      // The planner marks cycle start, then emits phase watermarks before the plan. The pre-plan
+      // phase watermark must not escape: forwarding it would let the LockRemover release the
+      // maintenance lock before this cycle commits.
+      harness.processElement2(new StreamRecord<>(EqualityConvertPlan.cycleStart(triggerTs)));
+      harness.processBothWatermarks(new Watermark(triggerTs + 1));
+      assertThat(watermarks(harness)).isEmpty();
+      assertThat(harness.extractOutputValues()).isEmpty();
+
+      // The plan arrives; the done-timestamp watermark then commits the cycle and forwards.
+      EqualityConvertPlan planResult =
+          new EqualityConvertPlan(
+              Lists.newArrayList(stagingDataFile),
+              Lists.newArrayList(),
+              Lists.newArrayList(),
+              42L,
+              snapshotIdBefore,
+              triggerTs,
+              doneTs);
+      harness.processElement2(new StreamRecord<>(planResult));
+      harness.processBothWatermarks(new Watermark(doneTs));
+
+      assertThat(harness.extractOutputValues()).hasSize(1);
+      assertThat(watermarks(harness)).containsExactly(new Watermark(doneTs));
+      table.refresh();
+      assertThat(table.currentSnapshot().snapshotId()).isNotEqualTo(snapshotIdBefore);
+    }
+  }
+
+  @Test
+  void forwardsWatermarkWithoutActiveCycle() throws Exception {
+    Table table = createTable(3, FileFormat.PARQUET);
+    insert(table, 1, "a");
+
+    try (TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger> harness =
+        createHarness()) {
+      harness.open();
+
+      // No plan was received, so no conversion cycle is active. A watermark here originates
+      // from another task's trigger sharing the maintenance lock; dropping it would stall
+      // the unioned watermark and the lock would never be released.
+      long markTs = System.currentTimeMillis();
+      harness.processBothWatermarks(new Watermark(markTs));
+      assertThat(watermarks(harness)).containsExactly(new Watermark(markTs));
+    }
+  }
+
+  @Test
   void skipsCommitForEmptyCycle() throws Exception {
     Table table = createTable(3, FileFormat.PARQUET);
 

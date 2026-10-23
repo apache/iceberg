@@ -273,7 +273,7 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
 
   // only task groups can be reset while resetting tasks
   // the set of scanned specs and grouping key type must never change
-  protected void resetTasks(List<T> filteredTasks) {
+  protected synchronized void resetTasks(List<T> filteredTasks) {
     this.taskGroups = null;
     this.tasks = filteredTasks;
   }
@@ -304,6 +304,18 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
         evaluatorsBySpecId.computeIfAbsent(
             task.spec().specId(), ignored -> new PartitionPredicateEvaluator(task.spec()));
     return evaluator.eval(task.partition());
+  }
+
+  /**
+   * Returns the planned tasks that match all partition predicates in the scan.
+   *
+   * <p>Tasks from specs where a predicate cannot be evaluated are kept.
+   */
+  protected synchronized List<T> tasksMatchingPartitionPredicates() {
+    Map<Integer, PartitionPredicateEvaluator> evaluatorsBySpecId = Maps.newHashMap();
+    return tasks().stream()
+        .filter(task -> matchesPartitionPredicates(task, evaluatorsBySpecId))
+        .collect(Collectors.toList());
   }
 
   private static List<PartitionField> activePartitionFields(PartitionSpec spec) {

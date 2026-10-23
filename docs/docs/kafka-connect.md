@@ -48,8 +48,12 @@ The connector zip archive is created as part of the Iceberg build. You can run t
 ```bash
 ./gradlew -x test -x integrationTest clean build
 ```
-The zip archive will be found under `./kafka-connect/kafka-connect-runtime/build/distributions`. There is
-one distribution that bundles the Hive Metastore client and related dependencies, and one that does not.
+The zip archive will be found under `./kafka-connect/kafka-connect-runtime/build/distributions`. The default
+build produces a distribution that does not bundle the Hive Metastore client. A distribution that also bundles
+the Hive Metastore client and related dependencies is not built by default; to build it, run:
+```bash
+./gradlew :iceberg-kafka-connect:iceberg-kafka-connect-runtime:hiveDistZip
+```
 Copy the distribution archive into the Kafka Connect plugins directory on all nodes.
 
 ## Requirements
@@ -71,6 +75,7 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.tables.evolve-schema-enabled       | Set to `true` to add any missing record fields to the table schema, default is `false`                           |
 | iceberg.tables.schema-force-optional       | Set to `true` to set columns as optional during table create and evolution, default is `false` to respect schema |
 | iceberg.tables.schema-case-insensitive     | Set to `true` to look up table columns by case-insensitive name, default is `false` for case-sensitive           |
+| iceberg.tables.replace-null-with-default   | Set to `true` to replace null struct field values with the record schema default value, `false` to preserve explicit nulls, default is `true` |
 | iceberg.tables.auto-create-props.*         | Properties set on new tables during auto-create                                                                  |
 | iceberg.tables.write-props.*               | Properties passed through to Iceberg writer initialization, these take precedence                                |
 | iceberg.table.<_table-name_\>.commit-branch | Table-specific branch for commits, use `iceberg.tables.default-commit-branch` if not specified                   |
@@ -94,6 +99,21 @@ If `iceberg.tables.dynamic-enabled` is `false` (the default) then you must speci
 `iceberg.tables.dynamic-enabled` is `true` then you must specify `iceberg.tables.route-field` which will
 contain the name of the table.
 
+When `iceberg.tables.replace-null-with-default` is set to `false`, an explicit null value in a
+record is written to the table as null instead of being replaced by the record schema default
+value. This applies to value conversion and to route-field extraction: a record whose route field
+is explicitly null is skipped, like any other record with a null route value. A required Iceberg column cannot take an explicit null under this setting and the write
+fails, so set `iceberg.tables.schema-force-optional` to `true` (or alter the columns to optional)
+if the source can emit explicit nulls for such columns. The connector logs a warning whenever a
+record holds a null value for a required column; this also happens with the default setting when
+the field has no schema default to substitute. Note that the JSON converter applies its
+own `replace.null.with.default` setting during (de)serialization (default `true` since its
+introduction in Kafka 3.5.0), so it must also be set to `false` wherever that converter is used.
+
+The bundled SMTs always preserve explicit null values when copying record fields, regardless of
+this setting. The copied schema still carries the field default values, so consumers that
+substitute defaults on read see the same values as before.
+
 ### Kafka configuration
 
 By default the connector will attempt to use Kafka client config from the worker properties for connecting to
@@ -109,8 +129,8 @@ Messages should be converted to a struct or map using the appropriate Kafka Conn
 The `iceberg.catalog.*` properties are required for connecting to the Iceberg catalog. The core catalog
 types are included in the default distribution, including REST, Glue, DynamoDB, Hadoop, Nessie,
 JDBC, Hive and BigQuery Metastore. JDBC drivers are not included in the default distribution, so you will need to include
-those if needed. When using a Hive catalog, you can use the distribution that includes the Hive metastore client,
-otherwise you will need to include that yourself.
+those if needed. When using a Hive catalog, you will need to include the Hive Metastore client yourself or build
+the distribution that bundles it (see [Installation](#installation)).
 
 To set the catalog type, you can set `iceberg.catalog.type` to `rest`, `hive`, or `hadoop`. For other
 catalog types, you need to instead set `iceberg.catalog.catalog-impl` to the name of the catalog class.
@@ -126,7 +146,7 @@ catalog types, you need to instead set `iceberg.catalog.catalog-impl` to the nam
 
 #### Hive example
 
-NOTE: Use the distribution that includes the HMS client (or include the HMS client yourself). Use `S3FileIO` when
+NOTE: Include the HMS client yourself, or build the distribution that bundles it. Use `S3FileIO` when
 using S3 for storage and `GCSFileIO` when using GCS (the default is `HadoopFileIO` with `HiveCatalog`).
 ```
 "iceberg.catalog.type": "hive",

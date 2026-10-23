@@ -205,7 +205,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private void incrementSkipCount(TrackedFile file) {
     switch (file.contentType()) {
       case DATA -> scanMetrics.skippedDataFiles().increment();
-      case EQUALITY_DELETES -> scanMetrics.skippedDeleteFiles().increment();
       case DATA_MANIFEST -> scanMetrics.skippedDataManifests().increment();
       case DELETE_MANIFEST -> scanMetrics.skippedDeleteManifests().increment();
       default ->

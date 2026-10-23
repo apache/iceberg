@@ -65,6 +65,7 @@ abstract class SparkRuntimeFilterableScan extends SparkPartitioningAwareScan<Par
   private static final Logger LOG = LoggerFactory.getLogger(SparkRuntimeFilterableScan.class);
 
   private final List<Expression> runtimeFilters;
+  private final List<Predicate> pushedPredicates;
 
   protected SparkRuntimeFilterableScan(
       SparkSession spark,
@@ -87,6 +88,7 @@ abstract class SparkRuntimeFilterableScan extends SparkPartitioningAwareScan<Par
         partitionPredicates,
         scanReportSupplier);
     this.runtimeFilters = Lists.newArrayList();
+    this.pushedPredicates = Lists.newArrayList();
   }
 
   @Override
@@ -117,7 +119,54 @@ abstract class SparkRuntimeFilterableScan extends SparkPartitioningAwareScan<Par
   }
 
   @Override
-  public void filter(Predicate[] predicates) {
+  public boolean supportsIterativePushdown() {
+    return true;
+  }
+
+  @Override
+  public synchronized Predicate[] pushedPredicates() {
+    return pushedPredicates.toArray(new Predicate[0]);
+  }
+
+  @Override
+  public synchronized void filter(Predicate[] predicates) {
+    List<PartitionPredicate> partitionPredicates = Lists.newArrayList();
+    List<Predicate> runtimePredicates = Lists.newArrayList();
+
+    for (Predicate predicate : predicates) {
+      if (predicate instanceof PartitionPredicate partitionPredicate) {
+        partitionPredicates.add(partitionPredicate);
+      } else {
+        runtimePredicates.add(predicate);
+      }
+    }
+
+    if (!runtimePredicates.isEmpty()) {
+      applyRuntimeFilter(runtimePredicates.toArray(new Predicate[0]));
+    }
+
+    if (!partitionPredicates.isEmpty()) {
+      applyPartitionPredicates(partitionPredicates);
+      pushedPredicates.addAll(partitionPredicates);
+    }
+  }
+
+  private void applyPartitionPredicates(List<PartitionPredicate> additionalPredicates) {
+    partitionPredicates().addAll(additionalPredicates);
+
+    List<PartitionScanTask> filteredTasks = tasksMatchingPartitionPredicates();
+    if (filteredTasks.size() < tasks().size()) {
+      LOG.info(
+          "{} of {} task(s) for table {} matched {} opaque runtime partition predicate(s)",
+          filteredTasks.size(),
+          tasks().size(),
+          table().name(),
+          additionalPredicates.size());
+      resetTasks(filteredTasks);
+    }
+  }
+
+  private void applyRuntimeFilter(Predicate[] predicates) {
     Expression runtimeFilter = convertRuntimePredicates(predicates);
 
     if (runtimeFilter != Expressions.alwaysTrue()) {
@@ -194,6 +243,7 @@ abstract class SparkRuntimeFilterableScan extends SparkPartitioningAwareScan<Par
         try {
           Binder.bind(projection().asStruct(), expr, caseSensitive());
           filter = Expressions.and(filter, expr);
+          pushedPredicates.add(predicate);
         } catch (ValidationException e) {
           LOG.warn("Failed to bind {} to expected schema, skipping runtime filter", expr, e);
         }
