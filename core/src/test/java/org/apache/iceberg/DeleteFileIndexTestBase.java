@@ -807,7 +807,11 @@ public abstract class DeleteFileIndexTestBase<
     // stored [lower, upper] when either bound has the high bit of its most significant long set,
     // which made DeleteFileIndex.canContainEqDeletesForFile wrongly skip the delete so it never
     // reached FileScanTask.deletes().
-    PartitionSpec uuidSpec = PartitionSpec.unpartitioned();
+    Schema uuidSchema =
+        new Schema(
+            Types.NestedField.required(1, "u", Types.UUIDType.get()),
+            Types.NestedField.required(2, "n", Types.IntegerType.get()));
+    PartitionSpec uuidSpec = PartitionSpec.builderFor(uuidSchema).build();
 
     // Data file uuid range [00..01, ff..fe] straddles the signed/unsigned boundary: under signed
     // ordering the stored lower (small) and upper (negative long) look inverted. n range [0, 4].
