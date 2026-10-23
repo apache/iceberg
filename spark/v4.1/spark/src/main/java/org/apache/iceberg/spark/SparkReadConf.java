@@ -274,7 +274,6 @@ public class SparkReadConf {
     int maxFiles =
         confParser
             .intConf()
-            .option(SparkReadOptions.PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK)
             .sessionConf(SparkSQLProperties.PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK)
             .defaultValue(SparkSQLProperties.PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK_DEFAULT)
             .parse();

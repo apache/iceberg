@@ -105,8 +105,4 @@ public class SparkReadOptions {
   public static final String TIMESTAMP_AS_OF = "timestampAsOf";
 
   public static final String AGGREGATE_PUSH_DOWN_ENABLED = "aggregate-push-down-enabled";
-
-  // Overrides the max number of files per task when preserving data ordering
-  public static final String PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK =
-      "preserve-data-ordering-max-files-per-task";
 }

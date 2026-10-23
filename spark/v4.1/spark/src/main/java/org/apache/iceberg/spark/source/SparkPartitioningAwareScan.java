@@ -293,30 +293,29 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   }
 
   private List<ScanTaskGroup<T>> planGroupedTaskGroups() {
-    if (reportedOrdering == null) {
-      this.reportedOrdering = NO_ORDERING;
-      int prefixLength = sortOrderPrefixLength();
-      if (prefixLength > 0) {
-        List<ScanTaskGroup<T>> orderedTaskGroups = planTaskGroupsByPartitionKey(Long.MAX_VALUE);
-        if (SortOrderAnalyzer.withinFileLimit(orderedTaskGroups, maxFilesPerOrderedTask)) {
-          this.reportedOrdering =
-              Arrays.copyOf(Spark3Util.toOrdering(table().sortOrder()), prefixLength);
-          LOG.info(
-              "Reporting {} field(s) of sort order {} for table {}",
-              prefixLength,
-              table().sortOrder().orderId(),
-              table().name());
-          return orderedTaskGroups;
-        }
+    if (reportedOrdering != null) {
+      return reportedOrdering.length > 0
+          ? planOneTaskGroupPerPartition()
+          : planBinPackedTaskGroups();
+    }
+
+    int prefixLength = sortOrderPrefixLength();
+    if (prefixLength > 0) {
+      List<ScanTaskGroup<T>> orderedTaskGroups = planOneTaskGroupPerPartition();
+      if (SparkOrderingUtil.withinFileLimit(orderedTaskGroups, maxFilesPerOrderedTask)) {
+        this.reportedOrdering =
+            Arrays.copyOf(Spark3Util.toOrdering(table().sortOrder(), schema()), prefixLength);
+        LOG.info(
+            "Reporting {} field(s) of sort order {} for table {}",
+            prefixLength,
+            table().sortOrder().orderId(),
+            table().name());
+        return orderedTaskGroups;
       }
     }
 
-    // runtime filters re-plan with the ordering decision already made
-    long splitSize =
-        reportedOrdering.length > 0
-            ? Long.MAX_VALUE
-            : adjustSplitSize(tasks(), scan.targetSplitSize());
-    return planTaskGroupsByPartitionKey(splitSize);
+    this.reportedOrdering = NO_ORDERING;
+    return planBinPackedTaskGroups();
   }
 
   private int sortOrderPrefixLength() {
@@ -324,10 +323,20 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       return 0;
     }
 
-    int prefixLength = SortOrderAnalyzer.reportablePrefixLength(table(), projection());
+    int prefixLength =
+        SparkOrderingUtil.reportablePrefixLength(
+            table().sortOrder(), table().schema(), projection());
     boolean mergeable =
-        prefixLength > 0 && SortOrderAnalyzer.canMerge(tasks(), table().sortOrder().orderId());
+        prefixLength > 0 && SparkOrderingUtil.canMerge(tasks(), table().sortOrder().orderId());
     return mergeable ? prefixLength : 0;
+  }
+
+  private List<ScanTaskGroup<T>> planOneTaskGroupPerPartition() {
+    return planTaskGroupsByPartitionKey(Long.MAX_VALUE);
+  }
+
+  private List<ScanTaskGroup<T>> planBinPackedTaskGroups() {
+    return planTaskGroupsByPartitionKey(adjustSplitSize(tasks(), scan.targetSplitSize()));
   }
 
   private List<ScanTaskGroup<T>> planTaskGroupsByPartitionKey(long splitSize) {
@@ -355,6 +364,12 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
   protected String groupingKeyDesc() {
     return groupingKeyType().fields().stream()
         .map(NestedField::name)
+        .collect(Collectors.joining(", "));
+  }
+
+  protected String orderingDesc() {
+    return Arrays.stream(outputOrdering())
+        .map(SortOrder::describe)
         .collect(Collectors.joining(", "));
   }
 }

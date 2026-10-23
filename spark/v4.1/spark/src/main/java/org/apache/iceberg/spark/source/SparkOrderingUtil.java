@@ -27,35 +27,31 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortField;
 import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class SortOrderAnalyzer {
+class SparkOrderingUtil {
 
-  private static final Logger LOG = LoggerFactory.getLogger(SortOrderAnalyzer.class);
+  private static final Logger LOG = LoggerFactory.getLogger(SparkOrderingUtil.class);
 
-  private SortOrderAnalyzer() {}
+  private SparkOrderingUtil() {}
 
-  static int reportablePrefixLength(Table table, Schema projection) {
-    SortOrder sortOrder = table.sortOrder();
+  static int reportablePrefixLength(SortOrder sortOrder, Schema tableSchema, Schema projection) {
     if (sortOrder.isUnsorted()) {
-      LOG.debug("Cannot report ordering for table {}: table is unsorted", table.name());
+      LOG.debug("Cannot report ordering: table is unsorted");
       return 0;
     }
 
-    if (!hasMergeableSortKeys(sortOrder, table.schema(), table.name())) {
+    if (!hasMergeableSortKeys(sortOrder, tableSchema)) {
       return 0;
     }
 
     int prefixLength = countReportableFields(sortOrder, projection);
     if (prefixLength == 0) {
-      LOG.debug(
-          "Cannot report ordering for table {}: first sort key is not projected or not identity",
-          table.name());
+      LOG.debug("Cannot report ordering: first sort key is not projected or not identity");
     }
 
     return prefixLength;
@@ -90,32 +86,45 @@ class SortOrderAnalyzer {
     return true;
   }
 
-  private static boolean hasMergeableSortKeys(
-      SortOrder sortOrder, Schema schema, String tableName) {
+  static boolean needsMerging(ScanTaskGroup<?> taskGroup) {
+    return taskGroup.tasks().size() > 1;
+  }
+
+  static boolean isUuid(SortField sortField, Types.NestedField field) {
+    return resultTypeId(sortField, field) == Type.TypeID.UUID;
+  }
+
+  static boolean isFloatingPoint(SortField sortField, Types.NestedField field) {
+    Type.TypeID typeId = resultTypeId(sortField, field);
+    return typeId == Type.TypeID.FLOAT || typeId == Type.TypeID.DOUBLE;
+  }
+
+  private static Type.TypeID resultTypeId(SortField sortField, Types.NestedField field) {
+    return sortField.transform().getResultType(field.type()).typeId();
+  }
+
+  private static boolean hasMergeableSortKeys(SortOrder sortOrder, Schema schema) {
     List<SortField> sortFields = sortOrder.fields();
     for (int i = 0; i < sortFields.size(); i++) {
       SortField sortField = sortFields.get(i);
       if (!TypeUtil.ancestorFields(schema, sortField.sourceId()).isEmpty()) {
-        LOG.debug("Cannot report ordering for table {}: nested sort key", tableName);
+        LOG.debug("Cannot report ordering: nested sort key");
         return false;
       }
 
       Types.NestedField field = schema.findField(sortField.sourceId());
       if (field == null) {
-        LOG.debug("Cannot report ordering for table {}: sort key not in schema", tableName);
+        LOG.debug("Cannot report ordering: sort key not in schema");
         return false;
       }
 
-      Type.TypeID resultType = sortField.transform().getResultType(field.type()).typeId();
-      if (resultType == Type.TypeID.UUID) {
-        LOG.debug("Cannot report ordering for table {}: UUID sort key", tableName);
+      if (isUuid(sortField, field)) {
+        LOG.debug("Cannot report ordering: UUID sort key");
         return false;
       }
 
-      boolean floatingPoint = resultType == Type.TypeID.FLOAT || resultType == Type.TypeID.DOUBLE;
-      if (floatingPoint && i < sortFields.size() - 1) {
-        LOG.debug(
-            "Cannot report ordering for table {}: floating point sort key is not last", tableName);
+      if (isFloatingPoint(sortField, field) && i < sortFields.size() - 1) {
+        LOG.debug("Cannot report ordering: floating point sort key is not last");
         return false;
       }
     }

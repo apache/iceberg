@@ -33,13 +33,12 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
-class TestSortOrderAnalyzer {
+class TestSparkOrderingUtil {
 
   private static final Schema SCHEMA =
       new Schema(
@@ -53,7 +52,7 @@ class TestSortOrderAnalyzer {
               Types.StructType.of(Types.NestedField.required(6, "key", Types.IntegerType.get()))));
 
   private static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA).asc("id").build();
-  private static final int SORT_ORDER_ID = 1;
+  private static final int SORT_ORDER_ID = SORT_ORDER.orderId();
   private static final int MAX_FILES = 3;
 
   @Test
@@ -168,27 +167,23 @@ class TestSortOrderAnalyzer {
   @Test
   void groupAtFileLimitIsWithinLimit() {
     ScanTaskGroup<?> group = taskGroup(MAX_FILES);
-    assertThat(SortOrderAnalyzer.withinFileLimit(ImmutableList.of(group), MAX_FILES)).isTrue();
+    assertThat(SparkOrderingUtil.withinFileLimit(ImmutableList.of(group), MAX_FILES)).isTrue();
   }
 
   @Test
   void groupAboveFileLimitIsNotWithinLimit() {
     ScanTaskGroup<?> group1 = taskGroup(1);
     ScanTaskGroup<?> group2 = taskGroup(MAX_FILES + 1);
-    assertThat(SortOrderAnalyzer.withinFileLimit(ImmutableList.of(group1, group2), MAX_FILES))
+    assertThat(SparkOrderingUtil.withinFileLimit(ImmutableList.of(group1, group2), MAX_FILES))
         .isFalse();
   }
 
   private static int prefixLength(SortOrder sortOrder, Schema projection) {
-    Table table = mock(Table.class);
-    when(table.sortOrder()).thenReturn(sortOrder);
-    when(table.schema()).thenReturn(SCHEMA);
-    when(table.name()).thenReturn("test_table");
-    return SortOrderAnalyzer.reportablePrefixLength(table, projection);
+    return SparkOrderingUtil.reportablePrefixLength(sortOrder, SCHEMA, projection);
   }
 
   private static boolean canMerge(ScanTask... tasks) {
-    return SortOrderAnalyzer.canMerge(ImmutableList.copyOf(tasks), SORT_ORDER_ID);
+    return SparkOrderingUtil.canMerge(ImmutableList.copyOf(tasks), SORT_ORDER_ID);
   }
 
   private static ScanTaskGroup<?> taskGroup(int numFiles) {

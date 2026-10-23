@@ -30,11 +30,13 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplaceSortOrder;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -114,6 +116,40 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  void timeTravelAfterSortColumnRenameUsesSnapshotColumnNames() {
+    createPartitionedTable(tableName);
+    long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("ALTER TABLE %s RENAME COLUMN id TO ident", tableName);
+
+    assertSortRemovedAndResultUnchanged(
+        "SELECT p, id, row_number() OVER (PARTITION BY p ORDER BY id) AS rn "
+            + "FROM %s VERSION AS OF %d",
+        tableName, snapshotId);
+  }
+
+  @TestTemplate
+  void scanDescriptionShowsReportedOrdering() {
+    createPartitionedTable(tableName);
+
+    withSQLConf(
+        ORDERING_ENABLED,
+        () ->
+            assertThat(buildScan(tableIdent, ImmutableMap.of(), null).description())
+                .contains("orderedBy=p ASC NULLS FIRST, id ASC NULLS FIRST"));
+  }
+
+  @TestTemplate
+  void scanDescriptionShowsNoOrderingWhenNotReported() {
+    createPartitionedTable(tableName);
+
+    withSQLConf(
+        ORDERING_DISABLED,
+        () ->
+            assertThat(buildScan(tableIdent, ImmutableMap.of(), null).description())
+                .endsWith("orderedBy=)"));
+  }
+
+  @TestTemplate
   void sortMergeJoinUsesReportedOrdering() {
     createPartitionedTable(tableName);
     createPartitionedTable(tableName(OTHER_TABLE));
@@ -172,7 +208,8 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
             .first();
     table.newRowDelta().addDeletes(posDeletes).commit();
 
-    withSQLConf(ORDERING_ENABLED, () -> assertThat(reportedOrdering(tableIdent)).hasSize(2));
+    withSQLConf(
+        ORDERING_ENABLED, () -> assertThat(reportedOrdering(tableIdent)).hasSize(numSortFields()));
     assertSortRemovedAndResultUnchanged(
         "SELECT p, id, row_number() OVER (PARTITION BY p ORDER BY id) AS rn FROM %s", tableName);
   }
@@ -191,7 +228,7 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
         () -> {
           SparkPartitioningAwareScan<?> scan = buildScan(tableIdent, options, null);
           assertThat(scan.outputOrdering()).isEmpty();
-          assertThat(scan.taskGroups()).hasSize(4);
+          assertThat(scan.taskGroups()).hasSize(numDataFiles());
         });
   }
 
@@ -354,38 +391,28 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
   void tooManyFilesPerTaskRestoresSplitPlanning() {
     createPartitionedTable(tableName);
     sql("INSERT INTO %s VALUES (7, 'g', 'A')", tableName);
-    Map<String, String> options =
-        ImmutableMap.of(
-            SparkReadOptions.SPLIT_SIZE,
-            "1",
-            SparkReadOptions.PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK,
-            "2");
+    Map<String, String> options = ImmutableMap.of(SparkReadOptions.SPLIT_SIZE, "1");
 
     withSQLConf(
-        ORDERING_ENABLED,
+        orderingEnabledWith(SparkSQLProperties.PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK, "2"),
         () -> {
           SparkPartitioningAwareScan<?> scan = buildScan(tableIdent, options, null);
           assertThat(scan.outputOrdering()).isEmpty();
-          // partition A has 3 files and partition B has 2, each planned separately at split size 1
-          assertThat(scan.taskGroups()).hasSize(5);
+          // at split size 1 every file is its own task group
+          assertThat(scan.taskGroups()).hasSize(numDataFiles());
         });
   }
 
   @TestTemplate
   void filesPerTaskAtLimitReportOrdering() {
     createPartitionedTable(tableName);
-    Map<String, String> options =
-        ImmutableMap.of(
-            SparkReadOptions.SPLIT_SIZE,
-            "1",
-            SparkReadOptions.PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK,
-            "2");
+    Map<String, String> options = ImmutableMap.of(SparkReadOptions.SPLIT_SIZE, "1");
 
     withSQLConf(
-        ORDERING_ENABLED,
+        orderingEnabledWith(SparkSQLProperties.PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK, "2"),
         () -> {
           SparkPartitioningAwareScan<?> scan = buildScan(tableIdent, options, null);
-          assertThat(scan.outputOrdering()).hasSize(2);
+          assertThat(scan.outputOrdering()).hasSize(numSortFields());
           assertThat(scan.taskGroups()).hasSize(2);
         });
   }
@@ -422,7 +449,7 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
           SparkBatchQueryScan scan =
               (SparkBatchQueryScan) buildScan(tableIdent, ImmutableMap.of(), null);
           SortOrder[] ordering = scan.outputOrdering();
-          assertThat(ordering).hasSize(2);
+          assertThat(ordering).hasSize(numSortFields());
 
           scan.filter(new Predicate[] {partitionEquals("A")});
 
@@ -436,13 +463,11 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
   void runtimeFilterKeepsRejectedOrdering() {
     createPartitionedTable(tableName);
     sql("INSERT INTO %s VALUES (7, 'g', 'A')", tableName);
-    Map<String, String> options =
-        ImmutableMap.of(SparkReadOptions.PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK, "2");
-
     withSQLConf(
-        ORDERING_ENABLED,
+        orderingEnabledWith(SparkSQLProperties.PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK, "2"),
         () -> {
-          SparkBatchQueryScan scan = (SparkBatchQueryScan) buildScan(tableIdent, options, null);
+          SparkBatchQueryScan scan =
+              (SparkBatchQueryScan) buildScan(tableIdent, ImmutableMap.of(), null);
           assertThat(scan.outputOrdering()).isEmpty();
 
           // partition B alone is within the limit, but the decision must not change
@@ -465,7 +490,7 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
         ORDERING_ENABLED,
         () -> {
           SparkPartitioningAwareScan<?> scan = buildScan(tableIdent, ImmutableMap.of(), null);
-          assertThat(scan.outputOrdering()).hasSize(2);
+          assertThat(scan.outputOrdering()).hasSize(numSortFields());
           assertThat(scan.toBatch().createReaderFactory())
               .isInstanceOf(SparkColumnarReaderFactory.class);
         });
@@ -479,7 +504,7 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
         ORDERING_ENABLED,
         () -> {
           SparkPartitioningAwareScan<?> scan = buildScan(tableIdent, ImmutableMap.of(), null);
-          assertThat(scan.outputOrdering()).hasSize(2);
+          assertThat(scan.outputOrdering()).hasSize(numSortFields());
           assertThat(scan.toBatch().createReaderFactory())
               .isInstanceOf(SparkRowReaderFactory.class);
         });
@@ -487,26 +512,73 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
 
   @TestTemplate
   void copyOnWriteMergeIsCorrect() {
+    assertMergeIsCorrect("copy-on-write");
+  }
+
+  @TestTemplate
+  void mergeOnReadMergeIsCorrect() {
+    assertMergeIsCorrect("merge-on-read");
+  }
+
+  @TestTemplate
+  void mergeOnReadDeleteIsCorrect() {
     createBucketedTable(tableName, 4);
-    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName(OTHER_TABLE));
-    sql("INSERT INTO %s VALUES (1, 'new1'), (4, 'new4'), (100, 'new100')", tableName(OTHER_TABLE));
-    List<Object[]> expected =
-        sql(
-            "SELECT coalesce(s.id, t.id), coalesce(s.data, t.data) "
-                + "FROM %s t FULL OUTER JOIN %s s ON t.id = s.id",
-            tableName, tableName(OTHER_TABLE));
+    setRowLevelMode("merge-on-read");
+    List<Object[]> expected = sql("SELECT id, data FROM %s WHERE id %% 7 != 0", tableName);
 
     withSQLConf(
         ORDERING_ENABLED,
-        () ->
-            sql(
-                "MERGE INTO %s t USING %s s ON t.id = s.id "
-                    + "WHEN MATCHED THEN UPDATE SET t.data = s.data "
-                    + "WHEN NOT MATCHED THEN INSERT *",
-                tableName, tableName(OTHER_TABLE)));
+        () -> {
+          assertThat(reportedOrdering(tableIdent)).isNotEmpty();
+          sql("DELETE FROM %s WHERE id %% 7 = 0", tableName);
+        });
 
     assertThat(sql("SELECT id, data FROM %s", tableName))
         .containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  @TestTemplate
+  void descendingSortOrderUsesReportedOrdering() {
+    sql(
+        "CREATE TABLE %s (id INT, data STRING, p STRING) USING iceberg PARTITIONED BY (p)",
+        tableName);
+    validationCatalog.loadTable(tableIdent).replaceSortOrder().asc("p").desc("id").commit();
+    sql("INSERT INTO %s VALUES (5, 'e', 'A'), (3, 'c', 'A'), (1, 'a', 'A')", tableName);
+    sql("INSERT INTO %s VALUES (6, 'f', 'A'), (4, 'd', 'A'), (2, 'b', 'A')", tableName);
+
+    assertSortRemovedAndResultUnchanged(
+        "SELECT p, id, row_number() OVER (PARTITION BY p ORDER BY id DESC) AS rn FROM %s",
+        tableName);
+  }
+
+  @TestTemplate
+  void nullsFirstSortOrderUsesReportedOrdering() {
+    createTableWithNullIds(NullOrder.NULLS_FIRST);
+
+    assertSortRemovedAndResultUnchanged(
+        "SELECT p, id, row_number() OVER (PARTITION BY p ORDER BY id ASC NULLS FIRST) AS rn "
+            + "FROM %s",
+        tableName);
+  }
+
+  @TestTemplate
+  void nullsLastSortOrderUsesReportedOrdering() {
+    createTableWithNullIds(NullOrder.NULLS_LAST);
+
+    assertSortRemovedAndResultUnchanged(
+        "SELECT p, id, row_number() OVER (PARTITION BY p ORDER BY id ASC NULLS LAST) AS rn "
+            + "FROM %s",
+        tableName);
+  }
+
+  @TestTemplate
+  void mismatchedNullOrderKeepsSort() {
+    createTableWithNullIds(NullOrder.NULLS_LAST);
+
+    assertSortKeptAndResultUnchanged(
+        "SELECT p, id, row_number() OVER (PARTITION BY p ORDER BY id ASC NULLS FIRST) AS rn "
+            + "FROM %s",
+        tableName);
   }
 
   // rows of partition A are split across two files with interleaved and duplicate IDs
@@ -572,6 +644,76 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
         });
   }
 
+  private void assertMergeIsCorrect(String mode) {
+    createBucketedTable(tableName, 4);
+    setRowLevelMode(mode);
+    sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName(OTHER_TABLE));
+    sql("INSERT INTO %s VALUES (1, 'new1'), (4, 'new4'), (100, 'new100')", tableName(OTHER_TABLE));
+    List<Object[]> expected =
+        sql(
+            "SELECT coalesce(s.id, t.id), coalesce(s.data, t.data) "
+                + "FROM %s t FULL OUTER JOIN %s s ON t.id = s.id",
+            tableName, tableName(OTHER_TABLE));
+
+    withSQLConf(
+        ORDERING_ENABLED,
+        () -> {
+          assertThat(reportedOrdering(tableIdent)).isNotEmpty();
+          sql(
+              "MERGE INTO %s t USING %s s ON t.id = s.id "
+                  + "WHEN MATCHED THEN UPDATE SET t.data = s.data "
+                  + "WHEN NOT MATCHED THEN INSERT *",
+              tableName, tableName(OTHER_TABLE));
+        });
+
+    assertThat(sql("SELECT id, data FROM %s", tableName))
+        .containsExactlyInAnyOrderElementsOf(expected);
+  }
+
+  private void setRowLevelMode(String mode) {
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = '%s', '%s' = '%s', '%s' = '%s')",
+        tableName,
+        TableProperties.DELETE_MODE,
+        mode,
+        TableProperties.UPDATE_MODE,
+        mode,
+        TableProperties.MERGE_MODE,
+        mode);
+  }
+
+  // each file is sorted with nulls where the sort order puts them
+  private void createTableWithNullIds(NullOrder nullOrder) {
+    sql(
+        "CREATE TABLE %s (id INT, data STRING, p STRING) USING iceberg PARTITIONED BY (p)",
+        tableName);
+    validationCatalog
+        .loadTable(tableIdent)
+        .replaceSortOrder()
+        .asc("p")
+        .asc("id", nullOrder)
+        .commit();
+    String nullsFirst = nullOrder == NullOrder.NULLS_FIRST ? "(null, 'x', 'A'), " : "";
+    String nullsLast = nullOrder == NullOrder.NULLS_LAST ? ", (null, 'x', 'A')" : "";
+    sql("INSERT INTO %s VALUES %s(1, 'a', 'A'), (3, 'c', 'A')%s", tableName, nullsFirst, nullsLast);
+    nullsFirst = nullOrder == NullOrder.NULLS_FIRST ? "(null, 'y', 'A'), " : "";
+    nullsLast = nullOrder == NullOrder.NULLS_LAST ? ", (null, 'y', 'A')" : "";
+    sql("INSERT INTO %s VALUES %s(2, 'b', 'A'), (4, 'd', 'A')%s", tableName, nullsFirst, nullsLast);
+  }
+
+  private int numSortFields() {
+    return validationCatalog.loadTable(tableIdent).sortOrder().fields().size();
+  }
+
+  private int numDataFiles() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      return Lists.newArrayList(tasks).size();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
   private List<Object[]> sqlWithConf(Map<String, String> conf, String query) {
     AtomicReference<List<Object[]>> rows = new AtomicReference<>();
     withSQLConf(conf, () -> rows.set(sql(query)));
@@ -620,6 +762,18 @@ class TestSupportsReportOrdering extends TestBaseWithCatalog {
         });
 
     assertThat(actual.get()).containsExactlyInAnyOrderElementsOf(expected.get());
+  }
+
+  private void assertSortKeptAndResultUnchanged(String query, Object... args) {
+    String formattedQuery = String.format(query, args);
+
+    withSQLConf(
+        ORDERING_ENABLED,
+        () -> {
+          assertThat(reportedOrdering(tableIdent)).isNotEmpty();
+          assertThat(collectPlans(executeAndKeepPlan(formattedQuery), SortExec.class)).isNotEmpty();
+        });
+    assertResultUnchanged(ORDERING_ENABLED, query, args);
   }
 
   private void assertResultUnchanged(Map<String, String> conf, String query, Object... args) {

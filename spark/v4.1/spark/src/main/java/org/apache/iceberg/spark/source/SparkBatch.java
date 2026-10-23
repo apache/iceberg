@@ -91,7 +91,7 @@ class SparkBatch implements Batch {
     this.cacheDeleteFilesOnExecutors = readConf.cacheDeleteFilesOnExecutors();
     this.orderingEnabled = orderingEnabled;
     this.anyTaskNeedsMerging =
-        orderingEnabled && taskGroups.stream().anyMatch(group -> group.tasks().size() > 1);
+        orderingEnabled && taskGroups.stream().anyMatch(SparkOrderingUtil::needsMerging);
   }
 
   @Override

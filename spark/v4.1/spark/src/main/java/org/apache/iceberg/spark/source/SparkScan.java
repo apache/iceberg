@@ -367,6 +367,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     };
   }
 
+  /** Returns true if the scan reports an ordering and reads each task group in that order. */
   protected boolean isOrderingEnabled() {
     return false;
   }

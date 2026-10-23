@@ -59,7 +59,7 @@ import org.apache.spark.sql.util.QueryExecutionListener;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import scala.PartialFunction;
-import scala.collection.JavaConverters;
+import scala.jdk.javaapi.CollectionConverters;
 
 public abstract class TestBase extends SparkTestHelperBase {
 
@@ -311,7 +311,7 @@ public abstract class TestBase extends SparkTestHelperBase {
                 return planClass.isInstance(p);
               }
             });
-    return JavaConverters.seqAsJavaListConverter(seq).asJava();
+    return CollectionConverters.asJava(seq);
   }
 
   @FunctionalInterface
