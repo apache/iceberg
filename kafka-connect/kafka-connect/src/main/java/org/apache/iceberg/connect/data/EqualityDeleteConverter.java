@@ -131,7 +131,7 @@ public class EqualityDeleteConverter {
             .operationId(UUID.randomUUID().toString())
             .format(FileFormat.PUFFIN)
             .build();
-    // deletion vectors already attached to a matched data file, folded into the new vector
+    // position deletes a matched data file already has, merged into its new deletion vector
     Map<String, PositionDeleteIndex> previousDeletes = Maps.newHashMap();
     BaseDVFileWriter dvWriter = new BaseDVFileWriter(fileFactory, previousDeletes::get);
 

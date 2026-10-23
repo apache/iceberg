@@ -69,8 +69,11 @@ interface KeyPositionResolver {
     StructLike partition();
 
     /**
-     * Deletion vector already attached to the data file, or null. The converter folds it into the
-     * new vector because a data file can only have one.
+     * Position deletes the data file already has in the base snapshot: its deletion vector, or
+     * position delete files left from format version 2. Returns null only if the file has none. The
+     * converter merges them into the new deletion vector, which replaces them for readers, so
+     * returning null for a file that has some leaves it with two vectors or brings back rows the
+     * older deletes removed.
      */
     PositionDeleteIndex existingDeletes();
 
