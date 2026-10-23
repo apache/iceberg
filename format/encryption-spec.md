@@ -20,16 +20,11 @@ title: "Encryption Spec"
 
 # Iceberg Encryption Spec
 
-This document specifies the standard encryption scheme for Apache Iceberg tables (v3 and above). It defines the interoperable, cross-implementation binary format for per-file encryption key material referenced by the `key_metadata` fields in the [table spec](spec.md), along with the key hierarchy used to manage those keys.
-
-Encrypted key material is tracked in two places:
-
-* The `key_metadata` fields in [manifest entries](spec.md#manifests), [manifest list entries](spec.md#manifest-lists), and [statistics files](spec.md#table-metadata-fields) store the per-file key material.
-* The table metadata [`encryption-keys`](spec.md#encryption-keys) list tracks the key hierarchy used to protect that per-file material.
+This document specifies the standard encryption scheme for Apache Iceberg tables (v3 and above).
 
 ## Standard Key Metadata
 
-The `key_metadata` field in manifest entries stores per-file encryption key material as a binary blob. To enable cross-implementation interoperability, the standard encryption scheme defines the following binary format for this field:
+Standard key metadata stores the key material needed to decrypt a single encrypted file. It is serialized as:
 
 ```
 VersionByte Payload
@@ -38,40 +33,17 @@ VersionByte Payload
 where:
 
 * `VersionByte` is a single byte indicating the key metadata schema version. Currently, the only valid version is `0x01`.
-* `Payload` is an Avro binary-encoded record (not a container file — only the raw binary encoding of the fields) using the schema for the given version.
+* `Payload` is an Avro binary-encoded record (not a container file — only the raw binary encoding of the fields) using the schema for the given version. Optional fields are encoded as a union of `null` and the field type, with `null` as the first branch.
 
 The Avro schema for version 1 is a record with the following fields, in order:
 
 | Field name | Avro type | Required | Description |
 |---|---|---|---|
 | **`encryption_key`** | `bytes` | _required_ | The data encryption key (DEK) for this file. Must be 16, 24, or 32 bytes (corresponding to AES-128, AES-192, or AES-256). |
-| **`aad_prefix`** | `bytes` | _optional_ | Random AAD prefix used for encryption integrity protection. For [AES GCM Stream](gcm-stream-spec.md) files, the prefix is combined with a block index to form the per-block AAD. For [Parquet modular encryption](https://parquet.apache.org/docs/file-format/data-pages/encryption/), the prefix is passed as the AAD prefix parameter, which is combined with a module AAD suffix to form the full AAD for each Parquet module. |
-| **`file_length`** | `long` | _optional_ | The encrypted file length in bytes. Required for [AES GCM Stream](gcm-stream-spec.md) encrypted files to detect truncation attacks (see [AES GCM Stream file length](gcm-stream-spec.md#file-length)). Not set for Parquet encrypted files. |
+| **`aad_prefix`** | `bytes` | _optional_ | Random AAD prefix used for encryption integrity protection. |
+| **`file_length`** | `long` | _optional_ | The encrypted file length in bytes, used to detect truncation attacks. |
 
-The usage of the `encryption_key` and `aad_prefix` fields depends on the file format:
+The usage of these fields depends on how the file is encrypted:
 
-* **AES GCM Stream files**:
-  - Manifest lists
-  - Manifests
-  - Avro data files
-  - Puffin files
-
-  The `encryption_key` is used directly as the AES-GCM key. The `aad_prefix` is combined with a 4-byte little-endian block index to form the AAD for each cipher block, as described in the [AES GCM Stream AAD section](gcm-stream-spec.md#additional-authenticated-data). The `file_length` field stores the encrypted file length for truncation detection.
-
-* **Parquet encrypted files**: The `encryption_key` and `aad_prefix` are provided to Parquet readers and writers, which delegate encryption to the [Parquet modular encryption](https://parquet.apache.org/docs/file-format/data-pages/encryption/) format.
-
-### Encryption Key Hierarchy
-
-The standard encryption scheme uses a two-tier key hierarchy tracked in the table metadata [`encryption-keys`](spec.md#encryption-keys) list:
-
-1. **Key Encryption Keys (KEKs):** Entries where `encrypted-by-id` equals the table's encryption key ID (configured via `encryption.key-id`). The `encrypted-key-metadata` contains the KEK wrapped by the KMS and is opaque to Iceberg — its format is determined by the KMS provider. KEK entries must include a `KEY_TIMESTAMP` property recording the creation time in milliseconds since epoch; this timestamp is used as the AAD when encrypting manifest list key metadata.
-
-2. **Manifest List Keys:** Entries where `encrypted-by-id` references a KEK. The `encrypted-key-metadata` contains the Standard Key Metadata (defined above) encrypted with AES GCM using the referenced unwrapped KEK. The ciphertext format is:
-
-    ```
-    Nonce Ciphertext Tag
-    ```
-
-where `Nonce` is 12 bytes, `Ciphertext` is the encrypted Standard Key Metadata payload, and `Tag` is the 16-byte GCM authentication tag. The AAD for this encryption is the KEK's `KEY_TIMESTAMP` property value encoded as UTF-8 bytes.
-
-The snapshot field `key-id` references the encryption key entry used to encrypt that snapshot's manifest list key metadata.
+* **[AES GCM Stream](gcm-stream-spec.md)** (used for Avro and Puffin files): The `encryption_key` is used directly as the AES-GCM key. The `aad_prefix` is combined with a 4-byte little-endian block index to form the AAD for each cipher block, as described in the [AES GCM Stream AAD section](gcm-stream-spec.md#additional-authenticated-data). The `file_length` is required and is checked as described in [AES GCM Stream file length](gcm-stream-spec.md#file-length).
+* **[Parquet modular encryption](https://parquet.apache.org/docs/file-format/data-pages/encryption/)**: The `encryption_key` and `aad_prefix` are passed to Parquet readers and writers. The `aad_prefix` is passed as the AAD prefix parameter, which is combined with a module AAD suffix to form the full AAD for each Parquet module. The `file_length` is not set.
