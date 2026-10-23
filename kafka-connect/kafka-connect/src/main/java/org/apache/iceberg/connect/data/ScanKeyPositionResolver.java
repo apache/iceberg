@@ -49,7 +49,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.apache.iceberg.util.StructProjection;
@@ -71,8 +70,9 @@ import org.apache.iceberg.util.ThreadPools;
  * planning rules: an unpartitioned delete applies to every data file, a partitioned delete only to
  * data files with the same spec ID and partition values.
  *
- * <p>Data files that carry position delete files instead of deletion vectors are rejected, because
- * a deletion vector replaces all position deletes of its data file.
+ * <p>A deletion vector replaces every position delete of its data file, so the position deletes a
+ * matched data file already has, its deletion vector or position delete files left from format
+ * version 2, are returned with the matches to be merged into the new deletion vector.
  */
 class ScanKeyPositionResolver implements KeyPositionResolver {
 
@@ -138,24 +138,36 @@ class ScanKeyPositionResolver implements KeyPositionResolver {
       Map<String, FileMatches> matches)
       throws IOException {
     DataFile file = task.file();
-
-    List<DeleteFile> dvs = Lists.newArrayList();
-    for (DeleteFile delete : task.deletes()) {
-      if (ContentFileUtil.isDV(delete)) {
-        dvs.add(delete);
-      } else if (delete.content() == FileContent.POSITION_DELETES) {
-        throw new IllegalStateException(
-            String.format(
-                "Data file %s has position delete file %s, rewrite position deletes into deletion "
-                    + "vectors before enabling equality delete conversion",
-                file.location(), delete.location()));
-      }
-      // an attached equality delete stays in the table and is still applied by readers
+    Positions positions = readMatchingPositions(file, keySchema, keys, keyFilter);
+    if (positions.isEmpty()) {
+      return;
     }
 
-    PositionDeleteIndex existing =
-        dvs.isEmpty() ? null : deleteLoader.loadPositionDeletes(dvs, file.location());
+    // attached equality deletes stay in the table and are still applied by readers
+    List<DeleteFile> positionDeletes = Lists.newArrayList();
+    for (DeleteFile delete : task.deletes()) {
+      if (delete.content() == FileContent.POSITION_DELETES) {
+        positionDeletes.add(delete);
+      }
+    }
 
+    PositionDeleteIndex existing = null;
+    if (!positionDeletes.isEmpty()) {
+      existing = deleteLoader.loadPositionDeletes(positionDeletes, file.location());
+      positions.removeDeleted(existing);
+      if (positions.isEmpty()) {
+        return;
+      }
+    }
+
+    matches.put(
+        file.location(),
+        new ScanFileMatches(file.location(), task.spec(), file.partition(), existing, positions));
+  }
+
+  private Positions readMatchingPositions(
+      DataFile file, Schema keySchema, StructLikeSet keys, Expression keyFilter)
+      throws IOException {
     Schema readSchema =
         new Schema(
             ImmutableList.<Types.NestedField>builder()
@@ -174,22 +186,13 @@ class ScanKeyPositionResolver implements KeyPositionResolver {
     try (CloseableIterable<Record> records =
         reader.project(readSchema).filter(keyFilter).reuseContainers().build()) {
       for (Record record : records) {
-        long pos = (long) posAccessor.get(record);
-        if (existing != null && existing.isDeleted(pos)) {
-          continue;
-        }
-
         if (keys.contains(keyWrapper.wrap(keyProjection.wrap(record)))) {
-          positions.add(pos);
+          positions.add((long) posAccessor.get(record));
         }
       }
     }
 
-    if (!positions.isEmpty()) {
-      matches.put(
-          file.location(),
-          new ScanFileMatches(file.location(), task.spec(), file.partition(), existing, positions));
-    }
+    return positions;
   }
 
   /**
@@ -308,6 +311,18 @@ class ScanKeyPositionResolver implements KeyPositionResolver {
 
     boolean isEmpty() {
       return size == 0;
+    }
+
+    void removeDeleted(PositionDeleteIndex deletes) {
+      int kept = 0;
+      for (int i = 0; i < size; i++) {
+        if (!deletes.isDeleted(values[i])) {
+          values[kept] = values[i];
+          kept++;
+        }
+      }
+
+      this.size = kept;
     }
 
     void forEach(LongConsumer consumer) {

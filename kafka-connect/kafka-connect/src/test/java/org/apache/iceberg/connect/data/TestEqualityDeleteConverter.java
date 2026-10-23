@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,7 +49,9 @@ import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.deletes.EqualityDeleteWriter;
+import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
+import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.io.CloseableIterable;
@@ -66,6 +69,7 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.Pair;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -566,6 +570,59 @@ public class TestEqualityDeleteConverter {
   }
 
   @Test
+  public void testMergesPositionDeletesFromFormatVersion2() throws IOException {
+    Table table =
+        catalog.createTable(
+            TABLE_IDENTIFIER,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of("format-version", "2"));
+    DataFile first =
+        write(
+                table,
+                insert(1L, "a", "v1"),
+                insert(2L, "a", "v1"),
+                insert(3L, "a", "v1"),
+                insert(4L, "a", "v1"))
+            .dataFiles()[0];
+    DataFile second = write(table, insert(5L, "a", "v1"), insert(6L, "a", "v1")).dataFiles()[0];
+
+    // a file-scoped delete of id 1 and a partition-scoped delete of ids 2 and 5
+    DeleteFile fileScoped =
+        writePositionDeletes(table, ImmutableList.of(Pair.of(first.location(), 0L)));
+    DeleteFile partitionScoped =
+        writePositionDeletes(
+            table, ImmutableList.of(Pair.of(first.location(), 1L), Pair.of(second.location(), 0L)));
+    assertThat(ContentFileUtil.isFileScoped(fileScoped)).isTrue();
+    assertThat(ContentFileUtil.isFileScoped(partitionScoped)).isFalse();
+    table
+        .newRowDelta()
+        .addRows(first)
+        .addRows(second)
+        .addDeletes(fileScoped)
+        .addDeletes(partitionScoped)
+        .commit();
+    table.updateProperties().set("format-version", "3").commit();
+
+    WriteResult deletes = write(table, delete(3L, "a"));
+    EqualityDeleteConverter.Result result =
+        new EqualityDeleteConverter(table, null).convert(Arrays.asList(deletes.deleteFiles()));
+
+    // the new vector carries both older deletes of the first file, but only the file-scoped one
+    // can be removed from the table
+    assertThat(result.dvFiles()).hasSize(1);
+    assertThat(result.dvFiles().get(0).referencedDataFile()).isEqualTo(first.location());
+    assertThat(result.dvFiles().get(0).recordCount()).isEqualTo(3L);
+    assertThat(result.rewrittenDvFiles())
+        .extracting(DeleteFile::location)
+        .containsExactly(fileScoped.location());
+
+    commit(table, deletes.dataFiles(), result.dvFiles(), result.rewrittenDvFiles());
+    // the partition-scoped delete still applies to the second data file
+    assertThat(readRows(table)).containsExactlyInAnyOrder("4|a|v1", "6|a|v1");
+  }
+
+  @Test
   public void testRejectsFormatVersion2() {
     Table table =
         catalog.createTable(
@@ -686,6 +743,33 @@ public class TestEqualityDeleteConverter {
     }
 
     return result.build();
+  }
+
+  private static DeleteFile writePositionDeletes(
+      Table table, List<Pair<String, Long>> pathsAndPositions) {
+    List<Pair<String, Long>> sorted = Lists.newArrayList(pathsAndPositions);
+    sorted.sort(
+        Comparator.comparing((Pair<String, Long> delete) -> delete.first())
+            .thenComparing(Pair::second));
+
+    FileWriterFactory<Record> writerFactory =
+        new GenericFileWriterFactory.Builder(table).deleteFileFormat(FileFormat.PARQUET).build();
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, System.nanoTime())
+            .format(FileFormat.PARQUET)
+            .build();
+    PositionDeleteWriter<Record> writer =
+        writerFactory.newPositionDeleteWriter(fileFactory.newOutputFile(), table.spec(), null);
+    PositionDelete<Record> positionDelete = PositionDelete.create();
+    try (PositionDeleteWriter<Record> closeable = writer) {
+      for (Pair<String, Long> delete : sorted) {
+        closeable.write(positionDelete.set(delete.first(), delete.second()));
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+
+    return writer.toDeleteFile();
   }
 
   private static void commit(
