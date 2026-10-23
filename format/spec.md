@@ -1092,7 +1092,7 @@ When reading, a `null` commit timestamp is inherited:
 * For an entry in the root manifest, from the snapshot's `timestamp-ms` converted to microseconds.
 * For an entry in a leaf manifest, from the inherited or persisted `snapshot_timestamp` of the root manifest entry that tracks the leaf manifest.
 
-Manifest lists and manifests written before a table was upgraded to v4 do not have a `snapshot_timestamp` field and are read as if it is `null`. When reading a manifest list written before v4, each manifest inherits the snapshot's `timestamp-ms` converted to microseconds, and entries in a manifest written before v4 inherit the commit timestamp of their manifest. As a result, rows in the table at the time of the upgrade have a `_last_updated_time` equal to the commit time of the last snapshot before the upgrade.
+Manifest lists and manifests written before a table was upgraded to v4 do not have a `snapshot_timestamp` field and the field should be read as if it is `null`. When reading a manifest list written before v4, each manifest inherits the snapshot's `timestamp-ms` converted to microseconds, and entries in a manifest written before v4 inherit the commit timestamp of their manifest. As a result, rows in the table at the time of the upgrade have a `_last_updated_time` equal to the commit time of the last snapshot before the upgrade.
 
 ##### First Row ID Inheritance
 
