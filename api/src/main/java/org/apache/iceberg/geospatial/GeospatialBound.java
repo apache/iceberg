@@ -320,15 +320,6 @@ public class GeospatialBound implements StructLike, Serializable {
     }
   }
 
-  private static double requiredCoordinate(String coordinate, Object value) {
-    Preconditions.checkArgument(value != null, "Invalid %s coordinate: null", coordinate);
-    return (Double) value;
-  }
-
-  private static double optionalCoordinate(Object value) {
-    return value == null ? Double.NaN : (Double) value;
-  }
-
   @Override
   public String toString() {
     return "GeospatialBound(" + simpleString() + ")";
@@ -367,5 +358,14 @@ public class GeospatialBound implements StructLike, Serializable {
   @Override
   public int hashCode() {
     return Objects.hash(x, y, z, m);
+  }
+
+  private static double requiredCoordinate(String coordinate, Object value) {
+    Preconditions.checkArgument(value != null, "Invalid %s coordinate: null", coordinate);
+    return (Double) value;
+  }
+
+  private static double optionalCoordinate(Object value) {
+    return value == null ? Double.NaN : (Double) value;
   }
 }
