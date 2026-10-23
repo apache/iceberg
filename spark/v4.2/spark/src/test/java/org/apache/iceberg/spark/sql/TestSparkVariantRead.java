@@ -46,6 +46,8 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.execution.datasources.v2.BatchScanExec;
 import org.apache.spark.types.variant.Variant;
 import org.apache.spark.unsafe.types.VariantVal;
 import org.junit.jupiter.api.AfterEach;
@@ -53,6 +55,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import scala.collection.JavaConverters;
 
 public class TestSparkVariantRead extends TestBase {
 
@@ -490,8 +493,21 @@ public class TestSparkVariantRead extends TestBase {
     assertHasTypedValueSubtree(table);
     setVectorization(shreddedTable, vectorized);
 
-    List<Row> rows = spark.table(shreddedTable).select("id").orderBy("id").collectAsList();
-    assertThat(rows).extracting(r -> r.getLong(0)).containsExactly(1L, 2L);
+    List<Row> rows = Lists.newArrayList();
+    SparkPlan plan =
+        executeAndKeepPlan(
+            () -> rows.addAll(spark.table(shreddedTable).select("id").collectAsList()));
+    assertThat(rows).extracting(r -> r.getLong(0)).containsExactlyInAnyOrder(1L, 2L);
+
+    List<SparkPlan> leaves = JavaConverters.seqAsJavaList(plan.collectLeaves());
+    assertThat(leaves)
+        .singleElement()
+        .isInstanceOfSatisfying(
+            BatchScanExec.class,
+            scan ->
+                assertThat(scan.supportsColumnar())
+                    .as("Scan should be columnar only when vectorization is enabled")
+                    .isEqualTo(vectorized));
 
     sql("DROP TABLE IF EXISTS %s", shreddedTable);
   }
