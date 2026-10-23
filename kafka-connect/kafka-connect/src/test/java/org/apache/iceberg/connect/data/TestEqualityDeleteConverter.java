@@ -421,6 +421,50 @@ public class TestEqualityDeleteConverter {
   }
 
   @Test
+  public void testKeysAboveTheListLimitAreMatchedWithRanges() throws IOException {
+    Table table = createTable(PartitionSpec.unpartitioned());
+
+    // 30 data files with 100 consecutive ids each
+    int fileCount = 30;
+    int rowsPerFile = 100;
+    List<DataFile> dataFiles = Lists.newArrayList();
+    for (int file = 0; file < fileCount; file++) {
+      List<Object[]> inserts = Lists.newArrayList();
+      for (int row = 0; row < rowsPerFile; row++) {
+        inserts.add(insert((long) file * rowsPerFile + row, "a", "v1"));
+      }
+      dataFiles.add(write(table, inserts.toArray(new Object[0][])).dataFiles()[0]);
+    }
+    commit(table, dataFiles.toArray(new DataFile[0]), new DeleteFile[0], ImmutableList.of());
+
+    // two clusters of 600 keys at both ends of the table, more keys than IN lists may hold
+    long rowCount = (long) fileCount * rowsPerFile;
+    Set<Long> deletedIds = Sets.newHashSet();
+    for (long id = 0; id < 600; id++) {
+      deletedIds.add(id);
+      deletedIds.add(rowCount - 1 - id);
+    }
+    List<Object[]> deletes = Lists.newArrayList();
+    deletedIds.forEach(id -> deletes.add(delete(id, "a")));
+    WriteResult second = write(table, deletes.toArray(new Object[0][]));
+
+    EqualityDeleteConverter.Result result =
+        new EqualityDeleteConverter(table, null).convert(Arrays.asList(second.deleteFiles()));
+
+    // the ranges skip the files between the two clusters
+    assertThat(result.plannedDataFiles()).isEqualTo(12);
+
+    commit(table, second.dataFiles(), result.dvFiles(), result.rewrittenDvFiles());
+    Set<String> expectedRows = Sets.newHashSet();
+    for (long id = 0; id < rowCount; id++) {
+      if (!deletedIds.contains(id)) {
+        expectedRows.add(id + "|a|v1");
+      }
+    }
+    assertThat(readRows(table)).isEqualTo(expectedRows);
+  }
+
+  @Test
   public void testCustomResolver() throws IOException {
     Table table = createTable(PartitionSpec.unpartitioned());
     WriteResult first = write(table, insert(1L, "a", "v1"), insert(2L, "a", "v1"));
