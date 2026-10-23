@@ -60,11 +60,9 @@ import org.slf4j.LoggerFactory;
  * as deletion vectors, so the equality delete files never have to be committed.
  *
  * <p>An equality delete written by the sink deletes every row of an earlier commit whose identifier
- * fields equal one of the deleted keys. The converter reads the keys, groups them by equality
- * fields and partition, and asks a {@link KeyPositionResolver} for the rows that hold them. The
- * default resolver, {@link ScanKeyPositionResolver}, scans the data files that the column
- * statistics cannot rule out; an index-backed resolver can be plugged in instead. A data file that
- * already has a deletion vector gets a merged one; the replaced vector is reported in {@link
+ * fields equal one of the deleted keys. The converter finds those rows by reading the data files
+ * that their partition values and column statistics cannot rule out. A data file that already has a
+ * deletion vector gets a merged one; the replaced vector is reported in {@link
  * Result#rewrittenDvFiles()} and must be removed by the commit.
  *
  * <p>The positions are only valid for the snapshot they were resolved against, see {@link

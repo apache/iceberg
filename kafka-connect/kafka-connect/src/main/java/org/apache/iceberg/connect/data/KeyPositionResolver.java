@@ -28,16 +28,8 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.util.StructLikeSet;
 
-/**
- * Finds the rows of a table snapshot whose identifier values are in a set of deleted keys.
- *
- * <p>{@link EqualityDeleteConverter} asks a resolver for the position of every row an equality
- * delete would remove and writes those positions as deletion vectors. Implementations differ in how
- * they locate the rows. The default {@link ScanKeyPositionResolver} reads the data files that the
- * column statistics cannot rule out; an implementation backed by an index can look the keys up
- * without touching data files.
- */
-public interface KeyPositionResolver {
+/** Finds the rows of a table snapshot whose identifier values are in a set of deleted keys. */
+interface KeyPositionResolver {
 
   /**
    * Resolves the keys of one group of equality delete files.
