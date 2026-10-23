@@ -565,6 +565,22 @@ public class TestEqualityDeleteConverter {
         .hasMessage("Not an equality delete file: /path/to/dv.puffin");
   }
 
+  @Test
+  public void testRejectsFormatVersion2() {
+    Table table =
+        catalog.createTable(
+            TABLE_IDENTIFIER,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of("format-version", "2"));
+
+    assertThatThrownBy(() -> new EqualityDeleteConverter(table, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot convert equality deletes of table test_catalog.db.tbl: deletion vectors "
+                + "require format version 3, found 2");
+  }
+
   private Table createTable(PartitionSpec spec) {
     return catalog.createTable(
         TABLE_IDENTIFIER, SCHEMA, spec, ImmutableMap.of("format-version", "3"));

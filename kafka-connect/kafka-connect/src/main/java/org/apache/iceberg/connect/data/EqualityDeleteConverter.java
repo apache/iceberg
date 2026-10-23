@@ -34,6 +34,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.data.BaseDeleteLoader;
 import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.deletes.BaseDVFileWriter;
@@ -88,12 +89,20 @@ public class EqualityDeleteConverter {
    *
    * @param table the table to resolve the deletes against
    * @param branch the branch that is written, or null for the main branch
+   * @throws IllegalArgumentException if the table's format version is lower than 3
    */
   public EqualityDeleteConverter(Table table, String branch) {
     this(table, branch, new ScanKeyPositionResolver(table));
   }
 
   EqualityDeleteConverter(Table table, String branch, KeyPositionResolver resolver) {
+    int formatVersion = TableUtil.formatVersion(table);
+    Preconditions.checkArgument(
+        formatVersion >= 3,
+        "Cannot convert equality deletes of table %s: deletion vectors require format version 3, "
+            + "found %s",
+        table.name(),
+        formatVersion);
     this.table = table;
     this.branch = branch;
     this.resolver = resolver;
