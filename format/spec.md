@@ -1079,7 +1079,7 @@ Inheritance does not apply to v1, which does not have inherited fields like sequ
 
 ##### Commit Timestamp Inheritance
 
-In v4 and later, the `snapshot_timestamp` tracking field records the commit time (the snapshot's `timestamp-ms` converted to microseconds) of the snapshot that added or last modified a file's data, and is used to assign `_last_updated_time` for [row lineage](#row-lineage).
+In v4 and later, the `snapshot_timestamp` tracking field records the `timestamp-ms` of the snapshot that added or last modified a file's data, converted to microseconds. It is used to assign `_last_updated_time` for [row lineage](#row-lineage).
 
 The snapshot's `timestamp-ms` is not known until the snapshot is successfully committed and may change when a commit is retried, so writers set `snapshot_timestamp` to `null` when the value must come from the committing snapshot. Writers must set `snapshot_timestamp` for data file and leaf manifest entries as follows:
 
