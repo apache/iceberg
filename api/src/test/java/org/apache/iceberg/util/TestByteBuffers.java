@@ -118,4 +118,36 @@ public class TestByteBuffers {
             .order(ByteOrder.BIG_ENDIAN);
     assertThat(ByteBuffers.readLittleEndianInt64(buffer, 0)).isEqualTo(-1);
   }
+
+  @Test
+  public void testWrite1Byte() {
+    ByteBuffer buffer = ByteBuffer.allocate(1);
+    ByteBuffers.writeLittleEndianUnsigned(buffer, 255, 0, 1);
+    ByteBuffer expected = ByteBuffer.wrap(new byte[] {(byte) 0xFF});
+    assertThat(buffer).isEqualTo(expected);
+  }
+
+  @Test
+  public void testWrite2ByteLittleEndian() {
+    ByteBuffer buffer = ByteBuffer.allocate(2);
+    ByteBuffers.writeLittleEndianUnsigned(buffer, 255, 0, 2);
+    ByteBuffer expected = ByteBuffer.wrap(new byte[] {(byte) 0xFF, 0x00});
+    assertThat(buffer).isEqualTo(expected);
+  }
+
+  @Test
+  public void testWrite3ByteLittleEndian() {
+    ByteBuffer buffer = ByteBuffer.allocate(3);
+    ByteBuffers.writeLittleEndianUnsigned(buffer, 255, 0, 3);
+    ByteBuffer expected = ByteBuffer.wrap(new byte[] {(byte) 0xFF, 0x00, 0x00});
+    assertThat(buffer).isEqualTo(expected);
+  }
+
+  @Test
+  public void testWrite4ByteLittleEndian() {
+    ByteBuffer buffer = ByteBuffer.allocate(4);
+    ByteBuffers.writeLittleEndianUnsigned(buffer, 255, 0, 4);
+    ByteBuffer expected = ByteBuffer.wrap(new byte[] {(byte) 0xFF, 0x00, 0x00, 0x00});
+    assertThat(buffer).isEqualTo(expected);
+  }
 }
