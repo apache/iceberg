@@ -421,7 +421,7 @@ Type promotion is not allowed for a field that is referenced by `source-id` or `
 
 * `date` to `timestamp` or `timestamp_ns`
 
-Every field referenced by a [constraint](#constraints) must exist in the table's current schema. A schema change that removes a constraint-referenced field must be rejected unless the constraint is removed in the same change.
+The fields referenced by a [constraint](#constraints) are the field IDs in the `expression` of a `check` constraint, or the `field-ids` of a `unique` or `primary-key` constraint. Every referenced field must exist in the table's current schema. A schema change that removes a constraint-referenced field must be rejected unless the constraint is removed in the same change. A constraint-referenced field may apply type promotion. For a `unique` or `primary-key` constraint, the promotion must preserve distinctness.
 
 Any struct, including a top-level schema, can evolve through deleting fields, adding new fields, renaming existing fields, reordering existing fields, or promoting a primitive using the valid type promotions. Adding a new field assigns a new ID for that field and for any nested fields. Renaming an existing field must change the name, but not the field ID. Deleting a field removes it from the current schema. Field deletion cannot be rolled back unless the field was nullable or if the current snapshot has not changed.
 
@@ -722,11 +722,18 @@ A constraint consists of the following fields:
 | _required_ | **`type`**                | `string`  | The constraint type: `check`, `unique`, or `primary-key` |
 | _required_ | **`name`**                | `string`  | A name for the constraint that is unique within the table. Names are for human consumption and must not be used to identify a constraint in metadata |
 | _required_ | **`enforced`**            | `boolean` | Whether writers must only add or modify rows so that they satisfy the constraint |
-| _required_ | **`timestamp-ms`**        | `long`    | Timestamp in milliseconds from the unix epoch when the constraint was created or last modified. The timestamp is informational and must not be used to determine whether a constraint applies to a snapshot or whether it holds |
+| _required_ | **`timestamp-ms`**        | `long`    | Timestamp in milliseconds from the unix epoch when the constraint was created or last modified. The timestamp is informational and must not be used to determine whether a constraint applies to a snapshot or whether the constraint holds for the snapshot |
 | _optional_ | **`expression`**          | `expression` | The predicate that every row must satisfy, using ID references, see [Check Constraint Expressions](#check-constraint-expressions). Required for a `check` constraint and must not be set for other types |
 | _optional_ | **`field-ids`**           | `list<int>`  | The set of field IDs that the constraint applies to. Must contain at least one field ID and no duplicates. Required for a `unique` or `primary-key` constraint and must not be set for a `check` constraint |
 
-The `field-ids` of a `unique` or `primary-key` constraint must only reference primitive fields and must not reference fields within a `list` or a `map`. Fields of type `float` or `double` must not be used. Fields of type `geometry` or `geography` must not be used because Iceberg does not define equality for them. Fields of type `unknown` must not be used because their values are always null. Fields of type `file` and their sub-fields must not be used.
+The `field-ids` of a `unique` or `primary-key` constraint:
+
+* Must only reference primitive fields
+* Must not reference fields within a `list` or a `map`
+* Must not reference fields of type `float` or `double`
+* Must not reference fields of type `geometry` or `geography`, because Iceberg does not define equality for them
+* Must not reference fields of type `unknown`, because their values are always null
+* Must not reference fields of type `file` or their sub-fields
 
 A table may have at most one `primary-key` constraint. The fields of a `primary-key` constraint must be `required` and must not be nested in an optional struct, so that the schema rejects null keys even when the constraint is not enforced. The fields of a `unique` constraint may be optional or nested in optional structs, because a row in which any field is null is not compared.
 
@@ -740,17 +747,13 @@ Constraint IDs are assigned from the table's `last-constraint-id`, which is trea
 
 The `expression` of a `check` constraint is a [predicate](expressions-spec.md#predicates), not a value expression, and is serialized as described in the [Iceberg expressions spec](expressions-spec.md). It must use ID references so that it remains bound to the same fields when columns are renamed.
 
-A check expression is evaluated for each row and may only reference the fields of that row by ID.
+A `check` expression is evaluated for each row and may only reference the fields of that row by ID.
 
-A check expression must be pure. Its result must depend only on the values of the fields it references in the row, and evaluating it must have no side effects.
+A `check` expression must be pure. Its result must depend only on the values of the fields it references in the row, and evaluating it must have no side effects.
 
-A [user-defined function](udf-spec.md) used in a check expression must declare `deterministic` as true and is expected to preserve its behavior across definition versions. Readers and writers are not required to detect behavioral changes or recompute `constraint-statuses` if such a change occurs.
+A [user-defined function](udf-spec.md) used in a `check` expression must declare `deterministic` as true and is expected to preserve its behavior across definition versions. Readers and writers are not required to detect behavioral changes or recompute `constraint-statuses` if such a change occurs.
 
-#### Constraints and Schema Evolution
-
-A constraint references fields by ID, so schema changes interact with constraints as follows. The referenced fields of a `check` constraint are the field IDs in its `expression`; the referenced fields of a `unique` or `primary-key` constraint are its `field-ids`.
-
-* A constraint-referenced field may apply type promotion. For a `unique` or `primary-key` constraint, the promotion must preserve distinctness.
+#### Constraint Evolution
 
 Once a constraint is created, its `expression` must always produce the same validation result for table rows, and its `field-ids` must not change. A change to the meaning of a constraint must be made by removing the constraint and adding a new one with a new `constraint-id`, so that statuses recorded for the old definition are not applied to the new one. `timestamp-ms` must be updated when a constraint is updated.
 
