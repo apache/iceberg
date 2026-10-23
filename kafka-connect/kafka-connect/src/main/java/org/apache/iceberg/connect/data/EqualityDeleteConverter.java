@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
@@ -43,7 +42,6 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.OutputFileFactory;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -80,7 +78,6 @@ public class EqualityDeleteConverter {
   private final String branch;
   private final KeyPositionResolver resolver;
   private final DeleteLoader deleteLoader;
-  private final AtomicInteger scannedDataFiles = new AtomicInteger();
 
   /**
    * Creates a converter that finds the rows by scanning data files.
@@ -139,7 +136,7 @@ public class EqualityDeleteConverter {
     int comparisonsPerFile = KeyFilters.comparisonsPerFile(base);
     long matchedRows = 0L;
     long deletedKeys = 0L;
-    scannedDataFiles.set(0);
+    int scannedDataFiles = 0;
 
     long start = System.currentTimeMillis();
     try {
@@ -161,7 +158,7 @@ public class EqualityDeleteConverter {
 
         KeyPositionResolver.Resolution resolution =
             resolver.resolve(base, keySchema, keys, group.spec(), group.partition());
-        scannedDataFiles.addAndGet(resolution.scannedDataFiles());
+        scannedDataFiles += resolution.scannedDataFiles();
 
         for (KeyPositionResolver.FileMatches matches : resolution.matches()) {
           if (matches.existingDeletes() != null) {
@@ -193,19 +190,15 @@ public class EqualityDeleteConverter {
         matchedRows,
         table.name(),
         base.snapshotId(),
-        scannedDataFiles.get(),
+        scannedDataFiles,
         System.currentTimeMillis() - start);
 
     return new Result(
         base.snapshotId(),
         writeResult.deleteFiles(),
         writeResult.rewrittenDeleteFiles(),
-        conflictFilter);
-  }
-
-  @VisibleForTesting
-  int scannedDataFiles() {
-    return scannedDataFiles.get();
+        conflictFilter,
+        scannedDataFiles);
   }
 
   /**
@@ -247,22 +240,25 @@ public class EqualityDeleteConverter {
   /** Outcome of a conversion, to be committed together with the data files of the batch. */
   public static class Result {
     private static final Result EMPTY =
-        new Result(null, ImmutableList.of(), ImmutableList.of(), Expressions.alwaysFalse());
+        new Result(null, ImmutableList.of(), ImmutableList.of(), Expressions.alwaysFalse(), 0);
 
     private final Long baseSnapshotId;
     private final List<DeleteFile> dvFiles;
     private final List<DeleteFile> rewrittenDvFiles;
     private final Expression conflictFilter;
+    private final int scannedDataFiles;
 
     Result(
         Long baseSnapshotId,
         List<DeleteFile> dvFiles,
         List<DeleteFile> rewrittenDvFiles,
-        Expression conflictFilter) {
+        Expression conflictFilter,
+        int scannedDataFiles) {
       this.baseSnapshotId = baseSnapshotId;
       this.dvFiles = ImmutableList.copyOf(dvFiles);
       this.rewrittenDvFiles = ImmutableList.copyOf(rewrittenDvFiles);
       this.conflictFilter = conflictFilter;
+      this.scannedDataFiles = scannedDataFiles;
     }
 
     static Result empty() {
@@ -294,6 +290,10 @@ public class EqualityDeleteConverter {
      */
     public Expression conflictFilter() {
       return conflictFilter;
+    }
+
+    int scannedDataFiles() {
+      return scannedDataFiles;
     }
   }
 

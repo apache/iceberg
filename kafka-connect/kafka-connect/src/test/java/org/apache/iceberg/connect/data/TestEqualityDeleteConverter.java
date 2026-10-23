@@ -137,7 +137,7 @@ public class TestEqualityDeleteConverter {
     assertThat(ContentFileUtil.isDV(dv)).isTrue();
     assertThat(dv.referencedDataFile()).isEqualTo(firstDataFile.location());
     assertThat(dv.recordCount()).isEqualTo(2L);
-    assertThat(converter.scannedDataFiles()).isEqualTo(1);
+    assertThat(result.scannedDataFiles()).isEqualTo(1);
 
     commit(table, second.dataFiles(), result.dvFiles(), result.rewrittenDvFiles());
     assertThat(readRows(table)).containsExactlyInAnyOrder("1|a|v1", "3|a|v1", "4|a|v2", "5|a|v1");
@@ -153,7 +153,7 @@ public class TestEqualityDeleteConverter {
     assertThat(result.rewrittenDvFiles().get(0).location()).isEqualTo(dv.location());
     assertThat(result.rewrittenDvFiles().get(0).contentOffset()).isEqualTo(dv.contentOffset());
     // the data file written by the second batch only holds id 4 and is pruned by its column bounds
-    assertThat(converter.scannedDataFiles()).isEqualTo(1);
+    assertThat(result.scannedDataFiles()).isEqualTo(1);
 
     commit(table, third.dataFiles(), result.dvFiles(), result.rewrittenDvFiles());
     assertThat(readRows(table)).containsExactlyInAnyOrder("3|a|v1", "4|a|v2", "5|a|v1");
@@ -180,7 +180,7 @@ public class TestEqualityDeleteConverter {
     EqualityDeleteConverter.Result result = converter.convert(Arrays.asList(second.deleteFiles()));
 
     // only the data file of partition a is a candidate
-    assertThat(converter.scannedDataFiles()).isEqualTo(1);
+    assertThat(result.scannedDataFiles()).isEqualTo(1);
     assertThat(result.dvFiles()).hasSize(1);
     assertThat(result.dvFiles().get(0).recordCount()).isEqualTo(1L);
 
@@ -284,7 +284,7 @@ public class TestEqualityDeleteConverter {
     // more keys than one IN list holds, so the keys are matched with several lists: the hot
     // range covers six files and every scattered key stays in its own file
     assertThat(deletes).hasSizeGreaterThan(KeyFilters.IN_PREDICATE_LIMIT);
-    assertThat(converter.scannedDataFiles()).isEqualTo(11);
+    assertThat(result.scannedDataFiles()).isEqualTo(11);
     assertThat(result.dvFiles()).hasSize(11);
     assertThat(result.dvFiles().stream().mapToLong(DeleteFile::recordCount).sum()).isEqualTo(300L);
 
@@ -322,7 +322,7 @@ public class TestEqualityDeleteConverter {
     EqualityDeleteConverter.Result result = converter.convert(Arrays.asList(second.deleteFiles()));
 
     // the id filter alone covers files of both partitions, the partition pins it to a
-    assertThat(converter.scannedDataFiles()).isEqualTo(3);
+    assertThat(result.scannedDataFiles()).isEqualTo(3);
     assertThat(result.dvFiles()).hasSize(3);
 
     commit(table, second.dataFiles(), result.dvFiles(), result.rewrittenDvFiles());
@@ -367,7 +367,7 @@ public class TestEqualityDeleteConverter {
     EqualityDeleteConverter.Result result = converter.convert(Arrays.asList(second.deleteFiles()));
 
     // the pinned bucket keeps only the three files of bucket 0
-    assertThat(converter.scannedDataFiles()).isEqualTo(3);
+    assertThat(result.scannedDataFiles()).isEqualTo(3);
     assertThat(result.dvFiles()).hasSize(3);
     assertThat(result.dvFiles().stream().mapToLong(DeleteFile::recordCount).sum()).isEqualTo(250L);
 
@@ -407,7 +407,7 @@ public class TestEqualityDeleteConverter {
     EqualityDeleteConverter.Result result = converter.convert(Arrays.asList(second.deleteFiles()));
 
     // exactly the files that hold a deleted key are read: 6 hot files and 150 scattered files
-    assertThat(converter.scannedDataFiles()).isEqualTo(156);
+    assertThat(result.scannedDataFiles()).isEqualTo(156);
     assertThat(result.dvFiles()).hasSize(156);
     assertThat(result.dvFiles().stream().mapToLong(DeleteFile::recordCount).sum()).isEqualTo(450L);
 
@@ -471,7 +471,7 @@ public class TestEqualityDeleteConverter {
     EqualityDeleteConverter converter = new EqualityDeleteConverter(table, null, resolver);
     EqualityDeleteConverter.Result result = converter.convert(Arrays.asList(second.deleteFiles()));
 
-    assertThat(converter.scannedDataFiles()).isEqualTo(0);
+    assertThat(result.scannedDataFiles()).isEqualTo(0);
     assertThat(result.dvFiles()).hasSize(1);
     assertThat(result.dvFiles().get(0).referencedDataFile()).isEqualTo(dataFile.location());
     assertThat(result.dvFiles().get(0).recordCount()).isEqualTo(1L);
