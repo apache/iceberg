@@ -164,7 +164,7 @@ public class EqualityDeleteConverter {
     BaseDVFileWriter dvWriter = new BaseDVFileWriter(fileFactory, previousDeletes::get);
 
     long matchedRows = 0L;
-    int scannedDataFiles = 0;
+    int plannedDataFiles = 0;
     try {
       for (Map.Entry<DeleteGroup, StructLikeSet> entry : keysByGroup.entrySet()) {
         DeleteGroup group = entry.getKey();
@@ -175,7 +175,7 @@ public class EqualityDeleteConverter {
                 entry.getValue(),
                 group.spec(),
                 group.partition());
-        scannedDataFiles += resolution.scannedDataFiles();
+        plannedDataFiles += resolution.plannedDataFiles();
 
         for (KeyPositionResolver.FileMatches matches : resolution.matches()) {
           if (matches.existingDeletes() != null) {
@@ -200,14 +200,14 @@ public class EqualityDeleteConverter {
     DeleteWriteResult writeResult = dvWriter.result();
     LOG.info(
         "Converted {} equality delete file(s) with {} key(s) into {} deletion vector(s) covering {} row(s) "
-            + "of table {} at snapshot {}, scanned {} data file(s) in {} ms",
+            + "of table {} at snapshot {}, planned {} data file(s) in {} ms",
         eqDeleteFiles.size(),
         deletedKeys,
         writeResult.deleteFiles().size(),
         matchedRows,
         table.name(),
         base.snapshotId(),
-        scannedDataFiles,
+        plannedDataFiles,
         System.currentTimeMillis() - start);
 
     return new Result(
@@ -215,7 +215,7 @@ public class EqualityDeleteConverter {
         writeResult.deleteFiles(),
         writeResult.rewrittenDeleteFiles(),
         conflictFilter,
-        scannedDataFiles);
+        plannedDataFiles);
   }
 
   /**
@@ -260,19 +260,19 @@ public class EqualityDeleteConverter {
     private final List<DeleteFile> dvFiles;
     private final List<DeleteFile> rewrittenDvFiles;
     private final Expression conflictFilter;
-    private final int scannedDataFiles;
+    private final int plannedDataFiles;
 
     Result(
         Long baseSnapshotId,
         List<DeleteFile> dvFiles,
         List<DeleteFile> rewrittenDvFiles,
         Expression conflictFilter,
-        int scannedDataFiles) {
+        int plannedDataFiles) {
       this.baseSnapshotId = baseSnapshotId;
       this.dvFiles = ImmutableList.copyOf(dvFiles);
       this.rewrittenDvFiles = ImmutableList.copyOf(rewrittenDvFiles);
       this.conflictFilter = conflictFilter;
-      this.scannedDataFiles = scannedDataFiles;
+      this.plannedDataFiles = plannedDataFiles;
     }
 
     /**
@@ -307,8 +307,8 @@ public class EqualityDeleteConverter {
       return conflictFilter;
     }
 
-    int scannedDataFiles() {
-      return scannedDataFiles;
+    int plannedDataFiles() {
+      return plannedDataFiles;
     }
   }
 

@@ -105,6 +105,7 @@ class ScanKeyPositionResolver implements KeyPositionResolver {
     // transforms, so the spec and partition of every candidate are checked as well
     PartitionMatcher partitionMatcher = new PartitionMatcher(deleteSpec, deletePartition);
     List<FileScanTask> tasks = Lists.newArrayList();
+    int plannedDataFiles = 0;
     try (CloseableIterable<FileScanTask> planned =
         table
             .newScan()
@@ -113,6 +114,7 @@ class ScanKeyPositionResolver implements KeyPositionResolver {
             .ignoreResiduals()
             .planFiles()) {
       for (FileScanTask task : planned) {
+        plannedDataFiles += 1;
         if (partitionMatcher.matches(task.spec(), task.file().partition())) {
           tasks.add(task);
         }
@@ -126,7 +128,7 @@ class ScanKeyPositionResolver implements KeyPositionResolver {
         .throwFailureWhenFinished()
         .run(task -> match(task, keySchema, keys, keyFilter, matches), IOException.class);
 
-    return new ScanResolution(matches.values(), tasks.size());
+    return new ScanResolution(matches.values(), plannedDataFiles);
   }
 
   /** Reads the key columns and row positions of one data file and records the matching rows. */
@@ -229,11 +231,11 @@ class ScanKeyPositionResolver implements KeyPositionResolver {
 
   private static class ScanResolution implements Resolution {
     private final Collection<FileMatches> matches;
-    private final int scannedDataFiles;
+    private final int plannedDataFiles;
 
-    ScanResolution(Collection<FileMatches> matches, int scannedDataFiles) {
+    ScanResolution(Collection<FileMatches> matches, int plannedDataFiles) {
       this.matches = matches;
-      this.scannedDataFiles = scannedDataFiles;
+      this.plannedDataFiles = plannedDataFiles;
     }
 
     @Override
@@ -242,8 +244,8 @@ class ScanKeyPositionResolver implements KeyPositionResolver {
     }
 
     @Override
-    public int scannedDataFiles() {
-      return scannedDataFiles;
+    public int plannedDataFiles() {
+      return plannedDataFiles;
     }
   }
 

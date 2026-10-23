@@ -138,7 +138,7 @@ public class TestEqualityDeleteConverter {
     assertThat(ContentFileUtil.isDV(dv)).isTrue();
     assertThat(dv.referencedDataFile()).isEqualTo(firstDataFile.location());
     assertThat(dv.recordCount()).isEqualTo(2L);
-    assertThat(result.scannedDataFiles()).isEqualTo(1);
+    assertThat(result.plannedDataFiles()).isEqualTo(1);
 
     commit(table, second.dataFiles(), result.dvFiles(), result.rewrittenDvFiles());
     assertThat(readRows(table)).containsExactlyInAnyOrder("1|a|v1", "3|a|v1", "4|a|v2", "5|a|v1");
@@ -154,7 +154,7 @@ public class TestEqualityDeleteConverter {
     assertThat(result.rewrittenDvFiles().get(0).location()).isEqualTo(dv.location());
     assertThat(result.rewrittenDvFiles().get(0).contentOffset()).isEqualTo(dv.contentOffset());
     // the data file written by the second batch only holds id 4 and is pruned by its column bounds
-    assertThat(result.scannedDataFiles()).isEqualTo(1);
+    assertThat(result.plannedDataFiles()).isEqualTo(1);
 
     commit(table, third.dataFiles(), result.dvFiles(), result.rewrittenDvFiles());
     assertThat(readRows(table)).containsExactlyInAnyOrder("3|a|v1", "4|a|v2", "5|a|v1");
@@ -181,7 +181,7 @@ public class TestEqualityDeleteConverter {
     EqualityDeleteConverter.Result result = converter.convert(Arrays.asList(second.deleteFiles()));
 
     // only the data file of partition a is a candidate
-    assertThat(result.scannedDataFiles()).isEqualTo(1);
+    assertThat(result.plannedDataFiles()).isEqualTo(1);
     assertThat(result.dvFiles()).hasSize(1);
     assertThat(result.dvFiles().get(0).recordCount()).isEqualTo(1L);
 
@@ -285,7 +285,7 @@ public class TestEqualityDeleteConverter {
     // more keys than one IN list holds, so the keys are matched with several lists: the hot
     // range covers six files and every scattered key stays in its own file
     assertThat(deletes).hasSizeGreaterThan(KeyFilters.IN_PREDICATE_LIMIT);
-    assertThat(result.scannedDataFiles()).isEqualTo(11);
+    assertThat(result.plannedDataFiles()).isEqualTo(11);
     assertThat(result.dvFiles()).hasSize(11);
     assertThat(result.dvFiles().stream().mapToLong(DeleteFile::recordCount).sum()).isEqualTo(300L);
 
@@ -296,10 +296,9 @@ public class TestEqualityDeleteConverter {
   @Test
   public void testPartitionIsPinnedWithManyKeys() throws IOException {
     Table table = createTable(PartitionSpec.builderFor(SCHEMA).identity("category").build());
-    // the partition column has to be part of the key for the delete to land in its partition
-    equalityFieldIds = ImmutableList.of(1, 2);
 
-    // three files of 100 ids in each of the partitions a and b, ids overlap across partitions
+    // three files of 100 ids in each of the partitions a and b, ids overlap across partitions, so
+    // the keys, which are ids alone, cannot tell the partitions apart
     List<DataFile> dataFiles = Lists.newArrayList();
     for (String category : new String[] {"a", "b"}) {
       for (int file = 0; file < 3; file++) {
@@ -323,7 +322,7 @@ public class TestEqualityDeleteConverter {
     EqualityDeleteConverter.Result result = converter.convert(Arrays.asList(second.deleteFiles()));
 
     // the id filter alone covers files of both partitions, the partition pins it to a
-    assertThat(result.scannedDataFiles()).isEqualTo(3);
+    assertThat(result.plannedDataFiles()).isEqualTo(3);
     assertThat(result.dvFiles()).hasSize(3);
 
     commit(table, second.dataFiles(), result.dvFiles(), result.rewrittenDvFiles());
@@ -337,10 +336,11 @@ public class TestEqualityDeleteConverter {
     Table table = createTable(PartitionSpec.builderFor(SCHEMA).bucket("id", 4).build());
 
     // three batches, each writes one file per bucket
+    int rowsPerBatch = 2000;
     List<DataFile> dataFiles = Lists.newArrayList();
     for (int batch = 0; batch < 3; batch++) {
       List<Object[]> inserts = Lists.newArrayList();
-      for (long id = batch * 1000L; id < (batch + 1) * 1000L; id++) {
+      for (long id = (long) batch * rowsPerBatch; id < (long) (batch + 1) * rowsPerBatch; id++) {
         inserts.add(insert(id, "a", "v1"));
       }
       WriteResult result = write(table, inserts.toArray(new Object[0][]));
@@ -349,17 +349,20 @@ public class TestEqualityDeleteConverter {
     }
     commit(table, dataFiles.toArray(new DataFile[0]), new DeleteFile[0], ImmutableList.of());
 
-    // more keys than the IN limit, all of them in bucket 0 and spread over all three batches
+    // keys of bucket 0 spread over all three batches, more than IN lists may hold, so they are
+    // matched with id ranges, which bucket(4, id) cannot project: only the pinned bucket prunes
+    // the files of the other buckets
     Function<Object, Integer> bucket = Transforms.bucket(4).bind(Types.LongType.get());
     List<Long> bucketZeroIds = Lists.newArrayList();
-    for (long id = 0; id < 3000; id++) {
+    for (long id = 0; id < 3L * rowsPerBatch; id++) {
       if (bucket.apply(id) == 0) {
         bucketZeroIds.add(id);
       }
     }
+    int deletedKeys = 1200;
     List<Object[]> deletes = Lists.newArrayList();
-    for (int i = 0; i < 250; i++) {
-      deletes.add(delete(bucketZeroIds.get(i * bucketZeroIds.size() / 250), "a"));
+    for (int i = 0; i < deletedKeys; i++) {
+      deletes.add(delete(bucketZeroIds.get(i * bucketZeroIds.size() / deletedKeys), "a"));
     }
     WriteResult second = write(table, deletes.toArray(new Object[0][]));
     assertThat(second.deleteFiles()).hasSize(1);
@@ -368,12 +371,13 @@ public class TestEqualityDeleteConverter {
     EqualityDeleteConverter.Result result = converter.convert(Arrays.asList(second.deleteFiles()));
 
     // the pinned bucket keeps only the three files of bucket 0
-    assertThat(result.scannedDataFiles()).isEqualTo(3);
+    assertThat(result.plannedDataFiles()).isEqualTo(3);
     assertThat(result.dvFiles()).hasSize(3);
-    assertThat(result.dvFiles().stream().mapToLong(DeleteFile::recordCount).sum()).isEqualTo(250L);
+    assertThat(result.dvFiles().stream().mapToLong(DeleteFile::recordCount).sum())
+        .isEqualTo(deletedKeys);
 
     commit(table, second.dataFiles(), result.dvFiles(), result.rewrittenDvFiles());
-    assertThat(readRows(table)).hasSize(3000 - 250);
+    assertThat(readRows(table)).hasSize(3 * rowsPerBatch - deletedKeys);
   }
 
   @Test
@@ -408,7 +412,7 @@ public class TestEqualityDeleteConverter {
     EqualityDeleteConverter.Result result = converter.convert(Arrays.asList(second.deleteFiles()));
 
     // exactly the files that hold a deleted key are read: 6 hot files and 150 scattered files
-    assertThat(result.scannedDataFiles()).isEqualTo(156);
+    assertThat(result.plannedDataFiles()).isEqualTo(156);
     assertThat(result.dvFiles()).hasSize(156);
     assertThat(result.dvFiles().stream().mapToLong(DeleteFile::recordCount).sum()).isEqualTo(450L);
 
@@ -463,7 +467,7 @@ public class TestEqualityDeleteConverter {
             }
 
             @Override
-            public int scannedDataFiles() {
+            public int plannedDataFiles() {
               return 0;
             }
           };
@@ -472,7 +476,7 @@ public class TestEqualityDeleteConverter {
     EqualityDeleteConverter converter = new EqualityDeleteConverter(table, null, resolver);
     EqualityDeleteConverter.Result result = converter.convert(Arrays.asList(second.deleteFiles()));
 
-    assertThat(result.scannedDataFiles()).isEqualTo(0);
+    assertThat(result.plannedDataFiles()).isEqualTo(0);
     assertThat(result.dvFiles()).hasSize(1);
     assertThat(result.dvFiles().get(0).referencedDataFile()).isEqualTo(dataFile.location());
     assertThat(result.dvFiles().get(0).recordCount()).isEqualTo(1L);

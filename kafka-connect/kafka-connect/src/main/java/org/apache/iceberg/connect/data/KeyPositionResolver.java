@@ -56,8 +56,11 @@ interface KeyPositionResolver {
   interface Resolution {
     Collection<FileMatches> matches();
 
-    /** Number of data files the resolver read to find the matches. */
-    int scannedDataFiles();
+    /**
+     * Number of data files planned as candidates, before the spec and partition of each candidate
+     * are checked against the deletes.
+     */
+    int plannedDataFiles();
   }
 
   /** Matched rows of one data file. */
