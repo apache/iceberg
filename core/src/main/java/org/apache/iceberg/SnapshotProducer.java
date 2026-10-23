@@ -484,6 +484,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   public void commit() {
     // this is always set to the latest commit attempt's snapshot id.
     AtomicLong newSnapshotId = new AtomicLong(-1L);
+    // the id of the last snapshot this commit() call staged as new, as opposed to a snapshot that
+    // was already in the table (rollback or fast-forward). used to decide whether a snapshot found
+    // on the table after a failure was committed by this call.
+    AtomicLong stagedNewSnapshotId = new AtomicLong(-1L);
     try (Timed ignore = commitMetrics().totalDuration().start()) {
       try {
         Tasks.foreach(ops)
@@ -504,6 +508,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                     // this is a rollback operation
                     update.setBranchSnapshot(newSnapshot.snapshotId(), targetBranch);
                   } else {
+                    stagedNewSnapshotId.set(newSnapshot.snapshotId());
                     if (manifestListEncryptionKeys != null) {
                       update.addEncryptionKey(manifestListEncryptionKeys.keyEncryptionKey());
                       update.addEncryptionKey(manifestListEncryptionKeys.fileKey());
@@ -537,7 +542,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         throw commitStateUnknownException;
       } catch (RuntimeException e) {
         if (!strictCleanup || e instanceof CleanableFailure) {
-          if (cleanAfterFailedCommit(newSnapshotId.get(), e)) {
+          if (cleanAfterFailedCommit(newSnapshotId.get(), stagedNewSnapshotId.get(), e)) {
             // The snapshot is on the table: the commit was applied despite the observed
             // failure, so there is no failure to report.
             return;
@@ -638,11 +643,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    * @return true if the snapshot is on the table, meaning the commit was applied despite the
    *     observed failure and the failure must not be reported
    */
-  private boolean cleanAfterFailedCommit(long snapshotId, RuntimeException commitFailure) {
-    // A snapshot ID already present in the base metadata is a rollback target, not a newly
-    // committed snapshot: its presence after a refresh says nothing about whether the branch
-    // update was applied, so the failure must still be reported.
-    boolean isNewSnapshot = snapshotId != -1L && base.snapshot(snapshotId) == null;
+  private boolean cleanAfterFailedCommit(
+      long snapshotId, long stagedNewSnapshotId, RuntimeException commitFailure) {
+    // Only a snapshot this commit() call staged as new can tell us the commit was applied. A
+    // snapshot that was already in the table (a rollback or fast-forward target) says nothing about
+    // whether the branch update went through, so the failure must still be reported. This can't be
+    // inferred from base, because apply() refreshes base on retry and may already see the
+    // snapshot from an earlier attempt that was applied.
+    boolean isNewSnapshot = snapshotId != -1L && snapshotId == stagedNewSnapshotId;
     if (isNewSnapshot) {
       try {
         if (ops.refresh().snapshot(snapshotId) != null) {

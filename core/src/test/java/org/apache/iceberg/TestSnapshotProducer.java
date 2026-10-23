@@ -334,4 +334,72 @@ public class TestSnapshotProducer extends TestBase {
                     .as("Manifest of the committed snapshot must not be deleted")
                     .isTrue());
   }
+
+  @TestTemplate
+  public void failedCherryPickFastForwardRetryIsReported() {
+    // A cherry-pick whose first attempt stages a new snapshot that is not applied, and whose retry
+    // fast-forwards to the existing picked snapshot and also fails. The picked snapshot is on the
+    // table after the refresh, but it was not staged as new by this commit() call, so the failure
+    // must still be reported instead of being treated as an applied commit.
+    String tableName = "cherry-pick-fast-forward-retry";
+    AtomicLong resetTo = new AtomicLong(-1L);
+    TestTables.TestTableOperations ops =
+        new TestTables.TestTableOperations(tableName, tableDir) {
+          private int failures = 0;
+
+          @Override
+          public void commit(TableMetadata base, TableMetadata updatedMetadata) {
+            if (resetTo.get() == -1L) {
+              super.commit(base, updatedMetadata);
+              return;
+            }
+
+            failures += 1;
+            if (failures == 1) {
+              // not applied, but a concurrent writer moves main back to the picked snapshot's
+              // parent so the retry fast-forwards
+              TableMetadata current = current();
+              super.commit(
+                  current,
+                  TableMetadata.buildFrom(current)
+                      .setBranchSnapshot(resetTo.get(), SnapshotRef.MAIN_BRANCH)
+                      .build());
+            }
+
+            throw new CommitFailedException("Injected failure %s", failures);
+          }
+        };
+    TestTables.TestTable commitTable =
+        TestTables.create(
+            tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, ops);
+    commitTable.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "1").commit();
+
+    commitTable.newAppend().appendFile(FILE_A).commit();
+    long parentId = commitTable.currentSnapshot().snapshotId();
+
+    commitTable.newAppend().appendFile(FILE_B).set("wap.id", "wap-1").stageOnly().commit();
+    long pickedId =
+        Streams.stream(commitTable.snapshots())
+            .filter(snap -> "wap-1".equals(snap.summary().get("wap.id")))
+            .findFirst()
+            .orElseThrow()
+            .snapshotId();
+    assertThat(commitTable.snapshot(pickedId).parentId()).isEqualTo(parentId);
+
+    commitTable.newAppend().appendFile(FILE_C).commit();
+    long movedId = commitTable.currentSnapshot().snapshotId();
+
+    CherryPickOperation cherryPick = new CherryPickOperation(tableName, ops).cherrypick(pickedId);
+    resetTo.set(parentId);
+
+    assertThatThrownBy(cherryPick::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("Injected failure 2");
+
+    commitTable.refresh();
+    assertThat(commitTable.currentSnapshot().snapshotId())
+        .as("main must not point at the picked snapshot")
+        .isEqualTo(parentId)
+        .isNotEqualTo(movedId);
+  }
 }
