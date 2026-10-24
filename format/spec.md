@@ -87,7 +87,7 @@ This table format tracks individual data files in a table instead of directories
 
 Table state is maintained in metadata files. All changes to table state create a new metadata file and replace the old metadata with an atomic swap. The table metadata file tracks the table schema, partitioning config, custom properties, and snapshots of the table contents. A snapshot represents the state of a table at some time and is used to access the complete set of data files in the table.
 
-Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, an optional colocated deletion vector (v4), and its metrics. The data in a snapshot is the union of all live files in its manifests; each live file may only appear once (see [Content file uniqueness](#content-file-uniqueness)). Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Manifests can track data files with any subset of a table and are not associated with partitions.
+Data files in snapshots are tracked by one or more manifest files that contain a row for each data file in the table, the file's partition data, an optional colocated deletion vector and optional column files (v4), and its metrics. The data in a snapshot is the union of all live files in its manifests; each live file may only appear once (see [Content file uniqueness](#content-file-uniqueness)). Manifest files are reused across snapshots to avoid rewriting metadata that is slow-changing. Manifests can track data files with any subset of a table and are not associated with partitions.
 
 In v1-v3, the manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation. Starting in v4, manifest lists are replaced by a single root manifest per snapshot, which can contain references to data files, data manifests, and delete manifests in a unified structure.
 
@@ -156,6 +156,7 @@ Version 4 of the Iceberg spec adds support for relative locations in metadata, e
 * **Delete manifest** -- A file that lists delete files to be associated with data files at planning time.
 * **Data file** -- A file that contains rows of a table.
 * **Delete file** -- A file that encodes rows of a table that are deleted by position or data values.
+* **Column file** -- (v4+) A file that stores the values of one or more fields of a data file, or a v4 leaf manifest.
 * **Absolute path** -- A path string that includes a [URI](https://datatracker.ietf.org/doc/html/rfc3986#section-3.1) scheme and can be used directly.
 * **Relative path** -- A path string without a URI scheme that must be [resolved](#path-resolution) against the table location.
 
@@ -525,6 +526,8 @@ When an existing row is moved to a different data file for any reason, writers s
 
 Engines may model operations as deleting/inserting rows or as modifications to rows that preserve row ids.
 
+When column files are added to a data file, `_row_id` and `_last_updated_sequence_number` are handled as described in [Column Files](#column-files).
+
 ##### Row lineage example
 
 This example demonstrates how `_row_id` and `_last_updated_sequence_number` are assigned for a snapshot. This starts with a table with a `next-row-id` of 1000.
@@ -735,7 +738,7 @@ A manifest file must store metadata as properties in the file's key-value metada
 
 #### Content file uniqueness
 
-Within a snapshot, each content file must be referenced by at most one live manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers should not produce multiple manifest entries for the same content file in a snapshot (for example, both ADDED and DELETED entries for the same file). Writers are not required to validate uniqueness at commit time.
+Within a snapshot, each content file must be referenced by at most one live manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers should not produce multiple live manifest entries for the same content file in a snapshot (for example, two ADDED entries for the same file). A REPLACED entry is not live, so a REPLACED entry and the MODIFIED entry that replaces it do not violate this rule (see [Updating Tracking Metadata](#updating-tracking-metadata)). Writers are not required to validate uniqueness at commit time.
 
 #### Manifest Schema
 
@@ -1632,7 +1635,7 @@ The rows in the delete file must be sorted by `file_path` then `pos` to optimize
 
 Equality delete files identify deleted rows in a collection of data files by one or more column values, and may optionally contain additional columns of the deleted row.
 
-Equality delete files must not be added to v4 tables. Equality deletes cannot be added as an entry to a v4 manifest. Equality delete files referenced by v2 or v3 delete manifests must still be applied in a v4 table.
+Equality delete files must not be added to v4 tables. Equality deletes cannot be added as an entry to a v4 manifest. Equality delete files referenced by v2 or v3 delete manifests must still be applied in a v4 table. Before column files are added to a data file, its equality deletes must be written into its deletion vector. Adding column files raises the data file's data sequence number, so equality delete files no longer apply to it (see [Column Files](#column-files)).
 
 Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). The column restrictions for columns used in equality delete files are the same as those for [identifier fields](#identifier-field-ids) with the exception that optional columns and columns nested under optional structs are allowed (if a parent struct column is null it implies the leaf column is null).
 
@@ -1684,6 +1687,53 @@ If a delete column in an equality delete file is later dropped from the table, i
 #### Delete File Stats
 
 Manifests hold the same statistics for delete files and data files. For delete files, the metrics describe the values that were deleted.
+
+### Column Files
+
+Starting in v4, some fields of a data file can be stored in separate column files, listed in the data file's [`column_files`](#column-file-fields), in addition to the data file itself. This section describes column files for data files.
+
+In this section:
+
+- The **previous entry** is the live entry of the data file before column files are added.
+- An **updated field** is a field whose ID is in the `field_ids` of an added column file.
+- An **updated row** is a row whose updated-field values were set by the update. Other rows keep their current values.
+
+A column file is a valid Iceberg data file: files must use valid Iceberg formats, schemas, and column projection.
+
+A column file must have the same row count as its data file.
+
+A column file stores the entire value of each field whose ID is in its `field_ids`. Each ID in `field_ids` must be the ID of a top-level field in the table schema used to write the column file, or the ID of a row lineage field required by [Adding Column Files](#adding-column-files). The `field_ids` of a column file may overlap with the field IDs of the data file. Which file a field is read from is determined by [Reading Column Files](#reading-column-files).
+
+#### Reading Column Files
+
+A projected field whose top-level field ID is in a column file's `field_ids`, including `_last_updated_sequence_number`, must be read from that column file. All other projected fields are read from the data file using [Column Projection](#column-projection).
+
+Row `i` of a column file corresponds to row `i` of the data file. Column files and the data file are combined by row position before the deletion vector is applied. Readers must ignore top-level fields in a column file whose IDs are not in its `field_ids`. A null value in a column file does not indicate that a row is deleted.
+
+#### Adding Column Files
+
+When column files are added to a data file, the writer must produce a MODIFIED entry and a REPLACED entry as described in [Updating Tracking Metadata](#updating-tracking-metadata). The MODIFIED entry and the REPLACED entry may be written to different manifests.
+
+A new column file stores the value of each of its listed fields for every row of the data file, including rows the update did not change. Values in rows deleted by the MODIFIED entry's `deletion_vector` should be null, so a top-level field must be optional in the column file's schema if the column file stores null for it. For a top-level field that is required in the table schema, a non-null value must be stored in every row that is not deleted by the MODIFIED entry's `deletion_vector`.
+
+The `tracking` fields of the MODIFIED entry are set as described in [Updating Tracking Metadata](#updating-tracking-metadata) and [Sequence Number Inheritance](#sequence-number-inheritance), and `tracking.snapshot_id` must be the previous entry's (inherited) snapshot ID. The other fields of the MODIFIED entry must match the previous entry, except for the following:
+
+- `spec_id` and `partition`:
+    - If an updated field is, or contains, a source field of the partition spec, `spec_id` and `partition` must be null.
+- `sort_order_id`:
+    - If an updated field is, or contains, a field in the sort order, `sort_order_id` must be null.
+- `content_stats`:
+    - Stats for each updated field, including its nested fields, must be computed from the values in the column file that has its ID in `field_ids`, or omitted. Stats for other fields may be kept.
+- `deletion_vector`:
+    - `deletion_vector` must contain all existing deletes of the data file, including equality deletes.
+- `column_files`:
+    - `column_files` contains the previous entry's column files and the new column files.
+    - Each updated field ID must be removed from the `field_ids` of the previous entry's column files, and a column file with no remaining `field_ids` must be removed.
+    - One of the new column files must have the `_last_updated_sequence_number` field ID in its `field_ids`. Its value must be null for each updated row, and for every other row must be the non-null `_last_updated_sequence_number` that a reader of the previous entry would see.
+
+Deletion vectors in delete manifests that reference the data file must be removed (see [Deletion Vectors](#deletion-vectors)).
+
+Adding column files does not change row IDs (see [Row Lineage](#row-lineage)).
 
 ## Appendix A: Format-specific Requirements
 
@@ -2148,6 +2198,13 @@ Equality deletes are prohibited in v4.
 * Writers must not add equality delete files to v4 tables; equality deletes cannot be added as an entry to a v4 manifest
 * Upgrading a v2 or v3 table to v4 does not require rewriting data or delete files
 * Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
+
+Column updates are added in v4.
+
+* Data files may have column files that store the values of one or more fields, with one row for each row of the data file (see [Column Files](#column-files))
+* Adding column files to a data file sets its data sequence number to the sequence number of the snapshot in which the column files were added
+* When column files are added, deletes in delete manifests that applied to the data file must be merged into its `deletion_vector`
+* When column files are added, one of them must store `_last_updated_sequence_number`, with null for updated rows and the current value for other rows
 
 ### Version 3
 
