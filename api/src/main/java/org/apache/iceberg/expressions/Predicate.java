@@ -30,12 +30,30 @@ public abstract class Predicate<T, C extends Term> implements Expression {
     this.term = term;
   }
 
+  Predicate(Operation op) {
+    this.op = op;
+    this.term = null;
+  }
+
   @Override
   public Operation op() {
     return op;
   }
 
+  /**
+   * Returns the term tested by this predicate.
+   *
+   * <p>Returns null when the predicate's operands are value expressions rather than a term.
+   */
   public C term() {
+    return term;
+  }
+
+  C requireTerm() {
+    if (term == null) {
+      throw new UnsupportedOperationException("Predicate does not have a term: " + this);
+    }
+
     return term;
   }
 }

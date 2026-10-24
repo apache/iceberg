@@ -24,6 +24,6 @@ package org.apache.iceberg.expressions;
  * @see BoundReference
  * @see NamedReference
  */
-public interface Reference<T> extends Term {
+public interface Reference<T> extends Term, ValueExpression<T> {
   String name();
 }
