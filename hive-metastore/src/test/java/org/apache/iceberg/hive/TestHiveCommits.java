@@ -321,6 +321,113 @@ public class TestHiveCommits extends HiveTableTestBase {
         .hasMessage("Table already exists: %s.%s", DB_NAME, TABLE_NAME);
   }
 
+  @Test
+  void alreadyExistsSuccessOnCreate() throws TException, InterruptedException {
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "created_tbl");
+    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(identifier);
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            catalog.defaultWarehouseLocation(identifier),
+            ImmutableMap.of());
+    HiveTableOperations spyOps = spy(ops);
+    createAndThrowAlreadyExists(ops, spyOps);
+
+    try {
+      spyOps.commit(null, metadata);
+
+      assertThat(metadataFileExists(ops.refresh()))
+          .as("Current metadata file should still exist")
+          .isTrue();
+    } finally {
+      catalog.dropTable(identifier, true);
+    }
+  }
+
+  @Test
+  void alreadyExistsConcurrentCreate() throws TException, InterruptedException {
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "created_tbl");
+    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(identifier);
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            catalog.defaultWarehouseLocation(identifier),
+            ImmutableMap.of(HIVE_LOCK_ENABLED, "false"));
+    HiveTableOperations spyOps = spy(ops);
+    doAnswer(
+            i -> {
+              catalog.createTable(identifier, SCHEMA);
+              return i.callRealMethod();
+            })
+        .when(spyOps)
+        .persistTable(any(), anyBoolean(), any());
+
+    try {
+      assertThatThrownBy(() -> spyOps.commit(null, metadata))
+          .isInstanceOf(AlreadyExistsException.class)
+          .hasMessage("Table already exists: %s.%s", DB_NAME, "created_tbl");
+      assertThat(metadataFileCount(ops.refresh()))
+          .as("Only the metadata file of the concurrently created table should exist")
+          .isEqualTo(1);
+    } finally {
+      catalog.dropTable(identifier, true);
+    }
+  }
+
+  @Test
+  void alreadyExistsUnknownOnCreate() throws TException, InterruptedException {
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "created_tbl");
+    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(identifier);
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            catalog.defaultWarehouseLocation(identifier),
+            ImmutableMap.of());
+    HiveTableOperations spyOps = spy(ops);
+    createAndThrowAlreadyExists(ops, spyOps);
+    breakFallbackCatalogCommitCheck(spyOps);
+
+    try {
+      assertThatThrownBy(() -> spyOps.commit(null, metadata))
+          .isInstanceOf(CommitStateUnknownException.class)
+          .hasMessageStartingWith("Table already exists");
+      assertThat(metadataFileExists(ops.refresh()))
+          .as("Current metadata file should still exist")
+          .isTrue();
+    } finally {
+      catalog.dropTable(identifier, true);
+    }
+  }
+
+  @Test
+  void alreadyExistsCheckOOMOnCreate() throws TException, InterruptedException {
+    TableIdentifier identifier = TableIdentifier.of(DB_NAME, "created_tbl");
+    HiveTableOperations ops = (HiveTableOperations) catalog.newTableOps(identifier);
+    TableMetadata metadata =
+        TableMetadata.newTableMetadata(
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            catalog.defaultWarehouseLocation(identifier),
+            ImmutableMap.of());
+    HiveTableOperations spyOps = spy(ops);
+    createAndThrowAlreadyExists(ops, spyOps);
+    when(spyOps.refresh()).thenThrow(new OutOfMemoryError());
+
+    try {
+      assertThatThrownBy(() -> spyOps.commit(null, metadata))
+          .isInstanceOf(OutOfMemoryError.class)
+          .hasMessage(null);
+      assertThat(metadataFileExists(ops.refresh()))
+          .as("Current metadata file should still exist")
+          .isTrue();
+    } finally {
+      catalog.dropTable(identifier, true);
+    }
+  }
+
   /** Uses NoLock and pretends we throw an error because of a concurrent commit */
   @Test
   public void testNoLockThriftExceptionConcurrentCommit() throws TException, InterruptedException {
@@ -568,6 +675,20 @@ public class TestHiveCommits extends HiveTableTestBase {
               String location = i.getArgument(2, String.class);
               realOperations.persistTable(tbl, true, location);
               throw new TException("Datacenter on fire");
+            })
+        .when(spyOperations)
+        .persistTable(any(), anyBoolean(), any());
+  }
+
+  private void createAndThrowAlreadyExists(
+      HiveTableOperations realOperations, HiveTableOperations spyOperations)
+      throws TException, InterruptedException {
+    doAnswer(
+            i -> {
+              realOperations.persistTable(
+                  i.getArgument(0, org.apache.hadoop.hive.metastore.api.Table.class), false, null);
+              throw new org.apache.hadoop.hive.metastore.api.AlreadyExistsException(
+                  "Table already exists");
             })
         .when(spyOperations)
         .persistTable(any(), anyBoolean(), any());
