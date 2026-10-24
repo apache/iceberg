@@ -1379,6 +1379,53 @@ class RemoteSignResult(BaseModel):
     headers: MultiValuedMap
 
 
+class RemoteSignBatchElement(BaseModel):
+    """
+    The fields of one request in a batch that are not repeated with the other requests.
+    """
+
+    uri: str
+    headers: MultiValuedMap
+    body: str | None = Field(
+        None,
+        description='Optional body of the request to send to the signing API, as in `RemoteSignRequest`.',
+    )
+
+
+class CompletedSignResult(RemoteSignResult):
+    """
+    A successfully signed batch element
+    """
+
+    index: int = Field(
+        ..., description='The 0-based position of the element in `requests`', ge=0
+    )
+
+
+class FailedSignResult(BaseModel):
+    """
+    A batch element that could not be signed
+    """
+
+    index: int = Field(
+        ..., description='The 0-based position of the element in `requests`', ge=0
+    )
+    error: ErrorModel
+
+
+class RemoteSignBatchResponse(BaseModel):
+    """
+    The result of a batch remote request signing operation.
+    """
+
+    completed: list[CompletedSignResult] = Field(
+        ..., description='Elements that were signed'
+    )
+    failed: list[FailedSignResult] = Field(
+        ..., description='Elements that could not be signed'
+    )
+
+
 class RemoteSigningConfig(BaseModel):
     """
     Configuration for the remote signer client.
@@ -1391,6 +1438,12 @@ class RemoteSigningConfig(BaseModel):
     headers: MultiValuedMap | None = Field(
         None,
         description='Static headers the signer client MUST include unchanged in every request to the signing endpoint.\n',
+    )
+    sign_batch_max_size: int | None = Field(
+        None,
+        alias='sign-batch-max-size',
+        description='The maximum number of elements in one `batchSignRequests` request for this table.',
+        ge=1,
     )
 
 
@@ -1572,6 +1625,22 @@ class DeleteFile(RootModel[PositionDeleteFile | EqualityDeleteFile]):
 
 class FetchScanTasksRequest(BaseModel):
     plan_task: PlanTask = Field(..., alias='plan-task')
+
+
+class RemoteSignBatchRequest(BaseModel):
+    """
+    A batch of requests to be signed remotely. `region`, `method`, `provider` and `properties` apply to every element of `requests`.
+
+    """
+
+    region: str
+    method: Literal['PUT', 'GET', 'HEAD', 'POST', 'DELETE', 'PATCH', 'OPTIONS']
+    provider: str = Field(
+        ...,
+        description='The storage provider for every element of the batch. The provider should correspond to the scheme used for a storage native URI. For example `s3` for AWS S3 paths.',
+    )
+    properties: dict[str, str] | None = None
+    requests: list[RemoteSignBatchElement] = Field(..., min_length=1)
 
 
 class Term(RootModel[TermReference | TransformTerm]):
