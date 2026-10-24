@@ -38,18 +38,17 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.SnapshotAncestryValidator;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.flink.sink.CommitSummary;
 import org.apache.iceberg.flink.sink.DeltaManifests;
 import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
 import org.apache.iceberg.flink.sink.FlinkManifestUtil;
+import org.apache.iceberg.flink.sink.MaxCommittedCheckpointIdValidator;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -332,36 +331,6 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     }
   }
 
-  private static class MaxCommittedCheckpointMismatchException extends ValidationException {
-    private MaxCommittedCheckpointMismatchException() {
-      super("Table already contains staged changes.");
-    }
-  }
-
-  private static class MaxCommittedCheckpointIdValidator implements SnapshotAncestryValidator {
-    private final long stagedCheckpointId;
-    private final String flinkJobId;
-    private final String flinkOperatorId;
-
-    private MaxCommittedCheckpointIdValidator(
-        long stagedCheckpointId, String flinkJobId, String flinkOperatorId) {
-      this.stagedCheckpointId = stagedCheckpointId;
-      this.flinkJobId = flinkJobId;
-      this.flinkOperatorId = flinkOperatorId;
-    }
-
-    @Override
-    public boolean validate(Iterable<Snapshot> baseSnapshots) {
-      long maxCommittedCheckpointId =
-          getMaxCommittedCheckpointId(baseSnapshots, flinkJobId, flinkOperatorId);
-      if (maxCommittedCheckpointId >= stagedCheckpointId) {
-        throw new MaxCommittedCheckpointMismatchException();
-      }
-
-      return true;
-    }
-  }
-
   @VisibleForTesting
   void commitOperation(
       Table table,
@@ -393,7 +362,7 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     long startNano = System.nanoTime();
     try {
       operation.commit(); // abort is automatically called if this fails.
-    } catch (MaxCommittedCheckpointMismatchException e) {
+    } catch (MaxCommittedCheckpointIdValidator.MaxCommittedCheckpointMismatchException e) {
       LOG.info(
           "Skipping commit operation {} because the {} branch of the {} table already contains changes for checkpoint {}."
               + " This can occur when a failure prevents the committer from receiving confirmation of a"
