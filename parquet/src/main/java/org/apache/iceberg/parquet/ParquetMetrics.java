@@ -32,6 +32,9 @@ import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.parquet.metadata.BlockMetadata;
+import org.apache.iceberg.parquet.metadata.ColumnChunkMetadata;
+import org.apache.iceberg.parquet.metadata.ParquetMetadata;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -54,10 +57,7 @@ import org.apache.iceberg.variants.VariantMetadata;
 import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.column.statistics.Statistics;
-import org.apache.parquet.hadoop.metadata.BlockMetaData;
-import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
-import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -80,11 +80,11 @@ class ParquetMetrics {
       MetricsConfig metricsConfig,
       ParquetMetadata metadata,
       Stream<FieldMetrics<?>> fields) {
-    Multimap<ColumnPath, ColumnChunkMetaData> columns =
+    Multimap<ColumnPath, ColumnChunkMetadata> columns =
         Multimaps.newMultimap(Maps.newHashMap(), Lists::newArrayList);
-    for (BlockMetaData block : metadata.getBlocks()) {
-      for (ColumnChunkMetaData column : block.getColumns()) {
-        columns.put(column.getPath(), column);
+    for (BlockMetadata block : metadata.blocks()) {
+      for (ColumnChunkMetadata column : block.columns()) {
+        columns.put(column.path(), column);
       }
     }
 
@@ -97,8 +97,8 @@ class ParquetMetrics {
 
   private static long rowCount(ParquetMetadata metadata) {
     long rowCount = 0L;
-    for (BlockMetaData block : metadata.getBlocks()) {
-      rowCount += block.getRowCount();
+    for (BlockMetadata block : metadata.blocks()) {
+      rowCount += block.rowCount();
     }
 
     return rowCount;
@@ -107,15 +107,14 @@ class ParquetMetrics {
   private static Map<Integer, Long> columnSizes(
       MessageType type, ParquetMetadata metadata, MetricsConfig metricsConfig) {
     Map<Integer, Long> columnSizes = Maps.newHashMap();
-    for (BlockMetaData block : metadata.getBlocks()) {
-      for (ColumnChunkMetaData column : block.getColumns()) {
-        Type.ID id =
-            type.getColumnDescription(column.getPath().toArray()).getPrimitiveType().getId();
+    for (BlockMetadata block : metadata.blocks()) {
+      for (ColumnChunkMetadata column : block.columns()) {
+        Type.ID id = type.getColumnDescription(column.path().toArray()).getPrimitiveType().getId();
         if (id != null) {
           int fieldId = id.intValue();
           MetricsModes.MetricsMode mode = metricsConfig.columnMode(fieldId);
           if (mode != MetricsModes.None.get()) {
-            columnSizes.put(fieldId, columnSizes.getOrDefault(fieldId, 0L) + column.getTotalSize());
+            columnSizes.put(fieldId, columnSizes.getOrDefault(fieldId, 0L) + column.totalSize());
           }
         }
       }
@@ -191,12 +190,12 @@ class ParquetMetrics {
   private static class MetricsVisitor extends TypeWithSchemaVisitor<Iterable<FieldMetrics<?>>> {
     private final MetricsConfig metricsConfig;
     private final Map<Integer, FieldMetrics<?>> metricsById;
-    private final Multimap<ColumnPath, ColumnChunkMetaData> columns;
+    private final Multimap<ColumnPath, ColumnChunkMetadata> columns;
 
     private MetricsVisitor(
         MetricsConfig metricsConfig,
         Map<Integer, FieldMetrics<?>> metricsById,
-        Multimap<ColumnPath, ColumnChunkMetaData> columns) {
+        Multimap<ColumnPath, ColumnChunkMetadata> columns) {
       this.metricsConfig = metricsConfig;
       this.metricsById = metricsById;
       this.columns = columns;
@@ -319,14 +318,14 @@ class ParquetMetrics {
       long valueCount = 0;
       long nullCount = 0;
 
-      for (ColumnChunkMetaData column : columns.get(path)) {
-        Statistics<?> stats = column.getStatistics();
+      for (ColumnChunkMetadata column : columns.get(path)) {
+        Statistics<?> stats = column.statistics();
         if (stats == null || stats.isEmpty()) {
           return null;
         }
 
         nullCount = addNullCount(nullCount, stats);
-        valueCount += column.getValueCount();
+        valueCount += column.valueCount();
       }
 
       return new FieldMetrics<>(fieldId, valueCount, nullCount);
@@ -348,14 +347,14 @@ class ParquetMetrics {
       T lowerBound = null;
       T upperBound = null;
 
-      for (ColumnChunkMetaData column : columns.get(path)) {
-        Statistics<?> stats = column.getStatistics();
+      for (ColumnChunkMetadata column : columns.get(path)) {
+        Statistics<?> stats = column.statistics();
         if (stats == null || stats.isEmpty()) {
           return null;
         }
 
         nullCount = addNullCount(nullCount, stats);
-        valueCount += column.getValueCount();
+        valueCount += column.valueCount();
 
         if (stats.hasNonNullValue()) {
           T chunkMin =
@@ -571,8 +570,8 @@ class ParquetMetrics {
         long valueCount = 0;
         long nullCount = 0;
 
-        for (ColumnChunkMetaData column : columns.get(path)) {
-          Statistics<?> stats = column.getStatistics();
+        for (ColumnChunkMetadata column : columns.get(path)) {
+          Statistics<?> stats = column.statistics();
           if (stats == null || stats.isEmpty()) {
             // the null count is unknown
             return null;
@@ -588,10 +587,10 @@ class ParquetMetrics {
             hasOnlyNullVariants = false;
           }
 
-          valueCount += column.getValueCount();
+          valueCount += column.valueCount();
           if (hasOnlyNullVariants) {
             // every value is a null variant, so the count does not depend on footer null counts
-            nullCount = addKnownNullCount(nullCount, column.getValueCount());
+            nullCount = addKnownNullCount(nullCount, column.valueCount());
           } else {
             nullCount = addNullCount(nullCount, stats);
           }
@@ -616,14 +615,14 @@ class ParquetMetrics {
         T lowerBound = null;
         T upperBound = null;
 
-        for (ColumnChunkMetaData column : columns.get(path)) {
-          Statistics<?> stats = column.getStatistics();
+        for (ColumnChunkMetadata column : columns.get(path)) {
+          Statistics<?> stats = column.statistics();
           if (stats == null || stats.isEmpty()) {
             return null;
           }
 
           nullCount = addNullCount(nullCount, stats);
-          valueCount += column.getValueCount();
+          valueCount += column.valueCount();
 
           if (stats.hasNonNullValue()) {
             T chunkMin = ParquetVariantUtil.convertValue(variantType, scale, stats.genericGetMin());
