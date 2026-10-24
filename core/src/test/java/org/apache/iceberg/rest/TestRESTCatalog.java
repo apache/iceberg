@@ -3793,10 +3793,42 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     table.newAppend().appendFile(FILE_A).commit();
 
     // loadTable is executed once
-    Mockito.verify(adapter, times(2))
+    Mockito.verify(adapter, times(1))
         .execute(matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
 
     // CommitReport reflects the table state after the commit (reported asynchronously)
+    Mockito.verify(adapter, timeout(5000))
+        .execute(
+            matches(
+                HTTPMethod.POST,
+                RESOURCE_PATHS.metrics(TABLE),
+                Map.of(),
+                Map.of(),
+                requestObj ->
+                    requestObj instanceof ReportMetricsRequest reportRequest
+                        && reportRequest.report() instanceof CommitReport commitReport
+                        && commitReport.tableName().equals(table.name())
+                        && commitReport.snapshotId() == table.currentSnapshot().snapshotId()
+                        && commitReport.sequenceNumber() == table.currentSnapshot().sequenceNumber()
+                        && commitReport.operation().equals("append")
+                        && commitReport.commitMetrics().addedDataFiles().value() == 1),
+            any(),
+            any(),
+            any());
+  }
+
+  @Test
+  void numLoadTableCallsForFastAppend() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog = catalog(adapter);
+
+    catalog.createNamespace(TABLE.namespace());
+    Table table = catalog.createTable(TABLE, SCHEMA);
+    table.newFastAppend().appendFile(FILE_A).commit();
+
+    Mockito.verify(adapter, times(1))
+        .execute(matches(HTTPMethod.GET, RESOURCE_PATHS.table(TABLE)), any(), any(), any());
+
     Mockito.verify(adapter, timeout(5000))
         .execute(
             matches(
