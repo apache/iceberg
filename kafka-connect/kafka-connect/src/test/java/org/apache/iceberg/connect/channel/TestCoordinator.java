@@ -30,6 +30,8 @@ import java.lang.reflect.Field;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
@@ -58,14 +60,30 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.kafka.clients.admin.MemberAssignment;
+import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.ConsumerGroupState;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class TestCoordinator extends ChannelTestBase {
+
+  @BeforeEach
+  void describeSourceAssignment() {
+    MemberDescription member =
+        new MemberDescription(
+            "member",
+            Optional.empty(),
+            "client",
+            "localhost",
+            new MemberAssignment(Set.of(new TopicPartition(SRC_TOPIC_NAME, 1))));
+    describeConsumerGroup(ConsumerGroupState.STABLE, List.of(member));
+  }
 
   @Test
   public void testCommitAppend() {
@@ -314,7 +332,7 @@ public class TestCoordinator extends ChannelTestBase {
         new Event(
             config.connectGroupId(),
             new DataComplete(
-                commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, null))));
+                commitId, ImmutableList.of(new TopicPartitionOffset(SRC_TOPIC_NAME, 1, 1L, null))));
     bytes = AvroUtil.encode(commitReady);
     consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, nextOffset++, "key", bytes));
 
@@ -533,7 +551,7 @@ public class TestCoordinator extends ChannelTestBase {
         new Event(
             config.connectGroupId(),
             new DataComplete(
-                commitId, ImmutableList.of(new TopicPartitionOffset("topic", 1, 1L, ts))));
+                commitId, ImmutableList.of(new TopicPartitionOffset(SRC_TOPIC_NAME, 1, 1L, ts))));
     bytes = AvroUtil.encode(commitReady);
     consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 2, "key", bytes));
 
