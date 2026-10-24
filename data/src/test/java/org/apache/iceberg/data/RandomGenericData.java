@@ -60,6 +60,12 @@ public class RandomGenericData {
         schema, numRecords, () -> new FallbackGenerator(seed, numDictRows));
   }
 
+  public static Iterable<Record> generateFallbackRecords(
+      Schema schema, int numRecords, long seed, float nullPercentage, long numDictRows) {
+    return generateIcebergGenerics(
+        schema, numRecords, () -> new FallbackGenerator(seed, nullPercentage, numDictRows));
+  }
+
   public static Iterable<Record> generateDictionaryEncodableRecords(
       Schema schema, int numRecords, long seed) {
     return generateIcebergGenerics(schema, numRecords, () -> new DictionaryEncodedGenerator(seed));
@@ -154,6 +160,11 @@ public class RandomGenericData {
 
     FallbackGenerator(long seed, long numDictionaryEncoded) {
       super(seed);
+      this.dictionaryEncodedRows = numDictionaryEncoded;
+    }
+
+    FallbackGenerator(long seed, float nullPercentage, long numDictionaryEncoded) {
+      super(seed, nullPercentage);
       this.dictionaryEncodedRows = numDictionaryEncoded;
     }
 
