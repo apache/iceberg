@@ -27,6 +27,7 @@ import org.apache.hadoop.classification.VisibleForTesting;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.TableScanResponseParser;
@@ -96,8 +97,25 @@ public class PlanTableScanResponseParser {
         json, node -> PlanTableScanResponseParser.fromJson(node, specsById, caseSensitive));
   }
 
+  /**
+   * @deprecated since 1.13.0, will be removed in 1.14.0; use {@link #fromJson(JsonNode, Map,
+   *     boolean, Expression)} instead.
+   */
+  @Deprecated
   public static PlanTableScanResponse fromJson(
       JsonNode json, Map<Integer, PartitionSpec> specsById, boolean caseSensitive) {
+    return fromJson(json, specsById, caseSensitive, null);
+  }
+
+  /**
+   * Parses the response. A file scan task without a residual-filter takes its residual from
+   * scanFilter, the filter of the scan that was planned.
+   */
+  public static PlanTableScanResponse fromJson(
+      JsonNode json,
+      Map<Integer, PartitionSpec> specsById,
+      boolean caseSensitive,
+      Expression scanFilter) {
     Preconditions.checkArgument(
         json != null && !json.isEmpty(),
         "Cannot parse planTableScan response from empty or null object");
@@ -112,7 +130,8 @@ public class PlanTableScanResponseParser {
     List<String> planTasks = JsonUtil.getStringListOrNull(PLAN_TASKS, json);
     List<DeleteFile> deleteFiles = TableScanResponseParser.parseDeleteFiles(json, specsById);
     List<FileScanTask> fileScanTasks =
-        TableScanResponseParser.parseFileScanTasks(json, deleteFiles, specsById, caseSensitive);
+        TableScanResponseParser.parseFileScanTasks(
+            json, deleteFiles, specsById, caseSensitive, scanFilter);
 
     PlanTableScanResponse.Builder builder =
         PlanTableScanResponse.builder()
