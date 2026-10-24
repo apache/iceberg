@@ -1138,6 +1138,39 @@ public class TestSparkScan extends TestBaseWithCatalog {
         });
   }
 
+  @TestTemplate
+  void batchEqualityWithFiltersThatHashAlike() throws Exception {
+    createPartitionedTable(spark, tableName, "data");
+
+    // "Aa" and "BB" have the same String hash code
+    Scan scan = buildScan(new Predicate("=", expressions(fieldRef("data"), stringLit("Aa"))));
+    Scan sameScan = buildScan(new Predicate("=", expressions(fieldRef("data"), stringLit("Aa"))));
+    Scan otherScan = buildScan(new Predicate("=", expressions(fieldRef("data"), stringLit("BB"))));
+
+    assertThat(scan).hasSameHashCodeAs(otherScan).isNotEqualTo(otherScan);
+    assertThat(scan.toBatch())
+        .isEqualTo(sameScan.toBatch())
+        .hasSameHashCodeAs(sameScan.toBatch())
+        .isNotEqualTo(otherScan.toBatch());
+  }
+
+  @TestTemplate
+  void unionOfScansWithFiltersThatHashAlike() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, data STRING) USING iceberg PARTITIONED BY (data) "
+            + "TBLPROPERTIES('%s' = '%s')",
+        tableName, TableProperties.DEFAULT_FILE_FORMAT, format);
+    sql("INSERT INTO %s VALUES (1, 'Aa'), (2, 'BB')", tableName);
+
+    // the filters select whole partitions, so Spark tells the branches apart only by their scans
+    List<Object[]> sums =
+        sql(
+            "SELECT sum(id) FROM %s WHERE data = 'Aa' UNION ALL SELECT sum(id) FROM %s WHERE data = 'BB'",
+            tableName, tableName);
+
+    assertThat(sums).containsExactlyInAnyOrder(row(1L), row(2L));
+  }
+
   private ScanTask scanTaskWithSize(long sizeBytes) {
     return new ScanTask() {
       @Override
@@ -1154,6 +1187,12 @@ public class TestSparkScan extends TestBaseWithCatalog {
   private SparkScanBuilder scanBuilder(Map<String, String> extraOptions) throws Exception {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     return new SparkScanBuilder(spark, table, new CaseInsensitiveStringMap(extraOptions));
+  }
+
+  private Scan buildScan(Predicate... predicates) throws Exception {
+    SparkScanBuilder builder = scanBuilder();
+    pushFilters(builder, predicates);
+    return builder.build();
   }
 
   private void pushFilters(ScanBuilder scan, Predicate... predicates) {
