@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import java.util.StringJoiner;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.specific.SpecificData;
@@ -158,16 +159,13 @@ public class PartitionData
 
   @Override
   public String toString() {
-    StringBuilder sb = new StringBuilder();
-    sb.append("PartitionData{");
-    for (int i = 0; i < data.length; i += 1) {
-      if (i > 0) {
-        sb.append(", ");
-      }
-      sb.append(partitionType.fields().get(i).name()).append("=").append(data[i]);
+    List<Types.NestedField> fields = partitionType.fields();
+    StringJoiner joiner = new StringJoiner(", ", "PartitionData{", "}");
+    for (int pos = 0; pos < fields.size(); pos += 1) {
+      joiner.add(fields.get(pos).name() + "=" + data[pos]);
     }
-    sb.append("}");
-    return sb.toString();
+
+    return joiner.toString();
   }
 
   public PartitionData copy() {
