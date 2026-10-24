@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.apache.iceberg.spark.source.SparkSQLExecutionHelper.lastExecutedMetricValue;
+import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.spark.sql.types.DataTypes.IntegerType;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -379,6 +380,71 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
     assertThat(actual).as("Table should contain expected rows").isEqualTo(expected);
     checkDeleteCount(4L);
+  }
+
+  @TestTemplate
+  void posDeletesOnStructColumn() throws IOException {
+    Schema structSchema =
+        new Schema(
+            required(1, "id", Types.IntegerType.get()),
+            optional(
+                2,
+                "struct_col",
+                Types.StructType.of(
+                    required(3, "nested_id", Types.LongType.get()),
+                    optional(4, "nested_data", Types.StringType.get()))));
+
+    String structTableName = "test_struct_pos_deletes";
+    dropTable(structTableName);
+    Table structTable = createTable(structTableName, structSchema, PartitionSpec.unpartitioned());
+
+    Types.StructType nestedType = structSchema.findField("struct_col").type().asStructType();
+    GenericRecord nested = GenericRecord.create(nestedType);
+    GenericRecord row = GenericRecord.create(structSchema);
+    List<Record> structRecords = Lists.newArrayList();
+    for (int idx = 0; idx < 7; idx++) {
+      structRecords.add(
+          row.copy(
+              "id",
+              idx,
+              "struct_col",
+              nested.copy("nested_id", (long) (idx * 10), "nested_data", "v" + idx)));
+    }
+
+    DataFile structDataFile =
+        FileHelpers.writeDataFile(
+            structTable,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            structRecords);
+    structTable.newAppend().appendFile(structDataFile).commit();
+
+    // delete positions 0 and 5 (ids 0 and 5), spanning the 4-row vectorized batch boundary
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(structDataFile.location(), 0L), Pair.of(structDataFile.location(), 5L));
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(
+            structTable,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(),
+            deletes,
+            formatVersion);
+
+    structTable
+        .newRowDelta()
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+
+    StructLikeSet expected = rowSetWithoutIds(structTable, structRecords, 0, 5);
+    StructLikeSet actual = rowSet(structTableName, structTable, "*");
+
+    assertThat(actual)
+        .as("Struct column rows should survive positional deletes")
+        .isEqualTo(expected);
+
+    dropTable(structTableName);
   }
 
   @TestTemplate

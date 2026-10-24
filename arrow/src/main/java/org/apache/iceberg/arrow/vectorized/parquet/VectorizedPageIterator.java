@@ -19,11 +19,13 @@
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.io.IOException;
+import java.util.List;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.BasePageIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.CorruptDeltaByteArrays;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesUtils;
@@ -57,6 +59,19 @@ public class VectorizedPageIterator extends BasePageIterator {
   }
 
   private DictionaryDecodeMode dictionaryDecodeMode;
+
+  private final List<VectorizedParquetDefinitionLevelReader.StructPresence> structPresences =
+      Lists.newArrayList();
+
+  void addStructPresence(NullabilityHolder structNulls, int structDefinitionLevel) {
+    structPresences.add(
+        new VectorizedParquetDefinitionLevelReader.StructPresence(
+            structNulls, structDefinitionLevel));
+  }
+
+  void clearStructPresences() {
+    structPresences.clear();
+  }
 
   public void setAllPagesDictEncoded(boolean allDictEncoded) {
     this.allPagesDictEncoded = allDictEncoded;
@@ -148,6 +163,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     this.vectorizedDefinitionLevelReader =
         new VectorizedParquetDefinitionLevelReader(
             bitWidth, desc.getMaxDefinitionLevel(), setArrowValidityVector);
+    this.vectorizedDefinitionLevelReader.setStructPresences(structPresences);
     this.vectorizedDefinitionLevelReader.initFromPage(triplesCount, in);
   }
 
@@ -159,6 +175,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     this.vectorizedDefinitionLevelReader =
         new VectorizedParquetDefinitionLevelReader(
             bitWidth, desc.getMaxDefinitionLevel(), false, setArrowValidityVector);
+    this.vectorizedDefinitionLevelReader.setStructPresences(structPresences);
     this.vectorizedDefinitionLevelReader.initFromPage(
         dataPageV2.getValueCount(), dataPageV2.getDefinitionLevels().toInputStream());
   }
