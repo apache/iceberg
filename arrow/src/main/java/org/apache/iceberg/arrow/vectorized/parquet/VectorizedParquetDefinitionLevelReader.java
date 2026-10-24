@@ -20,6 +20,7 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.function.ToLongFunction;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BitVector;
@@ -27,6 +28,8 @@ import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.TimeStampNanoTZVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.parquet.column.Dictionary;
@@ -504,6 +507,12 @@ public final class VectorizedParquetDefinitionLevelReader
   }
 
   class TimestampInt96Reader extends BaseReader {
+    private final ToLongFunction<ByteBuffer> converter;
+
+    TimestampInt96Reader(ToLongFunction<ByteBuffer> converter) {
+      this.converter = converter;
+    }
+
     @Override
     protected void nextVal(
         FieldVector vector,
@@ -513,7 +522,7 @@ public final class VectorizedParquetDefinitionLevelReader
         byte[] byteArray) {
       // 8 bytes (time of day nanos) + 4 bytes(julianDay) = 12 bytes
       ByteBuffer buffer = valuesReader.readBinary(12).toByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-      long timestampInt96 = ParquetUtil.extractTimestampInt96(buffer);
+      long timestampInt96 = converter.applyAsLong(buffer);
       vector.getDataBuffer().setLong((long) idx * typeWidth, timestampInt96);
     }
 
@@ -530,7 +539,7 @@ public final class VectorizedParquetDefinitionLevelReader
       switch (mode) {
         case RLE:
           reader
-              .timestampInt96DictEncodedReader()
+              .timestampInt96DictEncodedReader(converter)
               .nextBatch(vector, idx, numValues, dict, holder, typeWidth);
           break;
         case PACKED:
@@ -538,7 +547,7 @@ public final class VectorizedParquetDefinitionLevelReader
               dict.decodeToBinary(reader.readInteger())
                   .toByteBuffer()
                   .order(ByteOrder.LITTLE_ENDIAN);
-          long timestampInt96 = ParquetUtil.extractTimestampInt96(buffer);
+          long timestampInt96 = converter.applyAsLong(buffer);
           vector.getDataBuffer().setLong((long) idx * typeWidth, timestampInt96);
           break;
         default:
@@ -722,7 +731,14 @@ public final class VectorizedParquetDefinitionLevelReader
   }
 
   TimestampInt96Reader timestampInt96Reader() {
-    return new TimestampInt96Reader();
+    return new TimestampInt96Reader(ParquetUtil::extractTimestampInt96);
+  }
+
+  TimestampInt96Reader timestampInt96Reader(FieldVector vector) {
+    return new TimestampInt96Reader(
+        vector instanceof TimeStampNanoVector || vector instanceof TimeStampNanoTZVector
+            ? ParquetUtil::extractTimestampInt96Nanos
+            : ParquetUtil::extractTimestampInt96);
   }
 
   FixedSizeBinaryReader fixedSizeBinaryReader() {
