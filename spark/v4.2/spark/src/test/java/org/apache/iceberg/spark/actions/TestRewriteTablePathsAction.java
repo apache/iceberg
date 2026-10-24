@@ -537,6 +537,61 @@ public class TestRewriteTablePathsAction extends TestBase {
   }
 
   @TestTemplate
+  void positionDeletesRewrittenAndExpired() throws Exception {
+    assumeThat(formatVersion)
+        .as("Rewriting position delete files in place only applies to v2")
+        .isEqualTo(2);
+    Table tableWithPosDeletes = createTableWithSnapshots(newTableLocation(), 2);
+    String dataFile =
+        SnapshotChanges.builderFor(tableWithPosDeletes)
+            .build()
+            .addedDataFiles()
+            .iterator()
+            .next()
+            .location();
+    List<Pair<CharSequence, Long>> deletes = Lists.newArrayList(Pair.of(dataFile, 0L));
+
+    DeleteFile oldDeletes =
+        FileHelpers.writeDeleteFile(
+                tableWithPosDeletes,
+                tableWithPosDeletes
+                    .io()
+                    .newOutputFile(tableWithPosDeletes.location() + "/data/old-deletes.parquet"),
+                deletes,
+                formatVersion)
+            .first();
+    tableWithPosDeletes.newRowDelta().addDeletes(oldDeletes).commit();
+    long oldDeletesSnapshotId = tableWithPosDeletes.currentSnapshot().snapshotId();
+
+    DeleteFile newDeletes =
+        FileHelpers.writeDeleteFile(
+                tableWithPosDeletes,
+                tableWithPosDeletes
+                    .io()
+                    .newOutputFile(tableWithPosDeletes.location() + "/data/new-deletes.parquet"),
+                deletes,
+                formatVersion)
+            .first();
+    tableWithPosDeletes.newRewrite().deleteFile(oldDeletes).addFile(newDeletes).commit();
+
+    // the manifest keeps oldDeletes as a DELETED entry, but expiration removes the file itself
+    actions().expireSnapshots(tableWithPosDeletes).expireSnapshotId(oldDeletesSnapshotId).execute();
+    assertThat(new File(removePrefix(oldDeletes.location()))).doesNotExist();
+
+    RewriteTablePath.Result result =
+        actions()
+            .rewriteTablePath(tableWithPosDeletes)
+            .stagingLocation(stagingLocation())
+            .rewriteLocationPrefix(tableWithPosDeletes.location(), targetTableLocation())
+            .execute();
+    assertThat(result.rewrittenDeleteFilePathsCount()).isEqualTo(1);
+
+    copyTableFiles(result);
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).collectAsList())
+        .hasSize(1);
+  }
+
+  @TestTemplate
   public void testPositionDeletesAcrossFiles() throws Exception {
     assumeThat(formatVersion)
         .as("Can't write multiple deletes into a single v3 delete file")
