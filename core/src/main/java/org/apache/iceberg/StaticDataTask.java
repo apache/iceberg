@@ -25,44 +25,38 @@ import java.util.function.Function;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.StructProjection;
 
 class StaticDataTask implements DataTask {
 
   static <T> DataTask of(
-      InputFile metadata,
+      String metadataLocation,
       Schema tableSchema,
       Schema projectedSchema,
       Iterable<T> values,
       Function<T, Row> transform) {
-    return new StaticDataTask(
-        metadata,
-        tableSchema,
-        projectedSchema,
-        Lists.newArrayList(Iterables.transform(values, transform::apply)).toArray(new Row[0]));
+    Row[] rows =
+        Lists.newArrayList(Iterables.transform(values, transform::apply)).toArray(new Row[0]);
+    // The location identifies the task; estimate its in-memory rows without accessing the file.
+    long estimatedRowSize = tableSchema.columns().stream().mapToLong(TypeUtil::estimateSize).sum();
+    DataFile metadataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(metadataLocation)
+            .withFileSizeInBytes(Math.max(1L, estimatedRowSize) * rows.length)
+            .withRecordCount(rows.length)
+            .withFormat(FileFormat.METADATA)
+            .build();
+    return new StaticDataTask(metadataFile, tableSchema, projectedSchema, rows);
   }
 
   private final DataFile metadataFile;
   private final StructLike[] rows;
   private final Schema tableSchema;
   private final Schema projectedSchema;
-
-  private StaticDataTask(
-      InputFile metadata, Schema tableSchema, Schema projectedSchema, StructLike[] rows) {
-    this.tableSchema = tableSchema;
-    this.projectedSchema = projectedSchema;
-    this.metadataFile =
-        DataFiles.builder(PartitionSpec.unpartitioned())
-            .withInputFile(metadata)
-            .withRecordCount(rows.length)
-            .withFormat(FileFormat.METADATA)
-            .build();
-    this.rows = rows;
-  }
 
   StaticDataTask(
       DataFile metadataFile, Schema tableSchema, Schema projectedSchema, StructLike[] rows) {
