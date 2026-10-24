@@ -126,4 +126,9 @@ class CommitCallbackTransaction implements Transaction {
     wrapped.commitTransaction();
     callback.run();
   }
+
+  @Override
+  public void abortTransaction() {
+    wrapped.abortTransaction();
+  }
 }
