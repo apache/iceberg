@@ -67,7 +67,8 @@ public class Schema implements Serializable {
           Type.TypeID.VARIANT, 3,
           Type.TypeID.UNKNOWN, 3,
           Type.TypeID.GEOMETRY, 3,
-          Type.TypeID.GEOGRAPHY, 3);
+          Type.TypeID.GEOGRAPHY, 3,
+          Type.TypeID.FILE, 4);
 
   private final StructType struct;
   private final int schemaId;
