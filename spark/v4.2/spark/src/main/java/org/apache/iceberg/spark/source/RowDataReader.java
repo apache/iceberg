@@ -26,6 +26,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.EqualityDeletes;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -44,6 +45,11 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
   private static final Logger LOG = LoggerFactory.getLogger(RowDataReader.class);
 
   private final long numSplits;
+
+  // Shared across every data file in this task group so an equality delete file referenced by
+  // more than one of them is read and materialized only once. Not thread-safe because open()
+  // is called sequentially by the single task thread, so these are mutated by one thread.
+  private final EqualityDeletes sharedEqDeletes;
 
   RowDataReader(SparkInputPartition partition) {
     this(
@@ -67,6 +73,8 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
+
+    sharedEqDeletes = new EqualityDeletes(table.specs());
   }
 
   @Override
@@ -85,8 +93,9 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
   protected CloseableIterator<InternalRow> open(FileScanTask task) {
     String filePath = task.file().location();
     LOG.debug("Opening data file {}", filePath);
+    Long fileSeq = task.file().dataSequenceNumber();
     SparkDeleteFilter deleteFilter =
-        new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
+        new SparkDeleteFilter(filePath, fileSeq, task.deletes(), sharedEqDeletes, counter(), true);
 
     // schema or rows returned by readers
     Schema requiredSchema = deleteFilter.requiredSchema();
