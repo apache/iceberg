@@ -116,6 +116,9 @@ This configuration can use same Hive Metastore for both Iceberg and non-Iceberg 
 tables in the same metastore.
 
 !!! note
+    The `spark.sql.catalog.spark_catalog.default-namespace` option has no effect on `SparkSessionCatalog`. Spark initializes the session catalog's current namespace from its built-in V1 `SessionCatalog`, which bypasses the V2 catalog's `defaultNamespace()`. To set the default namespace for `spark_catalog`, use Spark's own `spark.sql.catalog.spark_catalog.defaultDatabase` instead.
+
+!!! note
     Spark before 4.2.0 does not support `V2Function` in the session catalog. See
     [SPARK-54760](https://issues.apache.org/jira/browse/SPARK-54760) ([apache/spark#53531](https://github.com/apache/spark/pull/53531)) for details. As a result,
     catalog-scoped SQL functions such as `system.bucket`, `system.days`, and `system.iceberg_version`
