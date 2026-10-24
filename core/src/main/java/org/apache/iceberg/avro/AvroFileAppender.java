@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class AvroFileAppender<D> implements FileAppender<D> {
   private final PositionOutputStream stream;
+  private final OutputFile file;
   private DataFileWriter<D> writer;
   private final DatumWriter<?> datumWriter;
   private final org.apache.iceberg.Schema icebergSchema;
@@ -53,6 +54,7 @@ class AvroFileAppender<D> implements FileAppender<D> {
       boolean overwrite)
       throws IOException {
     this.icebergSchema = icebergSchema;
+    this.file = file;
     this.stream = overwrite ? file.createOrOverwrite() : file.create();
     this.datumWriter = createWriterFunc.apply(schema);
     this.writer = newAvroWriter(schema, stream, datumWriter, codec, metadata);
@@ -65,7 +67,7 @@ class AvroFileAppender<D> implements FileAppender<D> {
       numRecords += 1L;
       writer.append(datum);
     } catch (IOException e) {
-      throw new RuntimeIOException(e);
+      throw new RuntimeIOException(e, "Failed to write record to %s", file.location());
     }
   }
 
