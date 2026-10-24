@@ -118,6 +118,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   // Encryption keys required by the manifest list written in the current commit attempt.
   private FileEncryptionKeys manifestListEncryptionKeys;
   private boolean stageOnly = false;
+  private boolean deferNotifications = false;
+  private Object deferredEvent = null;
   private Consumer<String> deleteFunc = defaultDelete;
   private SnapshotAncestryValidator snapshotAncestryValidator =
       SnapshotAncestryValidator.NON_VALIDATING;
@@ -210,6 +212,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   protected ThisT reportWith(MetricsReporter newReporter) {
     this.reporter = newReporter;
     return self();
+  }
+
+  /**
+   * Stops {@link #commit()} from notifying listeners and reporting commit metrics; the caller must
+   * call {@link #sendDeferredNotifications()} once the last commit is visible in the table.
+   */
+  void deferNotifications() {
+    this.deferNotifications = true;
   }
 
   /**
@@ -577,15 +587,29 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
 
     try {
-      notifyListeners();
+      Object event = updateEvent();
+      if (deferNotifications) {
+        this.deferredEvent = event;
+      } else {
+        notifyListeners(event);
+      }
     } catch (Throwable e) {
       LOG.warn("Failed to notify event listeners", e);
     }
   }
 
-  private void notifyListeners() {
+  void sendDeferredNotifications() {
+    Object event = deferredEvent;
+    this.deferredEvent = null;
     try {
-      Object event = updateEvent();
+      notifyListeners(event);
+    } catch (Throwable e) {
+      LOG.warn("Failed to notify event listeners", e);
+    }
+  }
+
+  private void notifyListeners(Object event) {
+    try {
       if (event != null) {
         Listeners.notifyAll(event);
 

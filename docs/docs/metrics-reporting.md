@@ -42,6 +42,8 @@ A [`CommitReport`](https://github.com/apache/iceberg/blob/main/core/src/main/jav
 * number of added/removed equality/positional delete files
 * number of added/removed equality/positional deletes
 
+For changes made in a transaction, the `CommitReport` and the `CreateSnapshotEvent` for each snapshot are sent only after `Transaction.commitTransaction()` succeeds, not when each change is staged.
+
 ## Available Metrics Reporters
 
 ### [`LoggingMetricsReporter`](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/metrics/LoggingMetricsReporter.java)
