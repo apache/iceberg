@@ -26,20 +26,44 @@ import java.io.InterruptedIOException;
 import java.io.UncheckedIOException;
 import java.net.SocketTimeoutException;
 import java.nio.channels.ClosedByInterruptException;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RunnableFuture;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTasks {
+
+  private RecordingExecutor executor;
+
+  @BeforeEach
+  public void before() {
+    executor = new RecordingExecutor(2);
+  }
+
+  @AfterEach
+  public void after() {
+    executor.shutdownNow();
+  }
 
   @Test
   public void attemptCounterIsIncreasedOnRetries() {
@@ -195,6 +219,130 @@ public class TestTasks {
     } finally {
       taskPool.shutdownNow();
       callerPool.shutdownNow();
+    }
+  }
+
+  @Test
+  public void parallelRunReturnsWhenTasksFinish() {
+    int rounds = 100;
+    AtomicInteger finished = new AtomicInteger();
+
+    long start = System.nanoTime();
+    for (int round = 0; round < rounds; round++) {
+      Tasks.range(4)
+          .executeWith(executor)
+          .run(
+              x -> {
+                LockSupport.parkNanos(TimeUnit.MICROSECONDS.toNanos(100));
+                finished.incrementAndGet();
+              });
+      assertThat(finished).hasValue((round + 1) * 4);
+    }
+    long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+
+    // polling with a 10 ms sleep takes at least 10 ms per round
+    assertThat(elapsedMillis).isLessThan(rounds * 10L);
+  }
+
+  @Test
+  public void parallelRunRethrowsTaskError() {
+    assertThatThrownBy(
+            () ->
+                Tasks.range(2)
+                    .executeWith(executor)
+                    .run(
+                        x -> {
+                          if (x == 0) {
+                            executor.awaitBlockedGet();
+                            throw new Error("task failed");
+                          }
+                        }))
+        .isExactlyInstanceOf(Error.class)
+        .hasMessage("task failed");
+  }
+
+  @Test
+  public void parallelRunIgnoresCancelledFuture() throws InterruptedException {
+    CountDownLatch release = new CountDownLatch(1);
+
+    boolean succeeded =
+        Tasks.range(2)
+            .executeWith(executor)
+            .run(
+                x -> {
+                  if (x == 0) {
+                    release.await(10, TimeUnit.SECONDS);
+                  } else {
+                    executor.awaitBlockedGet();
+                    executor.futures().get(0).cancel(false);
+                    release.countDown();
+                  }
+                },
+                InterruptedException.class);
+
+    assertThat(succeeded).isTrue();
+    assertThat(executor.futures().get(0).isCancelled()).isTrue();
+  }
+
+  @Test
+  public void parallelRunCancelsFuturesOnInterrupt() {
+    Thread waitingThread = Thread.currentThread();
+    CountDownLatch neverReleased = new CountDownLatch(1);
+
+    assertThatThrownBy(
+            () ->
+                Tasks.range(4)
+                    .executeWith(executor)
+                    .run(
+                        x -> {
+                          if (x == 0) {
+                            executor.awaitBlockedGet();
+                            waitingThread.interrupt();
+                          }
+                          neverReleased.await(10, TimeUnit.SECONDS);
+                        },
+                        InterruptedException.class))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("InterruptedException")
+        .hasCauseInstanceOf(InterruptedException.class);
+
+    assertThat(Thread.interrupted()).isTrue();
+    assertThat(executor.futures()).hasSize(4).allMatch(Future::isCancelled);
+  }
+
+  private static class RecordingExecutor extends ThreadPoolExecutor {
+    private final List<Future<?>> futures = new CopyOnWriteArrayList<>();
+    // counts down when get() is called on a future that is not done
+    private final CountDownLatch blockedGet = new CountDownLatch(1);
+
+    RecordingExecutor(int threads) {
+      super(threads, threads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+    }
+
+    List<Future<?>> futures() {
+      return futures;
+    }
+
+    void awaitBlockedGet() {
+      assertThat(Uninterruptibles.awaitUninterruptibly(blockedGet, 10, TimeUnit.SECONDS))
+          .as("get() should be called on a future that is not done")
+          .isTrue();
+    }
+
+    @Override
+    protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
+      RunnableFuture<T> future =
+          new FutureTask<>(runnable, value) {
+            @Override
+            public T get() throws InterruptedException, ExecutionException {
+              if (!isDone()) {
+                blockedGet.countDown();
+              }
+              return super.get();
+            }
+          };
+      futures.add(future);
+      return future;
     }
   }
 }
