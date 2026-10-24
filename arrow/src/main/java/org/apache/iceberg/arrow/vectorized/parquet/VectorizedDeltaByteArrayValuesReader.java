@@ -19,6 +19,7 @@
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import java.io.IOException;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.io.api.Binary;
@@ -59,6 +60,13 @@ public class VectorizedDeltaByteArrayValuesReader extends ValuesReader
   @Override
   public Binary readBinary(int len) {
     int prefixLength = prefixLengths[currentRow];
+    Preconditions.checkArgument(
+        prefixLength >= 0 && prefixLength <= previous.length(),
+        "Invalid prefixLength %s for previous value of length %s",
+        prefixLength,
+        previous.length());
+    Preconditions.checkArgument(
+        len >= prefixLength, "Total length %s is less than prefixLength %s", len, prefixLength);
     Binary suffix = suffixReader.readBinary(len - prefixLength);
     this.currentRow++;
 
@@ -69,7 +77,13 @@ public class VectorizedDeltaByteArrayValuesReader extends ValuesReader
 
     byte[] prefixBytes = previous.getBytes();
     byte[] suffixBytes = suffix.getBytes();
-    byte[] out = new byte[prefixLength + suffixBytes.length];
+    long totalLen = (long) prefixLength + suffixBytes.length;
+    Preconditions.checkArgument(
+        totalLen <= Integer.MAX_VALUE,
+        "Combined length overflow: prefix=%s + suffix=%s",
+        prefixLength,
+        suffixBytes.length);
+    byte[] out = new byte[(int) totalLen];
     System.arraycopy(prefixBytes, 0, out, 0, prefixLength);
     System.arraycopy(suffixBytes, 0, out, prefixLength, suffixBytes.length);
     this.previous = Binary.fromConstantByteArray(out);
