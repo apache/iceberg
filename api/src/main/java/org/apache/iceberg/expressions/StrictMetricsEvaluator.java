@@ -108,11 +108,6 @@ public class StrictMetricsEvaluator {
     }
 
     @Override
-    protected boolean canContainNulls(int id) {
-      return nullCounts == null || (nullCounts.containsKey(id) && nullCounts.get(id) > 0);
-    }
-
-    @Override
     protected boolean mayContainNaN(int id) {
       return nanCounts == null || !nanCounts.containsKey(id) || nanCounts.get(id) != 0;
     }
@@ -123,11 +118,6 @@ public class StrictMetricsEvaluator {
           && nanCounts.containsKey(id)
           && valueCounts != null
           && nanCounts.get(id).equals(valueCounts.get(id));
-    }
-
-    @Override
-    protected boolean canContainNaNs(int id) {
-      return nanCounts != null && nanCounts.containsKey(id) && nanCounts.get(id) > 0;
     }
 
     @Override
