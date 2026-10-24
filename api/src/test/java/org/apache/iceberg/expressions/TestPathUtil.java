@@ -18,11 +18,14 @@
  */
 package org.apache.iceberg.expressions;
 
+import static org.apache.iceberg.expressions.PathUtil.PathSegment.Index;
+import static org.apache.iceberg.expressions.PathUtil.PathSegment.Name;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -30,9 +33,13 @@ import org.junit.jupiter.params.provider.FieldSource;
 @SuppressWarnings({"AvoidEscapedUnicodeCharacters", "IllegalTokenText"})
 public class TestPathUtil {
 
+  private static List<PathUtil.PathSegment> names(String... names) {
+    return java.util.Arrays.stream(names).map(Name::new).collect(Collectors.toList());
+  }
+
   @Test
   public void testSimplePath() {
-    assertThat(PathUtil.parse("$.event.id")).isEqualTo(List.of("event", "id"));
+    assertThat(PathUtil.parse("$.event.id")).isEqualTo(names("event", "id"));
   }
 
   private static final String[] VALID_PATHS =
@@ -40,8 +47,18 @@ public class TestPathUtil {
         "$", // root path
         "$.event_id",
         "$.event.id",
+        "$['event_id']", // bracket form
+        "$.event['x.y']", // mixed: dot then bracket
+        "$['event']['id']", // bracket then bracket
+        "$['a'].b", // bracket then dot
         "$.\u2603", // snowman
         "$.\uD834\uDD1E", // surrogate pair, U+1D11E
+        "$.matrix[0][1]",
+        "$.basket[0][2].a",
+        "$.items[0].tags[1]",
+        "$['matrix'][0][1]",
+        "$['items'][0]['tags'][1]",
+        "$['basket'][0][2]['a']",
       };
 
   @ParameterizedTest
@@ -55,9 +72,7 @@ public class TestPathUtil {
         null,
         "",
         "event_id", // missing root
-        "$['event_id']", // uses bracket notation
         "$..event_id", // uses recursive descent
-        "$.events[0].event_id", // uses position accessor
         "$.events.*", // uses wildcard
         "$.0invalid", // starts with a digit
         "$._\uD834", // dangling high surrogate
@@ -79,6 +94,10 @@ public class TestPathUtil {
         new String[] {"$.a.b.c", "$['a']['b']['c']"},
         new String[] {"$.\u2603", "$['☃']"},
         new String[] {"$.a\uD834\uDD1Eb.x", "$['a\uD834\uDD1Eb']['x']"},
+        // Dot shorthand vs bracket form for names; array steps use unquoted [n] in both.
+        new String[] {"$.matrix[0][1]", "$['matrix'][0][1]"},
+        new String[] {"$.items[0].tags[1]", "$['items'][0]['tags'][1]"},
+        new String[] {"$.basket[0][2].a", "$['basket'][0][2]['a']"},
       };
 
   @ParameterizedTest
@@ -122,5 +141,31 @@ public class TestPathUtil {
   @FieldSource("ESCAPE_CASES")
   public void testPathEscaping(String name, String escaped) {
     assertThat(PathUtil.rfc9535escape(name)).isEqualTo(escaped);
+  }
+
+  @Test
+  void testParseArrayPath() {
+    assertThat(PathUtil.parse("$.commits[0].author.name"))
+        .isEqualTo(
+            List.of(new Name("commits"), new Index(0), new Name("author"), new Name("name")));
+  }
+
+  @Test
+  void testParseArrayIndexOnly() {
+    assertThat(PathUtil.parse("$.a[1][2].b"))
+        .isEqualTo(List.of(new Name("a"), new Index(1), new Index(2), new Name("b")));
+  }
+
+  @Test
+  void testParseBracketMixed() {
+    assertThat(PathUtil.parse("$['issue']['labels'][0]['name']"))
+        .isEqualTo(List.of(new Name("issue"), new Name("labels"), new Index(0), new Name("name")));
+  }
+
+  @Test
+  void testNameAndIndexSegmentsAreDistinct() {
+    // $[0] is an array index; $['[0]'] is a field whose name is literally "[0]" — must not conflate
+    assertThat(PathUtil.parse("$[0]")).containsExactly(new Index(0));
+    assertThat(PathUtil.parse("$['[0]']")).containsExactly(new Name("[0]"));
   }
 }

@@ -49,6 +49,7 @@ import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
+import org.apache.spark.sql.types.StructType;
 
 class SparkBatch implements Batch {
 
@@ -59,6 +60,7 @@ class SparkBatch implements Batch {
   private final Types.StructType groupingKeyType;
   private final List<? extends ScanTaskGroup<?>> taskGroups;
   private final Schema projection;
+  private final StructType readSchema;
   private final boolean caseSensitive;
   private final boolean localityEnabled;
   private final boolean executorCacheLocalityEnabled;
@@ -73,6 +75,7 @@ class SparkBatch implements Batch {
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema projection,
+      StructType readSchema,
       int scanHashCode) {
     this.sparkContext = sparkContext;
     this.table = table;
@@ -81,6 +84,7 @@ class SparkBatch implements Batch {
     this.groupingKeyType = groupingKeyType;
     this.taskGroups = taskGroups;
     this.projection = projection;
+    this.readSchema = readSchema;
     this.caseSensitive = readConf.caseSensitive();
     this.localityEnabled = readConf.localityEnabled();
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
@@ -96,6 +100,7 @@ class SparkBatch implements Batch {
     Broadcast<FileIO> fileIOBroadcast =
         sparkContext.broadcast(SerializableFileIOWithSize.wrap(fileIO.get()));
     String projectionString = SchemaParser.toJson(projection);
+    String readSchemaJson = readSchema != null ? readSchema.json() : null;
     String[][] locations = computePreferredLocations();
 
     InputPartition[] partitions = new InputPartition[taskGroups.size()];
@@ -108,6 +113,7 @@ class SparkBatch implements Batch {
               tableBroadcast,
               fileIOBroadcast,
               projectionString,
+              readSchemaJson,
               caseSensitive,
               locations != null ? locations[index] : SparkPlanningUtil.NO_LOCATION_PREFERENCE,
               cacheDeleteFilesOnExecutors);
