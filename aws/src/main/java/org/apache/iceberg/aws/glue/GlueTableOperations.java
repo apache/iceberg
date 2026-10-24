@@ -18,19 +18,32 @@
  */
 package org.apache.iceberg.aws.glue;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.aws.AwsProperties;
 import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.aws.util.RetryDetector;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.encryption.EncryptedKey;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -40,8 +53,14 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
@@ -57,7 +76,6 @@ import software.amazon.awssdk.services.glue.model.StorageDescriptor;
 import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 import software.amazon.awssdk.services.glue.model.UpdateTableRequest;
-import software.amazon.awssdk.utils.ImmutableMap;
 
 class GlueTableOperations extends BaseMetastoreTableOperations {
 
@@ -66,6 +84,10 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   // same as org.apache.hadoop.hive.metastore.TableType.EXTERNAL_TABLE
   // more details: https://docs.aws.amazon.com/glue/latest/webapi/API_TableInput.html
   private static final String GLUE_EXTERNAL_TABLE_TYPE = "EXTERNAL_TABLE";
+
+  private static final String MISSING_KMS_CLIENT_MESSAGE =
+      "Cannot create encryption manager without a key management client. "
+          + "Consider setting the '%s' catalog property";
 
   private final GlueClient glue;
   private final AwsProperties awsProperties;
@@ -76,7 +98,15 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   private final Map<String, String> tableCatalogProperties;
   private final Object hadoopConf;
   private final LockManager lockManager;
+  private final KeyManagementClient keyManagementClient;
   private FileIO fileIO;
+
+  private EncryptionManager encryptionManager;
+  private EncryptingFileIO encryptingFileIO;
+  private String tableKeyId;
+  private int encryptionDekLength;
+
+  private List<EncryptedKey> encryptedKeys = List.of();
 
   // Attempt to set versionId if available on the path
   private static final DynMethods.UnboundMethod SET_VERSION_ID =
@@ -93,7 +123,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       AwsProperties awsProperties,
       Map<String, String> tableCatalogProperties,
       Object hadoopConf,
-      TableIdentifier tableIdentifier) {
+      TableIdentifier tableIdentifier,
+      KeyManagementClient keyManagementClient) {
     this.glue = glue;
     this.awsProperties = awsProperties;
     this.databaseName =
@@ -107,6 +138,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     this.tableCatalogProperties = tableCatalogProperties;
     this.hadoopConf = hadoopConf;
     this.lockManager = lockManager;
+    this.keyManagementClient = keyManagementClient;
   }
 
   @Override
@@ -114,7 +146,45 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     if (fileIO == null) {
       fileIO = initializeFileIO(this.tableCatalogProperties, this.hadoopConf);
     }
-    return fileIO;
+
+    if (tableKeyId == null) {
+      return fileIO;
+    }
+
+    if (encryptingFileIO == null) {
+      encryptingFileIO = EncryptingFileIO.combine(fileIO, encryption());
+    }
+
+    return encryptingFileIO;
+  }
+
+  @Override
+  public EncryptionManager encryption() {
+    if (encryptionManager != null) {
+      return encryptionManager;
+    }
+
+    if (tableKeyId == null) {
+      return PlaintextEncryptionManager.instance();
+    }
+
+    Preconditions.checkArgument(
+        keyManagementClient != null,
+        MISSING_KMS_CLIENT_MESSAGE,
+        CatalogProperties.ENCRYPTION_KMS_IMPL);
+
+    Map<String, String> encryptionProperties =
+        ImmutableMap.of(
+            TableProperties.ENCRYPTION_TABLE_KEY,
+            tableKeyId,
+            TableProperties.ENCRYPTION_DEK_LENGTH,
+            String.valueOf(encryptionDekLength));
+
+    encryptionManager =
+        EncryptionUtil.createEncryptionManager(
+            encryptedKeys, encryptionProperties, keyManagementClient);
+
+    return encryptionManager;
   }
 
   @Override
@@ -125,10 +195,20 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
   @Override
   protected void doRefresh() {
     String metadataLocation = null;
+    String tableKeyIdFromGlue = null;
+    String dekLengthFromGlue = null;
+    String metadataHashFromGlue = null;
     Table table = getGlueTable();
     if (table != null) {
       checkIfTableIsIceberg(table, tableName());
       metadataLocation = table.parameters().get(METADATA_LOCATION_PROP);
+      /* Table key ID must be retrieved from a catalog service, and not from untrusted storage
+      (e.g. metadata json file) that can be tampered with. For example, an attacker can remove
+      the table key parameter (along with existing snapshots) in the file, making the writers
+      produce unencrypted files. Table key ID is taken directly from the Glue catalog */
+      tableKeyIdFromGlue = table.parameters().get(TableProperties.ENCRYPTION_TABLE_KEY);
+      dekLengthFromGlue = table.parameters().get(TableProperties.ENCRYPTION_DEK_LENGTH);
+      metadataHashFromGlue = table.parameters().get(METADATA_HASH_PROP);
     } else {
       if (currentMetadataLocation() != null) {
         throw new NoSuchTableException(
@@ -139,10 +219,49 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     }
 
     refreshFromMetadataLocation(metadataLocation);
+
+    if (tableKeyIdFromGlue != null) {
+      checkIntegrityForEncryption(tableKeyIdFromGlue, dekLengthFromGlue, metadataHashFromGlue);
+
+      this.tableKeyId = tableKeyIdFromGlue;
+      this.encryptionDekLength =
+          (dekLengthFromGlue != null)
+              ? Integer.parseInt(dekLengthFromGlue)
+              : TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
+
+      this.encryptedKeys =
+          Optional.ofNullable(current().encryptionKeys())
+              .map(Lists::newLinkedList)
+              .orElseGet(Lists::newLinkedList);
+
+      // Active transactions may still need keys that are not in committed metadata.
+      if (encryptionManager != null) {
+        Set<String> keyIdsFromMetadata =
+            encryptedKeys.stream().map(EncryptedKey::keyId).collect(Collectors.toSet());
+
+        for (EncryptedKey keyFromEM : EncryptionUtil.encryptionKeys(encryptionManager).values()) {
+          if (!keyIdsFromMetadata.contains(keyFromEM.keyId())) {
+            encryptedKeys.add(keyFromEM);
+          }
+        }
+      }
+
+      // Force re-creation of encryption manager with updated keys
+      this.encryptingFileIO = null;
+      this.encryptionManager = null;
+    }
   }
 
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
+    checkEncryptionKeyUnchanged(base, metadata);
+    encryptionPropsFromMetadata(metadata.properties());
+    // fail fast on a misconfigured catalog, rather than in the middle of the commit
+    Preconditions.checkArgument(
+        tableKeyId == null || keyManagementClient != null,
+        MISSING_KMS_CLIENT_MESSAGE,
+        CatalogProperties.ENCRYPTION_KMS_IMPL);
+
     CommitStatus commitStatus = CommitStatus.FAILURE;
     RetryDetector retryDetector = new RetryDetector();
 
@@ -156,7 +275,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       lock(newMetadataLocation);
       Table glueTable = getGlueTable();
       checkMetadataLocation(glueTable, base);
-      Map<String, String> properties = prepareProperties(glueTable, newMetadataLocation);
+      Map<String, String> properties = prepareProperties(glueTable, newMetadataLocation, metadata);
       persistGlueTable(glueTable, properties, metadata, retryDetector);
       commitStatus = CommitStatus.SUCCESS;
     } catch (CommitFailedException e) {
@@ -288,13 +407,23 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     }
   }
 
-  private Map<String, String> prepareProperties(Table glueTable, String newMetadataLocation) {
+  private Map<String, String> prepareProperties(
+      Table glueTable, String newMetadataLocation, TableMetadata metadata) {
     Map<String, String> properties =
         glueTable != null ? Maps.newHashMap(glueTable.parameters()) : Maps.newHashMap();
     properties.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ROOT));
     properties.put(METADATA_LOCATION_PROP, newMetadataLocation);
     if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
       properties.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
+    }
+
+    if (tableKeyId != null) {
+      /* Encryption parameters are kept in the Glue catalog, and not only in the metadata json file,
+      because the latter can be tampered with in an untrusted storage. The metadata hash allows to
+      detect such tampering upon refresh. */
+      properties.put(TableProperties.ENCRYPTION_TABLE_KEY, tableKeyId);
+      properties.put(TableProperties.ENCRYPTION_DEK_LENGTH, String.valueOf(encryptionDekLength));
+      properties.put(METADATA_HASH_PROP, EncryptionUtil.metadataHash(metadata));
     }
 
     return properties;
@@ -400,6 +529,117 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
       if (lockManager != null) {
         lockManager.release(commitLockEntityId, metadataLocation);
       }
+    }
+  }
+
+  @Override
+  public TableOperations temp(TableMetadata uncommittedMetadata) {
+    return new TableOperations() {
+      @Override
+      public TableMetadata current() {
+        return uncommittedMetadata;
+      }
+
+      @Override
+      public TableMetadata refresh() {
+        throw new UnsupportedOperationException(
+            "Cannot call refresh on temporary table operations");
+      }
+
+      @Override
+      public void commit(TableMetadata base, TableMetadata metadata) {
+        throw new UnsupportedOperationException("Cannot call commit on temporary table operations");
+      }
+
+      @Override
+      public String metadataFileLocation(String fileName) {
+        return GlueTableOperations.this.metadataFileLocation(uncommittedMetadata, fileName);
+      }
+
+      @Override
+      public LocationProvider locationProvider() {
+        return LocationProviders.locationsFor(
+            uncommittedMetadata.location(), uncommittedMetadata.properties());
+      }
+
+      @Override
+      public FileIO io() {
+        GlueTableOperations.this.encryptionPropsFromMetadata(uncommittedMetadata.properties());
+        return GlueTableOperations.this.io();
+      }
+
+      @Override
+      public EncryptionManager encryption() {
+        return GlueTableOperations.this.encryption();
+      }
+
+      @Override
+      public long newSnapshotId() {
+        return GlueTableOperations.this.newSnapshotId();
+      }
+    };
+  }
+
+  private void encryptionPropsFromMetadata(Map<String, String> tableProperties) {
+    if (tableKeyId == null) {
+      this.tableKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
+    }
+
+    if (tableKeyId != null && encryptionDekLength <= 0) {
+      this.encryptionDekLength =
+          PropertyUtil.propertyAsInt(
+              tableProperties,
+              TableProperties.ENCRYPTION_DEK_LENGTH,
+              TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
+    }
+  }
+
+  /** The key ID of an encrypted table must stay the same for the whole table lifetime. */
+  private static void checkEncryptionKeyUnchanged(TableMetadata base, TableMetadata metadata) {
+    if (base == null) {
+      return;
+    }
+
+    String baseKeyId = base.properties().get(TableProperties.ENCRYPTION_TABLE_KEY);
+    String newKeyId = metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY);
+
+    Preconditions.checkArgument(
+        baseKeyId == null || newKeyId != null, "Cannot remove key ID from an encrypted table");
+    Preconditions.checkArgument(
+        Objects.equals(baseKeyId, newKeyId), "Cannot modify key ID of an encrypted table");
+  }
+
+  private void checkIntegrityForEncryption(
+      String encryptionKeyIdFromGlue, String dekLengthFromGlue, String metadataHashFromGlue) {
+    TableMetadata metadata = current();
+    if (!Strings.isNullOrEmpty(metadataHashFromGlue)) {
+      EncryptionUtil.verifyMetadataHash(metadata, metadataHashFromGlue);
+      return;
+    }
+
+    LOG.warn(
+        "Full metadata integrity check skipped because no metadata hash was recorded in Glue for table {}."
+            + " Falling back to encryption property based check.",
+        tableName());
+
+    Map<String, String> propertiesFromMetadata = metadata.properties();
+
+    String encryptionKeyIdFromMetadata =
+        propertiesFromMetadata.get(TableProperties.ENCRYPTION_TABLE_KEY);
+    if (!Objects.equals(encryptionKeyIdFromGlue, encryptionKeyIdFromMetadata)) {
+      throw new RuntimeException(
+          String.format(
+              "Metadata file might have been modified. Encryption key id %s differs from Glue value %s",
+              encryptionKeyIdFromMetadata, encryptionKeyIdFromGlue));
+    }
+
+    String dekLengthFromMetadata =
+        propertiesFromMetadata.get(TableProperties.ENCRYPTION_DEK_LENGTH);
+    if (!Objects.equals(dekLengthFromGlue, dekLengthFromMetadata)) {
+      throw new RuntimeException(
+          String.format(
+              "Metadata file might have been modified. DEK length %s differs from Glue value %s",
+              dekLengthFromMetadata, dekLengthFromGlue));
     }
   }
 
