@@ -23,14 +23,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.util.Collections;
+import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestPartitioning {
 
@@ -163,6 +168,88 @@ public class TestPartitioning {
         StructType.of(NestedField.optional(1000, "data", Types.StringType.get()));
     StructType actualType = Partitioning.partitionType(table);
     assertThat(actualType).isEqualTo(expectedType);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {2, 3})
+  void partitionTypeWithConflictingNames(int formatVersion) {
+    TestTables.TestTable table = tableWithConflictingNames(formatVersion);
+
+    StructType expected =
+        StructType.of(
+            NestedField.optional(1000, "data_1000", Types.StringType.get()),
+            NestedField.optional(1001, "data_1001", Types.StringType.get()),
+            NestedField.optional(1002, "category_bucket_8", Types.IntegerType.get()));
+
+    assertThat(Partitioning.partitionType(table)).isEqualTo(expected);
+    assertThat(new PartitionsTable(table).schema().findField("partition.data_1000").fieldId())
+        .isEqualTo(1000);
+    assertThat(new PartitionsTable(table).schema().findField("partition.data_1001").fieldId())
+        .isEqualTo(1001);
+
+    List<PartitionSpec> specs = Lists.newArrayList(table.specs().values());
+    Collections.reverse(specs);
+    assertThat(Partitioning.unionPartitionTypes(specs)).isEqualTo(expected);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {2, 3})
+  void partitionTypeWithConflictingGeneratedNames(int formatVersion) {
+    TestTables.TestTable table = tableWithConflictingNames(formatVersion);
+    table.updateSpec().addField("data_1000", Expressions.bucket("id", 8)).commit();
+    table.updateSpec().addField("data_1000_", Expressions.truncate("category", 4)).commit();
+
+    assertThat(Partitioning.partitionType(table))
+        .isEqualTo(
+            StructType.of(
+                NestedField.optional(1000, "data_1000__", Types.StringType.get()),
+                NestedField.optional(1001, "data_1001", Types.StringType.get()),
+                NestedField.optional(1002, "category_bucket_8", Types.IntegerType.get()),
+                NestedField.optional(1003, "data_1000", Types.IntegerType.get()),
+                NestedField.optional(1004, "data_1000_", Types.StringType.get())));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {2, 3})
+  void partitionTypeWithConflictingNamesAfterSpecReuse(int formatVersion) {
+    TestTables.TestTable table = tableWithConflictingNames(formatVersion);
+    StructType expected = Partitioning.partitionType(table);
+
+    table.updateSpec().removeField("data").removeField("category_bucket_8").commit();
+    assertThat(Partitioning.partitionType(table)).isEqualTo(expected);
+
+    table.updateSpec().addField("data", Expressions.ref("data")).commit();
+    assertThat(table.spec().specId()).isZero();
+    assertThat(Partitioning.partitionType(table)).isEqualTo(expected);
+    assertThat(new Schema(expected.fields()).findField("data_1000").fieldId()).isEqualTo(1000);
+  }
+
+  @Test
+  void partitionTypePreservesCaseDistinctNames() {
+    TestTables.TestTable table =
+        TestTables.create(tableDir, "test", SCHEMA, BY_DATA_SPEC, V2_FORMAT_VERSION);
+    table.updateSpec().removeField("data").commit();
+    table.updateSpec().addField("DATA", Expressions.ref("data")).commit();
+
+    assertThat(Partitioning.partitionType(table))
+        .isEqualTo(
+            StructType.of(
+                NestedField.optional(1000, "data", Types.StringType.get()),
+                NestedField.optional(1001, "DATA", Types.StringType.get())));
+  }
+
+  private TestTables.TestTable tableWithConflictingNames(int formatVersion) {
+    TestTables.TestTable table =
+        TestTables.create(tableDir, "test", SCHEMA, BY_DATA_SPEC, formatVersion);
+    table.updateSpec().removeField("data").commit();
+    table.updateSpec().addField("data_alias", Expressions.ref("data")).commit();
+    // Adding a field with the rename prevents reusing the original spec instead of committing it.
+    table
+        .updateSpec()
+        .renameField("data_alias", "data")
+        .addField(Expressions.bucket("category", 8))
+        .commit();
+    return table;
   }
 
   @Test

@@ -318,13 +318,31 @@ public class Partitioning {
       }
     }
 
-    List<NestedField> sortedStructFields =
-        fieldMap.keySet().stream()
-            .sorted(Comparator.naturalOrder())
-            .map(
-                fieldId ->
-                    NestedField.optional(fieldId, nameMap.get(fieldId), typeMap.get(fieldId)))
-            .collect(Collectors.toList());
+    Set<String> usedNames = Sets.newHashSet();
+    Set<String> conflictingNames = Sets.newHashSet();
+    for (String name : nameMap.values()) {
+      if (!usedNames.add(name)) {
+        conflictingNames.add(name);
+      }
+    }
+
+    List<Integer> sortedFieldIds =
+        fieldMap.keySet().stream().sorted(Comparator.naturalOrder()).collect(Collectors.toList());
+    List<NestedField> sortedStructFields = Lists.newArrayListWithCapacity(sortedFieldIds.size());
+    for (int fieldId : sortedFieldIds) {
+      String name = nameMap.get(fieldId);
+      // Names are only unique within a spec. Distinct IDs must remain addressable in the union,
+      // and generated names must not shadow an original name or another generated name.
+      if (conflictingNames.contains(name)) {
+        name = name + "_" + fieldId;
+        while (!usedNames.add(name)) {
+          name += "_";
+        }
+      }
+
+      sortedStructFields.add(NestedField.optional(fieldId, name, typeMap.get(fieldId)));
+    }
+
     return StructType.of(sortedStructFields);
   }
 
