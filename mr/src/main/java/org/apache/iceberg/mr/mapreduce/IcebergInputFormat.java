@@ -48,8 +48,8 @@ import org.apache.iceberg.data.GenericDeleteFilter;
 import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.encryption.EncryptedFiles;
-import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -58,7 +58,6 @@ import org.apache.iceberg.formats.ReadBuilder;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.mr.Catalogs;
@@ -236,8 +235,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private Iterator<FileScanTask> tasks;
     private T current;
     private CloseableIterator<T> currentIterator;
-    private FileIO io;
-    private EncryptionManager encryptionManager;
+    private InputFilesDecryptor decryptor;
 
     @Override
     public void initialize(InputSplit split, TaskAttemptContext newContext) {
@@ -248,8 +246,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       this.context = newContext;
       Table table = ((IcebergSplit) split).table();
       checkAndSetIoConfig(conf, table);
-      this.io = table.io();
-      this.encryptionManager = table.encryption();
+      this.decryptor =
+          InputFilesDecryptor.fromTasks(
+              task.files(), EncryptingFileIO.combine(table.io(), table.encryption()));
       this.tasks = task.files().iterator();
       this.tableSchema = InputFormatConfig.tableSchema(conf);
       this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
@@ -311,9 +310,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     @SuppressWarnings("unchecked")
     private CloseableIterable<T> openTask(FileScanTask currentTask, Schema readSchema) {
       DataFile file = currentTask.file();
-      InputFile inputFile =
-          encryptionManager.decrypt(
-              EncryptedFiles.encryptedInput(io.newInputFile(file.location()), file.keyMetadata()));
+      InputFile inputFile = decryptor.getInputFile(file.location());
 
       ReadBuilder<Record, ?> readBuilder =
           FormatModelRegistry.readBuilder(file.format(), Record.class, inputFile);
@@ -343,7 +340,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
 
     @SuppressWarnings("unchecked")
     private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
-      DeleteFilter deletes = new GenericDeleteFilter(io, currentTask, tableSchema, readSchema);
+      DeleteFilter deletes =
+          new GenericDeleteFilter(decryptor, currentTask, tableSchema, readSchema);
       Schema requiredSchema = deletes.requiredSchema();
       return deletes.filter(openTask(currentTask, requiredSchema));
     }
