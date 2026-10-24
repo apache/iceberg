@@ -1250,6 +1250,35 @@ public class TestExpressionUtil {
   }
 
   @Test
+  public void testSanitizeExtract() {
+    assertEquals(
+        Expressions.greaterThan(Expressions.extract("var", "$.event_id", "long"), "(2-digit-int)"),
+        ExpressionUtil.sanitize(
+            Expressions.greaterThan(Expressions.extract("var", "$.event_id", "long"), 34L)));
+
+    assertEquals(
+        Expressions.greaterThan(Expressions.extract("var", "$.event_id", "long"), "(2-digit-int)"),
+        ExpressionUtil.sanitize(
+            STRUCT,
+            Expressions.greaterThan(Expressions.extract("var", "$.event_id", "long"), 34L),
+            true));
+
+    assertThat(
+            ExpressionUtil.toSanitizedString(
+                Expressions.greaterThan(Expressions.extract("var", "$.event_id", "long"), 34L)))
+        .as("Sanitized string should be identical except for descriptive literal")
+        .isEqualTo("extract(var, path=$.event_id, type=long) > (2-digit-int)");
+
+    assertThat(
+            ExpressionUtil.toSanitizedString(
+                STRUCT,
+                Expressions.greaterThan(Expressions.extract("var", "$.event_id", "long"), 34L),
+                true))
+        .as("Sanitized string should be identical except for descriptive literal")
+        .isEqualTo("extract(var, path=$['event_id'], type=long) > (2-digit-int)");
+  }
+
+  @Test
   public void testSanitizeVariantArray() {
     Expression bound =
         Binder.bind(
@@ -1506,7 +1535,7 @@ public class TestExpressionUtil {
   private void assertEquals(UnboundTerm<?> expected, UnboundTerm<?> actual) {
     assertThat(expected)
         .as("Unknown expected term: " + expected)
-        .isOfAnyClassIn(NamedReference.class, UnboundTransform.class);
+        .isOfAnyClassIn(NamedReference.class, UnboundTransform.class, UnboundExtract.class);
 
     if (expected instanceof NamedReference) {
       assertThat(actual).as("Should be a NamedReference").isInstanceOf(NamedReference.class);
@@ -1514,6 +1543,9 @@ public class TestExpressionUtil {
     } else if (expected instanceof UnboundTransform) {
       assertThat(actual).as("Should be an UnboundTransform").isInstanceOf(UnboundTransform.class);
       assertEquals((UnboundTransform<?, ?>) expected, (UnboundTransform<?, ?>) actual);
+    } else if (expected instanceof UnboundExtract) {
+      assertThat(actual).as("Should be an UnboundExtract").isInstanceOf(UnboundExtract.class);
+      assertEquals((UnboundExtract<?>) expected, (UnboundExtract<?>) actual);
     }
   }
 
@@ -1525,6 +1557,12 @@ public class TestExpressionUtil {
     assertThat(actual.transform())
         .as("Should apply the same transform")
         .hasToString(expected.transform().toString());
+    assertEquals(expected.ref(), actual.ref());
+  }
+
+  private void assertEquals(UnboundExtract<?> expected, UnboundExtract<?> actual) {
+    assertThat(actual.path()).as("Should extract the same path").isEqualTo(expected.path());
+    assertThat(actual.type()).as("Should extract the same type").isEqualTo(expected.type());
     assertEquals(expected.ref(), actual.ref());
   }
 }
