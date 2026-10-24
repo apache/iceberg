@@ -37,6 +37,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.variants.PhysicalType;
@@ -377,7 +378,7 @@ public class ExpressionUtil {
         Iterable<T> iter =
             () ->
                 bound.literalSet().stream()
-                    .map(lit -> (T) sanitize((Literal<?>) lit, now, today))
+                    .map(lit -> (T) sanitize(bound.term().type(), lit, now, today))
                     .iterator();
         return new UnboundPredicate<>(pred.op(), unbind(pred.term()), iter);
       }
@@ -486,7 +487,7 @@ public class ExpressionUtil {
               + " IN "
               + abbreviateValues(
                       pred.asSetPredicate().literalSet().stream()
-                          .map(lit -> sanitize((Literal<?>) lit, nowMicros, today))
+                          .map(lit -> sanitize(pred.term().type(), lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
                   .collect(Collectors.joining(", ", "(", ")"));
@@ -495,7 +496,7 @@ public class ExpressionUtil {
               + " NOT IN "
               + abbreviateValues(
                       pred.asSetPredicate().literalSet().stream()
-                          .map(lit -> sanitize((Literal<?>) lit, nowMicros, today))
+                          .map(lit -> sanitize(pred.term().type(), lit, nowMicros, today))
                           .collect(Collectors.toList()))
                   .stream()
                   .collect(Collectors.joining(", ", "(", ")"));
@@ -608,6 +609,40 @@ public class ExpressionUtil {
       // for uuid, decimal, fixed and binary, match the string result
       return sanitizeSimpleString(literal.value().toString());
     }
+  }
+
+  private static String sanitize(Type type, Object value, long now, int today) {
+    switch (type.typeId()) {
+      case INTEGER:
+      case LONG:
+        return sanitizeNumber((Number) value, "int");
+      case FLOAT:
+      case DOUBLE:
+        return sanitizeNumber((Number) value, "float");
+      case DATE:
+        return sanitizeDate((int) value, today);
+      case TIME:
+        return "(time)";
+      case TIMESTAMP:
+        return sanitizeTimestamp((long) value, now);
+      case TIMESTAMP_NANO:
+        return sanitizeTimestamp(DateTimeUtil.nanosToMicros((long) value), now);
+      case STRING:
+        return sanitizeString((CharSequence) value, now, today);
+      case VARIANT:
+        return sanitizeVariant((Variant) value, now, today);
+      case UNKNOWN:
+        return "(unknown)";
+      case BOOLEAN:
+      case UUID:
+      case DECIMAL:
+      case FIXED:
+      case BINARY:
+        // for boolean, uuid, decimal, fixed and binary, match the string result
+        return sanitizeSimpleString(value.toString());
+    }
+    throw new UnsupportedOperationException(
+        String.format("Cannot sanitize value for unsupported type %s: %s", type, value));
   }
 
   private static String sanitizeDate(int days, int today) {
