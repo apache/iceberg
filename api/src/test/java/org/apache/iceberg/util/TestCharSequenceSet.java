@@ -28,6 +28,8 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestCharSequenceSet {
 
@@ -238,6 +240,15 @@ public class TestCharSequenceSet {
         .overridingErrorMessage("Set should be changed")
         .isTrue();
 
+    assertThat(set).isEmpty();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 1, 3})
+  void removeAllFromSelf(int size) {
+    CharSequenceSet set = CharSequenceSet.of(ImmutableList.of("a", "b", "c").subList(0, size));
+
+    assertThat(set.removeAll(set)).isEqualTo(size > 0);
     assertThat(set).isEmpty();
   }
 
