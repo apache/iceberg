@@ -82,6 +82,15 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
 
       validateCurrentSnapshotExists(snapshot, currentOffset);
 
+      if (currentOffset.shouldScanAllFiles()) {
+        long fullScanEndIndex =
+            currentOffset.snapshotId() == endOffset.snapshotId()
+                ? endOffset.position()
+                : MicroBatchUtils.endPosition(table(), snapshot, true);
+        fileScanTasks.addAll(planFullScan(snapshot, currentOffset.position(), fullScanEndIndex));
+        continue;
+      }
+
       if (!shouldProcess(snapshot)) {
         LOG.debug("Skipping snapshot: {} of table {}", currentOffset.snapshotId(), table().name());
         continue;
@@ -141,6 +150,20 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     int startPosOfSnapOffset = (int) startingOffset.position();
 
     boolean scanAllFiles = startingOffset.shouldScanAllFiles();
+
+    // a fully read snapshot has nothing left to count, so start from the snapshot after it
+    if (scanAllFiles
+        && startPosOfSnapOffset >= MicroBatchUtils.endPosition(table(), curSnapshot, true)) {
+      Snapshot nextValid =
+          curSnapshot.snapshotId() == latestSnapshotId ? null : nextValidSnapshot(curSnapshot);
+      if (nextValid == null) {
+        return null;
+      }
+
+      curSnapshot = nextValid;
+      startPosOfSnapOffset = -1;
+      scanAllFiles = false;
+    }
 
     boolean shouldContinueReading = true;
     int curFilesAdded = 0;
