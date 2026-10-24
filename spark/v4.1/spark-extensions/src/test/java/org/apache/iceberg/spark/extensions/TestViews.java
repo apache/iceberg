@@ -53,6 +53,7 @@ import org.apache.iceberg.view.ViewHistoryEntry;
 import org.apache.iceberg.view.ViewProperties;
 import org.apache.iceberg.view.ViewUtil;
 import org.apache.iceberg.view.ViewVersion;
+import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -1382,12 +1383,9 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void createViewWithSubqueryExpressionInFilterThatIsRewritten()
       throws NoSuchTableException {
-    assumeThat(catalogConfig.get(CatalogUtil.ICEBERG_CATALOG_TYPE))
-        .as(
-            "Executing subquery expression with Hive fails due to an exception when instantiating the FileInputFormat")
-        .isNotEqualTo("hive");
     insertRows(5);
     String viewName = viewName("viewWithSubqueryExpression");
     String sql =
@@ -1398,12 +1396,21 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThat(sql("SELECT * FROM %s", viewName)).hasSize(1).containsExactly(row(5));
 
+    String catalogType = catalogConfig.get(CatalogUtil.ICEBERG_CATALOG_TYPE);
     if (!catalogName.equals(SPARK_CATALOG)) {
       sql("USE spark_catalog");
 
-      assertThatThrownBy(() -> sql(sql))
-          .isInstanceOf(AnalysisException.class)
-          .hasMessageContaining("The table or view `%s` cannot be found", tableName);
+      if ("hive".equals(catalogType)) {
+        // The Hive view catalog shares its metastore with the default spark_catalog, so the
+        // Iceberg table IS resolvable there (unlike the in-memory/REST view catalogs) and does
+        // not raise AnalysisException. It cannot be read natively as a Hive table, so executing
+        // the raw SQL fails at execution time instead.
+        assertThatThrownBy(() -> sql(sql)).isInstanceOf(SparkException.class);
+      } else {
+        assertThatThrownBy(() -> sql(sql))
+            .isInstanceOf(AnalysisException.class)
+            .hasMessageContaining("The table or view `%s` cannot be found", tableName);
+      }
     }
 
     // the underlying SQL in the View should be rewritten to have catalog & namespace
@@ -1413,11 +1420,8 @@ public class TestViews extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  @SuppressWarnings("checkstyle:AssertThatThrownByWithMessageCheck")
   public void createViewWithSubqueryExpressionInQueryThatIsRewritten() throws NoSuchTableException {
-    assumeThat(catalogConfig.get(CatalogUtil.ICEBERG_CATALOG_TYPE))
-        .as(
-            "Executing subquery expression with Hive fails due to an exception when instantiating the FileInputFormat")
-        .isNotEqualTo("hive");
     insertRows(3);
     String viewName = viewName("viewWithSubqueryExpression");
     String sql =
@@ -1429,12 +1433,21 @@ public class TestViews extends ExtensionsTestBase {
         .hasSize(3)
         .containsExactly(row(3), row(3), row(3));
 
+    String catalogType = catalogConfig.get(CatalogUtil.ICEBERG_CATALOG_TYPE);
     if (!catalogName.equals(SPARK_CATALOG)) {
       sql("USE spark_catalog");
 
-      assertThatThrownBy(() -> sql(sql))
-          .isInstanceOf(AnalysisException.class)
-          .hasMessageContaining("The table or view `%s` cannot be found", tableName);
+      if ("hive".equals(catalogType)) {
+        // The Hive view catalog shares its metastore with the default spark_catalog, so the
+        // Iceberg table IS resolvable there (unlike the in-memory/REST view catalogs) and does
+        // not raise AnalysisException. It cannot be read natively as a Hive table, so executing
+        // the raw SQL fails at execution time instead.
+        assertThatThrownBy(() -> sql(sql)).isInstanceOf(SparkException.class);
+      } else {
+        assertThatThrownBy(() -> sql(sql))
+            .isInstanceOf(AnalysisException.class)
+            .hasMessageContaining("The table or view `%s` cannot be found", tableName);
+      }
     }
 
     // the underlying SQL in the View should be rewritten to have catalog & namespace
