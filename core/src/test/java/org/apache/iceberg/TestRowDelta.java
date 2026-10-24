@@ -1967,13 +1967,36 @@ public class TestRowDelta extends TestBase {
     RowDelta rowDelta1 = table.newRowDelta().addDeletes(deleteFile1);
 
     DeleteFile deleteFile2 = newDeletes(dataFile);
-    RowDelta rowDelta2 = table.newRowDelta().addDeletes(deleteFile2);
+    DataFile dataFile2 = newDataFile("data_bucket=0");
+    RowDelta rowDelta2 =
+        table
+            .newRowDelta()
+            .addDeletes(deleteFile2)
+            .addRows(dataFile2)
+            .addDeletes(newDeletes(dataFile2));
 
     commit(table, rowDelta1, branch);
 
     assertThatThrownBy(() -> commit(table, rowDelta2, branch))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Found concurrently added DV for %s", dataFile.location());
+  }
+
+  @TestTemplate
+  void dvsForAddedDataFilesSkipValidation() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newRowDelta().addRows(newDataFile("data_bucket=0")), branch);
+    long expiredSnapshotId = latestSnapshot(table, branch).snapshotId();
+    commit(table, table.newRowDelta().addRows(newDataFile("data_bucket=0")), branch);
+    // validating without a starting snapshot fails once the oldest ancestor is expired
+    table.expireSnapshots().expireSnapshotId(expiredSnapshotId).commit();
+
+    DataFile dataFile = newDataFile("data_bucket=0");
+    commit(table, table.newRowDelta().addRows(dataFile).addDeletes(newDeletes(dataFile)), branch);
+
+    assertThat(latestSnapshot(table, branch).summary())
+        .containsEntry(SnapshotSummary.ADDED_DVS_PROP, "1");
   }
 
   @TestTemplate
