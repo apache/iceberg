@@ -85,9 +85,10 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private boolean failMissingDeletePaths = false;
   private boolean caseSensitive = true;
   private boolean allDeletesReferenceManifests = true;
-  // this is only being used for the DeleteManifestFilterManager to detect orphaned DVs for removed
-  // data file paths
+  // only used for the DeleteManifestFilterManager to detect orphaned DVs for removed data files
   private Set<String> removedDataFilePaths = Sets.newHashSet();
+  // partitions of the removed data files, used to skip delete manifests that cannot hold a DV
+  private PartitionSet removedDataFilePartitions;
 
   // cache filtered manifests to avoid extra work when commits fail.
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
@@ -103,6 +104,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     this.specsById = specsById;
     this.deleteFilePartitions = PartitionSet.create(specsById);
     this.dropPartitions = PartitionSet.create(specsById);
+    this.removedDataFilePartitions = PartitionSet.create(specsById);
     this.workerPoolSupplier = executorSupplier;
   }
 
@@ -170,6 +172,13 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   protected void removeDanglingDeletesFor(Set<DataFile> dataFiles) {
     this.removedDataFilePaths =
         dataFiles.stream().map(ContentFile::location).collect(Collectors.toSet());
+
+    PartitionSet partitions = PartitionSet.create(specsById);
+    for (DataFile dataFile : dataFiles) {
+      partitions.add(dataFile.specId(), dataFile.partition());
+    }
+
+    this.removedDataFilePartitions = partitions;
   }
 
   /** Add a specific path to be deleted in the new snapshot. */
@@ -436,11 +445,21 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   private boolean canContainDroppedFiles(ManifestFile manifest) {
+    if (manifest.content() == ManifestContent.DELETES
+        && minSequenceNumber > 0
+        && manifest.minSequenceNumber() < minSequenceNumber) {
+      return true;
+    }
+
     if (!deletePaths.isEmpty()) {
       return true;
-    } else if (!deleteFiles.isEmpty()) {
-      return ManifestFileUtil.canContainAny(manifest, deleteFilePartitions, specsById);
-    } else if (!removedDataFilePaths.isEmpty()) {
+    }
+
+    if ((!deleteFiles.isEmpty() || !removedDataFilePaths.isEmpty())
+        && ManifestFileUtil.canContainAny(
+            manifest,
+            Iterables.concat(deleteFilePartitions, removedDataFilePartitions),
+            specsById)) {
       return true;
     }
 
