@@ -226,3 +226,11 @@ builder.
 | table.exec.iceberg.fetch-batch-record-count      | 2048                                 | Target number of records per fetch batch in the Iceberg source reader.                                                                                                                                                   |
 | table.exec.iceberg.worker-pool-size              | max(2, available cpu)    | Size of the worker pool used to plan or scan manifests. Defaults to the shared Iceberg worker pool size, which is controlled by the `iceberg.worker.num-threads` system property.                                         |
 | table.exec.iceberg.use-v2-sink                   | false                                | Use the SinkV2 based `IcebergSink` implementation, see [Sink V2 based implementation](flink-writes.md#sink-v2-based-implementation).                                                                                      |
+
+### Lookup options
+
+Flink lookup joins cache the whole projected dimension table in memory, and the cache is kept in memory for the lifetime of the job, so the dimension table should be populated before the join starts. See [Lookup Join](flink-queries.md#lookup-join) for details. These options are set as table options in the DDL, or per query with the `OPTIONS` hint.
+
+| Lookup option                  | Default | Description                                                                                        |
+| ------------------------------ | ------- | -------------------------------------------------------------------------------------------------- |
+| `lookup.full-cache.eager-load` | `true`  | Whether to load the full cache when the lookup function is opened, instead of on the first lookup. |
