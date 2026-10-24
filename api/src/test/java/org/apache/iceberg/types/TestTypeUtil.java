@@ -1167,4 +1167,12 @@ public class TestTypeUtil {
     Schema result = TypeUtil.replaceFieldTypes(schema, ImmutableMap.of(99, Types.LongType.get()));
     assertThat(result).isSameAs(schema);
   }
+
+    @Test
+    public void testUnknownTypePromotion() {
+        assertThat(TypeUtil.isPromotionAllowed(Types.UnknownType.get(), Types.StringType.get()))
+                .isTrue();
+        assertThat(TypeUtil.isPromotionAllowed(Types.UnknownType.get(), Types.IntegerType.get()))
+                .isTrue();
+    }
 }
