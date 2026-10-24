@@ -32,7 +32,9 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
+import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,8 +80,28 @@ class TableUpdater {
       TableIdentifier identifier, Schema schema, PartitionSpec spec, TableCreator tableCreator) {
     Tuple2<Boolean, Exception> exists = cache.exists(identifier);
     if (Boolean.FALSE.equals(exists.f0)) {
-      if (exists.f1 instanceof NoSuchNamespaceException) {
-        SupportsNamespaces catalogWithNameSpace = (SupportsNamespaces) catalog;
+      Preconditions.checkState(
+          exists.f1 == null
+              || exists.f1 instanceof NoSuchTableException
+              || exists.f1 instanceof NoSuchNamespaceException,
+          "Unexpected failure looking up table %s: %s",
+          identifier,
+          exists.f1);
+      Preconditions.checkState(
+          catalog instanceof SupportsNamespaces,
+          "Cannot create table %s: catalog %s does not support namespaces, so the namespace of the table cannot be created if it is missing",
+          identifier,
+          catalog.name());
+
+      // Create the namespace if it is missing. Tasks that get here at the same time can all find it
+      // missing and try to create it, which is not an error. The lookup of the table is not used to
+      // tell: which exception it throws for a missing namespace is up to the catalog (Glue throws
+      // NoSuchTableException), and an answer from the cache carries none.
+      SupportsNamespaces catalogWithNameSpace = (SupportsNamespaces) catalog;
+      // A table without a namespace has none to create, and some catalogs, like the Hadoop
+      // catalog, do not accept the empty namespace in the call.
+      if (!identifier.namespace().isEmpty()
+          && !catalogWithNameSpace.namespaceExists(identifier.namespace())) {
         LOG.info("Namespace {} not found during table search. Creating namespace", identifier);
         try {
           catalogWithNameSpace.createNamespace(identifier.namespace());
