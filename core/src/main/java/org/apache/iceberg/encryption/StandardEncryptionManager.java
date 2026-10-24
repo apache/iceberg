@@ -46,6 +46,7 @@ public class StandardEncryptionManager implements EncryptionManager {
   private final int dataKeyLength;
   private final Map<String, EncryptedKey> encryptionKeys;
   private final KeyManagementClient kmsClient;
+  private final boolean kmsKeyGenerationEnabled;
 
   // used in key encryption key rotation unitests
   private long testTimeShift;
@@ -58,12 +59,24 @@ public class StandardEncryptionManager implements EncryptionManager {
    * @param tableKeyId table encryption key id
    * @param dataKeyLength length of data encryption key (16/24/32 bytes)
    * @param kmsClient Client of KMS used to wrap/unwrap keys in envelope encryption
+   * @deprecated since 1.13.0, will be removed in 1.14.0; use the constructor that takes
+   *     kmsKeyGenerationEnabled instead.
    */
+  @Deprecated
   public StandardEncryptionManager(
       List<EncryptedKey> keys,
       String tableKeyId,
       int dataKeyLength,
       KeyManagementClient kmsClient) {
+    this(keys, tableKeyId, dataKeyLength, kmsClient, false);
+  }
+
+  public StandardEncryptionManager(
+      List<EncryptedKey> keys,
+      String tableKeyId,
+      int dataKeyLength,
+      KeyManagementClient kmsClient,
+      boolean kmsKeyGenerationEnabled) {
     Preconditions.checkNotNull(tableKeyId, "Invalid encryption key ID: null");
     Preconditions.checkArgument(
         dataKeyLength == 16 || dataKeyLength == 24 || dataKeyLength == 32,
@@ -72,6 +85,7 @@ public class StandardEncryptionManager implements EncryptionManager {
     Preconditions.checkNotNull(kmsClient, "Invalid KMS client: null");
     this.tableKeyId = tableKeyId;
     this.kmsClient = kmsClient;
+    this.kmsKeyGenerationEnabled = kmsKeyGenerationEnabled;
     this.dataKeyLength = dataKeyLength;
     this.testTimeShift = 0;
 
@@ -146,8 +160,22 @@ public class StandardEncryptionManager implements EncryptionManager {
     }
 
     // No unexpired key encryption keys; create one
-    ByteBuffer unwrapped = newKey();
-    ByteBuffer wrapped = kmsClient.wrapKey(unwrapped, tableKeyId);
+    ByteBuffer unwrapped;
+    ByteBuffer wrapped;
+    if (kmsKeyGenerationEnabled) {
+      Preconditions.checkState(
+          kmsClient.supportsKeyGeneration(),
+          "Cannot generate key encryption key in KMS: %s is enabled, but %s does not support key generation",
+          TableProperties.ENCRYPTION_KMS_KEY_GENERATION_ENABLED,
+          kmsClient.getClass().getName());
+      KeyManagementClient.KeyGenerationResult result = kmsClient.generateKey(tableKeyId);
+      unwrapped = result.key();
+      wrapped = result.wrappedKey();
+    } else {
+      unwrapped = newKey();
+      wrapped = kmsClient.wrapKey(unwrapped, tableKeyId);
+    }
+
     Map<String, String> properties = Maps.newHashMap();
     properties.put(KEY_TIMESTAMP, "" + currentTimeMillis());
     EncryptedKey key = new BaseEncryptedKey(generateKeyId(), wrapped, tableKeyId, properties);
