@@ -24,16 +24,21 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.CatalystTypeConverters;
-import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema;
+import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.UnsafeProjection;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -43,10 +48,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import scala.Function1;
 
 public class TestChangelogIterator extends SparkTestHelperBase {
 
   private static final DataType BINARY_ARRAY = DataTypes.createArrayType(DataTypes.BinaryType);
+  private static final float FLOAT_NAN_WITH_PAYLOAD = Float.intBitsToFloat(0x7fc00001);
+  private static final double DOUBLE_NAN_WITH_PAYLOAD =
+      Double.longBitsToDouble(0x7ff8000000000001L);
   private static final String DELETE = ChangelogOperation.DELETE.name();
   private static final String INSERT = ChangelogOperation.INSERT.name();
   private static final String UPDATE_BEFORE = ChangelogOperation.UPDATE_BEFORE.name();
@@ -72,6 +81,8 @@ public class TestChangelogIterator extends SparkTestHelperBase {
                 Metadata.empty())
           });
   private static final String[] IDENTIFIER_FIELDS = new String[] {"id", "name"};
+  private static final Function1<Object, Object> TO_SCALA =
+      CatalystTypeConverters.createToScalaConverter(SCHEMA);
 
   private enum RowType {
     DELETED,
@@ -97,46 +108,46 @@ public class TestChangelogIterator extends SparkTestHelperBase {
 
   @Test
   public void testRowsWithNullValue() {
-    final List<Row> rowsWithNull =
+    final List<InternalRow> rowsWithNull =
         Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {2, null, null, DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {3, null, null, INSERT, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {4, null, null, DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {4, null, null, INSERT, 0, 0}, null),
+            row(2, null, null, DELETE, 0, 0L),
+            row(3, null, null, INSERT, 0, 0L),
+            row(4, null, null, DELETE, 0, 0L),
+            row(4, null, null, INSERT, 0, 0L),
             // mixed null and non-null value in non-identifier columns
-            new GenericRowWithSchema(new Object[] {5, null, null, DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {5, null, "data", INSERT, 0, 0}, null),
+            row(5, null, null, DELETE, 0, 0L),
+            row(5, null, "data", INSERT, 0, 0L),
             // mixed null and non-null value in identifier columns
-            new GenericRowWithSchema(new Object[] {6, null, null, DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {6, "name", null, INSERT, 0, 0}, null));
+            row(6, null, null, DELETE, 0, 0L),
+            row(6, "name", null, INSERT, 0, 0L));
 
-    Iterator<Row> iterator =
+    Iterator<InternalRow> iterator =
         ChangelogIterator.computeUpdates(rowsWithNull.iterator(), SCHEMA, IDENTIFIER_FIELDS);
-    List<Row> result = Lists.newArrayList(iterator);
+    List<InternalRow> result = Lists.newArrayList(iterator);
 
     assertEquals(
         "Rows should match",
         Lists.newArrayList(
-            new Object[] {2, null, null, DELETE, 0, 0},
-            new Object[] {3, null, null, INSERT, 0, 0},
-            new Object[] {5, null, null, UPDATE_BEFORE, 0, 0},
-            new Object[] {5, null, "data", UPDATE_AFTER, 0, 0},
-            new Object[] {6, null, null, DELETE, 0, 0},
-            new Object[] {6, "name", null, INSERT, 0, 0}),
-        rowsToJava(result));
+            new Object[] {2, null, null, DELETE, 0, 0L},
+            new Object[] {3, null, null, INSERT, 0, 0L},
+            new Object[] {5, null, null, UPDATE_BEFORE, 0, 0L},
+            new Object[] {5, null, "data", UPDATE_AFTER, 0, 0L},
+            new Object[] {6, null, null, DELETE, 0, 0L},
+            new Object[] {6, "name", null, INSERT, 0, 0L}),
+        internalRowsToJava(result));
   }
 
   @Test
   public void testUpdatedRowsWithDuplication() {
-    List<Row> rowsWithDuplication =
+    List<InternalRow> rowsWithDuplication =
         Lists.newArrayList(
             // two rows with same identifier fields(id, name)
-            new GenericRowWithSchema(new Object[] {1, "a", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "a", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "a", "new_data", INSERT, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "a", "new_data", INSERT, 0, 0}, null));
+            row(1, "a", "data", DELETE, 0, 0L),
+            row(1, "a", "data", DELETE, 0, 0L),
+            row(1, "a", "new_data", INSERT, 0, 0L),
+            row(1, "a", "new_data", INSERT, 0, 0L));
 
-    Iterator<Row> iterator =
+    Iterator<InternalRow> iterator =
         ChangelogIterator.computeUpdates(rowsWithDuplication.iterator(), SCHEMA, IDENTIFIER_FIELDS);
 
     assertThatThrownBy(() -> Lists.newArrayList(iterator))
@@ -147,48 +158,48 @@ public class TestChangelogIterator extends SparkTestHelperBase {
     // still allow extra insert rows
     rowsWithDuplication =
         Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {1, "a", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "a", "new_data1", INSERT, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "a", "new_data2", INSERT, 0, 0}, null));
+            row(1, "a", "data", DELETE, 0, 0L),
+            row(1, "a", "new_data1", INSERT, 0, 0L),
+            row(1, "a", "new_data2", INSERT, 0, 0L));
 
-    Iterator<Row> iterator1 =
+    Iterator<InternalRow> iterator1 =
         ChangelogIterator.computeUpdates(rowsWithDuplication.iterator(), SCHEMA, IDENTIFIER_FIELDS);
 
     assertEquals(
         "Rows should match.",
         Lists.newArrayList(
-            new Object[] {1, "a", "data", UPDATE_BEFORE, 0, 0},
-            new Object[] {1, "a", "new_data1", UPDATE_AFTER, 0, 0},
-            new Object[] {1, "a", "new_data2", INSERT, 0, 0}),
-        rowsToJava(Lists.newArrayList(iterator1)));
+            new Object[] {1, "a", "data", UPDATE_BEFORE, 0, 0L},
+            new Object[] {1, "a", "new_data1", UPDATE_AFTER, 0, 0L},
+            new Object[] {1, "a", "new_data2", INSERT, 0, 0L}),
+        internalRowsToJava(Lists.newArrayList(iterator1)));
   }
 
   @Test
   public void testCarryRowsRemoveWithDuplicates() {
     // assume rows are sorted by id and change type
-    List<Row> rowsWithDuplication =
+    List<InternalRow> rowsWithDuplication =
         Lists.newArrayList(
             // keep all delete rows for id 0 and id 1 since there is no insert row for them
-            new GenericRowWithSchema(new Object[] {0, "a", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {0, "a", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {0, "a", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "a", "old_data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "a", "old_data", DELETE, 0, 0}, null),
+            row(0, "a", "data", DELETE, 0, 0L),
+            row(0, "a", "data", DELETE, 0, 0L),
+            row(0, "a", "data", DELETE, 0, 0L),
+            row(1, "a", "old_data", DELETE, 0, 0L),
+            row(1, "a", "old_data", DELETE, 0, 0L),
             // the same number of delete and insert rows for id 2
-            new GenericRowWithSchema(new Object[] {2, "a", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {2, "a", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {2, "a", "data", INSERT, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {2, "a", "data", INSERT, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {3, "a", "new_data", INSERT, 0, 0}, null));
+            row(2, "a", "data", DELETE, 0, 0L),
+            row(2, "a", "data", DELETE, 0, 0L),
+            row(2, "a", "data", INSERT, 0, 0L),
+            row(2, "a", "data", INSERT, 0, 0L),
+            row(3, "a", "new_data", INSERT, 0, 0L));
 
     List<Object[]> expectedRows =
         Lists.newArrayList(
-            new Object[] {0, "a", "data", DELETE, 0, 0},
-            new Object[] {0, "a", "data", DELETE, 0, 0},
-            new Object[] {0, "a", "data", DELETE, 0, 0},
-            new Object[] {1, "a", "old_data", DELETE, 0, 0},
-            new Object[] {1, "a", "old_data", DELETE, 0, 0},
-            new Object[] {3, "a", "new_data", INSERT, 0, 0});
+            new Object[] {0, "a", "data", DELETE, 0, 0L},
+            new Object[] {0, "a", "data", DELETE, 0, 0L},
+            new Object[] {0, "a", "data", DELETE, 0, 0L},
+            new Object[] {1, "a", "old_data", DELETE, 0, 0L},
+            new Object[] {1, "a", "old_data", DELETE, 0, 0L},
+            new Object[] {3, "a", "new_data", INSERT, 0, 0L});
 
     validateIterators(rowsWithDuplication, expectedRows);
   }
@@ -196,39 +207,39 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   @Test
   public void testCarryRowsRemoveLessInsertRows() {
     // less insert rows than delete rows
-    List<Row> rowsWithDuplication =
+    List<InternalRow> rowsWithDuplication =
         Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {2, "d", "data", INSERT, 0, 0}, null));
+            row(1, "d", "data", DELETE, 0, 0L),
+            row(1, "d", "data", DELETE, 0, 0L),
+            row(1, "d", "data", INSERT, 0, 0L),
+            row(2, "d", "data", INSERT, 0, 0L));
 
     List<Object[]> expectedRows =
         Lists.newArrayList(
-            new Object[] {1, "d", "data", DELETE, 0, 0},
-            new Object[] {2, "d", "data", INSERT, 0, 0});
+            new Object[] {1, "d", "data", DELETE, 0, 0L},
+            new Object[] {2, "d", "data", INSERT, 0, 0L});
 
     validateIterators(rowsWithDuplication, expectedRows);
   }
 
   @Test
   public void testCarryRowsRemoveMoreInsertRows() {
-    List<Row> rowsWithDuplication =
+    List<InternalRow> rowsWithDuplication =
         Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {0, "d", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE, 0, 0}, null),
+            row(0, "d", "data", DELETE, 0, 0L),
+            row(1, "d", "data", DELETE, 0, 0L),
+            row(1, "d", "data", DELETE, 0, 0L),
+            row(1, "d", "data", DELETE, 0, 0L),
             // more insert rows than delete rows, should keep extra insert rows
-            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 0, 0}, null));
+            row(1, "d", "data", INSERT, 0, 0L),
+            row(1, "d", "data", INSERT, 0, 0L),
+            row(1, "d", "data", INSERT, 0, 0L),
+            row(1, "d", "data", INSERT, 0, 0L));
 
     List<Object[]> expectedRows =
         Lists.newArrayList(
-            new Object[] {0, "d", "data", DELETE, 0, 0},
-            new Object[] {1, "d", "data", INSERT, 0, 0});
+            new Object[] {0, "d", "data", DELETE, 0, 0L},
+            new Object[] {1, "d", "data", INSERT, 0, 0L});
 
     validateIterators(rowsWithDuplication, expectedRows);
   }
@@ -236,64 +247,63 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   @Test
   public void testCarryRowsRemoveNoInsertRows() {
     // no insert row
-    List<Row> rowsWithDuplication =
+    List<InternalRow> rowsWithDuplication =
         Lists.newArrayList(
             // next two rows are identical
-            new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE, 0, 0}, null));
+            row(1, "d", "data", DELETE, 0, 0L), row(1, "d", "data", DELETE, 0, 0L));
 
     List<Object[]> expectedRows =
         Lists.newArrayList(
-            new Object[] {1, "d", "data", DELETE, 0, 0},
-            new Object[] {1, "d", "data", DELETE, 0, 0});
+            new Object[] {1, "d", "data", DELETE, 0, 0L},
+            new Object[] {1, "d", "data", DELETE, 0, 0L});
 
     validateIterators(rowsWithDuplication, expectedRows);
   }
 
   @Test
   public void testRemoveNetCarryovers() {
-    List<Row> rowsWithDuplication =
+    List<InternalRow> rowsWithDuplication =
         Lists.newArrayList(
             // this row are different from other rows, it is a net change, should be kept
-            new GenericRowWithSchema(new Object[] {0, "d", "data", DELETE, 0, 0}, null),
+            row(0, "d", "data", DELETE, 0, 0L),
             // a pair of delete and insert rows, should be removed
-            new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 0, 0}, null),
+            row(1, "d", "data", DELETE, 0, 0L),
+            row(1, "d", "data", INSERT, 0, 0L),
             // 2 delete rows and 2 insert rows, should be removed
-            new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE, 1, 1}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE, 1, 1}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 1, 1}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 1, 1}, null),
+            row(1, "d", "data", DELETE, 1, 1L),
+            row(1, "d", "data", DELETE, 1, 1L),
+            row(1, "d", "data", INSERT, 1, 1L),
+            row(1, "d", "data", INSERT, 1, 1L),
             // a pair of insert and delete rows across snapshots, should be removed
-            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 2, 2}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", DELETE, 3, 3}, null),
+            row(1, "d", "data", INSERT, 2, 2L),
+            row(1, "d", "data", DELETE, 3, 3L),
             // extra insert rows, they are net changes, should be kept
-            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 4, 4}, null),
-            new GenericRowWithSchema(new Object[] {1, "d", "data", INSERT, 4, 4}, null),
+            row(1, "d", "data", INSERT, 4, 4L),
+            row(1, "d", "data", INSERT, 4, 4L),
             // different key, net changes, should be kept
-            new GenericRowWithSchema(new Object[] {2, "d", "data", DELETE, 4, 4}, null));
+            row(2, "d", "data", DELETE, 4, 4L));
 
     List<Object[]> expectedRows =
         Lists.newArrayList(
-            new Object[] {0, "d", "data", DELETE, 0, 0},
-            new Object[] {1, "d", "data", INSERT, 4, 4},
-            new Object[] {1, "d", "data", INSERT, 4, 4},
-            new Object[] {2, "d", "data", DELETE, 4, 4});
+            new Object[] {0, "d", "data", DELETE, 0, 0L},
+            new Object[] {1, "d", "data", INSERT, 4, 4L},
+            new Object[] {1, "d", "data", INSERT, 4, 4L},
+            new Object[] {2, "d", "data", DELETE, 4, 4L});
 
-    Iterator<Row> iterator =
+    Iterator<InternalRow> iterator =
         ChangelogIterator.removeNetCarryovers(rowsWithDuplication.iterator(), SCHEMA);
-    List<Row> result = Lists.newArrayList(iterator);
+    List<InternalRow> result = Lists.newArrayList(iterator);
 
-    assertEquals("Rows should match.", expectedRows, rowsToJava(result));
+    assertEquals("Rows should match.", expectedRows, internalRowsToJava(result));
   }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("values")
   public void testRemoveNetChangesWithEqualValues(DataType type, IntFunction<Object> values) {
-    Row insert = row(type, values.apply(1), INSERT, 0);
-    Row delete = row(type, values.apply(1), DELETE, 1);
-    Row latest = row(type, values.apply(2), INSERT, 1);
-    Iterator<Row> result =
+    InternalRow insert = row(type, values.apply(1), INSERT, 0);
+    InternalRow delete = row(type, values.apply(1), DELETE, 1);
+    InternalRow latest = row(type, values.apply(2), INSERT, 1);
+    Iterator<InternalRow> result =
         ChangelogIterator.removeNetCarryovers(
             List.of(insert, delete, latest).iterator(), schema(type));
     assertThat(result).toIterable().containsExactly(latest);
@@ -343,22 +353,219 @@ public class TestChangelogIterator extends SparkTestHelperBase {
             row(BINARY_ARRAY, List.of(new byte[] {2}, new byte[] {1}), INSERT, 0)));
   }
 
-  @Test
-  public void testRetainChangesWithDifferentSignedZerosInArrays() {
-    DataType type = DataTypes.createArrayType(DataTypes.DoubleType);
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("signedZeros")
+  void retainChangesWithDifferentSignedZeros(
+      DataType type, Object before, Object after, boolean unsafe) {
+    List<InternalRow> rows =
+        List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe));
+
+    assertRows(type, ChangelogIterator.removeCarryovers(rows.iterator(), schema(type)), rows);
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("signedZeros")
+  void retainNetChangesWithDifferentSignedZeros(
+      DataType type, Object before, Object after, boolean unsafe) {
+    List<InternalRow> rows =
+        List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 1, unsafe));
+
+    assertRows(type, ChangelogIterator.removeNetCarryovers(rows.iterator(), schema(type)), rows);
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("signedZeros")
+  void computeUpdatesWithDifferentSignedZeros(
+      DataType type, Object before, Object after, boolean unsafe) {
+    List<InternalRow> rows =
+        List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe));
+    Iterator<InternalRow> changes =
+        ChangelogIterator.computeUpdates(rows.iterator(), schema(type), new String[] {"id"});
+
+    assertThat(Lists.newArrayList(Iterators.transform(changes, InternalRow::copy)))
+        .containsExactly(row(type, before, UPDATE_BEFORE, 0), row(type, after, UPDATE_AFTER, 0));
+  }
+
+  @ParameterizedTest(name = "{0}: {1} -> {2}")
+  @MethodSource("nanValues")
+  void removeCarryoversWithNaN(DataType type, Object before, Object after, boolean unsafe) {
+    assertRemoved(
+        type, List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe)));
+  }
+
+  @ParameterizedTest(name = "{0}: {1} -> {2}")
+  @MethodSource("nanChanges")
+  void retainChangesFromNaNToNonNaN(DataType type, Object before, Object after, boolean unsafe) {
     assertRetained(
-        type, List.of(row(type, List.of(-0.0), DELETE, 0), row(type, List.of(0.0), INSERT, 0)));
+        type, List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("sameSignedZeros")
+  void removeCarryoversWithSameSignedZeros(
+      DataType type, Object before, Object after, boolean unsafe) {
+    assertRemoved(
+        type, List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe)));
   }
 
   @Test
-  public void testRetainChangesWithDifferentSignedZerosInStructs() {
-    StructType type =
-        new StructType().add("binary", DataTypes.BinaryType).add("number", DataTypes.DoubleType);
-    assertRetained(
+  void removeCarryoversWithReorderedSignedZeroMapKeys() {
+    DataType type = DataTypes.createMapType(DataTypes.DoubleType, DataTypes.StringType);
+    Map<Double, String> before = new LinkedHashMap<>();
+    before.put(-0.0D, "negative");
+    before.put(0.0D, "positive");
+    Map<Double, String> after = new LinkedHashMap<>();
+    after.put(0.0D, "positive");
+    after.put(-0.0D, "negative");
+    assertRemoved(type, List.of(row(type, before, DELETE, 0), row(type, after, INSERT, 0)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("signedZeros")
+  void distinguishSignedZeroIdentifiers(
+      DataType type, Object before, Object after, boolean unsafe) {
+    List<InternalRow> rows =
+        List.of(row(type, before, DELETE, 0, unsafe), row(type, after, INSERT, 0, unsafe));
+    assertRows(
         type,
+        ChangelogIterator.computeUpdates(rows.iterator(), schema(type), new String[] {"value"}),
+        rows);
+  }
+
+  @Test
+  void computeUpdatesWithReorderedMapEntries() {
+    DataType type = DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType);
+    Map<String, String> before = new LinkedHashMap<>();
+    before.put("a", "first");
+    before.put("b", null);
+    Map<String, String> after = new LinkedHashMap<>();
+    after.put("b", null);
+    after.put("a", "first");
+
+    assertThat(
+            ChangelogIterator.computeUpdates(
+                List.of(row(type, before, DELETE, 0), row(type, after, INSERT, 0)).iterator(),
+                schema(type),
+                new String[] {"id"}))
+        .isExhausted();
+  }
+
+  @Test
+  void computeUpdatesWithChangedMapValues() {
+    DataType type = DataTypes.createMapType(DataTypes.StringType, DataTypes.StringType);
+    List<InternalRow> rows =
         List.of(
-            row(type, RowFactory.create(new byte[] {1}, -0.0), DELETE, 0),
-            row(type, RowFactory.create(new byte[] {1}, 0.0), INSERT, 0)));
+            row(type, Map.of("a", "before"), DELETE, 0),
+            row(type, Map.of("a", "after"), INSERT, 0));
+
+    assertThat(ChangelogIterator.computeUpdates(rows.iterator(), schema(type), new String[] {"id"}))
+        .toIterable()
+        .containsExactly(
+            row(type, Map.of("a", "before"), UPDATE_BEFORE, 0),
+            row(type, Map.of("a", "after"), UPDATE_AFTER, 0));
+  }
+
+  @Test
+  void computeUpdatesWithNestedMaps() {
+    DataType mapType = DataTypes.createMapType(DataTypes.StringType, DataTypes.BinaryType);
+    StructType structType = new StructType().add("maps", DataTypes.createArrayType(mapType));
+    DataType type = DataTypes.createMapType(DataTypes.StringType, structType);
+    Map<String, byte[]> before = new LinkedHashMap<>();
+    before.put("a", new byte[] {1});
+    before.put("b", new byte[] {2});
+    Map<String, byte[]> after = new LinkedHashMap<>();
+    after.put("b", new byte[] {2});
+    after.put("a", new byte[] {1});
+    List<InternalRow> rows =
+        List.of(
+            row(type, Map.of("outer", RowFactory.create(List.of(before))), DELETE, 0),
+            row(type, Map.of("outer", RowFactory.create(List.of(after))), INSERT, 0));
+
+    assertThat(ChangelogIterator.computeUpdates(rows.iterator(), schema(type), new String[] {"id"}))
+        .isExhausted();
+  }
+
+  @ParameterizedTest
+  @MethodSource("reuseModes")
+  void reusedRows(String mode, boolean prefetch) {
+    List<InternalRow> rows =
+        List.of(
+            row(1, "a", "same", DELETE, 0, 0L),
+            row(1, "a", "same", DELETE, 0, 0L),
+            row(1, "a", "same", INSERT, 0, 0L),
+            row(1, "a", "same", INSERT, 0, 0L),
+            row(2, "b", "before", DELETE, 0, 0L),
+            row(2, "b", "after", INSERT, 0, 0L),
+            row(3, "c", "insert", INSERT, 0, 0L),
+            row(4, "d", "delete", DELETE, 0, 0L),
+            row(5, "e", "insert", INSERT, 0, 0L),
+            row(6, "f", "delete", DELETE, 0, 0L));
+    // a projection reuses its output buffer, so every row it hands out invalidates the previous one
+    UnsafeProjection projection = UnsafeProjection.create(SCHEMA);
+    Iterator<InternalRow> reused = Iterators.transform(rows.iterator(), projection::apply);
+    // Filtering prefetches in hasNext(), invalidating the previously returned row.
+    Iterator<InternalRow> input = prefetch ? Iterators.filter(reused, row -> true) : reused;
+    Iterator<InternalRow> changes =
+        switch (mode) {
+          case "carryovers" -> ChangelogIterator.removeCarryovers(input, SCHEMA);
+          case "net" -> ChangelogIterator.removeNetCarryovers(input, SCHEMA);
+          case "updates" -> ChangelogIterator.computeUpdates(input, SCHEMA, IDENTIFIER_FIELDS);
+          default -> throw new IllegalArgumentException("Unknown mode: " + mode);
+        };
+    List<InternalRow> result = Lists.newArrayList(Iterators.transform(changes, InternalRow::copy));
+
+    boolean computesUpdates = mode.equals("updates");
+    assertThat(result)
+        .containsExactly(
+            row(2, "b", "before", computesUpdates ? UPDATE_BEFORE : DELETE, 0, 0L),
+            row(2, "b", "after", computesUpdates ? UPDATE_AFTER : INSERT, 0, 0L),
+            rows.get(6),
+            rows.get(7),
+            rows.get(8),
+            rows.get(9));
+  }
+
+  static Stream<Arguments> reuseModes() {
+    return Stream.of("carryovers", "net", "updates")
+        .flatMap(mode -> Stream.of(Arguments.of(mode, false), Arguments.of(mode, true)));
+  }
+
+  static Stream<Arguments> signedZeros() {
+    return Stream.of(
+            floatingPointValues(DataTypes.FloatType, -0.0F, 0.0F),
+            floatingPointValues(DataTypes.FloatType, 0.0F, -0.0F),
+            floatingPointValues(DataTypes.DoubleType, -0.0D, 0.0D),
+            floatingPointValues(DataTypes.DoubleType, 0.0D, -0.0D))
+        .flatMap(Function.identity());
+  }
+
+  static Stream<Arguments> sameSignedZeros() {
+    return Stream.of(
+            floatingPointValues(DataTypes.FloatType, -0.0F, -0.0F),
+            floatingPointValues(DataTypes.FloatType, 0.0F, 0.0F),
+            floatingPointValues(DataTypes.DoubleType, -0.0D, -0.0D),
+            floatingPointValues(DataTypes.DoubleType, 0.0D, 0.0D))
+        .flatMap(Function.identity());
+  }
+
+  static Stream<Arguments> nanValues() {
+    return Stream.of(
+            floatingPointValues(DataTypes.FloatType, Float.NaN, Float.NaN),
+            floatingPointValues(DataTypes.FloatType, Float.NaN, FLOAT_NAN_WITH_PAYLOAD),
+            floatingPointValues(DataTypes.FloatType, Float.NaN, -FLOAT_NAN_WITH_PAYLOAD),
+            floatingPointValues(DataTypes.DoubleType, Double.NaN, Double.NaN),
+            floatingPointValues(DataTypes.DoubleType, Double.NaN, DOUBLE_NAN_WITH_PAYLOAD),
+            floatingPointValues(DataTypes.DoubleType, Double.NaN, -DOUBLE_NAN_WITH_PAYLOAD))
+        .flatMap(Function.identity());
+  }
+
+  static Stream<Arguments> nanChanges() {
+    return Stream.of(
+            floatingPointValues(DataTypes.FloatType, Float.NaN, 0.0F),
+            floatingPointValues(DataTypes.FloatType, Float.NaN, Float.POSITIVE_INFINITY),
+            floatingPointValues(DataTypes.DoubleType, Double.NaN, 0.0D),
+            floatingPointValues(DataTypes.DoubleType, Double.NaN, Double.POSITIVE_INFINITY))
+        .flatMap(Function.identity());
   }
 
   static Stream<Arguments> values() {
@@ -388,35 +595,31 @@ public class TestChangelogIterator extends SparkTestHelperBase {
   }
 
   private void validate(Object[] permutation) {
-    List<Row> rows = Lists.newArrayList();
+    List<InternalRow> rows = Lists.newArrayList();
     List<Object[]> expectedRows = Lists.newArrayList();
     for (int i = 0; i < permutation.length; i++) {
       rows.addAll(toOriginalRows((RowType) permutation[i], i));
       expectedRows.addAll(toExpectedRows((RowType) permutation[i], i));
     }
 
-    Iterator<Row> iterator =
+    Iterator<InternalRow> iterator =
         ChangelogIterator.computeUpdates(rows.iterator(), SCHEMA, IDENTIFIER_FIELDS);
-    List<Row> result = Lists.newArrayList(iterator);
-    assertEquals("Rows should match", expectedRows, rowsToJava(result));
+    List<InternalRow> result = Lists.newArrayList(iterator);
+    assertEquals("Rows should match", expectedRows, internalRowsToJava(result));
   }
 
-  private List<Row> toOriginalRows(RowType rowType, int index) {
+  private List<InternalRow> toOriginalRows(RowType rowType, int index) {
     switch (rowType) {
       case DELETED:
-        return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {index, "b", "data", DELETE, 0, 0}, null));
+        return Lists.newArrayList(row(index, "b", "data", DELETE, 0, 0L));
       case INSERTED:
-        return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {index, "c", "data", INSERT, 0, 0}, null));
+        return Lists.newArrayList(row(index, "c", "data", INSERT, 0, 0L));
       case CARRY_OVER:
         return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {index, "d", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {index, "d", "data", INSERT, 0, 0}, null));
+            row(index, "d", "data", DELETE, 0, 0L), row(index, "d", "data", INSERT, 0, 0L));
       case UPDATED:
         return Lists.newArrayList(
-            new GenericRowWithSchema(new Object[] {index, "a", "data", DELETE, 0, 0}, null),
-            new GenericRowWithSchema(new Object[] {index, "a", "new_data", INSERT, 0, 0}, null));
+            row(index, "a", "data", DELETE, 0, 0L), row(index, "a", "new_data", INSERT, 0, 0L));
       default:
         throw new IllegalArgumentException("Unknown row type: " + rowType);
     }
@@ -426,18 +629,18 @@ public class TestChangelogIterator extends SparkTestHelperBase {
     switch (rowType) {
       case DELETED:
         List<Object[]> rows = Lists.newArrayList();
-        rows.add(new Object[] {order, "b", "data", DELETE, 0, 0});
+        rows.add(new Object[] {order, "b", "data", DELETE, 0, 0L});
         return rows;
       case INSERTED:
         List<Object[]> insertedRows = Lists.newArrayList();
-        insertedRows.add(new Object[] {order, "c", "data", INSERT, 0, 0});
+        insertedRows.add(new Object[] {order, "c", "data", INSERT, 0, 0L});
         return insertedRows;
       case CARRY_OVER:
         return Lists.newArrayList();
       case UPDATED:
         return Lists.newArrayList(
-            new Object[] {order, "a", "data", UPDATE_BEFORE, 0, 0},
-            new Object[] {order, "a", "new_data", UPDATE_AFTER, 0, 0});
+            new Object[] {order, "a", "data", UPDATE_BEFORE, 0, 0L},
+            new Object[] {order, "a", "new_data", UPDATE_AFTER, 0, 0L});
       default:
         throw new IllegalArgumentException("Unknown row type: " + rowType);
     }
@@ -454,31 +657,35 @@ public class TestChangelogIterator extends SparkTestHelperBase {
     }
   }
 
-  private void validateIterators(List<Row> rowsWithDuplication, List<Object[]> expectedRows) {
-    Iterator<Row> iterator =
+  private void validateIterators(
+      List<InternalRow> rowsWithDuplication, List<Object[]> expectedRows) {
+    Iterator<InternalRow> iterator =
         ChangelogIterator.removeCarryovers(rowsWithDuplication.iterator(), SCHEMA);
-    List<Row> result = Lists.newArrayList(iterator);
+    List<InternalRow> result = Lists.newArrayList(iterator);
 
-    assertEquals("Rows should match.", expectedRows, rowsToJava(result));
+    assertEquals("Rows should match.", expectedRows, internalRowsToJava(result));
 
     iterator = ChangelogIterator.removeNetCarryovers(rowsWithDuplication.iterator(), SCHEMA);
     result = Lists.newArrayList(iterator);
 
-    assertEquals("Rows should match.", expectedRows, rowsToJava(result));
+    assertEquals("Rows should match.", expectedRows, internalRowsToJava(result));
   }
 
-  private static void assertRemoved(DataType type, List<Row> rows) {
+  private static void assertRemoved(DataType type, List<InternalRow> rows) {
     assertThat(ChangelogIterator.removeCarryovers(rows.iterator(), schema(type))).isExhausted();
     assertThat(ChangelogIterator.removeNetCarryovers(rows.iterator(), schema(type))).isExhausted();
   }
 
-  private static void assertRetained(DataType type, List<Row> rows) {
-    assertThat(ChangelogIterator.removeCarryovers(rows.iterator(), schema(type)))
-        .toIterable()
-        .containsExactlyElementsOf(rows);
-    assertThat(ChangelogIterator.removeNetCarryovers(rows.iterator(), schema(type)))
-        .toIterable()
-        .containsExactlyElementsOf(rows);
+  private static void assertRetained(DataType type, List<InternalRow> rows) {
+    assertRows(type, ChangelogIterator.removeCarryovers(rows.iterator(), schema(type)), rows);
+    assertRows(type, ChangelogIterator.removeNetCarryovers(rows.iterator(), schema(type)), rows);
+  }
+
+  private static void assertRows(
+      DataType type, Iterator<InternalRow> actual, List<InternalRow> expected) {
+    UnsafeProjection projection = UnsafeProjection.create(schema(type));
+    assertThat(Lists.newArrayList(Iterators.transform(actual, row -> projection.apply(row).copy())))
+        .containsExactlyElementsOf(Lists.transform(expected, row -> projection.apply(row).copy()));
   }
 
   private static StructType schema(DataType type) {
@@ -490,11 +697,60 @@ public class TestChangelogIterator extends SparkTestHelperBase {
         .add(MetadataColumns.COMMIT_SNAPSHOT_ID.name(), DataTypes.LongType);
   }
 
-  private static Row row(DataType type, Object value, String operation, int ordinal) {
-    // round-trip to get Spark's external representation (ArraySeq, GenericRowWithSchema); a plain
-    // java.util.List would not exercise the Seq branch of the comparison
-    Object internal = CatalystTypeConverters.createToCatalystConverter(type).apply(value);
-    Object external = CatalystTypeConverters.createToScalaConverter(type).apply(internal);
-    return RowFactory.create(1, external, operation, ordinal, (long) ordinal);
+  private static InternalRow row(DataType type, Object value, String operation, int ordinal) {
+    return internalRow(
+        schema(type), RowFactory.create(1, value, operation, ordinal, (long) ordinal));
+  }
+
+  private static InternalRow row(
+      DataType type, Object value, String operation, int ordinal, boolean unsafe) {
+    Row external = RowFactory.create(1, value, operation, ordinal, (long) ordinal);
+    return unsafe
+        ? internalRow(schema(type), external)
+        : (InternalRow)
+            CatalystTypeConverters.createToCatalystConverter(schema(type)).apply(external);
+  }
+
+  private static InternalRow row(Object... values) {
+    return internalRow(SCHEMA, RowFactory.create(values));
+  }
+
+  private static InternalRow internalRow(StructType schema, Row row) {
+    InternalRow internal =
+        (InternalRow) CatalystTypeConverters.createToCatalystConverter(schema).apply(row);
+    // the projection reuses its output buffer, so the row must be copied before it is returned
+    return UnsafeProjection.create(schema).apply(internal).copy();
+  }
+
+  private List<Object[]> internalRowsToJava(List<InternalRow> rows) {
+    return rowsToJava(Lists.transform(rows, row -> (Row) TO_SCALA.apply(row)));
+  }
+
+  private static Stream<Arguments> floatingPointValues(DataType type, Object before, Object after) {
+    StructType struct = new StructType().add("number", type);
+    return Stream.of(
+            Arguments.of(type, before, after),
+            Arguments.of(
+                DataTypes.createArrayType(type),
+                Arrays.asList(before, null),
+                Arrays.asList(after, null)),
+            Arguments.of(struct, RowFactory.create(before), RowFactory.create(after)),
+            Arguments.of(
+                DataTypes.createMapType(DataTypes.StringType, type),
+                Map.of("key", before),
+                Map.of("key", after)),
+            Arguments.of(
+                DataTypes.createMapType(type, DataTypes.StringType),
+                Map.of(before, "value"),
+                Map.of(after, "value")),
+            Arguments.of(
+                DataTypes.createArrayType(struct),
+                Arrays.asList(RowFactory.create(before), null),
+                Arrays.asList(RowFactory.create(after), null)))
+        .flatMap(
+            args ->
+                Stream.of(
+                    Arguments.of(args.get()[0], args.get()[1], args.get()[2], false),
+                    Arguments.of(args.get()[0], args.get()[1], args.get()[2], true)));
   }
 }
