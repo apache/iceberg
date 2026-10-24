@@ -119,6 +119,22 @@ public class TestBaseReader {
   }
 
   @Test
+  public void metadataFilesAreCreatedUnderTableLocation() {
+    File location = temp.resolve("test").toFile();
+    Schema schema = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
+    TestTables.TestTable testTable =
+        TestTables.create(location, "metadata_location", schema, PartitionSpec.unpartitioned());
+
+    try {
+      String metadataFileName = "metadata.avro";
+      assertThat(testTable.operations().metadataFileLocation(metadataFileName))
+          .isEqualTo(new File(new File(location, "metadata"), metadataFileName).getAbsolutePath());
+    } finally {
+      TestTables.clearTables();
+    }
+  }
+
+  @Test
   public void testClosureOnDataExhaustion() throws IOException {
     Integer totalTasks = 10;
     Integer recordPerTask = 10;
