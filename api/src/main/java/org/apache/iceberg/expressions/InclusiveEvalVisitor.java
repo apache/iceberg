@@ -391,7 +391,7 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
   public <T> Boolean notStartsWith(Bound<T> term, Literal<T> lit) {
     // the only transforms that produce strings are truncate and identity, which work with this
     int id = term.ref().fieldId();
-    if (mayContainNull(id)) {
+    if (!isNonNullPreserving(term) || mayContainNull(id)) {
       return ROWS_MIGHT_MATCH;
     }
 
@@ -431,12 +431,13 @@ abstract class InclusiveEvalVisitor extends ExpressionVisitors.BoundVisitor<Bool
   }
 
   /**
-   * Returns the column's single value if all rows contain the same value. Defined as a column with
-   * no nulls, no NaNs, and lower bound equals upper bound. Returns null otherwise.
+   * Returns the term's single value if the term is non-null preserving and all rows contain the
+   * same value. Requires no nulls, no NaNs, and equal lower and upper bounds. Returns null
+   * otherwise.
    */
   private <T> T uniqueValue(Bound<T> term) {
     int id = term.ref().fieldId();
-    if (mayContainNull(id)) {
+    if (!isNonNullPreserving(term) || mayContainNull(id)) {
       return null;
     }
 
