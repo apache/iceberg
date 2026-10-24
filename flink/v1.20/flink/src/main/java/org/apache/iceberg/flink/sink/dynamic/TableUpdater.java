@@ -23,6 +23,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.UpdatePartitionSpec;
 import org.apache.iceberg.UpdateSchema;
@@ -101,6 +102,13 @@ class TableUpdater {
   }
 
   private void findOrCreateBranch(TableIdentifier identifier, String branch) {
+    if (SnapshotRef.MAIN_BRANCH.equals(branch)) {
+      // The main branch is created by the first commit to the table, so there is nothing to
+      // create. Creating it here would commit an empty snapshot to a table that has none, and
+      // every writer subtask that gets here before the first data commit would add another.
+      return;
+    }
+
     String fromCache = cache.branch(identifier, branch);
     if (fromCache == null) {
       Table table = catalog.loadTable(identifier);

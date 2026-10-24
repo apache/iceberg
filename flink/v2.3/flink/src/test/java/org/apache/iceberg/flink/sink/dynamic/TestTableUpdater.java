@@ -159,6 +159,34 @@ public class TestTableUpdater extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+  void testMainBranchIsNotCreatedAsAnEmptySnapshot() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    TableUpdater tableUpdater = new TableUpdater(cache, catalog, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    // The table does not exist, so the updater creates it. The main branch of a new table is
+    // created by the first commit and must not be given an empty snapshot before that.
+    tableUpdater.update(
+        tableIdentifier,
+        SnapshotRef.MAIN_BRANCH,
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        TableCreator.DEFAULT);
+    tableUpdater.update(
+        tableIdentifier,
+        SnapshotRef.MAIN_BRANCH,
+        SCHEMA,
+        PartitionSpec.unpartitioned(),
+        TableCreator.DEFAULT);
+
+    Table table = catalog.loadTable(tableIdentifier);
+    assertThat(table.snapshots()).isEmpty();
+    assertThat(table.refs()).isEmpty();
+  }
+
+  @Test
   void testSpecCreation() {
     Catalog catalog = CATALOG_EXTENSION.catalog();
     TableIdentifier tableIdentifier = TableIdentifier.parse("myTable");
