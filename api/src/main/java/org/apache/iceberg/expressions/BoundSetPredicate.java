@@ -25,6 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 public class BoundSetPredicate<T> extends BoundPredicate<T> {
   private static final Joiner COMMA = Joiner.on(", ");
   private final Set<T> literalSet;
+  private final BoundExpression<T> child;
 
   BoundSetPredicate(Operation op, BoundTerm<T> term, Set<T> lits) {
     super(op, term);
@@ -33,10 +34,30 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
         "%s predicate does not support a literal set",
         op);
     this.literalSet = lits;
+    this.child = term;
+  }
+
+  BoundSetPredicate(Operation op, BoundExpression<T> child, Set<T> lits) {
+    super(op);
+    Preconditions.checkArgument(
+        op == Operation.IN || op == Operation.NOT_IN,
+        "%s predicate does not support a literal set",
+        op);
+    Preconditions.checkNotNull(child, "Child expression cannot be null");
+    this.literalSet = lits;
+    this.child = child;
+  }
+
+  public BoundExpression<T> child() {
+    return child;
   }
 
   @Override
   public Expression negate() {
+    if (term() == null) {
+      return super.negate();
+    }
+
     return new BoundSetPredicate<>(op().negate(), term(), literalSet);
   }
 
@@ -82,9 +103,9 @@ public class BoundSetPredicate<T> extends BoundPredicate<T> {
   public String toString() {
     switch (op()) {
       case IN:
-        return term() + " in (" + COMMA.join(literalSet) + ")";
+        return child + " in (" + COMMA.join(literalSet) + ")";
       case NOT_IN:
-        return term() + " not in (" + COMMA.join(literalSet) + ")";
+        return child + " not in (" + COMMA.join(literalSet) + ")";
       default:
         return "Invalid unary predicate: operation = " + op();
     }

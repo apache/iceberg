@@ -30,7 +30,7 @@ import org.apache.iceberg.types.Type;
  *
  * @param <T> The Java type of the value wrapped by a {@link Literal}
  */
-public interface Literal<T> extends Serializable {
+public interface Literal<T> extends ValueExpression<T>, BoundExpression<T>, Serializable {
   static Literal<Boolean> of(boolean value) {
     return new Literals.BooleanLiteral(value);
   }
