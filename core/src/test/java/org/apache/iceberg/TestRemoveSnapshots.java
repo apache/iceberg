@@ -25,6 +25,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.times;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -57,6 +59,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
@@ -106,6 +109,57 @@ public class TestRemoveSnapshots extends TestBase {
     removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
 
     assertThat(table.currentSnapshot().snapshotId()).isEqualTo(snapshotId);
+    assertThat(table.snapshot(firstSnapshot.snapshotId())).isNull();
+    assertThat(deletedFiles).containsExactly(firstSnapshot.manifestListLocation());
+  }
+
+  @TestTemplate
+  public void expireOlderThanWithNullSummaryOnSurvivingAncestor() throws IOException {
+    assumeThat(incrementalCleanup).isTrue();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+
+    waitUntilAfter(firstSnapshot.timestampMillis());
+
+    table.newAppend().appendFile(FILE_B).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+    dropSnapshotSummary(secondSnapshot.snapshotId());
+    assertThat(table.snapshot(secondSnapshot.snapshotId()).summary()).isNull();
+
+    long tAfterSecondCommit = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    removeSnapshots(table)
+        .expireOlderThan(tAfterSecondCommit)
+        .deleteWith(deletedFiles::add)
+        .commit();
+
+    assertThat(table.snapshot(firstSnapshot.snapshotId())).isNull();
+    assertThat(table.snapshot(secondSnapshot.snapshotId())).isNotNull();
+    assertThat(deletedFiles).containsExactly(firstSnapshot.manifestListLocation());
+  }
+
+  @TestTemplate
+  public void expireOlderThanWithNullSummaryOnExpiredAncestor() throws IOException {
+    assumeThat(incrementalCleanup).isTrue();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    dropSnapshotSummary(firstSnapshot.snapshotId());
+    assertThat(table.snapshot(firstSnapshot.snapshotId()).summary()).isNull();
+
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    table.newAppend().appendFile(FILE_B).commit();
+
+    long tAfterCommits = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Set<String> deletedFiles = Sets.newHashSet();
+
+    removeSnapshots(table).expireOlderThan(tAfterCommits).deleteWith(deletedFiles::add).commit();
+
     assertThat(table.snapshot(firstSnapshot.snapshotId())).isNull();
     assertThat(deletedFiles).containsExactly(firstSnapshot.manifestListLocation());
   }
@@ -1968,6 +2022,22 @@ public class TestRemoveSnapshots extends TestBase {
   private RemoveSnapshots removeSnapshots(Table table) {
     RemoveSnapshots removeSnapshots = (RemoveSnapshots) table.expireSnapshots();
     return (RemoveSnapshots) removeSnapshots.withIncrementalCleanup(incrementalCleanup);
+  }
+
+  // simulates a snapshot with no summary, which is valid for snapshots written before summaries
+  // were introduced
+  private void dropSnapshotSummary(long snapshotId) throws IOException {
+    TableMetadata current = readMetadata();
+    ObjectNode root = (ObjectNode) JsonUtil.mapper().readTree(TableMetadataParser.toJson(current));
+    for (JsonNode snapshotNode : root.withArray(TableMetadataParser.SNAPSHOTS)) {
+      if (snapshotNode.get(TableMetadataParser.SNAPSHOT_ID).asLong() == snapshotId) {
+        ((ObjectNode) snapshotNode).remove("summary");
+      }
+    }
+
+    TableMetadata updated =
+        TableMetadataParser.fromJson(JsonUtil.mapper().writeValueAsString(root));
+    table.ops().commit(current, updated);
   }
 
   @TestTemplate
