@@ -25,10 +25,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkTableProperties;
+import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -55,6 +59,45 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
   @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
+  }
+
+  @TestTemplate
+  public void writeToBranchOptionTakesPrecedenceOverWapBranch()
+      throws NoSuchTableException, ParseException {
+    String branch = "branchA";
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' = 'true')",
+        tableName, TableProperties.WRITE_AUDIT_PUBLISH_ENABLED);
+
+    // Seed the main branch so the target branch can fork from an existing snapshot.
+    jsonToDF("id bigint, data string", "{ \"id\": 1, \"data\": \"a\" }")
+        .writeTo(tableName)
+        .append();
+
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    table.manageSnapshots().createBranch(branch).commit();
+
+    // With a session WAP branch configured, the branch write option still routes the write to the
+    // branch named in the option.
+    spark.conf().set(SparkSQLProperties.WAP_BRANCH, "wapBranch");
+    try {
+      jsonToDF("id bigint, data string", "{ \"id\": 2, \"data\": \"b\" }")
+          .writeTo(tableName)
+          .option(SparkWriteOptions.BRANCH, branch)
+          .append();
+    } finally {
+      spark.conf().unset(SparkSQLProperties.WAP_BRANCH);
+    }
+
+    assertEquals(
+        "Rows written through the branch option should land on that branch",
+        ImmutableList.of(row(1L, "a"), row(2L, "b")),
+        sql("SELECT * FROM %s VERSION AS OF '%s' ORDER BY id", tableName, branch));
+
+    assertEquals(
+        "The main branch should not see rows written to the option branch",
+        ImmutableList.of(row(1L, "a")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
   @TestTemplate
