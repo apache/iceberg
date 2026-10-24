@@ -126,6 +126,13 @@ class VariantType(RootModel[Literal['variant']]):
     root: Literal['variant']
 
 
+class FileType(RootModel[Literal['file']]):
+    root: Literal['file'] = Field(
+        ...,
+        description='A reference to a range of bytes stored inline or in an external file. The six sub-fields are not listed in the schema; they use the next six field IDs after the field that holds this type, so those IDs must not be assigned to any other field.',
+    )
+
+
 class ExpressionType(RootModel[str]):
     root: str = Field(
         ...,
@@ -2333,8 +2340,10 @@ class Schema(StructType):
     identifier_field_ids: list[int] | None = Field(None, alias='identifier-field-ids')
 
 
-class Type(RootModel[VariantType | PrimitiveType | StructType | ListType | MapType]):
-    root: VariantType | PrimitiveType | StructType | ListType | MapType
+class Type(
+    RootModel[VariantType | FileType | PrimitiveType | StructType | ListType | MapType]
+):
+    root: VariantType | FileType | PrimitiveType | StructType | ListType | MapType
 
 
 class Predicate(
