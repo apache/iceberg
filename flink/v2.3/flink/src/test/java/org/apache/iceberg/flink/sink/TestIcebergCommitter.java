@@ -68,6 +68,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
@@ -1229,6 +1230,45 @@ class TestIcebergCommitter extends TestBase {
           .hasOverallCommittables(1)
           .hasFailedCommittables(0);
     }
+  }
+
+  @TestTemplate
+  void commitDVsAfterExpiringOldestSnapshot() throws Exception {
+    assumeThat(formatVersion).as("DVs are supported in format v3 or later").isGreaterThan(2);
+
+    IcebergCommitter committer = getCommitter();
+    for (long i = 1; i <= 2; i++) {
+      DataFile dataFile =
+          writeDataFile("data-" + i, ImmutableList.of(SimpleDataUtil.createRowData((int) i, "a")));
+      committer.commit(
+          Lists.newArrayList(buildCommitRequestFor(jobId, i, Lists.newArrayList(of(dataFile)))));
+    }
+
+    table.refresh();
+    long oldestSnapshotId = SimpleDataUtil.latestSnapshot(table, branch).parentId();
+    table.expireSnapshots().expireSnapshotId(oldestSnapshotId).commit();
+
+    DataFile dataFile =
+        writeDataFile("data-3", ImmutableList.of(SimpleDataUtil.createRowData(3, "a")));
+    DeleteFile dv =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withFormat(FileFormat.PUFFIN)
+            .withPath(temporaryFolder.getAbsolutePath() + "/data-3-dv-1.puffin")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withReferencedDataFile(dataFile.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(6)
+            .build();
+    List<WriteResult> writeResults =
+        Lists.newArrayList(WriteResult.builder().addDataFiles(dataFile).addDeleteFiles(dv).build());
+
+    committer.commit(Lists.newArrayList(buildCommitRequestFor(jobId, 3, writeResults)));
+
+    assertMaxCommittedCheckpointId(jobId, 3);
+    assertThat(SimpleDataUtil.latestSnapshot(table, branch).summary())
+        .containsEntry(SnapshotSummary.ADDED_DVS_PROP, "1");
   }
 
   @TestTemplate

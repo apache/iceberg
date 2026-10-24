@@ -35,7 +35,9 @@ import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionSpec;
@@ -852,6 +854,67 @@ class TestDynamicCommitter {
                 .put("total-position-deletes", "24")
                 .put("total-records", "66")
                 .build());
+  }
+
+  @Test
+  void commitDVsAfterExpiringOldestSnapshot() throws Exception {
+    TableIdentifier tableId = TableIdentifier.of("v3_table");
+    Map<String, String> tableProps = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
+    Table table =
+        catalog.createTable(tableId, new Schema(42), PartitionSpec.unpartitioned(), tableProps);
+    table.newAppend().appendFile(DATA_FILE).commit();
+    long expiredSnapshotId = table.currentSnapshot().snapshotId();
+    table.newAppend().appendFile(DATA_FILE_2).commit();
+    table.expireSnapshots().expireSnapshotId(expiredSnapshotId).commit();
+
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath("/path/to/data-3.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(5)
+            .build();
+    DeleteFile dv =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .ofPositionDeletes()
+            .withFormat(FileFormat.PUFFIN)
+            .withPath("/path/to/data-3-dv-1.puffin")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .withReferencedDataFile(dataFile.location())
+            .withContentOffset(4)
+            .withContentSizeInBytes(6)
+            .build();
+
+    DynamicWriteResultAggregator aggregator =
+        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
+    OneInputStreamOperatorTestHarness aggregatorHarness =
+        new OneInputStreamOperatorTestHarness(aggregator);
+    aggregatorHarness.open();
+
+    TableKey tableKey = new TableKey(tableId.name(), SnapshotRef.MAIN_BRANCH);
+    String jobId = JobID.generate().toHexString();
+    String operatorId = new OperatorID().toHexString();
+    int checkpointId = 1;
+
+    Collection<WriteResult> writeResults =
+        Sets.newHashSet(WriteResult.builder().addDataFiles(dataFile).addDeleteFiles(dv).build());
+    byte[][] deltaManifests =
+        aggregator.writeToManifests(
+            tableKey.tableName(), Map.of(dataFile.specId(), writeResults), checkpointId);
+
+    DynamicCommittable committable =
+        new DynamicCommittable(tableKey, deltaManifests, jobId, operatorId, checkpointId);
+
+    DynamicCommitterMetrics metrics = new DynamicCommitterMetrics(new UnregisteredMetricsGroup());
+    DynamicCommitter dynamicCommitter =
+        new DynamicCommitter(catalog, Maps.newHashMap(), false, 1, "sinkId", metrics);
+    dynamicCommitter.commit(Sets.newHashSet(new MockCommitRequest<>(committable)));
+
+    table.refresh();
+    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.OVERWRITE);
+    assertThat(table.currentSnapshot().summary())
+        .containsEntry("added-dvs", "1")
+        .containsEntry("flink.max-committed-checkpoint-id", String.valueOf(checkpointId));
   }
 
   @Test
