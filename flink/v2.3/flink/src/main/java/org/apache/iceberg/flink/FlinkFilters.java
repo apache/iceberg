@@ -34,6 +34,8 @@ import org.apache.flink.table.expressions.ResolvedExpression;
 import org.apache.flink.table.expressions.ValueLiteralExpression;
 import org.apache.flink.table.functions.BuiltInFunctionDefinitions;
 import org.apache.flink.table.functions.FunctionDefinition;
+import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.utils.LogicalTypeChecks;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.expressions.Expressions;
@@ -210,12 +212,14 @@ public class FlinkFilters {
   }
 
   private static Optional<Object> convertLiteral(ValueLiteralExpression expression) {
-    Optional<?> value =
-        expression.getValueAs(
-            expression.getOutputDataType().getLogicalType().getDefaultConversion());
+    LogicalType type = expression.getOutputDataType().getLogicalType();
+    Optional<?> value = expression.getValueAs(type.getDefaultConversion());
     return value.map(
         o -> {
-          if (o instanceof LocalDateTime) {
+          if ((o instanceof LocalDateTime || o instanceof Instant)
+              && LogicalTypeChecks.getPrecision(type) > 6) {
+            return o.toString();
+          } else if (o instanceof LocalDateTime) {
             return DateTimeUtil.microsFromTimestamp((LocalDateTime) o);
           } else if (o instanceof Instant) {
             return DateTimeUtil.microsFromInstant((Instant) o);
