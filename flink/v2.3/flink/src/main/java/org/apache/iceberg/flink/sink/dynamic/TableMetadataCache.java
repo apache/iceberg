@@ -32,6 +32,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -123,7 +124,7 @@ class TableMetadataCache {
             cacheRefreshClock.millis(),
             true,
             table.refs().keySet(),
-            table.schemas(),
+            orderSchemas(table.schemas(), table.schema().schemaId()),
             table.specs(),
             inputSchemasPerTableCacheMaximumSize));
   }
@@ -177,6 +178,9 @@ class TableMetadataCache {
   private ResolvedSchemaInfo resolveSchema(
       TableIdentifier identifier, CacheItem cached, Schema input, boolean allowRefresh) {
     Schema compatible = null;
+    // tableSchemas is ordered current schema first, then newest to oldest. This way a historical
+    // schema that only matches by name (a column dropped and added again with the same name)
+    // does not win over the current schema.
     for (Schema tableSchema : cached.tableSchemas.values()) {
       CompareSchemasVisitor.Result result =
           CompareSchemasVisitor.visit(input, tableSchema, caseSensitive, dropUnusedColumns);
@@ -257,6 +261,25 @@ class TableMetadataCache {
 
   public void invalidate(TableIdentifier identifier) {
     tableCache.remove(identifier);
+  }
+
+  /**
+   * Orders the schemas with the current schema first, followed by the rest from newest to oldest.
+   * The current schema is not necessarily the one with the highest id, for example after a
+   * rollback.
+   */
+  static Map<Integer, Schema> orderSchemas(Map<Integer, Schema> tableSchemas, int currentSchemaId) {
+    Map<Integer, Schema> ordered = Maps.newLinkedHashMapWithExpectedSize(tableSchemas.size());
+    Schema current = tableSchemas.get(currentSchemaId);
+    if (current != null) {
+      ordered.put(currentSchemaId, current);
+    }
+
+    tableSchemas.entrySet().stream()
+        .filter(e -> e.getKey() != currentSchemaId)
+        .sorted(Map.Entry.<Integer, Schema>comparingByKey().reversed())
+        .forEach(e -> ordered.put(e.getKey(), e.getValue()));
+    return ordered;
   }
 
   /** Handles timeout for missing items only. Caffeine performance causes noticeable delays. */
