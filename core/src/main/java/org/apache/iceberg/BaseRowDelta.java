@@ -36,6 +36,7 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
   private Expression conflictDetectionFilter = Expressions.alwaysTrue();
   private boolean validateNewDataFiles = false;
   private boolean validateNewDeleteFiles = false;
+  private boolean validateNewDeleteFilesForModifiedDataFiles = false;
 
   protected BaseRowDelta(String tableName, TableOperations ops) {
     super(tableName, ops);
@@ -123,6 +124,12 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
   }
 
   @Override
+  public RowDelta validateNoConflictingDeleteFilesForModifiedDataFiles() {
+    this.validateNewDeleteFilesForModifiedDataFiles = true;
+    return this;
+  }
+
+  @Override
   public RowDelta toBranch(String branch) {
     targetBranch(branch);
     return this;
@@ -156,7 +163,7 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
         validateAddedDataFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
       }
 
-      if (validateNewDeleteFiles) {
+      if (validateNewDeleteFiles || validateNewDeleteFilesForModifiedDataFiles) {
         // validate that explicitly deleted files have not had added deletes
         if (!removedDataFiles.isEmpty()) {
           validateNoNewDeletesForDataFiles(
@@ -164,13 +171,34 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
         }
 
         // validate that previous deletes do not conflict with added deletes
-        validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
+        CharSequenceSet modifiedDataFiles = validateNewDeleteFiles ? null : modifiedDataFiles();
+        if (modifiedDataFiles != null) {
+          validateNoNewDeleteFiles(
+              base, startingSnapshotId, conflictDetectionFilter, modifiedDataFiles, parent);
+        } else {
+          validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
+        }
       }
 
       validateNoConflictingFileAndPositionDeletes();
 
       validateAddedDVs(base, startingSnapshotId, conflictDetectionFilter, parent);
     }
+  }
+
+  /**
+   * Returns the locations of the data files this commit modifies: those its delete files apply to,
+   * those passed to {@link #validateDataFilesExist(Iterable)} and those it removes. Returns null if
+   * a delete file it adds may apply to more than one data file.
+   */
+  private CharSequenceSet modifiedDataFiles() {
+    CharSequenceSet modifiedDataFiles = referencedDataFilesOfAddedDeletes();
+    if (modifiedDataFiles != null) {
+      modifiedDataFiles.addAll(referencedDataFiles);
+      removedDataFiles.forEach(file -> modifiedDataFiles.add(file.location()));
+    }
+
+    return modifiedDataFiles;
   }
 
   /**
