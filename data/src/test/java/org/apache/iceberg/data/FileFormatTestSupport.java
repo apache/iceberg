@@ -27,13 +27,33 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.avro.AvroFormat;
 import org.apache.iceberg.data.orc.OrcFormat;
 import org.apache.iceberg.data.parquet.ParquetFormat;
+import org.apache.iceberg.data.vortex.VortexFormat;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public interface FileFormatTestSupport {
 
-  FileFormatTestSupport[] ALL =
-      new FileFormatTestSupport[] {new AvroFormat(), new OrcFormat(), new ParquetFormat()};
+  FileFormatTestSupport[] ALL = all();
+
+  /**
+   * The formats this TCK runs against.
+   *
+   * <p>Vortex is only included when {@code iceberg-vortex} is on the classpath: the Flink modules
+   * inherit these tests without it, and Vortex has no Flink integration yet.
+   */
+  static FileFormatTestSupport[] all() {
+    List<FileFormatTestSupport> formats =
+        Lists.newArrayList(new AvroFormat(), new OrcFormat(), new ParquetFormat());
+    try {
+      Class.forName("org.apache.iceberg.vortex.VortexFormatModels");
+      formats.add(new VortexFormat());
+    } catch (ClassNotFoundException e) {
+      // iceberg-vortex is not on the classpath; skip the format
+    }
+
+    return formats.toArray(new FileFormatTestSupport[0]);
+  }
 
   static FileFormat[] formats() {
     return Arrays.stream(ALL).map(FileFormatTestSupport::format).toArray(FileFormat[]::new);

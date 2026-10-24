@@ -182,10 +182,17 @@ public abstract class ReadFormatModelTests<T> {
   static final String FEATURE_AES_STREAM_ENCRYPTION = "aesStreamEncryption";
   static final String FEATURE_VARIANT = "variant";
   static final String FEATURE_GEOSPATIAL = "geospatial";
+  static final String FEATURE_GEOSPATIAL_BOUNDS = "geospatialBounds";
+  static final String FEATURE_FIXED = "fixed";
+  static final String FEATURE_WRITER_OVERWRITE = "writerOverwrite";
+  static final String FEATURE_WRITER_PROPERTIES = "writerProperties";
+  static final String FEATURE_WRITER_METADATA = "writerMetadata";
+  static final String FEATURE_EVOLUTION_BY_FIELD_ID = "evolutionByFieldId";
 
   private static final Set<Type.TypeID> VARIANT_TYPE_IDS = Set.of(Type.TypeID.VARIANT);
   private static final Set<Type.TypeID> GEOSPATIAL_TYPE_IDS =
       Set.of(Type.TypeID.GEOMETRY, Type.TypeID.GEOGRAPHY);
+  private static final Set<Type.TypeID> FIXED_TYPE_IDS = Set.of(Type.TypeID.FIXED);
 
   private static final Map<FileFormat, String[]> MISSING_FEATURES =
       Map.of(
@@ -209,7 +216,24 @@ public abstract class ReadFormatModelTests<T> {
             FEATURE_GEOSPATIAL
           },
           FileFormat.PARQUET,
-          new String[] {FEATURE_AES_STREAM_ENCRYPTION});
+          new String[] {FEATURE_AES_STREAM_ENCRYPTION},
+          FileFormat.VORTEX,
+          new String[] {
+            // Vortex has no fixed-width binary type; the writer rejects Iceberg FIXED columns
+            // and directs callers to BINARY instead.
+            FEATURE_FIXED,
+            // The Vortex appender neither rejects a write to an existing location nor reads back
+            // correctly from one that was overwritten in place.
+            FEATURE_WRITER_OVERWRITE,
+            // Vortex has no write properties -- the writer accepts none today, though some are
+            // planned -- so there is nothing to set and nothing to observe in the written file.
+            FEATURE_WRITER_PROPERTIES,
+            // Vortex stores geometry and geography as plain WKB binary and reports no bounding
+            // box for them.
+            FEATURE_GEOSPATIAL_BOUNDS,
+            FEATURE_AES_STREAM_ENCRYPTION,
+            FEATURE_NATIVE_ENCRYPTION
+          });
 
   private static final FileFormat[] FILE_FORMATS = FileFormatTestSupport.formats();
 
@@ -1438,6 +1462,8 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testPrimitiveDefaultValuesNotApplied(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_FIXED);
+
     assumeSupports(fileFormat, FEATURE_READER_DEFAULT);
 
     Schema readSchema = filterUnsupported(DataGenerators.PrimitiveDefaults.READ_SCHEMA);
@@ -1485,6 +1511,7 @@ public abstract class ReadFormatModelTests<T> {
   @FieldSource("FILE_FORMATS")
   void testDataWriterGeospatialBounds(FileFormat fileFormat) throws IOException {
     assumeSupports(fileFormat, FEATURE_GEOSPATIAL);
+    assumeSupports(fileFormat, FEATURE_GEOSPATIAL_BOUNDS);
     assumeSupports(fileFormat, FEATURE_COLUMN_LEVEL_METRICS);
 
     Schema schema = new DataGenerators.Geometry().schema();
@@ -2200,6 +2227,7 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionDropAndReAddSameNameColumn(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_EVOLUTION_BY_FIELD_ID);
 
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema writeSchema = dataGenerator.schema();
@@ -2291,6 +2319,8 @@ public abstract class ReadFormatModelTests<T> {
   @ParameterizedTest
   @FieldSource("FILE_FORMATS")
   void testSchemaEvolutionRenameColumn(FileFormat fileFormat) throws IOException {
+    assumeSupports(fileFormat, FEATURE_EVOLUTION_BY_FIELD_ID);
+
     DataGenerator dataGenerator = new DataGenerators.DefaultSchema();
     Schema writeSchema = dataGenerator.schema();
 
@@ -2459,7 +2489,8 @@ public abstract class ReadFormatModelTests<T> {
   private static boolean supportsGenerator(FileFormat fileFormat, DataGenerator generator) {
     Schema schema = generator.schema();
     return supportsTypes(fileFormat, schema, VARIANT_TYPE_IDS, FEATURE_VARIANT)
-        && supportsTypes(fileFormat, schema, GEOSPATIAL_TYPE_IDS, FEATURE_GEOSPATIAL);
+        && supportsTypes(fileFormat, schema, GEOSPATIAL_TYPE_IDS, FEATURE_GEOSPATIAL)
+        && supportsTypes(fileFormat, schema, FIXED_TYPE_IDS, FEATURE_FIXED);
   }
 
   /**
