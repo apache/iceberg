@@ -599,8 +599,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   void sendDeferredNotifications() {
+    Object event = deferredEvent;
+    this.deferredEvent = null;
     try {
-      notifyListeners(deferredEvent);
+      notifyListeners(event);
     } catch (Throwable e) {
       LOG.warn("Failed to notify event listeners", e);
     }
