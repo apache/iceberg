@@ -19,17 +19,22 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.Objects;
 import org.apache.flink.annotation.Internal;
 
 /**
- * A deletion vector position emitted by {@code EqualityConvertPKIndex} when resolving an equality
- * delete. Identifies a specific row (by file path and position) to be marked as deleted, and
- * carries the data file's {@code specId} + encoded partition so the downstream resolver can write
- * the DV without re-reading data manifests.
+ * A deletion vector position emitted when resolving an equality delete, by {@code
+ * EqualityConvertPKIndex} after the commit or by the DV-only sink before it. Identifies a specific
+ * row (by file path and position) to be marked as deleted, and carries the data file's {@code
+ * specId} + encoded partition so the downstream resolver can write the DV without re-reading data
+ * manifests.
  *
- * <p>{@code dataSequenceNumber} is the data file's sequence number. The worker keeps it in its
- * index so a resolving equality delete only deletes rows older than itself (only applies an
- * equality delete with sequence {@code S} to data with sequence {@code < S}).
+ * <p>{@code dataSequenceNumber} is the data file's sequence number. The worker of {@code
+ * EqualityConvertPKIndex} keeps it in its index so a resolving equality delete only deletes rows
+ * older than itself (only applies an equality delete with sequence {@code S} to data with sequence
+ * {@code < S}). The DV-only sink does not order deletes that way and always reports an unknown
+ * sequence number.
  *
  * <p>{@code partition} is a {@code byte[]} (see {@link StructLikeSerializer#encodePartition}) so
  * Flink serializes it natively rather than falling back to Kryo, including in the worker's keyed
@@ -50,5 +55,28 @@ public record DVPosition(
 
   public boolean isAbort() {
     return ABORT_FILE_PATH.equals(dataFilePath);
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+
+    if (!(o instanceof DVPosition other)) {
+      return false;
+    }
+
+    return position == other.position
+        && specId == other.specId
+        && dataSequenceNumber == other.dataSequenceNumber
+        && Objects.equals(dataFilePath, other.dataFilePath)
+        && Arrays.equals(partition, other.partition);
+  }
+
+  @Override
+  public int hashCode() {
+    int result = Objects.hash(dataFilePath, position, specId, dataSequenceNumber);
+    return 31 * result + Arrays.hashCode(partition);
   }
 }
