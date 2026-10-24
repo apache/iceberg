@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.io.FileIO;
@@ -213,5 +214,18 @@ public interface Snapshot extends Serializable {
    */
   default String keyId() {
     return null;
+  }
+
+  /**
+   * Returns the status of each constraint for this snapshot, as reported by the writer.
+   *
+   * <p>A constraint whose ID is not in the map must be treated as {@link
+   * ConstraintStatus#UNVALIDATED unvalidated} for this snapshot. The map may contain IDs of
+   * constraints that are no longer in the table, which must be ignored.
+   *
+   * @return a map from constraint ID to its status
+   */
+  default Map<Integer, ConstraintStatus> constraintStatuses() {
+    return Collections.emptyMap();
   }
 }

@@ -113,6 +113,8 @@ public class TableMetadataParser {
   static final String PARTITION_STATISTICS = "partition-statistics";
   static final String ENCRYPTION_KEYS = "encryption-keys";
   static final String NEXT_ROW_ID = "next-row-id";
+  static final String LAST_CONSTRAINT_ID = "last-constraint-id";
+  static final String CONSTRAINTS = "constraints";
   static final int MIN_NULL_CURRENT_SNAPSHOT_VERSION = 3;
 
   public static void overwrite(TableMetadata metadata, OutputFile outputFile) {
@@ -239,6 +241,20 @@ public class TableMetadataParser {
         EncryptedKeyParser.toJson(key, generator);
       }
       generator.writeEndArray();
+    }
+
+    if (metadata.formatVersion() >= TableMetadata.MIN_FORMAT_VERSION_CONSTRAINTS) {
+      if (metadata.lastConstraintId() > TableMetadata.INITIAL_CONSTRAINT_ID) {
+        generator.writeNumberField(LAST_CONSTRAINT_ID, metadata.lastConstraintId());
+      }
+
+      if (!metadata.constraints().isEmpty()) {
+        generator.writeArrayFieldStart(CONSTRAINTS);
+        for (Constraint constraint : metadata.constraints()) {
+          ConstraintParser.toJson(constraint, generator);
+        }
+        generator.writeEndArray();
+      }
     }
 
     toJson(metadata.refs(), generator);
@@ -495,6 +511,18 @@ public class TableMetadataParser {
       keys = List.of();
     }
 
+    Integer lastConstraintId = JsonUtil.getIntOrNull(LAST_CONSTRAINT_ID, node);
+    if (lastConstraintId == null) {
+      lastConstraintId = TableMetadata.INITIAL_CONSTRAINT_ID;
+    }
+
+    List<Constraint> constraints;
+    if (node.has(CONSTRAINTS)) {
+      constraints = JsonUtil.getObjectList(CONSTRAINTS, node, ConstraintParser::fromJson);
+    } else {
+      constraints = ImmutableList.of();
+    }
+
     Map<String, SnapshotRef> refs;
     if (node.has(REFS)) {
       refs = refsFromJson(node.get(REFS));
@@ -586,6 +614,8 @@ public class TableMetadataParser {
         partitionStatisticsFiles,
         lastRowId,
         keys,
+        constraints,
+        lastConstraintId,
         ImmutableList.of() /* no changes from the file */);
   }
 

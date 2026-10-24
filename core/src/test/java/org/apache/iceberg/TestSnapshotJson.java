@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -169,6 +170,58 @@ public class TestSnapshotJson {
     assertThat(snapshot.schemaId()).isNull();
     assertThat(snapshot.firstRowId()).isEqualTo(firstRowId);
     assertThat(snapshot.addedRows()).isEqualTo(addedRows);
+  }
+
+  @Test
+  public void testJsonConversionWithConstraintStatuses() {
+    Map<Integer, ConstraintStatus> statuses =
+        ImmutableMap.of(
+            1, ConstraintStatus.VALIDATED,
+            2, ConstraintStatus.VALID,
+            3, ConstraintStatus.UNVALIDATED);
+    Snapshot expected =
+        new BaseSnapshot(
+            1,
+            23,
+            null,
+            System.currentTimeMillis(),
+            DataOperations.REPLACE,
+            null,
+            1,
+            "file:/tmp/manifest-list.avro",
+            null,
+            null,
+            null,
+            statuses);
+
+    String json = SnapshotParser.toJson(expected, false);
+    assertThat(json)
+        .contains("\"constraint-statuses\":{\"validated\":[1],\"valid\":[2],\"unvalidated\":[3]}");
+
+    Snapshot snapshot = SnapshotParser.fromJson(json);
+    assertThat(snapshot).isEqualTo(expected);
+    assertThat(snapshot.constraintStatuses()).isEqualTo(statuses);
+  }
+
+  @Test
+  public void testJsonConversionWithoutConstraintStatuses() {
+    Snapshot expected =
+        new BaseSnapshot(
+            1,
+            23,
+            null,
+            System.currentTimeMillis(),
+            DataOperations.APPEND,
+            null,
+            1,
+            "file:/tmp/manifest-list.avro",
+            null,
+            null,
+            null);
+
+    String json = SnapshotParser.toJson(expected, false);
+    assertThat(json).doesNotContain("constraint-statuses");
+    assertThat(SnapshotParser.fromJson(json).constraintStatuses()).isEmpty();
   }
 
   @Test

@@ -293,6 +293,11 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   }
 
   @Override
+  public List<Constraint> constraints() {
+    return lazyTable().constraints();
+  }
+
+  @Override
   public Map<String, SnapshotRef> refs() {
     return refs;
   }

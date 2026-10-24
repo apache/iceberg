@@ -60,6 +60,8 @@ public class TableMetadata implements Serializable {
   static final int MIN_FORMAT_VERSION_PARQUET_MANIFESTS = 4;
   static final int MIN_FORMAT_VERSION_OPTIONAL_LOCATION = 4;
   static final int MIN_FORMAT_VERSION_MONOTONIC_TIMESTAMPS = 4;
+  static final int MIN_FORMAT_VERSION_CONSTRAINTS = 4;
+  static final int INITIAL_CONSTRAINT_ID = 0;
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;
@@ -269,6 +271,8 @@ public class TableMetadata implements Serializable {
   private final List<MetadataUpdate> changes;
   private final long nextRowId;
   private final List<EncryptedKey> encryptionKeys;
+  private final List<Constraint> constraints;
+  private final int lastConstraintId;
   private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
   private volatile List<Snapshot> snapshots;
   private volatile Map<Long, Snapshot> snapshotsById;
@@ -302,6 +306,8 @@ public class TableMetadata implements Serializable {
       List<PartitionStatisticsFile> partitionStatisticsFiles,
       long nextRowId,
       List<EncryptedKey> encryptionKeys,
+      List<Constraint> constraints,
+      int lastConstraintId,
       List<MetadataUpdate> changes) {
     Preconditions.checkArgument(
         specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
@@ -332,6 +338,7 @@ public class TableMetadata implements Serializable {
         metadataFileLocation == null || changes.isEmpty(),
         "Cannot create TableMetadata with a metadata location and changes");
     Preconditions.checkArgument(encryptionKeys != null, "Encryption keys cannot be null");
+    validateConstraints(formatVersion, constraints, lastConstraintId);
 
     this.metadataFileLocation = metadataFileLocation;
     this.formatVersion = formatVersion;
@@ -355,6 +362,8 @@ public class TableMetadata implements Serializable {
     this.snapshotLog = snapshotLog;
     this.previousFiles = previousFiles;
     this.encryptionKeys = encryptionKeys;
+    this.constraints = ImmutableList.copyOf(constraints);
+    this.lastConstraintId = lastConstraintId;
 
     // changes are carried through until metadata is read from a file
     this.changes = changes;
@@ -589,6 +598,56 @@ public class TableMetadata implements Serializable {
 
   public List<EncryptedKey> encryptionKeys() {
     return encryptionKeys;
+  }
+
+  public List<Constraint> constraints() {
+    return constraints;
+  }
+
+  public int lastConstraintId() {
+    return lastConstraintId;
+  }
+
+  private static void validateConstraints(
+      int formatVersion, List<Constraint> constraints, int lastConstraintId) {
+    Preconditions.checkArgument(constraints != null, "Constraints cannot be null");
+    Preconditions.checkArgument(
+        lastConstraintId >= INITIAL_CONSTRAINT_ID,
+        "Invalid last constraint ID: %s (must be >= %s)",
+        lastConstraintId,
+        INITIAL_CONSTRAINT_ID);
+    if (formatVersion < MIN_FORMAT_VERSION_CONSTRAINTS) {
+      Preconditions.checkArgument(
+          constraints.isEmpty() && lastConstraintId == INITIAL_CONSTRAINT_ID,
+          "Constraints are not supported in format v%s (requires v%s)",
+          formatVersion,
+          MIN_FORMAT_VERSION_CONSTRAINTS);
+      return;
+    }
+
+    Set<Integer> ids = Sets.newHashSet();
+    Set<String> names = Sets.newHashSet();
+    boolean hasPrimaryKey = false;
+    for (Constraint constraint : constraints) {
+      Preconditions.checkArgument(
+          ids.add(constraint.id()),
+          "Invalid constraints: duplicate constraint ID %s",
+          constraint.id());
+      Preconditions.checkArgument(
+          names.add(constraint.name()),
+          "Invalid constraints: duplicate constraint name %s",
+          constraint.name());
+      Preconditions.checkArgument(
+          constraint.id() <= lastConstraintId,
+          "Invalid constraint ID %s: greater than last constraint ID %s",
+          constraint.id(),
+          lastConstraintId);
+      if (constraint.type() == ConstraintType.PRIMARY_KEY) {
+        Preconditions.checkArgument(
+            !hasPrimaryKey, "Invalid constraints: more than one primary-key constraint");
+        hasPrimaryKey = true;
+      }
+    }
   }
 
   /** Updates the schema */
@@ -923,6 +982,8 @@ public class TableMetadata implements Serializable {
     private boolean suppressHistoricalSnapshots = false;
     private long nextRowId;
     private final List<EncryptedKey> encryptionKeys;
+    private final List<Constraint> constraints;
+    private int lastConstraintId;
 
     // change tracking
     private final List<MetadataUpdate> changes;
@@ -964,6 +1025,8 @@ public class TableMetadata implements Serializable {
       this.snapshotLog = Lists.newArrayList();
       this.previousFiles = Lists.newArrayList();
       this.encryptionKeys = Lists.newArrayList();
+      this.constraints = Lists.newArrayList();
+      this.lastConstraintId = INITIAL_CONSTRAINT_ID;
       this.refs = Maps.newHashMap();
       this.statisticsFiles = Maps.newHashMap();
       this.partitionStatisticsFiles = Maps.newHashMap();
@@ -994,6 +1057,8 @@ public class TableMetadata implements Serializable {
       this.currentSnapshotId = base.currentSnapshotId;
       this.snapshots = Lists.newArrayList(base.snapshots());
       this.encryptionKeys = Lists.newArrayList(base.encryptionKeys);
+      this.constraints = Lists.newArrayList(base.constraints);
+      this.lastConstraintId = base.lastConstraintId;
       this.changes = Lists.newArrayList(base.changes);
       this.startingChangeCount = changes.size();
 
@@ -1612,6 +1677,8 @@ public class TableMetadata implements Serializable {
               .collect(Collectors.toList()),
           nextRowId,
           ImmutableList.copyOf(encryptionKeys),
+          ImmutableList.copyOf(constraints),
+          lastConstraintId,
           discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
     }
 
