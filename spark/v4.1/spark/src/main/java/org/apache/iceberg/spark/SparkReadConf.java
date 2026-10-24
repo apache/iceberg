@@ -262,6 +262,28 @@ public class SparkReadConf {
         .parse();
   }
 
+  public boolean preserveDataOrdering() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.PRESERVE_DATA_ORDERING)
+        .defaultValue(SparkSQLProperties.PRESERVE_DATA_ORDERING_DEFAULT)
+        .parse();
+  }
+
+  public int preserveDataOrderingMaxFilesPerTask() {
+    int maxFiles =
+        confParser
+            .intConf()
+            .sessionConf(SparkSQLProperties.PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK)
+            .defaultValue(SparkSQLProperties.PRESERVE_DATA_ORDERING_MAX_FILES_PER_TASK_DEFAULT)
+            .parse();
+    Preconditions.checkArgument(
+        maxFiles >= 2,
+        "Max files per task for preserving data ordering must be >= 2: %s",
+        maxFiles);
+    return maxFiles;
+  }
+
   public boolean aggregatePushDownEnabled() {
     return confParser
         .booleanConf()
