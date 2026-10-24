@@ -44,6 +44,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private final FileFormat format;
   private final OutputFile file;
   private final EncryptionKeyMetadata keyMetadata;
+  private final PartitionSpec spec;
   private final int specId;
   private final FileAppender<ManifestEntry<F>> writer;
   private final Long snapshotId;
@@ -67,6 +68,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
       Long snapshotId,
       Long firstRowId,
       Map<String, String> writerProperties) {
+    this.spec = spec;
     this.format = FileFormat.fromFileName(file.encryptingOutputFile().location());
     this.file = outputFile(file);
     this.specId = spec.specId();
@@ -82,6 +84,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   protected abstract ManifestEntry<F> prepare(ManifestEntry<F> entry);
 
+  @SuppressWarnings("checkstyle:HiddenField")
   protected abstract FileAppender<ManifestEntry<F>> newAppender(
       PartitionSpec spec, OutputFile outputFile);
 
@@ -109,30 +112,64 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   }
 
   void addEntry(ManifestEntry<F> entry) {
-    switch (entry.status()) {
+    ManifestEntry<F> normalizedEntry = normalizeEntry(entry);
+
+    switch (normalizedEntry.status()) {
       case ADDED:
         addedFiles += 1;
-        addedRows += entry.file().recordCount();
+        addedRows += normalizedEntry.file().recordCount();
         break;
       case EXISTING:
         existingFiles += 1;
-        existingRows += entry.file().recordCount();
+        existingRows += normalizedEntry.file().recordCount();
         break;
       case DELETED:
         deletedFiles += 1;
-        deletedRows += entry.file().recordCount();
+        deletedRows += normalizedEntry.file().recordCount();
         break;
     }
 
-    stats.update(entry.file().partition());
+    stats.update(normalizedEntry.file().partition());
 
-    if (entry.isLive()
-        && entry.dataSequenceNumber() != null
-        && (minDataSequenceNumber == null || entry.dataSequenceNumber() < minDataSequenceNumber)) {
-      this.minDataSequenceNumber = entry.dataSequenceNumber();
+    if (normalizedEntry.isLive()
+        && normalizedEntry.dataSequenceNumber() != null
+        && (minDataSequenceNumber == null
+            || normalizedEntry.dataSequenceNumber() < minDataSequenceNumber)) {
+      this.minDataSequenceNumber = normalizedEntry.dataSequenceNumber();
     }
 
-    writer.add(prepare(entry));
+    writer.add(prepare(normalizedEntry));
+  }
+
+  @SuppressWarnings("unchecked")
+  private ManifestEntry<F> normalizeEntry(ManifestEntry<F> entry) {
+    if (!(entry.file() instanceof DataFile)) {
+      return entry;
+    }
+
+    if (entry.file().specId() != specId) {
+      return entry;
+    }
+
+    DataFile normalizedFile = DataFiles.builder(spec).copy((DataFile) entry.file()).build();
+    switch (entry.status()) {
+      case ADDED:
+        return reused.wrapAppend(snapshotId, entry.dataSequenceNumber(), (F) normalizedFile);
+      case EXISTING:
+        return reused.wrapExisting(
+            entry.snapshotId(),
+            entry.dataSequenceNumber(),
+            entry.fileSequenceNumber(),
+            (F) normalizedFile);
+      case DELETED:
+        return reused.wrapDelete(
+            entry.snapshotId(),
+            entry.dataSequenceNumber(),
+            entry.fileSequenceNumber(),
+            (F) normalizedFile);
+      default:
+        throw new IllegalArgumentException("Unsupported manifest entry status: " + entry.status());
+    }
   }
 
   /**
