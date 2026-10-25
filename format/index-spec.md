@@ -71,9 +71,10 @@ index `location`, which must be an absolute location.
 
 ### Index Definition
 
-An index is defined by a source table, an index type, an [extract schema](#extract-schema), and an
-[ordering key](#ordering-key). The definition is fixed when the index is created so that region files remain readable
-through every extract that references them. Only extract schema field types and optionality may change, as defined in
+An index is defined by a source table, an index type, an [extract schema](#extract-schema),
+[stats-only fields](#stats-only-fields), and an [ordering key](#ordering-key). The definition is fixed when the index is
+created so that region files remain readable through every extract that references them. Only extract schema field
+types and optionality, and the data types of stats-only fields, may change, as defined in
 [Extract Schema Evolution](#extract-schema-evolution). Any other change requires a new index.
 
 Index properties configure how an index is written and maintained, such as the target size of region files. Any commit
@@ -101,9 +102,8 @@ It defines the fields of an index entry and is used to read region files. It con
   [metadata column](spec.md#reserved-field-ids), except `_deleted`, `_partition`, the changelog columns
   (`_change_type`, `_change_ordinal`, `_commit_snapshot_id`), and the delete file columns (`file_path`, `pos`, `row`).
 * [Derived columns](https://docs.google.com/document/d/1u93kyIrTc8bt9VSTB4O0GM9S7zuXekqixJR6Id2FZC4), which are
-  computed only from identity columns by a deterministic expression. `generated-always` columns are stored in region
-  files. `virtual` columns are not stored; only their statistics are kept in
-  [tracking file entries](#tracking-file-entry).
+  computed only from identity columns by a deterministic expression and stored in region files. Derived columns must
+  be `generated-always`. Derived values that are not stored are defined as [stats-only fields](#stats-only-fields).
 
 Extract schemas are stored in `schemas`, and each extract references one by `extract-schema-id`. Each identity column
 must have the type of its source field: for a table field, as defined by the schema of the extract's source table
@@ -118,15 +118,34 @@ derived column definitions must be the same in every extract schema. Compared to
 schema, each field in a new extract schema must have the same type or a valid
 [type promotion](spec.md#schema-evolution), and may change from required to optional but not from optional to required.
 
+Stats-only fields are shared by all extracts. The `data-type` of a stats-only field may change only by a valid type
+promotion, when a new extract schema promotes the result type of its `expr`. No other stats-only field property may
+change.
+
 Each extract schema only widens all earlier ones, so a region file can be read with the schema it was written with
 or any schema added later. An extract must not reuse a region file written with an extract schema added after its own.
-For `ordering-key` fields, a promoted type must also order all values of the original type identically.
+For `ordering-key` fields, including stats-only fields, a promoted type must also order all values of the original type
+identically.
+
+#### Stats-only Fields
+
+Stats-only fields track statistics for derived values that are not stored in region files, as defined by
+[stats-only fields](spec.md#stats-only-fields) in the table specification. They are stored in the index metadata
+`stats-fields` list. Writers compute their values from the identity columns of each index entry, to produce
+`content_stats` in [tracking file entries](#tracking-file-entry) and, for `ordering-key` fields, to order index entries.
+Readers can use these statistics to prune region files.
+
+Stats-only fields of an index follow the table specification, with the following additional constraints:
+* `field-id` must be unique across extract schema field IDs and other stats-only field IDs.
+* `type` must be `expr-value`, as an index has no partition spec.
+* `expr` must be deterministic and may reference only identity columns, by extract schema field ID.
 
 #### Ordering Key
 
-`ordering-key` is a non-empty list of extract schema field IDs, each of a primitive type. The values of the referenced
-fields, in list order, form the ordering key of an indexed row and determine the row's position in the index, as
-defined in [Ordering](#ordering).
+`ordering-key` is a non-empty list of field IDs of extract schema fields or [stats-only fields](#stats-only-fields),
+each of a primitive type. The values of the referenced fields, in list order, form the ordering key of an indexed row
+and determine the row's position in the index, as defined in [Ordering](#ordering). The value of a stats-only field is
+the result of its `expr` evaluated for the indexed row.
 
 ### Index Metadata
 
@@ -146,6 +165,7 @@ The index metadata file has the following fields:
 | _required_  | `index-type`              | `string`                   | Logical index type                                                              |
 | _required_  | `identity-fields`         | `list<identity-field>`     | Identity columns of the extract schema, see [Identity Fields](#identity-fields) |
 | _required_  | `schemas`                 | `list<schema>`             | Extract schemas, see [Extract Schema](#extract-schema)                          |
+| _optional_  | `stats-fields`            | `list<stats-field>`        | Stats-only fields, see [Stats-only Fields](#stats-only-fields)                  |
 | _required_  | `ordering-key`            | `list<int>`                | Field IDs that form the ordering key, see [Ordering Key](#ordering-key)         |
 | _optional_  | `properties`              | `map<string, string>`      | Index properties applicable for every extract                                   |
 | _optional_  | `extracts`                | `list<extract>`            | Extracts [2]                                                                    |
@@ -288,11 +308,14 @@ ascending order of their [`max_ordering_key`](#max-ordering-key).
 | _optional_  | **`146  content_stats`**      | `struct` | Field statistics for the referenced region file, see [content stats](spec.md#content-stats)        |
 | _optional_  | **`131  key_metadata`**       | `binary` | Implementation-specific key metadata, used for region file encryption                              |
 
+`content_stats` may hold statistics for extract schema fields and for [stats-only fields](#stats-only-fields).
+
 ##### Max Ordering Key
 
 `max_ordering_key` is a struct with one field for each `ordering-key` field, in `ordering-key` order. The field at
-position `i`, starting at `0`, has ID `1000 + i` and the name and type of the referenced field in the extract's schema.
-It is optional so that it can represent a null ordering key value.
+position `i`, starting at `0`, has ID `1000 + i` and the type of the referenced field: its type in the extract's schema,
+or for a stats-only field, the result type of its `expr` bound to the extract's schema. It is optional so that it can
+represent a null ordering key value.
 
 `max_ordering_key` must be the exact ordering key of the last index entry in the region file according to the
 [index order](#ordering). It must not be truncated or rounded. Readers use it as an inclusive region file upper bound.
@@ -314,11 +337,16 @@ Iceberg standardizes the index lifecycle, the snapshot relationship, and the min
 cross-engine use. Engines remain free to skip index types they do not implement, use exact snapshot matches only, or
 implement more advanced stale-index logic.
 
-### Identity and Derived Columns
+### Identity, Derived, and Stats-only Fields
 
 Derived expressions must be deterministic so that entries land at reproducible positions. Computing them only from
-identity columns keeps a region file self-contained: a reader can recompute `virtual` columns, and entries that share an
-ordering key are told apart by its inputs, such as `user_id` under `bucket(256, user_id)`.
+identity columns keeps a region file self-contained: maintenance can recompute stats-only fields when it rewrites region
+files, and entries that share an ordering key are told apart by its inputs, such as `user_id` under
+`bucket(256, user_id)`.
+
+The extract schema then describes exactly the columns of a region file, and statistics for unstored values are tracked
+and evolved like table statistics. Stats-only fields share the extract schema field ID space, because `ordering-key`
+and `content_stats` reference both by field ID.
 
 The excluded metadata columns do not describe a live row of one snapshot, except `_partition`, which is excluded because
 its type changes with the partition spec.
@@ -378,11 +406,12 @@ columns cover the common cases:
 
 Without any of these, an index cannot return source rows, only the values of its own columns.
 
-### Choosing Virtual Columns
+### Choosing Stats-only Fields
 
-A `virtual` derived column suits an expression that is order preserving over a stored identity column, such as
-`day(ts)`: the statistics of `ts` bound `day(ts)`, so a reader can still seek within a region file. Other expressions,
-such as `bucket(256, user_id)`, must be evaluated over every row of an opened region file.
+A stats-only field suits an expression that is order preserving over a stored identity column, such as `day(ts)`: the
+statistics of `ts` bound `day(ts)`, so a reader can still seek within a region file. Other expressions, such as
+`bucket(256, user_id)`, must be evaluated over every row of an opened region file, so a `generated-always` derived
+column suits them better, unless storing the values costs more than recomputing them.
 
 ### Choosing an Ordering Key
 
@@ -411,7 +440,8 @@ format, record count, size, and the ordering key upper bound used for pruning.
 The extract schema has identity columns for `user_id` (source field `1`) and for the `_file` and `_pos` metadata
 columns, which record the source row location. `identity-fields` maps them to extract schema field IDs `1`, `2`, and
 `3`, so the metadata columns take ordinary IDs instead of their reserved ones. The bucket is a `generated-always`
-derived column computed from the `user_id` identity column and stored in region files. The extract schema is:
+derived column computed from the `user_id` identity column and stored in region files, rather than a stats-only field,
+because `bucket` is not order preserving and its `int` values are cheap to store. The extract schema is:
 
 | Field id, name   | Type     | Column                                     | Description                                |
 |------------------|----------|--------------------------------------------|--------------------------------------------|
