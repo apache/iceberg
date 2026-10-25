@@ -143,15 +143,25 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
   @SuppressWarnings("unchecked")
   private ManifestEntry<F> normalizeEntry(ManifestEntry<F> entry) {
-    if (!(entry.file() instanceof DataFile)) {
-      return entry;
-    }
-
     if (entry.file().specId() != specId) {
       return entry;
     }
 
-    DataFile normalizedFile = DataFiles.builder(spec).copy((DataFile) entry.file()).build();
+    ContentFile<?> normalizedFile;
+    if (entry.file() instanceof DataFile) {
+      normalizedFile = DataFiles.builder(spec).copy((DataFile) entry.file()).build();
+    } else if (entry.file() instanceof DeleteFile) {
+      DeleteFile deleteFile = (DeleteFile) entry.file();
+      FileMetadata.Builder builder = FileMetadata.deleteFileBuilder(spec);
+      if (deleteFile.content() == FileContent.EQUALITY_DELETES) {
+        builder.ofEqualityDeletes(
+            deleteFile.equalityFieldIds().stream().mapToInt(Integer::intValue).toArray());
+      }
+      normalizedFile = builder.copy(deleteFile).build();
+    } else {
+      return entry;
+    }
+
     switch (entry.status()) {
       case ADDED:
         return reused.wrapAppend(snapshotId, entry.dataSequenceNumber(), (F) normalizedFile);
