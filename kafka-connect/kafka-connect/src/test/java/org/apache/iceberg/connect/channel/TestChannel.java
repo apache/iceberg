@@ -29,7 +29,6 @@ import org.apache.iceberg.connect.events.AvroUtil;
 import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -70,7 +69,7 @@ public class TestChannel extends ChannelTestBase {
 
     // the offset committed for the group is what a restarted channel resumes from, and what the
     // coordinator stamps on the snapshot, so a regression here is durable
-    assertThat(consumer.committed(ImmutableSet.of(CTL_TOPIC_PARTITION)))
+    assertThat(committedGroupOffsets(consumer.groupMetadata().groupId()))
         .containsEntry(CTL_TOPIC_PARTITION, new OffsetAndMetadata(5L));
   }
 

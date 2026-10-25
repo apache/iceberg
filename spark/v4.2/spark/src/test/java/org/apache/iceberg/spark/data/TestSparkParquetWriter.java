@@ -242,14 +242,14 @@ public class TestSparkParquetWriter {
   }
 
   @Test
-  public void testGeospatialAvgValueSizeMetrics() throws IOException {
+  public void testGeospatialTotalBytesMetrics() throws IOException {
     Schema geoSchema =
         new Schema(
             required(1, "id", Types.LongType.get()),
             optional(2, "geom", Types.GeometryType.crs84()),
             optional(3, "geog", Types.GeographyType.crs84()));
 
-    // WKB payloads of 21 and 41 bytes for geometry (avg 31), 21 bytes for geography.
+    // WKB payloads of 21 and 41 bytes for geometry (total 62), 21 bytes for geography.
     byte[] geomWkbSmall = pointWkb(30.0, 10.0);
     byte[] geomWkbLarge = lineStringWkb(30.0, 10.0, 40.0, 20.0);
     byte[] geogWkb = pointWkb(-71.0, 42.0);
@@ -262,7 +262,7 @@ public class TestSparkParquetWriter {
     InternalRow second = new GenericInternalRow(3);
     second.update(0, 2L);
     second.update(1, STUtils.stGeomFromWKB(geomWkbLarge));
-    // geography left null on the second row, so it must not affect the average.
+    // geography left null on the second row, so it must not contribute to total bytes.
 
     File testFile = File.createTempFile("junit", null, temp.toFile());
     assertThat(testFile.delete()).as("Delete should succeed").isTrue();
@@ -286,12 +286,12 @@ public class TestSparkParquetWriter {
     FieldMetrics<?> geomMetrics = metricsById.get(geomId);
     assertThat(geomMetrics.valueCount()).isEqualTo(2);
     assertThat(geomMetrics.nullValueCount()).isZero();
-    assertThat(geomMetrics.avgValueSizeInBytes()).isEqualTo(31);
+    assertThat(geomMetrics.totalBytes()).isEqualTo(62L);
 
     FieldMetrics<?> geogMetrics = metricsById.get(geogId);
     assertThat(geogMetrics.valueCount()).isEqualTo(2);
     assertThat(geogMetrics.nullValueCount()).isEqualTo(1);
-    assertThat(geogMetrics.avgValueSizeInBytes()).isEqualTo(21);
+    assertThat(geogMetrics.totalBytes()).isEqualTo(21L);
   }
 
   private static int fieldId(MessageType parquetSchema, String column) {

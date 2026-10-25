@@ -522,7 +522,7 @@ public class ParquetValueWriters {
           metrics.lowerBound(),
           metrics.upperBound(),
           metrics.originalType(),
-          metrics.avgValueSizeInBytes());
+          metrics.totalBytes());
     }
   }
 

@@ -35,8 +35,14 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortField;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.Transaction;
+import org.apache.iceberg.UnboundPartitionSpec;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -44,6 +50,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -60,6 +67,7 @@ import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.SparkView;
 import org.apache.iceberg.spark.source.StagedSparkTable;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.view.UpdateViewProperties;
@@ -82,10 +90,9 @@ import org.apache.spark.sql.connector.catalog.TableChange;
 import org.apache.spark.sql.connector.catalog.TableChange.ColumnChange;
 import org.apache.spark.sql.connector.catalog.TableChange.RemoveProperty;
 import org.apache.spark.sql.connector.catalog.TableChange.SetProperty;
+import org.apache.spark.sql.connector.catalog.TableInfo;
 import org.apache.spark.sql.connector.catalog.TableSummary;
 import org.apache.spark.sql.connector.catalog.View;
-import org.apache.spark.sql.connector.expressions.Transform;
-import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -134,6 +141,14 @@ public class SparkCatalog extends BaseCatalog {
           ViewProperties.METADATA_COMPRESSION,
           ViewProperties.WRITE_METADATA_LOCATION,
           ViewProperties.REPLACE_DROP_DIALECT_ALLOWED);
+  private static final Set<String> COLUMN_PROPERTY_PREFIXES =
+      ImmutableSet.of(
+          TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX,
+          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX,
+          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX,
+          TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX,
+          TableProperties.PARQUET_COLUMN_STATS_ENABLED_PREFIX,
+          TableProperties.PARQUET_DICT_ENCODING_ENABLED_COLUMN_PREFIX);
 
   private enum ViewCommit {
     CREATE,
@@ -202,15 +217,75 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  public Table createTable(
-      Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
+  public Table createTable(Identifier ident, TableInfo tableInfo)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    Schema icebergSchema = SparkSchemaUtil.convertWithDefaults(tableInfo);
+    return createTable(
+        ident,
+        icebergSchema,
+        Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions()),
+        tableInfo.properties(),
+        SortOrder.unsorted());
+  }
+
+  @Override
+  public Table createTableLike(Identifier ident, TableInfo tableInfo, Table sourceTable)
+      throws TableAlreadyExistsException, NoSuchNamespaceException {
+    // Spark intentionally excludes the source table's properties from tableInfo and leaves it to
+    // the connector to decide which to clone via sourceTable. Clone the source Iceberg table's
+    // schema, partition spec, properties and sort order, then let user-specified LIKE options (in
+    // tableInfo) take precedence.
+    Schema icebergSchema;
+    PartitionSpec spec;
+    Map<String, String> properties = Maps.newHashMap();
+    SortOrder sortOrder = SortOrder.unsorted();
+
+    if (sourceTable instanceof SparkTable sparkTable) {
+      org.apache.iceberg.Table sourceIcebergTable = sparkTable.table();
+      icebergSchema = sparkTable.icebergSchema();
+      spec = copyPartitionSpec(icebergSchema, sourceIcebergTable.spec());
+      properties.putAll(
+          copyColumnProperties(
+              sourceIcebergTable.properties(), sourceIcebergTable.schema(), icebergSchema));
+      properties.remove(TableProperties.WRITE_METADATA_LOCATION);
+      properties.remove(TableProperties.WRITE_DATA_LOCATION);
+      properties.remove(TableProperties.OBJECT_STORE_PATH);
+      properties.remove(TableProperties.WRITE_FOLDER_STORAGE_LOCATION);
+      properties.remove(TableProperties.DEFAULT_NAME_MAPPING);
+      properties.put(
+          TableProperties.FORMAT_VERSION,
+          String.valueOf(TableUtil.formatVersion(sourceIcebergTable)));
+      sortOrder = copySortOrder(icebergSchema, sourceIcebergTable.sortOrder());
+    } else {
+      // Spark passes the column defaults of a non-Iceberg source as SQL text only, which
+      // convertWithDefaults rejects, so cloning a source column with a default fails for now
+      icebergSchema = SparkSchemaUtil.convertWithDefaults(tableInfo);
+      spec = Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions());
+    }
+
+    String provider = tableInfo.properties().get(TableCatalog.PROP_PROVIDER);
+    if (provider != null && !"iceberg".equalsIgnoreCase(provider)) {
+      properties.remove(TableProperties.DEFAULT_FILE_FORMAT);
+    }
+
+    properties.putAll(tableInfo.properties());
+
+    return createTable(ident, icebergSchema, spec, properties, sortOrder);
+  }
+
+  private Table createTable(
+      Identifier ident,
+      Schema icebergSchema,
+      PartitionSpec spec,
+      Map<String, String> properties,
+      SortOrder sortOrder)
       throws TableAlreadyExistsException {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema);
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       org.apache.iceberg.Table icebergTable =
           builder
-              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
+              .withPartitionSpec(spec)
+              .withSortOrder(sortOrder)
               .withLocation(properties.get("location"))
               .withProperties(Spark3Util.rebuildCreateProperties(properties))
               .create();
@@ -220,18 +295,73 @@ public class SparkCatalog extends BaseCatalog {
     }
   }
 
+  /**
+   * Returns the source properties with column-specific properties renamed or dropped to match the
+   * given schema, since those properties name columns of the current schema, which can differ from
+   * the schema of a pinned snapshot.
+   */
+  private static Map<String, String> copyColumnProperties(
+      Map<String, String> properties, Schema currentSchema, Schema schema) {
+    List<String> deletedColumns = Lists.newArrayList();
+    Map<String, String> renamedColumns = Maps.newHashMap();
+    TypeUtil.indexByName(currentSchema.asStruct())
+        .forEach(
+            (name, id) -> {
+              String nameInSchema = schema.findColumnName(id);
+              if (nameInSchema == null) {
+                deletedColumns.add(name);
+              } else if (!nameInSchema.equals(name)) {
+                renamedColumns.put(name, nameInSchema);
+              }
+            });
+
+    return PropertyUtil.applySchemaChanges(
+        properties, deletedColumns, renamedColumns, COLUMN_PROPERTY_PREFIXES);
+  }
+
+  private static PartitionSpec copyPartitionSpec(Schema schema, PartitionSpec sourceSpec) {
+    UnboundPartitionSpec spec = sourceSpec.toUnbound();
+    for (int index = sourceSpec.fields().size() - 1; index >= 0; index -= 1) {
+      if (schema.findField(sourceSpec.fields().get(index).sourceId()) == null) {
+        spec.fields().remove(index);
+      }
+    }
+
+    return spec.bind(schema);
+  }
+
+  private static SortOrder copySortOrder(Schema schema, SortOrder sourceSortOrder) {
+    if (sourceSortOrder.isUnsorted()) {
+      return SortOrder.unsorted();
+    }
+
+    SortOrder.Builder builder = SortOrder.builderFor(schema);
+    for (SortField field : sourceSortOrder.fields()) {
+      String sourceName = schema.findColumnName(field.sourceId());
+      if (sourceName == null) {
+        continue;
+      }
+
+      builder.sortBy(
+          Expressions.transform(sourceName, field.transform()),
+          field.direction(),
+          field.nullOrder());
+    }
+
+    return builder.build();
+  }
+
   @Override
-  public StagedTable stageCreate(
-      Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
+  public StagedTable stageCreate(Identifier ident, TableInfo tableInfo)
       throws TableAlreadyExistsException {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    Schema icebergSchema = SparkSchemaUtil.convert(tableInfo);
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       Transaction transaction =
           builder
-              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
-              .withLocation(properties.get("location"))
-              .withProperties(Spark3Util.rebuildCreateProperties(properties))
+              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions()))
+              .withLocation(tableInfo.properties().get("location"))
+              .withProperties(Spark3Util.rebuildCreateProperties(tableInfo.properties()))
               .createTransaction();
       return new StagedSparkTable(transaction);
     } catch (AlreadyExistsException e) {
@@ -240,17 +370,16 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  public StagedTable stageReplace(
-      Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties)
+  public StagedTable stageReplace(Identifier ident, TableInfo tableInfo)
       throws NoSuchTableException {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema);
+    Schema icebergSchema = SparkSchemaUtil.convert(tableInfo);
     try {
       Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
       Transaction transaction =
           builder
-              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
-              .withLocation(properties.get("location"))
-              .withProperties(Spark3Util.rebuildCreateProperties(properties))
+              .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions()))
+              .withLocation(tableInfo.properties().get("location"))
+              .withProperties(Spark3Util.rebuildCreateProperties(tableInfo.properties()))
               .replaceTransaction();
       return new StagedSparkTable(transaction);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
@@ -259,15 +388,14 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   @Override
-  public StagedTable stageCreateOrReplace(
-      Identifier ident, StructType schema, Transform[] transforms, Map<String, String> properties) {
-    Schema icebergSchema = SparkSchemaUtil.convert(schema);
+  public StagedTable stageCreateOrReplace(Identifier ident, TableInfo tableInfo) {
+    Schema icebergSchema = SparkSchemaUtil.convert(tableInfo);
     Catalog.TableBuilder builder = newBuilder(ident, icebergSchema);
     Transaction transaction =
         builder
-            .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, transforms))
-            .withLocation(properties.get("location"))
-            .withProperties(Spark3Util.rebuildCreateProperties(properties))
+            .withPartitionSpec(Spark3Util.toPartitionSpec(icebergSchema, tableInfo.partitions()))
+            .withLocation(tableInfo.properties().get("location"))
+            .withProperties(Spark3Util.rebuildCreateProperties(tableInfo.properties()))
             .createOrReplaceTransaction();
     return new StagedSparkTable(transaction);
   }

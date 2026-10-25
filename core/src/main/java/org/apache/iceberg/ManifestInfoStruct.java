@@ -36,23 +36,29 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
           ManifestInfo.EXISTING_FILES_COUNT,
           ManifestInfo.DELETED_FILES_COUNT,
           ManifestInfo.REPLACED_FILES_COUNT,
+          ManifestInfo.MODIFIED_FILES_COUNT,
           ManifestInfo.ADDED_ROWS_COUNT,
           ManifestInfo.EXISTING_ROWS_COUNT,
           ManifestInfo.DELETED_ROWS_COUNT,
           ManifestInfo.REPLACED_ROWS_COUNT,
+          ManifestInfo.MODIFIED_ROWS_COUNT,
           ManifestInfo.MIN_SEQUENCE_NUMBER,
-          ManifestInfo.DV);
+          ManifestInfo.DV,
+          ManifestInfo.FORMAT_VERSION);
 
   private int addedFilesCount = -1;
   private int existingFilesCount = -1;
   private int deletedFilesCount = -1;
   private int replacedFilesCount = -1;
+  private int modifiedFilesCount = -1;
   private long addedRowsCount = -1L;
   private long existingRowsCount = -1L;
   private long deletedRowsCount = -1L;
   private long replacedRowsCount = -1L;
+  private long modifiedRowsCount = -1L;
   private long minSequenceNumber = -1L;
   private byte[] dv = null;
+  private int formatVersion = -1;
 
   private transient ManifestBitmap mdv = null;
 
@@ -66,12 +72,15 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     this.existingFilesCount = toCopy.existingFilesCount;
     this.deletedFilesCount = toCopy.deletedFilesCount;
     this.replacedFilesCount = toCopy.replacedFilesCount;
+    this.modifiedFilesCount = toCopy.modifiedFilesCount;
     this.addedRowsCount = toCopy.addedRowsCount;
     this.existingRowsCount = toCopy.existingRowsCount;
     this.deletedRowsCount = toCopy.deletedRowsCount;
     this.replacedRowsCount = toCopy.replacedRowsCount;
+    this.modifiedRowsCount = toCopy.modifiedRowsCount;
     this.minSequenceNumber = toCopy.minSequenceNumber;
     this.dv = toCopy.dv != null ? Arrays.copyOf(toCopy.dv, toCopy.dv.length) : null;
+    this.formatVersion = toCopy.formatVersion;
   }
 
   ManifestInfoStruct(
@@ -79,23 +88,29 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       int existingFilesCount,
       int deletedFilesCount,
       int replacedFilesCount,
+      int modifiedFilesCount,
       long addedRowsCount,
       long existingRowsCount,
       long deletedRowsCount,
       long replacedRowsCount,
+      long modifiedRowsCount,
       long minSequenceNumber,
-      byte[] dv) {
+      byte[] dv,
+      int formatVersion) {
     super(BASE_TYPE.fields().size());
     this.addedFilesCount = addedFilesCount;
     this.existingFilesCount = existingFilesCount;
     this.deletedFilesCount = deletedFilesCount;
     this.replacedFilesCount = replacedFilesCount;
+    this.modifiedFilesCount = modifiedFilesCount;
     this.addedRowsCount = addedRowsCount;
     this.existingRowsCount = existingRowsCount;
     this.deletedRowsCount = deletedRowsCount;
     this.replacedRowsCount = replacedRowsCount;
+    this.modifiedRowsCount = modifiedRowsCount;
     this.minSequenceNumber = minSequenceNumber;
     this.dv = dv;
+    this.formatVersion = formatVersion;
   }
 
   @Override
@@ -119,6 +134,11 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
   }
 
   @Override
+  public int modifiedFilesCount() {
+    return modifiedFilesCount;
+  }
+
+  @Override
   public long addedRowsCount() {
     return addedRowsCount;
   }
@@ -139,6 +159,11 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
   }
 
   @Override
+  public long modifiedRowsCount() {
+    return modifiedRowsCount;
+  }
+
+  @Override
   public long minSequenceNumber() {
     return minSequenceNumber;
   }
@@ -150,6 +175,11 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     }
 
     return mdv;
+  }
+
+  @Override
+  public int formatVersion() {
+    return formatVersion;
   }
 
   @Override
@@ -173,17 +203,23 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       case 3:
         return replacedFilesCount;
       case 4:
-        return addedRowsCount;
+        return modifiedFilesCount;
       case 5:
-        return existingRowsCount;
+        return addedRowsCount;
       case 6:
-        return deletedRowsCount;
+        return existingRowsCount;
       case 7:
-        return replacedRowsCount;
+        return deletedRowsCount;
       case 8:
-        return minSequenceNumber;
+        return replacedRowsCount;
       case 9:
+        return modifiedRowsCount;
+      case 10:
+        return minSequenceNumber;
+      case 11:
         return dv != null ? ByteBuffer.wrap(dv) : null;
+      case 12:
+        return formatVersion;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + pos);
     }
@@ -205,23 +241,32 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
         this.replacedFilesCount = (Integer) value;
         break;
       case 4:
-        this.addedRowsCount = (Long) value;
+        this.modifiedFilesCount = (Integer) value;
         break;
       case 5:
-        this.existingRowsCount = (Long) value;
+        this.addedRowsCount = (Long) value;
         break;
       case 6:
-        this.deletedRowsCount = (Long) value;
+        this.existingRowsCount = (Long) value;
         break;
       case 7:
-        this.replacedRowsCount = (Long) value;
+        this.deletedRowsCount = (Long) value;
         break;
       case 8:
-        this.minSequenceNumber = (Long) value;
+        this.replacedRowsCount = (Long) value;
         break;
       case 9:
+        this.modifiedRowsCount = (Long) value;
+        break;
+      case 10:
+        this.minSequenceNumber = (Long) value;
+        break;
+      case 11:
         this.dv = ByteBuffers.toByteArray((ByteBuffer) value);
         this.mdv = null;
+        break;
+      case 12:
+        this.formatVersion = (Integer) value;
         break;
       default:
         // ignore the object, it must be from a newer version of the format
@@ -239,12 +284,15 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
         .add("existing_files_count", existingFilesCount)
         .add("deleted_files_count", deletedFilesCount)
         .add("replaced_files_count", replacedFilesCount)
+        .add("modified_files_count", modifiedFilesCount)
         .add("added_rows_count", addedRowsCount)
         .add("existing_rows_count", existingRowsCount)
         .add("deleted_rows_count", deletedRowsCount)
         .add("replaced_rows_count", replacedRowsCount)
+        .add("modified_rows_count", modifiedRowsCount)
         .add("min_sequence_number", minSequenceNumber)
         .add("dv", dv == null ? "null" : "(binary)")
+        .add("format_version", formatVersion)
         .toString();
   }
 
@@ -253,12 +301,15 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
     private Integer existingFilesCount = null;
     private Integer deletedFilesCount = null;
     private Integer replacedFilesCount = null;
+    private Integer modifiedFilesCount = null;
     private Long addedRowsCount = null;
     private Long existingRowsCount = null;
     private Long deletedRowsCount = null;
     private Long replacedRowsCount = null;
+    private Long modifiedRowsCount = null;
     private Long minSequenceNumber = null;
     private byte[] dv = null;
+    private Integer formatVersion = null;
 
     Builder addedFilesCount(int count) {
       Preconditions.checkArgument(
@@ -285,6 +336,13 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       Preconditions.checkArgument(
           count >= 0, "Invalid replaced files count: %s (must be >= 0)", count);
       this.replacedFilesCount = count;
+      return this;
+    }
+
+    Builder modifiedFilesCount(int count) {
+      Preconditions.checkArgument(
+          count >= 0, "Invalid modified files count: %s (must be >= 0)", count);
+      this.modifiedFilesCount = count;
       return this;
     }
 
@@ -315,6 +373,13 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       return this;
     }
 
+    Builder modifiedRowsCount(long count) {
+      Preconditions.checkArgument(
+          count >= 0, "Invalid modified rows count: %s (must be >= 0)", count);
+      this.modifiedRowsCount = count;
+      return this;
+    }
+
     Builder minSequenceNumber(long sequenceNumber) {
       Preconditions.checkArgument(
           sequenceNumber >= 0, "Invalid min sequence number: %s (must be >= 0)", sequenceNumber);
@@ -328,6 +393,13 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       return this;
     }
 
+    Builder formatVersion(int version) {
+      Preconditions.checkArgument(
+          version == 0 || version >= 4, "Invalid format version: %s (must be 0 or >= 4)", version);
+      this.formatVersion = version;
+      return this;
+    }
+
     ManifestInfoStruct build() {
       Preconditions.checkArgument(
           addedFilesCount != null, "Missing required value: added files count");
@@ -338,6 +410,8 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       Preconditions.checkArgument(
           replacedFilesCount != null, "Missing required value: replaced files count");
       Preconditions.checkArgument(
+          modifiedFilesCount != null, "Missing required value: modified files count");
+      Preconditions.checkArgument(
           addedRowsCount != null, "Missing required value: added rows count");
       Preconditions.checkArgument(
           existingRowsCount != null, "Missing required value: existing rows count");
@@ -346,7 +420,10 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
       Preconditions.checkArgument(
           replacedRowsCount != null, "Missing required value: replaced rows count");
       Preconditions.checkArgument(
+          modifiedRowsCount != null, "Missing required value: modified rows count");
+      Preconditions.checkArgument(
           minSequenceNumber != null, "Missing required value: min sequence number");
+      Preconditions.checkArgument(formatVersion != null, "Missing required value: format version");
       Preconditions.checkArgument(
           addedRowsCount == 0 || addedFilesCount > 0,
           "Invalid added counts: %s rows in %s files",
@@ -367,17 +444,25 @@ class ManifestInfoStruct extends SupportsIndexProjection implements ManifestInfo
           "Invalid replaced counts: %s rows in %s files",
           replacedRowsCount,
           replacedFilesCount);
+      Preconditions.checkArgument(
+          modifiedRowsCount == 0 || modifiedFilesCount > 0,
+          "Invalid modified counts: %s rows in %s files",
+          modifiedRowsCount,
+          modifiedFilesCount);
       return new ManifestInfoStruct(
           addedFilesCount,
           existingFilesCount,
           deletedFilesCount,
           replacedFilesCount,
+          modifiedFilesCount,
           addedRowsCount,
           existingRowsCount,
           deletedRowsCount,
           replacedRowsCount,
+          modifiedRowsCount,
           minSequenceNumber,
-          dv);
+          dv,
+          formatVersion);
     }
   }
 }
