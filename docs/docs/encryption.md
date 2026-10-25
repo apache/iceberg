@@ -31,6 +31,8 @@ Two parameters are required to activate encryption of a table:
 1. Catalog property that specifies the KMS ("key management service"). It can be either `encryption.kms-type` for pre-defined KMS clients (`aws`, `azure`, `gcp` or `aliyun`) or `encryption.kms-impl` with the client class path for custom KMS clients.
 2. Table property `encryption.key-id`, that specifies the ID of a master key used to encrypt and decrypt the table. Master keys are stored and managed in the KMS.
 
+Encryption requires table format version 3 or later.
+
 For more details on table encryption, see the "Appendix: Internals Overview" [subsection](#appendix-internals-overview).
 
 ## Example
@@ -47,7 +49,7 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-{{ sparkVersionMaj
 
 ```sql
 CREATE TABLE local.db.table (id bigint, data string) USING iceberg
-TBLPROPERTIES ('encryption.key-id'='<master-key-id>');
+TBLPROPERTIES ('encryption.key-id'='<master-key-id>', 'format-version'='3');
 ```
 
 Inserted data will be automatically encrypted,
