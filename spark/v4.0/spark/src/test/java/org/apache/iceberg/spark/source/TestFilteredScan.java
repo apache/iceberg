@@ -31,7 +31,9 @@ import java.net.InetAddress;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -61,7 +63,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.catalyst.expressions.UnsafeRow;
 import org.apache.spark.sql.connector.expressions.filter.Predicate;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
@@ -474,7 +475,7 @@ public class TestFilteredScan {
 
       assertEqualsSafe(
           SCHEMA.asStruct(),
-          expected(8, 9, 7, 6, 5),
+          expected(5, 6, 7, 8, 9),
           read(
               table.location(), vectorized, "ts < cast('2017-12-22 00:00:00+00:00' as timestamp)"));
     }
@@ -495,7 +496,7 @@ public class TestFilteredScan {
 
       assertEqualsSafe(
           SCHEMA.asStruct(),
-          expected(2, 1),
+          expected(1, 2),
           read(
               table.location(),
               vectorized,
@@ -654,24 +655,24 @@ public class TestFilteredScan {
     return result;
   }
 
-  public static void assertEqualsUnsafe(
-      Types.StructType struct, List<Record> expected, List<UnsafeRow> actual) {
-    // TODO: match records by ID
-    int numRecords = Math.min(expected.size(), actual.size());
-    for (int i = 0; i < numRecords; i += 1) {
-      GenericsHelpers.assertEqualsUnsafe(struct, expected.get(i), actual.get(i));
-    }
-    assertThat(actual).as("Number of results should match expected").hasSameSizeAs(expected);
-  }
-
   public static void assertEqualsSafe(
       Types.StructType struct, List<Record> expected, List<Row> actual) {
-    // TODO: match records by ID
-    int numRecords = Math.min(expected.size(), actual.size());
-    for (int i = 0; i < numRecords; i += 1) {
-      GenericsHelpers.assertEqualsSafe(struct, expected.get(i), actual.get(i));
+    Map<Long, Record> expectedById = new LinkedHashMap<>();
+    for (Record expectedRecord : expected) {
+      Long id = (Long) expectedRecord.getField("id");
+      assertThat(expectedById.put(id, expectedRecord))
+          .as("Expected record ID %s should be unique", id)
+          .isNull();
     }
-    assertThat(actual).as("Number of results should match expected").hasSameSizeAs(expected);
+
+    for (Row actualRecord : actual) {
+      Long id = actualRecord.getAs("id");
+      Record expectedRecord = expectedById.remove(id);
+      assertThat(expectedRecord).as("No expected record found for ID %s", id).isNotNull();
+      GenericsHelpers.assertEqualsSafe(struct, expectedRecord, actualRecord);
+    }
+
+    assertThat(expectedById.keySet()).as("Missing record IDs").isEmpty();
   }
 
   private List<Record> expected(int... ordinals) {
