@@ -90,7 +90,7 @@ The release status is discussed during each community sync meeting. Release mana
 
 ### Review bundled dependency licenses
 
-Some Iceberg artifacts, such as the Spark and Flink runtime JARs, bundle third-party dependencies. Each of these [bundled modules](#bundled-modules) has its own `LICENSE` and `NOTICE` files that must cover every dependency it ships. Before building the release candidate, you need to make sure these files are up to date:
+Some Iceberg artifacts, such as the Spark and Flink runtime JARs, bundle third-party dependencies. Each of these [bundled modules](#bundled-modules) has its own `LICENSE` and `NOTICE` files that must cover every dependency it ships. Before building the release candidate, please make sure these files are up to date:
 
 1. Find the dependency changes since the previous release:
 
