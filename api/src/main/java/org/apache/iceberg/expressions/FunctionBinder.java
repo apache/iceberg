@@ -23,4 +23,4 @@ import java.util.function.BiFunction;
 
 @FunctionalInterface
 public interface FunctionBinder
-    extends BiFunction<FunctionReference, List<BoundExpression<?>>, BoundFunctionReference<?>> {}
+    extends BiFunction<FunctionReference, List<? extends Expression>, BoundFunctionReference<?>> {}

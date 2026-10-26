@@ -22,6 +22,12 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types.StructType;
 
+/**
+ * Represents the application of a function, where the name of the function name and the unbound or
+ * bound arguments are provided.
+ *
+ * @param <T> return type
+ */
 public class UnboundApply<T> implements Apply<T> {
   private final FunctionReference functionReference;
   private final List<Expression> arguments;

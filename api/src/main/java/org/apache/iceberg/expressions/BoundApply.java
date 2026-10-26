@@ -21,6 +21,12 @@ package org.apache.iceberg.expressions;
 import java.util.List;
 import org.apache.iceberg.types.Type;
 
+/**
+ * Represents the application of a function where the function is resolved to a specific reference
+ * based on the bound arguments.
+ *
+ * @param <T> type returned by applying the function
+ */
 public class BoundApply<T> implements Apply<T>, BoundValueExpression<T> {
   private final BoundFunctionReference<?> functionReference;
   private final List<BoundExpression<?>> arguments;

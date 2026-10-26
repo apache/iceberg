@@ -18,4 +18,9 @@
  */
 package org.apache.iceberg.expressions;
 
+/**
+ * Represents an expression that returns a value when evaluated.
+ *
+ * @param <T> type returned when the expression is evaluated.
+ */
 public interface ValueExpression<T> extends Expression {}

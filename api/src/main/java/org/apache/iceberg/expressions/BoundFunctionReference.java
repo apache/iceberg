@@ -26,6 +26,15 @@ public class BoundFunctionReference<T> {
   private final CatalogObjectIdentifier identifier;
   private final Type type;
 
+  /**
+   * Represents a specific function implementation that returns a specific type. What arguments the
+   * function accepts is not directly exposed as implementations my cast or promote as necessary to
+   * apply the function.
+   *
+   * @param catalog catalog name
+   * @param identifier qualified identifier
+   * @param type return type of the function
+   */
   public BoundFunctionReference(String catalog, CatalogObjectIdentifier identifier, Type type) {
     this.catalog = catalog;
     this.identifier = identifier;
