@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
@@ -28,9 +29,11 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
+import org.apache.iceberg.io.BaseTaskWriter;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
@@ -40,6 +43,7 @@ import org.apache.iceberg.io.UnpartitionedWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 
@@ -53,6 +57,10 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
   private final Set<Integer> equalityFieldIds;
   private final boolean upsert;
   private final FileWriterFactory<RowData> fileWriterFactory;
+  // Not serialized: only sinks that build the factory on the task manager can share trackers.
+  private final transient BiFunction<
+          StructLike, Types.StructType, BaseTaskWriter.InsertedRowTracker>
+      insertedRowTrackers;
   private boolean useDv;
 
   private transient OutputFileFactory outputFileFactory;
@@ -105,7 +113,39 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
       boolean upsert,
       Schema schema,
       PartitionSpec spec) {
+    this(
+        tableSupplier,
+        flinkSchema,
+        targetFileSizeBytes,
+        format,
+        writeProperties,
+        equalityFieldIds,
+        upsert,
+        schema,
+        spec,
+        null);
+  }
+
+  /**
+   * @param insertedRowTrackers resolves, for a partition (null when unpartitioned) and equality-key
+   *     struct type, the inserted-row tracker that delta writers created by this factory share with
+   *     other writers of the same table within one checkpoint; null to keep a private tracker per
+   *     writer
+   */
+  public RowDataTaskWriterFactory(
+      SerializableSupplier<Table> tableSupplier,
+      RowType flinkSchema,
+      long targetFileSizeBytes,
+      FileFormat format,
+      Map<String, String> writeProperties,
+      Collection<Integer> equalityFieldIds,
+      boolean upsert,
+      Schema schema,
+      PartitionSpec spec,
+      BiFunction<StructLike, Types.StructType, BaseTaskWriter.InsertedRowTracker>
+          insertedRowTrackers) {
     this.tableSupplier = tableSupplier;
+    this.insertedRowTrackers = insertedRowTrackers;
 
     Table table;
     if (tableSupplier instanceof CachingTableSupplier) {
@@ -225,7 +265,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             flinkSchema,
             equalityFieldIds,
             upsert,
-            useDv);
+            useDv,
+            insertedRowTrackers);
       } else {
         return new PartitionedDeltaWriter(
             spec,
@@ -238,7 +279,8 @@ public class RowDataTaskWriterFactory implements TaskWriterFactory<RowData> {
             flinkSchema,
             equalityFieldIds,
             upsert,
-            useDv);
+            useDv,
+            insertedRowTrackers);
       }
     }
   }

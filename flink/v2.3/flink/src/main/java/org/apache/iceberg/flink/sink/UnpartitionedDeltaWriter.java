@@ -20,14 +20,18 @@ package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.function.BiFunction;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.io.BaseTaskWriter;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.OutputFileFactory;
+import org.apache.iceberg.types.Types;
 
 class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
   private final RowDataDeltaWriter writer;
@@ -43,7 +47,9 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
       RowType flinkSchema,
       Set<Integer> equalityFieldIds,
       boolean upsert,
-      boolean useDv) {
+      boolean useDv,
+      BiFunction<StructLike, Types.StructType, BaseTaskWriter.InsertedRowTracker>
+          insertedRowTrackers) {
     super(
         spec,
         format,
@@ -55,7 +61,8 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
         flinkSchema,
         equalityFieldIds,
         upsert,
-        useDv);
+        useDv,
+        insertedRowTrackers);
     this.writer = new RowDataDeltaWriter(null, dvFileWriter());
   }
 

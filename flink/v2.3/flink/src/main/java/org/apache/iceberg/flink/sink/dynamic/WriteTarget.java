@@ -75,6 +75,27 @@ class WriteTarget implements Serializable {
     return equalityFields;
   }
 
+  /**
+   * Returns the target with its schema ID removed. Writers whose targets differ only in schema ID
+   * write the same table, branch and spec with the same equality fields, so rows they write within
+   * one checkpoint can be retired by each other's position deletes.
+   */
+  WriteTarget withoutSchemaId() {
+    return new WriteTarget(tableName, branch, null, specId, upsertMode, equalityFields);
+  }
+
+  /**
+   * Returns whether this target and the given one differ at most in schema ID, the same as
+   * comparing their {@link #withoutSchemaId()} copies but without creating them.
+   */
+  boolean sameScopeAs(WriteTarget other) {
+    return Objects.equals(tableName, other.tableName)
+        && Objects.equals(branch, other.branch)
+        && Objects.equals(specId, other.specId)
+        && upsertMode == other.upsertMode
+        && Objects.equals(equalityFields, other.equalityFields);
+  }
+
   static WriteTarget deserializeFrom(DataInputView view) throws IOException {
     return new WriteTarget(
         view.readUTF(),
