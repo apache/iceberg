@@ -123,7 +123,7 @@ Bundled modules (`LICENSE` and `NOTICE` are in the module directory unless noted
 
 #### Updating LICENSE and NOTICE
 
-For each added, removed, or upgraded dependency, check the dependency's JAR (`META-INF/LICENSE*` and `META-INF/NOTICE*`) for its license, its NOTICE content, and any third-party code it bundles. Then update the files following the format of the existing entries:
+Each bundled module has its own `LICENSE` and `NOTICE` files that cover every dependency shipped in that module's artifact. For each added, removed, or upgraded dependency, update the affected module's files following the format of the existing entries. The dependency's license, NOTICE content, and any third-party code it bundles can be found in its project repository or in its JAR under `META-INF/`.
 
 - **Added dependency**: add a `LICENSE` entry with `Copyright`, `Project URL`, and `License` lines. Note what bundles transitive code, for example `(bundled by Parquet)`. For licenses other than Apache 2.0, include the full license text prefixed with `| `.
 
