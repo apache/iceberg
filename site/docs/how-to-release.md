@@ -99,7 +99,22 @@ Before building the release candidate, check that the `LICENSE` and `NOTICE` fil
     git diff apache-iceberg-<PREVIOUS_VERSION> apache/main -- '**/runtime-deps.txt'
     ```
 
-2. Update the module's `LICENSE` and `NOTICE` files for each added, removed, or upgraded dependency.
+2. Update the module's `LICENSE` and `NOTICE` files for each added, removed, or upgraded dependency. Check the dependency's JAR (`META-INF/LICENSE*` and `META-INF/NOTICE*`) for its license, its NOTICE content, and any third-party code it bundles. Follow the format of the existing entries:
+    - `LICENSE`: add an entry with `Copyright`, `Project URL`, and `License` lines. Note what bundles transitive code, for example `(bundled by Parquet)`. For licenses other than Apache 2.0, include the full license text prefixed with `| `.
+
+        ```text
+        This product bundles Caffeine by Ben Manes.
+
+        Copyright: 2014-2020 Ben Manes and contributors
+        Project URL: https://github.com/ben-manes/caffeine
+        License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+        ```
+
+    - `NOTICE`: if the dependency ships a NOTICE file, add `This product bundles <name> with the following in its NOTICE file:` followed by its content prefixed with `| `.
+    - Separate entries with the existing line of dashes.
+    - Apply the same change to every module that bundles the dependency, such as all Spark or Flink versions.
+
+    See the [ASF licensing guide](https://infra.apache.org/licensing-howto.html) for background.
 
 3. Merge any fixes to `main` before creating the release candidate.
 
