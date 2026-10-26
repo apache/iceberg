@@ -1229,11 +1229,11 @@ class RemoteSigningConfig(BaseModel):
 
     properties: dict[str, str] | None = Field(
         None,
-        description='Static key-value pairs the signer client MUST pass through unchanged in the `properties` field of every `RemoteSignRequest` sent to the signing endpoint.\n',
+        description='Static key-value pairs the signer client MUST pass through unchanged in the `properties` field of every signing request (`RemoteSignRequest` and `RemoteSignBatchRequest`).\n',
     )
     headers: MultiValuedMap | None = Field(
         None,
-        description='Static headers the signer client MUST include unchanged in every request to the signing endpoint.\n',
+        description='Static headers the signer client MUST include unchanged in every request to the signing endpoints (`signRequest` and `batchSignRequests`).\n',
     )
     sign_batch_max_size: int | None = Field(
         100,
