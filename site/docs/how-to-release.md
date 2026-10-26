@@ -101,7 +101,7 @@ Before building the release candidate, check that the `LICENSE` and `NOTICE` fil
 
 2. Update the `LICENSE` and `NOTICE` files of each affected module. See [Updating LICENSE and NOTICE](#updating-license-and-notice).
 
-3. Merge any fixes to `main` before creating the release candidate.
+3. Get a PMC member to sign off on the review before creating the release candidate. See [Validating with PMC members](#validating-with-pmc-members).
 
 Bundled modules (`LICENSE` and `NOTICE` are in the module directory unless noted):
 
@@ -149,6 +149,15 @@ Examples from previous changes:
 - Upgrade that changes transitive dependencies: [#16680](https://github.com/apache/iceberg/pull/16680) (Caffeine 3 replaces checker-qual with JSpecify)
 - Non-Apache licenses and NOTICE content across all modules: [#18227](https://github.com/apache/iceberg/pull/18227) (Schubfach and fast_double_parser bundled by Jackson)
 - Full review of one module before a release: [#16104](https://github.com/apache/iceberg/pull/16104) (Spark 4.1 for 1.11)
+
+#### Validating with PMC members
+
+The PMC is responsible for the licensing of every release, so a PMC member must confirm the review before the release candidate is created:
+
+- **If updates are needed**: open a PR against `main` with the `LICENSE` and `NOTICE` changes, include the `runtime-deps.txt` diff in the description, and request a review from a PMC member. Merge the PR only after a PMC member approves.
+- **If no updates are needed**: share the `runtime-deps.txt` diff in the release `[DISCUSS]` thread on dev@ and ask a PMC member to confirm.
+
+Create the release candidate only after this sign-off.
 
 ### Build the source release
 
