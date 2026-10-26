@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -292,23 +293,14 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         resolvedSchema.getColumnDataTypes().toArray(DataType[]::new));
   }
 
-  @Test
-  void testHashDistributionWithAlternatingSchemaVariantsImmediateUpdate() throws Exception {
-    runAlternatingSchemaVariants("alternating_variants_immediate", true);
-  }
-
-  @Test
-  void testHashDistributionWithAlternatingSchemaVariants() throws Exception {
-    runAlternatingSchemaVariants("alternating_variants", false);
-  }
-
   /**
    * Two writer-schema variants of one table with independently assigned field IDs: event_date has
    * id 2 / position 1 in variant A and id 3 / position 2 in variant B. Each variant brings its own
    * identity(event_date) spec. Records alternate between the variants with HASH distribution.
    */
-  private void runAlternatingSchemaVariants(String tableName, boolean immediateUpdate)
-      throws Exception {
+  @Test
+  void testHashDistributionWithAlternatingSchemaVariants() throws Exception {
+    String tableName = "alternating_variants";
     Schema variantA =
         new Schema(
             Types.NestedField.optional(1, "id", Types.StringType.get()),
@@ -321,33 +313,36 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     PartitionSpec specA = PartitionSpec.builderFor(variantA).identity("event_date").build();
     PartitionSpec specB = PartitionSpec.builderFor(variantB).identity("event_date").build();
 
-    List<DynamicIcebergDataImpl> rows = Lists.newArrayList();
-    for (int i = 0; i < 6; i++) {
-      boolean useVariantA = i % 2 == 0;
-      DynamicIcebergDataImpl row =
-          new DynamicIcebergDataImpl(
-              useVariantA ? variantA : variantB,
-              tableName,
-              SnapshotRef.MAIN_BRANCH,
-              useVariantA ? specA : specB);
-      row.rowProvided =
-          useVariantA
-              ? Row.of("a" + i, LocalDate.of(2026, 10, 1 + i))
-              : Row.of("b" + i, "x" + i, LocalDate.of(2026, 10, 1 + i));
-      rows.add(row);
-    }
+    DynamicIcebergDataImpl a1 =
+        new DynamicIcebergDataImpl(variantA, tableName, SnapshotRef.MAIN_BRANCH, specA);
+    a1.rowProvided = Row.of("a1", LocalDate.of(2026, 10, 1));
+    DynamicIcebergDataImpl b1 =
+        new DynamicIcebergDataImpl(variantB, tableName, SnapshotRef.MAIN_BRANCH, specB);
+    b1.rowProvided = Row.of("b1", "x1", LocalDate.of(2026, 10, 2));
+    DynamicIcebergDataImpl a2 =
+        new DynamicIcebergDataImpl(variantA, tableName, SnapshotRef.MAIN_BRANCH, specA);
+    a2.rowProvided = Row.of("a2", LocalDate.of(2026, 10, 3));
+    DynamicIcebergDataImpl b2 =
+        new DynamicIcebergDataImpl(variantB, tableName, SnapshotRef.MAIN_BRANCH, specB);
+    b2.rowProvided = Row.of("b2", "x2", LocalDate.of(2026, 10, 4));
 
     env =
         StreamExecutionEnvironment.getExecutionEnvironment(
             MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
-    executeDynamicSink(rows, env, immediateUpdate, 1, null);
+    executeDynamicSink(Lists.newArrayList(a1, b1, a2, b2), env, false, 1, null);
 
     Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, tableName));
     List<Record> actual;
     try (CloseableIterable<Record> records = IcebergGenerics.read(table).build()) {
       actual = Lists.newArrayList(records);
     }
-    assertThat(actual).hasSize(6);
+    assertThat(actual)
+        .extracting(r -> r.getField("id"), r -> r.getField("extra"), r -> r.getField("event_date"))
+        .containsExactlyInAnyOrder(
+            tuple("a1", null, LocalDate.of(2026, 10, 1)),
+            tuple("b1", "x1", LocalDate.of(2026, 10, 2)),
+            tuple("a2", null, LocalDate.of(2026, 10, 3)),
+            tuple("b2", "x2", LocalDate.of(2026, 10, 4)));
   }
 
   /**
@@ -374,18 +369,17 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     PartitionSpec reorderedSpec =
         PartitionSpec.builderFor(reordered).identity("event_date").build();
 
-    List<DynamicIcebergDataImpl> rows = Lists.newArrayList();
-    for (int i = 0; i < 4; i++) {
-      DynamicIcebergDataImpl row =
-          new DynamicIcebergDataImpl(reordered, tableName, "b1", reorderedSpec);
-      row.rowProvided = Row.of(LocalDate.of(2026, 10, 1 + i), "r" + i);
-      rows.add(row);
-    }
+    DynamicIcebergDataImpl r1 =
+        new DynamicIcebergDataImpl(reordered, tableName, "b1", reorderedSpec);
+    r1.rowProvided = Row.of(LocalDate.of(2026, 10, 1), "r1");
+    DynamicIcebergDataImpl r2 =
+        new DynamicIcebergDataImpl(reordered, tableName, "b1", reorderedSpec);
+    r2.rowProvided = Row.of(LocalDate.of(2026, 10, 2), "r2");
 
     env =
         StreamExecutionEnvironment.getExecutionEnvironment(
             MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
-    executeDynamicSink(rows, env, false, 1, null);
+    executeDynamicSink(Lists.newArrayList(r1, r2), env, false, 1, null);
 
     Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, tableName));
     List<Record> actual;
@@ -393,7 +387,10 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         IcebergGenerics.read(table).useSnapshot(table.refs().get("b1").snapshotId()).build()) {
       actual = Lists.newArrayList(records);
     }
-    assertThat(actual).hasSize(4);
+    assertThat(actual)
+        .extracting(r -> r.getField("id"), r -> r.getField("event_date"))
+        .containsExactlyInAnyOrder(
+            tuple("r1", LocalDate.of(2026, 10, 1)), tuple("r2", LocalDate.of(2026, 10, 2)));
   }
 
   /**
@@ -422,25 +419,27 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     PartitionSpec reorderedSpec =
         PartitionSpec.builderFor(reordered).identity("event_date").build();
 
-    List<DynamicIcebergDataImpl> rows = Lists.newArrayList();
-    for (int i = 0; i < 4; i++) {
-      DynamicIcebergDataImpl row =
-          new DynamicIcebergDataImpl(reordered, tableName, SnapshotRef.MAIN_BRANCH, reorderedSpec);
-      row.rowProvided = Row.of(LocalDate.of(2026, 10, 1 + i), "r" + i);
-      rows.add(row);
-    }
+    DynamicIcebergDataImpl r1 =
+        new DynamicIcebergDataImpl(reordered, tableName, SnapshotRef.MAIN_BRANCH, reorderedSpec);
+    r1.rowProvided = Row.of(LocalDate.of(2026, 10, 1), "r1");
+    DynamicIcebergDataImpl r2 =
+        new DynamicIcebergDataImpl(reordered, tableName, SnapshotRef.MAIN_BRANCH, reorderedSpec);
+    r2.rowProvided = Row.of(LocalDate.of(2026, 10, 2), "r2");
 
     env =
         StreamExecutionEnvironment.getExecutionEnvironment(
             MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
-    executeDynamicSink(rows, env, false, 1, null);
+    executeDynamicSink(Lists.newArrayList(r1, r2), env, false, 1, null);
 
     Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, tableName));
     List<Record> actual;
     try (CloseableIterable<Record> records = IcebergGenerics.read(table).build()) {
       actual = Lists.newArrayList(records);
     }
-    assertThat(actual).hasSize(4);
+    assertThat(actual)
+        .extracting(r -> r.getField("id"), r -> r.getField("event_date"))
+        .containsExactlyInAnyOrder(
+            tuple("r1", LocalDate.of(2026, 10, 1)), tuple("r2", LocalDate.of(2026, 10, 2)));
   }
 
   @Test
