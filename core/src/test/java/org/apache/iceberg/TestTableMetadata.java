@@ -34,6 +34,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -2176,6 +2178,58 @@ public class TestTableMetadata {
     TableMetadata updated = builder.addSnapshot(validSnapshot).build();
 
     assertThat(updated.snapshot(validSnapshot.snapshotId())).isSameAs(validSnapshot);
+  }
+
+  @Test
+  void addSnapshotRejectsNegativeAddedRowsWithoutMutatingBuilder() {
+    TableMetadata.Builder builder = TableMetadata.buildFrom(newTableMetadata(3));
+    Snapshot invalidSnapshot = spy(snapshot(3, "file:/s1.avro", "append", 0L, 0L, null));
+    doReturn(-1L).when(invalidSnapshot).addedRows();
+
+    assertThatThrownBy(() -> builder.addSnapshot(invalidSnapshot))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("added-rows");
+
+    assertThat(builder.build().nextRowId()).isZero();
+  }
+
+  @Test
+  void addSnapshotRejectsFirstRowIdRangeOverflow() {
+    TableMetadata.Builder builder = TableMetadata.buildFrom(newTableMetadata(3));
+    Snapshot invalidSnapshot = snapshot(3, "file:/s1.avro", "append", Long.MAX_VALUE, 1L, null);
+
+    assertThatThrownBy(() -> builder.addSnapshot(invalidSnapshot))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("row ID range");
+
+    assertThat(builder.build().nextRowId()).isZero();
+  }
+
+  @Test
+  void addSnapshotRejectsNextRowIdOverflowWithoutMutatingBuilder() {
+    TableMetadata.Builder builder = TableMetadata.buildFrom(newTableMetadata(3));
+    Snapshot firstSnapshot = snapshot(3, "file:/s1.avro", "append", 0L, Long.MAX_VALUE, null);
+    builder.addSnapshot(firstSnapshot);
+
+    Snapshot overflowingSnapshot =
+        new BaseSnapshot(
+            2L,
+            2L,
+            1L,
+            2L,
+            "append",
+            ImmutableMap.of(),
+            null,
+            "file:/s2.avro",
+            Long.MAX_VALUE,
+            1L,
+            null);
+
+    assertThatThrownBy(() -> builder.addSnapshot(overflowingSnapshot))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("row ID range");
+
+    assertThat(builder.build().nextRowId()).isEqualTo(Long.MAX_VALUE);
   }
 
   @Test

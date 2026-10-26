@@ -1327,11 +1327,17 @@ public class TableMetadata implements Serializable {
             snapshot.firstRowId() != null, "Cannot add a snapshot: first-row-id is null");
         ValidationException.check(
             snapshot.addedRows() != null, "Cannot add a snapshot: added-rows is null");
+        long addedRows = snapshot.addedRows();
+        ValidationException.check(
+            addedRows >= 0, "Cannot add a snapshot with negative added-rows: %s", addedRows);
         RetryableValidationException.check(
             snapshot.firstRowId() >= nextRowId,
             "Cannot add a snapshot, first-row-id is behind table next-row-id: %s < %s",
             snapshot.firstRowId(),
             nextRowId);
+        ValidationException.check(
+            snapshot.firstRowId() <= Long.MAX_VALUE - addedRows,
+            "Cannot add a snapshot: row ID range would overflow");
       }
 
       if (formatVersion >= MIN_FORMAT_VERSION_SNAPSHOT_MANIFEST_LIST
