@@ -49,30 +49,17 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   }
 
   private int idFor(int currentId, Type type) {
-    Types.NestedField existingField = baseField(name(currentId));
-    if (canReuseBaseId(existingField, type)) {
-      return existingField.fieldId();
-    }
-
-    return type.isFileType() ? nextId.get(Types.FileType.NUM_NESTED_FIELDS) : nextId.get();
-  }
-
-  private static boolean canReuseBaseId(Types.NestedField baseField, Type type) {
-    if (baseField == null) {
-      return false;
-    }
-
-    // a file derives its nested field IDs from its own ID, so reusing a base ID is only safe when
-    // the base field was already a file and had reserved that block
-    return !type.isFileType() || baseField.type().isFileType();
-  }
-
-  private Types.NestedField baseField(String fullName) {
+    String fullName = name(currentId);
     if (baseSchema != null && fullName != null) {
-      return baseSchema.findField(fullName);
+      Types.NestedField baseField = baseSchema.findField(fullName);
+      // a file derives its nested field IDs from its own ID, so reusing a base ID is only safe when
+      // the base field was already a file and had reserved that block
+      if (baseField != null && (!type.isFileType() || baseField.type().isFileType())) {
+        return baseField.fieldId();
+      }
     }
 
-    return null;
+    return nextId.get(TypeUtil.numReservedIds(type));
   }
 
   private String name(int id) {
@@ -105,7 +92,7 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
       int newId = newIds.get(i);
-      Type type = TypeUtil.applyAssignedId(field.type(), newId, types.next());
+      Type type = TypeUtil.applyAssignedId(newId, types.next());
       newFields.add(Types.NestedField.from(field).withId(newId).ofType(type).build());
     }
 
@@ -120,7 +107,7 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   @Override
   public Type list(Types.ListType list, Supplier<Type> future) {
     int newId = idFor(list.elementId(), list.elementType());
-    Type elementType = TypeUtil.applyAssignedId(list.elementType(), newId, future.get());
+    Type elementType = TypeUtil.applyAssignedId(newId, future.get());
     if (list.isElementOptional()) {
       return Types.ListType.ofOptional(newId, elementType);
     } else {
@@ -132,8 +119,8 @@ class AssignFreshIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   public Type map(Types.MapType map, Supplier<Type> keyFuture, Supplier<Type> valueFuture) {
     int newKeyId = idFor(map.keyId(), map.keyType());
     int newValueId = idFor(map.valueId(), map.valueType());
-    Type keyType = TypeUtil.applyAssignedId(map.keyType(), newKeyId, keyFuture.get());
-    Type valueType = TypeUtil.applyAssignedId(map.valueType(), newValueId, valueFuture.get());
+    Type keyType = TypeUtil.applyAssignedId(newKeyId, keyFuture.get());
+    Type valueType = TypeUtil.applyAssignedId(newValueId, valueFuture.get());
     if (map.isValueOptional()) {
       return Types.MapType.ofOptional(newKeyId, newValueId, keyType, valueType);
     } else {

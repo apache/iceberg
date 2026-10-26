@@ -467,17 +467,26 @@ public class TypeUtil {
    * <p>A file's nested field IDs are derived from the ID of the field that holds it, so a file is
    * rebuilt from the new ID rather than reassigned field by field.
    *
-   * @param original the field's type before IDs were assigned
    * @param newId the ID assigned to the field
-   * @param assignedType the original type with IDs assigned
+   * @param assignedType the field's type with IDs assigned
    * @return the type the field should have
    */
-  static Type applyAssignedId(Type original, int newId, Type assignedType) {
-    if (original.isFileType()) {
+  static Type applyAssignedId(int newId, Type assignedType) {
+    if (assignedType.isFileType()) {
       return Types.FileType.of(newId);
     }
 
     return assignedType;
+  }
+
+  /**
+   * Returns the number of IDs that must be reserved after the ID of a field with the given type.
+   *
+   * @param type a field type
+   * @return the number of consecutive IDs following the field's ID that the type derives
+   */
+  static int numReservedIds(Type type) {
+    return type.isFileType() ? Types.FileType.NUM_NESTED_FIELDS : 0;
   }
 
   public static Type find(Schema schema, Predicate<Type> predicate) {

@@ -32,7 +32,7 @@ class AssignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   }
 
   private int idFor(int id, Type type) {
-    return type.isFileType() ? getID.get(id, Types.FileType.NUM_NESTED_FIELDS) : getID.get(id);
+    return getID.get(id, TypeUtil.numReservedIds(type));
   }
 
   @Override
@@ -56,7 +56,7 @@ class AssignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
       int newId = newIds.get(i);
-      Type type = TypeUtil.applyAssignedId(field.type(), newId, types.next());
+      Type type = TypeUtil.applyAssignedId(newId, types.next());
       newFields.add(Types.NestedField.from(field).withId(newId).ofType(type).build());
     }
 
@@ -71,7 +71,7 @@ class AssignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   @Override
   public Type list(Types.ListType list, Supplier<Type> future) {
     int newId = idFor(list.elementId(), list.elementType());
-    Type elementType = TypeUtil.applyAssignedId(list.elementType(), newId, future.get());
+    Type elementType = TypeUtil.applyAssignedId(newId, future.get());
     if (list.isElementOptional()) {
       return Types.ListType.ofOptional(newId, elementType);
     } else {
@@ -83,8 +83,8 @@ class AssignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   public Type map(Types.MapType map, Supplier<Type> keyFuture, Supplier<Type> valueFuture) {
     int newKeyId = idFor(map.keyId(), map.keyType());
     int newValueId = idFor(map.valueId(), map.valueType());
-    Type keyType = TypeUtil.applyAssignedId(map.keyType(), newKeyId, keyFuture.get());
-    Type valueType = TypeUtil.applyAssignedId(map.valueType(), newValueId, valueFuture.get());
+    Type keyType = TypeUtil.applyAssignedId(newKeyId, keyFuture.get());
+    Type valueType = TypeUtil.applyAssignedId(newValueId, valueFuture.get());
     if (map.isValueOptional()) {
       return Types.MapType.ofOptional(newKeyId, newValueId, keyType, valueType);
     } else {

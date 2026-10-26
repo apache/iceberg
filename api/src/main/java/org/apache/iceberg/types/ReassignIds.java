@@ -59,7 +59,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     }
 
     if (assignId != null) {
-      return type.isFileType() ? assignId.get(Types.FileType.NUM_NESTED_FIELDS) : assignId.get();
+      return assignId.get(TypeUtil.numReservedIds(type));
     }
 
     throw new IllegalArgumentException("Field " + name + " not found in source schema");
@@ -79,7 +79,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
     for (int i = 0; i < length; i += 1) {
       Types.NestedField field = fields.get(i);
       int fieldId = id(sourceStruct, field.name(), field.type());
-      Type type = TypeUtil.applyAssignedId(field.type(), fieldId, types.get(i));
+      Type type = TypeUtil.applyAssignedId(fieldId, types.get(i));
       newFields.add(Types.NestedField.from(field).withId(fieldId).ofType(type).build());
     }
 
@@ -121,8 +121,7 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
     this.sourceType = sourceList.elementType();
     try {
-      Type elementType =
-          TypeUtil.applyAssignedId(list.elementType(), sourceElementId, elementTypeFuture.get());
+      Type elementType = TypeUtil.applyAssignedId(sourceElementId, elementTypeFuture.get());
       if (list.isElementOptional()) {
         return Types.ListType.ofOptional(sourceElementId, elementType);
       } else {
@@ -144,11 +143,10 @@ class ReassignIds extends TypeUtil.CustomOrderSchemaVisitor<Type> {
 
     try {
       this.sourceType = sourceMap.keyType();
-      Type keyType = TypeUtil.applyAssignedId(map.keyType(), sourceKeyId, keyTypeFuture.get());
+      Type keyType = TypeUtil.applyAssignedId(sourceKeyId, keyTypeFuture.get());
 
       this.sourceType = sourceMap.valueType();
-      Type valueType =
-          TypeUtil.applyAssignedId(map.valueType(), sourceValueId, valueTypeFuture.get());
+      Type valueType = TypeUtil.applyAssignedId(sourceValueId, valueTypeFuture.get());
 
       if (map.isValueOptional()) {
         return Types.MapType.ofOptional(sourceKeyId, sourceValueId, keyType, valueType);
