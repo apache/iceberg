@@ -90,37 +90,56 @@ The release status is discussed during each community sync meeting. Release mana
 
 ### Review bundled dependency licenses
 
-The following modules ship bundled artifacts:
+Bundled artifacts include third-party code, so their `LICENSE` and `NOTICE` files must list every bundled dependency. Each bundled module checks in a `runtime-deps.txt` file that records its runtime dependencies, and CI fails if the file is out of date. Diffing these files against the previous release shows every dependency change that may require a `LICENSE` or `NOTICE` update.
+
+Complete this review before building the release candidate:
+
+1. Fetch the latest `main` and release tags:
+
+    ```bash
+    git fetch apache main --tags
+    ```
+
+2. Find the modules whose dependencies changed since the previous release:
+
+    ```bash
+    git diff --stat apache-iceberg-<PREVIOUS_VERSION> apache/main -- '**/runtime-deps.txt'
+    ```
+
+3. For each changed module, show the dependency changes:
+
+    ```bash
+    git diff apache-iceberg-<PREVIOUS_VERSION> apache/main -- <MODULE_DIR>/runtime-deps.txt
+    ```
+
+4. Update the module's `LICENSE` and `NOTICE` files for each change:
+    - **Added dependency**: add it to `LICENSE` with its license, and copy its `NOTICE` content (if any) into `NOTICE`.
+    - **Removed dependency**: remove its entries from `LICENSE` and `NOTICE`.
+    - **Upgraded dependency**: check that its license has not changed and that its `NOTICE` content is still current.
+    - **New module** (new `runtime-deps.txt` file): review the module's `LICENSE` and `NOTICE` files in full.
+
+5. Open a PR against `main` with any fixes, and merge it before creating the release candidate.
+
+!!! note
+    `runtime-deps.txt` records only `major.minor` versions, so patch upgrades do not appear in the diff. Patch upgrades rarely change a license, but check dependencies whose `NOTICE` content is version-specific.
+
+Bundled modules and their directories (`runtime-deps.txt`, `LICENSE`, and `NOTICE` are in the module directory unless noted):
 
 - Spark runtime
-    - `iceberg-spark-runtime-3.5_2.12` and `iceberg-spark-runtime-3.5_2.13` (`spark/v3.5/spark-runtime`)
-    - `iceberg-spark-runtime-4.0_2.13` (`spark/v4.0/spark-runtime`)
-    - `iceberg-spark-runtime-4.1_2.13` (`spark/v4.1/spark-runtime`)
-    - `iceberg-spark-runtime-4.2_2.13` (`spark/v4.2/spark-runtime`)
+    - `iceberg-spark-runtime-3.5_2.12` and `iceberg-spark-runtime-3.5_2.13`: `spark/v3.5/spark-runtime`
+    - `iceberg-spark-runtime-4.0_2.13`: `spark/v4.0/spark-runtime`
+    - `iceberg-spark-runtime-4.1_2.13`: `spark/v4.1/spark-runtime`
+    - `iceberg-spark-runtime-4.2_2.13`: `spark/v4.2/spark-runtime`
 - Flink runtime
-    - `iceberg-flink-runtime-1.20` (`flink/v1.20/flink-runtime`)
-    - `iceberg-flink-runtime-2.2` (`flink/v2.2/flink-runtime`)
-    - `iceberg-flink-runtime-2.3` (`flink/v2.3/flink-runtime`)
+    - `iceberg-flink-runtime-1.20`: `flink/v1.20/flink-runtime`
+    - `iceberg-flink-runtime-2.2`: `flink/v2.2/flink-runtime`
+    - `iceberg-flink-runtime-2.3`: `flink/v2.3/flink-runtime`
 - Cloud bundles
-    - `iceberg-aws-bundle` (`aws-bundle`)
-    - `iceberg-azure-bundle` (`azure-bundle`)
-    - `iceberg-gcp-bundle` (`gcp-bundle`)
+    - `iceberg-aws-bundle`: `aws-bundle`
+    - `iceberg-azure-bundle`: `azure-bundle`
+    - `iceberg-gcp-bundle`: `gcp-bundle`
 - Kafka Connect runtime
-    - `iceberg-kafka-connect-runtime` (`kafka-connect/kafka-connect-runtime`)
-
-Each of these modules tracks its runtime dependencies in a checked-in `runtime-deps.txt` file next to its `LICENSE` and `NOTICE` files. CI fails when the resolved dependencies no longer match these files, so every change to a bundled dependency shows up as a change to a `runtime-deps.txt` file.
-
-Before building the release candidate, list the dependency changes since the previous release:
-
-```bash
-git diff apache-iceberg-<PREVIOUS_VERSION> apache/main -- '**/runtime-deps.txt'
-```
-
-For every added, removed, or upgraded dependency, check that the `LICENSE` and `NOTICE` files of the corresponding module reflect it. For example, changes in `spark/v4.1/spark-runtime/runtime-deps.txt` must be reflected in `spark/v4.1/spark-runtime/LICENSE` and `spark/v4.1/spark-runtime/NOTICE`. A newly added module shows up as a new `runtime-deps.txt` file, and its `LICENSE` and `NOTICE` files need a full review. The Kafka Connect runtime keeps its `LICENSE` and `NOTICE` files in the `main` and `hive` subdirectories of `kafka-connect/kafka-connect-runtime`.
-
-`runtime-deps.txt` records only `major.minor` versions, so patch upgrades do not appear in the diff. Patch upgrades rarely change a dependency's license, but dependencies whose `NOTICE` content is version-specific should still be checked.
-
-Missing or outdated entries should be fixed on `main` before the release candidate is created.
+    - `iceberg-kafka-connect-runtime`: `kafka-connect/kafka-connect-runtime` (`LICENSE` and `NOTICE` are in the `main` and `hive` subdirectories)
 
 ### Build the source release
 
