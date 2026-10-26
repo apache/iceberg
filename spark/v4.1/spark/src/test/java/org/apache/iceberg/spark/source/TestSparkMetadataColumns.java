@@ -37,7 +37,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Parameter;
@@ -51,9 +53,11 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.TestBase;
@@ -319,6 +323,36 @@ public class TestSparkMetadataColumns extends TestBase {
         "Rows must match",
         ImmutableList.of(row(1L, 0, null)),
         sql("SELECT id, _spec_id, _partition FROM %s", TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void rowLineageValuesWithVectorizedOrcRead() throws IOException, NoSuchTableException {
+    assumeThat(fileFormat).isEqualTo(FileFormat.ORC);
+    assumeThat(vectorized).isTrue();
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    spark
+        .range(2)
+        .withColumn("category", lit("a1"))
+        .withColumn("data", lit("b1"))
+        .coalesce(1)
+        .writeTo(TABLE_NAME)
+        .append();
+
+    table.refresh();
+    long firstRowId;
+    long dataSequenceNumber;
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      DataFile dataFile = Iterables.getOnlyElement(tasks).file();
+      firstRowId = dataFile.firstRowId();
+      dataSequenceNumber = dataFile.dataSequenceNumber();
+    }
+
+    assertEquals(
+        "Rows must match",
+        ImmutableList.of(
+            row(firstRowId, dataSequenceNumber, 0L), row(firstRowId + 1, dataSequenceNumber, 1L)),
+        sql("SELECT _row_id, _last_updated_sequence_number, id FROM %s ORDER BY id", TABLE_NAME));
   }
 
   @TestTemplate
