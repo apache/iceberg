@@ -126,8 +126,6 @@ Each directory contains the `LICENSE` and `NOTICE` files for its artifact.
     * `iceberg-kafka-connect-runtime` distribution: `kafka-connect/kafka-connect-runtime/main`
     * `iceberg-kafka-connect-runtime-hive` distribution: `kafka-connect/kafka-connect-runtime/hive`
 
-The Kafka Connect Hive distribution bundles the Hive Metastore and Hadoop client in addition to the dependencies of the main distribution. These additional dependencies are not listed in `runtime-deps.txt`, so please also check the `hive` dependencies in `kafka-connect/build.gradle` and their versions in `gradle/libs.versions.toml` for changes.
-
 #### Updating LICENSE and NOTICE
 
 For each changed dependency, look up its license, its `NOTICE` content, and any third-party code it bundles. You can find these in the dependency's project repository or in its JAR under `META-INF/`. Then update the module's files:
