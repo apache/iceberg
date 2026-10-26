@@ -90,7 +90,25 @@ The release status is discussed during each community sync meeting. Release mana
 
 ### Review bundled dependency licenses
 
-Modules that ship bundled artifacts (Spark and Flink runtime JARs, AWS/Azure/GCP bundles, and the Kafka Connect runtime) track their runtime dependencies in a checked-in `runtime-deps.txt` file next to their `LICENSE` and `NOTICE` files. CI fails when the resolved dependencies no longer match these files, so every change to a bundled dependency shows up as a change to a `runtime-deps.txt` file.
+The following modules ship bundled artifacts:
+
+- Spark runtime
+    - `iceberg-spark-runtime-3.5_2.12` and `iceberg-spark-runtime-3.5_2.13` (`spark/v3.5/spark-runtime`)
+    - `iceberg-spark-runtime-4.0_2.13` (`spark/v4.0/spark-runtime`)
+    - `iceberg-spark-runtime-4.1_2.13` (`spark/v4.1/spark-runtime`)
+    - `iceberg-spark-runtime-4.2_2.13` (`spark/v4.2/spark-runtime`)
+- Flink runtime
+    - `iceberg-flink-runtime-1.20` (`flink/v1.20/flink-runtime`)
+    - `iceberg-flink-runtime-2.2` (`flink/v2.2/flink-runtime`)
+    - `iceberg-flink-runtime-2.3` (`flink/v2.3/flink-runtime`)
+- Cloud bundles
+    - `iceberg-aws-bundle` (`aws-bundle`)
+    - `iceberg-azure-bundle` (`azure-bundle`)
+    - `iceberg-gcp-bundle` (`gcp-bundle`)
+- Kafka Connect runtime
+    - `iceberg-kafka-connect-runtime` (`kafka-connect/kafka-connect-runtime`)
+
+Each of these modules tracks its runtime dependencies in a checked-in `runtime-deps.txt` file next to its `LICENSE` and `NOTICE` files. CI fails when the resolved dependencies no longer match these files, so every change to a bundled dependency shows up as a change to a `runtime-deps.txt` file.
 
 Before building the release candidate, list the dependency changes since the previous release:
 
