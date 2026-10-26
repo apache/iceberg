@@ -130,7 +130,7 @@ Each directory contains the `LICENSE` and `NOTICE` files for its artifact.
 
 For each changed dependency, look up its license, its `NOTICE` content, and any third-party code it bundles. You can find these in the dependency's project repository or in its JAR under `META-INF/`. Then update the module's files:
 
-* Added dependency: add a `LICENSE` entry with `Copyright`, `Project URL`, and `License` lines. For licenses other than Apache 2.0, also include the full license text, prefixing each line with `| `. If the dependency ships a `NOTICE` file, add a `NOTICE` entry that starts with `This product bundles <NAME> with the following in its NOTICE file:`, followed by its content with each line prefixed with `| `.
+* Added dependency: add a `LICENSE` entry with `Copyright`, `Project URL`, and `License` lines. For licenses other than Apache 2.0, also include the full license text, prefixing each line with a pipe (`|`). If the dependency ships a `NOTICE` file, add a `NOTICE` entry that starts with `This product bundles <NAME> with the following in its NOTICE file:`, followed by its content with each line prefixed with a pipe (`|`).
 
     Example `LICENSE` entry:
 
