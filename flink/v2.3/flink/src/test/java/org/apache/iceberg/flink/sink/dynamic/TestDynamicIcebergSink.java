@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.fail;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
@@ -76,6 +77,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.IcebergGenerics;
@@ -100,7 +102,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.variants.Variant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -406,6 +410,50 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+  void forwardOrcWritePreservesReusedBinaryBuffer() throws Exception {
+    Schema schema = new Schema(Types.NestedField.required(1, "data", Types.BinaryType.get()));
+    TableIdentifier identifier = TableIdentifier.of(DATABASE, "t1");
+    Table table = CATALOG_EXTENSION.catalog().createTable(identifier, schema);
+    table
+        .updateProperties()
+        .set(TableProperties.DEFAULT_FILE_FORMAT, FileFormat.ORC.name())
+        .commit();
+    env.setParallelism(1);
+    env.getConfig().disableObjectReuse();
+    List<Byte> values = List.of((byte) 1, (byte) 2);
+
+    DynamicIcebergSink.forInput(env.fromData(0))
+        .generator(
+            (ignored, out) -> {
+              byte[] buffer = new byte[1];
+              GenericRowData row = GenericRowData.of(buffer);
+              for (byte value : values) {
+                buffer[0] = value;
+                out.collect(
+                    new DynamicRecord(
+                        TableIdentifier.of(DATABASE, "t1"),
+                        SnapshotRef.MAIN_BRANCH,
+                        schema,
+                        row,
+                        PartitionSpec.unpartitioned()));
+              }
+            })
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .writeParallelism(1)
+        .immediateTableUpdate(true)
+        .append();
+
+    env.execute();
+
+    table.refresh();
+    try (CloseableIterable<Record> records = IcebergGenerics.read(table).build()) {
+      assertThat(records)
+          .extracting(record -> record.get(0, ByteBuffer.class).get())
+          .containsExactlyInAnyOrderElementsOf(values);
+    }
+  }
+
+  @Test
   void testForwardWrite() throws Exception {
     runForwardWriteTest(new ForwardGenerator());
   }
@@ -693,6 +741,184 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @Test
+  void testWriteVariant() throws Exception {
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "payload", Types.VariantType.get()));
+    createV3Table("t1", schema);
+
+    executeVariantSink(
+        Lists.newArrayList(new VariantInput(schema, 1), new VariantInput(schema, 2)), this.env);
+
+    assertVariantPayloads(ImmutableMap.of(1, 1L, 2, 2L));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void testSchemaEvolutionAddVariantField(boolean immediateUpdate) throws Exception {
+    Schema variantSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()),
+            Types.NestedField.optional(3, "payload", Types.VariantType.get()));
+    createV3Table("t1", SimpleDataUtil.SCHEMA);
+
+    executeVariantSink(
+        Lists.newArrayList(
+            new VariantInput(SimpleDataUtil.SCHEMA, 1), new VariantInput(variantSchema, 2)),
+        this.env,
+        immediateUpdate);
+
+    Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, "t1"));
+    assertThat(table.schema().findField("payload").type()).isEqualTo(Types.VariantType.get());
+    Map<Integer, Long> expected = Maps.newHashMap();
+    expected.put(1, null);
+    expected.put(2, 2L);
+    assertVariantPayloads(expected);
+  }
+
+  @Test
+  void testSchemaEvolutionStringToVariantFails() throws Exception {
+    assertIncompatibleVariantEvolution(
+        Types.StringType.get(),
+        Types.VariantType.get(),
+        "Cannot change column type: payload: string -> variant");
+  }
+
+  @Test
+  void testSchemaEvolutionVariantToStringFails() throws Exception {
+    assertIncompatibleVariantEvolution(
+        Types.VariantType.get(),
+        Types.StringType.get(),
+        "Cannot change column type: payload: variant -> string");
+  }
+
+  private void assertIncompatibleVariantEvolution(
+      Type tableType, Type writeType, String expectedMessage) throws Exception {
+    Schema tableSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "payload", tableType));
+    Schema writeSchema =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "payload", writeType));
+    createV3Table("t1", tableSchema);
+
+    try {
+      executeVariantSink(
+          Lists.newArrayList(new VariantInput(writeSchema, 1)),
+          StreamExecutionEnvironment.getExecutionEnvironment());
+      fail();
+    } catch (JobExecutionException e) {
+      assertThat(
+              ExceptionUtils.findThrowable(
+                  e, t -> t.getMessage() != null && t.getMessage().contains(expectedMessage)))
+          .isNotEmpty();
+    }
+  }
+
+  private static void createV3Table(String name, Schema schema) {
+    CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TableIdentifier.of(DATABASE, name),
+            schema,
+            PartitionSpec.unpartitioned(),
+            null,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"));
+  }
+
+  private static void executeVariantSink(List<VariantInput> inputs, StreamExecutionEnvironment env)
+      throws Exception {
+    executeVariantSink(inputs, env, true);
+  }
+
+  private static void executeVariantSink(
+      List<VariantInput> inputs, StreamExecutionEnvironment env, boolean immediateUpdate)
+      throws Exception {
+    DataStream<VariantInput> dataStream =
+        env.fromData(inputs, TypeInformation.of(new TypeHint<>() {}));
+    env.setParallelism(1);
+    DynamicIcebergSink.forInput(dataStream)
+        .generator(new VariantGenerator())
+        .catalogLoader(CATALOG_EXTENSION.catalogLoader())
+        .writeParallelism(1)
+        .immediateTableUpdate(immediateUpdate)
+        .append();
+    env.execute("Test Iceberg Variant DataStream");
+  }
+
+  /** Reads table t1 and checks the "k" field of each row's variant payload, keyed by row id. */
+  private static void assertVariantPayloads(Map<Integer, Long> expectedById) throws IOException {
+    Map<Integer, Long> actualById = Maps.newHashMap();
+    try (CloseableIterable<Record> records =
+        IcebergGenerics.read(
+                CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of(DATABASE, "t1")))
+            .build()) {
+      for (Record record : records) {
+        Variant payload = (Variant) record.getField("payload");
+        actualById.put(
+            (Integer) record.getField("id"),
+            payload == null
+                ? null
+                : (Long) payload.value().asObject().get("k").asPrimitive().get());
+      }
+    }
+
+    assertThat(actualById).isEqualTo(expectedById);
+  }
+
+  /** Input for the variant tests; the row is built in {@link VariantGenerator}. */
+  private static class VariantInput implements Serializable {
+    private final Schema schema;
+    private final int id;
+
+    VariantInput(Schema schema, int id) {
+      this.schema = schema;
+      this.id = id;
+    }
+  }
+
+  /**
+   * Builds RowData directly, because the legacy DataFormatConverters used by {@link Generator} do
+   * not support VARIANT. Variant payloads are {"k": id}.
+   */
+  private static class VariantGenerator implements DynamicRecordGenerator<VariantInput> {
+    @Override
+    public void generate(VariantInput input, Collector<DynamicRecord> out) {
+      List<Types.NestedField> columns = input.schema.columns();
+      GenericRowData row = new GenericRowData(columns.size());
+      for (int i = 0; i < columns.size(); i++) {
+        Types.NestedField column = columns.get(i);
+        if (column.type().isVariantType()) {
+          row.setField(
+              i,
+              org.apache.flink.types.variant.Variant.newBuilder()
+                  .object()
+                  .add("k", org.apache.flink.types.variant.Variant.newBuilder().of((long) input.id))
+                  .build());
+        } else if (column.type().typeId() == Type.TypeID.INTEGER) {
+          row.setField(i, input.id);
+        } else {
+          row.setField(i, StringData.fromString(column.name() + "-" + input.id));
+        }
+      }
+
+      out.collect(
+          new DynamicRecord(
+              TableIdentifier.of(DATABASE, "t1"),
+              SnapshotRef.MAIN_BRANCH,
+              input.schema,
+              row,
+              PartitionSpec.unpartitioned(),
+              DistributionMode.NONE,
+              1));
+    }
+  }
+
+  @Test
   void testPartitionSpecEvolution() throws Exception {
     PartitionSpec spec1 = PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).bucket("id", 10).build();
     PartitionSpec spec2 =
@@ -809,51 +1035,64 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     runTest(rows);
   }
 
-  @Test
-  void testUpsert() throws Exception {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void testUpsert(boolean immediateUpdate) throws Exception {
+    // A restart replays the records against the already created table, which hides failures
+    Configuration configuration = new Configuration();
+    configuration.set(RestartStrategyOptions.RESTART_STRATEGY, "none");
+    env.configure(configuration);
+
+    // Field IDs differ from the ones the catalog assigns on table creation
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(0, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(1, "data", Types.StringType.get()));
+    Types.NestedField equalityField = schema.findField("id");
     List<DynamicIcebergDataImpl> rows =
         Lists.newArrayList(
             // Insert one rows
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 false),
             // Remaining rows are duplicates
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 true),
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 true),
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 true));
 
-    executeDynamicSink(rows, env, true, 1, null);
+    executeDynamicSink(rows, env, immediateUpdate, 1, null);
 
-    try (CloseableIterable<Record> iterable =
-        IcebergGenerics.read(
-                CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of("default", "t1")))
-            .build()) {
+    Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of("default", "t1"));
+    // The record's equality field ID doesn't exist in the created table, so with immediateUpdate
+    // disabled the write fails unless equality field IDs are remapped to the table schema.
+    assertThat(table.schema().findColumnName(equalityField.fieldId())).isNull();
+    try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
       List<Record> records = Lists.newArrayList();
       for (Record record : iterable) {
         records.add(record);
@@ -868,61 +1107,70 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
   }
 
-  @Test
-  void testUpsertV3() throws Exception {
-    ImmutableMap<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
-    CATALOG_EXTENSION
-        .catalog()
-        .createTable(
-            TableIdentifier.of(DATABASE, "t1"),
-            SimpleDataUtil.SCHEMA,
-            PartitionSpec.unpartitioned(),
-            null,
-            properties);
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void testUpsertV3(boolean immediateUpdate) throws Exception {
+    // A restart replays the records against the already created table, which hides failures
+    Configuration configuration = new Configuration();
+    configuration.set(RestartStrategyOptions.RESTART_STRATEGY, "none");
+    env.configure(configuration);
 
+    Map<String, String> tableProps = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
+    TableCreator tableCreator =
+        (catalog, identifier, tableSchema, spec) ->
+            catalog.createTable(identifier, tableSchema, spec, null, tableProps);
+
+    // Field IDs differ from the ones the catalog assigns on table creation
+    Schema schema =
+        new Schema(
+            Types.NestedField.optional(0, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(1, "data", Types.StringType.get()));
+    Types.NestedField equalityField = schema.findField("id");
     List<DynamicIcebergDataImpl> rows =
         Lists.newArrayList(
             // Insert one rows
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 false),
             // Remaining rows are duplicates
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 true),
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 true),
             new DynamicIcebergDataImpl(
-                SimpleDataUtil.SCHEMA,
+                schema,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
                 PartitionSpec.unpartitioned(),
                 true,
-                Sets.newHashSet("id"),
+                Sets.newHashSet(equalityField.name()),
                 true));
 
-    executeDynamicSink(rows, env, true, 1, null);
+    executeDynamicSink(rows, env, immediateUpdate, 1, null, false, Maps.newHashMap(), tableCreator);
 
-    try (CloseableIterable<Record> iterable =
-        IcebergGenerics.read(
-                CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of("default", "t1")))
-            .build()) {
+    Table table = CATALOG_EXTENSION.catalog().loadTable(TableIdentifier.of("default", "t1"));
+    assertThat(TableUtil.formatVersion(table)).isEqualTo(3);
+    // The record's equality field ID doesn't exist in the created table, so with immediateUpdate
+    // disabled the write fails unless equality field IDs are remapped to the table schema.
+    assertThat(table.schema().findColumnName(equalityField.fieldId())).isNull();
+    try (CloseableIterable<Record> iterable = IcebergGenerics.read(table).build()) {
       List<Record> records = Lists.newArrayList();
       for (Record record : iterable) {
         records.add(record);
@@ -1707,7 +1955,14 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       Map<String, String> writeProperties)
       throws Exception {
     executeDynamicSink(
-        dynamicData, env, immediateUpdate, parallelism, null, false, writeProperties);
+        dynamicData,
+        env,
+        immediateUpdate,
+        parallelism,
+        null,
+        false,
+        writeProperties,
+        TableCreator.DEFAULT);
     verifyResults(dynamicData, writeProperties);
   }
 
@@ -1743,6 +1998,27 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       boolean overwrite,
       Map<String, String> writeProperties)
       throws Exception {
+    executeDynamicSink(
+        dynamicData,
+        env,
+        immediateUpdate,
+        parallelism,
+        commitHook,
+        overwrite,
+        writeProperties,
+        TableCreator.DEFAULT);
+  }
+
+  private void executeDynamicSink(
+      List<DynamicIcebergDataImpl> dynamicData,
+      StreamExecutionEnvironment env,
+      boolean immediateUpdate,
+      int parallelism,
+      @Nullable CommitHook commitHook,
+      boolean overwrite,
+      Map<String, String> writeProperties,
+      TableCreator tableCreator)
+      throws Exception {
     DataStream<DynamicIcebergDataImpl> dataStream =
         env.fromData(dynamicData, TypeInformation.of(new TypeHint<>() {}));
     env.setParallelism(parallelism);
@@ -1754,6 +2030,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .catalogLoader(CATALOG_EXTENSION.catalogLoader())
           .writeParallelism(parallelism)
           .immediateTableUpdate(immediateUpdate)
+          .tableCreator(tableCreator)
           .setSnapshotProperty("commit.retry.num-retries", "0")
           .overwrite(overwrite)
           .setAll(writeProperties)
@@ -1764,6 +2041,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .catalogLoader(CATALOG_EXTENSION.catalogLoader())
           .writeParallelism(parallelism)
           .immediateTableUpdate(immediateUpdate)
+          .tableCreator(tableCreator)
           .overwrite(overwrite)
           .setAll(writeProperties)
           .append();

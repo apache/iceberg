@@ -19,14 +19,17 @@
 package org.apache.iceberg.azure.adlsv2;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.azure.storage.file.datalake.DataLakeFileClient;
 import com.azure.storage.file.datalake.DataLakeFileSystemClient;
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -292,5 +295,29 @@ public class TestADLSFileIO {
     for (DataLakeFileSystemClient result : results) {
       assertThat(result).isSameAs(mockClient);
     }
+  }
+
+  @Test
+  void deleteFilesReportsFailures() {
+    DataLakeFileSystemClient mockClient = mock(DataLakeFileSystemClient.class);
+    DataLakeFileClient failingFileClient =
+        mock(
+            DataLakeFileClient.class,
+            invocation -> {
+              throw new RuntimeException("Delete failed");
+            });
+    when(mockClient.getFileClient("path/to/failing")).thenReturn(failingFileClient);
+    when(mockClient.getFileClient("path/to/deleted")).thenReturn(mock(DataLakeFileClient.class));
+
+    ADLSFileIO fileIO = new ADLSFileIO(location -> mockClient);
+
+    assertThatThrownBy(
+            () ->
+                fileIO.deleteFiles(
+                    List.of(
+                        "abfs://container@account.dfs.core.windows.net/path/to/failing",
+                        "abfs://container@account.dfs.core.windows.net/path/to/deleted")))
+        .isInstanceOf(BulkDeletionFailureException.class)
+        .hasMessage("Failed to delete 1 files");
   }
 }

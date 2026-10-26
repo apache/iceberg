@@ -30,7 +30,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsTestUtil;
@@ -60,6 +59,7 @@ import org.apache.iceberg.variants.VariantValue;
 import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -583,12 +583,21 @@ public class TestVariantMetrics {
     assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 0L));
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
-    assertThat(metrics.lowerBounds())
-        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 0L)));
-    assertThat(metrics.upperBounds())
-        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 1L)));
+    // NaN is ignored when computing the shredded value bounds, so both bounds are the float value
+    assertThat(metrics.lowerBounds().get(1))
+        .isEqualTo(Conversions.toByteBuffer(Type.TypeID.LONG, 0L));
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(1.0F));
+    assertThat(metrics.upperBounds().get(1))
+        .isEqualTo(Conversions.toByteBuffer(Type.TypeID.LONG, 1L));
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(1.0F));
 
-    assertThat(metrics).extracting("originalTypes").isEqualTo(Map.of(1, Types.LongType.get()));
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
   }
 
   @Test
@@ -605,12 +614,21 @@ public class TestVariantMetrics {
     assertThat(metrics.nullValueCounts()).isEqualTo(Map.of(1, 0L, 2, 0L));
     assertThat(metrics.nanValueCounts()).isEqualTo(Map.of());
 
-    assertThat(metrics.lowerBounds())
-        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 0L)));
-    assertThat(metrics.upperBounds())
-        .isEqualTo(Map.of(1, Conversions.toByteBuffer(Type.TypeID.LONG, 1L)));
+    // NaN is ignored when computing the shredded value bounds, so both bounds are the double value
+    assertThat(metrics.lowerBounds().get(1))
+        .isEqualTo(Conversions.toByteBuffer(Type.TypeID.LONG, 0L));
+    assertThat(metrics.lowerBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(1.0D));
+    assertThat(metrics.upperBounds().get(1))
+        .isEqualTo(Conversions.toByteBuffer(Type.TypeID.LONG, 1L));
+    assertThat(metrics.upperBounds().get(2))
+        .extracting(b -> Variant.from(b).value().asObject().get(ROOT_FIELD))
+        .isEqualTo(Variants.of(1.0D));
 
-    assertThat(metrics).extracting("originalTypes").isEqualTo(Map.of(1, Types.LongType.get()));
+    assertThat(metrics)
+        .extracting("originalTypes")
+        .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
   }
 
   @Test
@@ -708,6 +726,38 @@ public class TestVariantMetrics {
     assertThat(metrics)
         .extracting("originalTypes")
         .isEqualTo(Map.of(1, Types.LongType.get(), 2, Types.VariantType.get()));
+  }
+
+  @Test
+  public void testShreddedObjectBoundFieldsOrderedByUtf8() throws IOException {
+    // U+FFFF is 3 UTF-8 bytes (EF BF BF), U+10000 is 4 (F0 90 80 80); UTF-16 orders them oppositely
+    String threeByteName = new String(Character.toChars(0xFFFF));
+    String fourByteName = new String(Character.toChars(0x10000));
+    VariantMetadata objectMetadata = Variants.metadata(threeByteName, fourByteName);
+
+    ShreddedObject object0 = Variants.object(objectMetadata);
+    object0.put(threeByteName, Variants.of(1));
+    object0.put(fourByteName, Variants.of(2));
+    ShreddedObject object1 = Variants.object(objectMetadata);
+    object1.put(threeByteName, Variants.of(3));
+    object1.put(fourByteName, Variants.of(4));
+
+    Metrics metrics =
+        writeParquet(
+            (id, name) -> ParquetVariantUtil.toParquetSchema(object0),
+            Variant.of(objectMetadata, object0),
+            Variant.of(objectMetadata, object1));
+
+    String threePath = "$['" + threeByteName + "']";
+    String fourPath = "$['" + fourByteName + "']";
+    Variant lowerBound = Variant.from(metrics.lowerBounds().get(2));
+    assertThat(lowerBound.metadata().get(0)).isEqualTo(threePath);
+    assertThat(lowerBound.metadata().get(1)).isEqualTo(fourPath);
+    assertThat(lowerBound.value().asObject().fieldNames()).containsExactly(threePath, fourPath);
+    Variant upperBound = Variant.from(metrics.upperBounds().get(2));
+    assertThat(upperBound.metadata().get(0)).isEqualTo(threePath);
+    assertThat(upperBound.metadata().get(1)).isEqualTo(fourPath);
+    assertThat(upperBound.value().asObject().fieldNames()).containsExactly(threePath, fourPath);
   }
 
   @Test
@@ -846,7 +896,7 @@ public class TestVariantMetrics {
     // Parquet.write() cannot disable stats on variant sub-columns (no field IDs)
     ParquetWriter<Record> writer =
         new ParquetWriter<>(
-            new Configuration(),
+            new PlainParquetConfiguration(),
             out,
             SCHEMA,
             parquetSchema,
