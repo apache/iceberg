@@ -74,6 +74,10 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     hive {
       extendsFrom runtimeClasspath
     }
+    runtimeClasspath {
+      // keep the hive distribution a superset of main by resolving shared jars to the same versions
+      shouldResolveConsistentlyWith(hive)
+    }
     all {
       exclude group: 'javax.activation', module: 'activation'
       exclude group: 'org.jspecify', module: 'jspecify'
