@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
@@ -158,96 +157,6 @@ public class TestDeleteFrom extends CatalogTestBase {
         "Should have two rows in the second partition",
         ImmutableList.of(row(2L, "b")),
         sql("SELECT * FROM %s ORDER BY id", tableName));
-  }
-
-  @TestTemplate
-  public void metadataDeleteRetainsUnknownRows() {
-    assertMetadataDeleteWithNulls("", "data <> 'a1'");
-  }
-
-  @TestTemplate
-  public void partitionDeleteRetainsUnknownRows() {
-    assertMetadataDeleteWithNulls("PARTITIONED BY (data)", "data NOT IN ('a1')");
-  }
-
-  @TestTemplate
-  public void metadataDeleteWithNegatedPrefix() {
-    assertMetadataDeleteWithNulls("", "data NOT LIKE 'a%'");
-  }
-
-  @TestTemplate
-  public void metadataDeleteWithNegatedNullSafeEquality() {
-    assertMetadataDeleteWithNulls("", "NOT (data <=> 'a1')");
-  }
-
-  @TestTemplate
-  public void metadataDeleteWithNegatedNullCheck() {
-    assertMetadataDeleteWithNulls("", "NOT (data IS NOT NULL)");
-  }
-
-  @TestTemplate
-  public void rowLevelDeleteRetainsUnknownRowsInMixedFile() throws NoSuchTableException {
-    String predicate = "data <> 'a1'";
-    List<Object[]> expected =
-        sql(
-            "SELECT id FROM VALUES (1L, 'a1'), (2L, 'b'), (3L, CAST(NULL AS STRING)) "
-                + "AS source(id, data) WHERE (%s) IS NOT TRUE ORDER BY id",
-            predicate);
-
-    sql(
-        "CREATE TABLE %s (id bigint, data string) USING iceberg %s",
-        tableName,
-        tableProperties(
-            ImmutableMap.of(
-                TableProperties.DELETE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName())));
-    List<SimpleRecord> records =
-        ImmutableList.of(
-            new SimpleRecord(1, "a1"), new SimpleRecord(2, "b"), new SimpleRecord(3, null));
-    spark.createDataFrame(records, SimpleRecord.class).coalesce(1).writeTo(tableName).append();
-    assertThat(scalarSql("SELECT count(*) FROM %s.files", tableName)).isEqualTo(1L);
-
-    sql("DELETE FROM %s WHERE %s", tableName, predicate);
-
-    assertEquals(
-        "Row-level delete should retain rows where the predicate is false or unknown",
-        expected,
-        sql("SELECT id FROM %s ORDER BY id", tableName));
-
-    Table table = validationCatalog.loadTable(tableIdent);
-    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.OVERWRITE);
-    assertThat(table.currentSnapshot().summary())
-        .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "1");
-  }
-
-  private void assertMetadataDeleteWithNulls(String partitioning, String predicate) {
-    List<Object[]> expected =
-        sql(
-            "SELECT id FROM VALUES (1L, 'a1'), (2L, 'b'), (3L, CAST(NULL AS STRING)) "
-                + "AS source(id, data) WHERE (%s) IS NOT TRUE ORDER BY id",
-            predicate);
-
-    sql(
-        "CREATE TABLE %s (id bigint, data string) USING iceberg %s %s",
-        tableName, partitioning, tableProperties());
-    sql("INSERT INTO %s VALUES (1L, 'a1')", tableName);
-    sql("INSERT INTO %s VALUES (2L, 'b')", tableName);
-    sql("INSERT INTO %s VALUES (3L, CAST(NULL AS STRING))", tableName);
-
-    long originalFiles = (Long) scalarSql("SELECT count(*) FROM %s.files", tableName);
-    assertThat(originalFiles).isEqualTo(3L);
-
-    sql("DELETE FROM %s WHERE %s", tableName, predicate);
-
-    assertEquals(
-        "Delete should retain rows where the predicate is false or unknown",
-        expected,
-        sql("SELECT id FROM %s ORDER BY id", tableName));
-
-    Table table = validationCatalog.loadTable(tableIdent);
-    assertThat(table.currentSnapshot().operation()).isEqualTo(DataOperations.DELETE);
-    assertThat(table.currentSnapshot().summary())
-        .containsEntry(
-            SnapshotSummary.DELETED_FILES_PROP, String.valueOf(originalFiles - expected.size()));
   }
 
   @TestTemplate

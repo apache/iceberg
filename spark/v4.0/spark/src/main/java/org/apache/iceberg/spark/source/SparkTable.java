@@ -367,9 +367,15 @@ public class SparkTable
     Preconditions.checkArgument(
         snapshotId == null, "Cannot delete from table at a specific snapshot: %s", snapshotId);
 
-    Expression deleteExpr = SparkV2Filters.convertForDelete(predicates);
-    if (deleteExpr == null) {
-      return false;
+    Expression deleteExpr = Expressions.alwaysTrue();
+
+    for (Predicate predicate : predicates) {
+      Expression expr = SparkV2Filters.convert(predicate);
+      if (expr != null) {
+        deleteExpr = Expressions.and(deleteExpr, expr);
+      } else {
+        return false;
+      }
     }
 
     return canDeleteUsingMetadata(deleteExpr, scanBranchForDelete());
@@ -442,9 +448,7 @@ public class SparkTable
 
   @Override
   public void deleteWhere(Predicate[] predicates) {
-    Expression deleteExpr = SparkV2Filters.convertForDelete(predicates);
-    Preconditions.checkArgument(
-        deleteExpr != null, "Cannot convert Spark delete predicates to Iceberg expressions");
+    Expression deleteExpr = SparkV2Filters.convert(predicates);
 
     if (deleteExpr == Expressions.alwaysFalse()) {
       LOG.info("Skipping the delete operation as the condition is always false");

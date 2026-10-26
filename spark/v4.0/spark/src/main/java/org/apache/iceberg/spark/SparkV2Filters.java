@@ -42,7 +42,6 @@ import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -122,92 +121,6 @@ public class SparkV2Filters {
     }
 
     return expression;
-  }
-
-  /** Converts DELETE predicates preserving SQL NULL semantics, or returns null if unsupported. */
-  public static Expression convertForDelete(Predicate[] predicates) {
-    Expression expression = Expressions.alwaysTrue();
-    for (Predicate predicate : predicates) {
-      Expression converted = convertForDelete(predicate);
-      if (converted == null) {
-        return null;
-      }
-      expression = and(expression, converted);
-    }
-    return expression;
-  }
-
-  /** Converts DELETE predicates preserving SQL NULL semantics, or returns null if unsupported. */
-  public static Expression convertForDelete(Predicate predicate) {
-    return convertForDelete(predicate, false);
-  }
-
-  // Scans can use conservative filters, but deletes must only match SQL TRUE, not UNKNOWN.
-  private static Expression convertForDelete(Predicate predicate, boolean negated) {
-    return switch (predicate.name()) {
-      case AND, OR -> {
-        Expression left = convertForDelete(childAtIndex(predicate, 0), negated);
-        Expression right = convertForDelete(childAtIndex(predicate, 1), negated);
-        if (left == null || right == null) {
-          yield null;
-        }
-        yield predicate.name().equals(AND) != negated ? and(left, right) : or(left, right);
-      }
-      case NOT -> convertForDelete(((Not) predicate).child(), !negated);
-      case EQ, EQ_NULL_SAFE, NOT_EQ, LT, LT_EQ, GT, GT_EQ -> {
-        Pair<UnboundTerm<Object>, Object> children = predicateChildren(predicate);
-        if (children == null) {
-          yield null;
-        }
-        if (!predicate.name().equals(EQ_NULL_SAFE) && children.second() == null) {
-          // Neither an ordinary comparison to NULL nor its negation is TRUE.
-          yield Expressions.alwaysFalse();
-        }
-        Expression comparison = convert(predicate);
-        Expression result = negated ? not(comparison) : comparison;
-        yield predicate.name().equals(EQ_NULL_SAFE)
-            ? result
-            : and(notNull(children.first()), result);
-      }
-      case IN -> convertInForDelete(predicate, negated);
-      case STARTS_WITH -> {
-        if (!isRef(leftChild(predicate)) || !isLiteral(rightChild(predicate))) {
-          yield null;
-        }
-        if (convertLiteral(rightChild(predicate)) == null) {
-          yield Expressions.alwaysFalse();
-        }
-        Expression prefix = convert(predicate);
-        yield and(notNull(toTerm(leftChild(predicate))), negated ? not(prefix) : prefix);
-      }
-      case TRUE, FALSE, IS_NULL, NOT_NULL -> {
-        Expression converted = convert(predicate);
-        yield converted == null ? null : negated ? not(converted) : converted;
-      }
-      default -> null;
-    };
-  }
-
-  private static Expression convertInForDelete(Predicate predicate, boolean negated) {
-    // Spark's NULL behavior for an empty IN list depends on its legacy configuration.
-    if (predicate.children().length <= 1 || !isSupportedInPredicate(predicate)) {
-      return null;
-    }
-    UnboundTerm<Object> term = toTerm(childAtIndex(predicate, 0));
-    if (term == null) {
-      return null;
-    }
-    List<Object> values =
-        Arrays.stream(predicate.children())
-            .skip(1)
-            .map(val -> convertLiteral((Literal<?>) val))
-            .collect(Collectors.toList());
-    if (negated && values.contains(null)) {
-      return Expressions.alwaysFalse();
-    }
-    Expression membership =
-        in(term, values.stream().filter(Objects::nonNull).collect(Collectors.toList()));
-    return and(notNull(term), negated ? not(membership) : membership);
   }
 
   @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength"})
