@@ -90,20 +90,24 @@ The release status is discussed during each community sync meeting. Release mana
 
 ### Review bundled dependency licenses
 
-Before building the release candidate, check that the `LICENSE` and `NOTICE` files of each bundled module cover the dependencies it ships.
+Some Iceberg artifacts, such as the Spark and Flink runtime JARs, bundle third-party dependencies. Each of these [bundled modules](#bundled-modules) has its own `LICENSE` and `NOTICE` files that must cover every dependency it ships. Before building the release candidate, make sure these files are up to date:
 
-1. Find the dependency changes since the previous release:
+1. Find the dependency changes since the previous release, for example `1.10.0`:
 
     ```bash
     git fetch apache main --tags
     git diff apache-iceberg-<PREVIOUS_VERSION> apache/main -- '**/runtime-deps.txt'
     ```
 
-2. Update the `LICENSE` and `NOTICE` files of each affected module. See [Updating LICENSE and NOTICE](#updating-license-and-notice).
+    Each `runtime-deps.txt` file lists the dependencies bundled by the module in the same directory. Lines starting with `+` are added or upgraded dependencies, and lines starting with `-` are removed or replaced ones.
+
+2. Update the `LICENSE` and `NOTICE` files of each affected module and open a PR against `main`. See [Updating LICENSE and NOTICE](#updating-license-and-notice).
 
 3. Check with PMC members to verify the changes. See [Validating with PMC members](#validating-with-pmc-members).
 
-Bundled modules (`LICENSE` and `NOTICE` are in the module directory unless noted):
+#### Bundled modules
+
+`LICENSE` and `NOTICE` are in the module directory unless noted.
 
 - Spark runtime
     - `iceberg-spark-runtime-3.5_2.12` and `iceberg-spark-runtime-3.5_2.13`: `spark/v3.5/spark-runtime`
@@ -123,9 +127,9 @@ Bundled modules (`LICENSE` and `NOTICE` are in the module directory unless noted
 
 #### Updating LICENSE and NOTICE
 
-Each bundled module has its own `LICENSE` and `NOTICE` files that cover every dependency shipped in that module's artifact. For each added, removed, or upgraded dependency, update the affected module's files following the format of the existing entries. The dependency's license, NOTICE content, and any third-party code it bundles can be found in its project repository or in its JAR under `META-INF/`.
+Look up each changed dependency's license, NOTICE content, and any third-party code it bundles in its project repository or in its JAR under `META-INF/`. Then update the module's files:
 
-- **Added dependency**: add a `LICENSE` entry with `Copyright`, `Project URL`, and `License` lines. Note what bundles transitive code, for example `(bundled by Parquet)`. For licenses other than Apache 2.0, include the full license text prefixed with `| `.
+- **Added dependency**: add a `LICENSE` entry with `Copyright`, `Project URL`, and `License` lines. For licenses other than Apache 2.0, also include the full license text, prefixing each line with `| `. If the dependency ships a `NOTICE` file, add a `NOTICE` entry that starts with `This product bundles <name> with the following in its NOTICE file:`, followed by its content with each line prefixed with `| `.
 
     ```text
     This product bundles Caffeine by Ben Manes.
@@ -135,19 +139,23 @@ Each bundled module has its own `LICENSE` and `NOTICE` files that cover every de
     License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
     ```
 
-    If the dependency ships a NOTICE file, also add a `NOTICE` entry: `This product bundles <name> with the following in its NOTICE file:` followed by its content prefixed with `| `.
+- **Removed dependency**: remove its `LICENSE` and `NOTICE` entries, unless another bundled dependency still includes it.
+- **Upgraded dependency**: if its license, `NOTICE` content, or the third-party code it bundles changed, update its entries to match.
 
-- **Removed dependency**: remove its `LICENSE` and `NOTICE` entries.
-- **Upgraded dependency**: check whether its license, NOTICE content, or the third-party code it bundles changed.
+When editing entries:
 
-Separate entries with the existing line of dashes, and apply the same change to every module that bundles the dependency, such as all Spark or Flink versions. See the [ASF licensing guide](https://infra.apache.org/licensing-howto.html) for background.
+- Follow the format of the existing entries and separate them with the existing line of dashes.
+- If the code is included inside another dependency's JAR, name that dependency, for example `This product bundles Apache Thrift (bundled by Parquet).`
+- Apply the same change to every module that bundles the dependency, such as all Spark or Flink versions.
+
+See the [ASF licensing guide](https://infra.apache.org/licensing-howto.html) for background.
 
 Examples from previous changes:
 
 - Adding a dependency: [#18218](https://github.com/apache/iceberg/pull/18218) (Caffeine in `gcp-bundle`)
 - Removing a dependency: [#16106](https://github.com/apache/iceberg/pull/16106) (JSR 305 from `gcp-bundle`)
 - Upgrade that changes transitive dependencies: [#16680](https://github.com/apache/iceberg/pull/16680) (Caffeine 3 replaces checker-qual with JSpecify)
-- Non-Apache licenses and NOTICE content across all modules: [#18227](https://github.com/apache/iceberg/pull/18227) (Schubfach and fast_double_parser bundled by Jackson)
+- Non-Apache licenses and `NOTICE` content across all modules: [#18227](https://github.com/apache/iceberg/pull/18227) (Schubfach and fast_double_parser bundled by Jackson)
 - Full review of one module before a release: [#16104](https://github.com/apache/iceberg/pull/16104) (Spark 4.1 for 1.11)
 
 #### Validating with PMC members
