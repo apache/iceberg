@@ -65,6 +65,52 @@ class TestFileType {
   }
 
   @Test
+  void rejectsASchemaWhereAnotherColumnHoldsADerivedId() {
+    assertThatThrownBy(
+            () ->
+                new Schema(
+                    required(1, "id", Types.LongType.get()),
+                    optional(2, "photo", Types.FileType.of(2)),
+                    optional(3, "data", Types.StringType.get())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Multiple entries with same key")
+        .hasMessageContainingAll("3=photo.uri", "3=data");
+  }
+
+  @Test
+  void rejectsASchemaWhereTwoFileColumnsOverlap() {
+    assertThatThrownBy(
+            () ->
+                new Schema(
+                    optional(1, "photo", Types.FileType.of(1)),
+                    optional(2, "thumbnail", Types.FileType.of(2))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageStartingWith("Multiple entries with same key")
+        .hasMessageContaining("thumbnail");
+  }
+
+  @Test
+  void rejectsASchemaWithUnderivedNestedIds() {
+    assertThatThrownBy(() -> new Schema(optional(5, "photo", Types.FileType.of(9))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid file column photo: file base ID 9 does not match field ID 5");
+  }
+
+  @Test
+  void rejectsASchemaWithUnderivedNestedIdsInAMap() {
+    assertThatThrownBy(
+            () ->
+                new Schema(
+                    optional(
+                        1,
+                        "byName",
+                        Types.MapType.ofOptional(
+                            2, 3, Types.StringType.get(), Types.FileType.of(9)))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid file column byName.value: file base ID 9 does not match field ID 3");
+  }
+
+  @Test
   void isDistinguishableFromAStruct() {
     assertThat(FILE.isFileType()).isTrue();
     assertThat(FILE.asFileType()).isSameAs(FILE);

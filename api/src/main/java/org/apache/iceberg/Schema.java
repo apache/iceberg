@@ -149,6 +149,8 @@ public class Schema implements Serializable {
     this.struct = StructType.of(finalColumns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
 
+    validateFileBaseIds();
+
     // validate IdentifierField
     if (identifierFieldIds != null) {
       Map<Integer, Integer> idToParent = TypeUtil.indexParents(struct);
@@ -159,6 +161,20 @@ public class Schema implements Serializable {
         identifierFieldIds != null ? Ints.toArray(identifierFieldIds) : new int[0];
 
     this.highestFieldId = lazyIdToName().keySet().stream().mapToInt(i -> i).max().orElse(0);
+  }
+
+  private void validateFileBaseIds() {
+    for (NestedField field : lazyIdToField().values()) {
+      if (field.type().isFileType()) {
+        int baseId = field.type().asFileType().baseId();
+        Preconditions.checkArgument(
+            baseId == field.fieldId(),
+            "Invalid file column %s: file base ID %s does not match field ID %s",
+            lazyIdToName().get(field.fieldId()),
+            baseId,
+            field.fieldId());
+      }
+    }
   }
 
   static void validateIdentifierField(
@@ -579,18 +595,31 @@ public class Schema implements Serializable {
     if (getID == null) {
       return columns;
     }
-    Type res =
-        TypeUtil.assignIds(
-            StructType.of(columns),
-            oldId -> {
-              int newId = getID.get(oldId);
-              if (newId != oldId) {
-                idsToReassigned.put(oldId, newId);
-                idsToOriginal.put(newId, oldId);
-              }
-              return newId;
-            });
+
+    TypeUtil.GetID tracked =
+        new TypeUtil.GetID() {
+          @Override
+          public int get(int oldId) {
+            return track(oldId, getID.get(oldId));
+          }
+
+          @Override
+          public int get(int oldId, Type type) {
+            return track(oldId, getID.get(oldId, type));
+          }
+        };
+
+    Type res = TypeUtil.assignIds(StructType.of(columns), tracked);
     return res.asStructType().fields();
+  }
+
+  private int track(int oldId, int newId) {
+    if (newId != oldId) {
+      idsToReassigned.put(oldId, newId);
+      idsToOriginal.put(newId, oldId);
+    }
+
+    return newId;
   }
 
   /**
