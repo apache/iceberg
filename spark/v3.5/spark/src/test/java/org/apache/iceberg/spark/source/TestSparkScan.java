@@ -28,6 +28,7 @@ import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStr
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.util.List;
 import java.util.Map;
@@ -466,6 +467,57 @@ public class TestSparkScan extends TestBaseWithCatalog {
     expectedTwoNDVs.put("id", 4L);
     expectedTwoNDVs.put("data", 2L);
     withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, expectedTwoNDVs));
+  }
+
+  @TestTemplate
+  public void testStatisticsMappedWithSnapshotSchema() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId,
+            "/test/statistics/file.puffin",
+            100,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId,
+                    1,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("ndv", "4")),
+                // Blob for field ID 2 ('data') which is in the snapshot schema but later dropped
+                // from table
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId,
+                    1,
+                    ImmutableList.of(2),
+                    ImmutableMap.of("ndv", "2")),
+                // Blob with empty fields (e.g. table-level or non-field blob)
+                new GenericBlobMetadata(
+                    DUMMY_BLOB_TYPE, snapshotId, 1, ImmutableList.of(), ImmutableMap.of())));
+
+    table.updateStatistics().setStatistics(statisticsFile).commit();
+
+    // Drop column 'data' (field ID 2) to simulate real schema evolution
+    table.updateSchema().deleteColumn("data").commit();
+
+    Table updatedTable = validationCatalog.loadTable(tableIdent);
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(spark, updatedTable, CaseInsensitiveStringMap.empty());
+    SparkScan scan = (SparkScan) scanBuilder.build();
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
+
+    withSQLConf(
+        reportColStatsEnabled,
+        () -> assertThatCode(scan::estimateStatistics).doesNotThrowAnyException());
   }
 
   @TestTemplate
