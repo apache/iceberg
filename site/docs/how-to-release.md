@@ -107,7 +107,7 @@ Some Iceberg artifacts, such as the Spark and Flink runtime JARs, bundle third-p
 
 #### Bundled modules
 
-The `LICENSE` and `NOTICE` files are in the module directory unless noted.
+Each directory contains the `LICENSE` and `NOTICE` files for its artifact.
 
 * Spark runtime
     * `iceberg-spark-runtime-3.5_2.12` and `iceberg-spark-runtime-3.5_2.13`: `spark/v3.5/spark-runtime`
@@ -123,7 +123,10 @@ The `LICENSE` and `NOTICE` files are in the module directory unless noted.
     * `iceberg-azure-bundle`: `azure-bundle`
     * `iceberg-gcp-bundle`: `gcp-bundle`
 * Kafka Connect runtime
-    * `iceberg-kafka-connect-runtime`: `kafka-connect/kafka-connect-runtime` (`LICENSE` and `NOTICE` are in the `main` and `hive` subdirectories)
+    * `iceberg-kafka-connect-runtime` distribution: `kafka-connect/kafka-connect-runtime/main`
+    * `iceberg-kafka-connect-runtime-hive` distribution: `kafka-connect/kafka-connect-runtime/hive`
+
+The Kafka Connect Hive distribution bundles the Hive Metastore and Hadoop client in addition to the dependencies of the main distribution. These additional dependencies are not listed in `runtime-deps.txt`, so please also check the `hive` dependencies in `kafka-connect/build.gradle` and their versions in `gradle/libs.versions.toml` for changes.
 
 #### Updating LICENSE and NOTICE
 
