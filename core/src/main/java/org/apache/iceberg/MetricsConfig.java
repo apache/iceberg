@@ -191,6 +191,11 @@ public final class MetricsConfig implements Serializable {
           }
 
           @Override
+          public Set<Integer> file(Types.FileType file, Iterable<Set<Integer>> fieldResults) {
+            return struct(file.asStruct(), fieldResults);
+          }
+
+          @Override
           @SuppressWarnings("ReturnValueIgnored")
           public Set<Integer> field(Types.NestedField field, Supplier<Set<Integer>> fieldResult) {
             fieldResult.get();
