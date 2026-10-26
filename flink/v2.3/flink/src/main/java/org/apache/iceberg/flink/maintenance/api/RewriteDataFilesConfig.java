@@ -30,6 +30,13 @@ import org.apache.iceberg.util.PropertyUtil;
 public class RewriteDataFilesConfig {
   public static final String PREFIX = FlinkMaintenanceConfig.PREFIX + "rewrite.";
 
+  public static final String BRANCH = PREFIX + "branch";
+  public static final ConfigOption<String> BRANCH_OPTION =
+      ConfigOptions.key(BRANCH)
+          .stringType()
+          .noDefaultValue()
+          .withDescription("The branch to compact. Defaults to the sink's write branch.");
+
   public static final String MAX_BYTES = PREFIX + "max-bytes";
   public static final ConfigOption<Long> MAX_BYTES_OPTION =
       ConfigOptions.key(MAX_BYTES)
@@ -168,6 +175,11 @@ public class RewriteDataFilesConfig {
         .flinkConfig(MAX_BYTES_OPTION)
         .defaultValue(MAX_BYTES_OPTION.defaultValue())
         .parse();
+  }
+
+  /** Gets the branch to compact. */
+  public String branch() {
+    return confParser.stringConf().option(BRANCH).flinkConfig(BRANCH_OPTION).parseOptional();
   }
 
   public Map<String, String> properties() {

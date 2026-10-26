@@ -260,6 +260,10 @@ public class RewriteDataFiles {
           .scheduleOnInterval(
               Duration.ofSeconds(rewriteDataFilesConfig.scheduleOnIntervalSecond()));
 
+      if (rewriteDataFilesConfig.branch() != null) {
+        this.branch(rewriteDataFilesConfig.branch());
+      }
+
       // override the rewrite options
       this.rewriteOptions.putAll(rewriteDataFilesConfig.properties());
 
