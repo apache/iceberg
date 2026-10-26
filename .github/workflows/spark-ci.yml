@@ -81,28 +81,40 @@ jobs:
       with:
         fetch-depth: 2
         persist-credentials: false
+        sparse-checkout: gradle.properties
+        sparse-checkout-cone-mode: false
     - id: plan
       shell: bash
       env:
         EVENT_NAME: ${{ github.event_name }}
       run: |
-        spark='["3.5","4.0","4.1","4.2"]'
-        if [[ "${EVENT_NAME}" == "pull_request" ]]; then
-          # Narrow to one known Spark version only when every changed file is under
-          # the same spark/v<version>/ directory.
-          changed=$(
-            git diff --no-renames --name-only HEAD^1 HEAD 2>/dev/null |
-              awk -F/ '$1 == "spark" && $2 ~ /^v/ && NF > 2 {print substr($2, 2); next} {print "*"}' |
-              sort -u
-          ) || changed=""
-
-          if [[ -n "${changed}" &&
-              "${changed}" != *$'\n'* &&
-              "${changed}" != "*" &&
-              "${spark}" == *"\"${changed}\""* ]]; then
-            spark="[\"${changed}\"]"
-          fi
+        spark_versions_csv=$(sed -n 's/^systemProp\.knownSparkVersions=//p' gradle.properties)
+        if [[ -z "${spark_versions_csv}" ]]; then
+          echo "::error::Cannot read knownSparkVersions from gradle.properties"
+          exit 1
         fi
+        IFS=',' read -r -a spark_versions <<< "${spark_versions_csv}"
+
+        # Narrow only when every changed file belongs to one supported Spark version.
+        if [[ "${EVENT_NAME}" == "pull_request" ]] &&
+            changed_files=$(git diff --no-renames --name-only HEAD^1 HEAD 2>/dev/null) &&
+            [[ -n "${changed_files}" ]]; then
+          for version in "${spark_versions[@]}"; do
+            only_this_version=true
+            while IFS= read -r path; do
+              if [[ "${path}" != "spark/v${version}/"* ]]; then
+                only_this_version=false
+                break
+              fi
+            done <<< "${changed_files}"
+
+            if [[ "${only_this_version}" == "true" ]]; then
+              spark_versions=("${version}")
+              break
+            fi
+          done
+        fi
+        spark=$(jq -cn --args '$ARGS.positional' "${spark_versions[@]}")
         echo "spark=${spark}" >> "${GITHUB_OUTPUT}"
 
   spark-tests:
