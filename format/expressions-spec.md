@@ -228,6 +228,15 @@ Note that `year`, `month`, and `hour` transforms produce ordinal values and not 
 [bucket-ref]: spec.md#bucket-transform-details
 [truncate-ref]: spec.md#truncate-transform-details
 
+### String functions
+
+Both functions produce `null` for a `null` or empty input value.
+
+| Function name           | Description                              | Source types | Result type |
+|-------------------------|------------------------------------------|--------------|-------------|
+| `min_code_point(value)` | Smallest Unicode code point in the value | `string`     | `int`       |
+| `max_code_point(value)` | Largest Unicode code point in the value  | `string`     | `int`       |
+
 ## Appendix B: JSON serialization
 
 Iceberg expressions are serialized as JSON objects in table, view, and UDF metadata, and in the REST protocol for catalogs.

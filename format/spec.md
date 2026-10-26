@@ -288,7 +288,7 @@ Supported primitive types are defined in the table below. Primitive types added 
 |                  | **`timestamptz`**  | Timestamp, microsecond precision, with timezone                          | [2]                                              |
 | [v3](#version-3) | **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [1]                                              |
 | [v3](#version-3) | **`timestamptz_ns`** | Timestamp, nanosecond precision, with timezone                         | [2]                                              |
-|                  | **`string`**       | Arbitrary-length character sequences; may carry a [collation](#collations) | Encoded with UTF-8 [3]                           |
+|                  | **`string`**       | Arbitrary-length character sequences; may have a [collation](#collations)   | Encoded with UTF-8 [3]                           |
 |                  | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
 |                  | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
 |                  | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
@@ -389,22 +389,22 @@ Default values are attributes of fields in schemas and serialized with fields in
 
 #### Collations
 
-A `string` field may carry a **collation**, an attribute that changes how the field's values are compared and ordered without changing how they are stored. Collations enable case-insensitive, accent-insensitive, and locale-aware comparison and sorting. A collation only affects comparison: the stored value is returned unchanged (a value written as `'appLE'` is read back as `'appLE'`).
+A `string` field may have a collation that defines how its values are compared and ordered, for example case-insensitive, accent-insensitive, or locale-aware. A collation does not change how values are stored: a value written as `'appLE'` is read as `'appLE'`.
 
-This change defines exactly two things: the `collation` annotation on string fields, and collation-aware file pruning through collation bounds stored in `content_stats`. It does not give collation semantics to any other part of the table format, because collation order and equality are not stable across collation implementation versions or engines, while the rest of the format must be deterministic. Specifically:
+Any `string` field may have a collation, including nested fields. A struct field uses the `collation` attribute; a list or map uses `element-collation`, `key-collation`, or `value-collation` (see [Appendix C](#appendix-c-json-serialization)). A string field without a collation uses UTF-8 byte order.
 
-* Byte-order `lower_bounds`/`upper_bounds`, partition transforms (including `truncate`), and `bucket`/hash all operate on the binary UTF-8 value and are collation-unaware. Collation-equal but byte-distinct values may therefore land in different partitions or buckets, and a reader must not use partition or bucket pruning to eliminate candidates for a predicate evaluated under a collation.
-* Identifier-field equality is binary value equality by field id; a `collation` annotation does not make it collation-aware.
-* Map key identity is by stored (byte) value, not by collation. A collation on a map key does not merge keys: `map['ABC']` and `map['abc']` remain distinct entries and both may be present in the same map. A key collation affects only how predicates over keys compare — collation-aware key lookup may therefore match more than one stored key, and how that is resolved is engine-defined.
-* This change does not define collation-aware sort orders.
+A collation changes comparison only. The rest of the format stays byte-based, because collation order differs between implementations and versions:
 
-SQL-level comparison, equality, ordering, grouping, and distinctness are the engine's responsibility.
+* Partition transforms, `bucket`, and byte-order bounds use UTF-8 bytes. Values that are equal under a collation can be in different partitions or buckets, so readers must not use partition values to prune a predicate evaluated under a collation.
+* Identifier fields compare bytes.
+* Map keys are distinct by bytes: `map['ABC']` and `map['abc']` are separate entries under a case-insensitive key collation. A lookup under the collation can match both, and the result is engine-defined.
+* Sort orders do not use collations.
 
-A collation may be attached to any field of `string` type, top-level or nested: as a `collation` attribute on a struct field, or as an `element-collation`, `key-collation`, or `value-collation` attribute on an enclosing `list` or `map` (see [Appendix C](#appendix-c-json-serialization)). It may be attached only to `string` types. A string field with no collation defaults to UTF-8 byte-order comparison, the behavior of all prior versions. Nesting does not change how collation bounds work: because every nested string position has its own field id, a collation on a nested string is annotated and carries collation bounds in its own `content_stats` exactly as a top-level string field (see [Collation Bounds](#collation-bounds)).
+SQL comparison, equality, ordering, grouping, and distinctness are the engine's responsibility.
 
-A collation is identified by a provider-qualified name of the form `<provider>.<name>`, for example `icu.en_US-ci`. The provider names the library that defines the collation: `icu` for collations defined by the [Unicode Collation Algorithm](https://unicode.org/reports/tr10/) over [CLDR](https://cldr.unicode.org/) locale data. Providers are a fixed set defined by this spec (`icu`, and the reserved `utf8` below); new providers are added by spec change rather than ad hoc, so that a collation means the same thing on every engine. An engine that does not recognize a provider must not use the collation or its bounds.
+##### Collation Names
 
-The name is a locale with optional modifiers, per the grammar below. Modifier order and letter case are fixed, so the specifier has a canonical form comparable as a string:
+A collation name has the form `<provider>.<name>`, for example `icu.en_US-ci`. The provider is the library that defines the collation. This spec defines one provider, `icu`: the [Unicode Collation Algorithm](https://unicode.org/reports/tr10/) with [CLDR](https://cldr.unicode.org/) locale data. Adding a provider requires a spec change. A reader must not use a collation from a provider it does not recognize.
 
 ```
 specifier  = icu-spec | utf8-spec
@@ -416,43 +416,48 @@ accent-mod = "as" | "ai"                    ; accent sensitive (default) / insen
 trim-mod   = "ltrim" | "rtrim" | "trim"     ; trim leading / trailing / both spaces (U+0020)
 ```
 
-Case- or accent-insensitivity requires a locale, because the rules are language-specific — `ł` and `l` are the same character for `icu.en-ai` but distinct for `icu.pl-ai`. Case-conversion modifiers (upper / lower / casefold) are out of scope for v1.
+Modifier order and case are fixed, so equal collations have equal names. Case- and accent-insensitive collations require a locale: `ł` and `l` are equal under `icu.en-ai` but not under `icu.pl-ai`.
 
-With no trimming modifier a collation is **no-pad**: trailing spaces are significant. Pad-space behavior — trailing spaces not distinguishing values — is requested explicitly with `rtrim` (for example `icu.en_US-ci-rtrim`). The pad characteristic is therefore part of the specifier, not a separate property an engine must infer.
+Without a trim modifier, trailing spaces are significant (NO PAD). `rtrim` gives PAD SPACE behavior, for example `icu.en_US-ci-rtrim`.
 
-The bare name `utf8` is reserved for UTF-8 byte-order comparison and is the one collation name exempt from the `<provider>.<name>` form. It is exactly equivalent to omitting the `collation` attribute: readers and writers must treat a field annotated `utf8` and a field with no collation identically, and adding or removing an explicit `utf8` on an already-uncollated field is a no-op that does not change comparison semantics. A field with collation `utf8` (or no collation) uses the byte-order `lower_bounds`/`upper_bounds` directly and carries no `collation_bounds`.
+`utf8` without a modifier is UTF-8 byte order, the same as no collation.
 
-The schema stores the collation **name without a version**, so any engine that supports the collation can read the table. UCA, DUCET, CLDR, and ICU collation orders are [not stable across versions](https://unicode.org/reports/tr10/#Non-Goals), so collation-aware metrics carry the implementation version they were produced under (see below) and a reader uses them only when it can produce the same order.
+##### Collation Versions
 
-The version is the identifier the provider uses to version its collation order, and must be a value that changes only when the collation order can change, so that a byte-exact match between two engines means they produce the same order. For the `icu` provider this is the [ICU collator version](https://unicode-org.github.io/icu/userguide/collation/architecture.html#versioning) reported for the collation (which folds in the UCA, DUCET, and CLDR versions and the tailoring), formatted as ICU reports it. Two engines built against the same collation data therefore report the same version and can share bounds; a provider release that does not change any order reports the same version, so existing bounds stay usable and no new entry is needed. The version is provider-defined and is compared as an opaque string: a reader treats bounds as usable only on an exact `(collation, version)` match and otherwise scans, so a mismatch degrades pruning but never correctness.
+Collation order can change between versions of a provider's data ([UTS #10](https://unicode.org/reports/tr10/#Non-Goals)). The schema stores the collation name without a version, and collation bounds record the version they were produced under. For `icu`, the version is the [ICU collator version](https://unicode-org.github.io/icu/userguide/collation/architecture.html#versioning), which changes when the collation order can change. Versions are compared as opaque strings.
 
 ##### Collation Bounds
 
-Because a collation can reorder values (for example `'a' < 'B'` under a case-insensitive collation, but `'a' > 'B'` in byte order), byte-order bounds — the v3 `lower_bounds`/`upper_bounds` maps and the byte-order bounds in `content_stats` — cannot be used to evaluate predicates on a collated column. Collation-aware bounds are stored instead in the collated field's own [content stats](#content-stats): the field's stats struct carries a `collation_bounds` list — one entry per collation version — plus `min_code_point` and `max_code_point` for the file. Nothing is added to the schema; the version travels with the metrics.
+Byte-order bounds cannot prune a collated field: under a case-insensitive collation `'a' < 'B'`, but in byte order `'a' > 'B'`. Collation bounds are kept in [stats-only fields](#stats-only-fields), outside the schema. A collated field has:
 
-Each `collation_bounds` entry holds:
+* One `collation-value` stats-only field per collation version. Its type-specific fields are `source-id`, the id of the collated field; `collation`, the collation name; and `version`, the collation version. Its bounds are original string values, compared under that collation and version. The bound type is `string` and `data-type` is omitted.
+* Two `expr-value` stats-only fields with `data-type` `int`, for `min_code_point(ref)` and `max_code_point(ref)` (see [Iceberg functions](expressions-spec.md#appendix-a-iceberg-functions)). The lower bound of the first and the upper bound of the second give the file's code-point range. They do not depend on the collation or its version.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `version` | `string` | Provider's collation version the bounds were produced under (for `icu`, the ICU collator version); compared as an opaque string on read |
-| `lower_bound` | field type | Minimum value under the collation order, stored as the original value (not a sort key) |
-| `upper_bound` | field type | Maximum value under the collation order, stored as the original value |
+For example, for a field `city` with id `5` and collation `icu.de_DE` (`expr` in short form):
 
-The bounds are the **original values** that are the minimum and maximum under the collation order, not collation sort keys (sort keys are not stable across implementation versions). Because the version is recorded on each entry, a writer on a new version just adds an entry — no schema change — and a file may carry several entries, one per `(collation, version)`, so a single file can serve readers pinned to different versions during an upgrade. The collation itself is resolved from the field, not repeated per entry.
+```
+{ "field-id": 101, "type": "collation-value", "source-id": 5, "collation": "icu.de_DE", "version": "153.120.0.0" }
+{ "field-id": 102, "type": "expr-value", "expr": min_code_point(ref(5)), "data-type": "int" }
+{ "field-id": 103, "type": "expr-value", "expr": max_code_point(ref(5)), "data-type": "int" }
+```
 
-`min_code_point` / `max_code_point` record the range of Unicode code points present in the file's values for this field. They are independent of the collation version and are stored once. A reader may use them to reuse a bound across versions when it can establish that the versions order that code-point range identically — for example, an ASCII-only file when a version bump only changed non-ASCII ordering. The exact set of code-point statistics is left to a follow-up.
+`collation-value` bounds must be valid but need not be tight: under the collation and version, `lower_bound` sorts at or before every value in the file, and `upper_bound` at or after.
 
-A `collation_bounds` entry must be valid: under the entry's collation, `lower_bound` sorts at or below every value in the file and `upper_bound` at or above. Bounds need not be tight — a writer may store a looser valid bound, or omit the entry if it cannot produce a valid one.
+A writer should write byte-order bounds for a collated field, so readers without collation support can still prune. A writer that supports the collation should also write `collation-value` bounds for its version and code-point bounds, and adds these stats-only fields when they do not exist. It must not add a second `collation-value` field with the same `source-id`, `collation`, and `version`, and must not write `collation-value` bounds for a version it does not support.
 
-**Writers** are not required to write byte-order bounds for collated columns — as with any column, statistics are optional — but writing them is encouraged so collation-unaware readers can still prune. A writer that supports the field's collation should additionally write a `collation_bounds` entry tagged with the exact `(collation, version)` it used. A writer that does not support the collation or version must not write a collation bound for that field.
+A reader must not use byte-order bounds to prune comparison, equality, or prefix predicates on a collated field. It may prune with `collation-value` bounds when their collation is the field's collation and their version is the reader's version. It may also use bounds from another version of the same collation when both versions order the file's code-point range the same way. Otherwise it scans the file.
 
-**Readers** may prune a file using a `collation_bounds` entry only when its `version` matches the version the reader resolves for the field's collation — or when the reader can otherwise prove the order is unchanged for the file's code-point range; otherwise the entry must be ignored. A reader must not use byte-order bounds to prune comparison, equality, or prefix predicates on a collated column. Collation bounds support comparison and equality pruning only: prefix predicates such as `STARTS_WITH` or `LIKE 'x%'` cannot be pruned by either byte-order or collation bounds, because prefix relationships are not preserved under an arbitrary collation order. When no usable collation bound is available, the file must be scanned. A reader that does not support a field's collation (whether it supports none, or supports others but not this one) does not use its `collation_bounds` and reads the stored values as UTF-8 bytes. Applying the collation's comparison semantics is left to engines that support it.
+Collation bounds prune comparison and equality predicates. They do not prune prefix predicates such as `STARTS_WITH` or `LIKE 'x%'`, because collation order does not preserve prefixes.
+
+A `collation-value` field that is no longer written can be removed. Files with stats for it lose that pruning.
+
+A reader that does not support a field's collation ignores its `collation-value` fields and reads its values as UTF-8 strings.
 
 ##### Collation Evolution
 
-Adding, changing, or removing a field's collation is a metadata-only schema change: the field keeps its id and `string` type and no data files are rewritten (storage is always UTF-8). Because collation is an attribute of the field, it is not a type promotion — only comparison semantics change — and it is always permitted at the format level. Whether an engine exposes it as DDL, and how it handles dependent constructs such as sort orders or equality deletes, is engine policy.
+Adding, changing, or removing a collation is a metadata-only schema change. The field keeps its id and type, data files are not rewritten, and it is not a type promotion.
 
-Changing or adding a collation does not touch the schema beyond the `collation` attribute itself — collation bounds carry their own version, so there is no per-version schema entry to maintain. Because data files are not rewritten, a file written before the change carries `collation_bounds` for the previous collation, or none if the field was previously uncollated. A reader resolves the field's collation from the current schema and, per the reader rules above, uses a `collation_bounds` entry only when its `version` matches; otherwise it is ignored and the file is treated as possibly matching until new stats are written (for example by compaction). Byte-order bounds are unaffected and keep serving collation-unaware readers; removing a collation makes them directly usable again.
+After a change, existing `collation-value` fields no longer match the field's collation: readers ignore them and they can be removed. New bounds are written as files are written or rewritten, for example by compaction. Byte-order and code-point bounds stay valid.
 
 #### Schema Evolution
 
@@ -1054,9 +1059,6 @@ Each stats struct holds statistics for one table field. It may contain the follo
 | _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
 | _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
 | _optional_  | 7      | `total_bytes`             | `long`                    | `string`, `binary`, `variant`, `geometry`, `geography` | Estimated uncompressed bytes in memory of non-null values. The estimate depends on the in-memory representation |
-| _optional_  | 8      | `min_code_point`          | `int`                     | collated `string`                             | Minimum Unicode code point present in the field's values in the file. See [Collations](#collations) |
-| _optional_  | 9      | `max_code_point`          | `int`                     | collated `string`                             | Maximum Unicode code point present in the field's values in the file. See [Collations](#collations) |
-| _optional_  | 18     | `collation_bounds`        | `list<19: collation_bound>` | collated `string`                           | Collation-aware bounds, one `collation_bound` per collation version present. See [Collations](#collations) |
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
@@ -1119,36 +1121,6 @@ For example, stats for an optional `geometry` field named `location` with field-
 ```
 
 For `variant`, both bounds are unshredded `variant` that store variant field bounds by normalized JSON paths as field names. See [Bounds for Variant](#bounds-for-variant) for details on producing these bounds.
-
-Collation-aware bounds for a collated `string` field are stored in the field's own stats struct: a `collation_bounds` list (offset 18) plus `min_code_point` / `max_code_point` (offsets 8, 9). Each list element is a `collation_bound` struct, one per collation version present in the file (see [Collations](#collations)):
-
-| Requirement | Offset | Name          | Type       | Description |
-|-------------|--------|---------------|------------|-------------|
-| _required_  | 20     | `version`     | `string`   | Provider collation version the bounds were produced under |
-| _optional_  | 21     | `lower_bound` | field type | Minimum value under the collation order, stored as the original value |
-| _optional_  | 22     | `upper_bound` | field type | Maximum value under the collation order, stored as the original value |
-
-For example, stats for an optional `string` field named `city` with field-id `5` and collation `icu.de_DE` are stored as:
-
-```
-11_000: optional struct city (default null) {   // base-id = 10_000 + 200 * 5
-  11_001: optional string lower_bound;           // byte-order, for collation-unaware readers
-  11_002: optional string upper_bound;
-  11_003: optional boolean tight_bounds;
-  11_004: optional long value_count;
-  11_005: optional long null_value_count;
-  11_007: optional long total_bytes;
-  11_008: optional int min_code_point;
-  11_009: optional int max_code_point;
-  11_018: optional list collation_bounds {
-    11_019: optional struct collation_bound (default null) {
-      11_020: required string version;           // e.g. the ICU collator version
-      11_021: optional string lower_bound;       // min under icu.de_DE, original value
-      11_022: optional string upper_bound;       // max under icu.de_DE, original value
-    }
-  }
-}
-```
 
 ###### Content Stats in Manifests
 
@@ -2252,11 +2224,10 @@ Equality deletes are prohibited in v4.
 
 Collation changes:
 
-* String fields may carry a `collation` attribute that defines case-insensitive, accent-insensitive, or locale-aware comparison and ordering (see [Collations](#collations))
-* Collation-aware bounds are stored in the collated field's own `content_stats` as a `collation_bounds` list (one entry per collation version) plus `min_code_point`/`max_code_point`, holding the file's minimum and maximum as original values under the collation order, each entry tagged with its collation version
-    * Writers are encouraged (but not required, as statistics are always optional) to write byte-order bounds for collated columns so collation-unaware readers can still prune
-    * Readers must not prune comparison, equality, or prefix predicates on a collated column using byte-order bounds, and may use a `collation_bounds` entry only when its version matches
-* Collation-unaware readers ignore the `collation` attribute and `collation_bounds`, reading collated columns as UTF-8 byte-order strings
+* String fields may have a `collation` (see [Collations](#collations))
+* Collation bounds are stored in stats-only fields: one `collation-value` field per collation version, and code-point fields per collated field
+* Readers must not prune collated fields with byte-order bounds
+* Readers without collation support ignore the `collation` attribute and `collation-value` fields
 
 ### Version 3
 
