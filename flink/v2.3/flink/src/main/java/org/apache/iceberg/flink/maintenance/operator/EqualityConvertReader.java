@@ -78,8 +78,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
   private transient StructLikeSerializer fieldSerializer;
   // Generic records hold java.time values; the serializer expects Iceberg's internal
   // representation (e.g. days for DATE, micros for TIMESTAMP).
-  private transient InternalRecordWrapper dataKeyWrapper;
-  private transient InternalRecordWrapper deleteKeyWrapper;
+  private transient InternalRecordWrapper keyWrapper;
   private transient DeleteLoader deleteLoader;
 
   public EqualityConvertReader(
@@ -107,8 +106,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
         "Equality field IDs %s not present in table schema",
         eqFieldIds);
     fieldSerializer = new StructLikeSerializer();
-    dataKeyWrapper = new InternalRecordWrapper(appendRowPosition(keySchema).asStruct());
-    deleteKeyWrapper = new InternalRecordWrapper(keySchema.asStruct());
+    keyWrapper = new InternalRecordWrapper(keySchema.asStruct());
     deleteLoader = new BaseDeleteLoader(deleteFile -> table.io().newInputFile(deleteFile));
   }
 
@@ -173,7 +171,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
         }
 
         SerializedEqualityValues key =
-            fieldSerializer.serializeKey(dataKeyWrapper.wrap(record), keySchema.asStruct());
+            fieldSerializer.serializeKey(keyWrapper.wrap(record), keySchema.asStruct());
         out.collect(
             IndexCommand.addDataRow(
                 mainSnapshotId,
@@ -210,7 +208,7 @@ public class EqualityConvertReader extends ProcessFunction<ReadCommand, IndexCom
     try (CloseableIterable<Record> records = builder.project(keySchema).reuseContainers().build()) {
       for (Record record : records) {
         SerializedEqualityValues key =
-            fieldSerializer.serializeKey(deleteKeyWrapper.wrap(record), keySchema.asStruct());
+            fieldSerializer.serializeKey(keyWrapper.wrap(record), keySchema.asStruct());
         out.collect(
             IndexCommand.resolveDelete(
                 mainSnapshotId, indexGeneration, key, dataSequenceNumber, deleteSpecId));
