@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
+import java.util.stream.Collectors;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -595,12 +596,29 @@ public class TestEqualityDeleteConverter {
     WriteResult concurrent = write(table, insert(1L, "a", "v1"));
     table.newAppend().appendFile(concurrent.dataFiles()[0]).commit();
 
-    RowDelta rowDelta =
-        table
-            .newRowDelta()
-            .conflictDetectionFilter(result.conflictFilter())
-            .validateNoConflictingDataFiles();
-    assertThatThrownBy(rowDelta::commit)
+    assertThatThrownBy(() -> commit(table, result))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found conflicting files that can contain records matching");
+  }
+
+  @Test
+  public void testConflictFilterCoversKeysAppendedAfterBase() {
+    Table table = createTable(PartitionSpec.unpartitioned());
+    WriteResult first = write(table, insert(1L, "a", "v1"), insert(2L, "a", "v1"));
+    commit(table, first.dataFiles(), first.deleteFiles(), ImmutableList.of());
+    WriteResult second = write(table, delete(1L, "a"), insert(3L, "a", "v1"));
+
+    EqualityDeleteConverter.Result result =
+        new EqualityDeleteConverter(table, null).convert(Arrays.asList(second.deleteFiles()));
+    assertThat(result.baseSnapshotId()).isEqualTo(table.currentSnapshot().snapshotId());
+    assertThat(result.dvFiles()).hasSize(1);
+
+    // another writer commits a row with the deleted key after the base snapshot: the equality
+    // delete would remove it, but the deletion vectors only cover the rows of the base snapshot
+    WriteResult concurrent = write(table, insert(1L, "a", "v2"));
+    table.newAppend().appendFile(concurrent.dataFiles()[0]).commit();
+
+    assertThatThrownBy(() -> commit(table, result, second.dataFiles()))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Found conflicting files that can contain records matching");
   }
@@ -853,6 +871,29 @@ public class TestEqualityDeleteConverter {
       DeleteFile[] addedDeletes,
       Iterable<DeleteFile> removedDeletes) {
     commit(table, dataFiles, Arrays.asList(addedDeletes), removedDeletes);
+  }
+
+  /** Commits the result with the data files of its batch and the validations it asks for. */
+  private static void commit(
+      Table table, EqualityDeleteConverter.Result result, DataFile... dataFiles) {
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .conflictDetectionFilter(result.conflictFilter())
+            .validateNoConflictingDataFiles()
+            .validateNoConflictingDeleteFiles()
+            .validateDataFilesExist(
+                result.dvFiles().stream()
+                    .map(DeleteFile::referencedDataFile)
+                    .collect(Collectors.toList()));
+    if (result.baseSnapshotId() != null) {
+      rowDelta.validateFromSnapshot(result.baseSnapshotId());
+    }
+
+    Arrays.stream(dataFiles).forEach(rowDelta::addRows);
+    result.dvFiles().forEach(rowDelta::addDeletes);
+    result.rewrittenDvFiles().forEach(rowDelta::removeDeletes);
+    rowDelta.commit();
   }
 
   private static Set<String> readRows(Table table) {
