@@ -88,6 +88,22 @@ Note, creating a milestone in github requires a committer. However, a non-commit
 
 The release status is discussed during each community sync meeting. Release manager should join the meeting to report status and discuss any release blocker.
 
+### Review bundled dependency licenses
+
+Modules that ship bundled artifacts (Spark and Flink runtime JARs, AWS/Azure/GCP bundles, and the Kafka Connect runtime) track their runtime dependencies in a checked-in `runtime-deps.txt` file next to their `LICENSE` and `NOTICE` files. CI fails when the resolved dependencies no longer match these files, so every change to a bundled dependency shows up as a change to a `runtime-deps.txt` file.
+
+Before building the release candidate, list the dependency changes since the previous release:
+
+```bash
+git diff apache-iceberg-<PREVIOUS_VERSION> apache/main -- '**/runtime-deps.txt'
+```
+
+For every added, removed, or upgraded dependency, check that the `LICENSE` and `NOTICE` files of the corresponding module reflect it. For example, changes in `spark/v4.1/spark-runtime/runtime-deps.txt` must be reflected in `spark/v4.1/spark-runtime/LICENSE` and `spark/v4.1/spark-runtime/NOTICE`. A newly added module shows up as a new `runtime-deps.txt` file, and its `LICENSE` and `NOTICE` files need a full review. The Kafka Connect runtime keeps its `LICENSE` and `NOTICE` files in the `main` and `hive` subdirectories of `kafka-connect/kafka-connect-runtime`.
+
+`runtime-deps.txt` records only `major.minor` versions, so patch upgrades do not appear in the diff. Patch upgrades rarely change a dependency's license, but dependencies whose `NOTICE` content is version-specific should still be checked.
+
+Missing or outdated entries should be fixed on `main` before the release candidate is created.
+
 ### Build the source release
 
 To create the source release artifacts, run the `source-release.sh` script with the release version and release candidate number:
