@@ -90,40 +90,20 @@ The release status is discussed during each community sync meeting. Release mana
 
 ### Review bundled dependency licenses
 
-Bundled artifacts include third-party code, so their `LICENSE` and `NOTICE` files must list every bundled dependency. Each bundled module checks in a `runtime-deps.txt` file that records its runtime dependencies, and CI fails if the file is out of date. Diffing these files against the previous release shows every dependency change that may require a `LICENSE` or `NOTICE` update.
+Before building the release candidate, check that the `LICENSE` and `NOTICE` files of each bundled module cover the dependencies it ships.
 
-Complete this review before building the release candidate:
-
-1. Fetch the latest `main` and release tags:
+1. Find the dependency changes since the previous release:
 
     ```bash
     git fetch apache main --tags
+    git diff apache-iceberg-<PREVIOUS_VERSION> apache/main -- '**/runtime-deps.txt'
     ```
 
-2. Find the modules whose dependencies changed since the previous release:
+2. Update the module's `LICENSE` and `NOTICE` files for each added, removed, or upgraded dependency.
 
-    ```bash
-    git diff --stat apache-iceberg-<PREVIOUS_VERSION> apache/main -- '**/runtime-deps.txt'
-    ```
+3. Merge any fixes to `main` before creating the release candidate.
 
-3. For each changed module, show the dependency changes:
-
-    ```bash
-    git diff apache-iceberg-<PREVIOUS_VERSION> apache/main -- <MODULE_DIR>/runtime-deps.txt
-    ```
-
-4. Update the module's `LICENSE` and `NOTICE` files for each change:
-    - **Added dependency**: add it to `LICENSE` with its license, and copy its `NOTICE` content (if any) into `NOTICE`.
-    - **Removed dependency**: remove its entries from `LICENSE` and `NOTICE`.
-    - **Upgraded dependency**: check that its license has not changed and that its `NOTICE` content is still current.
-    - **New module** (new `runtime-deps.txt` file): review the module's `LICENSE` and `NOTICE` files in full.
-
-5. Open a PR against `main` with any fixes, and merge it before creating the release candidate.
-
-!!! note
-    `runtime-deps.txt` records only `major.minor` versions, so patch upgrades do not appear in the diff. Patch upgrades rarely change a license, but check dependencies whose `NOTICE` content is version-specific.
-
-Bundled modules and their directories (`runtime-deps.txt`, `LICENSE`, and `NOTICE` are in the module directory unless noted):
+Bundled modules (`LICENSE` and `NOTICE` are in the module directory unless noted):
 
 - Spark runtime
     - `iceberg-spark-runtime-3.5_2.12` and `iceberg-spark-runtime-3.5_2.13`: `spark/v3.5/spark-runtime`
