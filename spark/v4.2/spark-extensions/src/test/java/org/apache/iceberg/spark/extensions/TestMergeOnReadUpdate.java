@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.extensions;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,6 +38,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -50,6 +52,29 @@ public class TestMergeOnReadUpdate extends TestUpdate {
   protected Map<String, String> extraTableProperties() {
     return ImmutableMap.of(
         TableProperties.UPDATE_MODE, RowLevelOperationMode.MERGE_ON_READ.modeName());
+  }
+
+  @TestTemplate
+  void updateCommitsWithConcurrentDeleteOfAnotherDataFile() throws IOException {
+    createAndInitTable("id INT, dep STRING");
+    append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }");
+    Table table = validationCatalog.loadTable(tableIdent);
+    DataFile dataFile =
+        Iterables.getOnlyElement(
+            SnapshotChanges.builderFor(table)
+                .snapshot(table.currentSnapshot())
+                .build()
+                .addedDataFiles());
+    createBranchIfNeeded();
+    append(commitTarget(), "{ \"id\": 2, \"dep\": \"hr\" }");
+
+    sql("UPDATE %s SET dep = 'it' WHERE id = 2", tableWithConcurrentDelete(dataFile, 0L));
+
+    sql("REFRESH TABLE %s", tableName);
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(2, "it")),
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
   @TestTemplate

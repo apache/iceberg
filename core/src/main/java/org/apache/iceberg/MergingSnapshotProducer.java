@@ -620,7 +620,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * @param parent ending snapshot on the branch being validated
    */
   @SuppressWarnings("CollectionUndefinedEquality")
-  protected void validateNoNewDeleteFiles(
+  void validateNoNewDeleteFiles(
       TableMetadata base,
       Long startingSnapshotId,
       Expression dataFilter,
@@ -644,7 +644,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * Returns the locations of the data files that the delete files added by this operation apply to,
    * or null if one of them may apply to more than one data file.
    */
-  protected CharSequenceSet referencedDataFilesOfAddedDeletes() {
+  CharSequenceSet referencedDataFilesOfAddedDeletes() {
     CharSequenceSet referencedDataFiles = CharSequenceSet.of(dvsByReferencedFile.keySet());
     for (DeleteFile deleteFile : v2Deletes) {
       CharSequence referencedDataFile = ContentFileUtil.referencedDataFile(deleteFile);

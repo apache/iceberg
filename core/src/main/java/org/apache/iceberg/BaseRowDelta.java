@@ -187,14 +187,13 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
   }
 
   /**
-   * Returns the locations of the data files this commit modifies: those its delete files apply to,
-   * those passed to {@link #validateDataFilesExist(Iterable)} and those it removes. Returns null if
-   * a delete file it adds may apply to more than one data file.
+   * Returns the locations of the data files this commit modifies: those its delete files apply to
+   * and those it removes. Returns null if a delete file it adds may apply to more than one data
+   * file.
    */
   private CharSequenceSet modifiedDataFiles() {
     CharSequenceSet modifiedDataFiles = referencedDataFilesOfAddedDeletes();
     if (modifiedDataFiles != null) {
-      modifiedDataFiles.addAll(referencedDataFiles);
       removedDataFiles.forEach(file -> modifiedDataFiles.add(file.location()));
     }
 

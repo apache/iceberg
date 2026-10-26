@@ -151,8 +151,10 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    * operation.
    *
    * <p>This method must be called when the table is queried to produce a row delta for UPDATE and
-   * MERGE operations independently of the isolation level. Calling this method isn't required for
-   * DELETE operations as it is OK to delete a record that is also deleted concurrently.
+   * MERGE operations independently of the isolation level, unless an UPDATE calls {@link
+   * #validateNoConflictingDeleteFilesForModifiedDataFiles()} instead. Calling this method isn't
+   * required for DELETE operations as it is OK to delete a record that is also deleted
+   * concurrently.
    *
    * <p>Validation uses the conflict detection filter passed to {@link
    * #conflictDetectionFilter(Expression)} and applies to operations that happened after the
@@ -174,8 +176,9 @@ public interface RowDelta extends SnapshotUpdate<RowDelta> {
    * delete file itself.
    *
    * <p>This method can be called instead of {@link #validateNoConflictingDeleteFiles()} for UPDATE
-   * operations. It is not sufficient for a MERGE whose inserts depend on target rows that it
-   * matched without modifying them.
+   * operations. A concurrent delete of a row that the UPDATE only reads, such as through a subquery
+   * in its condition, is not detected. It is not sufficient for a MERGE whose inserts depend on
+   * target rows that it matched without modifying them.
    *
    * <p>Validation uses the conflict detection filter passed to {@link
    * #conflictDetectionFilter(Expression)} and applies to operations that happened after the
