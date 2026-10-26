@@ -18,4 +18,4 @@
  */
 package org.apache.iceberg.expressions;
 
-public interface BoundExpression<T> {}
+public interface BoundExpression<T> extends Expression {}
