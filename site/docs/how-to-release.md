@@ -99,22 +99,7 @@ Before building the release candidate, check that the `LICENSE` and `NOTICE` fil
     git diff apache-iceberg-<PREVIOUS_VERSION> apache/main -- '**/runtime-deps.txt'
     ```
 
-2. Update the module's `LICENSE` and `NOTICE` files for each added, removed, or upgraded dependency. Check the dependency's JAR (`META-INF/LICENSE*` and `META-INF/NOTICE*`) for its license, its NOTICE content, and any third-party code it bundles. Follow the format of the existing entries:
-    - `LICENSE`: add an entry with `Copyright`, `Project URL`, and `License` lines. Note what bundles transitive code, for example `(bundled by Parquet)`. For licenses other than Apache 2.0, include the full license text prefixed with `| `.
-
-        ```text
-        This product bundles Caffeine by Ben Manes.
-
-        Copyright: 2014-2020 Ben Manes and contributors
-        Project URL: https://github.com/ben-manes/caffeine
-        License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
-        ```
-
-    - `NOTICE`: if the dependency ships a NOTICE file, add `This product bundles <name> with the following in its NOTICE file:` followed by its content prefixed with `| `.
-    - Separate entries with the existing line of dashes.
-    - Apply the same change to every module that bundles the dependency, such as all Spark or Flink versions.
-
-    See the [ASF licensing guide](https://infra.apache.org/licensing-howto.html) for background.
+2. Update the `LICENSE` and `NOTICE` files of each affected module. See [Updating LICENSE and NOTICE](#updating-license-and-notice).
 
 3. Merge any fixes to `main` before creating the release candidate.
 
@@ -135,6 +120,35 @@ Bundled modules (`LICENSE` and `NOTICE` are in the module directory unless noted
     - `iceberg-gcp-bundle`: `gcp-bundle`
 - Kafka Connect runtime
     - `iceberg-kafka-connect-runtime`: `kafka-connect/kafka-connect-runtime` (`LICENSE` and `NOTICE` are in the `main` and `hive` subdirectories)
+
+#### Updating LICENSE and NOTICE
+
+For each added, removed, or upgraded dependency, check the dependency's JAR (`META-INF/LICENSE*` and `META-INF/NOTICE*`) for its license, its NOTICE content, and any third-party code it bundles. Then update the files following the format of the existing entries:
+
+- **Added dependency**: add a `LICENSE` entry with `Copyright`, `Project URL`, and `License` lines. Note what bundles transitive code, for example `(bundled by Parquet)`. For licenses other than Apache 2.0, include the full license text prefixed with `| `.
+
+    ```text
+    This product bundles Caffeine by Ben Manes.
+
+    Copyright: 2014-2020 Ben Manes and contributors
+    Project URL: https://github.com/ben-manes/caffeine
+    License: Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+    ```
+
+    If the dependency ships a NOTICE file, also add a `NOTICE` entry: `This product bundles <name> with the following in its NOTICE file:` followed by its content prefixed with `| `.
+
+- **Removed dependency**: remove its `LICENSE` and `NOTICE` entries.
+- **Upgraded dependency**: check whether its license, NOTICE content, or the third-party code it bundles changed.
+
+Separate entries with the existing line of dashes, and apply the same change to every module that bundles the dependency, such as all Spark or Flink versions. See the [ASF licensing guide](https://infra.apache.org/licensing-howto.html) for background.
+
+Examples from previous changes:
+
+- Adding a dependency: [#18218](https://github.com/apache/iceberg/pull/18218) (Caffeine in `gcp-bundle`)
+- Removing a dependency: [#16106](https://github.com/apache/iceberg/pull/16106) (JSR 305 from `gcp-bundle`)
+- Upgrade that changes transitive dependencies: [#16680](https://github.com/apache/iceberg/pull/16680) (Caffeine 3 replaces checker-qual with JSpecify)
+- Non-Apache licenses and NOTICE content across all modules: [#18227](https://github.com/apache/iceberg/pull/18227) (Schubfach and fast_double_parser bundled by Jackson)
+- Full review of one module before a release: [#16104](https://github.com/apache/iceberg/pull/16104) (Spark 4.1 for 1.11)
 
 ### Build the source release
 
