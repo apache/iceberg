@@ -1445,9 +1445,8 @@ paths:
         Signs a batch of requests to object storage on the client's behalf.
 
 
-        A server that supports this operation for a table MUST set `sign-batch-max-size` in the
-        table's `RemoteSigningConfig`. A client MUST NOT send more elements than that value. A
-        batch above the server's limit is rejected with 413.
+        A client should use `sign-batch-max-size` from the table's `RemoteSigningConfig` as the
+        maximum number of elements in a batch.
 
 
         A 200 response means the batch was processed. Each element of `requests` is reported once,
@@ -5554,7 +5553,6 @@ components:
       type: object
       required:
         - uri
-        - headers
       properties:
         uri:
           type: string
@@ -5629,6 +5627,7 @@ components:
         sign-batch-max-size:
           type: integer
           minimum: 1
+          default: 100
           description: The maximum number of elements in one `batchSignRequests` request for this table.
 
   #############################
@@ -5811,14 +5810,14 @@ components:
 
     BatchContentTooLargeResponse:
       description:
-        The batch has more elements than the server accepts, as set in `sign-batch-max-size`.
+        The batch has more elements than the server accepts.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
             "error": {
-              "message": "Batch exceeds the maximum of 100 elements",
+              "message": "Batch exceeds the maximum number of allowed elements",
               "type": "ContentTooLargeException",
               "code": 413
             }

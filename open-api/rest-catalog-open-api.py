@@ -1181,7 +1181,7 @@ class RemoteSignBatchElement(BaseModel):
     """
 
     uri: str
-    headers: MultiValuedMap
+    headers: MultiValuedMap | None = None
     body: str | None = Field(
         None,
         description='Optional body of the request to send to the signing API, as in `RemoteSignRequest`.',
@@ -1236,7 +1236,7 @@ class RemoteSigningConfig(BaseModel):
         description='Static headers the signer client MUST include unchanged in every request to the signing endpoint.\n',
     )
     sign_batch_max_size: int | None = Field(
-        None,
+        100,
         alias='sign-batch-max-size',
         description='The maximum number of elements in one `batchSignRequests` request for this table.',
         ge=1,
