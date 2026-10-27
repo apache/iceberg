@@ -98,11 +98,14 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
     Set<Long> pickedAncestorSnapshotIds = Sets.newHashSet();
     for (long snapshotId : ancestorIds) {
       Map<String, String> summary = beforeExpiration.snapshot(snapshotId).summary();
-      String sourceSnapshotId =
-          summary != null ? summary.get(SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP) : null;
+      Long sourceSnapshotId =
+          summary != null
+              ? PropertyUtil.propertyAsNullableLong(
+                  summary, SnapshotSummary.SOURCE_SNAPSHOT_ID_PROP)
+              : null;
       if (sourceSnapshotId != null) {
         // protect any snapshot that was cherry-picked into the current table state
-        pickedAncestorSnapshotIds.add(Long.parseLong(sourceSnapshotId));
+        pickedAncestorSnapshotIds.add(sourceSnapshotId);
       }
     }
 

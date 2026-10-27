@@ -124,7 +124,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     table.newAppend().appendFile(FILE_B).commit();
     Snapshot secondSnapshot = table.currentSnapshot();
-    dropSnapshotSummary(secondSnapshot.snapshotId());
+    addSnapshotWithoutSummary(secondSnapshot.snapshotId());
     assertThat(table.snapshot(secondSnapshot.snapshotId()).summary()).isNull();
 
     long tAfterSecondCommit = waitUntilAfter(table.currentSnapshot().timestampMillis());
@@ -147,7 +147,7 @@ public class TestRemoveSnapshots extends TestBase {
 
     table.newAppend().appendFile(FILE_A).commit();
     Snapshot firstSnapshot = table.currentSnapshot();
-    dropSnapshotSummary(firstSnapshot.snapshotId());
+    addSnapshotWithoutSummary(firstSnapshot.snapshotId());
     assertThat(table.snapshot(firstSnapshot.snapshotId()).summary()).isNull();
 
     waitUntilAfter(table.currentSnapshot().timestampMillis());
@@ -2026,7 +2026,7 @@ public class TestRemoveSnapshots extends TestBase {
 
   // simulates a snapshot with no summary, which is valid for snapshots written before summaries
   // were introduced
-  private void dropSnapshotSummary(long snapshotId) throws IOException {
+  private void addSnapshotWithoutSummary(long snapshotId) throws IOException {
     TableMetadata current = readMetadata();
     ObjectNode root = (ObjectNode) JsonUtil.mapper().readTree(TableMetadataParser.toJson(current));
     for (JsonNode snapshotNode : root.withArray(TableMetadataParser.SNAPSHOTS)) {
