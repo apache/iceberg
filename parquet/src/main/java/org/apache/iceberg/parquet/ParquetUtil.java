@@ -47,7 +47,6 @@ import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.crypto.FileDecryptionProperties;
-import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
@@ -67,14 +66,18 @@ public class ParquetUtil {
 
   public static Metrics fileMetrics(
       InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
-    try (ParquetFileReader reader = openFileReader(file)) {
-      return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
+    try (ParquetFileReaderFactory.ParquetFileReaderWrapper reader = openFileReader(file)) {
+      return footerMetrics(reader.footer(), Stream.empty(), metricsConfig, nameMapping);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file.location());
+    } catch (Exception e) {
+      throw new RuntimeIOException(
+          new IOException(e), "Failed to read footer of file: %s", file.location());
     }
   }
 
-  private static ParquetFileReader openFileReader(InputFile file) throws IOException {
+  private static ParquetFileReaderFactory.ParquetFileReaderWrapper openFileReader(InputFile file)
+      throws IOException {
     if (file instanceof NativeEncryptionInputFile nativeFile) {
       FileDecryptionProperties decryptionProperties =
           FileDecryptionProperties.builder()
@@ -85,10 +88,10 @@ public class ParquetUtil {
           ParquetReadOptions.builder(new PlainParquetConfiguration())
               .withDecryption(decryptionProperties)
               .build();
-      return ParquetFileReader.open(ParquetIO.file(nativeFile.encryptedInputFile()), options);
+      return ParquetFileReaderFactory.open(nativeFile.encryptedInputFile(), options);
     }
 
-    return ParquetFileReader.open(ParquetIO.file(file));
+    return ParquetFileReaderFactory.open(file, null);
   }
 
   public static Metrics footerMetrics(
@@ -140,6 +143,15 @@ public class ParquetUtil {
     List<Long> splitOffsets = Lists.newArrayListWithExpectedSize(md.getBlocks().size());
     for (BlockMetaData blockMetaData : md.getBlocks()) {
       splitOffsets.add(blockMetaData.getStartingPos());
+    }
+    Collections.sort(splitOffsets);
+    return splitOffsets;
+  }
+
+  static List<Long> getSplitOffsets(org.apache.iceberg.parquet.metadata.ParquetMetadata md) {
+    List<Long> splitOffsets = Lists.newArrayListWithExpectedSize(md.blocks().size());
+    for (org.apache.iceberg.parquet.metadata.BlockMetadata block : md.blocks()) {
+      splitOffsets.add(block.columns().get(0).getStartingPos());
     }
     Collections.sort(splitOffsets);
     return splitOffsets;
