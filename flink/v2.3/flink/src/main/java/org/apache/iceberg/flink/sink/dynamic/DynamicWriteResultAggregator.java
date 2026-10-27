@@ -20,13 +20,19 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.flink.annotation.VisibleForTesting;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.runtime.checkpoint.CheckpointIDCounter;
 import org.apache.flink.runtime.state.StateInitializationContext;
+import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
@@ -44,6 +50,7 @@ import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
 import org.apache.iceberg.flink.sink.FlinkManifestUtil;
 import org.apache.iceberg.flink.sink.ManifestOutputFileFactory;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -52,8 +59,11 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Operator which aggregates the individual {@link WriteResult} objects to a single {@link
- * DynamicCommittable} per checkpoint (storing the serialized {@link DeltaManifests}, jobId,
+ * DynamicCommittable} per checkpoint (storing the serialized {@link DeltaManifests}, jobId, sinkId,
  * operatorId, checkpointId)
+ *
+ * <p>The sinkId is restored from state, or taken from the sink when starting without state. The
+ * jobId is used when checkpointing is disabled.
  */
 class DynamicWriteResultAggregator
     extends AbstractStreamOperator<CommittableMessage<DynamicCommittable>>
@@ -62,8 +72,12 @@ class DynamicWriteResultAggregator
 
   private static final Logger LOG = LoggerFactory.getLogger(DynamicWriteResultAggregator.class);
 
+  private static final ListStateDescriptor<String> SINK_ID_DESCRIPTOR =
+      new ListStateDescriptor<>("iceberg-dynamic-sink-id", BasicTypeInfo.STRING_TYPE_INFO);
+
   private final CatalogLoader catalogLoader;
   private final int cacheMaximumSize;
+  private final String initialSinkId;
 
   private long lastCheckpointId = CheckpointIDCounter.INITIAL_CHECKPOINT_ID - 1;
 
@@ -72,14 +86,18 @@ class DynamicWriteResultAggregator
   private transient Map<String, Tuple2<ManifestOutputFileFactory, Integer>>
       outputFileFactoriesAndFormatVersions;
   private transient String flinkJobId;
+  private transient String sinkId;
+  private transient ListState<String> sinkIdState;
   private transient String operatorId;
   private transient int subTaskId;
   private transient int attemptId;
   private transient Catalog catalog;
 
-  DynamicWriteResultAggregator(CatalogLoader catalogLoader, int cacheMaximumSize) {
+  DynamicWriteResultAggregator(
+      CatalogLoader catalogLoader, int cacheMaximumSize, String initialSinkId) {
     this.catalogLoader = catalogLoader;
     this.cacheMaximumSize = cacheMaximumSize;
+    this.initialSinkId = initialSinkId;
   }
 
   @Override
@@ -87,6 +105,22 @@ class DynamicWriteResultAggregator
     context
         .getRestoredCheckpointId()
         .ifPresent(checkpointId -> this.lastCheckpointId = checkpointId);
+
+    this.sinkIdState = context.getOperatorStateStore().getUnionListState(SINK_ID_DESCRIPTOR);
+    if (!CheckpointingOptions.isCheckpointingEnabled(
+        getContainingTask().getEnvironment().getJobConfiguration())) {
+      this.sinkId = getContainingTask().getEnvironment().getJobID().toString();
+    } else {
+      this.sinkId = Iterables.getFirst(sinkIdState.get(), initialSinkId);
+    }
+
+    LOG.info("Using sinkId {} to deduplicate commits", sinkId);
+  }
+
+  @Override
+  public void snapshotState(StateSnapshotContext context) throws Exception {
+    super.snapshotState(context);
+    sinkIdState.update(List.of(sinkId));
   }
 
   @Override
@@ -129,6 +163,7 @@ class DynamicWriteResultAggregator
                   entries.getKey(),
                   writeToManifests(entries.getKey().tableName(), entries.getValue(), checkpointId),
                   getContainingTask().getEnvironment().getJobID().toString(),
+                  sinkId,
                   getRuntimeContext().getOperatorUniqueID(),
                   checkpointId),
               checkpointId,

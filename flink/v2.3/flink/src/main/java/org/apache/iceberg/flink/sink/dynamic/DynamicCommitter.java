@@ -71,7 +71,7 @@ import org.slf4j.LoggerFactory;
  *   <li>There is no late checkpoint - if checkpoint 'x' has received in one call, then after a
  *       successful run only checkpoints &gt; x will arrive
  *   <li>There is no other writer which would generate another commit to the same branch with the
- *       same jobId-operatorId-checkpointId triplet
+ *       same sinkId-operatorId-checkpointId triplet
  * </ul>
  */
 @Internal
@@ -83,10 +83,10 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
   private static final long INITIAL_CHECKPOINT_ID = -1L;
 
   private static final String FLINK_JOB_ID = "flink.job-id";
+  private static final String SINK_ID = "flink.sink-id";
   private static final String OPERATOR_ID = "flink.operator-id";
   private final Map<String, String> snapshotProperties;
   private final boolean replacePartitions;
-  private final boolean isRestored;
   private final DynamicCommitterMetrics committerMetrics;
   private final Catalog catalog;
   private final ExecutorService workerPool;
@@ -97,11 +97,9 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       boolean replacePartitions,
       int workerPoolSize,
       String sinkId,
-      boolean isRestored,
       DynamicCommitterMetrics committerMetrics) {
     this.snapshotProperties = snapshotProperties;
     this.replacePartitions = replacePartitions;
-    this.isRestored = isRestored;
     this.committerMetrics = committerMetrics;
     this.catalog = catalog;
     this.workerPool =
@@ -122,9 +120,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
               |              |                  |              |
               |              |                  |              +-- commit requests at that checkpoint
               |              |                  +-- checkpointId, sorted ascending so older commits go first
-              |              +-- (jobId, operatorId) of the producing aggregator; deduplication against the
-              |                  table's snapshot summaries is per (jobId, operatorId), so each group is
-              |                  walked against the ancestor chain independently
+              |              +-- (jobId, sinkId, operatorId) of the producing aggregator; each group is
+              |                  deduplicated against the ancestor chain independently
               +-- (tableName, branch); we load the table and its ancestor chain once per TableKey
 
       Each (table, branch, checkpoint) triplet must have only one commit request.
@@ -153,10 +150,9 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       TableKey tableKey = tableEntry.getKey();
       Table table = catalog.loadTable(TableIdentifier.parse(tableKey.tableName()));
       Snapshot latestSnapshot = table.snapshot(tableKey.branch());
-      Long latestSnapshotId = latestSnapshot != null ? latestSnapshot.snapshotId() : null;
       Iterable<Snapshot> ancestors =
-          latestSnapshotId != null
-              ? SnapshotUtil.ancestorsOf(latestSnapshotId, table::snapshot)
+          latestSnapshot != null
+              ? SnapshotUtil.ancestorsOf(latestSnapshot.snapshotId(), table::snapshot)
               : List.of();
 
       List<Map.Entry<JobOperatorKey, NavigableMap<Long, List<CommitRequest<DynamicCommittable>>>>>
@@ -171,22 +167,13 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
           jobEntry : jobEntries) {
         JobOperatorKey jobKey = jobEntry.getKey();
         long maxCommittedCheckpointId =
-            isRestored
-                ? getMaxCommittedCheckpointId(ancestors, jobKey.jobId(), jobKey.operatorId(), null)
-                : INITIAL_CHECKPOINT_ID;
+            getMaxCommittedCheckpointId(
+                ancestors, jobKey.jobId(), jobKey.sinkId(), jobKey.operatorId());
 
         NavigableMap<Long, List<CommitRequest<DynamicCommittable>>> skippedCommitRequests =
             jobEntry.getValue().headMap(maxCommittedCheckpointId, true);
-        if (!skippedCommitRequests.isEmpty()) {
-          LOG.warn(
-              "Skipping {} already committed checkpoint(s) up to {} for table {}, branch {}: {}",
-              skippedCommitRequests.size(),
-              maxCommittedCheckpointId,
-              table.name(),
-              tableKey.branch(),
-              skippedCommitRequests.keySet());
-        }
-
+        LOG.debug(
+            "Skipping {} commit requests: {}", skippedCommitRequests.size(), skippedCommitRequests);
         // Mark the already committed FilesCommittable(s) as finished
         skippedCommitRequests
             .values()
@@ -200,30 +187,20 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
               tableKey.branch(),
               uncommitted,
               jobKey.jobId(),
-              jobKey.operatorId(),
-              latestSnapshotId);
+              jobKey.sinkId(),
+              jobKey.operatorId());
         }
       }
     }
   }
 
   private static long getMaxCommittedCheckpointId(
-      Iterable<Snapshot> ancestors,
-      String flinkJobId,
-      String operatorId,
-      @Nullable Long stopAtSnapshotId) {
+      Iterable<Snapshot> ancestors, String flinkJobId, @Nullable String sinkId, String operatorId) {
     long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
 
     for (Snapshot ancestor : ancestors) {
-      if (stopAtSnapshotId != null && stopAtSnapshotId == ancestor.snapshotId()) {
-        break;
-      }
-
       Map<String, String> summary = ancestor.summary();
-      String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
-      String snapshotOperatorId = summary.get(OPERATOR_ID);
-      if (flinkJobId.equals(snapshotFlinkJobId)
-          && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
+      if (writtenBySameSink(summary, flinkJobId, sinkId, operatorId)) {
         String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
         if (value != null) {
           lastCommittedCheckpointId = Long.parseLong(value);
@@ -235,6 +212,21 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     return lastCommittedCheckpointId;
   }
 
+  private static boolean writtenBySameSink(
+      Map<String, String> summary, String flinkJobId, @Nullable String sinkId, String operatorId) {
+    String snapshotOperatorId = summary.get(OPERATOR_ID);
+    if (snapshotOperatorId != null && !snapshotOperatorId.equals(operatorId)) {
+      return false;
+    }
+
+    String snapshotSinkId = summary.get(SINK_ID);
+    if (sinkId != null) {
+      return sinkId.equals(snapshotSinkId);
+    }
+
+    return snapshotSinkId == null && flinkJobId.equals(summary.get(FLINK_JOB_ID));
+  }
+
   /**
    * Commits the data to the Iceberg table by reading the file data from the {@link DeltaManifests}
    * ordered by the checkpointId, and writing the new snapshot to the Iceberg table. The {@link
@@ -243,8 +235,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
    *
    * @param commitRequestMap The checkpointId to {@link CommitRequest} map of the changes to commit
    * @param newFlinkJobId The jobId to store in the {@link SnapshotSummary}
+   * @param sinkId The sinkId to store in the {@link SnapshotSummary}, null for older state
    * @param operatorId The operatorId to store in the {@link SnapshotSummary}
-   * @param baseSnapshotId The branch head the commit requests were deduplicated against
    * @throws IOException On commit failure
    */
   private void commitPendingRequests(
@@ -252,8 +244,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       String branch,
       NavigableMap<Long, List<CommitRequest<DynamicCommittable>>> commitRequestMap,
       String newFlinkJobId,
-      String operatorId,
-      @Nullable Long baseSnapshotId)
+      @Nullable String sinkId,
+      String operatorId)
       throws IOException {
     long checkpointId = commitRequestMap.lastKey();
     List<ManifestFile> manifests = Lists.newArrayList();
@@ -287,9 +279,9 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     }
 
     if (replacePartitions) {
-      replacePartitions(table, branch, pendingResults, newFlinkJobId, operatorId, baseSnapshotId);
+      replacePartitions(table, branch, pendingResults, newFlinkJobId, sinkId, operatorId);
     } else {
-      commitDeltaTxn(table, branch, pendingResults, newFlinkJobId, operatorId, baseSnapshotId);
+      commitDeltaTxn(table, branch, pendingResults, newFlinkJobId, sinkId, operatorId);
     }
 
     FlinkManifestUtil.deleteCommittedManifests(table, manifests, newFlinkJobId, checkpointId);
@@ -300,8 +292,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       String branch,
       NavigableMap<Long, List<WriteResult>> pendingResults,
       String newFlinkJobId,
-      String operatorId,
-      @Nullable Long baseSnapshotId) {
+      @Nullable String sinkId,
+      String operatorId) {
     // Iceberg tables are unsorted. So the order of the append data does not matter.
     // Hence, we commit everything in one snapshot.
     ReplacePartitions dynamicOverwrite = table.newReplacePartitions().scanManifestsWith(workerPool);
@@ -322,9 +314,9 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
         summary,
         "dynamic partition overwrite",
         newFlinkJobId,
+        sinkId,
         operatorId,
-        pendingResults.lastKey(),
-        baseSnapshotId);
+        pendingResults.lastKey());
   }
 
   private void commitDeltaTxn(
@@ -332,8 +324,8 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       String branch,
       NavigableMap<Long, List<WriteResult>> pendingResults,
       String newFlinkJobId,
-      String operatorId,
-      @Nullable Long baseSnapshotId) {
+      @Nullable String sinkId,
+      String operatorId) {
     for (Map.Entry<Long, List<WriteResult>> e : pendingResults.entrySet()) {
       long checkpointId = e.getKey();
       List<WriteResult> writeResults = e.getValue();
@@ -366,9 +358,9 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
           summary,
           "rowDelta",
           newFlinkJobId,
+          sinkId,
           operatorId,
-          checkpointId,
-          baseSnapshotId);
+          checkpointId);
     }
   }
 
@@ -381,24 +373,24 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
   private static class MaxCommittedCheckpointIdValidator implements SnapshotAncestryValidator {
     private final long stagedCheckpointId;
     private final String flinkJobId;
+    private final String sinkId;
     private final String flinkOperatorId;
-    private final Long baseSnapshotId;
 
     private MaxCommittedCheckpointIdValidator(
         long stagedCheckpointId,
         String flinkJobId,
-        String flinkOperatorId,
-        @Nullable Long baseSnapshotId) {
+        @Nullable String sinkId,
+        String flinkOperatorId) {
       this.stagedCheckpointId = stagedCheckpointId;
       this.flinkJobId = flinkJobId;
+      this.sinkId = sinkId;
       this.flinkOperatorId = flinkOperatorId;
-      this.baseSnapshotId = baseSnapshotId;
     }
 
     @Override
     public boolean validate(Iterable<Snapshot> baseSnapshots) {
       long maxCommittedCheckpointId =
-          getMaxCommittedCheckpointId(baseSnapshots, flinkJobId, flinkOperatorId, baseSnapshotId);
+          getMaxCommittedCheckpointId(baseSnapshots, flinkJobId, sinkId, flinkOperatorId);
       if (maxCommittedCheckpointId >= stagedCheckpointId) {
         throw new MaxCommittedCheckpointMismatchException();
       }
@@ -415,9 +407,9 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
       CommitSummary summary,
       String description,
       String newFlinkJobId,
+      @Nullable String sinkId,
       String operatorId,
-      long checkpointId,
-      @Nullable Long baseSnapshotId) {
+      long checkpointId) {
 
     LOG.info(
         "Committing {} for checkpoint {} to table {} branch {} with summary: {}",
@@ -431,11 +423,14 @@ class DynamicCommitter implements Committer<DynamicCommittable> {
     // used by the sink.
     operation.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
     operation.set(FLINK_JOB_ID, newFlinkJobId);
+    if (sinkId != null) {
+      operation.set(SINK_ID, sinkId);
+    }
+
     operation.set(OPERATOR_ID, operatorId);
     operation.toBranch(branch);
     operation.validateWith(
-        new MaxCommittedCheckpointIdValidator(
-            checkpointId, newFlinkJobId, operatorId, baseSnapshotId));
+        new MaxCommittedCheckpointIdValidator(checkpointId, newFlinkJobId, sinkId, operatorId));
 
     long startNano = System.nanoTime();
     try {

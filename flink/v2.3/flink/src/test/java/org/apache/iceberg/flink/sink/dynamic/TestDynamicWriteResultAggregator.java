@@ -21,14 +21,18 @@ package org.apache.iceberg.flink.sink.dynamic;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
+import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
+import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
 import org.apache.flink.streaming.api.connector.sink2.SinkV2Assertions;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.util.AbstractStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -51,6 +55,8 @@ class TestDynamicWriteResultAggregator {
 
   final int cacheMaximumSize = 1;
 
+  private static final int MAX_PARALLELISM = 10;
+
   private static final DataFile DATA_FILE =
       DataFiles.builder(PartitionSpec.unpartitioned())
           .withPath("/path/to/data-1.parquet")
@@ -64,7 +70,8 @@ class TestDynamicWriteResultAggregator {
     CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table2"), new Schema());
 
     DynamicWriteResultAggregator aggregator =
-        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize);
+        new DynamicWriteResultAggregator(
+            CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId");
     try (OneInputStreamOperatorTestHarness<
             CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
         testHarness = new OneInputStreamOperatorTestHarness<>(aggregator)) {
@@ -107,7 +114,8 @@ class TestDynamicWriteResultAggregator {
     // Disable caching of ManifestOutputFileFactory.
     final int zeroCacheSize = 0;
     DynamicWriteResultAggregator aggregator =
-        new DynamicWriteResultAggregator(CATALOG_EXTENSION.catalogLoader(), zeroCacheSize);
+        new DynamicWriteResultAggregator(
+            CATALOG_EXTENSION.catalogLoader(), zeroCacheSize, "sinkId");
     try (OneInputStreamOperatorTestHarness<
             CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
         testHarness = new OneInputStreamOperatorTestHarness<>(aggregator)) {
@@ -161,7 +169,7 @@ class TestDynamicWriteResultAggregator {
         testHarness =
             new OneInputStreamOperatorTestHarness<>(
                 new DynamicWriteResultAggregator(
-                    CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize))) {
+                    CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, "sinkId"))) {
       testHarness.open();
 
       TableKey tableKey = new TableKey("table", "branch");
@@ -211,6 +219,70 @@ class TestDynamicWriteResultAggregator {
       assertThat(dynamicCommittable.operatorId())
           .isEqualTo(testHarness.getOperator().getOperatorID().toString());
     }
+  }
+
+  @Test
+  void testAllSubtasksRestoreTheSinkIdAfterRescaling() throws Exception {
+    CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table"), new Schema());
+
+    List<OperatorSubtaskState> states = Lists.newArrayList();
+    for (int subtask = 0; subtask < 2; subtask++) {
+      try (OneInputStreamOperatorTestHarness<
+              CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
+          testHarness = createHarness("restoredSinkId", 2, subtask)) {
+        testHarness.open();
+        emitCommittable(testHarness, 1L);
+        states.add(testHarness.snapshot(1L, 0L));
+      }
+    }
+
+    OperatorSubtaskState mergedState =
+        AbstractStreamOperatorTestHarness.repackageState(
+            states.toArray(new OperatorSubtaskState[0]));
+    for (int subtask = 0; subtask < 3; subtask++) {
+      try (OneInputStreamOperatorTestHarness<
+              CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
+          testHarness = createHarness("newSinkId", 3, subtask)) {
+        testHarness.initializeState(
+            AbstractStreamOperatorTestHarness.repartitionOperatorState(
+                mergedState, MAX_PARALLELISM, 2, 3, subtask));
+        testHarness.open();
+        assertThat(emitCommittable(testHarness, 2L).sinkId()).isEqualTo("restoredSinkId");
+      }
+    }
+  }
+
+  private OneInputStreamOperatorTestHarness<
+          CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
+      createHarness(String sinkId, int parallelism, int subtask) throws Exception {
+    OneInputStreamOperatorTestHarness<
+            CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
+        testHarness =
+            new OneInputStreamOperatorTestHarness<>(
+                new DynamicWriteResultAggregator(
+                    CATALOG_EXTENSION.catalogLoader(), cacheMaximumSize, sinkId),
+                MAX_PARALLELISM,
+                parallelism,
+                subtask);
+    testHarness
+        .getEnvironment()
+        .getJobConfiguration()
+        .set(CheckpointingOptions.CHECKPOINTING_INTERVAL, Duration.ofSeconds(1));
+    return testHarness;
+  }
+
+  private static DynamicCommittable emitCommittable(
+      OneInputStreamOperatorTestHarness<
+              CommittableMessage<DynamicWriteResult>, CommittableMessage<DynamicCommittable>>
+          testHarness,
+      long checkpointId)
+      throws Exception {
+    testHarness.processElement(
+        createRecord(new TableKey("table", "branch"), checkpointId, DATA_FILE.specId(), DATA_FILE));
+    testHarness.prepareSnapshotPreBarrier(checkpointId);
+    List<CommittableMessage<DynamicCommittable>> outputValues = testHarness.extractOutputValues();
+    return extractAndAssertCommittableWithLineage(outputValues.get(outputValues.size() - 1))
+        .getCommittable();
   }
 
   private static Set<String> getManifestPaths(

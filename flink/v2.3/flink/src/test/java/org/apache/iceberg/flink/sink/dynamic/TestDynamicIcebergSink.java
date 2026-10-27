@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import javax.annotation.Nullable;
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.common.operators.SlotSharingGroup;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -307,6 +308,63 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                 PartitionSpec.unpartitioned()));
 
     runTest(rows);
+  }
+
+  @Test
+  void testAllTablesShareTheSinkIdWithCheckpointing() throws Exception {
+    List<String> tableNames = List.of("t1", "t2", "t3", "t4");
+    List<DynamicIcebergDataImpl> rows = Lists.newArrayList();
+    for (String tableName : tableNames) {
+      rows.add(
+          new DynamicIcebergDataImpl(
+              SimpleDataUtil.SCHEMA,
+              tableName,
+              SnapshotRef.MAIN_BRANCH,
+              PartitionSpec.unpartitioned()));
+    }
+
+    executeDynamicSink(rows, env, true, 2, null);
+
+    Set<String> sinkIds = Sets.newHashSet();
+    for (String tableName : tableNames) {
+      Map<String, String> summary =
+          CATALOG_EXTENSION
+              .catalog()
+              .loadTable(TableIdentifier.of(DATABASE, tableName))
+              .currentSnapshot()
+              .summary();
+      assertThat(summary).containsKey("flink.sink-id");
+      assertThat(summary.get("flink.sink-id")).isNotEqualTo(summary.get("flink.job-id"));
+      sinkIds.add(summary.get("flink.sink-id"));
+    }
+
+    assertThat(sinkIds).hasSize(1);
+  }
+
+  @Test
+  void testSinkIdIsJobIdInBatchMode() throws Exception {
+    StreamExecutionEnvironment batchEnv =
+        StreamExecutionEnvironment.getExecutionEnvironment(
+                MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG)
+            .setRuntimeMode(RuntimeExecutionMode.BATCH);
+    List<DynamicIcebergDataImpl> rows =
+        Lists.newArrayList(
+            new DynamicIcebergDataImpl(
+                SimpleDataUtil.SCHEMA,
+                "t1",
+                SnapshotRef.MAIN_BRANCH,
+                PartitionSpec.unpartitioned()));
+
+    executeDynamicSink(rows, batchEnv, true, 1, null);
+
+    Map<String, String> summary =
+        CATALOG_EXTENSION
+            .catalog()
+            .loadTable(TableIdentifier.of(DATABASE, "t1"))
+            .currentSnapshot()
+            .summary();
+    assertThat(summary).containsKey("flink.job-id");
+    assertThat(summary).containsEntry("flink.sink-id", summary.get("flink.job-id"));
   }
 
   @Test
@@ -1407,7 +1465,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                     overwriteMode,
                     10,
                     "sinkId",
-                    false,
                     new DynamicCommitterMetrics(new UnregisteredMetricsGroup())));
 
     executeDynamicSink(records, env, true, 2, duplicateCommit, overwriteMode);
@@ -1895,6 +1952,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
               original.key(),
               original.manifests(),
               PREVIOUS_JOB_ID,
+              null,
               original.operatorId(),
               replayedCheckpointId);
       List<Committer.CommitRequest<DynamicCommittable>> enriched =
@@ -2109,7 +2167,6 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           overwriteMode,
           10,
           "sinkId",
-          true,
           new DynamicCommitterMetrics(context.metricGroup()));
     }
   }
