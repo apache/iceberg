@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
@@ -36,6 +37,7 @@ import org.apache.iceberg.SnapshotChanges;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.deletes.DeleteGranularity;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -75,6 +77,26 @@ public class TestMergeOnReadUpdate extends TestUpdate {
         "Should have expected rows",
         ImmutableList.of(row(2, "it")),
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
+  void updateConflictsWithConcurrentDeleteOfUpdatedRow() throws IOException {
+    createAndInitTable("id INT, dep STRING");
+    append(tableName, "{ \"id\": 1, \"dep\": \"hr\" }");
+    Table table = validationCatalog.loadTable(tableIdent);
+    DataFile dataFile =
+        Iterables.getOnlyElement(
+            SnapshotChanges.builderFor(table)
+                .snapshot(table.currentSnapshot())
+                .build()
+                .addedDataFiles());
+    createBranchIfNeeded();
+
+    String target = tableWithConcurrentDelete(dataFile, 0L);
+
+    assertThatThrownBy(() -> sql("UPDATE %s SET dep = 'it' WHERE id = 1", target))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found new conflicting delete files");
   }
 
   @TestTemplate
