@@ -1735,17 +1735,25 @@ public class Parquet {
       Map<String, String> metadata)
       throws IOException {
     OutputFile file = Files.localOutput(outputFile);
-    ParquetFileWriter writer =
-        new ParquetFileWriter(
-            ParquetIO.file(file),
-            ParquetSchemaUtil.convert(schema, "table"),
+    MessageType parquetSchema = ParquetSchemaUtil.convert(schema, "table");
+
+    try (ParquetFileWriterFactory.ParquetFileWriterWrapper writer =
+        ParquetFileWriterFactory.create(
+            file,
+            parquetSchema,
             ParquetFileWriter.Mode.CREATE,
             rowGroupSize,
-            0);
-    writer.start();
-    for (File inputFile : inputFiles) {
-      writer.appendFile(ParquetIO.file(Files.localInput(inputFile)));
+            0,
+            CompressionCodecName.UNCOMPRESSED)) {
+      writer.start();
+      for (File inputFile : inputFiles) {
+        writer.appendFile(ParquetIO.file(Files.localInput(inputFile)));
+      }
+      writer.end(metadata);
+    } catch (IOException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new IOException("Failed to concat Parquet files", e);
     }
-    writer.end(metadata);
   }
 }
