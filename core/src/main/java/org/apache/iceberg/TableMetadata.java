@@ -1338,6 +1338,11 @@ public class TableMetadata implements Serializable {
         ValidationException.check(
             snapshot.firstRowId() <= Long.MAX_VALUE - addedRows,
             "Cannot add a snapshot: row ID range would overflow");
+        ValidationException.check(
+            snapshot.firstRowId() <= nextRowId,
+            "Cannot add a snapshot, first-row-id is ahead of table next-row-id: %s > %s",
+            snapshot.firstRowId(),
+            nextRowId);
       }
 
       if (formatVersion >= MIN_FORMAT_VERSION_SNAPSHOT_MANIFEST_LIST

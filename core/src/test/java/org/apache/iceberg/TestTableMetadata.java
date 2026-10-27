@@ -2206,6 +2206,18 @@ public class TestTableMetadata {
   }
 
   @Test
+  void addSnapshotRejectsFirstRowIdAheadOfNextRowId() {
+    TableMetadata.Builder builder = TableMetadata.buildFrom(newTableMetadata(3));
+    Snapshot invalidSnapshot = snapshot(3, "file:/s1.avro", "append", 1L, 1L, null);
+
+    assertThatThrownBy(() -> builder.addSnapshot(invalidSnapshot))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("first-row-id is ahead of table next-row-id");
+
+    assertThat(builder.build().nextRowId()).isZero();
+  }
+
+  @Test
   void addSnapshotRejectsNextRowIdOverflowWithoutMutatingBuilder() {
     TableMetadata.Builder builder = TableMetadata.buildFrom(newTableMetadata(3));
     Snapshot firstSnapshot = snapshot(3, "file:/s1.avro", "append", 0L, Long.MAX_VALUE, null);
