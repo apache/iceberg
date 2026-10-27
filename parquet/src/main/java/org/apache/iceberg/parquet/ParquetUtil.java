@@ -33,6 +33,7 @@ import org.apache.iceberg.encryption.NativeEncryptionInputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.parquet.metadata.ParquetMetadataUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -100,6 +101,15 @@ public class ParquetUtil {
       Stream<FieldMetrics<?>> fieldMetrics,
       MetricsConfig metricsConfig,
       NameMapping nameMapping) {
+    return footerMetrics(
+        ParquetMetadataUtil.fromHadoopMetadata(metadata), fieldMetrics, metricsConfig, nameMapping);
+  }
+
+  public static Metrics footerMetrics(
+      org.apache.iceberg.parquet.metadata.ParquetMetadata metadata,
+      Stream<FieldMetrics<?>> fieldMetrics,
+      MetricsConfig metricsConfig,
+      NameMapping nameMapping) {
     Preconditions.checkNotNull(fieldMetrics, "fieldMetrics should not be null");
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
     Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
@@ -108,8 +118,8 @@ public class ParquetUtil {
   }
 
   private static MessageType getParquetTypeWithIds(
-      ParquetMetadata metadata, NameMapping nameMapping) {
-    MessageType type = metadata.getFileMetaData().getSchema();
+      org.apache.iceberg.parquet.metadata.ParquetMetadata metadata, NameMapping nameMapping) {
+    MessageType type = metadata.fileMetaData().schema();
 
     if (ParquetSchemaUtil.hasIds(type)) {
       return type;
