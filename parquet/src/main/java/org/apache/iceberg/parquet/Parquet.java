@@ -122,7 +122,6 @@ import org.apache.parquet.conf.ParquetConfiguration;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
-import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.hadoop.ParquetReader;
@@ -139,6 +138,19 @@ public class Parquet {
   private static final Logger LOG = LoggerFactory.getLogger(Parquet.class);
 
   private Parquet() {}
+
+  public static final String PARQUET_CLIENT = "iceberg.parquet-client";
+  public static final ParquetClient PARQUET_CLIENT_DEFAULT = ParquetClient.HADOOP;
+
+  static ParquetClient parquetClient() {
+    return ParquetClient.valueOf(
+        System.getProperty(PARQUET_CLIENT, PARQUET_CLIENT_DEFAULT.name()).toUpperCase(Locale.ROOT));
+  }
+
+  public enum ParquetClient {
+    NATIVE,
+    HADOOP,
+  }
 
   private static final Collection<String> READ_PROPERTIES_TO_REMOVE =
       Sets.newHashSet(
@@ -1625,11 +1637,13 @@ public class Parquet {
                 .withDecryption(fileDecryptionProperties)
                 .build();
         MessageType type;
-        try (ParquetFileReader schemaReader =
-            ParquetFileReader.open(ParquetIO.file(file), decryptOptions)) {
-          type = schemaReader.getFileMetaData().getSchema();
+        try (ParquetFileReaderFactory.ParquetFileReaderWrapper schemaReader =
+            ParquetFileReaderFactory.open(file, decryptOptions)) {
+          type = schemaReader.footer().fileMetaData().schema();
         } catch (IOException e) {
           throw new RuntimeIOException(e);
+        } catch (Exception e) {
+          throw new RuntimeIOException(new IOException("Failed to read Parquet schema", e));
         }
         Schema fileSchema = ParquetSchemaUtil.convert(type);
         builder

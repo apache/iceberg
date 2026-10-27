@@ -42,7 +42,6 @@ import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.EncodingStats;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
-import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
@@ -62,10 +61,14 @@ public class ParquetUtil {
 
   public static Metrics fileMetrics(
       InputFile file, MetricsConfig metricsConfig, NameMapping nameMapping) {
-    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(file))) {
-      return footerMetrics(reader.getFooter(), Stream.empty(), metricsConfig, nameMapping);
+    try (ParquetFileReaderFactory.ParquetFileReaderWrapper reader =
+        ParquetFileReaderFactory.open(file, null)) {
+      return footerMetrics(reader.footer(), Stream.empty(), metricsConfig, nameMapping);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to read footer of file: %s", file.location());
+    } catch (Exception e) {
+      throw new RuntimeIOException(
+          new IOException(e), "Failed to read footer of file: %s", file.location());
     }
   }
 
@@ -118,6 +121,15 @@ public class ParquetUtil {
     List<Long> splitOffsets = Lists.newArrayListWithExpectedSize(md.getBlocks().size());
     for (BlockMetaData blockMetaData : md.getBlocks()) {
       splitOffsets.add(blockMetaData.getStartingPos());
+    }
+    Collections.sort(splitOffsets);
+    return splitOffsets;
+  }
+
+  static List<Long> getSplitOffsets(org.apache.iceberg.parquet.metadata.ParquetMetadata md) {
+    List<Long> splitOffsets = Lists.newArrayListWithExpectedSize(md.blocks().size());
+    for (org.apache.iceberg.parquet.metadata.BlockMetadata block : md.blocks()) {
+      splitOffsets.add(block.columns().get(0).getStartingPos());
     }
     Collections.sort(splitOffsets);
     return splitOffsets;
