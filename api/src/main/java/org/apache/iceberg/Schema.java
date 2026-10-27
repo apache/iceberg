@@ -180,10 +180,6 @@ public class Schema implements Serializable {
         !Types.DoubleType.get().equals(field.type()) && !Types.FloatType.get().equals(field.type()),
         "Cannot add field %s as an identifier field: must not be float or double field",
         field.name());
-    Preconditions.checkArgument(
-        field.type().typeId() != Type.TypeID.VECTOR,
-        "Cannot add field %s as an identifier field: must not be a vector field",
-        field.name());
 
     // check whether the nested field is in a chain of required struct fields
     // exploring from root for better error message for list and map types
@@ -315,7 +311,7 @@ public class Schema implements Serializable {
    * <p>Identifier is a concept similar to primary key in a relational database system. It consists
    * of a unique set of primitive fields in the schema. An identifier field must be at root, or
    * nested in a chain of structs (no maps or lists). A row should be unique in a table based on the
-   * values of the identifier fields. Optional, float, double, and vector columns cannot be used as
+   * values of the identifier fields. Optional, float and double columns cannot be used as
    * identifier fields. However, Iceberg identifier differs from primary key in the following ways:
    *
    * <ul>
