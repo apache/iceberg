@@ -171,10 +171,12 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
         }
 
         // validate that previous deletes do not conflict with added deletes
-        CharSequenceSet modifiedDataFiles = validateNewDeleteFiles ? null : modifiedDataFiles();
-        if (modifiedDataFiles != null) {
+        CharSequenceSet dataFilesWithAddedDeletes =
+            validateNewDeleteFiles ? null : referencedDataFilesOfAddedDeletes();
+        if (dataFilesWithAddedDeletes != null) {
+          // removed data files were validated above
           validateNoNewDeleteFiles(
-              base, startingSnapshotId, conflictDetectionFilter, modifiedDataFiles, parent);
+              base, startingSnapshotId, conflictDetectionFilter, dataFilesWithAddedDeletes, parent);
         } else {
           validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
         }
@@ -184,20 +186,6 @@ public class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements R
 
       validateAddedDVs(base, startingSnapshotId, conflictDetectionFilter, parent);
     }
-  }
-
-  /**
-   * Returns the locations of the data files this commit modifies: those its delete files apply to
-   * and those it removes. Returns null if a delete file it adds may apply to more than one data
-   * file.
-   */
-  private CharSequenceSet modifiedDataFiles() {
-    CharSequenceSet modifiedDataFiles = referencedDataFilesOfAddedDeletes();
-    if (modifiedDataFiles != null) {
-      removedDataFiles.forEach(file -> modifiedDataFiles.add(file.location()));
-    }
-
-    return modifiedDataFiles;
   }
 
   /**
