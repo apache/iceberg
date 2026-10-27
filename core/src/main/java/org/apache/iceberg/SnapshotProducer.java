@@ -611,12 +611,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    * referenced by the committed snapshot are kept; everything else staged by this producer is
    * deleted.
    */
-  private void cleanupAfterSuccessfulCommit(long snapshotId) {
+  private void cleanupAfterSuccessfulCommit(long committedSnapshotId) {
     // the commit must have succeeded at this point. after a refresh, the snapshot is loaded by
     // id in case another commit was added between this commit and the refresh. it might not be
     // known which commit attempt succeeded in some cases, so this only cleans up the one that
     // actually did succeed.
-    Snapshot saved = ops.refresh().snapshot(snapshotId);
+    Snapshot saved = ops.refresh().snapshot(committedSnapshotId);
     if (saved != null) {
       if (cleanupAfterCommit()) {
         cleanUncommitted(Sets.newHashSet(saved.allManifests(ops.io())));
@@ -646,20 +646,20 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    *     observed failure and the failure must not be reported
    */
   private boolean cleanAfterFailedCommit(
-      long snapshotId, long stagedNewSnapshotId, RuntimeException commitFailure) {
+      long attemptSnapshotId, long stagedNewSnapshotId, RuntimeException commitFailure) {
     // Only a snapshot this commit() call staged as new can tell us the commit was applied. A
     // snapshot that was already in the table (a rollback or fast-forward target) says nothing about
     // whether the branch update went through, so the failure must still be reported. This can't be
     // inferred from base, because apply() refreshes base on retry and may already see the
     // snapshot from an earlier attempt that was applied.
-    boolean isNewSnapshot = snapshotId != -1L && snapshotId == stagedNewSnapshotId;
+    boolean isNewSnapshot = attemptSnapshotId != -1L && attemptSnapshotId == stagedNewSnapshotId;
     if (isNewSnapshot) {
       try {
-        if (ops.refresh().snapshot(snapshotId) != null) {
+        if (ops.refresh().snapshot(attemptSnapshotId) != null) {
           LOG.info(
               "Snapshot {} is on the table despite the commit failure, cleaning up as committed",
-              snapshotId);
-          cleanupAfterSuccessfulCommit(snapshotId);
+              attemptSnapshotId);
+          cleanupAfterSuccessfulCommit(attemptSnapshotId);
           return true;
         }
       } catch (RuntimeException refreshFailure) {
