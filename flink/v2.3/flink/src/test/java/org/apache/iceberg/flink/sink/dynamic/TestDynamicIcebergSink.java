@@ -134,6 +134,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     PartitionSpec partitionSpec;
     boolean upsertMode;
     Set<String> equalityFields;
+    Set<String> distributionFields;
     int writeParallelism;
 
     private DynamicIcebergDataImpl(
@@ -147,6 +148,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           false,
           Collections.emptySet(),
           false,
+          Collections.emptySet(),
           10);
     }
 
@@ -165,6 +167,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           false,
           Collections.emptySet(),
           false,
+          Collections.emptySet(),
           10);
     }
 
@@ -185,6 +188,26 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           upsertMode,
           equalityFields,
           isDuplicate,
+          Collections.emptySet(),
+          10);
+    }
+
+    private DynamicIcebergDataImpl(
+        Schema schemaProvided,
+        String tableName,
+        String branch,
+        PartitionSpec partitionSpec,
+        Set<String> distributionFields) {
+      this(
+          schemaProvided,
+          schemaProvided,
+          tableName,
+          branch,
+          partitionSpec,
+          false,
+          Collections.emptySet(),
+          false,
+          distributionFields,
           10);
     }
 
@@ -197,6 +220,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
         boolean upsertMode,
         Set<String> equalityFields,
         boolean isDuplicate,
+        Set<String> distributionFields,
         int writeParallelism) {
       this.rowProvided = randomRow(schemaProvided, isDuplicate ? seed : ++seed);
       this.rowExpected = isDuplicate ? null : rowProvided;
@@ -207,6 +231,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       this.partitionSpec = partitionSpec;
       this.upsertMode = upsertMode;
       this.equalityFields = equalityFields;
+      this.distributionFields = distributionFields;
       this.writeParallelism = writeParallelism;
     }
   }
@@ -219,6 +244,11 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       String branch = row.branch;
       Schema schema = row.schemaProvided;
       PartitionSpec spec = row.partitionSpec;
+      // Distribution fields are only read in HASH mode
+      DistributionMode distributionMode =
+          spec.isPartitioned() || !row.distributionFields.isEmpty()
+              ? DistributionMode.HASH
+              : DistributionMode.NONE;
       DynamicRecord dynamicRecord =
           new DynamicRecord(
               tableIdentifier,
@@ -226,10 +256,11 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
               schema,
               converter(schema).toInternal(row.rowProvided),
               spec,
-              spec.isPartitioned() ? DistributionMode.HASH : DistributionMode.NONE,
+              distributionMode,
               row.writeParallelism);
       dynamicRecord.setUpsertMode(row.upsertMode);
       dynamicRecord.setEqualityFields(row.equalityFields);
+      dynamicRecord.setDistributionFields(row.distributionFields);
       out.collect(dynamicRecord);
     }
   }
@@ -632,12 +663,14 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                 SimpleDataUtil.SCHEMA,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
-                PartitionSpec.unpartitioned()),
+                PartitionSpec.unpartitioned(),
+                Collections.singleton("id")),
             new DynamicIcebergDataImpl(
                 SimpleDataUtil.SCHEMA,
                 "t2",
                 SnapshotRef.MAIN_BRANCH,
-                PartitionSpec.unpartitioned()));
+                PartitionSpec.unpartitioned(),
+                Collections.singleton("id")));
 
     runTest(rows);
   }
@@ -1760,6 +1793,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                 false,
                 Collections.emptySet(),
                 false,
+                Collections.emptySet(),
                 -1),
             new DynamicIcebergDataImpl(
                 SimpleDataUtil.SCHEMA,
@@ -1770,6 +1804,7 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                 false,
                 Collections.emptySet(),
                 false,
+                Collections.emptySet(),
                 0));
 
     runTest(
