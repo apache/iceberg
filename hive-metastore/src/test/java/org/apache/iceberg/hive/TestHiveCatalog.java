@@ -75,6 +75,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
@@ -1280,7 +1281,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
         hiveTblProperties.get(BaseMetastoreTableOperations.METADATA_HASH_PROP);
     if (isTableEncrypted) {
       assertThat(base64EncodedHash).isBase64();
-      HMSTablePropertyHelper.verifyMetadataHash(tableMetadata, base64EncodedHash);
+      EncryptionUtil.verifyMetadataHash(tableMetadata, base64EncodedHash);
     } else {
       assertThat(base64EncodedHash).isNull();
     }

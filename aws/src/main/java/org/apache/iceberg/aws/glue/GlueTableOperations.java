@@ -22,9 +22,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -56,9 +53,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -221,7 +216,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
     refreshFromMetadataLocation(metadataLocation);
 
     if (tableKeyIdFromGlue != null) {
-      checkIntegrityForEncryption(tableKeyIdFromGlue, dekLengthFromGlue, metadataHashFromGlue);
+      EncryptionUtil.verifyMetadataIntegrity(
+          tableName(), current(), tableKeyIdFromGlue, dekLengthFromGlue, metadataHashFromGlue);
 
       this.tableKeyId = tableKeyIdFromGlue;
       this.encryptionDekLength =
@@ -229,22 +225,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
               ? Integer.parseInt(dekLengthFromGlue)
               : TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT;
 
-      this.encryptedKeys =
-          Optional.ofNullable(current().encryptionKeys())
-              .map(Lists::newLinkedList)
-              .orElseGet(Lists::newLinkedList);
-
-      // Active transactions may still need keys that are not in committed metadata.
-      if (encryptionManager != null) {
-        Set<String> keyIdsFromMetadata =
-            encryptedKeys.stream().map(EncryptedKey::keyId).collect(Collectors.toSet());
-
-        for (EncryptedKey keyFromEM : EncryptionUtil.encryptionKeys(encryptionManager).values()) {
-          if (!keyIdsFromMetadata.contains(keyFromEM.keyId())) {
-            encryptedKeys.add(keyFromEM);
-          }
-        }
-      }
+      this.encryptedKeys = EncryptionUtil.mergeEncryptionKeys(current(), encryptionManager);
 
       // Force re-creation of encryption manager with updated keys
       this.encryptingFileIO = null;
@@ -254,7 +235,7 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
 
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
-    checkEncryptionKeyUnchanged(base, metadata);
+    EncryptionUtil.validateKeyIdUnchanged(base, metadata);
     encryptionPropsFromMetadata(metadata.properties());
     // fail fast on a misconfigured catalog, rather than in the middle of the commit
     Preconditions.checkArgument(
@@ -591,55 +572,6 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
               tableProperties,
               TableProperties.ENCRYPTION_DEK_LENGTH,
               TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
-    }
-  }
-
-  /** The key ID of an encrypted table must stay the same for the whole table lifetime. */
-  private static void checkEncryptionKeyUnchanged(TableMetadata base, TableMetadata metadata) {
-    if (base == null) {
-      return;
-    }
-
-    String baseKeyId = base.properties().get(TableProperties.ENCRYPTION_TABLE_KEY);
-    String newKeyId = metadata.properties().get(TableProperties.ENCRYPTION_TABLE_KEY);
-
-    Preconditions.checkArgument(
-        baseKeyId == null || newKeyId != null, "Cannot remove key ID from an encrypted table");
-    Preconditions.checkArgument(
-        Objects.equals(baseKeyId, newKeyId), "Cannot modify key ID of an encrypted table");
-  }
-
-  private void checkIntegrityForEncryption(
-      String encryptionKeyIdFromGlue, String dekLengthFromGlue, String metadataHashFromGlue) {
-    TableMetadata metadata = current();
-    if (!Strings.isNullOrEmpty(metadataHashFromGlue)) {
-      EncryptionUtil.verifyMetadataHash(metadata, metadataHashFromGlue);
-      return;
-    }
-
-    LOG.warn(
-        "Full metadata integrity check skipped because no metadata hash was recorded in Glue for table {}."
-            + " Falling back to encryption property based check.",
-        tableName());
-
-    Map<String, String> propertiesFromMetadata = metadata.properties();
-
-    String encryptionKeyIdFromMetadata =
-        propertiesFromMetadata.get(TableProperties.ENCRYPTION_TABLE_KEY);
-    if (!Objects.equals(encryptionKeyIdFromGlue, encryptionKeyIdFromMetadata)) {
-      throw new RuntimeException(
-          String.format(
-              "Metadata file might have been modified. Encryption key id %s differs from Glue value %s",
-              encryptionKeyIdFromMetadata, encryptionKeyIdFromGlue));
-    }
-
-    String dekLengthFromMetadata =
-        propertiesFromMetadata.get(TableProperties.ENCRYPTION_DEK_LENGTH);
-    if (!Objects.equals(dekLengthFromGlue, dekLengthFromMetadata)) {
-      throw new RuntimeException(
-          String.format(
-              "Metadata file might have been modified. DEK length %s differs from Glue value %s",
-              dekLengthFromMetadata, dekLengthFromGlue));
     }
   }
 

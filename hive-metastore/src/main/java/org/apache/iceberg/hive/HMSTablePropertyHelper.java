@@ -272,11 +272,6 @@ public class HMSTablePropertyHelper {
     }
   }
 
-  @VisibleForTesting
-  static void verifyMetadataHash(TableMetadata metadata, String metadataHashFromHMS) {
-    EncryptionUtil.verifyMetadataHash(metadata, metadataHashFromHMS);
-  }
-
   private static void setField(
       Map<String, String> parameters, String key, String value, long maxHiveTablePropertySize) {
     if (value.length() <= maxHiveTablePropertySize) {
