@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import java.io.Serializable;
 import java.util.Map;
-import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -61,33 +60,28 @@ class TableSerializerCache implements Serializable {
     this.maximumSize = maximumSize;
   }
 
-  RowDataSerializer serializer(String tableName, Schema schema, PartitionSpec spec) {
-    return serializer(tableName, schema, spec, null, null).f0;
+  RowDataSerializer serializer(String tableName, Schema schema) {
+    return serializerInfo(tableName).serializerBySchema(schema);
+  }
+
+  /**
+   * Resolves the serializer when the caller already holds the schema and spec along with their ids.
+   * The serializer is looked up by schema id, so it is not rebuilt when the {@link Schema} instance
+   * changes.
+   *
+   * <p>The id-keyed serializers are shared with {@link #serializerWithSchemaAndSpec}, so the schema
+   * must come from the table. Do not use this for user-supplied schemas, whose ids are not reliable
+   * and could collide with the table's schemas.
+   */
+  RowDataSerializer serializerById(String tableName, Schema schema) {
+    return serializerInfo(tableName).serializerBySchemaId(schema);
   }
 
   Tuple3<RowDataSerializer, Schema, PartitionSpec> serializerWithSchemaAndSpec(
       String tableName, Integer schemaId, Integer specId) {
-    return serializer(tableName, null, null, schemaId, specId);
-  }
-
-  private Tuple3<RowDataSerializer, Schema, PartitionSpec> serializer(
-      String tableName,
-      @Nullable Schema unknownSchema,
-      @Nullable PartitionSpec unknownSpec,
-      @Nullable Integer schemaId,
-      @Nullable Integer specId) {
-    Preconditions.checkState(
-        (unknownSchema == null && unknownSpec == null) ^ (schemaId == null && specId == null),
-        "Either the full schema/spec or their ids must be provided.");
-
-    if (serializers == null) {
-      // We need to initialize the cache at the first time
-      this.serializers = new LRUCache<>(maximumSize);
-    }
-
-    SerializerInfo info = serializers.computeIfAbsent(tableName, SerializerInfo::new);
-    Schema schema = unknownSchema != null ? unknownSchema : info.schemas.get(schemaId);
-    PartitionSpec spec = unknownSpec != null ? unknownSpec : info.specs.get(specId);
+    SerializerInfo info = serializerInfo(tableName);
+    Schema schema = info.schemas.get(schemaId);
+    PartitionSpec spec = info.specs.get(specId);
 
     if (schema == null || spec == null) {
       info.update();
@@ -95,11 +89,28 @@ class TableSerializerCache implements Serializable {
       spec = info.specs.get(specId);
     }
 
-    RowDataSerializer serializer =
-        info.serializers.computeIfAbsent(
-            schema, s -> new RowDataSerializer(FlinkSchemaUtil.convert(s)));
+    Preconditions.checkArgument(
+        schema != null,
+        "SchemaId:%s not found in table %s. Expected SchemaId:%s to exist.",
+        schemaId,
+        tableName,
+        schemaId);
+    Preconditions.checkArgument(
+        spec != null,
+        "SpecId:%s not found in table %s. Expected SpecId:%s to exist.",
+        specId,
+        tableName,
+        specId);
 
-    return Tuple3.of(serializer, schema, spec);
+    return Tuple3.of(info.serializerBySchemaId(schema), schema, spec);
+  }
+
+  private SerializerInfo serializerInfo(String tableName) {
+    if (serializers == null) {
+      this.serializers = new LRUCache<>(maximumSize);
+    }
+
+    return serializers.computeIfAbsent(tableName, SerializerInfo::new);
   }
 
   CatalogLoader catalogLoader() {
@@ -112,15 +123,30 @@ class TableSerializerCache implements Serializable {
 
   private class SerializerInfo {
     private final String tableName;
-    private final Map<Schema, RowDataSerializer> serializers;
+    private final Map<Schema, RowDataSerializer> serializersBySchema;
+    private final Map<Integer, RowDataSerializer> serializersBySchemaId;
     private Map<Integer, Schema> schemas;
     private Map<Integer, PartitionSpec> specs;
 
     SerializerInfo(String tableName) {
       this.tableName = tableName;
-      this.serializers = Maps.newHashMapWithExpectedSize(2);
+      this.serializersBySchema = new LRUCache<>(maximumSize);
+      this.serializersBySchemaId = Maps.newHashMapWithExpectedSize(2);
       this.schemas = Maps.newHashMapWithExpectedSize(1);
       this.specs = Maps.newHashMapWithExpectedSize(0);
+    }
+
+    private RowDataSerializer serializerBySchema(Schema schema) {
+      return serializersBySchema.computeIfAbsent(schema, this::createSerializer);
+    }
+
+    private RowDataSerializer serializerBySchemaId(Schema schema) {
+      return serializersBySchemaId.computeIfAbsent(
+          schema.schemaId(), id -> createSerializer(schema));
+    }
+
+    private RowDataSerializer createSerializer(Schema schema) {
+      return new RowDataSerializer(FlinkSchemaUtil.convert(schema));
     }
 
     private void update() {
