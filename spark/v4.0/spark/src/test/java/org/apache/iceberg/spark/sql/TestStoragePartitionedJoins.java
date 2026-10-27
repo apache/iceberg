@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.sql;
 
 import static org.apache.iceberg.PlanningMode.DISTRIBUTED;
 import static org.apache.iceberg.PlanningMode.LOCAL;
+import static org.apache.spark.sql.functions.col;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
@@ -48,12 +49,16 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.execution.SparkPlan;
+import org.apache.spark.sql.execution.adaptive.QueryStageExec;
+import org.apache.spark.sql.execution.datasources.v2.BatchScanExec;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import scala.jdk.javaapi.CollectionConverters;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
@@ -77,6 +82,7 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
   }
 
   private static final String OTHER_TABLE_NAME = "other_table";
+  private static final String UNPARTITIONED_TABLE_NAME = "unpartitioned_table";
 
   // open file cost and split size are set as 16 MB to produce a split per file
   private static final Map<String, String> TABLE_PROPERTIES =
@@ -131,6 +137,193 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s", tableName(OTHER_TABLE_NAME));
+    sql("DROP TABLE IF EXISTS %s", tableName(UNPARTITIONED_TABLE_NAME));
+  }
+
+  @TestTemplate
+  void runtimeFilteringWithTrailingPartitionKey() {
+    sql(
+        "CREATE TABLE %s (store_id INT, dept_id INT, data STRING) USING iceberg "
+            + "PARTITIONED BY (store_id, dept_id) TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(planningMode);
+    sql(
+        "INSERT INTO %s VALUES (100, 1, 'aa'), (100, 2, 'ab'), (200, 1, 'ac'), (200, 3, 'ad')",
+        tableName);
+
+    sql(
+        "CREATE TABLE %s (dept_id INT, data STRING) USING iceberg "
+            + "PARTITIONED BY (dept_id) TBLPROPERTIES (%s)",
+        tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(tableName(OTHER_TABLE_NAME), planningMode);
+    sql("INSERT INTO %s VALUES (1, 'x'), (2, 'y'), (3, 'x')", tableName(OTHER_TABLE_NAME));
+
+    String query =
+        String.format(
+            "SELECT t1.store_id, t1.dept_id, t1.data FROM %s t1 JOIN %s t2 "
+                + "ON t1.dept_id = t2.dept_id WHERE t2.data = 'x' "
+                + "ORDER BY t1.store_id, t1.dept_id, t1.data",
+            tableName, tableName(OTHER_TABLE_NAME));
+    AtomicReference<List<Object[]>> expectedRows = new AtomicReference<>();
+    withSQLConf(DISABLED_SPJ_SQL_CONF, () -> expectedRows.set(sql(query)));
+
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(),
+            "true",
+            SQLConf.DYNAMIC_PARTITION_PRUNING_REUSE_BROADCAST_ONLY().key(),
+            "false",
+            SQLConf.DYNAMIC_PARTITION_PRUNING_FALLBACK_FILTER_RATIO().key(),
+            "10"),
+        () ->
+            withSQLConf(
+                ENABLED_SPJ_SQL_CONF,
+                () -> {
+                  String plan =
+                      executeAndKeepPlan(
+                              () ->
+                                  assertEquals(
+                                      "Runtime filtering must preserve join results",
+                                      expectedRows.get(),
+                                      sql(query)))
+                          .toString();
+                  assertThat(plan).contains("dynamicpruningexpression");
+                  assertThat(StringUtils.countMatches(plan, "Exchange"))
+                      .as("Only ordering and runtime filter collection should shuffle")
+                      .isEqualTo(2);
+                }));
+  }
+
+  @TestTemplate
+  void oneSideShuffleWithBinaryPartitionKeys() {
+    sql(
+        "CREATE TABLE %s (id BINARY, data STRING) USING iceberg "
+            + "PARTITIONED BY (id) TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(planningMode);
+    sql("INSERT INTO %s VALUES (X'0101', 'a'), (X'0202', 'b'), (X'0303', 'c')", tableName);
+
+    sql("CREATE TABLE %s (id BINARY, data STRING) USING iceberg", tableName(OTHER_TABLE_NAME));
+    configurePlanningMode(tableName(OTHER_TABLE_NAME), planningMode);
+    sql(
+        "INSERT INTO %s VALUES (X'0101', 'x'), (X'0101', 'y'), (X'0202', 'z'), (X'0303', 'w')",
+        tableName(OTHER_TABLE_NAME));
+
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.V2_BUCKETING_SHUFFLE_ENABLED().key(),
+            "true",
+            SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(),
+            "false"),
+        () ->
+            assertPartitioningAwarePlan(
+                2,
+                3,
+                "SELECT t1.data, t2.data FROM %s t1 JOIN %s t2 ON t1.id = t2.id "
+                    + "ORDER BY t1.data, t2.data",
+                tableName,
+                tableName(OTHER_TABLE_NAME)));
+  }
+
+  @TestTemplate
+  void oneSideShuffleWithUnknownKeysInChainedJoin() {
+    sql(
+        "CREATE TABLE %s (id INT, data STRING) USING iceberg "
+            + "PARTITIONED BY (id) TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(planningMode);
+    sql("INSERT INTO %s VALUES (1, 'a1'), (2, 'a2')", tableName);
+
+    sql(
+        "CREATE TABLE %s (id INT, data STRING) USING iceberg "
+            + "PARTITIONED BY (id) TBLPROPERTIES (%s)",
+        tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(tableName(OTHER_TABLE_NAME), planningMode);
+    sql("INSERT INTO %s VALUES (1, 'u1'), (2, 'u2'), (3, 'u3')", tableName(OTHER_TABLE_NAME));
+
+    sql("CREATE TABLE %s (id INT) USING iceberg", tableName(UNPARTITIONED_TABLE_NAME));
+    configurePlanningMode(tableName(UNPARTITIONED_TABLE_NAME), planningMode);
+    sql("INSERT INTO %s VALUES (1), (2), (3)", tableName(UNPARTITIONED_TABLE_NAME));
+
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.V2_BUCKETING_SHUFFLE_ENABLED().key(),
+            "true",
+            SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(),
+            "false"),
+        () ->
+            assertPartitioningAwarePlan(
+                3,
+                4,
+                "SELECT r.id, u.data FROM "
+                    + "(SELECT t.id FROM %s a RIGHT OUTER JOIN %s t ON a.id = t.id) r "
+                    + "JOIN %s u ON r.id = u.id ORDER BY r.id",
+                tableName,
+                tableName(UNPARTITIONED_TABLE_NAME),
+                tableName(OTHER_TABLE_NAME)));
+  }
+
+  @TestTemplate
+  void joinsWithCheckpointedScans() {
+    sql(
+        "CREATE TABLE %s (id INT, data STRING) USING iceberg "
+            + "PARTITIONED BY (id) TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(planningMode);
+    sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
+
+    sql(
+        "CREATE TABLE %s (id INT, data STRING) USING iceberg "
+            + "PARTITIONED BY (id) TBLPROPERTIES (%s)",
+        tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(tableName(OTHER_TABLE_NAME), planningMode);
+    sql("INSERT INTO %s VALUES (1, 'x'), (3, 'y'), (4, 'z')", tableName(OTHER_TABLE_NAME));
+
+    AtomicReference<List<Object[]>> expectedRows = new AtomicReference<>();
+    withSQLConf(
+        DISABLED_SPJ_SQL_CONF,
+        () ->
+            expectedRows.set(
+                sql(
+                    "SELECT l.id, l.data, r.data FROM %s l JOIN %s r ON l.id = r.id ORDER BY l.id",
+                    tableName, tableName(OTHER_TABLE_NAME))));
+
+    spark.sparkContext().setCheckpointDir(temp.resolve("checkpoints").toString());
+    withSQLConf(
+        ENABLED_SPJ_SQL_CONF,
+        () -> {
+          for (boolean checkpointBothScans : new boolean[] {true, false}) {
+            Dataset<Row> left = spark.read().table(tableName).checkpoint().as("l");
+            Dataset<Row> right = spark.read().table(tableName(OTHER_TABLE_NAME));
+            if (checkpointBothScans) {
+              right = right.checkpoint();
+            }
+
+            Dataset<Row> joined =
+                left.join(right.as("r"), col("l.id").equalTo(col("r.id")))
+                    .selectExpr("l.id", "l.data", "r.data")
+                    .orderBy("id");
+            assertEquals(
+                "Checkpointing must preserve join results",
+                expectedRows.get(),
+                rowsToJava(joined.collectAsList()));
+            assertThat(
+                    StringUtils.countMatches(
+                        joined.queryExecution().executedPlan().toString(), "Exchange"))
+                .as("Checkpointed scans require join shuffles")
+                .isEqualTo(3);
+          }
+        });
+  }
+
+  @TestTemplate
+  void broadcastJoinOrdersByExpressionAscending() {
+    checkBroadcastJoinOrdering("ASC");
+  }
+
+  @TestTemplate
+  void broadcastJoinOrdersByExpressionDescending() {
+    checkBroadcastJoinOrdering("DESC");
   }
 
   // TODO: add tests for truncate transforms once SPARK-40295 is released
@@ -775,6 +968,121 @@ public class TestStoragePartitionedJoins extends TestBaseWithCatalog {
             + "ORDER BY t1.id, t1.int_col, t1.dep, t2.id, t2.int_col, t2.dep",
         tableName,
         otherTableName);
+  }
+
+  private void checkBroadcastJoinOrdering(String direction) {
+    sql(
+        "CREATE TABLE %s (id BIGINT) USING iceberg " + "PARTITIONED BY (id) TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(planningMode);
+    sql("INSERT INTO %s VALUES (-3), (-2), (-1), (1), (2), (3)", tableName);
+
+    sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName(OTHER_TABLE_NAME));
+    configurePlanningMode(tableName(OTHER_TABLE_NAME), planningMode);
+    sql("INSERT INTO %s VALUES (1), (2), (3)", tableName(OTHER_TABLE_NAME));
+
+    withSQLConf(
+        ImmutableMap.of(
+            SQLConf.V2_BUCKETING_SORTING_ENABLED().key(),
+            "true",
+            SQLConf.DYNAMIC_PARTITION_PRUNING_ENABLED().key(),
+            "false"),
+        () -> {
+          for (String joinKey : List.of("-p.id", "4 - p.id")) {
+            assertPartitioningAwarePlan(
+                1,
+                2,
+                "SELECT /*+ BROADCAST(p) */ p.id FROM %s i JOIN %s p "
+                    + "ON i.id = %s ORDER BY %s %s",
+                tableName,
+                tableName(OTHER_TABLE_NAME),
+                joinKey,
+                joinKey,
+                direction);
+          }
+        });
+  }
+
+  @TestTemplate
+  void subsetJoinKeysWithMixedPartitionTypes() {
+    checkSubsetJoinKeysWithMixedPartitionTypes(false);
+  }
+
+  @TestTemplate
+  void partiallyClusteredSubsetJoinKeysWithMixedPartitionTypes() {
+    checkSubsetJoinKeysWithMixedPartitionTypes(true);
+  }
+
+  private void checkSubsetJoinKeysWithMixedPartitionTypes(boolean partiallyClustered) {
+    sql(
+        "CREATE TABLE %s (id STRING, part STRING, data STRING) USING iceberg "
+            + "PARTITIONED BY (part, bucket(32, id), bucket(32, data)) TBLPROPERTIES (%s)",
+        tableName, tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(tableName, planningMode);
+    sql(
+        "INSERT INTO %s VALUES ('a', '2026-05-01', 'aa'), ('a', '2026-05-02', 'cc'), "
+            + "('b', '2026-05-01', 'bb'), ('c', '2026-05-02', 'aa')",
+        tableName);
+    sql(
+        "CREATE TABLE %s (id STRING, part STRING, data STRING) USING iceberg "
+            + "PARTITIONED BY (bucket(32, id)) TBLPROPERTIES (%s)",
+        tableName(OTHER_TABLE_NAME), tablePropsAsString(TABLE_PROPERTIES));
+    configurePlanningMode(tableName(OTHER_TABLE_NAME), planningMode);
+    sql(
+        "INSERT INTO %s VALUES ('a', '2026-05-01', 'xx'), ('b', '2026-05-01', 'yy'), "
+            + "('d', '2026-05-01', 'zz')",
+        tableName(OTHER_TABLE_NAME));
+    String query =
+        String.format(
+            "SELECT /*+ MERGE(l, r) */ l.id, l.part, l.data, r.data FROM %s l JOIN %s r "
+                + "ON l.id = r.id ORDER BY l.id, l.part, l.data, r.data",
+            tableName, tableName(OTHER_TABLE_NAME));
+    AtomicReference<List<Object[]>> expected = new AtomicReference<>();
+    withSQLConf(DISABLED_SPJ_SQL_CONF, () -> expected.set(sql(query)));
+    assertThat(expected.get()).hasSize(3);
+    withSQLConf(
+        ENABLED_SPJ_SQL_CONF,
+        () ->
+            withSQLConf(
+                ImmutableMap.of(
+                    SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(),
+                    "true",
+                    SQLConf.SKEW_JOIN_ENABLED().key(),
+                    "true",
+                    SQLConf.V2_BUCKETING_PARTIALLY_CLUSTERED_DISTRIBUTION_ENABLED().key(),
+                    Boolean.toString(partiallyClustered)),
+                () -> {
+                  SparkPlan plan = executeAndKeepPlan(query);
+                  assertThat(plan.toString()).contains("SortMergeJoin");
+                  assertThat(hasNonLeadingPartitionKeyProjection(plan))
+                      .as("SPJ should project the trailing bucket join key")
+                      .isTrue();
+                  assertEquals(
+                      "SPJ must preserve rows for mixed partition types",
+                      expected.get(),
+                      sql(query));
+                }));
+  }
+
+  private boolean hasNonLeadingPartitionKeyProjection(SparkPlan plan) {
+    if (plan instanceof QueryStageExec stage) {
+      return hasNonLeadingPartitionKeyProjection(stage.plan());
+    }
+
+    if (plan instanceof BatchScanExec scan
+        && scan.spjParams().joinKeyPositions().isDefined()
+        && CollectionConverters.asJava(scan.spjParams().joinKeyPositions().get())
+            .equals(List.of(1))) {
+      return true;
+    }
+
+    for (SparkPlan child : CollectionConverters.asJava(plan.children())) {
+      if (hasNonLeadingPartitionKeyProjection(child)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private void checkJoin(String sourceColumnName, String sourceColumnType, String transform)
