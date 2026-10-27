@@ -56,6 +56,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableCommit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
@@ -1165,12 +1166,19 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     @Override
     public Transaction replaceTransaction() {
       Endpoint.check(endpoints, Endpoint.V1_UPDATE_TABLE);
-      if (viewExists(context, ident)) {
-        throw new AlreadyExistsException("View with same name already exists: %s", ident);
-      }
 
-      LoadTableResponse response =
-          loadInternal(context, ident, snapshotMode, LoadContext.empty(), Map.of(), h -> {});
+      LoadTableResponse response;
+      try {
+        response =
+            loadInternal(context, ident, snapshotMode, LoadContext.empty(), Map.of(), h -> {});
+      } catch (NoSuchTableException e) {
+        // a view can only conflict with the table name if the table doesn't exist
+        if (viewExistsIfPermitted(context, ident)) {
+          throw new AlreadyExistsException("View with same name already exists: %s", ident);
+        }
+
+        throw e;
+      }
 
       String fullName = fullTableName(ident);
 
@@ -1246,6 +1254,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         return replaceTransaction();
       } catch (NoSuchTableException e) {
         return createTransaction();
+      }
+    }
+
+    private boolean viewExistsIfPermitted(
+        SessionContext sessionContext, TableIdentifier identifier) {
+      try {
+        return viewExists(sessionContext, identifier);
+      } catch (ForbiddenException e) {
+        // callers without view access can't have a view to replace, and the server rejects a
+        // conflicting create
+        return false;
       }
     }
 
