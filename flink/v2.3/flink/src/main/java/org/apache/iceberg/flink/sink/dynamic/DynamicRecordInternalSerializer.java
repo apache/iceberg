@@ -93,6 +93,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
       dataOutputView.writeInt(toSerialize.spec().specId());
     }
 
+    dataOutputView.writeInt(toSerialize.writerKey());
     final RowDataSerializer rowDataSerializer;
     if (writeSchemaAndSpec) {
       rowDataSerializer = serializerCache.serializer(toSerialize.tableName(), toSerialize.schema());
