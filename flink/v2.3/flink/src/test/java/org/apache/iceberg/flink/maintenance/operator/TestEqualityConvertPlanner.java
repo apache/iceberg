@@ -353,6 +353,13 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       sendTrigger(harness);
       assertThat(harness.extractOutputValues()).hasSize(firstTriggerCount);
       assertThat(planner(harness).skippedNoOpCycles()).isEqualTo(1);
+
+      // Each trigger emits a cycle start marker followed by the plan. The bootstrap built
+      // generation 1, and the second trigger reused it.
+      List<StreamRecord<EqualityConvertPlan>> metadata =
+          Lists.newArrayList(harness.getSideOutput(EqualityConvertPlanner.METADATA_STREAM));
+      assertThat(metadata.get(1).getValue().indexGeneration()).isEqualTo(1L);
+      assertThat(metadata.get(3).getValue().indexGeneration()).isEqualTo(1L);
     }
   }
 
@@ -669,6 +676,38 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
   }
 
   @Test
+  void startsNewIndexGenerationWhenReplanningOnEmptyTarget() throws Exception {
+    Table table = createTableWithDelete(3);
+
+    // The target branch has no snapshot until the first conversion commit.
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DataFile reinsert = writeDataFile(table, createRecord(1, "a"));
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addRows(reinsert).addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      // The first cycle indexes the re-insert but does not commit, so the same staging snapshot is
+      // planned again. Its eq delete must not resolve against the re-insert of the first cycle.
+      sendTrigger(harness);
+      sendTrigger(harness);
+
+      List<ReadCommand> eqDeletes =
+          harness.extractOutputValues().stream()
+              .filter(cmd -> cmd.task() instanceof EqualityDeleteFileScanTask)
+              .collect(Collectors.toList());
+      assertThat(eqDeletes).hasSize(2);
+      assertThat(eqDeletes.get(1).indexGeneration())
+          .isGreaterThan(eqDeletes.get(0).indexGeneration());
+    }
+  }
+
+  @Test
   void rebuildsIndexAfterRestoreOfUncommittedCycle() throws Exception {
     Table table = createTableWithDelete(3);
     insert(table, 1, "a");
@@ -687,8 +726,7 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       harness.open();
 
       // First cycle converts S1 and commits, so the newest commit on the target is the converter's
-      // own marker. The existing reindex path counts only commits newer than that marker, so it
-      // cannot fire on the restore below and the replan check is the only thing that can rebuild.
+      // own marker, which the planner sees on the next trigger.
       sendTrigger(harness);
       assertThat(harness.extractOutputValues()).hasSize(3);
       simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
@@ -719,6 +757,199 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
       assertThat(countDataFileTasks(commands)).isEqualTo(3);
       assertThat(countEqDeleteTasks(commands)).isEqualTo(1);
       assertThat(planner(harness).reindexCount()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void rebuildsIndexAfterRestoreFromBeforeCommittedCycle() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DataFile stagingData;
+    OperatorSubtaskState state;
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      // The checkpoint follows the first cycle, which converts S1 and commits.
+      sendTrigger(harness);
+      simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+      state = harness.snapshot(1, System.currentTimeMillis());
+
+      // The second cycle indexes S2's data file as staging data and copies it to the target. No
+      // checkpoint follows it.
+      stagingData = writeDataFile(table, createRecord(2, "b"));
+      table.newAppend().appendFile(stagingData).toBranch(STAGING_BRANCH).commit();
+      table.refresh();
+      long s2SnapshotId = table.snapshot(STAGING_BRANCH).snapshotId();
+
+      sendTrigger(harness);
+      table
+          .newRowDelta()
+          .addRows(stagingData)
+          .set(
+              EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY,
+              String.valueOf(s2SnapshotId))
+          .commit();
+      table.refresh();
+    }
+
+    DeleteFile eqDelete2 = writeEqualityDelete(table, 2, "b");
+    table.newRowDelta().addDeletes(eqDelete2).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.initializeState(state);
+      harness.open();
+
+      // The index restored with the planner never held S2's row, so the planner rebuilds it from
+      // the target before resolving the delete for that row.
+      sendTrigger(harness);
+      List<ReadCommand> commands = harness.extractOutputValues();
+
+      assertThat(commands).anyMatch(cmd -> filePath(cmd).equals(stagingData.location()));
+      assertThat(countEqDeleteTasks(commands)).isEqualTo(1);
+      assertThat(planner(harness).reindexCount()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void rebuildsIndexAfterRestoreWhenExternalCommitIsBelowConversionCommit() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+    long s1SnapshotId = table.snapshot(STAGING_BRANCH).snapshotId();
+
+    OperatorSubtaskState state;
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      // The first cycle plans S1 but does not commit, then a checkpoint is taken.
+      sendTrigger(harness);
+      state = harness.snapshot(1, System.currentTimeMillis());
+
+      // An external commit lands, the planner indexes it and the second cycle commits S1 on top.
+      insert(table, 2, "b");
+      sendTrigger(harness);
+      assertThat(planner(harness).reindexCount()).isEqualTo(1);
+      simulateConvertCommit(table, s1SnapshotId);
+    }
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.initializeState(state);
+      harness.open();
+
+      // The newest conversion commit is for the planned snapshot, but the external commit below it
+      // is not in the restored index.
+      sendTrigger(harness);
+
+      // Two inserts plus simulateConvertCommit's marker file = 3 data files on the target.
+      assertThat(countDataFileTasks(harness.extractOutputValues())).isEqualTo(3);
+      assertThat(planner(harness).reindexCount()).isEqualTo(1);
+    }
+  }
+
+  @Test
+  void rebuildsIndexAfterRestoreFromFailedRebuild() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    DeleteFile eqDelete = writeEqualityDelete(table, 1, "a");
+    table.newRowDelta().addDeletes(eqDelete).toBranch(STAGING_BRANCH).commit();
+    table.refresh();
+    long s1SnapshotId = table.snapshot(STAGING_BRANCH).snapshotId();
+
+    List<File> manifests = dataManifestFiles(table);
+
+    OperatorSubtaskState state;
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      // The first cycle plans S1 but its commit fails.
+      sendTrigger(harness);
+
+      // The retry's rebuild fails part way, then a checkpoint is taken.
+      hide(manifests);
+      sendTrigger(harness);
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
+      restore(manifests);
+      state = harness.snapshot(1, System.currentTimeMillis());
+
+      // The next retry rebuilds the index and commits S1 on the same parent.
+      sendTrigger(harness);
+      simulateConvertCommit(table, s1SnapshotId);
+    }
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.initializeState(state);
+      harness.open();
+
+      // The commit has the planned snapshot and parent, but the restored index is the one the
+      // failed rebuild left.
+      sendTrigger(harness);
+
+      // One insert plus simulateConvertCommit's marker file = 2 data files on the target.
+      assertThat(countDataFileTasks(harness.extractOutputValues())).isEqualTo(2);
+    }
+  }
+
+  @Test
+  void bootstrapsAgainAfterRestoreFromFailedBootstrap() throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table.refresh();
+
+    // The newest commit is a conversion commit, so no external commit makes the planner rebuild.
+    simulateConvertCommit(table, table.snapshot(STAGING_BRANCH).snapshotId());
+
+    List<File> manifests = dataManifestFiles(table);
+
+    OperatorSubtaskState state;
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.open();
+
+      hide(manifests);
+      sendTrigger(harness);
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
+      state = harness.snapshot(1, System.currentTimeMillis());
+    }
+
+    restore(manifests);
+
+    try (OneInputStreamOperatorTestHarness<Trigger, ReadCommand> harness =
+        createHarness(STAGING_BRANCH)) {
+      harness.initializeState(state);
+      harness.open();
+
+      // The checkpoint must not claim the index covers the head: the bootstrap did not finish.
+      sendTrigger(harness);
+
+      // One insert plus simulateConvertCommit's marker file = 2 data files on the target.
+      assertThat(countDataFileTasks(harness.extractOutputValues())).isEqualTo(2);
     }
   }
 
@@ -1173,6 +1404,27 @@ class TestEqualityConvertPlanner extends OperatorTestBase {
         new PartitionData(PartitionSpec.unpartitioned().partitionType()),
         Lists.newArrayList(delete),
         3);
+  }
+
+  private static List<File> dataManifestFiles(Table table) {
+    return table.currentSnapshot().dataManifests(table.io()).stream()
+        .map(manifest -> new File(manifest.path().replace("file:", "")))
+        .collect(Collectors.toList());
+  }
+
+  // Makes reads of the files fail until restore is called.
+  private static void hide(List<File> files) {
+    assertThat(files.stream().map(file -> file.renameTo(hidden(file))).collect(Collectors.toList()))
+        .containsOnly(true);
+  }
+
+  private static void restore(List<File> files) {
+    assertThat(files.stream().map(file -> hidden(file).renameTo(file)).collect(Collectors.toList()))
+        .containsOnly(true);
+  }
+
+  private static File hidden(File file) {
+    return new File(file.getPath() + ".hidden");
   }
 
   private static long countDataFileTasks(List<ReadCommand> commands) {
