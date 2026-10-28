@@ -74,6 +74,10 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     hive {
       extendsFrom runtimeClasspath
     }
+    runtimeClasspath {
+      // keep the hive distribution a superset of main by resolving shared jars to the same versions
+      shouldResolveConsistentlyWith(hive)
+    }
     all {
       exclude group: 'javax.activation', module: 'activation'
       exclude group: 'org.jspecify', module: 'jspecify'
@@ -253,6 +257,11 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     it.file in [hiveDistZip.archiveFile.get().asFile, hiveDistTar.archiveFile.get().asFile]
   }
 
+  // track main and hive distributions separately; set properties before each apply
+  ext.runtimeDepsFile = 'main/runtime-deps.txt'
+  apply from: "${rootDir}/runtime-deps.gradle"
+  ext.runtimeDepsFile = 'hive/runtime-deps.txt'
+  ext.runtimeDepsConfiguration = configurations.hive
   apply from: "${rootDir}/runtime-deps.gradle"
 }
 
