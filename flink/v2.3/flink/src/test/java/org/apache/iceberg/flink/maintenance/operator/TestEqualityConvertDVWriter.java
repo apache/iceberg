@@ -40,6 +40,7 @@ import org.junit.jupiter.api.Test;
 class TestEqualityConvertDVWriter extends OperatorTestBase {
 
   private static final byte[] EMPTY_PARTITION = new byte[0];
+  private static final long INDEX_GENERATION = 1L;
 
   @Test
   void writesDVFileForSinglePosition() throws Exception {
@@ -153,7 +154,8 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
           new StreamRecord<>(new DVPosition(dataFilePath, 0, 0, EMPTY_PARTITION, 0L), time));
 
       // The cycle-start marker is not a plan: it must not trigger a write.
-      harness.processElement2(new StreamRecord<>(EqualityConvertPlan.cycleStart(time), time));
+      harness.processElement2(
+          new StreamRecord<>(EqualityConvertPlan.cycleStart(time, INDEX_GENERATION), time));
       harness.processBothWatermarks(new Watermark(time));
       assertThat(harness.extractOutputValues()).isEmpty();
 
@@ -247,7 +249,8 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
               1L,
               null,
               0L,
-              0L);
+              0L,
+              INDEX_GENERATION);
 
       // New position 1 in the same file. Must merge it with the staged position 0.
       harness.processElement1(
@@ -288,7 +291,8 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
               1L,
               plannedSnapshotId,
               0L,
-              0L);
+              0L,
+              INDEX_GENERATION);
 
       harness.processElement1(
           new StreamRecord<>(new DVPosition(dataFilePath, 0, 0, EMPTY_PARTITION, 0L), time));
@@ -491,7 +495,14 @@ class TestEqualityConvertDVWriter extends OperatorTestBase {
 
   private static EqualityConvertPlan emptyEqualityConvertPlan() {
     return new EqualityConvertPlan(
-        Lists.newArrayList(), Lists.newArrayList(), Lists.newArrayList(), 1L, null, 0L, 0L);
+        Lists.newArrayList(),
+        Lists.newArrayList(),
+        Lists.newArrayList(),
+        1L,
+        null,
+        0L,
+        0L,
+        INDEX_GENERATION);
   }
 
   private static String getFirstDataFilePath(Table table) {

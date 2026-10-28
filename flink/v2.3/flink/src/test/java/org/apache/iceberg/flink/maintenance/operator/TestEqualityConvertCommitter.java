@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.TwoInputStreamOperatorTestHarness;
@@ -54,6 +55,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 class TestEqualityConvertCommitter extends OperatorTestBase {
 
+  private static final long INDEX_GENERATION = 1L;
+
   @TempDir private Path tempDir;
 
   @Test
@@ -78,7 +81,8 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
               stagingSnapshotId,
               snapshotIdBefore,
               doneTs - 1,
-              doneTs);
+              doneTs,
+              INDEX_GENERATION);
 
       harness.processElement2(new StreamRecord<>(planResult, doneTs - 1));
       harness.processBothWatermarks(new Watermark(doneTs));
@@ -116,7 +120,8 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
               42L,
               snapshotIdBefore,
               doneTs - 2,
-              doneTs);
+              doneTs,
+              INDEX_GENERATION);
 
       harness.processElement2(new StreamRecord<>(planResult, doneTs - 2));
 
@@ -151,7 +156,8 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
       // The planner marks cycle start, then emits phase watermarks before the plan. The pre-plan
       // phase watermark must not escape: forwarding it would let the LockRemover release the
       // maintenance lock before this cycle commits.
-      harness.processElement2(new StreamRecord<>(EqualityConvertPlan.cycleStart(triggerTs)));
+      harness.processElement2(
+          new StreamRecord<>(EqualityConvertPlan.cycleStart(triggerTs, INDEX_GENERATION)));
       harness.processBothWatermarks(new Watermark(triggerTs + 1));
       assertThat(watermarks(harness)).isEmpty();
       assertThat(harness.extractOutputValues()).isEmpty();
@@ -165,7 +171,8 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
               42L,
               snapshotIdBefore,
               triggerTs,
-              doneTs);
+              doneTs,
+              INDEX_GENERATION);
       harness.processElement2(new StreamRecord<>(planResult));
       harness.processBothWatermarks(new Watermark(doneTs));
 
@@ -203,7 +210,8 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
       harness.open();
 
       long doneTs = System.currentTimeMillis();
-      EqualityConvertPlan planResult = EqualityConvertPlan.noOp(null, doneTs - 1, doneTs);
+      EqualityConvertPlan planResult =
+          EqualityConvertPlan.noOp(null, doneTs - 1, doneTs, INDEX_GENERATION);
 
       harness.processElement2(new StreamRecord<>(planResult, doneTs - 1));
       harness.processBothWatermarks(new Watermark(doneTs));
@@ -235,7 +243,8 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
               42L,
               snapshotIdBefore,
               doneTs - 1,
-              doneTs);
+              doneTs,
+              INDEX_GENERATION);
 
       // Receive an abort signal from the DVWriter followed by the planning planResult.
       harness.processElement1(new StreamRecord<>(DVWriteResult.ABORT, doneTs));
@@ -247,6 +256,129 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
       assertThat(harness.extractOutputValues()).hasSize(1);
       table.refresh();
       assertThat(table.currentSnapshot().snapshotId()).isEqualTo(snapshotIdBefore);
+    }
+  }
+
+  @Test
+  void withholdsNextConversionCommitAfterFailedIdleCycle() throws Exception {
+    Table table = createTable(3, FileFormat.PARQUET);
+    insert(table, 1, "a");
+
+    DataFile stagingDataFile = getFirstDataFile(table);
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+    DeleteFile writtenDv = writeDV(table, stagingDataFile.location(), 0L);
+
+    try (TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger> harness =
+        createHarness()) {
+      harness.open();
+
+      failIdleRebuild(harness, mainSnapshotId);
+
+      // The next conversion is not committed, and the DV it wrote is deleted.
+      harness.processElement1(
+          new StreamRecord<>(
+              new DVWriteResult(Lists.newArrayList(writtenDv), Lists.newArrayList()), 20L));
+      harness.processElement2(
+          new StreamRecord<>(conversionPlan(stagingDataFile, mainSnapshotId, 20L, 1L), 19L));
+      harness.processBothWatermarks(new Watermark(20L));
+
+      table.refresh();
+      assertThat(table.currentSnapshot().snapshotId()).isEqualTo(mainSnapshotId);
+      assertThat(table.io().newInputFile(writtenDv.location()).exists()).isFalse();
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
+
+      // Planned again with a rebuilt index on a new generation, the conversion commits.
+      harness.processElement2(
+          new StreamRecord<>(conversionPlan(stagingDataFile, mainSnapshotId, 30L, 2L), 29L));
+      harness.processBothWatermarks(new Watermark(30L));
+
+      assertThat(committedStagingSnapshot(table)).isEqualTo("42");
+    }
+  }
+
+  @Test
+  void withholdsNextConversionCommitAfterRestore() throws Exception {
+    Table table = createTable(3, FileFormat.PARQUET);
+    insert(table, 1, "a");
+
+    DataFile stagingDataFile = getFirstDataFile(table);
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+
+    OperatorSubtaskState state;
+    try (TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger> harness =
+        createHarness()) {
+      harness.open();
+
+      failIdleRebuild(harness, mainSnapshotId);
+
+      state = harness.snapshot(1, 11L);
+    }
+
+    try (TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger> harness =
+        createHarness()) {
+      harness.initializeState(state);
+      harness.open();
+
+      harness.processElement2(
+          new StreamRecord<>(conversionPlan(stagingDataFile, mainSnapshotId, 20L, 1L), 19L));
+      harness.processBothWatermarks(new Watermark(20L));
+
+      table.refresh();
+      assertThat(table.currentSnapshot().snapshotId()).isEqualTo(mainSnapshotId);
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).hasSize(1);
+    }
+  }
+
+  @Test
+  void commitsReplannedConversionAfterFailedConversion() throws Exception {
+    Table table = createTable(3, FileFormat.PARQUET);
+    insert(table, 1, "a");
+
+    DataFile stagingDataFile = getFirstDataFile(table);
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+
+    try (TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger> harness =
+        createHarness()) {
+      harness.open();
+
+      // A failed conversion is planned again with a rebuilt index, so nothing is withheld.
+      harness.processElement1(new StreamRecord<>(DVWriteResult.ABORT, 10L));
+      harness.processElement2(
+          new StreamRecord<>(conversionPlan(stagingDataFile, mainSnapshotId, 10L, 1L), 9L));
+      harness.processBothWatermarks(new Watermark(10L));
+
+      harness.processElement2(
+          new StreamRecord<>(conversionPlan(stagingDataFile, mainSnapshotId, 20L, 2L), 19L));
+      harness.processBothWatermarks(new Watermark(20L));
+
+      assertThat(committedStagingSnapshot(table)).isEqualTo("42");
+    }
+  }
+
+  @Test
+  void commitsNextConversionAfterCleanRebuild() throws Exception {
+    Table table = createTable(3, FileFormat.PARQUET);
+    insert(table, 1, "a");
+
+    DataFile stagingDataFile = getFirstDataFile(table);
+    long mainSnapshotId = table.currentSnapshot().snapshotId();
+
+    try (TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger> harness =
+        createHarness()) {
+      harness.open();
+
+      failIdleRebuild(harness, mainSnapshotId);
+
+      // An external commit makes the next idle cycle rebuild the index, which repairs the failure.
+      harness.processElement2(
+          new StreamRecord<>(EqualityConvertPlan.noOp(mainSnapshotId, 19L, 20L, 2L), 19L));
+      harness.processBothWatermarks(new Watermark(20L));
+
+      harness.processElement2(
+          new StreamRecord<>(conversionPlan(stagingDataFile, mainSnapshotId, 30L, 2L), 29L));
+      harness.processBothWatermarks(new Watermark(30L));
+
+      assertThat(committedStagingSnapshot(table)).isEqualTo("42");
     }
   }
 
@@ -272,7 +404,8 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
               stagingSnapshotId,
               mainSnapshotIdAtPlan,
               doneTs - 1,
-              doneTs);
+              doneTs,
+              INDEX_GENERATION);
 
       harness.processElement2(new StreamRecord<>(planResult, doneTs - 1));
 
@@ -330,7 +463,8 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
               stagingSnapshotId,
               mainSnapshotIdAtPlan,
               doneTs - 1,
-              doneTs);
+              doneTs,
+              INDEX_GENERATION);
 
       // Cycle 1 commits, advancing the target past mainSnapshotIdAtPlan and writing the marker.
       harness.processElement2(new StreamRecord<>(planResult, doneTs - 1));
@@ -353,7 +487,8 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
               stagingSnapshotId,
               mainSnapshotIdAtPlan,
               doneTs2 - 1,
-              doneTs2);
+              doneTs2,
+              INDEX_GENERATION);
 
       harness.processElement2(new StreamRecord<>(replay, doneTs2 - 1));
       harness.processBothWatermarks(new Watermark(doneTs2));
@@ -399,7 +534,8 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
               777L,
               mainSnapshotIdAtPlan,
               doneTs - 1,
-              doneTs);
+              doneTs,
+              INDEX_GENERATION);
 
       harness.processElement1(
           new StreamRecord<>(
@@ -450,7 +586,8 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
               42L,
               snapshotIdBefore,
               doneTs - 1,
-              doneTs);
+              doneTs,
+              INDEX_GENERATION);
 
       // One writer task wrote a DV (rewriting an existing one); a sibling task aborted.
       harness.processElement1(
@@ -505,7 +642,8 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
               888L,
               mainSnapshotIdAtPlan,
               doneTs - 1,
-              doneTs);
+              doneTs,
+              INDEX_GENERATION);
 
       harness.processElement1(
           new StreamRecord<>(
@@ -557,7 +695,8 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
               123L,
               mainSnapshotId,
               doneTs - 1,
-              doneTs);
+              doneTs,
+              INDEX_GENERATION);
 
       harness.processElement1(
           new StreamRecord<>(
@@ -616,7 +755,8 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
               123L,
               mainSnapshotId,
               doneTs - 1,
-              doneTs);
+              doneTs,
+              INDEX_GENERATION);
 
       harness.processElement1(
           new StreamRecord<>(
@@ -653,6 +793,39 @@ class TestEqualityConvertCommitter extends OperatorTestBase {
             tableLoader(),
             SnapshotRef.MAIN_BRANCH,
             SnapshotRef.MAIN_BRANCH));
+  }
+
+  // The planner rebuilt the index to generation 1 in a cycle with nothing to convert, and a worker
+  // failed to update it.
+  private static void failIdleRebuild(
+      TwoInputStreamOperatorTestHarness<DVWriteResult, EqualityConvertPlan, Trigger> harness,
+      long mainSnapshotId)
+      throws Exception {
+    harness.processElement1(new StreamRecord<>(DVWriteResult.ABORT, 10L));
+    harness.processElement2(
+        new StreamRecord<>(EqualityConvertPlan.noOp(mainSnapshotId, 9L, 10L, 1L), 9L));
+    harness.processBothWatermarks(new Watermark(10L));
+  }
+
+  private static String committedStagingSnapshot(Table table) {
+    table.refresh();
+    return table
+        .currentSnapshot()
+        .summary()
+        .get(EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY);
+  }
+
+  private static EqualityConvertPlan conversionPlan(
+      DataFile stagingDataFile, long mainSnapshotId, long doneTs, long indexGeneration) {
+    return new EqualityConvertPlan(
+        Lists.newArrayList(stagingDataFile),
+        Lists.newArrayList(),
+        Lists.newArrayList(),
+        42L,
+        mainSnapshotId,
+        doneTs - 1,
+        doneTs,
+        indexGeneration);
   }
 
   private static List<Watermark> watermarks(TwoInputStreamOperatorTestHarness<?, ?, ?> harness) {

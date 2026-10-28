@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import static org.apache.iceberg.flink.SimpleDataUtil.createRecord;
 import static org.apache.iceberg.flink.maintenance.api.TableMaintenance.LOCK_REMOVER_OPERATOR_NAME;
+import static org.apache.iceberg.flink.maintenance.operator.EqualityConvertCommitter.COMMITTED_STAGING_SNAPSHOT_PROPERTY;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.SUCCEEDED_TASK_COUNTER;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,12 +31,18 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
+import org.apache.flink.client.program.ClusterClient;
 import org.apache.flink.core.execution.JobClient;
+import org.apache.flink.core.execution.SavepointFormatType;
+import org.apache.flink.runtime.jobgraph.SavepointRestoreSettings;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.graph.StreamGraph;
+import org.apache.flink.test.junit5.InjectClusterClient;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
@@ -104,18 +111,7 @@ class TestConvertEqualityDeletesE2E extends OperatorTestBase {
     table.refresh();
     assertThat(dvCountOnMain(table)).isZero();
 
-    TableMaintenance.forTable(env, tableLoader(), LOCK_FACTORY)
-        .uidSuffix("ConvertEqualityDeletesE2EUID-" + stagingBranch)
-        .rateLimit(Duration.ofMillis(50))
-        .lockCheckDelay(Duration.ofMillis(50))
-        .add(
-            ConvertEqualityDeletes.builder()
-                .scheduleOnInterval(Duration.ofMillis(100))
-                .stagingBranch(stagingBranch)
-                .targetBranch(SnapshotRef.MAIN_BRANCH)
-                .equalityFieldColumns(ImmutableList.of("id", "data"))
-                .parallelism(2))
-        .append();
+    appendConvertTask(env, stagingBranch, "ConvertEqualityDeletesE2EUID-" + stagingBranch);
 
     JobClient jobClient = null;
     try {
@@ -209,6 +205,97 @@ class TestConvertEqualityDeletesE2E extends OperatorTestBase {
     } finally {
       closeJobClient(jobClient);
     }
+  }
+
+  /**
+   * Restoring from a savepoint taken before a committed cycle leaves the converter's index without
+   * the rows that cycle copied to the target. The next conversion must rebuild it, or a delete for
+   * one of those rows resolves to nothing.
+   */
+  @Test
+  void reindexesAfterRestoreFromBeforeCommittedCycle(
+      @TempDir File savepointDir, @InjectClusterClient ClusterClient<?> clusterClient)
+      throws Exception {
+    Table table = createTableWithDelete(3);
+    insert(table, 1, "a");
+    table.manageSnapshots().createBranch(STAGING_BRANCH).commit();
+    table
+        .newRowDelta()
+        .addDeletes(writeEqualityDelete(table, 1, "a"))
+        .toBranch(STAGING_BRANCH)
+        .commit();
+    table.refresh();
+
+    appendConvertTask(env, STAGING_BRANCH, "ConvertEqualityDeletesRestoreUID");
+    String savepointPath;
+    JobClient jobClient = null;
+    try {
+      jobClient = env.executeAsync();
+      awaitConverted(table, table.snapshot(STAGING_BRANCH).snapshotId());
+      savepointPath =
+          jobClient.triggerSavepoint(savepointDir.getPath(), SavepointFormatType.CANONICAL).get();
+
+      // This cycle copies S2's row to the target after the savepoint.
+      table.newAppend().appendFile(writeDataFile(table, 2, "b")).toBranch(STAGING_BRANCH).commit();
+      table.refresh();
+      awaitConverted(table, table.snapshot(STAGING_BRANCH).snapshotId());
+    } finally {
+      closeJobClient(jobClient);
+    }
+
+    table
+        .newRowDelta()
+        .addDeletes(writeEqualityDelete(table, 2, "b"))
+        .toBranch(STAGING_BRANCH)
+        .commit();
+    table.refresh();
+    long deleteSnapshotId = table.snapshot(STAGING_BRANCH).snapshotId();
+
+    StreamExecutionEnvironment restoredEnv = StreamExecutionEnvironment.getExecutionEnvironment();
+    appendConvertTask(restoredEnv, STAGING_BRANCH, "ConvertEqualityDeletesRestoreUID");
+    StreamGraph streamGraph = restoredEnv.getStreamGraph();
+    // Submitting the graph directly skips the executor, which is what normally assigns the job id
+    streamGraph.setJobId(JobID.generate());
+    streamGraph.setSavepointRestoreSettings(SavepointRestoreSettings.forPath(savepointPath));
+    JobID restoredJobId = clusterClient.submitJob(streamGraph).get();
+    try {
+      awaitConverted(table, deleteSnapshotId);
+      SimpleDataUtil.assertTableRecords(table, ImmutableList.of());
+    } finally {
+      clusterClient.cancel(restoredJobId).get();
+      Awaitility.await()
+          .until(() -> clusterClient.getJobStatus(restoredJobId).get().isTerminalState());
+    }
+  }
+
+  private void appendConvertTask(
+      StreamExecutionEnvironment environment, String stagingBranch, String uidSuffix)
+      throws IOException {
+    TableMaintenance.forTable(environment, tableLoader(), LOCK_FACTORY)
+        .uidSuffix(uidSuffix)
+        .rateLimit(Duration.ofMillis(50))
+        .lockCheckDelay(Duration.ofMillis(50))
+        .add(
+            ConvertEqualityDeletes.builder()
+                .scheduleOnInterval(Duration.ofMillis(100))
+                .stagingBranch(stagingBranch)
+                .targetBranch(SnapshotRef.MAIN_BRANCH)
+                .equalityFieldColumns(ImmutableList.of("id", "data"))
+                .parallelism(2))
+        .append();
+  }
+
+  private static void awaitConverted(Table table, long stagingSnapshotId) {
+    Awaitility.await()
+        .atMost(Duration.ofMinutes(5))
+        .pollInterval(Duration.ofMillis(200))
+        .untilAsserted(
+            () -> {
+              table.refresh();
+              assertThat(table.currentSnapshot().summary())
+                  .containsEntry(
+                      COMMITTED_STAGING_SNAPSHOT_PROPERTY, String.valueOf(stagingSnapshotId));
+            });
   }
 
   private static void awaitSucceeded(List<String> counterKey, long expected) {
