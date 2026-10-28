@@ -19,7 +19,6 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.List;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -41,6 +40,15 @@ class V4TestHelpers {
 
   static TrackedFile dataFile(String location, Integer specId, PartitionData partition) {
     return dataFile(ADDED_TRACKING, location, specId, partition, null, null);
+  }
+
+  static TrackedFile dataFile(
+      String location,
+      Integer specId,
+      PartitionData partition,
+      ContentStats stats,
+      DeletionVector dv) {
+    return dataFile(ADDED_TRACKING, location, specId, partition, stats, dv);
   }
 
   static TrackedFile dataFileWithStats(String location, ContentStats stats) {
@@ -66,26 +74,7 @@ class V4TestHelpers {
         partition,
         stats,
         dv,
-        null, // manifestInfo
-        null); // equalityIds
-  }
-
-  static TrackedFile deleteFile(
-      FileContent content,
-      String location,
-      Integer specId,
-      PartitionData partition,
-      List<Integer> equalityIds) {
-    return trackedFile(
-        ADDED_TRACKING,
-        content,
-        location,
-        specId,
-        partition,
-        null, // stats
-        null, // dv
-        null, // manifestInfo
-        equalityIds);
+        null /* manifestInfo */);
   }
 
   static TrackedFile manifestRef(FileContent content, String location, ManifestInfo manifestInfo) {
@@ -102,8 +91,7 @@ class V4TestHelpers {
         null, // partition
         stats,
         null, // dv
-        manifestInfo,
-        null); // equalityIds
+        manifestInfo);
   }
 
   private static TrackedFile trackedFile(
@@ -114,12 +102,10 @@ class V4TestHelpers {
       PartitionData partition,
       ContentStats stats,
       DeletionVector dv,
-      ManifestInfo manifestInfo,
-      List<Integer> equalityIds) {
+      ManifestInfo manifestInfo) {
     return new TrackedFileStruct(
         tracking,
         content,
-        FORMAT_VERSION_V4,
         location,
         FileFormat.fromFileName(location),
         RECORD_COUNT,
@@ -131,8 +117,7 @@ class V4TestHelpers {
         dv,
         manifestInfo,
         null, // keyMetadata
-        null, // splitOffsets
-        equalityIds);
+        null); // splitOffsets
   }
 
   static DeletionVector deletionVector(String location) {
@@ -165,8 +150,18 @@ class V4TestHelpers {
       Types.StructType statsType,
       Iterable<TrackedFile> files)
       throws IOException {
-    Schema writeSchema = TrackedFile.schema(partitionType, statsType);
     OutputFile out = io.newOutputFile(format.addExtension("manifest." + System.nanoTime()));
+    return writeTrackedFiles(out, format, partitionType, statsType, files);
+  }
+
+  static OutputFile writeTrackedFiles(
+      OutputFile out,
+      FileFormat format,
+      Types.StructType partitionType,
+      Types.StructType statsType,
+      Iterable<TrackedFile> files)
+      throws IOException {
+    Schema writeSchema = TrackedFile.schema(partitionType, statsType);
     try (FileAppender<StructLike> appender =
         InternalData.write(format, out).schema(writeSchema).named("tracked_file").build()) {
       for (TrackedFile file : files) {

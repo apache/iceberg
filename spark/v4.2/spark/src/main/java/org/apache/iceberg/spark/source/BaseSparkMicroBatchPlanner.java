@@ -117,6 +117,18 @@ abstract class BaseSparkMicroBatchPlanner implements SparkMicroBatchPlanner {
     return nextSnapshot;
   }
 
+  @Override
+  public StreamingOffset latestValidSnapshotOffset() {
+    for (Snapshot snapshot : SnapshotUtil.currentAncestors(table)) {
+      if (shouldProcess(snapshot)) {
+        return new StreamingOffset(
+            snapshot.snapshotId(), MicroBatchUtils.addedFilesCount(table, snapshot), false);
+      }
+    }
+
+    return null;
+  }
+
   static class UnpackedLimits {
     private long maxRows = Integer.MAX_VALUE;
     private long maxFiles = Integer.MAX_VALUE;

@@ -27,47 +27,47 @@ import org.junit.jupiter.api.Test;
 class TestMetricsUtil {
 
   @Test
-  void copyWithoutFieldCountsDropsAvgValueSizesForExcludedFields() {
-    Metrics copy =
-        MetricsUtil.copyWithoutFieldCounts(metricsWithAvgValueSizes(), ImmutableSet.of(1));
+  void copyWithoutFieldCountsDropsTotalBytesForExcludedFields() {
+    Metrics copy = MetricsUtil.copyWithoutFieldCounts(metricsWithTotalBytes(), ImmutableSet.of(1));
 
-    assertThat(copy.avgValueSizes()).isEqualTo(ImmutableMap.of(2, 20));
+    assertThat(copy.totalBytes()).isEqualTo(ImmutableMap.of(2, 20L));
   }
 
   @Test
-  void copyWithoutFieldCountsAndBoundsDropsAvgValueSizesForExcludedFields() {
+  void copyWithoutFieldCountsAndBoundsDropsTotalBytesForExcludedFields() {
     Metrics copy =
-        MetricsUtil.copyWithoutFieldCountsAndBounds(metricsWithAvgValueSizes(), ImmutableSet.of(1));
+        MetricsUtil.copyWithoutFieldCountsAndBounds(metricsWithTotalBytes(), ImmutableSet.of(1));
 
-    assertThat(copy.avgValueSizes()).isEqualTo(ImmutableMap.of(2, 20));
+    assertThat(copy.totalBytes()).isEqualTo(ImmutableMap.of(2, 20L));
   }
 
   @Test
-  void copyDropsAvgValueSizesEntirelyWhenAllFieldsExcluded() {
+  void copyDropsTotalBytesEntirelyWhenAllFieldsExcluded() {
     // once every tracked field is excluded the filtered map is empty, and copyWithoutKeys returns
-    // null rather than an empty map, matching the "null otherwise" contract of avgValueSizes()
+    // null rather than an empty map, matching the "null otherwise" contract of totalBytes()
     Metrics copy =
-        MetricsUtil.copyWithoutFieldCounts(metricsWithAvgValueSizes(), ImmutableSet.of(1, 2));
+        MetricsUtil.copyWithoutFieldCounts(metricsWithTotalBytes(), ImmutableSet.of(1, 2));
 
-    assertThat(copy.avgValueSizes()).isNull();
+    assertThat(copy.totalBytes()).isNull();
   }
 
   @Test
-  void copyWithStatsReturnsNullAvgValueSizesWhenNoRequestedColumnMatches() {
+  void copyWithStatsReturnsNullTotalBytesWhenNoRequestedColumnMatches() {
     DataFile file =
         DataFiles.builder(PartitionSpec.unpartitioned())
             .withPath("/path/to/data.parquet")
             .withFileSizeInBytes(10)
             .withRecordCount(1)
-            .withMetrics(metricsWithAvgValueSizes())
+            .withMetrics(metricsWithTotalBytes())
             .build();
 
-    assertThat(file.copyWithStats(ImmutableSet.of(2)).avgValueSizes())
-        .isEqualTo(ImmutableMap.of(2, 20));
-    assertThat(file.copyWithStats(ImmutableSet.of(3)).avgValueSizes()).isNull();
+    assertThat(file.copyWithStats(ImmutableSet.of(2)).totalBytes())
+        .isEqualTo(ImmutableMap.of(2, 20L));
+    assertThat(file.copyWithStats(ImmutableSet.of(3)).totalBytes()).isNull();
   }
 
-  private static Metrics metricsWithAvgValueSizes() {
-    return new Metrics(3L, null, null, null, null, null, null, ImmutableMap.of(1, 10, 2, 20), null);
+  private static Metrics metricsWithTotalBytes() {
+    return new Metrics(
+        3L, null, null, null, null, null, null, ImmutableMap.of(1, 10L, 2, 20L), null);
   }
 }
