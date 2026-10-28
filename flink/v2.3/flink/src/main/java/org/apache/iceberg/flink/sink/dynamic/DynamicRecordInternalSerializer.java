@@ -209,7 +209,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
   @Override
   public DynamicRecordInternal copy(DynamicRecordInternal from) {
     RowDataSerializer rowDataSerializer =
-        serializerCache.serializer(from.tableName(), from.schema(), from.spec());
+        serializerCache.serializer(from.tableName(), from.schema());
     return new DynamicRecordInternal(
         from.tableName(),
         from.branch(),
@@ -224,7 +224,7 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
   @Override
   public DynamicRecordInternal copy(DynamicRecordInternal from, DynamicRecordInternal reuse) {
     RowDataSerializer rowDataSerializer =
-        serializerCache.serializer(from.tableName(), from.schema(), from.spec());
+        serializerCache.serializer(from.tableName(), from.schema());
     reuse.setTableName(from.tableName());
     reuse.setBranch(from.branch());
     reuse.setSchema(from.schema());
