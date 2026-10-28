@@ -236,7 +236,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         .forEach(
             row -> {
               SparkStructLike rowWrapper = new SparkStructLike(projection);
-              set.add(new InternalSparkStructLike(projection, rowWrapper.wrap(row)));
+              set.add(new FixedAsByteBufferStructLike(projection, rowWrapper.wrap(row)));
             });
 
     return set;
@@ -756,14 +756,14 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   }
 
   /**
-   * Returns fixed values as ByteBuffer, matching InternalRecordWrapper on the expected side.
-   * SparkStructLike returns them as byte[], which StructLikeSet compares by reference.
+   * Wraps top-level Iceberg fixed values as ByteBuffer to match InternalRecordWrapper on the
+   * expected side.
    */
-  private static class InternalSparkStructLike implements StructLike {
+  private static class FixedAsByteBufferStructLike implements StructLike {
     private final Types.StructType type;
     private final StructLike wrapped;
 
-    InternalSparkStructLike(Types.StructType type, StructLike wrapped) {
+    FixedAsByteBufferStructLike(Types.StructType type, StructLike wrapped) {
       this.type = type;
       this.wrapped = wrapped;
     }
