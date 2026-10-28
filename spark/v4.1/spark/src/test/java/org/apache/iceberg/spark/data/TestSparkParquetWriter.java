@@ -31,6 +31,8 @@ import static org.mockito.Mockito.when;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
@@ -38,9 +40,12 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Metrics;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
@@ -48,6 +53,7 @@ import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
@@ -59,6 +65,10 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.STUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSparkParquetWriter {
   @TempDir private Path temp;
@@ -192,12 +202,14 @@ public class TestSparkParquetWriter {
     }
   }
 
-  @Test
-  public void testGeospatialTotalBytesMetrics() throws IOException {
+  @ParameterizedTest
+  @ValueSource(strings = {"OGC:CRS84", "EPSG:3857"})
+  public void testGeospatialTotalBytesMetrics(String crs) throws IOException {
+    Types.GeometryType geometryType = Types.GeometryType.of(crs);
     Schema geoSchema =
         new Schema(
             required(1, "id", Types.LongType.get()),
-            optional(2, "geom", Types.GeometryType.crs84()),
+            optional(2, "geom", geometryType),
             optional(3, "geog", Types.GeographyType.crs84()));
 
     // WKB payloads of 3 and 5 bytes for geometry (total 8), 7 bytes for geography.
@@ -238,11 +250,103 @@ public class TestSparkParquetWriter {
     assertThat(geomMetrics.valueCount()).isEqualTo(2);
     assertThat(geomMetrics.nullValueCount()).isZero();
     assertThat(geomMetrics.totalBytes()).isEqualTo(8L);
+    assertThat(geomMetrics.originalType()).isEqualTo(geometryType);
 
     FieldMetrics<?> geogMetrics = metricsById.get(geogId);
     assertThat(geogMetrics.valueCount()).isEqualTo(2);
     assertThat(geogMetrics.nullValueCount()).isEqualTo(1);
     assertThat(geogMetrics.totalBytes()).isEqualTo(7L);
+  }
+
+  @Test
+  void geometryBoundsMetrics() throws IOException {
+    Types.GeometryType geometryType = Types.GeometryType.crs84();
+    Schema schema = new Schema(optional(1, "geom", geometryType));
+    byte[] point = pointWkb(-5.0, 40.0);
+    byte[] line = lineStringWkb(30.0, 10.0, 40.0, 20.0);
+
+    Metrics metrics =
+        writeMetrics(schema, geometryRow(point), geometryRow(line), geometryRow(null));
+
+    assertThat(metrics.recordCount()).isEqualTo(3L);
+    assertThat(metrics.valueCounts()).containsEntry(1, 3L);
+    assertThat(metrics.nullValueCounts()).containsEntry(1, 1L);
+    assertThat(metrics.totalBytes()).containsEntry(1, (long) point.length + line.length);
+    assertThat(
+            Conversions.<GeospatialBound>fromByteBuffer(geometryType, metrics.lowerBounds().get(1)))
+        .isEqualTo(GeospatialBound.createXY(-5.0, 10.0));
+    assertThat(
+            Conversions.<GeospatialBound>fromByteBuffer(geometryType, metrics.upperBounds().get(1)))
+        .isEqualTo(GeospatialBound.createXY(40.0, 40.0));
+  }
+
+  @ParameterizedTest
+  @MethodSource("geometriesWithoutBounds")
+  void geometryMetricsHaveNoBounds(byte[] wkb, long expectedNullCount, long expectedTotalBytes)
+      throws IOException {
+    Schema schema = new Schema(optional(1, "geom", Types.GeometryType.crs84()));
+
+    Metrics metrics = writeMetrics(schema, geometryRow(wkb), geometryRow(wkb));
+
+    assertThat(metrics.recordCount()).isEqualTo(2L);
+    assertThat(metrics.valueCounts()).containsEntry(1, 2L);
+    assertThat(metrics.nullValueCounts()).containsEntry(1, expectedNullCount);
+    assertThat(metrics.totalBytes()).containsEntry(1, expectedTotalBytes);
+    assertThat(metrics.lowerBounds()).isEmpty();
+    assertThat(metrics.upperBounds()).isEmpty();
+  }
+
+  private static Stream<Arguments> geometriesWithoutBounds() {
+    byte[] emptyPoint = pointWkb(Double.NaN, Double.NaN);
+    return Stream.of(
+        Arguments.of(null, 2L, 0L), Arguments.of(emptyPoint, 0L, 2L * emptyPoint.length));
+  }
+
+  private Metrics writeMetrics(Schema schema, InternalRow... rows) throws IOException {
+    FileAppender<InternalRow> writer =
+        Parquet.write(Files.localOutput(temp.resolve("geometry.parquet").toFile()))
+            .schema(schema)
+            .createWriterFunc(
+                msgType ->
+                    SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(schema), msgType))
+            .build();
+
+    try (writer) {
+      for (InternalRow row : rows) {
+        writer.add(row);
+      }
+    }
+
+    return writer.metrics();
+  }
+
+  private static InternalRow geometryRow(byte[] wkb) {
+    return new GenericInternalRow(
+        new Object[] {wkb == null ? null : STUtils.stGeomFromWKB(wkb, 4326)});
+  }
+
+  private static byte[] pointWkb(double xCoordinate, double yCoordinate) {
+    return ByteBuffer.allocate(21)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .put((byte) 1)
+        .putInt(1)
+        .putDouble(xCoordinate)
+        .putDouble(yCoordinate)
+        .array();
+  }
+
+  private static byte[] lineStringWkb(
+      double firstX, double firstY, double secondX, double secondY) {
+    return ByteBuffer.allocate(41)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .put((byte) 1)
+        .putInt(2)
+        .putInt(2)
+        .putDouble(firstX)
+        .putDouble(firstY)
+        .putDouble(secondX)
+        .putDouble(secondY)
+        .array();
   }
 
   private static int fieldId(MessageType parquetSchema, String column) {
