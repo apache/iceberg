@@ -80,6 +80,9 @@ public class GenericRecord implements Record, StructLike {
   private Object deepCopyValue(Object value) {
     if (value instanceof ByteBuffer) {
       return ByteBuffers.copy((ByteBuffer) value);
+    } else if (value instanceof byte[]) {
+      byte[] bytes = (byte[]) value;
+      return Arrays.copyOf(bytes, bytes.length);
     } else if (value instanceof GenericRecord) {
       return ((GenericRecord) value).copy();
     } else {
