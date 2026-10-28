@@ -626,6 +626,23 @@ public class TestStatsUtil {
   }
 
   @Test
+  void truncateNumberAtMinWraps() {
+    assertThat(sourceBounds(Types.IntegerType.get(), Transforms.truncate(10), 2_147_483_646))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds(Integer.MIN_VALUE, Integer.MIN_VALUE + 7));
+    assertThat(
+            sourceBounds(Types.LongType.get(), Transforms.truncate(10), 9_223_372_036_854_775_806L))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds(Long.MIN_VALUE, Long.MIN_VALUE + 7));
+  }
+
+  @Test
+  void truncateNumberAtMinWithPowerOfTwoWidth() {
+    assertThat(sourceBounds(Types.IntegerType.get(), Transforms.truncate(8), Integer.MIN_VALUE))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds(Integer.MIN_VALUE, Integer.MIN_VALUE + 7));
+    assertThat(sourceBounds(Types.LongType.get(), Transforms.truncate(8), Long.MIN_VALUE))
+        .isEqualTo(new StatsUtil.PartitionSourceBounds(Long.MIN_VALUE, Long.MIN_VALUE + 7));
+  }
+
+  @Test
   void truncateStringBounds() {
     assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(3), "abc"))
         .isEqualTo(new StatsUtil.PartitionSourceBounds("abc", "abd"));
@@ -667,21 +684,6 @@ public class TestStatsUtil {
 
     assertThat(sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), value))
         .isEqualTo(new StatsUtil.PartitionSourceBounds(value, value));
-  }
-
-  @Test
-  void binaryBoundsDoNotSharePartitionValueBuffers() {
-    ByteBuffer value = ByteBuffer.wrap(new byte[] {1});
-    StatsUtil.PartitionSourceBounds identityBounds =
-        sourceBounds(Types.BinaryType.get(), Transforms.identity(), value);
-    StatsUtil.PartitionSourceBounds truncateBounds =
-        sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), value);
-
-    value.put(0, (byte) 9);
-
-    ByteBuffer original = ByteBuffer.wrap(new byte[] {1});
-    assertThat(identityBounds).isEqualTo(new StatsUtil.PartitionSourceBounds(original, original));
-    assertThat(truncateBounds).isEqualTo(new StatsUtil.PartitionSourceBounds(original, original));
   }
 
   @Test

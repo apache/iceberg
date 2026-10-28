@@ -38,8 +38,8 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BinaryUtil;
-import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.NaNUtil;
 import org.apache.iceberg.util.UnicodeUtil;
 
 class StatsUtil {
@@ -380,16 +380,13 @@ class StatsUtil {
             default -> value;
           };
 
-      if (bound instanceof ByteBuffer buffer) {
-        bound = ByteBuffers.copy(buffer);
-      }
-
       // NaN cannot be used as a bound
-      if (bound instanceof Double d && d.isNaN() || bound instanceof Float f && f.isNaN()) {
+      if (NaNUtil.isNaN(bound)) {
         return null;
       }
 
-      return new PartitionSourceBounds(bound, bound);
+      return new PartitionSourceBounds(
+          bound, bound instanceof ByteBuffer buffer ? buffer.duplicate() : bound);
     }
 
     @Override
@@ -398,11 +395,20 @@ class StatsUtil {
       return switch (sourceType.typeId()) {
         case INTEGER -> {
           int lower = (Integer) value;
+          // truncate wraps below MIN to a value that is not a multiple of the width
+          if (Math.floorMod(lower, width) != 0) {
+            yield new PartitionSourceBounds(Integer.MIN_VALUE, lower + width - 1);
+          }
+
           yield new PartitionSourceBounds(
               lower, (int) Math.min(Integer.MAX_VALUE, (long) lower + width - 1));
         }
         case LONG -> {
           long lower = ((Number) value).longValue();
+          if (Math.floorMod(lower, width) != 0) {
+            yield new PartitionSourceBounds(Long.MIN_VALUE, lower + width - 1);
+          }
+
           yield new PartitionSourceBounds(
               lower, lower > Long.MAX_VALUE - (width - 1) ? Long.MAX_VALUE : lower + width - 1);
         }
@@ -432,11 +438,10 @@ class StatsUtil {
           prefix, UnicodeUtil.truncateStringMax(prefix + "\u0000", width));
     }
 
-    private static PartitionSourceBounds truncatedBinary(ByteBuffer value, int width) {
-      ByteBuffer prefix = ByteBuffers.copy(value);
+    private static PartitionSourceBounds truncatedBinary(ByteBuffer prefix, int width) {
       if (prefix.remaining() < width) {
         // a prefix shorter than the width was not truncated, so every value equals it
-        return new PartitionSourceBounds(prefix, prefix);
+        return new PartitionSourceBounds(prefix, prefix.duplicate());
       }
 
       // add a byte so truncateBinaryMax returns the next higher prefix
