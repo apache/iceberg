@@ -25,10 +25,10 @@ import java.io.IOException;
 import org.apache.iceberg.spark.WriteDurations;
 import org.junit.jupiter.api.Test;
 
-public class TestWriteTimer {
+class TestWriteTimer {
 
   @Test
-  public void testAccumulatesWriteAndCloseSeparately() {
+  void accumulatesWriteAndCloseSeparately() {
     WriteTimer timer = new WriteTimer();
 
     timer.timeWrite(() -> busyWait());
@@ -45,7 +45,7 @@ public class TestWriteTimer {
   }
 
   @Test
-  public void testRecordsTimeWhenOperationThrows() {
+  void recordsTimeWhenOperationThrows() {
     WriteTimer timer = new WriteTimer();
 
     assertThatThrownBy(
@@ -63,7 +63,7 @@ public class TestWriteTimer {
   }
 
   @Test
-  public void testWriteDurations() {
+  void writeDurations() {
     WriteTimer timer = new WriteTimer();
     timer.timeWrite(() -> busyWait());
     timer.timeClose(() -> busyWait());
@@ -74,7 +74,7 @@ public class TestWriteTimer {
   }
 
   @Test
-  public void testCombine() {
+  void combine() {
     WriteDurations combined =
         WriteDurations.of(10L, 20L)
             .combine(WriteDurations.of(3L, 4L))
