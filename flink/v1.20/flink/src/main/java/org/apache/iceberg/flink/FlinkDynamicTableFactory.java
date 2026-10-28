@@ -153,9 +153,10 @@ public class FlinkDynamicTableFactory
     if (catalog != null) {
       catalogLoader = catalog.getCatalogLoader();
     } else {
-      FlinkCatalog flinkCatalog =
-          createCatalogLoader(writeProps, flinkConf.get(FlinkCreateTableOptions.CATALOG_NAME));
-      catalogLoader = flinkCatalog.getCatalogLoader();
+      try (FlinkCatalog flinkCatalog =
+          createCatalogLoader(writeProps, flinkConf.get(FlinkCreateTableOptions.CATALOG_NAME))) {
+        catalogLoader = flinkCatalog.getCatalogLoader();
+      }
     }
 
     ResolvedCatalogTable resolvedCatalogTable = context.getCatalogTable();
@@ -201,39 +202,40 @@ public class FlinkDynamicTableFactory
 
     String catalogTable = flinkConf.get(FlinkCreateTableOptions.CATALOG_TABLE, tableName);
 
-    FlinkCatalog flinkCatalog = createCatalogLoader(mergedProps, catalogName);
-    ObjectPath objectPath = new ObjectPath(catalogDatabase, catalogTable);
+    try (FlinkCatalog flinkCatalog = createCatalogLoader(mergedProps, catalogName)) {
+      ObjectPath objectPath = new ObjectPath(catalogDatabase, catalogTable);
 
-    // Create database if not exists in the external catalog.
-    if (!flinkCatalog.databaseExists(catalogDatabase)) {
-      try {
-        flinkCatalog.createDatabase(
-            catalogDatabase, new CatalogDatabaseImpl(Maps.newHashMap(), null), true);
-      } catch (DatabaseAlreadyExistException e) {
-        throw new AlreadyExistsException(
-            e,
-            "Database %s already exists in the iceberg catalog %s.",
-            catalogName,
-            catalogDatabase);
+      // Create database if not exists in the external catalog.
+      if (!flinkCatalog.databaseExists(catalogDatabase)) {
+        try {
+          flinkCatalog.createDatabase(
+              catalogDatabase, new CatalogDatabaseImpl(Maps.newHashMap(), null), true);
+        } catch (DatabaseAlreadyExistException e) {
+          throw new AlreadyExistsException(
+              e,
+              "Database %s already exists in the iceberg catalog %s.",
+              catalogName,
+              catalogDatabase);
+        }
       }
-    }
 
-    // Create table if not exists in the external catalog.
-    if (!flinkCatalog.tableExists(objectPath)) {
-      try {
-        flinkCatalog.createIcebergTable(objectPath, resolvedCatalogTable, true);
-      } catch (TableAlreadyExistException e) {
-        throw new AlreadyExistsException(
-            e,
-            "Table %s already exists in the database %s and catalog %s",
-            catalogTable,
-            catalogDatabase,
-            catalogName);
+      // Create table if not exists in the external catalog.
+      if (!flinkCatalog.tableExists(objectPath)) {
+        try {
+          flinkCatalog.createIcebergTable(objectPath, resolvedCatalogTable, true);
+        } catch (TableAlreadyExistException e) {
+          throw new AlreadyExistsException(
+              e,
+              "Table %s already exists in the database %s and catalog %s",
+              catalogTable,
+              catalogDatabase,
+              catalogName);
+        }
       }
-    }
 
-    return TableLoader.fromCatalog(
-        flinkCatalog.getCatalogLoader(), TableIdentifier.of(catalogDatabase, catalogTable));
+      return TableLoader.fromCatalog(
+          flinkCatalog.getCatalogLoader(), TableIdentifier.of(catalogDatabase, catalogTable));
+    }
   }
 
   /**
