@@ -66,6 +66,7 @@ Version 4 of the Iceberg spec restructures metadata for improved performance and
 * Support for [relative locations](#file-locations-in-metadata) in metadata fields
 * Writing new [equality deletes](#equality-delete-files) is no longer allowed
 * New data type: `file`
+* Collations for string types
 
 The full set of changes are listed in [Appendix E](#version-4).
 
@@ -287,7 +288,7 @@ Supported primitive types are defined in the table below. Primitive types added 
 |                  | **`timestamptz`**  | Timestamp, microsecond precision, with timezone                          | [2]                                              |
 | [v3](#version-3) | **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [1]                                              |
 | [v3](#version-3) | **`timestamptz_ns`** | Timestamp, nanosecond precision, with timezone                         | [2]                                              |
-|                  | **`string`**       | Arbitrary-length character sequences                                     | Encoded with UTF-8 [3]                           |
+|                  | **`string`**       | Arbitrary-length character sequences; may have a [collation](#collations)   | Encoded with UTF-8 [3]                           |
 |                  | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
 |                  | **`fixed(L)`**     | Fixed-length byte array of length L                                      |                                                  |
 |                  | **`binary`**       | Arbitrary-length byte array                                              |                                                  |
@@ -386,9 +387,81 @@ For example, a struct column `point` with fields `x` (default 0) and `y` (defaul
 
 Default values are attributes of fields in schemas and serialized with fields in the JSON format. See [Appendix C](#appendix-c-json-serialization).
 
+#### Collations
+
+A `string` field may have a collation that defines how its values are compared and ordered, for example case-insensitive, accent-insensitive, or locale-aware. A collation does not change how values are stored: a value written as `'appLE'` is read as `'appLE'`.
+
+Any `string` field may have a collation, including nested fields. A struct field uses the `collation` attribute; a list or map uses `element-collation`, `key-collation`, or `value-collation` (see [Appendix C](#appendix-c-json-serialization)). A string field without a collation uses UTF-8 byte order.
+
+A collation changes comparison only. The rest of the format stays byte-based, because collation order differs between implementations and versions:
+
+* Partition transforms, `bucket`, and byte-order bounds use UTF-8 bytes. Values that are equal under a collation can be in different partitions or buckets, so readers must not use partition values to prune a predicate evaluated under a collation.
+* Identifier fields compare bytes.
+* Map keys are distinct by bytes: `map['ABC']` and `map['abc']` are separate entries under a case-insensitive key collation. A lookup under the collation can match both, and the result is engine-defined.
+* Sort orders do not use collations.
+
+SQL comparison, equality, ordering, grouping, and distinctness are the engine's responsibility.
+
+##### Collation Names
+
+A collation name has the form `<provider>.<name>`, for example `icu.en_US-ci`. The provider is the library that defines the collation. This spec defines one provider, `icu`: the [Unicode Collation Algorithm](https://unicode.org/reports/tr10/) with [CLDR](https://cldr.unicode.org/) locale data. Adding a provider requires a spec change. A reader must not use a collation from a provider it does not recognize.
+
+```
+specifier  = icu-spec | utf8-spec
+icu-spec   = "icu" "." locale [ "-" case-mod ] [ "-" accent-mod ] [ "-" trim-mod ]
+utf8-spec  = "utf8" [ "-" trim-mod ]
+locale     = language [ "_" region ]       ; e.g. en, de, en_US, de_DE
+case-mod   = "cs" | "ci"                    ; case sensitive (default) / insensitive
+accent-mod = "as" | "ai"                    ; accent sensitive (default) / insensitive
+trim-mod   = "ltrim" | "rtrim" | "trim"     ; trim leading / trailing / both spaces (U+0020)
+```
+
+Modifier order and case are fixed, so equal collations have equal names. Case- and accent-insensitive collations require a locale: `ł` and `l` are equal under `icu.en-ai` but not under `icu.pl-ai`.
+
+Without a trim modifier, trailing spaces are significant (NO PAD). `rtrim` gives PAD SPACE behavior, for example `icu.en_US-ci-rtrim`.
+
+`utf8` without a modifier is UTF-8 byte order, the same as no collation.
+
+##### Collation Versions
+
+Collation order can change between versions of a provider's data ([UTS #10](https://unicode.org/reports/tr10/#Non-Goals)). The schema stores the collation name without a version, and collation bounds record the version they were produced under. For `icu`, the version is the [ICU collator version](https://unicode-org.github.io/icu/userguide/collation/architecture.html#versioning), which changes when the collation order can change. Versions are compared as opaque strings.
+
+##### Collation Bounds
+
+Byte-order bounds cannot prune a collated field: under a case-insensitive collation `'a' < 'B'`, but in byte order `'a' > 'B'`. Collation bounds are kept in [stats-only fields](#stats-only-fields), outside the schema. A collated field has:
+
+* One `collation-value` stats-only field per collation version. Its type-specific fields are `source-id`, the id of the collated field; `collation`, the collation name; and `version`, the collation version. Its bounds are original string values, compared under that collation and version. The bound type is `string` and `data-type` is omitted.
+* Two `expr-value` stats-only fields with `data-type` `int`, for `min_code_point(ref)` and `max_code_point(ref)` (see [Iceberg functions](expressions-spec.md#appendix-a-iceberg-functions)). The lower bound of the first and the upper bound of the second give the file's code-point range. They do not depend on the collation or its version.
+
+For example, for a field `city` with id `5` and collation `icu.de_DE` (`expr` in short form):
+
+```
+{ "field-id": 101, "type": "collation-value", "source-id": 5, "collation": "icu.de_DE", "version": "153.120.0.0" }
+{ "field-id": 102, "type": "expr-value", "expr": min_code_point(ref(5)), "data-type": "int" }
+{ "field-id": 103, "type": "expr-value", "expr": max_code_point(ref(5)), "data-type": "int" }
+```
+
+`collation-value` bounds must be valid but need not be tight: under the collation and version, `lower_bound` sorts at or before every value in the file, and `upper_bound` at or after.
+
+A writer should write byte-order bounds for a collated field, so readers without collation support can still prune. A writer that supports the collation should also write `collation-value` bounds for its version and code-point bounds, and adds these stats-only fields when they do not exist. It must not add a second `collation-value` field with the same `source-id`, `collation`, and `version`, and must not write `collation-value` bounds for a version it does not support.
+
+A reader must not use byte-order bounds to prune comparison, equality, or prefix predicates on a collated field. It may prune with `collation-value` bounds when their collation is the field's collation and their version is the reader's version. It may also use bounds from another version of the same collation when both versions order the file's code-point range the same way. Otherwise it scans the file.
+
+Collation bounds prune comparison and equality predicates. They do not prune prefix predicates such as `STARTS_WITH` or `LIKE 'x%'`, because collation order does not preserve prefixes.
+
+A `collation-value` field that is no longer written can be removed. Files with stats for it lose that pruning.
+
+A reader that does not support a field's collation ignores its `collation-value` fields and reads its values as UTF-8 strings.
+
+##### Collation Evolution
+
+Adding, changing, or removing a collation is a metadata-only schema change. The field keeps its id and type, data files are not rewritten, and it is not a type promotion.
+
+After a change, existing `collation-value` fields no longer match the field's collation: readers ignore them and they can be removed. New bounds are written as files are written or rewritten, for example by compaction. Byte-order and code-point bounds stay valid.
+
 #### Schema Evolution
 
-Schemas may be evolved by type promotion or adding, deleting, renaming, or reordering fields in structs (both nested structs and the top-level schema’s struct).
+Schemas may be evolved by type promotion or adding, deleting, renaming, or reordering fields in structs (both nested structs and the top-level schema’s struct). A string field's [collation](#collations) may also be added, changed, or removed as a metadata-only change; see [Collation Evolution](#collation-evolution).
 
 Evolution applies changes to the table's current schema to produce a new schema that is identified by a unique schema ID, is added to the table's list of schemas, and is set as the table's current schema.
 
@@ -1918,9 +1991,9 @@ Types are serialized according to this table:
 |**`fixed(L)`**|`JSON string: "fixed[<L>]"`|`"fixed[16]"`|
 |**`binary`**|`JSON string: "binary"`|`"binary"`|
 |**`decimal(P, S)`**|`JSON string: "decimal(<P>, <S>)"`|`"decimal(9, 2)"`|
-|**`struct`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": <field id int>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": <boolean>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": <type JSON>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"doc": <comment string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": <JSON encoding of default value>`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}, ...`<br />&nbsp;&nbsp;`] }`|`{`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 1,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "id",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": true,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": "uuid",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": "0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": "ec5911be-b0a7-458c-8438-c9a3e53cffae"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 2,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "data",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": false,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`} ]`<br />`}`|
-|**`list`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": <id int>,`<br />&nbsp;&nbsp;`"element-required": <bool>`<br />&nbsp;&nbsp;`"element": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": 3,`<br />&nbsp;&nbsp;`"element-required": true,`<br />&nbsp;&nbsp;`"element": "string"`<br />`}`|
-|**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
+|**`struct`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": <field id int>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": <boolean>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": <type JSON>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"doc": <comment string>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": <JSON encoding of default value>,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"collation": <collation name string>`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}, ...`<br />&nbsp;&nbsp;`] }`|`{`<br />&nbsp;&nbsp;`"type": "struct",`<br />&nbsp;&nbsp;`"fields": [ {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 1,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "id",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": true,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": "uuid",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"initial-default": "0db3e2a8-9d1d-42b9-aa7b-74ebe558dceb",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"write-default": "ec5911be-b0a7-458c-8438-c9a3e53cffae"`<br />&nbsp;&nbsp;`}, {`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"id": 2,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"name": "data",`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"required": false,`<br />&nbsp;&nbsp;&nbsp;&nbsp;`"type": {`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`...`<br />&nbsp;&nbsp;&nbsp;&nbsp;`}`<br />&nbsp;&nbsp;`} ]`<br />`}`|
+|**`list`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": <id int>,`<br />&nbsp;&nbsp;`"element-required": <bool>`<br />&nbsp;&nbsp;`"element": <type JSON>,`<br />&nbsp;&nbsp;`"element-collation": <collation name string>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "list",`<br />&nbsp;&nbsp;`"element-id": 3,`<br />&nbsp;&nbsp;`"element-required": true,`<br />&nbsp;&nbsp;`"element": "string"`<br />`}`|
+|**`map`**|`JSON object: {`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": <key id int>,`<br />&nbsp;&nbsp;`"key": <type JSON>,`<br />&nbsp;&nbsp;`"key-collation": <collation name string>,`<br />&nbsp;&nbsp;`"value-id": <val id int>,`<br />&nbsp;&nbsp;`"value-required": <bool>`<br />&nbsp;&nbsp;`"value": <type JSON>,`<br />&nbsp;&nbsp;`"value-collation": <collation name string>`<br />`}`|`{`<br />&nbsp;&nbsp;`"type": "map",`<br />&nbsp;&nbsp;`"key-id": 4,`<br />&nbsp;&nbsp;`"key": "string",`<br />&nbsp;&nbsp;`"value-id": 5,`<br />&nbsp;&nbsp;`"value-required": false,`<br />&nbsp;&nbsp;`"value": "double"`<br />`}`|
 | **`variant`**| `JSON string: "variant"`|`"variant"`|
 | **`geometry(C)`** |`JSON string: "geometry(<C>)"`|`"geometry(srid:4326)"`|
 | **`geography(C, A)`** |`JSON string: "geography(<C>, <A>)"`|`"geography(srid:4326, spherical)"`|
@@ -2130,7 +2203,7 @@ The binary single-value serialization can be used to store the lower and upper b
 
 The `file` type is added in v4.
 
-Relative path support is added in v4.
+Relative path support is added in v4. Collations for string types are added in v4.
 
 Reading v3 or prior metadata for v4:
 
@@ -2162,6 +2235,13 @@ Equality deletes are prohibited in v4.
 * Writers must not add equality delete files to v4 tables; equality deletes cannot be added as an entry to a v4 manifest
 * Upgrading a v2 or v3 table to v4 does not require rewriting data or delete files
 * Readers must continue to apply equality deletes for v2 and v3 tables and for equality deletes carried over into upgraded v4 tables
+
+Collation changes:
+
+* String fields may have a `collation` (see [Collations](#collations))
+* Collation bounds are stored in stats-only fields: one `collation-value` field per collation version, and code-point fields per collated field
+* Readers must not prune collated fields with byte-order bounds
+* Readers without collation support ignore the `collation` attribute and `collation-value` fields
 
 ### Version 3
 
