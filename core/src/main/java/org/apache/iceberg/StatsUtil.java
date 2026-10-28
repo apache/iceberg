@@ -208,6 +208,10 @@ class StatsUtil {
     return statId >= baseId && statId < (baseId + NUM_RESERVED_FIELD_STATS_IDS);
   }
 
+  private static boolean hasBounds(Type type) {
+    return type.typeId() != Type.TypeID.VECTOR;
+  }
+
   private static boolean isFloatingPoint(Type type) {
     return type.typeId() == Type.TypeID.FLOAT || type.typeId() == Type.TypeID.DOUBLE;
   }
@@ -273,7 +277,7 @@ class StatsUtil {
 
     List<Types.NestedField> fields = Lists.newArrayList();
 
-    if (mode.hasBounds()) {
+    if (mode.hasBounds() && hasBounds(type)) {
       fields.add(lowerBoundField(type, baseId));
       fields.add(upperBoundField(type, baseId));
     }
