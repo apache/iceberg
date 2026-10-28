@@ -2351,9 +2351,7 @@ components:
           type: object
           description: Configured string to string map of properties for the namespace
           examples:
-            - {
-              "owner": "Hank Bendickson"
-            }
+            - { "owner": "Hank Bendickson" }
           default: { }
           additionalProperties:
             type: string
@@ -2367,15 +2365,11 @@ components:
           items:
             type: string
           examples:
-            - [
-              "department", "access_group"
-            ]
+            - [ "department", "access_group" ]
         updates:
           type: object
           examples:
-            - {
-              "owner": "Hank Bendickson"
-            }
+            - { "owner": "Hank Bendickson" }
           additionalProperties:
             type: string
 
@@ -2396,10 +2390,7 @@ components:
       items:
         type: string
       examples:
-        - [
-          "accounting",
-          "tax"
-        ]
+        - [ "accounting", "tax" ]
 
     PageToken:
       description:
@@ -2448,11 +2439,7 @@ components:
       items:
         type: string
       examples:
-        - [
-          "accounting",
-          "tax",
-          "paid"
-        ]
+        - [ "accounting", "tax", "paid" ]
 
     PrimitiveType:
       type: string
@@ -4965,9 +4952,7 @@ components:
           description:
             Properties stored on the namespace, if supported by the server.
           examples:
-            - {
-              "owner": "Ralph", "created_at": "1452120468"
-            }
+            - { "owner": "Ralph", "created_at": "1452120468" }
           default: { }
 
     GetNamespaceResponse:
@@ -4986,9 +4971,7 @@ components:
           additionalProperties:
             type: string
           examples:
-            - {
-              "owner": "Ralph", 'transient_lastDdlTime': '1452120468'
-            }
+            - { "owner": "Ralph", 'transient_lastDdlTime': '1452120468' }
           default: { }
           nullable: true
 
@@ -5549,9 +5532,7 @@ components:
             Estimated uncompressed bytes in memory of non-null values. The
             estimate depends on the in-memory representation
       examples:
-        - {
-          "total-bytes": 8
-        }
+        - { "total-bytes": 8 }
 
     ValueMap:
       type: object
@@ -5632,10 +5613,7 @@ components:
             A list of partition field values ordered based on the fields of
             the partition spec specified by the `spec-id`
           examples:
-            - [
-              1,
-              "bar"
-            ]
+            - [ 1, "bar" ]
         file-size-in-bytes:
           type: integer
           format: int64
