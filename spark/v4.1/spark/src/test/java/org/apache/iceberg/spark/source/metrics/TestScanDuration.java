@@ -23,10 +23,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Locale;
 import org.junit.jupiter.api.Test;
 
-public class TestScanDuration {
+class TestScanDuration {
 
   @Test
-  public void testAggregateTaskMetrics() {
+  void aggregateTaskMetrics() {
     ScanDuration metric = new ScanDuration();
 
     assertThat(metric.aggregateTaskMetrics(new long[] {300L, 400L}))
@@ -40,12 +40,12 @@ public class TestScanDuration {
   }
 
   @Test
-  public void testAggregateTaskMetricsWithNoTasks() {
+  void aggregateTaskMetricsWithNoTasks() {
     assertThat(new ScanDuration().aggregateTaskMetrics(new long[] {})).isEqualTo("0 ns");
   }
 
   @Test
-  public void testAggregateTaskMetricsSurfacesStragglers() {
+  void aggregateTaskMetricsSurfacesStragglers() {
     // the total alone would hide that one task took the bulk of the time
     assertThat(
             new ScanDuration()
@@ -54,14 +54,14 @@ public class TestScanDuration {
   }
 
   @Test
-  public void testAggregateTaskMetricsDoesNotMutateInput() {
+  void aggregateTaskMetricsDoesNotMutateInput() {
     long[] taskMetrics = new long[] {3_000_000L, 1_000_000L, 2_000_000L};
     new ScanDuration().aggregateTaskMetrics(taskMetrics);
     assertThat(taskMetrics).containsExactly(3_000_000L, 1_000_000L, 2_000_000L);
   }
 
   @Test
-  public void testAggregateTaskMetricsIsLocaleIndependent() {
+  void aggregateTaskMetricsIsLocaleIndependent() {
     Locale previous = Locale.getDefault();
     try {
       // a comma-decimal locale would render "2,5 s" without an explicit Locale.ROOT
