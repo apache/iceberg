@@ -1425,12 +1425,6 @@ License: CDDL 1.1 - https://github.com/javaee/javaee-jsp-api/blob/master/LICENSE
 
 --------------------------------------------------------------------------------
 
-This product bundles Stax API.
-
-License: CDDL 1.0 - http://www.sun.com/cddl/cddl.html
-
---------------------------------------------------------------------------------
-
 This product bundles JNA.
 
 Project URL: https://github.com/java-native-access/jna
