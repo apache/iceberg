@@ -291,4 +291,88 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
     // after a rollback the current schema is not the one with the highest id
     assertThat(TableMetadataCache.orderSchemas(schemas, 1).keySet()).containsExactly(1, 3, 2, 0);
   }
+
+  @Test
+  void testSchemaPrefersCurrentSchemaWhenColumnIsReAddedAfterAnotherChange() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    table.updateSchema().addColumn("c", Types.StringType.get()).commit();
+    Schema oldShape = table.schema();
+    int retiredFieldId = oldShape.findField("c").fieldId();
+    table.updateSchema().deleteColumn("c").commit();
+    table.updateSchema().addColumn("d", Types.StringType.get()).commit();
+    table.updateSchema().addColumn("c", Types.StringType.get()).commit();
+    int currentFieldId = table.schema().findField("c").fieldId();
+    assertThat(currentFieldId).isNotEqualTo(retiredFieldId);
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema resolved = cache.schema(tableIdentifier, oldShape).resolvedTableSchema();
+
+    assertThat(resolved.findField("c").fieldId()).isEqualTo(currentFieldId);
+  }
+
+  @Test
+  void testSchemaPrefersCurrentSchemaWhenColumnIsReAddedWithWiderType() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    table.updateSchema().addColumn("c", Types.IntegerType.get()).commit();
+    Schema oldShape = table.schema();
+    int retiredFieldId = oldShape.findField("c").fieldId();
+    table.updateSchema().deleteColumn("c").commit();
+    table.updateSchema().addColumn("c", Types.LongType.get()).commit();
+    int currentFieldId = table.schema().findField("c").fieldId();
+    assertThat(currentFieldId).isNotEqualTo(retiredFieldId);
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema resolved = cache.schema(tableIdentifier, oldShape).resolvedTableSchema();
+
+    assertThat(resolved.findField("c").fieldId()).isEqualTo(currentFieldId);
+    assertThat(resolved.findField("c").type()).isEqualTo(Types.LongType.get());
+  }
+
+  @Test
+  void testSchemaPrefersCurrentSchemaWhenFieldNameIsReusedAfterRename() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    int renamedFieldId = table.schema().findField("data").fieldId();
+    table.updateSchema().renameColumn("data", "legacy").commit();
+    table.updateSchema().addColumn("data", Types.StringType.get()).commit();
+    int currentFieldId = table.schema().findField("data").fieldId();
+    assertThat(currentFieldId).isNotEqualTo(renamedFieldId);
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema resolved = cache.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+
+    assertThat(resolved.findField("data").fieldId()).isEqualTo(currentFieldId);
+  }
+
+  @Test
+  void testSchemaFallsBackToHistoricalSchemaWhenReAddedColumnTypeIsIncompatible() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    table.updateSchema().addColumn("myfield", Types.StringType.get()).commit();
+    Schema oldShape = table.schema();
+    int retiredFieldId = oldShape.findField("myfield").fieldId();
+    table.updateSchema().deleteColumn("myfield").commit();
+    table.updateSchema().addColumn("myfield", Types.DoubleType.get()).commit();
+    assertThat(table.schema().findField("myfield").fieldId()).isNotEqualTo(retiredFieldId);
+
+    TableMetadataCache cache =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+
+    Schema resolved = cache.schema(tableIdentifier, oldShape).resolvedTableSchema();
+
+    assertThat(resolved.findField("myfield").fieldId()).isEqualTo(retiredFieldId);
+    assertThat(resolved.findField("myfield").type()).isEqualTo(Types.StringType.get());
+  }
 }
