@@ -817,6 +817,7 @@ The contents of a file are part of a snapshot if its tracking `status` is **live
     | _optional_ | 102      | **`partition`**          | `struct<...>`                                         | Partition data tuple for the file; null if unpartitioned. |
     | _optional_ | 140      | **`sort_order_id`**      | `int`                                                 | ID representing sort order for this file. If missing or unknown, the order is assumed to be unsorted. |
     | _optional_ | 146      | **`content_stats`**      | `content_stats` struct                                | Field-level stats. See [Content Stats](#content-stats). |
+    | _optional_ | 151      | **`tight_stats`**        | `boolean`                                             | When true, the file's `content_stats` are tight. See [Stats Tightness](#stats-tightness). |
     | _optional_ | 150      | **`manifest_info`**      | `manifest_info` struct                                | Manifest-specific stats. See [Manifest Info](#manifest-info-fields). |
     | _optional_ | 148      | **`deletion_vector`**    | `deletion_vector` struct                              | Row-level deletion vector for a data file. See [Deletion Vector](#deletion-vector-fields). |
     | _optional_ | 158      | **`column_files`**       | `list<159: column_file>`                              | Column files associated with this file. See [Column File](#column-file-fields). |
@@ -981,11 +982,10 @@ Each stats struct holds statistics for one table field. It may contain the follo
 |-------------|--------|---------------------------|---------------------------|-----------------------------------------------|-------------|
 | _optional_  | 1      | `lower_bound`             | Field type or `geo_lower` | all primitives or `variant`                   | Lower bound stored as the field's type, or `geo_lower` for geo types |
 | _optional_  | 2      | `upper_bound`             | Field type or `geo_upper` | all primitives or `variant`                   | Upper bound stored as the field's type, or `geo_upper` for geo types |
-| _optional_  | 3      | `tight_bounds`            | `boolean`                 | all primitives except for `geometry` and `geography` | When true, `lower_bound` and `upper_bound` must be equal to the min and max values |
-| _optional_  | 4      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
-| _optional_  | 5      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
-| _optional_  | 6      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
-| _optional_  | 7      | `total_bytes`             | `long`                    | `string`, `binary`, `variant`, `geometry`, `geography` | Estimated uncompressed bytes in memory of non-null values. The estimate depends on the in-memory representation |
+| _optional_  | 3      | `value_count`             | `long`                    | all                                           | Number of values in the column (including null and NaN values) |
+| _optional_  | 4      | `null_value_count`        | `long`                    | optional fields                               | Number of null values in the column |
+| _optional_  | 5      | `nan_value_count`         | `long`                    | `float`, `double`                             | Number of NaN values in the column |
+| _optional_  | 6      | `total_bytes`             | `long`                    | `string`, `binary`, `variant`, `geometry`, `geography` | Estimated uncompressed bytes in memory of non-null values. The estimate depends on the in-memory representation |
 
 For example, stats for a `required` `int` field named `id` with field-id `2` are stored using:
 
@@ -993,8 +993,7 @@ For example, stats for a `required` `int` field named `id` with field-id `2` are
 10_400: optional struct id (default null) {
   10_401: optional int lower_bound; // type matches the field type (int)
   10_402: optional int upper_bound; // type matches the field type (int)
-  10_403: optional boolean tight_bounds;
-  10_404: optional long value_count;
+  10_403: optional long value_count;
 
   // null_value_count is only used for optional fields
   // nan_value_count is only used for float and double
@@ -1040,14 +1039,31 @@ For example, stats for an optional `geometry` field named `location` with field-
     10_816: optional double z;
     10_817: optional double m;
   }
-  10_804: optional long value_count;
-  10_805: optional long null_value_count;
-  10_807: optional long total_bytes;
-  // tight_bounds and nan_value_count are omitted for geo types
+  10_803: optional long value_count;
+  10_804: optional long null_value_count;
+  10_806: optional long total_bytes;
+  // nan_value_count is omitted for geo types
 }
 ```
 
 For `variant`, both bounds are unshredded `variant` that store variant field bounds by normalized JSON paths as field names. See [Bounds for Variant](#bounds-for-variant) for details on producing these bounds.
+
+A `variant` value is null only when the variant itself is null; a non-null variant that encodes a variant null is not counted as a null value.
+
+###### Stats Tightness
+
+Statistics are _tight_ when the bounds, `value_count`, `null_value_count`, and `nan_value_count` are exact for the live rows of a file:
+
+* `lower_bound` and `upper_bound` for fixed-length types are equal to the minimum and maximum of the live values.
+* `value_count`, `null_value_count`, and `nan_value_count` are the counts across the live rows.
+
+Regardless of `tight_stats`, bounds for `string` and `binary` are never tight because they may be truncated when written, and bounds for `geometry` and `geography` are never tight because they are a bounding box rather than exact minimum and maximum values.
+
+For `variant`, `lower_bound` and `upper_bound` hold one bound per normalized JSON path. A path may be omitted, which means that path has no bound. Whether a present bound is tight follows the same rules as above for that path's value type.
+
+Statistics other than the bounds, `value_count`, `null_value_count`, and `nan_value_count` are not part of tightness.
+
+When `tight_stats` is absent, readers must assume stats are not tight. Stats may be recomputed to restore tightness without rewriting the data file.
 
 ###### Content Stats in Manifests
 
@@ -1061,18 +1077,16 @@ For example, stats for a table with a required int, `id`, and an optional string
   10_400: optional struct id (default null) {
     10_401: optional int lower_bound;
     10_402: optional int upper_bound;
-    10_403: optional boolean tight_bounds;
-    10_404: optional long value_count;
+    10_403: optional long value_count;
   }
 
   // stats struct for table field 3: optional string data
   10_600: optional struct data (default null) {
     10_601: optional string lower_bound;
     10_602: optional string upper_bound;
-    10_603: optional boolean tight_bounds;
-    10_604: optional long value_count;
-    10_605: optional long null_value_count;
-    10_607: optional long total_bytes;
+    10_603: optional long value_count;
+    10_604: optional long null_value_count;
+    10_606: optional long total_bytes;
   }
 }
 ```
