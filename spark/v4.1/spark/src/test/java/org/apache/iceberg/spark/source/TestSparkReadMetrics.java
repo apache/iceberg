@@ -204,7 +204,7 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testScanDurationAggregatedAcrossTasks() throws NoSuchTableException {
+  public void scanDurationAggregatedAcrossTasks() throws NoSuchTableException {
     sql("CREATE TABLE %s (id BIGINT) USING iceberg", tableName);
 
     spark.range(10000).coalesce(1).writeTo(tableName).append();
@@ -233,7 +233,7 @@ public class TestSparkReadMetrics extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testScanDurationForNonVectorizedRead() throws NoSuchTableException {
+  public void scanDurationForNonVectorizedRead() throws NoSuchTableException {
     // the other tests read through BatchDataReader, disable vectorization to cover RowDataReader
     sql(
         "CREATE TABLE %s (id BIGINT) USING iceberg TBLPROPERTIES ('%s'='false')",
