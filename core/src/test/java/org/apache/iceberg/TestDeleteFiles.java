@@ -792,4 +792,24 @@ public class TestDeleteFiles extends TestBase {
 
     return io;
   }
+
+  @TestTemplate
+  public void testCopyEqualityDeleteFile() {
+    DeleteFile eqDelete =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .ofEqualityDeletes(1, 2)
+            .withPath("/path/to/eq-delete.parquet")
+            .withFileSizeInBytes(100)
+            .withRecordCount(1)
+            .build();
+
+    DeleteFile copy =
+        FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
+            .copy(eqDelete)
+            .withPath("/path/to/new-eq-delete.parquet")
+            .build();
+
+    assertThat(copy.content()).isEqualTo(FileContent.EQUALITY_DELETES);
+    assertThat(copy.equalityFieldIds()).containsExactly(1, 2);
+  }
 }
