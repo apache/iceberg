@@ -33,6 +33,7 @@ import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.SeekableInputStream;
@@ -94,6 +95,56 @@ public class TestDeleteFiles extends TestBase {
                 Stream.of(
                     new Object[] {v, SnapshotRef.MAIN_BRANCH}, new Object[] {v, "testBranch"}))
         .collect(Collectors.toList());
+  }
+
+  @TestTemplate
+  void deleteLessThanKeepsNullDateInSharedManifest() throws Exception {
+    deleteLessThanKeepsNullDatePartition(true);
+  }
+
+  @TestTemplate
+  void deleteLessThanKeepsNullDateInSeparateManifest() throws Exception {
+    deleteLessThanKeepsNullDatePartition(false);
+  }
+
+  private void deleteLessThanKeepsNullDatePartition(boolean sharedManifest) throws Exception {
+    Schema schema = new Schema(Types.NestedField.optional(1, "d", Types.DateType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("d").build();
+    Table dateTable = TestTables.create(tableDir, "dates", schema, spec, formatVersion);
+    DataFile nullFile =
+        DataFiles.builder(spec)
+            .withPath("/path/to/null.parquet")
+            .withPartition(new PartitionData(spec.partitionType()))
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    DataFile olderFile =
+        DataFiles.builder(spec)
+            .withPath("/path/to/older.parquet")
+            .withPartitionPath("d=2026-10-26")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    if (sharedManifest) {
+      commit(
+          dateTable, dateTable.newFastAppend().appendFile(nullFile).appendFile(olderFile), branch);
+    } else {
+      commit(dateTable, dateTable.newFastAppend().appendFile(nullFile), branch);
+      commit(dateTable, dateTable.newFastAppend().appendFile(olderFile), branch);
+    }
+
+    Snapshot beforeDelete = latestSnapshot(dateTable, branch);
+    assertThat(beforeDelete.dataManifests(dateTable.io())).hasSize(sharedManifest ? 1 : 2);
+    commit(
+        dateTable,
+        dateTable.newDelete().deleteFromRowFilter(Expressions.lessThan("d", "2026-10-27")),
+        branch);
+
+    try (CloseableIterable<FileScanTask> tasks = dateTable.newScan().useRef(branch).planFiles()) {
+      assertThat(tasks)
+          .extracting(task -> task.file().location())
+          .containsExactly(nullFile.location());
+    }
   }
 
   @TestTemplate
