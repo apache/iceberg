@@ -72,6 +72,7 @@ import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.VariantType;
+import org.apache.spark.unsafe.Platform;
 import org.apache.spark.unsafe.types.BinaryView;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
@@ -371,7 +372,19 @@ public class SparkParquetWriters {
 
     @Override
     public void write(int repetitionLevel, UTF8String value) {
-      column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value.getBytes()));
+      long baseOffset = value.getBaseOffset();
+      if (value.getBaseObject() instanceof byte[] bytes
+          && baseOffset >= Platform.BYTE_ARRAY_OFFSET
+          && (baseOffset != Platform.BYTE_ARRAY_OFFSET || value.numBytes() != bytes.length)) {
+        // Write the backing array in place. UTF8String is often a slice of a larger array, so
+        // getBytes would copy the value out before Parquet reads it.
+        column.writeBinary(
+            repetitionLevel,
+            Binary.fromReusedByteArray(
+                bytes, (int) (baseOffset - Platform.BYTE_ARRAY_OFFSET), value.numBytes()));
+      } else {
+        column.writeBinary(repetitionLevel, Binary.fromReusedByteArray(value.getBytes()));
+      }
     }
   }
 

@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.spark.data;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_WRITE_METRICS_MODE;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_FPP_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_NDV_PREFIX;
+import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,15 +35,21 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Metrics;
+import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.MetricsTestUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
@@ -49,20 +57,28 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
+import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ColumnWriter;
 import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.hadoop.ParquetOutputFormat;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.catalyst.util.STUtils;
+import org.apache.spark.unsafe.Platform;
+import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 public class TestSparkParquetWriter {
   @TempDir private Path temp;
@@ -195,52 +211,6 @@ public class TestSparkParquetWriter {
     }
   }
 
-  private static byte[] pointWkb(double xCoordinate, double yCoordinate) {
-    return pointWkb(ByteOrder.LITTLE_ENDIAN, xCoordinate, yCoordinate);
-  }
-
-  private static byte[] pointWkb(ByteOrder byteOrder, double xCoordinate, double yCoordinate) {
-    return ByteBuffer.allocate(21)
-        .order(byteOrder)
-        .put(byteOrder == ByteOrder.LITTLE_ENDIAN ? (byte) 1 : (byte) 0)
-        .putInt(1)
-        .putDouble(xCoordinate)
-        .putDouble(yCoordinate)
-        .array();
-  }
-
-  private static byte[] geometryCollectionWkb() {
-    return ByteBuffer.allocate(51)
-        .order(ByteOrder.BIG_ENDIAN)
-        .put((byte) 0)
-        .putInt(7)
-        .putInt(2)
-        .put(pointWkb(ByteOrder.BIG_ENDIAN, 30.0, 10.0))
-        .put(pointWkb(ByteOrder.LITTLE_ENDIAN, 40.0, 20.0))
-        .array();
-  }
-
-  private static byte[] lineStringWkb(
-      double firstX, double firstY, double secondX, double secondY) {
-    return ByteBuffer.allocate(41)
-        .order(ByteOrder.LITTLE_ENDIAN)
-        .put((byte) 1)
-        .putInt(2)
-        .putInt(2)
-        .putDouble(firstX)
-        .putDouble(firstY)
-        .putDouble(secondX)
-        .putDouble(secondY)
-        .array();
-  }
-
-  private static byte[] bufferBytes(ByteBuffer buffer) {
-    ByteBuffer copy = buffer.duplicate();
-    byte[] bytes = new byte[copy.remaining()];
-    copy.get(bytes);
-    return bytes;
-  }
-
   @Test
   public void testGeospatialTotalBytesMetrics() throws IOException {
     Schema geoSchema =
@@ -294,14 +264,6 @@ public class TestSparkParquetWriter {
     assertThat(geogMetrics.totalBytes()).isEqualTo(21L);
   }
 
-  private static int fieldId(MessageType parquetSchema, String column) {
-    return parquetSchema
-        .getColumnDescription(new String[] {column})
-        .getPrimitiveType()
-        .getId()
-        .intValue();
-  }
-
   @Test
   public void testFpp() throws IOException, NoSuchFieldException, IllegalAccessException {
     File testFile = File.createTempFile("junit", null, temp.toFile());
@@ -349,5 +311,196 @@ public class TestSparkParquetWriter {
       assertThat(bloomFilterNDV).isPresent();
       assertThat(bloomFilterNDV.getAsLong()).isEqualTo(expectedNdv);
     }
+  }
+
+  /** Where the bytes handed to the writer live. */
+  private enum Storage {
+    /** An exactly sized array, which the writer may pass straight to Parquet. */
+    ARRAY,
+    /** A window into a larger array, as produced by {@code UnsafeRow#getUTF8String}. */
+    SLICE,
+    /** Off-heap memory, which the writer must copy onto the heap. */
+    OFFHEAP
+  }
+
+  @ParameterizedTest(name = "storage = {0}, dictionary = {1}, dictionaryBytes = {2}")
+  @CsvSource({
+    "ARRAY, false, 4096",
+    "ARRAY, true, 4096",
+    "ARRAY, true, 1048576",
+    "SLICE, false, 4096",
+    "SLICE, true, 4096",
+    "SLICE, true, 1048576",
+    "OFFHEAP, false, 4096",
+    "OFFHEAP, true, 4096",
+    "OFFHEAP, true, 1048576"
+  })
+  void stringsWithReusedBackingMemory(
+      Storage storage, boolean dictionaryEnabled, int dictionaryBytes) throws IOException {
+    Schema schema = new Schema(optional(1, "text", Types.StringType.get()));
+    File testFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(testFile.delete()).isTrue();
+
+    int numRows = 128;
+    int padding = 13;
+    String[] expectedValues = new String[numRows];
+    byte[][] expectedBytes = new byte[numRows][];
+    int longestValue = 0;
+    for (int id = 0; id < numRows; id += 1) {
+      expectedValues[id] = stringValue(id);
+      expectedBytes[id] =
+          expectedValues[id] == null
+              ? new byte[0]
+              : expectedValues[id].getBytes(StandardCharsets.UTF_8);
+      longestValue = Math.max(longestValue, expectedBytes[id].length);
+    }
+
+    // Pad on both sides so a wrong offset or length reads poison rather than running off the end.
+    int sharedSize = padding + longestValue + padding;
+    byte[] shared = storage == Storage.SLICE ? new byte[sharedSize] : null;
+    long address = storage == Storage.OFFHEAP ? Platform.allocateMemory(sharedSize) : 0;
+
+    try (FileAppender<InternalRow> writer =
+        Parquet.write(Files.localOutput(testFile))
+            .schema(schema)
+            .set(ParquetOutputFormat.ENABLE_DICTIONARY, Boolean.toString(dictionaryEnabled))
+            .set(PARQUET_DICT_SIZE_BYTES, Integer.toString(dictionaryBytes))
+            .createWriterFunc(
+                type -> SparkParquetWriters.buildWriter(SparkSchemaUtil.convert(schema), type))
+            .build()) {
+      for (int id = 0; id < numRows; id += 1) {
+        byte[] bytes = expectedBytes[id];
+        UTF8String value = stringWithStorage(storage, bytes, shared, address, padding);
+        writer.add(
+            new GenericInternalRow(new Object[] {expectedValues[id] == null ? null : value}));
+
+        // Writers must consume or copy reused storage before the next row is written.
+        switch (storage) {
+          case ARRAY -> Arrays.fill(bytes, (byte) '?');
+          case SLICE -> Arrays.fill(shared, (byte) '?');
+          case OFFHEAP -> Platform.setMemory(address, (byte) '?', sharedSize);
+        }
+      }
+    } finally {
+      if (storage == Storage.OFFHEAP) {
+        Platform.freeMemory(address);
+      }
+    }
+
+    try (CloseableIterable<InternalRow> reader =
+        Parquet.read(Files.localInput(testFile))
+            .project(schema)
+            .createReaderFunc(type -> SparkParquetReaders.buildReader(schema, type))
+            .build()) {
+      Iterator<InternalRow> rows = reader.iterator();
+      for (int id = 0; id < numRows; id += 1) {
+        assertThat(rows).hasNext();
+        InternalRow row = rows.next();
+        assertThat(row.isNullAt(0) ? null : row.getUTF8String(0).toString())
+            .isEqualTo(expectedValues[id]);
+      }
+      assertThat(rows).isExhausted();
+    }
+
+    MetricsConfig metricsConfig =
+        MetricsTestUtil.from(Map.of(DEFAULT_WRITE_METRICS_MODE, "full"), schema);
+    Metrics metrics = ParquetUtil.fileMetrics(Files.localInput(testFile), metricsConfig);
+    List<String> sortedValues =
+        Arrays.stream(expectedValues)
+            .filter(Objects::nonNull)
+            .sorted(Comparators.charSequences())
+            .toList();
+    int fieldId = schema.findField("text").fieldId();
+    assertThat(metrics.lowerBounds())
+        .containsEntry(
+            fieldId, Conversions.toByteBuffer(Types.StringType.get(), sortedValues.get(0)));
+    assertThat(metrics.upperBounds())
+        .containsEntry(
+            fieldId,
+            Conversions.toByteBuffer(
+                Types.StringType.get(), sortedValues.get(sortedValues.size() - 1)));
+  }
+
+  private static byte[] pointWkb(double xCoordinate, double yCoordinate) {
+    return pointWkb(ByteOrder.LITTLE_ENDIAN, xCoordinate, yCoordinate);
+  }
+
+  private static byte[] pointWkb(ByteOrder byteOrder, double xCoordinate, double yCoordinate) {
+    return ByteBuffer.allocate(21)
+        .order(byteOrder)
+        .put(byteOrder == ByteOrder.LITTLE_ENDIAN ? (byte) 1 : (byte) 0)
+        .putInt(1)
+        .putDouble(xCoordinate)
+        .putDouble(yCoordinate)
+        .array();
+  }
+
+  private static byte[] geometryCollectionWkb() {
+    return ByteBuffer.allocate(51)
+        .order(ByteOrder.BIG_ENDIAN)
+        .put((byte) 0)
+        .putInt(7)
+        .putInt(2)
+        .put(pointWkb(ByteOrder.BIG_ENDIAN, 30.0, 10.0))
+        .put(pointWkb(ByteOrder.LITTLE_ENDIAN, 40.0, 20.0))
+        .array();
+  }
+
+  private static byte[] lineStringWkb(
+      double firstX, double firstY, double secondX, double secondY) {
+    return ByteBuffer.allocate(41)
+        .order(ByteOrder.LITTLE_ENDIAN)
+        .put((byte) 1)
+        .putInt(2)
+        .putInt(2)
+        .putDouble(firstX)
+        .putDouble(firstY)
+        .putDouble(secondX)
+        .putDouble(secondY)
+        .array();
+  }
+
+  private static byte[] bufferBytes(ByteBuffer buffer) {
+    ByteBuffer copy = buffer.duplicate();
+    byte[] bytes = new byte[copy.remaining()];
+    copy.get(bytes);
+    return bytes;
+  }
+
+  private static int fieldId(MessageType parquetSchema, String column) {
+    return parquetSchema
+        .getColumnDescription(new String[] {column})
+        .getPrimitiveType()
+        .getId()
+        .intValue();
+  }
+
+  private static UTF8String stringWithStorage(
+      Storage storage, byte[] bytes, byte[] shared, long address, int padding) {
+    return switch (storage) {
+      case ARRAY -> UTF8String.fromBytes(bytes);
+      case SLICE -> {
+        System.arraycopy(bytes, 0, shared, padding, bytes.length);
+        yield UTF8String.fromBytes(shared, padding, bytes.length);
+      }
+      case OFFHEAP -> {
+        Platform.copyMemory(
+            bytes, Platform.BYTE_ARRAY_OFFSET, null, address + padding, bytes.length);
+        yield UTF8String.fromAddress(null, address + padding, bytes.length);
+      }
+    };
+  }
+
+  private static String stringValue(int id) {
+    return switch (id % 8) {
+      case 0 -> null;
+      case 1 -> "";
+      case 2 -> "repeated";
+      case 3 -> "雪☃é𐐀";
+      case 4 -> "id-" + id;
+      case 5 -> "very-long-雪".repeat(1024);
+      case 6 -> "\0inside\0";
+      default -> "escape-\"\\\n\t";
+    };
   }
 }
