@@ -117,6 +117,10 @@ public class FileMetadata {
       this.referencedDataFile = toCopy.referencedDataFile();
       this.contentOffset = toCopy.contentOffset();
       this.contentSizeInBytes = toCopy.contentSizeInBytes();
+      this.equalityFieldIds =
+          toCopy.equalityFieldIds() == null
+              ? null
+              : toCopy.equalityFieldIds().stream().mapToInt(Integer::intValue).toArray();
       return this;
     }
 
