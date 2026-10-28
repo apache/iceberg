@@ -24,12 +24,12 @@ import java.util.Locale;
 import org.apache.spark.sql.connector.metric.CustomSumMetric;
 import org.junit.jupiter.api.Test;
 
-public class TestNanoDurationMetric {
+class TestNanoDurationMetric {
 
   private final CustomSumMetric metric = new WriteDuration();
 
   @Test
-  public void testFormatsLargestMeaningfulUnit() {
+  void formatsLargestMeaningfulUnit() {
     assertThat(metric.aggregateTaskMetrics(new long[] {300L, 400L}))
         .isEqualTo("total (min, med, max)\n700 ns (300 ns, 400 ns, 400 ns)");
     assertThat(metric.aggregateTaskMetrics(new long[] {1_500L, 2_500L}))
@@ -41,7 +41,7 @@ public class TestNanoDurationMetric {
   }
 
   @Test
-  public void testUnitBoundaries() {
+  void unitBoundaries() {
     assertThat(total(999L)).isEqualTo("999 ns");
     assertThat(total(1_000L)).isEqualTo("1 us");
     assertThat(total(999_999L)).isEqualTo("999 us");
@@ -51,26 +51,26 @@ public class TestNanoDurationMetric {
   }
 
   @Test
-  public void testAggregateTaskMetricsWithNoTasks() {
+  void aggregateTaskMetricsWithNoTasks() {
     assertThat(metric.aggregateTaskMetrics(new long[] {})).isEqualTo("0 ns");
   }
 
   @Test
-  public void testAggregateTaskMetricsSurfacesStragglers() {
+  void aggregateTaskMetricsSurfacesStragglers() {
     // the total alone would hide that one task took the bulk of the time
     assertThat(metric.aggregateTaskMetrics(new long[] {1_000_000L, 1_000_000L, 8_000_000L}))
         .isEqualTo("total (min, med, max)\n10 ms (1 ms, 1 ms, 8 ms)");
   }
 
   @Test
-  public void testAggregateTaskMetricsDoesNotMutateInput() {
+  void aggregateTaskMetricsDoesNotMutateInput() {
     long[] taskMetrics = new long[] {3_000_000L, 1_000_000L, 2_000_000L};
     metric.aggregateTaskMetrics(taskMetrics);
     assertThat(taskMetrics).containsExactly(3_000_000L, 1_000_000L, 2_000_000L);
   }
 
   @Test
-  public void testAggregateTaskMetricsIsLocaleIndependent() {
+  void aggregateTaskMetricsIsLocaleIndependent() {
     Locale previous = Locale.getDefault();
     try {
       // a comma-decimal locale would render "2,5 s" without an explicit Locale.ROOT
@@ -83,7 +83,7 @@ public class TestNanoDurationMetric {
   }
 
   @Test
-  public void testMetricNames() {
+  void metricNames() {
     assertThat(new WriteDuration().name()).isEqualTo("writeDuration");
     assertThat(new WriteCloseDuration().name()).isEqualTo("writeCloseDuration");
   }
