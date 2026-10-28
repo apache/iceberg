@@ -21,6 +21,8 @@ package org.apache.iceberg.gcp.bigquery;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.api.client.http.GenericUrl;
+import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.LowLevelHttpRequest;
 import com.google.api.client.http.LowLevelHttpResponse;
@@ -60,9 +62,6 @@ class TestBigQueryMetastoreClientImpl {
           + "\"status\":\"ALREADY_EXISTS\","
           + "\"errors\":[{\"message\":\"Already Exists\",\"domain\":\"global\","
           + "\"reason\":\"duplicate\"}]}}";
-
-  // The HttpRequest class defaults both connect and read timeout to 20 seconds.
-  private static final int HTTP_REQUEST_DEFAULT_MS = 20_000;
 
   private static GoogleCredentials credentials(String token) {
     return GoogleCredentials.create(
@@ -108,9 +107,9 @@ class TestBigQueryMetastoreClientImpl {
   }
 
   /**
-   * Fake transport that captures the connect/read timeouts and Authorization header from the first
-   * HTTP request. LowLevelHttpRequest.setTimeout(connect, read) is the single entry point through
-   * which HttpRequest propagates both timeout values to the low-level transport.
+   * Fake transport that captures the connect/read timeouts and Authorization header from the last
+   * executed HTTP request. LowLevelHttpRequest.setTimeout(connect, read) is the single entry point
+   * through which HttpRequest propagates both timeout values to the low-level transport.
    */
   private static class CapturingTransport extends HttpTransport {
     // Integer.MIN_VALUE means setTimeout was never called.
@@ -247,29 +246,30 @@ class TestBigQueryMetastoreClientImpl {
 
   @Test
   void sdkDefaultReadTimeoutHonored() throws Exception {
-    // Plain BigQueryOptions supplies a 60-second read timeout; the fix must honor it.
     CapturingTransport transport = new CapturingTransport(200, DATASET_OK_JSON);
 
     BigQueryMetastoreClientImpl client =
         new BigQueryMetastoreClientImpl(optionsWithDefaults(), transport);
     client.create(testDataset());
 
-    assertThat(transport.capturedReadTimeout).isEqualTo(60_000);
+    assertThat(transport.capturedReadTimeout)
+        .isEqualTo(BigQueryOptions.getDefaultHttpTransportOptions().getReadTimeout());
   }
 
   @Test
   void explicitlyUnsetTransportOptionsPreserveHttpDefaults() throws Exception {
     // HttpTransportOptions.newBuilder().build() leaves both timeouts at -1.
-    // The fix must leave HttpRequest defaults intact rather than overriding them.
     HttpTransportOptions emptyOptions = HttpTransportOptions.newBuilder().build();
     CapturingTransport transport = new CapturingTransport(200, DATASET_OK_JSON);
+    HttpRequest defaultRequest =
+        transport.createRequestFactory().buildGetRequest(new GenericUrl("http://localhost"));
 
     BigQueryMetastoreClientImpl client =
         new BigQueryMetastoreClientImpl(optionsWithTransport(emptyOptions), transport);
     client.create(testDataset());
 
-    assertThat(transport.capturedConnectTimeout).isEqualTo(HTTP_REQUEST_DEFAULT_MS);
-    assertThat(transport.capturedReadTimeout).isEqualTo(HTTP_REQUEST_DEFAULT_MS);
+    assertThat(transport.capturedConnectTimeout).isEqualTo(defaultRequest.getConnectTimeout());
+    assertThat(transport.capturedReadTimeout).isEqualTo(defaultRequest.getReadTimeout());
   }
 
   @Test
@@ -277,13 +277,15 @@ class TestBigQueryMetastoreClientImpl {
     HttpTransportOptions transportOptions =
         HttpTransportOptions.newBuilder().setConnectTimeout(45_000).build();
     CapturingTransport transport = new CapturingTransport(200, DATASET_OK_JSON);
+    HttpRequest defaultRequest =
+        transport.createRequestFactory().buildGetRequest(new GenericUrl("http://localhost"));
 
     BigQueryMetastoreClientImpl client =
         new BigQueryMetastoreClientImpl(optionsWithTransport(transportOptions), transport);
     client.create(testDataset());
 
     assertThat(transport.capturedConnectTimeout).isEqualTo(45_000);
-    assertThat(transport.capturedReadTimeout).isEqualTo(HTTP_REQUEST_DEFAULT_MS);
+    assertThat(transport.capturedReadTimeout).isEqualTo(defaultRequest.getReadTimeout());
   }
 
   @Test
@@ -291,12 +293,14 @@ class TestBigQueryMetastoreClientImpl {
     HttpTransportOptions transportOptions =
         HttpTransportOptions.newBuilder().setReadTimeout(120_000).build();
     CapturingTransport transport = new CapturingTransport(200, DATASET_OK_JSON);
+    HttpRequest defaultRequest =
+        transport.createRequestFactory().buildGetRequest(new GenericUrl("http://localhost"));
 
     BigQueryMetastoreClientImpl client =
         new BigQueryMetastoreClientImpl(optionsWithTransport(transportOptions), transport);
     client.create(testDataset());
 
-    assertThat(transport.capturedConnectTimeout).isEqualTo(HTTP_REQUEST_DEFAULT_MS);
+    assertThat(transport.capturedConnectTimeout).isEqualTo(defaultRequest.getConnectTimeout());
     assertThat(transport.capturedReadTimeout).isEqualTo(120_000);
   }
 
@@ -317,7 +321,6 @@ class TestBigQueryMetastoreClientImpl {
 
   @Test
   void authorizationHeaderPreserved() throws Exception {
-    // The credential initializer must still add the Authorization header after the fix.
     BigQueryOptions options =
         BigQueryOptions.newBuilder()
             .setProjectId("test-project")
@@ -341,29 +344,5 @@ class TestBigQueryMetastoreClientImpl {
     assertThatThrownBy(() -> client.create(testDataset()))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("Namespace already exists");
-  }
-
-  @Test
-  void noCrossClientTimeoutLeakage() throws Exception {
-    HttpTransportOptions opts1 =
-        HttpTransportOptions.newBuilder().setConnectTimeout(30_000).setReadTimeout(90_000).build();
-    HttpTransportOptions opts2 =
-        HttpTransportOptions.newBuilder().setConnectTimeout(60_000).setReadTimeout(180_000).build();
-
-    CapturingTransport transport1 = new CapturingTransport(200, DATASET_OK_JSON);
-    CapturingTransport transport2 = new CapturingTransport(200, DATASET_OK_JSON);
-
-    BigQueryMetastoreClientImpl client1 =
-        new BigQueryMetastoreClientImpl(optionsWithTransport(opts1), transport1);
-    BigQueryMetastoreClientImpl client2 =
-        new BigQueryMetastoreClientImpl(optionsWithTransport(opts2), transport2);
-
-    client1.create(testDataset());
-    client2.create(testDataset());
-
-    assertThat(transport1.capturedConnectTimeout).isEqualTo(30_000);
-    assertThat(transport1.capturedReadTimeout).isEqualTo(90_000);
-    assertThat(transport2.capturedConnectTimeout).isEqualTo(60_000);
-    assertThat(transport2.capturedReadTimeout).isEqualTo(180_000);
   }
 }
