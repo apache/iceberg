@@ -177,7 +177,7 @@ public class RewriteDataFilesConfig {
         .parse();
   }
 
-  /** Gets the branch to compact. */
+  /** Gets the branch to compact, or null to compact the sink's write branch. */
   public String branch() {
     return confParser.stringConf().option(BRANCH).flinkConfig(BRANCH_OPTION).parseOptional();
   }

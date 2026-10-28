@@ -803,6 +803,10 @@ public class IcebergSink
       if (flinkWriteConf.compactMode()) {
         RewriteDataFilesConfig rewriteDataFilesConfig =
             flinkMaintenanceConfig.createRewriteDataFilesConfig();
+        if (flinkWriteConf.convertEqualityDeletesMode()) {
+          validateCompactionBranch(flinkWriteConf, flinkMaintenanceConfig, rewriteDataFilesConfig);
+        }
+
         maintenanceTasks.add(
             RewriteDataFiles.builder()
                 .branch(flinkWriteConf.branch())
@@ -845,6 +849,24 @@ public class IcebergSink
           maintenanceTasks,
           flinkMaintenanceConfig,
           equalityFieldColumnsSet);
+    }
+
+    private void validateCompactionBranch(
+        FlinkWriteConf flinkWriteConf,
+        FlinkMaintenanceConfig flinkMaintenanceConfig,
+        RewriteDataFilesConfig rewriteDataFilesConfig) {
+      String convertTargetBranch =
+          flinkMaintenanceConfig.createConvertEqualityDeletesConfig().targetBranch();
+      Preconditions.checkState(
+          convertTargetBranch == null
+              || convertTargetBranch.equals(flinkWriteConf.branch())
+              || rewriteDataFilesConfig.branch() != null,
+          "Missing config %s. Set config %s explicitly to the branch to compact: "
+              + "the sink writes to branch %s but equality deletes are converted to branch %s.",
+          RewriteDataFilesConfig.BRANCH,
+          RewriteDataFilesConfig.BRANCH,
+          flinkWriteConf.branch(),
+          convertTargetBranch);
     }
 
     private void addConvertEqualityDeletesTask(

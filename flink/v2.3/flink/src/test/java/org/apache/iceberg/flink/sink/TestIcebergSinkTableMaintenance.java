@@ -50,6 +50,7 @@ import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
+import org.apache.iceberg.flink.maintenance.api.ConvertEqualityDeletesConfig;
 import org.apache.iceberg.flink.maintenance.api.DeleteOrphanFilesConfig;
 import org.apache.iceberg.flink.maintenance.api.ExpireSnapshotsConfig;
 import org.apache.iceberg.flink.maintenance.api.LockConfig;
@@ -61,6 +62,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
@@ -434,6 +436,33 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
     } finally {
       jobClient.cancel();
     }
+  }
+
+  @Test
+  void testCompactionBranchRequiredWhenConvertTargetsOtherBranch() {
+    setupLockConfig("");
+    setupCompactionConfig();
+    setupConvertEqualityDeletesConfig();
+    upgradeToFormatV3();
+    flinkConf.put(FlinkWriteOptions.BRANCH.key(), "staging");
+    flinkConf.put(ConvertEqualityDeletesConfig.TARGET_BRANCH, "main");
+
+    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"));
+    DataStream<RowData> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
+            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+
+    assertThatThrownBy(
+            () ->
+                IcebergSink.forRowData(dataStream)
+                    .table(table)
+                    .tableLoader(tableLoader)
+                    .upsert(true)
+                    .equalityFieldColumns(Lists.newArrayList("id"))
+                    .setAll(flinkConf)
+                    .append())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Missing config " + RewriteDataFilesConfig.BRANCH);
   }
 
   private static long dvCountOnMain(Table table) throws IOException {

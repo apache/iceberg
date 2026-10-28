@@ -499,16 +499,16 @@ These keys are used in SQL (SET or table WITH options) or via `IcebergSink.Build
 
 #### Rewrite Data Files Configuration
 
-| Key | Description | Default                                 |
-|-----|-------------|-----------------------------------------|
+| Key | Description | Default |
+|-----|-------------|---------|
+| `flink-maintenance.rewrite.schedule.commit-count` | Trigger after N commits | `10` |
+| `flink-maintenance.rewrite.schedule.data-file-count` | Trigger after N data files | `1000` |
+| `flink-maintenance.rewrite.schedule.data-file-size` | Trigger after total data file size (bytes) | `107374182400` (100GB) |
+| `flink-maintenance.rewrite.schedule.interval-second` | Trigger after time interval (seconds) | `600` |
 | `flink-maintenance.rewrite.branch` | Branch to compact. Set it to compact a different branch than the one the sink writes to, e.g. `main` when the sink writes to a staging branch | Not set |
-| `flink-maintenance.rewrite.schedule.commit-count` | Trigger after N commits | `10`                                    |
-| `flink-maintenance.rewrite.schedule.data-file-count` | Trigger after N data files | `1000`                                  |
-| `flink-maintenance.rewrite.schedule.data-file-size` | Trigger after total data file size (bytes) | `107374182400` (100GB)                  |
-| `flink-maintenance.rewrite.schedule.interval-second` | Trigger after time interval (seconds) | `600`                                   |
-| `flink-maintenance.rewrite.max-bytes` | Maximum bytes to rewrite per execution | `Long.MAX_VALUE`                        |
-| `flink-maintenance.rewrite.partial-progress.enabled` | Enable partial progress commits | `false`                                 |
-| `flink-maintenance.rewrite.partial-progress.max-commits` | Maximum commits for partial progress | `10`                                    |
+| `flink-maintenance.rewrite.max-bytes` | Maximum bytes to rewrite per execution | `Long.MAX_VALUE` |
+| `flink-maintenance.rewrite.partial-progress.enabled` | Enable partial progress commits | `false` |
+| `flink-maintenance.rewrite.partial-progress.max-commits` | Maximum commits for partial progress | `10` |
 
 #### Expire Snapshots Configuration
 
