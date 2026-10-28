@@ -162,7 +162,7 @@ class DynamicRecordProcessor<T> extends ProcessFunction<T, DynamicRecordInternal
         // Shuffled records with immediateUpdate=false go to the update side output.
         // Key them with the record's own schema, spec and row: the raw row is laid out by the
         // record's schema, so the table's schema or spec cannot be used with it.
-        int writerKey = hashKeyGenerator.generateKey(data, null, null, null);
+        int writerKey = hashKeyGenerator.generateKey(data);
         context.output(
             updateStream,
             new DynamicRecordInternal(

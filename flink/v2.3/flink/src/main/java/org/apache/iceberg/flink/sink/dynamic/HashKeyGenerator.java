@@ -67,7 +67,7 @@ class HashKeyGenerator {
     this.keySelectorCache = new LRUCache<>(maxCacheSize);
   }
 
-  int generateKey(DynamicRecord dynamicRecord) throws Exception {
+  int generateKey(DynamicRecord dynamicRecord) {
     return generateKey(dynamicRecord, null, null, null);
   }
 
