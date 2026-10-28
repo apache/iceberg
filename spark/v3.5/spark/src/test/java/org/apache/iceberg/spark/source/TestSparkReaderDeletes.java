@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
@@ -49,6 +50,7 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -79,6 +81,7 @@ import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.SparkParquetWriters;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -233,7 +236,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         .forEach(
             row -> {
               SparkStructLike rowWrapper = new SparkStructLike(projection);
-              set.add(rowWrapper.wrap(row));
+              set.add(new InternalSparkStructLike(projection, rowWrapper.wrap(row)));
             });
 
     return set;
@@ -750,5 +753,39 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     records.add(record.copy("id", 121, "data", "f", "_deleted", false));
     records.add(record.copy("id", 122, "data", "g", "_deleted", false));
     return records;
+  }
+
+  /**
+   * Returns fixed values as ByteBuffer, matching InternalRecordWrapper on the expected side.
+   * SparkStructLike returns them as byte[], which StructLikeSet compares by reference.
+   */
+  private static class InternalSparkStructLike implements StructLike {
+    private final Types.StructType type;
+    private final StructLike wrapped;
+
+    InternalSparkStructLike(Types.StructType type, StructLike wrapped) {
+      this.type = type;
+      this.wrapped = wrapped;
+    }
+
+    @Override
+    public int size() {
+      return wrapped.size();
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      Object value = wrapped.get(pos, Object.class);
+      if (value instanceof byte[] && type.fields().get(pos).type().typeId() == Type.TypeID.FIXED) {
+        return javaClass.cast(ByteBuffer.wrap((byte[]) value));
+      }
+
+      return javaClass.cast(value);
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Not implemented: set");
+    }
   }
 }
