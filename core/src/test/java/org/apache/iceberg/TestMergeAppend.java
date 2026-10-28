@@ -1782,7 +1782,7 @@ public class TestMergeAppend extends TestBase {
     DeleteFile deleteFileAfter;
     if (formatVersion >= 3) {
       deleteFileAfter =
-          promotionDeletionVector(table.spec(), 5L, dataFileBefore.path(), "dv.puffin");
+          promotionDeletionVector(table.spec(), 5L, dataFileBefore.path().toString(), "dv.puffin");
     } else {
       deleteFileAfter = promotionDeleteFile(table.spec(), 5L, "pos-deletes-after.parquet");
     }
@@ -1824,7 +1824,7 @@ public class TestMergeAppend extends TestBase {
     DeleteFile deleteFile;
     if (formatVersion >= 3) {
       deleteFile =
-          promotionDeletionVector(specBeforePromotion, 5, dataFile.path(), "dv-both.puffin");
+          promotionDeletionVector(specBeforePromotion, 5, dataFile.path().toString(), "dv-both.puffin");
     } else {
       deleteFile = promotionDeleteFile(specBeforePromotion, 5, "pos-deletes-both.parquet");
     }
