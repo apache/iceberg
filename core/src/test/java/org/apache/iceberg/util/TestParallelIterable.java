@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMultiset;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Multiset;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.util.ParallelIterable.ParallelIterator;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
@@ -73,11 +74,11 @@ public class TestParallelIterable {
       assertThat(iterator.hasNext()).isTrue();
       assertThat(iterator.next()).isNotNull();
       Awaitility.await("Queue is populated")
-          .atMost(10, TimeUnit.SECONDS)
+          .atMost(5, TimeUnit.SECONDS)
           .untilAsserted(() -> queueHasElements(iterator));
       iterator.close();
       Awaitility.await("Queue is cleared")
-          .atMost(10, TimeUnit.SECONDS)
+          .atMost(5, TimeUnit.SECONDS)
           .untilAsserted(() -> assertThat(iterator.queueSize()).isEqualTo(0));
     } finally {
       executor.shutdown();
@@ -133,11 +134,11 @@ public class TestParallelIterable {
       assertThat(iterator.hasNext()).isTrue();
       assertThat(iterator.next()).isNotNull();
       Awaitility.await("Queue is populated")
-          .atMost(10, TimeUnit.SECONDS)
+          .atMost(5, TimeUnit.SECONDS)
           .untilAsserted(() -> queueHasElements(iterator));
       iterator.close();
       Awaitility.await("Queue is cleared")
-          .atMost(10, TimeUnit.SECONDS)
+          .atMost(5, TimeUnit.SECONDS)
           .untilAsserted(
               () ->
                   assertThat(iterator.queueSize())
@@ -219,7 +220,7 @@ public class TestParallelIterable {
   }
 
   @Test
-  @Timeout(60)
+  @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
   void wakesOnDataBeforeTaskCompletes() throws Exception {
     Semaphore producerGate = new Semaphore(0);
     Semaphore completionGate = new Semaphore(0);
@@ -256,7 +257,7 @@ public class TestParallelIterable {
   }
 
   @Test
-  @Timeout(60)
+  @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
   void wakesWhenEmptyTaskCompletes() throws Exception {
     Semaphore producerGate = new Semaphore(0);
     Iterable<Integer> input =
@@ -272,7 +273,7 @@ public class TestParallelIterable {
   }
 
   @Test
-  @Timeout(60)
+  @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
   void wakesWhenTaskFails() {
     Semaphore producerGate = new Semaphore(0);
     IllegalArgumentException failure = new IllegalArgumentException("Cannot read manifest");
@@ -295,7 +296,7 @@ public class TestParallelIterable {
   }
 
   @Test
-  @Timeout(60)
+  @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
   void wakesWhenClosed() {
     Semaphore producerGate = new Semaphore(0);
     Iterable<Integer> input =
@@ -311,6 +312,18 @@ public class TestParallelIterable {
         .isInstanceOf(ExecutionException.class)
         .hasMessageContaining("Already closed")
         .hasCauseInstanceOf(IllegalStateException.class);
+  }
+
+  @Test
+  @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+  void wakesWhenInlineTaskCompletes() throws Exception {
+    try (ParallelIterable<Object> iterable =
+        new ParallelIterable<>(
+            List.of(Collections::emptyIterator), MoreExecutors.newDirectExecutorService())) {
+      CloseableIterator<Object> iterator = iterable.iterator();
+      assertThat(iterator.hasNext()).isFalse();
+      iterator.close();
+    }
   }
 
   private <T> T consumeAfterWakeUp(

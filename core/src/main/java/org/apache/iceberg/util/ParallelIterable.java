@@ -228,6 +228,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       // this cannot conclude that there are no more records until tasks have finished. while some
       // are running, return true when there is at least one item to return.
       while (true) {
+        // Drain before checkTasks() so notifications received during the check are not lost.
         taskSignal.drainPermits();
         if (!checkTasks()) {
           break;
@@ -312,6 +313,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
             break;
           }
 
+          // Add to the queue before waking the consumer, or it may wait again and get stuck.
           queue.add(next);
           wakeUpConsumer(taskSignal);
         }
