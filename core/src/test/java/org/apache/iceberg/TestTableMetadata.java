@@ -2131,7 +2131,12 @@ public class TestTableMetadata {
 
     assertThat(updated.specsById()).containsOnlyKeys(0, 1);
     assertThat(updated.defaultSpecId()).isEqualTo(1);
-    assertThat(updated.spec().compatibleWith(newSpec)).isTrue();
+    assertThat(updated.spec())
+        .isEqualTo(
+            PartitionSpec.builderFor(updated.schema())
+                .withSpecId(1)
+                .add(1, 1000, "x", Transforms.identity())
+                .build());
   }
 
   @Test

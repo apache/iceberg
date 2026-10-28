@@ -2021,7 +2021,8 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       catalog.createNamespace(NS);
     }
 
-    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    Table table =
+        catalog.buildTable(TABLE, SCHEMA).withProperty(TableProperties.GC_ENABLED, "true").create();
 
     // the current schema goes back to id 0 and schema 1 is no longer used
     table.updateSchema().addColumn("col_to_delete", Types.IntegerType.get()).commit();
@@ -2050,7 +2051,14 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
       catalog.createNamespace(NS);
     }
 
-    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+    // create a v2 table. otherwise removing the field would produce a new spec with a void
+    // partition field instead of going back to spec 0
+    Table table =
+        catalog
+            .buildTable(TABLE, SCHEMA)
+            .withProperty(TableProperties.GC_ENABLED, "true")
+            .withProperty("format-version", "2")
+            .create();
 
     // the default spec goes back to id 0 and spec 1 is no longer used
     table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
