@@ -2238,7 +2238,8 @@ components:
         format: uuid
         minLength: 36
         maxLength: 36
-        example: "017F22E2-79B0-7CC3-98C4-DC0C0C07398F"
+        examples:
+          - "017F22E2-79B0-7CC3-98C4-DC0C0C07398F"
       description: |
         Optional client-provided idempotency key for safe request retries.
 
@@ -2278,13 +2279,15 @@ components:
         type:
           type: string
           description: Internal type definition of the error
-          example: NoSuchNamespaceException
+          examples:
+            - NoSuchNamespaceException
         code:
           type: integer
           minimum: 400
           maximum: 600
           description: HTTP response code
-          example: 404
+          examples:
+            - 404
         stack:
           type: array
           items:
@@ -2315,13 +2318,14 @@ components:
             type: string
           description: A list of endpoints that the server supports. The format of each endpoint must be "<HTTP verb> <resource path from OpenAPI REST spec>".
             The HTTP verb and the resource path must be separated by a space character.
-          example: [
-            "GET /v1/{prefix}/namespaces/{namespace}",
-            "GET /v1/{prefix}/namespaces",
-            "POST /v1/{prefix}/namespaces",
-            "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
-            "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
-          ]
+          examples:
+            - [
+              "GET /v1/{prefix}/namespaces/{namespace}",
+              "GET /v1/{prefix}/namespaces",
+              "POST /v1/{prefix}/namespaces",
+              "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
+              "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
+            ]
         idempotency-key-lifetime:
           type: string
           format: duration
@@ -2333,7 +2337,8 @@ components:
             reuse an Idempotency-Key after this window elapses; they SHOULD generate a new key for any
             subsequent attempt. Presence of this field indicates the server supports Idempotency-Key
             semantics for mutation endpoints. If absent, clients MUST assume idempotency is not supported.
-          example: PT30M
+          examples:
+            - PT30M
 
     CreateNamespaceRequest:
       type: object
@@ -2345,7 +2350,10 @@ components:
         properties:
           type: object
           description: Configured string to string map of properties for the namespace
-          example: { "owner": "Hank Bendickson" }
+          examples:
+            - {
+              "owner": "Hank Bendickson"
+            }
           default: { }
           additionalProperties:
             type: string
@@ -2358,10 +2366,16 @@ components:
           uniqueItems: true
           items:
             type: string
-          example: [ "department", "access_group" ]
+          examples:
+            - [
+              "department", "access_group"
+            ]
         updates:
           type: object
-          example: { "owner": "Hank Bendickson" }
+          examples:
+            - {
+              "owner": "Hank Bendickson"
+            }
           additionalProperties:
             type: string
 
@@ -2381,7 +2395,11 @@ components:
       type: array
       items:
         type: string
-      example: [ "accounting", "tax" ]
+      examples:
+        - [
+          "accounting",
+          "tax"
+        ]
 
     PageToken:
       description:
@@ -2429,11 +2447,16 @@ components:
       type: array
       items:
         type: string
-      example: [ "accounting", "tax", "paid" ]
+      examples:
+        - [
+          "accounting",
+          "tax",
+          "paid"
+        ]
 
     PrimitiveType:
       type: string
-      example:
+      examples:
         - "long"
         - "string"
         - "fixed[16]"
@@ -2557,7 +2580,7 @@ components:
 
     ExpressionType:
       type: string
-      example:
+      examples:
         - "true"
         - "false"
         - "eq"
@@ -2837,7 +2860,7 @@ components:
         Deprecated string-form field reference used in older REST predicates.
         Use Reference (IdReference or NamedReference) instead.
       type: string
-      example:
+      examples:
         - "column-name"
 
     TransformTerm:
@@ -2861,7 +2884,7 @@ components:
 
     Transform:
       type: string
-      example:
+      examples:
         - "identity"
         - "year"
         - "month"
@@ -3863,26 +3886,26 @@ components:
 
           A missing or empty ReadRestrictions object (no required-column-projections and no
           required-row-filter) imposes no restrictions.
-      example:
-        required-column-projections:
-          - field-id: 4
-            action: show-last-4
-          - field-id: 6
-            action: replace-with-null
-          - field-id: 8
-            action: truncate-to-year
-          - field-id: 10
-            action: sha-256-global
-          - field-id: 12
-            action: mask-alphanum
-        required-row-filter:
-          type: eq
-          left:
-            type: reference
-            id: 14
-          right:
-            type: literal
-            value: "US"
+      examples:
+        - required-column-projections:
+            - field-id: 4
+              action: show-last-4
+            - field-id: 6
+              action: replace-with-null
+            - field-id: 8
+              action: truncate-to-year
+            - field-id: 10
+              action: sha-256-global
+            - field-id: 12
+              action: mask-alphanum
+        - required-row-filter:
+            type: eq
+            left:
+              type: reference
+              id: 14
+            right:
+              type: literal
+              value: "US"
       properties:
         required-column-projections:
           description: >
@@ -4734,47 +4757,48 @@ components:
       type: object
       additionalProperties:
         $ref: '#/components/schemas/MetricResult'
-      example: {
-        "metrics": {
-          "total-planning-duration": {
-            "count": 1,
-            "time-unit": "nanoseconds",
-            "total-duration": 2644235116
-          },
-          "result-data-files": {
-            "unit": "count",
-            "value": 1,
-          },
-          "result-delete-files": {
-            "unit": "count",
-            "value": 0,
-          },
-          "total-data-manifests": {
-            "unit": "count",
-            "value": 1,
-          },
-          "total-delete-manifests": {
-            "unit": "count",
-            "value": 0,
-          },
-          "scanned-data-manifests": {
-            "unit": "count",
-            "value": 1,
-          },
-          "skipped-data-manifests": {
-            "unit": "count",
-            "value": 0,
-          },
-          "total-file-size-bytes": {
-            "unit": "bytes",
-            "value": 10,
-          },
-          "total-delete-file-size-bytes": {
-            "unit": "bytes",
-            "value": 0,
+      examples:
+        - {
+          "metrics": {
+            "total-planning-duration": {
+              "count": 1,
+              "time-unit": "nanoseconds",
+              "total-duration": 2644235116
+            },
+            "result-data-files": {
+              "unit": "count",
+              "value": 1,
+            },
+            "result-delete-files": {
+              "unit": "count",
+              "value": 0,
+            },
+            "total-data-manifests": {
+              "unit": "count",
+              "value": 1,
+            },
+            "total-delete-manifests": {
+              "unit": "count",
+              "value": 0,
+            },
+            "scanned-data-manifests": {
+              "unit": "count",
+              "value": 1,
+            },
+            "skipped-data-manifests": {
+              "unit": "count",
+              "value": 0,
+            },
+            "total-file-size-bytes": {
+              "unit": "bytes",
+              "value": 10,
+            },
+            "total-delete-file-size-bytes": {
+              "unit": "bytes",
+              "value": 0,
+            }
           }
         }
-      }
 
     ReportMetricsRequest:
       anyOf:
@@ -4917,8 +4941,8 @@ components:
         error:
           $ref: '#/components/schemas/ErrorModel'
       additionalProperties: false
-      example:
-        {
+      examples:
+        - {
           "error": {
             "message": "The server does not support this operation",
             "type": "UnsupportedOperationException",
@@ -4939,7 +4963,10 @@ components:
             type: string
           description:
             Properties stored on the namespace, if supported by the server.
-          example: { "owner": "Ralph", "created_at": "1452120468" }
+          examples:
+            - {
+              "owner": "Ralph", "created_at": "1452120468"
+            }
           default: { }
 
     GetNamespaceResponse:
@@ -4957,7 +4984,10 @@ components:
             If namespace properties are supported, but none are set, it should return an empty object.
           additionalProperties:
             type: string
-          example: { "owner": "Ralph", 'transient_lastDdlTime': '1452120468' }
+          examples:
+            - {
+              "owner": "Ralph", 'transient_lastDdlTime': '1452120468'
+            }
           default: { }
           nullable: true
 
@@ -5376,26 +5406,31 @@ components:
 
     BooleanTypeValue:
       type: boolean
-      example: true
+      examples:
+        - true
 
     IntegerTypeValue:
       type: integer
-      example: 42
+      examples:
+        - 42
 
     LongTypeValue:
       type: integer
       format: int64
-      example: 9223372036854775807
+      examples:
+        - 9223372036854775807
 
     FloatTypeValue:
       type: number
       format: float
-      example: 3.14
+      examples:
+        - 3.14
 
     DoubleTypeValue:
       type: number
       format: double
-      example: 123.456
+      examples:
+        - 123.456
 
     DecimalTypeValue:
       type: string
@@ -5404,11 +5439,13 @@ components:
         text, while decimals with a negative scale use scientific notation and the exponent will be equal to the
         negated scale. For instance, a decimal with a positive scale is '123.4500', with zero scale is '2',
         and with a negative scale is '2E+20'"
-      example: "123.4500"
+      examples:
+        - "123.4500"
 
     StringTypeValue:
       type: string
-      example: "hello"
+      examples:
+        - "hello"
 
     UUIDTypeValue:
       type: string
@@ -5419,59 +5456,68 @@ components:
       description:
         "UUID type values are serialized as a 36-character lowercase string in standard UUID format as specified
         by RFC-4122"
-      example: "eb26bdb1-a1d8-4aa6-990e-da940875492c"
+      examples:
+        - "eb26bdb1-a1d8-4aa6-990e-da940875492c"
 
     DateTypeValue:
       type: string
       format: date
       description:
         "Date type values follow the 'YYYY-MM-DD' ISO-8601 standard date format"
-      example: "2007-12-03"
+      examples:
+        - "2007-12-03"
 
     TimeTypeValue:
       type: string
       description:
         "Time type values follow the 'HH:MM:SS.ssssss' ISO-8601 format with microsecond precision"
-      example: "22:31:08.123456"
+      examples:
+        - "22:31:08.123456"
 
     TimestampTypeValue:
       type: string
       description:
         "Timestamp type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss' ISO-8601 format with microsecond precision"
-      example: "2007-12-03T10:15:30.123456"
+      examples:
+        - "2007-12-03T10:15:30.123456"
 
     TimestampTzTypeValue:
       type: string
       description:
         "TimestampTz type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss+00:00' ISO-8601 format with microsecond precision,
         and a timezone offset (+00:00 for UTC)"
-      example: "2007-12-03T10:15:30.123456+00:00"
+      examples:
+        - "2007-12-03T10:15:30.123456+00:00"
 
     TimestampNanoTypeValue:
       type: string
       description:
         "Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss' ISO-8601 format with nanosecond precision"
-      example: "2007-12-03T10:15:30.123456789"
+      examples:
+        - "2007-12-03T10:15:30.123456789"
 
     TimestampTzNanoTypeValue:
       type: string
       description:
         "Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss+00:00' ISO-8601 format with nanosecond
         precision, and a timezone offset (+00:00 for UTC)"
-      example: "2007-12-03T10:15:30.123456789+00:00"
+      examples:
+        - "2007-12-03T10:15:30.123456789+00:00"
 
     FixedTypeValue:
       type: string
       description:
         "Fixed length type values are stored and serialized as an uppercase hexadecimal string
         preserving the fixed length"
-      example: "78797A"
+      examples:
+        - "78797A"
 
     BinaryTypeValue:
       type: string
       description:
         "Binary type values are stored and serialized as an uppercase hexadecimal string"
-      example: "78797A"
+      examples:
+        - "78797A"
 
     CountMap:
       type: object
@@ -5486,8 +5532,8 @@ components:
           items:
             $ref: '#/components/schemas/LongTypeValue'
           description: "List of Long values, matched to 'keys' by index"
-      example:
-        {
+      examples:
+        - {
           "keys": [ 1, 2 ],
           "values": [ 100, 200 ]
         }
@@ -5501,8 +5547,8 @@ components:
           description:
             Avg value size in memory (uncompressed) in bytes over non-null
             values to estimate memory consumption
-      example:
-        {
+      examples:
+        - {
           "avg-value-size-in-bytes": 8
         }
 
@@ -5519,8 +5565,8 @@ components:
           items:
             $ref: '#/components/schemas/PrimitiveTypeValue'
           description: "List of primitive type values, matched to 'keys' by index"
-      example:
-        {
+      examples:
+        - {
           "keys": [ 1, 2 ],
           "values": [ 100, "test" ]
         }
@@ -5584,7 +5630,11 @@ components:
           description:
             A list of partition field values ordered based on the fields of
             the partition spec specified by the `spec-id`
-          example: [1, "bar"]
+          examples:
+            - [
+              1,
+              "bar"
+            ]
         file-size-in-bytes:
           type: integer
           format: int64
