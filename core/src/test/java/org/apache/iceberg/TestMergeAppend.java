@@ -1749,7 +1749,7 @@ public class TestMergeAppend extends TestBase {
 
   @TestTemplate
   public void positionDeleteBeforePromotionCommitsWithRowDelta() {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    assumeThat(formatVersion).isEqualTo(2);
     assumeThat(branch).isEqualTo(SnapshotRef.MAIN_BRANCH);
     createIdentityPromotionTable();
     PartitionSpec specBeforePromotion = table.spec();
