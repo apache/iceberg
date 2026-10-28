@@ -17,6 +17,14 @@
 #
 # Trivy ignore file for the Kafka Connect runtime distribution.
 #
+vulnerabilities:
+- id: CVE-2026-102554
+  paths:
+    - "**/hadoop-shaded-guava-1.5.0.jar"
+  statement: >-
+    Hadoop thirdparty 1.5.0 bundles Guava 33.4.8-jre and has no patched release.
+    Upgrade hadoop-shaded-guava when a release with Guava 33.7.2 or later is available.
+#
 # The Kafka Connect runtime's own jackson-core / jackson-databind are already
 # aligned to the project version (2.22.x). The remaining findings come from
 # parquet-jackson, which ships its own shaded copy of jackson-core /
@@ -26,9 +34,9 @@
 #
 # jackson-databind CVEs shaded into parquet-jackson 1.18.1 (jackson 2.22.2),
 # only fixed in jackson >= 2.18.11 / 2.21.7 / 2.22.3.
-CVE-2026-91776
-CVE-2026-91777
+- id: CVE-2026-91776
+- id: CVE-2026-91777
 # jackson-core CVEs shaded into parquet-jackson 1.17.1, only fixed in jackson
 # >= 2.18.11 / 2.21.7 / 2.22.3. Apache Parquet 1.18.1 still bundles 2.22.2.
-CVE-2026-89407
-CVE-2026-89425
+- id: CVE-2026-89407
+- id: CVE-2026-89425
