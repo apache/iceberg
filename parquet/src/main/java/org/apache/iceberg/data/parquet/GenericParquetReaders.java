@@ -246,11 +246,12 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
 
     @Override
     public byte[] read(byte[] reuse) {
-      // Always return a fresh array. Reusing the caller's buffer aliases a single array across
-      // every row, which breaks any consumer that retains the value past the next read() call --
-      // e.g. equality-delete loading, where every delete key ends up pointing at the same mutated
-      // array and the resulting StructLikeSet collapses to one element (apache/iceberg#18618).
-      return column.nextBinary().getBytes();
+      if (reuse != null) {
+        column.nextBinary().toByteBuffer().duplicate().get(reuse);
+        return reuse;
+      } else {
+        return column.nextBinary().getBytes();
+      }
     }
   }
 }
