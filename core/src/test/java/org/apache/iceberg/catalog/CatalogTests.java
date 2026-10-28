@@ -2014,6 +2014,64 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testRemoveUnusedSchemaThenAddColumnInTransaction() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+
+    // the current schema goes back to id 0 and schema 1 is no longer used
+    table.updateSchema().addColumn("col_to_delete", Types.IntegerType.get()).commit();
+    table.updateSchema().deleteColumn("col_to_delete").commit();
+    assertThat(table.schema().schemaId()).isEqualTo(0);
+    assertThat(table.schemas().keySet()).containsExactlyInAnyOrder(0, 1);
+
+    // schema 1 is removed and the new schema is assigned the freed id
+    Transaction transaction = table.newTransaction();
+    transaction.expireSnapshots().cleanExpiredMetadata(true).commit();
+    transaction.updateSchema().addColumn("new_col", Types.LongType.get()).commit();
+    transaction.commitTransaction();
+
+    Table loaded = catalog.loadTable(TABLE);
+    assertThat(loaded.schema().schemaId()).isEqualTo(1);
+    assertThat(loaded.schema().findField("new_col")).isNotNull();
+    assertThat(loaded.schema().findField("col_to_delete")).isNull();
+    assertThat(loaded.schemas().keySet()).containsExactlyInAnyOrder(0, 1);
+  }
+
+  @Test
+  public void testRemoveUnusedSpecThenAddFieldInTransaction() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table = catalog.buildTable(TABLE, SCHEMA).create();
+
+    // the default spec goes back to id 0 and spec 1 is no longer used
+    table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    assertThat(table.spec().specId()).isEqualTo(0);
+    assertThat(table.specs().keySet()).containsExactlyInAnyOrder(0, 1);
+
+    // spec 1 is removed and the new spec is assigned the freed id
+    Transaction transaction = table.newTransaction();
+    transaction.expireSnapshots().cleanExpiredMetadata(true).commit();
+    transaction.updateSpec().addField("id").commit();
+    transaction.commitTransaction();
+
+    Table loaded = catalog.loadTable(TABLE);
+    assertThat(loaded.spec().specId()).isEqualTo(1);
+    assertThat(loaded.spec().fields()).hasSize(1);
+    assertThat(loaded.spec().fields().get(0).name()).isEqualTo("id");
+    assertThat(loaded.specs().keySet()).containsExactlyInAnyOrder(0, 1);
+  }
+
+  @Test
   public void testUpdateTableSortOrder() {
     C catalog = catalog();
 

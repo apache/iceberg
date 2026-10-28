@@ -1167,6 +1167,7 @@ public class TableMetadata implements Serializable {
             specs.stream()
                 .filter(s -> !specIdsToRemove.contains(s.specId()))
                 .collect(Collectors.toList());
+        specsById.keySet().removeAll(specIdsToRemove);
         changes.add(new MetadataUpdate.RemovePartitionSpecs(specIdsToRemove));
       }
 
@@ -1183,6 +1184,7 @@ public class TableMetadata implements Serializable {
             schemas.stream()
                 .filter(s -> !schemaIdsToRemove.contains(s.schemaId()))
                 .collect(Collectors.toList());
+        schemasById.keySet().removeAll(schemaIdsToRemove);
         changes.add(new MetadataUpdate.RemoveSchemas(schemaIdsToRemove));
       }
 

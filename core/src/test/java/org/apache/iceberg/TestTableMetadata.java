@@ -2072,6 +2072,69 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testRemoveSchemasThenReuseRemovedId() {
+    TableMetadata base =
+        TableMetadata.buildFrom(
+                TableMetadata.newTableMetadata(
+                    TEST_SCHEMA, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of()))
+            .addSchema(
+                new Schema(
+                    Types.NestedField.required(1, "x", Types.LongType.get()),
+                    Types.NestedField.optional(4, "unused", Types.LongType.get())))
+            .build();
+    assertThat(base.currentSchemaId()).isEqualTo(0);
+    assertThat(base.schemasById()).containsOnlyKeys(0, 1);
+
+    assertThatThrownBy(
+            () ->
+                TableMetadata.buildFrom(base).removeSchemas(Sets.newHashSet(1)).setCurrentSchema(1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot set current schema to unknown schema: 1");
+
+    // the new schema is assigned the id of the removed schema
+    Schema newSchema =
+        new Schema(
+            Types.NestedField.required(1, "x", Types.LongType.get()),
+            Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
+            Types.NestedField.required(3, "z", Types.LongType.get()),
+            Types.NestedField.optional(5, "w", Types.LongType.get()));
+    TableMetadata updated =
+        TableMetadata.buildFrom(base)
+            .removeSchemas(Sets.newHashSet(1))
+            .setCurrentSchema(newSchema, 5)
+            .build();
+
+    assertThat(updated.schemasById()).containsOnlyKeys(0, 1);
+    assertThat(updated.currentSchemaId()).isEqualTo(1);
+    assertThat(updated.schema().asStruct()).isEqualTo(newSchema.asStruct());
+  }
+
+  @Test
+  public void testRemoveSpecsThenReuseRemovedId() {
+    TableMetadata created =
+        TableMetadata.newTableMetadata(
+            TEST_SCHEMA, PartitionSpec.unpartitioned(), TEST_LOCATION, ImmutableMap.of());
+    TableMetadata base =
+        TableMetadata.buildFrom(created)
+            .addPartitionSpec(PartitionSpec.builderFor(created.schema()).bucket("y", 16).build())
+            .build();
+    assertThat(base.defaultSpecId()).isEqualTo(0);
+    assertThat(base.specsById()).containsOnlyKeys(0, 1);
+
+    // the new spec is assigned the id of the removed spec
+    PartitionSpec newSpec = PartitionSpec.builderFor(base.schema()).identity("x").build();
+    TableMetadata updated =
+        TableMetadata.buildFrom(base)
+            .removeSpecs(Sets.newHashSet(1))
+            .setDefaultPartitionSpec(newSpec)
+            .build();
+
+    assertThat(updated.specsById()).containsOnlyKeys(0, 1);
+    assertThat(updated.defaultSpecId()).isEqualTo(1);
+    assertThat(updated.spec().compatibleWith(newSpec)).isTrue();
+  }
+
+  @Test
   public void testAddSnapshotWithStaleSequenceNumberIsRetryable() {
     TableMetadata base =
         TableMetadata.newTableMetadata(
