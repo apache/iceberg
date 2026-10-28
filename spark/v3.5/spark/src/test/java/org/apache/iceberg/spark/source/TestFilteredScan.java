@@ -31,9 +31,7 @@ import java.net.InetAddress;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -657,22 +655,10 @@ public class TestFilteredScan {
 
   public static void assertEqualsSafe(
       Types.StructType struct, List<Record> expected, List<Row> actual) {
-    Map<Long, Record> expectedById = new LinkedHashMap<>();
-    for (Record expectedRecord : expected) {
-      Long id = (Long) expectedRecord.getField("id");
-      assertThat(expectedById.put(id, expectedRecord))
-          .as("Expected record ID %s should be unique", id)
-          .isNull();
+    assertThat(actual).as("Should have the expected number of rows").hasSameSizeAs(expected);
+    for (int i = 0; i < expected.size(); i += 1) {
+      GenericsHelpers.assertEqualsSafe(struct, expected.get(i), actual.get(i));
     }
-
-    for (Row actualRecord : actual) {
-      Long id = actualRecord.getAs("id");
-      Record expectedRecord = expectedById.remove(id);
-      assertThat(expectedRecord).as("No expected record found for ID %s", id).isNotNull();
-      GenericsHelpers.assertEqualsSafe(struct, expectedRecord, actualRecord);
-    }
-
-    assertThat(expectedById.keySet()).as("Missing record IDs").isEmpty();
   }
 
   private List<Record> expected(int... ordinals) {
@@ -745,6 +731,7 @@ public class TestFilteredScan {
             .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
             .load(table)
             .filter(expr)
+            .orderBy("id")
             .select(select0, selectN);
     return dataset.collectAsList();
   }
