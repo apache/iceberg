@@ -1799,8 +1799,7 @@ public class TestMergeAppend extends TestBase {
   public void equalityDeleteBeforePromotionAppliedToDataAfter() {
     createIdentityPromotionTable();
     PartitionSpec specBeforePromotion = table.spec();
-    DeleteFile eqDelete =
-        promotionEqualityDeleteFile(specBeforePromotion, 5, "eq-deletes.parquet");
+    DeleteFile eqDelete = promotionEqualityDeleteFile(specBeforePromotion, 5, "eq-deletes.parquet");
 
     table.newRowDelta().addDeletes(eqDelete).commit();
 
@@ -1824,7 +1823,8 @@ public class TestMergeAppend extends TestBase {
     DeleteFile deleteFile;
     if (formatVersion >= 3) {
       deleteFile =
-          promotionDeletionVector(specBeforePromotion, 5, dataFile.path().toString(), "dv-both.puffin");
+          promotionDeletionVector(
+              specBeforePromotion, 5, dataFile.path().toString(), "dv-both.puffin");
     } else {
       deleteFile = promotionDeleteFile(specBeforePromotion, 5, "pos-deletes-both.parquet");
     }
@@ -1884,4 +1884,3 @@ public class TestMergeAppend extends TestBase {
         .build();
   }
 }
-
