@@ -133,12 +133,8 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     Snapshot curSnapshot = table().snapshot(startingOffset.snapshotId());
     validateCurrentSnapshotExists(curSnapshot, startingOffset);
 
-    // For an unbounded limit (Trigger.AvailableNow / ReadLimit.allAvailable) there is no per-file
-    // rate limit to enforce: the end offset is just the latest valid snapshot's added-file count.
-    // Walking only the snapshot chain (metadata; skipping rewrite/delete snapshots) avoids reading
-    // every manifest across the committed->head gap. That walk is O(snapshots-in-gap x files),
-    // single-threaded on the driver, and the dominant cost for scheduled Trigger.AvailableNow
-    // consumers of high-commit-cadence tables. Mirrors AsyncSparkMicroBatchPlanner#latestOffset.
+    // An unbounded limit has no per-file limit to enforce, so only the latest valid snapshot's
+    // manifests are indexed instead of reading every manifest between the start and the head.
     if (limit instanceof ReadAllAvailable) {
       return latestOffsetForUnbounded(startingOffset, curSnapshot);
     }
@@ -245,19 +241,14 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
     return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
   }
 
-  // Computes latestOffset for an unbounded (allAvailable) limit without per-file planning: the end
-  // offset is the latest valid snapshot's added-file count (or the pre-computed
-  // Trigger.AvailableNow
-  // cap), reached by walking only the snapshot chain. See latestOffset for the rationale.
   private StreamingOffset latestOffsetForUnbounded(
       StreamingOffset startingOffset, Snapshot curSnapshot) {
-    StreamingOffset latestStreamingOffset;
+    Snapshot lastValidSnapshot;
     if (lastOffsetForTriggerAvailableNow != null) {
-      // Trigger.AvailableNow caps the run at a snapshot computed up front.
-      latestStreamingOffset = lastOffsetForTriggerAvailableNow;
+      lastValidSnapshot = table().snapshot(lastOffsetForTriggerAvailableNow.snapshotId());
+      validateCurrentSnapshotExists(lastValidSnapshot, lastOffsetForTriggerAvailableNow);
     } else {
-      // Advance the snapshot chain (metadata only) to the latest valid snapshot.
-      Snapshot lastValidSnapshot = curSnapshot;
+      lastValidSnapshot = curSnapshot;
       Snapshot next;
       do {
         next = nextValidSnapshot(lastValidSnapshot);
@@ -265,14 +256,24 @@ class SyncSparkMicroBatchPlanner extends BaseSparkMicroBatchPlanner {
           lastValidSnapshot = next;
         }
       } while (next != null);
-      latestStreamingOffset =
-          new StreamingOffset(
-              lastValidSnapshot.snapshotId(),
-              MicroBatchUtils.addedFilesCount(table(), lastValidSnapshot),
-              false);
     }
-    // Preserve the existing contract: return null when the offset did not advance.
+
+    StreamingOffset latestStreamingOffset =
+        new StreamingOffset(lastValidSnapshot.snapshotId(), endPosition(lastValidSnapshot), false);
     return latestStreamingOffset.equals(startingOffset) ? null : latestStreamingOffset;
+  }
+
+  // Existing entries in merged manifests also take positions, so the end position can be larger
+  // than the snapshot's added-file count.
+  private long endPosition(Snapshot snapshot) {
+    List<Pair<ManifestFile, Integer>> indexedManifests =
+        MicroBatches.skippedManifestIndexesFromSnapshot(table().io(), snapshot, 0, false);
+    if (indexedManifests.isEmpty()) {
+      return 0;
+    }
+
+    Pair<ManifestFile, Integer> lastManifest = indexedManifests.get(indexedManifests.size() - 1);
+    return lastManifest.second() + lastManifest.first().addedFilesCount();
   }
 
   @Override

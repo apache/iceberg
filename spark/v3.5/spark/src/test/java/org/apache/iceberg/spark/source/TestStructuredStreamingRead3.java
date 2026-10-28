@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,6 +29,7 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
@@ -40,9 +42,11 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
@@ -485,28 +489,69 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testLatestOffsetForUnboundedLimitAdvancesToHeadSnapshot() {
+  void latestOffsetForUnboundedLimitAdvancesToHeadSnapshot() {
     appendDataAsMultipleSnapshots(TEST_DATA_MULTIPLE_SNAPSHOTS);
 
     table.refresh();
     long headSnapshotId = table.currentSnapshot().snapshotId();
-    long headAddedFiles = MicroBatchUtils.addedFilesCount(table, table.currentSnapshot());
 
     SparkMicroBatchStream stream =
         newMicroBatchStream(ImmutableMap.of(), "all-available-latest-offset-checkpoint");
 
     try {
       Offset startOffset = stream.initialOffset();
-
-      // An unbounded limit (Trigger.AvailableNow / ReadLimit.allAvailable) advances straight to the
-      // latest snapshot and its added-file count without per-file planning. Both planners (sync and
-      // async, parameterized) must agree.
       StreamingOffset endOffset =
           (StreamingOffset) stream.latestOffset(startOffset, ReadLimit.allAvailable());
 
       assertThat(endOffset).isNotNull();
       assertThat(endOffset.snapshotId()).isEqualTo(headSnapshotId);
-      assertThat(endOffset.position()).isEqualTo(headAddedFiles);
+    } finally {
+      stream.stop();
+    }
+  }
+
+  @TestTemplate
+  void latestOffsetForUnboundedLimitIncludesFilesAfterMergedManifest() {
+    assumeThat(async)
+        .as("Async planning does not handle gaps left by existing files yet")
+        .isFalse();
+
+    PartitionSpec oldSpec = table.spec();
+    table.updateSpec().addField("data").commit();
+
+    DataFile first = newDataFile(table.spec());
+    table.newAppend().appendFile(first).commit();
+    DataFile second = newDataFile(table.spec());
+    table.newAppend().appendFile(second).commit();
+
+    // the new spec's manifests are merged and listed before the old spec's new manifest
+    DataFile third = newDataFile(table.spec());
+    DataFile fourth = newDataFile(oldSpec);
+    table.newAppend().appendFile(third).appendFile(fourth).commit();
+
+    List<ManifestFile> headManifests = table.currentSnapshot().dataManifests(table.io());
+    assertThat(headManifests).hasSize(2);
+    assertThat(headManifests.get(0).existingFilesCount()).isPositive();
+    assertThat(headManifests.get(1).addedFilesCount()).isPositive();
+
+    SparkMicroBatchStream stream =
+        newMicroBatchStream(ImmutableMap.of(), "all-available-merged-manifest-checkpoint");
+
+    try {
+      Offset startOffset = stream.initialOffset();
+      Offset endOffset = stream.latestOffset(startOffset, ReadLimit.allAvailable());
+
+      List<String> plannedFiles = Lists.newArrayList();
+      for (InputPartition partition : stream.planInputPartitions(startOffset, endOffset)) {
+        SparkInputPartition sparkInputPartition = (SparkInputPartition) partition;
+        for (FileScanTask task : sparkInputPartition.<FileScanTask>taskGroup().tasks()) {
+          plannedFiles.add(task.file().location());
+        }
+      }
+
+      assertThat(plannedFiles)
+          .containsExactlyInAnyOrder(
+              first.location(), second.location(), third.location(), fourth.location());
     } finally {
       stream.stop();
     }
@@ -1427,6 +1472,15 @@ public final class TestStructuredStreamingRead3 extends CatalogTestBase {
   private long timestampAfterCurrentSnapshot() {
     table.refresh();
     return waitUntilAfter(table.currentSnapshot().timestampMillis());
+  }
+
+  private DataFile newDataFile(PartitionSpec spec) {
+    return DataFiles.builder(spec)
+        .withPath(temp.resolve(UUID.randomUUID() + ".parquet").toString())
+        .withFileSizeInBytes(10)
+        .withRecordCount(1)
+        .withFormat(FileFormat.PARQUET)
+        .build();
   }
 
   private SparkMicroBatchStream newMicroBatchStream(
