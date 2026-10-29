@@ -836,7 +836,7 @@ A manifest file must store metadata as properties in the file's key-value metada
 
 #### Content file uniqueness
 
-Within a snapshot, each content file must be referenced by at most one live manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers should not produce multiple live manifest entries for the same content file in a snapshot (for example, two ADDED entries for the same file). A REPLACED entry is not live, so a REPLACED entry and the MODIFIED entry that replaces it do not violate this rule (see [Updating Tracking Metadata](#updating-tracking-metadata)). Writers are not required to validate uniqueness at commit time.
+Within a snapshot, each content file must be referenced by at most one live manifest entry across all manifests; otherwise, the snapshot has undefined behavior. Writers should not produce multiple manifest entries for the same content file in a snapshot (for example, both ADDED and DELETED entries for the same file). Writers are not required to validate uniqueness at commit time.
 
 #### Manifest Schema
 
@@ -1826,6 +1826,8 @@ The `tracking` fields of the MODIFIED entry are set as described in [Updating Tr
     - If an updated field is, or contains, a field in the sort order, `sort_order_id` must be null.
 - `content_stats`:
     - Stats for an updated field and its nested fields must be computed from the column file that lists it, or omitted.
+- `tight_stats`:
+    - `tight_stats` must be false or omitted.
 - `column_files`:
     - Each updated field ID must be removed from the `field_ids` of the previous entry's column files, and a column file with no remaining `field_ids` must be removed.
     - One new column file must list `_last_updated_sequence_number` in its `field_ids`, with a null value for updated rows and the row's current non-null value for other rows that are not deleted.
