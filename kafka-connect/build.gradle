@@ -137,6 +137,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     implementation project(':iceberg-gcp')
     implementation project(':iceberg-bigquery')
     implementation platform(libs.google.libraries.bom)
+    // Align Guava to the project version; the Google libraries BOM otherwise pulls in an older Guava with known CVEs.
+    implementation libs.guava.guava
     implementation 'com.google.cloud:google-cloud-storage'
     implementation 'com.google.cloud:google-cloud-bigquery'
     implementation 'com.google.cloud:google-cloud-core'
