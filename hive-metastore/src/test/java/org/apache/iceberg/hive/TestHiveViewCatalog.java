@@ -48,6 +48,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
 
@@ -372,6 +374,25 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
                 .exists(new Path(currentMetadataLocation)))
         .isFalse();
     assertThat(catalog.viewExists(identifier)).isFalse();
+  }
+
+  @ParameterizedTest(name = "purge = {0}")
+  @ValueSource(booleans = {false, true})
+  void dropTableDoesNotDropIcebergView(boolean purge) {
+    TableIdentifier identifier = TableIdentifier.of("hivedb", "test_iceberg_view_drop_table");
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    catalog
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withQuery("hive", "select * from hivedb.tbl")
+        .create();
+
+    assertThat(catalog.dropTable(identifier, purge)).isFalse();
+    assertThat(catalog.viewExists(identifier)).isTrue();
   }
 
   private Table createHiveTableWithType(
