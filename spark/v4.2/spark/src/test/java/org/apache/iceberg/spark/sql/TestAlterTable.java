@@ -156,12 +156,11 @@ public class TestAlterTable extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testAddColumnWithDefaultValuesUnsupported() {
+  public void testAddColumnWithDefaultValuesRequiresV3() {
     assertThatThrownBy(
             () -> sql("ALTER TABLE %s ADD COLUMN col_with_default int DEFAULT 123", tableName))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageStartingWith(
-            "Cannot add column col_with_default since setting default values in Spark is currently unsupported");
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Invalid initial default for col_with_default");
   }
 
   @TestTemplate
