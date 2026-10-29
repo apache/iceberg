@@ -41,6 +41,7 @@ import org.apache.spark.sql.catalyst.plans.logical.ReplacePartitionField
 import org.apache.spark.sql.catalyst.plans.logical.SetIdentifierFields
 import org.apache.spark.sql.catalyst.plans.logical.SetViewProperties
 import org.apache.spark.sql.catalyst.plans.logical.SetWriteDistributionAndOrdering
+import org.apache.spark.sql.catalyst.plans.logical.ShowColumns
 import org.apache.spark.sql.catalyst.plans.logical.ShowCreateTable
 import org.apache.spark.sql.catalyst.plans.logical.ShowTableProperties
 import org.apache.spark.sql.catalyst.plans.logical.UnsetViewProperties
@@ -52,6 +53,7 @@ import org.apache.spark.sql.classic.Strategy
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.connector.catalog.ViewCatalog
+import org.apache.spark.sql.errors.QueryCompilationErrors
 import org.apache.spark.sql.execution.OrderAwareCoalesceExec
 import org.apache.spark.sql.execution.SparkPlan
 import scala.jdk.CollectionConverters._
@@ -150,6 +152,16 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
         properties = properties,
         allowExisting = allowExisting,
         replace = replace) :: Nil
+
+    case ShowColumns(ResolvedV2View(catalog, ident), namespace, output) =>
+      namespace.foreach { ns =>
+        val viewNamespace = ident.namespace().toSeq
+        if (ns.length != viewNamespace.length ||
+          !ns.zip(viewNamespace).forall(spark.sessionState.conf.resolver.tupled)) {
+          throw QueryCompilationErrors.showColumnsWithConflictNamespacesError(ns, viewNamespace)
+        }
+      }
+      ShowV2ViewColumnsExec(output, catalog.loadView(ident)) :: Nil
 
     case DescribeRelation(ResolvedV2View(catalog, ident), _, isExtended, output) =>
       DescribeV2ViewExec(output, catalog.loadView(ident), isExtended) :: Nil
