@@ -84,7 +84,7 @@ public class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
   @Override
   protected Connection newClient() {
     try {
-      Properties dbProps = JdbcUtil.filterAndRemovePrefix(properties, JdbcCatalog.PROPERTY_PREFIX);
+      Properties dbProps = JdbcUtil.driverProperties(properties);
       return DriverManager.getConnection(dbUrl, dbProps);
     } catch (SQLException e) {
       throw new UncheckedSQLException(e, "Failed to connect: %s", dbUrl);
