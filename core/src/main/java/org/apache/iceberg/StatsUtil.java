@@ -372,21 +372,13 @@ class StatsUtil {
 
     @Override
     public PartitionSourceBounds identity(int fieldId, String sourceName, int sourceId) {
-      // convert to the source type, which may have been promoted after the value was written
-      Object bound =
-          switch (sourceType.typeId()) {
-            case LONG -> ((Number) value).longValue();
-            case DOUBLE -> ((Number) value).doubleValue();
-            default -> value;
-          };
-
       // NaN cannot be used as a bound
-      if (NaNUtil.isNaN(bound)) {
+      if (NaNUtil.isNaN(value)) {
         return null;
       }
 
       return new PartitionSourceBounds(
-          bound, bound instanceof ByteBuffer buffer ? buffer.duplicate() : bound);
+          value, value instanceof ByteBuffer buffer ? buffer.duplicate() : value);
     }
 
     @Override
@@ -404,7 +396,7 @@ class StatsUtil {
               lower, (int) Math.min(Integer.MAX_VALUE, (long) lower + width - 1));
         }
         case LONG -> {
-          long lower = ((Number) value).longValue();
+          long lower = (Long) value;
           if (Math.floorMod(lower, width) != 0) {
             yield new PartitionSourceBounds(Long.MIN_VALUE, lower + width - 1);
           }
