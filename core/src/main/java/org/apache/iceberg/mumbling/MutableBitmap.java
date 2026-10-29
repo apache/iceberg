@@ -25,6 +25,6 @@ public interface MutableBitmap extends ManifestBitmap {
   /** Set the bit at {@code position}. */
   boolean set(int position);
 
-  /** Set all bits in this bitmap that are set in {@code other}. */
+  /** Set all bits in this bitmap that are set in {@code bitmap}. */
   void merge(ManifestBitmap bitmap);
 }
