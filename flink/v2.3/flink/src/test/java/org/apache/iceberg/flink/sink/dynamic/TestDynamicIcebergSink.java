@@ -1920,12 +1920,13 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
           .toBranch(original.key().branch())
           .commit();
 
+      // Committables restored from older state use the jobId as sinkId
       DynamicCommittable replayed =
           new DynamicCommittable(
               original.key(),
               original.manifests(),
               PREVIOUS_JOB_ID,
-              null,
+              PREVIOUS_JOB_ID,
               original.operatorId(),
               replayedCheckpointId);
       List<Committer.CommitRequest<DynamicCommittable>> enriched =

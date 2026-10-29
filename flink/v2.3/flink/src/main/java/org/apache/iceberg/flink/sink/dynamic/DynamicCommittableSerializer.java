@@ -46,11 +46,7 @@ class DynamicCommittableSerializer implements SimpleVersionedSerializer<DynamicC
     DataOutputViewStreamWrapper view = new DataOutputViewStreamWrapper(out);
     committable.key().serializeTo(view);
     view.writeUTF(committable.jobId());
-    view.writeBoolean(committable.sinkId() != null);
-    if (committable.sinkId() != null) {
-      view.writeUTF(committable.sinkId());
-    }
-
+    view.writeUTF(committable.sinkId());
     view.writeUTF(committable.operatorId());
     view.writeLong(committable.checkpointId());
 
@@ -91,7 +87,7 @@ class DynamicCommittableSerializer implements SimpleVersionedSerializer<DynamicC
         new TableKey(key.tableName(), key.branch()),
         new byte[][] {manifestBuf},
         jobId,
-        null,
+        jobId,
         operatorId,
         checkpointId);
   }
@@ -103,14 +99,14 @@ class DynamicCommittableSerializer implements SimpleVersionedSerializer<DynamicC
     String operatorId = view.readUTF();
     long checkpointId = view.readLong();
     byte[][] manifests = readManifests(view);
-    return new DynamicCommittable(key, manifests, jobId, null, operatorId, checkpointId);
+    return new DynamicCommittable(key, manifests, jobId, jobId, operatorId, checkpointId);
   }
 
   private DynamicCommittable deserializeV3(byte[] serialized) throws IOException {
     DataInputDeserializer view = new DataInputDeserializer(serialized);
     TableKey key = TableKey.deserializeFrom(view);
     String jobId = view.readUTF();
-    String sinkId = view.readBoolean() ? view.readUTF() : null;
+    String sinkId = view.readUTF();
     String operatorId = view.readUTF();
     long checkpointId = view.readLong();
     byte[][] manifests = readManifests(view);

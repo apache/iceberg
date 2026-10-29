@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink.dynamic;
 
 import java.util.Objects;
-import javax.annotation.Nullable;
 
 class JobOperatorKey {
   private final String jobId;
@@ -36,7 +35,6 @@ class JobOperatorKey {
     return jobId;
   }
 
-  @Nullable
   String sinkId() {
     return sinkId;
   }

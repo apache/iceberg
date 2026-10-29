@@ -43,12 +43,14 @@ class TestDynamicCommittableSerializer {
 
   @Test
   void testV1() throws IOException {
+    String jobId = JobID.generate().toHexString();
+    // Older formats have no sinkId, the jobId is used instead
     var committable =
         new DynamicCommittable(
             new TableKey("table", "branch"),
             new byte[][] {{3, 4}},
-            JobID.generate().toHexString(),
-            null,
+            jobId,
+            jobId,
             new OperatorID().toHexString(),
             5);
     DynamicCommittableSerializer serializer = new DynamicCommittableSerializer();
@@ -57,12 +59,14 @@ class TestDynamicCommittableSerializer {
 
   @Test
   void testV2() throws IOException {
+    String jobId = JobID.generate().toHexString();
+    // Older formats have no sinkId, the jobId is used instead
     var committable =
         new DynamicCommittable(
             new TableKey("table", "branch"),
             new byte[][] {{3, 4}, {5, 6}},
-            JobID.generate().toHexString(),
-            null,
+            jobId,
+            jobId,
             new OperatorID().toHexString(),
             5);
     DynamicCommittableSerializer serializer = new DynamicCommittableSerializer();
@@ -74,21 +78,6 @@ class TestDynamicCommittableSerializer {
     DynamicCommittableSerializer serializer = new DynamicCommittableSerializer();
     assertThat(serializer.deserialize(serializer.getVersion(), serializer.serialize(COMMITTABLE)))
         .isEqualTo(COMMITTABLE);
-  }
-
-  @Test
-  void testLatestVersionWithoutSinkId() throws IOException {
-    var committable =
-        new DynamicCommittable(
-            new TableKey("table", "branch"),
-            new byte[][] {{3, 4}},
-            JobID.generate().toHexString(),
-            null,
-            new OperatorID().toHexString(),
-            5);
-    DynamicCommittableSerializer serializer = new DynamicCommittableSerializer();
-    assertThat(serializer.deserialize(serializer.getVersion(), serializer.serialize(committable)))
-        .isEqualTo(committable);
   }
 
   @Test

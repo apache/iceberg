@@ -1134,34 +1134,36 @@ class TestDynamicCommitter {
   }
 
   @Test
-  void testSkipsAlreadyCommittedCommittableWithoutSinkId() throws Exception {
+  void testSkipsAlreadyCommittedOlderCommittable() throws Exception {
     Table table = catalog.loadTable(TableIdentifier.of(TABLE1));
     DynamicWriteResultAggregator aggregator = openAggregator();
     TableKey tableKey = new TableKey(TABLE1, "branch");
     String jobId = JobID.generate().toHexString();
     String operatorId = new OperatorID().toHexString();
-    String sinkId = UUID.randomUUID().toString();
 
-    CommitRequest<DynamicCommittable> committedWithoutSinkId =
-        commitRequest(aggregator, tableKey, WRITE_RESULT_BY_SPEC, jobId, null, operatorId, 5);
-    createCommitter().commit(Sets.newHashSet(committedWithoutSinkId));
+    // Snapshot written before the sinkId was introduced
+    table
+        .newAppend()
+        .appendFile(DATA_FILE)
+        .set("flink.job-id", jobId)
+        .set("flink.operator-id", operatorId)
+        .set("flink.max-committed-checkpoint-id", "5")
+        .toBranch("branch")
+        .commit();
 
-    table.refresh();
-    assertThat(table.snapshot(table.refs().get("branch").snapshotId()).summary())
-        .containsEntry("flink.job-id", jobId)
-        .doesNotContainKey("flink.sink-id");
-
+    // Committables from older state use the jobId as sinkId
     createCommitter()
         .commit(
             Sets.newHashSet(
-                new MockCommitRequest<>(committedWithoutSinkId.getCommittable()),
                 commitRequest(
-                    aggregator, tableKey, WRITE_RESULT_BY_SPEC_2, jobId, sinkId, operatorId, 6)));
+                    aggregator, tableKey, WRITE_RESULT_BY_SPEC, jobId, jobId, operatorId, 5),
+                commitRequest(
+                    aggregator, tableKey, WRITE_RESULT_BY_SPEC_2, jobId, jobId, operatorId, 6)));
 
     table.refresh();
     assertThat(table.snapshots()).hasSize(2);
     assertThat(table.snapshot(table.refs().get("branch").snapshotId()).summary())
-        .containsEntry("flink.sink-id", sinkId)
+        .containsEntry("flink.sink-id", jobId)
         .containsEntry("flink.max-committed-checkpoint-id", "6")
         .containsEntry("total-records", "66");
   }

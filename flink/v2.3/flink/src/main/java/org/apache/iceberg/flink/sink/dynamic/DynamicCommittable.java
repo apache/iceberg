@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink.dynamic;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
-import javax.annotation.Nullable;
 import org.apache.iceberg.flink.sink.DeltaManifests;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
@@ -30,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
  * serialized {@link DeltaManifests} files - which contains the commit data, and the jobId, sinkId,
  * operatorId, checkpointId to identify the specific commit.
  *
- * <p>The sinkId is null for committables restored from older state.
+ * <p>Committables restored from older state use the jobId as sinkId.
  *
  * <p>{@link DynamicCommittableSerializer} is used to serialize {@link DynamicCommittable} between
  * the {@link DynamicWriter} and the {@link DynamicWriteResultAggregator}.
@@ -48,7 +47,7 @@ class DynamicCommittable implements Serializable {
       TableKey key,
       byte[][] manifests,
       String jobId,
-      @Nullable String sinkId,
+      String sinkId,
       String operatorId,
       long checkpointId) {
     this.key = key;
@@ -71,7 +70,6 @@ class DynamicCommittable implements Serializable {
     return jobId;
   }
 
-  @Nullable
   String sinkId() {
     return sinkId;
   }
