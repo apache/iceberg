@@ -31,6 +31,7 @@ import java.net.InetAddress;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -714,9 +715,10 @@ public class TestFilteredScan {
             .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
             .load(table)
             .filter(expr)
-            .orderBy("id")
             .select(select0, selectN);
-    return dataset.collectAsList();
+    List<Row> rows = dataset.collectAsList();
+    rows.sort(Comparator.comparingLong(row -> row.<Long>getAs("id")));
+    return rows;
   }
 
   private static OffsetDateTime parse(String timestamp) {
