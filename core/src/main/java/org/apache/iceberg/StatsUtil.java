@@ -198,12 +198,15 @@ class StatsUtil {
     return statId >= baseId && statId < (baseId + NUM_RESERVED_FIELD_STATS_IDS);
   }
 
+  /**
+   * Lower and upper bounds are excluded for vector type.
+   */
   private static boolean hasBounds(Type type) {
     return type.typeId() != Type.TypeID.VECTOR;
   }
 
   private static boolean tracksTightBounds(Type type) {
-    return hasBounds(type) && !type.isVariantType() && !isGeoType(type);
+    return !type.isVariantType() && !isGeoType(type);
   }
 
   private static boolean isFloatingPoint(Type type) {
