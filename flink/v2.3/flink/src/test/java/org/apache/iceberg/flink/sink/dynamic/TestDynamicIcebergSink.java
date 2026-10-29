@@ -663,14 +663,12 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
                 SimpleDataUtil.SCHEMA,
                 "t1",
                 SnapshotRef.MAIN_BRANCH,
-                PartitionSpec.unpartitioned(),
-                Collections.singleton("id")),
+                PartitionSpec.unpartitioned()),
             new DynamicIcebergDataImpl(
                 SimpleDataUtil.SCHEMA,
                 "t2",
                 SnapshotRef.MAIN_BRANCH,
-                PartitionSpec.unpartitioned(),
-                Collections.singleton("id")));
+                PartitionSpec.unpartitioned()));
 
     runTest(rows);
   }
@@ -1214,6 +1212,43 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
       DynamicIcebergDataImpl input = rows.get(0);
       assertThat(actual.get(0)).isEqualTo(input.rowProvided.getField(0));
       assertThat(actual.get(1)).isEqualTo(input.rowProvided.getField(1));
+    }
+  }
+
+  @Test
+  void testDistributionFieldsWriteSameKeyToSingleDataFile() throws Exception {
+    int parallelism = 2;
+    List<DynamicIcebergDataImpl> rows = Lists.newArrayList();
+    for (int i = 0; i < 50; i++) {
+      DynamicIcebergDataImpl row =
+          new DynamicIcebergDataImpl(
+              SimpleDataUtil.SCHEMA,
+              "t1",
+              SnapshotRef.MAIN_BRANCH,
+              PartitionSpec.unpartitioned(),
+              Collections.singleton("id"));
+
+      row.rowProvided = Row.of(1, "data-" + i);
+      row.rowExpected = row.rowProvided;
+      rows.add(row);
+    }
+
+    executeDynamicSink(rows, this.env, true, parallelism, null);
+    verifyResults(rows);
+
+    Table table =
+        CATALOG_EXTENSION
+            .catalogLoader()
+            .loadCatalog()
+            .loadTable(TableIdentifier.of(DATABASE, "t1"));
+
+    List<Snapshot> dataSnapshots =
+        Lists.newArrayList(table.snapshots()).stream()
+            .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
+            .collect(Collectors.toList());
+    assertThat(dataSnapshots).isNotEmpty();
+    for (Snapshot snapshot : dataSnapshots) {
+      assertThat(snapshot.addedDataFiles(table.io())).hasSize(1);
     }
   }
 

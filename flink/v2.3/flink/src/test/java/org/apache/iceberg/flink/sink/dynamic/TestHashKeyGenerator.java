@@ -829,7 +829,46 @@ class TestHashKeyGenerator {
 
     assertThatThrownBy(() -> generator.generateKey(record))
         .isInstanceOf(NullPointerException.class)
-        .hasMessageContaining("does_not_exist");
+        .hasMessageContaining(
+            "Missing distribution field 'does_not_exist'. "
+                + "Expected distribution field 'does_not_exist' to exist in the table schema.");
+  }
+
+  @Test
+  void testDistributionFieldsNotSubsetOfEqualityFields() {
+    HashKeyGenerator generator = new HashKeyGenerator(16, 8);
+    DynamicRecord record =
+        distributionFieldsRecord(
+            PartitionSpec.unpartitioned(), DistributionMode.HASH, Collections.singleton("data"));
+    record.setEqualityFields(Collections.singleton("id"));
+
+    assertThatThrownBy(() -> generator.generateKey(record))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Invalid distribution fields '[data]'. Expected distribution fields '[data]' "
+                + "to be a subset of equality fields '[id]'.");
+  }
+
+  @Test
+  void testDistributionFieldsNotSubsetOfIdentifierFields() {
+    HashKeyGenerator generator = new HashKeyGenerator(16, 8);
+    Schema tableSchema =
+        new Schema(
+            Lists.newArrayList(
+                Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                Types.NestedField.required(2, "data", Types.StringType.get())),
+            Sets.newHashSet(1));
+
+    DynamicRecord record =
+        distributionFieldsRecord(
+            PartitionSpec.unpartitioned(), DistributionMode.HASH, Collections.singleton("data"));
+
+    assertThatThrownBy(
+            () -> generator.generateKey(record, tableSchema, PartitionSpec.unpartitioned(), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Invalid distribution fields '[data]'. Expected distribution fields '[data]' "
+                + "to be a subset of equality fields '[id]'.");
   }
 
   @Test

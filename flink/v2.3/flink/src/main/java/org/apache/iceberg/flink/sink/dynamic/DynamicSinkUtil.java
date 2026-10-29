@@ -77,7 +77,7 @@ class DynamicSinkUtil {
       Types.NestedField field = schema.findField(distributionField);
       Preconditions.checkNotNull(
           field,
-          "Missing distribution field %s. Expected distribution field %s to exist in the table schema.",
+          "Missing distribution field '%s'. Expected distribution field '%s' to exist in the table schema.",
           distributionField,
           distributionField);
       distributionFieldIds.add(field.fieldId());

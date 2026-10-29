@@ -152,6 +152,14 @@ class HashKeyGenerator {
 
       case HASH:
         if (!distributionFields.isEmpty()) {
+          Preconditions.checkArgument(
+              equalityFields.isEmpty() || equalityFields.containsAll(distributionFields),
+              "%s: Invalid distribution fields '%s'. Expected distribution fields '%s' to be a subset of "
+                  + "equality fields '%s'.",
+              tableName,
+              distributionFields,
+              distributionFields,
+              equalityFields);
           LOG.info("{}: Distribute rows by distribution fields {}", tableName, distributionFields);
           return fieldKeySelector(
               tableName,
