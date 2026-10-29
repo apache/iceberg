@@ -272,17 +272,16 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     return contentFileDS(staticTable, resolvableSnapshotIds, missingManifests)
         .union(manifestDS(staticTable, resolvableSnapshotIds))
         .union(manifestListDS(staticTable, resolvableSnapshotIds))
-        .union(statisticsFileDS(staticTable, resolvableSnapshotIds));
+        .union(statisticsFileDS(staticTable, deletedSnapshotIds));
   }
 
   private Set<Long> resolvableSnapshotIds(TableMetadata metadata, Set<Long> deletedSnapshotIds) {
     Set<Long> resolvable = Sets.newConcurrentHashSet();
-    Tasks.foreach(deletedSnapshotIds.stream().map(metadata::snapshot).collect(Collectors.toList()))
+    Tasks.foreach(deletedSnapshotIds)
         .executeWith(ThreadPools.getWorkerPool())
         .run(
-            snapshot -> {
-              long snapshotId = snapshot.snapshotId();
-              String manifestListLocation = snapshot.manifestListLocation();
+            snapshotId -> {
+              String manifestListLocation = metadata.snapshot(snapshotId).manifestListLocation();
               if (manifestListLocation != null
                   && !table.io().newInputFile(manifestListLocation).exists()) {
                 LOG.warn(

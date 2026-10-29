@@ -426,6 +426,9 @@ abstract class BaseSparkAction<ThisT> {
       try {
         return new ClosingIterator<>(entries(manifest));
       } catch (NotFoundException e) {
+        // Only the scan of expired snapshots passes an accumulator. In all other scans, a missing
+        // manifest must fail. If a scan skips it, the files that it references look unreferenced
+        // and the action deletes them.
         if (missingManifests == null) {
           throw e;
         }

@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -40,6 +41,7 @@ import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -65,6 +67,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -1465,6 +1468,41 @@ public class TestExpireSnapshotsAction extends TestBase {
   }
 
   @TestTemplate
+  public void testExpireDeletesStatisticsFileOfSnapshotWithMissingManifestList() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    String statisticsLocation = tableLocation + "/metadata/stats-" + UUID.randomUUID();
+    table
+        .updateStatistics()
+        .setStatistics(
+            new GenericStatisticsFile(
+                firstSnapshot.snapshotId(), statisticsLocation, 1L, 1L, List.of()))
+        .commit();
+
+    table.newAppend().appendFile(FILE_B).commit();
+
+    long end = rightAfterSnapshot();
+
+    table.io().deleteFile(firstSnapshot.manifestListLocation());
+
+    Set<String> deletedFiles = ConcurrentHashMap.newKeySet();
+
+    assertThatThrownBy(
+            () ->
+                SparkActions.get()
+                    .expireSnapshots(table)
+                    .expireOlderThan(end)
+                    .deleteWith(deletedFiles::add)
+                    .execute())
+        .isInstanceOf(NotFoundException.class)
+        .hasMessageContaining(firstSnapshot.manifestListLocation());
+
+    assertThat(deletedFiles)
+        .as("Should delete the statistics file even though the manifest list is missing")
+        .contains(statisticsLocation);
+  }
+
+  @TestTemplate
   public void testExpireFailsFastWhenMissingManifestReachableFromRetainedSnapshot() {
     assertExpireFailsFastWhenMissingManifestReachableFromRetainedSnapshot(false);
   }
@@ -1501,7 +1539,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     }
 
     assertThatThrownBy(action::execute)
-        .isInstanceOf(Exception.class)
+        .isInstanceOf(SparkException.class)
         .hasMessageContaining(sharedManifest);
 
     assertThat(deletedFiles)
