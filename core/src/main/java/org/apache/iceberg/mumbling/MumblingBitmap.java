@@ -19,6 +19,7 @@
 package org.apache.iceberg.mumbling;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.NavigableMap;
 import org.apache.iceberg.ManifestBitmap;
@@ -54,7 +55,7 @@ class MumblingBitmap implements ManifestBitmap {
   private static final int MAX_CONTAINER_COUNT = 8_192;
   private static final int MAX_CARDINALITY = 2_097_152;
 
-  static MutableBitmap newMutableBitmap() {
+  static Mutable newMutableBitmap() {
     return new MumblingBitmap(EMPTY_BITMAP).asMutable();
   }
 
@@ -161,7 +162,7 @@ class MumblingBitmap implements ManifestBitmap {
     return offsets[containerIndex];
   }
 
-  public MutableBitmap asMutable() {
+  public Mutable asMutable() {
     return new Mutable(this);
   }
 
@@ -172,7 +173,8 @@ class MumblingBitmap implements ManifestBitmap {
    *
    * <p>The initial buffer is not modified.
    */
-  private static class Mutable implements MutableBitmap {
+  @VisibleForTesting
+  static class Mutable implements MutableBitmap {
     private final NavigableMap<Integer, Container> overlays = Maps.newTreeMap();
     private final MumblingBitmap base;
     private final int baseContainerCount;
@@ -206,17 +208,7 @@ class MumblingBitmap implements ManifestBitmap {
           pos < MAX_CARDINALITY, "Cannot set invalid bit position: %s (must be < 2,097,152)", pos);
 
       int containerIndex = containerIndex(pos);
-      Container overlay = overlays.get(containerIndex);
-      if (overlay == null) {
-        if (containerIndex < baseContainerCount) {
-          ByteBuffer src = base.buffer();
-          int offset = src.position() + base.offset(containerIndex);
-          overlay = new Container(src, offset, base.descriptor(containerIndex));
-        } else {
-          overlay = new Container();
-        }
-        overlays.put(containerIndex, overlay);
-      }
+      Container overlay = overlay(containerIndex);
 
       if (overlay.set(posInContainer(pos))) {
         this.cardinality += 1;
@@ -224,6 +216,18 @@ class MumblingBitmap implements ManifestBitmap {
       }
 
       return false;
+    }
+
+    @Override
+    public void merge(ManifestBitmap bitmap) {
+      if (bitmap instanceof Mutable) {
+        merge((Mutable) bitmap);
+      } else if (bitmap instanceof MumblingBitmap) {
+        merge((MumblingBitmap) bitmap);
+      } else {
+        // use the buffer to get the bitmap as a supported class
+        merge(new MumblingBitmap(bitmap.buffer()));
+      }
     }
 
     @Override
@@ -255,7 +259,8 @@ class MumblingBitmap implements ManifestBitmap {
       return buffer;
     }
 
-    private int[] descriptorArray() {
+    @VisibleForTesting
+    int[] descriptorArray() {
       int[] baseDescriptors = base.descriptors();
       int lastOverlayIndex = overlays.isEmpty() ? -1 : overlays.lastKey();
       int numContainers = Math.max(lastOverlayIndex + 1, baseDescriptors.length);
@@ -307,9 +312,49 @@ class MumblingBitmap implements ManifestBitmap {
 
       return 0;
     }
+
+    private Container overlay(int containerIndex) {
+      Container overlay = overlays.get(containerIndex);
+      if (overlay == null) {
+        overlay = Container.newOverlay(base, containerIndex);
+        overlays.put(containerIndex, overlay);
+      }
+
+      return overlay;
+    }
+
+    private void merge(Mutable other) {
+      int[] descriptors = other.descriptorArray();
+      for (int containerIndex = 0; containerIndex < descriptors.length; containerIndex += 1) {
+        if (descriptors[containerIndex] != 0) {
+          Container overlay = overlay(containerIndex);
+          this.cardinality += overlay.merge(other.overlay(containerIndex));
+        }
+      }
+    }
+
+    private void merge(MumblingBitmap other) {
+      int[] descriptors = other.descriptors();
+      for (int containerIndex = 0; containerIndex < descriptors.length; containerIndex += 1) {
+        if (descriptors[containerIndex] != 0) {
+          Container overlay = overlay(containerIndex);
+          this.cardinality += overlay.merge(Container.newOverlay(other, containerIndex));
+        }
+      }
+    }
   }
 
   private static class Container {
+    private static Container newOverlay(MumblingBitmap bitmap, int containerIndex) {
+      if (containerIndex < bitmap.containerCount) {
+        ByteBuffer src = bitmap.buffer();
+        int offset = src.position() + bitmap.offset(containerIndex);
+        return new Container(src, offset, bitmap.descriptor(containerIndex));
+      }
+
+      return new Container();
+    }
+
     private byte[] dense = null;
     private byte[] sparse = null;
     private int cardinality = 0;
@@ -369,6 +414,40 @@ class MumblingBitmap implements ManifestBitmap {
         buffer.put(offset, dense, 0, dense.length);
         return dense.length;
       }
+    }
+
+    private int merge(Container other) {
+      int initialCardinality = cardinality;
+
+      if (other.dense != null) {
+        // other may be sparse and have a dense array
+        if (dense != null) {
+          // OR the dense bytes together
+          for (int i = 0; i < dense.length; i += 1) {
+            this.dense[i] |= other.dense[i];
+          }
+        } else {
+          // Copy the dense bytes and set the positions from this container
+          this.dense = Arrays.copyOf(other.dense, other.dense.length);
+          for (int i = 0; i < cardinality; i += 1) {
+            denseSet(dense, (sparse[i] & 0xFF));
+          }
+        }
+
+        this.cardinality = denseCardinality(dense);
+
+        // copy the sparse array if needed; other was sparse and merge set no new bits
+        if (cardinality < DENSE_CONTAINER_SIZE) {
+          this.sparse = Arrays.copyOf(other.sparse, other.sparse.length);
+        }
+      } else {
+        // Set the positions from the other container in this container
+        for (int i = 0; i < other.cardinality; i += 1) {
+          set(other.sparse[i] & 0xFF);
+        }
+      }
+
+      return cardinality - initialCardinality;
     }
 
     private boolean setInternal(int posInContainer) {
