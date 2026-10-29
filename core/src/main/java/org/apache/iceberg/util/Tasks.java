@@ -467,7 +467,12 @@ public class Tasks {
           int sleepTimeMs = delayMs + jitter;
 
           LOG.warn(
-              "Retrying task after failure: sleepTimeMs={} {}", sleepTimeMs, e.getMessage(), e);
+              "Retrying task after failure: attempt={} maxAttempts={} sleepTimeMs={} {}",
+              attempt,
+              maxAttempts,
+              sleepTimeMs,
+              e.getMessage(),
+              e);
 
           try {
             TimeUnit.MILLISECONDS.sleep(sleepTimeMs);

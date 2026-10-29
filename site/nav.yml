@@ -59,6 +59,7 @@ nav:
         - Apache Gravitino: https://gravitino.apache.org/
         - Apache Polaris: https://polaris.apache.org/
         - Boring Catalog: https://github.com/boringdata/boring-catalog
+        - Databricks Unity Catalog: https://docs.databricks.com/aws/en/external-access/iceberg
         - DataHub: https://docs.datahub.com/docs/iceberg-catalog
         - Google BigLake metastore: https://cloud.google.com/bigquery/docs/blms-manage-resources
         - Lakekeeper: https://github.com/lakekeeper/lakekeeper

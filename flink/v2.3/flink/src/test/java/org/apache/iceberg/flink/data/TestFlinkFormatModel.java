@@ -35,7 +35,8 @@ import org.apache.iceberg.types.Types;
 
 public class TestFlinkFormatModel extends BaseFormatModelTests<RowData> {
 
-  private static final Set<Type.TypeID> UNSUPPORTED_TYPE_IDS = Set.of(Type.TypeID.TIME);
+  private static final Set<Type.TypeID> UNSUPPORTED_TYPE_IDS =
+      Set.of(Type.TypeID.TIME, Type.TypeID.GEOMETRY, Type.TypeID.GEOGRAPHY);
 
   @Override
   protected Collection<Type.TypeID> unsupportedTypeIds() {
