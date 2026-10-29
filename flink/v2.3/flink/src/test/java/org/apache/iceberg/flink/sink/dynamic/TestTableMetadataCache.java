@@ -276,7 +276,8 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
 
     Schema resolved = cache.schema(tableIdentifier, withExtra).resolvedTableSchema();
 
-    assertThat(resolved.findField("extra")).isNotNull();
+    assertThat(resolved.findField("extra").fieldId())
+        .isEqualTo(withExtra.findField("extra").fieldId());
   }
 
   @Test
@@ -374,5 +375,27 @@ public class TestTableMetadataCache extends TestFlinkIcebergSinkBase {
 
     assertThat(resolved.findField("myfield").fieldId()).isEqualTo(retiredFieldId);
     assertThat(resolved.findField("myfield").type()).isEqualTo(Types.StringType.get());
+  }
+
+  @Test
+  void testSchemaMatchingOfReusedFieldNameHonorsCaseSensitivity() {
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.parse("default.myTable");
+    Table table = catalog.createTable(tableIdentifier, SCHEMA);
+    int renamedFieldId = table.schema().findField("data").fieldId();
+    table.updateSchema().renameColumn("data", "legacy").commit();
+    table.updateSchema().addColumn("Data", Types.StringType.get()).commit();
+    int currentFieldId = table.schema().findField("Data").fieldId();
+    assertThat(currentFieldId).isNotEqualTo(renamedFieldId);
+
+    TableMetadataCache caseInsensitive =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_INSENSITIVE, PRESERVE_COLUMNS);
+    Schema resolved = caseInsensitive.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+    assertThat(resolved.caseInsensitiveFindField("data").fieldId()).isEqualTo(currentFieldId);
+
+    TableMetadataCache caseSensitive =
+        new TableMetadataCache(catalog, 10, Long.MAX_VALUE, 10, CASE_SENSITIVE, PRESERVE_COLUMNS);
+    resolved = caseSensitive.schema(tableIdentifier, SCHEMA).resolvedTableSchema();
+    assertThat(resolved.findField("data").fieldId()).isEqualTo(renamedFieldId);
   }
 }

@@ -1926,6 +1926,39 @@ class TestDynamicIcebergSink extends TestFlinkIcebergSinkBase {
     }
   }
 
+  @Test
+  void testWriteOldShapeRecordAfterColumnReAddedWithWiderType() throws Exception {
+    Schema base =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+    Schema oldShape =
+        new Schema(
+            Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()),
+            Types.NestedField.optional(3, "c", Types.IntegerType.get()));
+
+    Catalog catalog = CATALOG_EXTENSION.catalog();
+    TableIdentifier tableIdentifier = TableIdentifier.of(DATABASE, "t1");
+    Table table = catalog.createTable(tableIdentifier, base);
+    table.updateSchema().addColumn("c", Types.IntegerType.get()).commit();
+    table.updateSchema().deleteColumn("c").commit();
+    table.updateSchema().addColumn("c", Types.LongType.get()).commit();
+
+    DynamicIcebergDataImpl record =
+        new DynamicIcebergDataImpl(
+            oldShape, "t1", SnapshotRef.MAIN_BRANCH, PartitionSpec.unpartitioned());
+    record.rowProvided = Row.of(1, "a", 5);
+
+    executeDynamicSink(Lists.newArrayList(record), env, true, 1, null);
+
+    table.refresh();
+    List<Record> records = Lists.newArrayList(IcebergGenerics.read(table).build());
+    assertThat(records).hasSize(1);
+    assertThat(records.get(0).getField("data")).isEqualTo("a");
+    assertThat(records.get(0).getField("c")).isEqualTo(5L);
+  }
+
   private void runTest(List<DynamicIcebergDataImpl> dynamicData) throws Exception {
     runTest(dynamicData, this.env, 2);
   }

@@ -33,6 +33,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -285,9 +286,8 @@ class TableMetadataCache {
   static Map<Integer, Schema> orderSchemas(Map<Integer, Schema> tableSchemas, int currentSchemaId) {
     Map<Integer, Schema> ordered = Maps.newLinkedHashMapWithExpectedSize(tableSchemas.size());
     Schema current = tableSchemas.get(currentSchemaId);
-    if (current != null) {
-      ordered.put(currentSchemaId, current);
-    }
+    Preconditions.checkArgument(current != null, "Current schema %s not found", currentSchemaId);
+    ordered.put(currentSchemaId, current);
 
     tableSchemas.entrySet().stream()
         .filter(e -> e.getKey() != currentSchemaId)
