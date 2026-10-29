@@ -19,6 +19,8 @@
 package org.apache.iceberg.data;
 
 import java.nio.ByteBuffer;
+import java.util.List;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
@@ -59,6 +61,15 @@ public class GenericDataUtil {
         }
       case FIXED:
         return ByteBuffers.toByteArray((ByteBuffer) value);
+      case STRUCT:
+        List<Types.NestedField> fields = type.asStructType().fields();
+        StructLike struct = (StructLike) value;
+        GenericRecord record = GenericRecord.create(type.asStructType());
+        for (int pos = 0; pos < fields.size(); pos += 1) {
+          record.set(pos, internalToGeneric(fields.get(pos).type(), struct.get(pos, Object.class)));
+        }
+
+        return record;
     }
 
     return value;

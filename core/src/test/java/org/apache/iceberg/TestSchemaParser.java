@@ -21,7 +21,9 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -35,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -154,5 +157,55 @@ public class TestSchemaParser extends DataTestBase {
         .isEqualTo(defaultValue.value());
     assertThat(serialized.findField("col_with_default").writeDefault())
         .isEqualTo(defaultValue.value());
+  }
+
+  @Test
+  void emptyStructDefaultFromJson() {
+    String json =
+        """
+        {"type": "struct", "schema-id": 0, "fields": [
+          {"id": 1, "name": "point", "required": false, "initial-default": {}, "write-default": {},
+           "type": {"type": "struct", "fields": [
+             {"id": 2, "name": "x", "required": false, "type": "int", "initial-default": 0}]}}]}
+        """;
+
+    Types.NestedField point = SchemaParser.fromJson(json).findField("point");
+    assertThat(point.initialDefaultLiteral()).isEqualTo(Literal.emptyStruct());
+    assertThat(point.writeDefaultLiteral()).isEqualTo(Literal.emptyStruct());
+  }
+
+  @Test
+  void emptyStructDefaultToJson() throws IOException {
+    Types.NestedField field =
+        optional("x")
+            .withId(2)
+            .ofType(Types.IntegerType.get())
+            .withInitialDefault(Literal.of(0))
+            .build();
+    Schema schema =
+        new Schema(
+            optional("point")
+                .withId(1)
+                .ofType(Types.StructType.of(field))
+                .withInitialDefault(Literal.emptyStruct())
+                .build());
+
+    JsonNode point = JsonUtil.mapper().readTree(SchemaParser.toJson(schema)).get("fields").get(0);
+    assertThat(point.get("initial-default")).isEqualTo(JsonUtil.mapper().createObjectNode());
+  }
+
+  @Test
+  void nonEmptyStructDefaultFromJsonIsRejected() {
+    String json =
+        """
+        {"type": "struct", "schema-id": 0, "fields": [
+          {"id": 1, "name": "point", "required": false, "initial-default": {"2": 0},
+           "type": {"type": "struct", "fields": [
+             {"id": 2, "name": "x", "required": false, "type": "int"}]}}]}
+        """;
+
+    assertThatThrownBy(() -> SchemaParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageEndingWith("{\"2\":0} (must be an empty object)");
   }
 }

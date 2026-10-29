@@ -2462,9 +2462,9 @@ components:
         doc:
           type: string
         initial-default:
-          $ref: "#/components/schemas/PrimitiveTypeValue"
+          $ref: "#/components/schemas/DefaultValue"
         write-default:
-          $ref: "#/components/schemas/PrimitiveTypeValue"
+          $ref: "#/components/schemas/DefaultValue"
 
     StructType:
       type: object
@@ -5544,6 +5544,22 @@ components:
         - $ref: '#/components/schemas/TimestampTzNanoTypeValue'
         - $ref: '#/components/schemas/FixedTypeValue'
         - $ref: '#/components/schemas/BinaryTypeValue'
+
+    StructDefaultValue:
+      type: object
+      maxProperties: 0
+      description:
+        "A non-null struct default, always an empty object. The struct's value is produced from
+        the defaults of its fields."
+      example: {}
+
+    DefaultValue:
+      description:
+        "Default value of a field: a primitive value, or for a field of struct type, an empty
+        object whose value is produced from the defaults of the struct's fields."
+      oneOf:
+        - $ref: '#/components/schemas/PrimitiveTypeValue'
+        - $ref: '#/components/schemas/StructDefaultValue'
 
     FileFormat:
       type: string
