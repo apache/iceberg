@@ -45,6 +45,7 @@ import org.apache.flink.table.factories.FactoryUtil;
 import org.apache.flink.table.legacy.api.TableSchema;
 import org.apache.flink.table.types.DataType;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.flink.FlinkConfParser;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkFilters;
 import org.apache.iceberg.flink.FlinkReadOptions;
@@ -223,7 +224,12 @@ public class IcebergTableSource
 
       @Override
       public boolean isBounded() {
-        return FlinkSource.isBounded(properties);
+        return !new FlinkConfParser(properties, readableConfig)
+            .booleanConf()
+            .option(FlinkReadOptions.STREAMING)
+            .flinkConfig(FlinkReadOptions.STREAMING_OPTION)
+            .defaultValue(FlinkReadOptions.STREAMING_OPTION.defaultValue())
+            .parse();
       }
 
       @Override

@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.flink.FlinkReadOptions;
 import org.junit.jupiter.api.TestTemplate;
@@ -32,13 +33,14 @@ public class TestFlinkSourceConfig extends TableSourceTestBase {
   @TestTemplate
   public void testFlinkSessionConfig() {
     getTableEnv().getConfig().set(FlinkReadOptions.STREAMING_OPTION, true);
-    assertThatThrownBy(() -> sql("SELECT * FROM %s /*+ OPTIONS('as-of-timestamp'='1')*/", TABLE))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot set as-of-timestamp option for streaming reader");
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", TABLE))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("in batch mode is not allowed. The table source is unbounded.");
   }
 
   @TestTemplate
   public void testFlinkHintConfig() {
+    getTableEnv().getConfig().set(FlinkReadOptions.STREAMING_OPTION, true);
     List<Row> result =
         sql(
             "SELECT * FROM %s /*+ OPTIONS('as-of-timestamp'='%d','streaming'='false')*/",

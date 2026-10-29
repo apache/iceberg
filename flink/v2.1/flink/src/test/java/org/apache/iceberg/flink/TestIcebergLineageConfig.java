@@ -110,6 +110,54 @@ class TestIcebergLineageConfig {
     assertThat(((SourceProvider) provider).createSource()).isInstanceOf(IcebergSource.class);
   }
 
+  @ParameterizedTest
+  @CsvSource({
+    "false, , , true",
+    "true, , , true",
+    "false, false, , true",
+    "true, false, , true",
+    "false, true, , false",
+    "true, true, , false",
+    "false, true, false, true",
+    "true, true, false, true",
+    "false, false, true, false",
+    "true, false, true, false"
+  })
+  void sourceBoundednessRespectsStreamingOptions(
+      boolean emitLineage,
+      Boolean sessionStreaming,
+      Boolean optionStreaming,
+      boolean expectedBounded) {
+    Configuration config = lineageConfig(emitLineage);
+    if (sessionStreaming != null) {
+      config.set(FlinkReadOptions.STREAMING_OPTION, sessionStreaming);
+    }
+
+    Map<String, String> readOptions =
+        optionStreaming != null
+            ? Map.of(FlinkReadOptions.STREAMING, optionStreaming.toString())
+            : Map.of();
+    IcebergTableSource source =
+        new IcebergTableSource(
+            CATALOG_EXTENSION.tableLoader(), SimpleDataUtil.FLINK_SCHEMA, readOptions, config);
+    ScanTableSource.ScanRuntimeProvider provider =
+        source.getScanRuntimeProvider(mock(ScanTableSource.ScanContext.class));
+
+    assertThat(provider.isBounded()).isEqualTo(expectedBounded);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void legacySourceBoundednessRespectsSessionStreaming(boolean streaming) {
+    Configuration config = new Configuration();
+    config.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE, false);
+    config.set(FlinkReadOptions.STREAMING_OPTION, streaming);
+    ScanTableSource.ScanRuntimeProvider provider =
+        tableSource(config).getScanRuntimeProvider(mock(ScanTableSource.ScanContext.class));
+
+    assertThat(provider.isBounded()).isEqualTo(!streaming);
+  }
+
   @Test
   void legacySourcePreservesCallbackWhenLineageIsDisabled() {
     Configuration config = new Configuration();
