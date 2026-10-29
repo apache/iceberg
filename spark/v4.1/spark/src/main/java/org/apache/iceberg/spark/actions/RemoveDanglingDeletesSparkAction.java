@@ -22,6 +22,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
@@ -53,8 +54,9 @@ class RemoveDanglingDeletesSparkAction
   private final Table table;
   private final RemoveDanglingDeleteFilesAction action;
 
-  protected RemoveDanglingDeletesSparkAction(SparkSession spark, Table table) {
-    super(spark);
+  RemoveDanglingDeletesSparkAction(
+      SparkSession spark, Table table, Map<String, String> snapshotProperties) {
+    super(spark, snapshotProperties);
     this.table = table;
     this.action = new RemoveDanglingDeleteFilesAction(table, this::findDanglingDeletes);
   }
