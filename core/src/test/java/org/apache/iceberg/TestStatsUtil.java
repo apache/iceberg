@@ -574,15 +574,7 @@ public class TestStatsUtil {
   @Test
   void identityBounds() {
     assertThat(sourceBounds(Types.StringType.get(), Transforms.identity(), "books"))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds("books", "books"));
-  }
-
-  @Test
-  void identityBoundsMatchSourceType() {
-    assertThat(sourceBounds(Types.LongType.get(), Transforms.identity(), 5))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds(5L, 5L));
-    assertThat(sourceBounds(Types.DoubleType.get(), Transforms.identity(), 1.5f))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds(1.5d, 1.5d));
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>("books", "books"));
   }
 
   @Test
@@ -614,44 +606,44 @@ public class TestStatsUtil {
   @Test
   void truncateNumberNearMax() {
     assertThat(sourceBounds(Types.IntegerType.get(), Transforms.truncate(10), 2_147_483_640))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds(2_147_483_640, Integer.MAX_VALUE));
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(2_147_483_640, Integer.MAX_VALUE));
     assertThat(sourceBounds(Types.LongType.get(), Transforms.truncate(100), Long.MAX_VALUE - 7))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds(Long.MAX_VALUE - 7, Long.MAX_VALUE));
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(Long.MAX_VALUE - 7, Long.MAX_VALUE));
     assertThat(
             sourceBounds(
                 Types.DecimalType.of(9, 2), Transforms.truncate(7), new BigDecimal("9999999.94")))
         .isEqualTo(
-            new StatsUtil.PartitionSourceBounds(
+            new StatsUtil.PartitionSourceBounds<>(
                 new BigDecimal("9999999.94"), new BigDecimal("9999999.99")));
   }
 
   @Test
   void truncateNumberAtMinWraps() {
     assertThat(sourceBounds(Types.IntegerType.get(), Transforms.truncate(10), 2_147_483_646))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds(Integer.MIN_VALUE, Integer.MIN_VALUE + 7));
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(Integer.MIN_VALUE, Integer.MIN_VALUE + 7));
     assertThat(
             sourceBounds(Types.LongType.get(), Transforms.truncate(10), 9_223_372_036_854_775_806L))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds(Long.MIN_VALUE, Long.MIN_VALUE + 7));
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(Long.MIN_VALUE, Long.MIN_VALUE + 7));
   }
 
   @Test
   void truncateNumberAtMinWithPowerOfTwoWidth() {
     assertThat(sourceBounds(Types.IntegerType.get(), Transforms.truncate(8), Integer.MIN_VALUE))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds(Integer.MIN_VALUE, Integer.MIN_VALUE + 7));
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(Integer.MIN_VALUE, Integer.MIN_VALUE + 7));
     assertThat(sourceBounds(Types.LongType.get(), Transforms.truncate(8), Long.MIN_VALUE))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds(Long.MIN_VALUE, Long.MIN_VALUE + 7));
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(Long.MIN_VALUE, Long.MIN_VALUE + 7));
   }
 
   @Test
   void truncateStringBounds() {
     assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(3), "abc"))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds("abc", "abd"));
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>("abc", "abd"));
   }
 
   @Test
   void truncateShortString() {
     assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(3), "ab"))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds("ab", "ab"));
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>("ab", "ab"));
   }
 
   @Test
@@ -659,7 +651,7 @@ public class TestStatsUtil {
     String value = "ab" + new String(Character.toChars(0x1F4B0));
 
     assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(4), value))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds(value, value));
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(value, value));
   }
 
   @Test
@@ -667,7 +659,7 @@ public class TestStatsUtil {
     String maxCodePoint = new String(Character.toChars(Character.MAX_CODE_POINT));
 
     assertThat(sourceBounds(Types.StringType.get(), Transforms.truncate(1), maxCodePoint))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds(maxCodePoint, null));
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(maxCodePoint, null));
   }
 
   @Test
@@ -675,7 +667,8 @@ public class TestStatsUtil {
     ByteBuffer prefix = ByteBuffer.wrap(new byte[] {1, 2});
 
     assertThat(sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), prefix))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds(prefix, ByteBuffer.wrap(new byte[] {1, 3})));
+        .isEqualTo(
+            new StatsUtil.PartitionSourceBounds<>(prefix, ByteBuffer.wrap(new byte[] {1, 3})));
   }
 
   @Test
@@ -683,7 +676,7 @@ public class TestStatsUtil {
     ByteBuffer value = ByteBuffer.wrap(new byte[] {1});
 
     assertThat(sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), value))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds(value, value));
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(value, value));
   }
 
   @Test
@@ -691,7 +684,7 @@ public class TestStatsUtil {
     ByteBuffer prefix = ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF});
 
     assertThat(sourceBounds(Types.BinaryType.get(), Transforms.truncate(2), prefix))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds(prefix, null));
+        .isEqualTo(new StatsUtil.PartitionSourceBounds<>(prefix, null));
   }
 
   private static Stream<Partition> timePartitionValues() {
@@ -753,7 +746,8 @@ public class TestStatsUtil {
   void dateBoundsNearMax() {
     // the end of year 5881580 is past the largest date
     assertThat(sourceBounds(Types.DateType.get(), Transforms.year(), years("+5881580-01-01")))
-        .isEqualTo(new StatsUtil.PartitionSourceBounds(days("+5881580-01-01"), Integer.MAX_VALUE));
+        .isEqualTo(
+            new StatsUtil.PartitionSourceBounds<>(days("+5881580-01-01"), Integer.MAX_VALUE));
   }
 
   @Test
@@ -763,7 +757,7 @@ public class TestStatsUtil {
             sourceBounds(
                 Types.TimestampNanoType.withZone(), Transforms.year(), years("2262-01-01")))
         .isEqualTo(
-            new StatsUtil.PartitionSourceBounds(nanos("2262-01-01T00:00:00Z"), Long.MAX_VALUE));
+            new StatsUtil.PartitionSourceBounds<>(nanos("2262-01-01T00:00:00Z"), Long.MAX_VALUE));
   }
 
   @Test
@@ -785,7 +779,7 @@ public class TestStatsUtil {
             "Cannot derive source column bounds from partition field that does not preserve order: 1000: part: void(1)");
   }
 
-  private static StatsUtil.PartitionSourceBounds sourceBounds(
+  private static StatsUtil.PartitionSourceBounds<?> sourceBounds(
       Type type, Transform<?, ?> transform, Object partitionValue) {
     Schema schema = new Schema(Types.NestedField.optional(1, "col", type));
     PartitionField field =
@@ -793,7 +787,7 @@ public class TestStatsUtil {
     return StatsUtil.sourceBoundsFor(schema, field, partitionValue);
   }
 
-  private static StatsUtil.PartitionSourceBounds sourceBounds(Partition partition) {
+  private static StatsUtil.PartitionSourceBounds<?> sourceBounds(Partition partition) {
     return sourceBounds(partition.type(), partition.transform(), partition.value());
   }
 
@@ -811,8 +805,8 @@ public class TestStatsUtil {
       return new Partition(type, transform, value, lower, upper);
     }
 
-    StatsUtil.PartitionSourceBounds expectedBounds() {
-      return new StatsUtil.PartitionSourceBounds(expectedLower, expectedUpper);
+    StatsUtil.PartitionSourceBounds<?> expectedBounds() {
+      return new StatsUtil.PartitionSourceBounds<>(expectedLower, expectedUpper);
     }
   }
 

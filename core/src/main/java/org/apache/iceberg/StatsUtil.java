@@ -340,8 +340,8 @@ class StatsUtil {
   /**
    * Lower and upper bounds for source values in a partition from an order-preserving transform.
    *
-   * <p>Every source value that transforms to the partition is >= lower and <= upper. Upper is
-   * null when unbounded. Both bounds are inclusive.
+   * <p>Every source value that transforms to the partition is >= lower and <= upper. Upper is null
+   * when unbounded. Both bounds are inclusive.
    *
    * <p>For most transforms, lower and upper are the values in the partition. Exceptions:
    *
@@ -349,18 +349,18 @@ class StatsUtil {
    *   <li>For string and binary truncate, upper is the next prefix when it exists, so upper can
    *       truncate to the next partition. That still covers every value that truncates to the
    *       partition.
-   *   <li>For time transforms, lower starts one unit earlier when the partition value is <= 1970
-   *       to handle older writers that rounded pre-1970 values toward zero.
+   *   <li>For time transforms, lower starts one unit earlier when the partition value is <= 1970 to
+   *       handle older writers that rounded pre-1970 values toward zero.
    * </ul>
    */
-  record PartitionSourceBounds(Object lower, Object upper) {}
+  record PartitionSourceBounds<T>(T lower, T upper) {}
 
   /**
    * Returns the source column bounds for a partition value, or null for a NaN identity value.
    *
    * @throws IllegalArgumentException if the transform does not preserve order or the value is null
    */
-  static PartitionSourceBounds sourceBoundsFor(
+  static PartitionSourceBounds<?> sourceBoundsFor(
       Schema schema, PartitionField field, Object partitionValue) {
     Preconditions.checkArgument(
         field.transform().preservesOrder(),
@@ -376,7 +376,7 @@ class StatsUtil {
   }
 
   private static class PartitionSourceBoundsVisitor
-      implements PartitionSpecVisitor<PartitionSourceBounds> {
+      implements PartitionSpecVisitor<PartitionSourceBounds<?>> {
     private final Type sourceType;
     private final Object value;
 
@@ -386,37 +386,38 @@ class StatsUtil {
     }
 
     @Override
-    public PartitionSourceBounds identity(int fieldId, String sourceName, int sourceId) {
+    public PartitionSourceBounds<?> identity(int fieldId, String sourceName, int sourceId) {
       // NaN cannot be used as a bound
       if (NaNUtil.isNaN(value)) {
         return null;
       }
 
-      return new PartitionSourceBounds(
+      return new PartitionSourceBounds<>(
           value, value instanceof ByteBuffer buffer ? buffer.duplicate() : value);
     }
 
     @Override
-    public PartitionSourceBounds truncate(int fieldId, String sourceName, int sourceId, int width) {
+    public PartitionSourceBounds<?> truncate(
+        int fieldId, String sourceName, int sourceId, int width) {
       // source values are at most width - 1 larger than the partition value, unscaled for decimals
       return switch (sourceType.typeId()) {
         case INTEGER -> {
           int lower = (Integer) value;
           // truncate wraps below MIN to a value that is not a multiple of the width
           if (Math.floorMod(lower, width) != 0) {
-            yield new PartitionSourceBounds(Integer.MIN_VALUE, lower + width - 1);
+            yield new PartitionSourceBounds<>(Integer.MIN_VALUE, lower + width - 1);
           }
 
-          yield new PartitionSourceBounds(
+          yield new PartitionSourceBounds<>(
               lower, (int) Math.min(Integer.MAX_VALUE, (long) lower + width - 1));
         }
         case LONG -> {
           long lower = (Long) value;
           if (Math.floorMod(lower, width) != 0) {
-            yield new PartitionSourceBounds(Long.MIN_VALUE, lower + width - 1);
+            yield new PartitionSourceBounds<>(Long.MIN_VALUE, lower + width - 1);
           }
 
-          yield new PartitionSourceBounds(
+          yield new PartitionSourceBounds<>(
               lower, lower > Long.MAX_VALUE - (width - 1) ? Long.MAX_VALUE : lower + width - 1);
         }
         case DECIMAL -> {
@@ -425,7 +426,7 @@ class StatsUtil {
           BigInteger maxUnscaled = BigInteger.TEN.pow(precision).subtract(BigInteger.ONE);
           BigInteger unscaledUpper =
               lower.unscaledValue().add(BigInteger.valueOf(width - 1)).min(maxUnscaled);
-          yield new PartitionSourceBounds(lower, new BigDecimal(unscaledUpper, lower.scale()));
+          yield new PartitionSourceBounds<>(lower, new BigDecimal(unscaledUpper, lower.scale()));
         }
         case STRING -> truncatedString(value.toString(), width);
         case BINARY -> truncatedBinary((ByteBuffer) value, width);
@@ -434,50 +435,50 @@ class StatsUtil {
       };
     }
 
-    private static PartitionSourceBounds truncatedString(String prefix, int width) {
+    private static PartitionSourceBounds<String> truncatedString(String prefix, int width) {
       if (prefix.codePointCount(0, prefix.length()) < width) {
         // a prefix shorter than the width was not truncated, so every value equals it
-        return new PartitionSourceBounds(prefix, prefix);
+        return new PartitionSourceBounds<>(prefix, prefix);
       }
 
       // add a character so truncateStringMax returns the next higher prefix
-      return new PartitionSourceBounds(
+      return new PartitionSourceBounds<>(
           prefix, UnicodeUtil.truncateStringMax(prefix + "\u0000", width));
     }
 
-    private static PartitionSourceBounds truncatedBinary(ByteBuffer prefix, int width) {
+    private static PartitionSourceBounds<ByteBuffer> truncatedBinary(ByteBuffer prefix, int width) {
       if (prefix.remaining() < width) {
         // a prefix shorter than the width was not truncated, so every value equals it
-        return new PartitionSourceBounds(prefix, prefix.duplicate());
+        return new PartitionSourceBounds<>(prefix, prefix.duplicate());
       }
 
       // add a byte so truncateBinaryMax returns the next higher prefix
       ByteBuffer extended = ByteBuffer.allocate(prefix.remaining() + 1);
       extended.put(prefix.duplicate()).put((byte) 0).flip();
-      return new PartitionSourceBounds(prefix, BinaryUtil.truncateBinaryMax(extended, width));
+      return new PartitionSourceBounds<>(prefix, BinaryUtil.truncateBinaryMax(extended, width));
     }
 
     @Override
-    public PartitionSourceBounds year(int fieldId, String sourceName, int sourceId) {
+    public PartitionSourceBounds<?> year(int fieldId, String sourceName, int sourceId) {
       return timeBoundsFor(ChronoUnit.YEARS);
     }
 
     @Override
-    public PartitionSourceBounds month(int fieldId, String sourceName, int sourceId) {
+    public PartitionSourceBounds<?> month(int fieldId, String sourceName, int sourceId) {
       return timeBoundsFor(ChronoUnit.MONTHS);
     }
 
     @Override
-    public PartitionSourceBounds day(int fieldId, String sourceName, int sourceId) {
+    public PartitionSourceBounds<?> day(int fieldId, String sourceName, int sourceId) {
       return timeBoundsFor(ChronoUnit.DAYS);
     }
 
     @Override
-    public PartitionSourceBounds hour(int fieldId, String sourceName, int sourceId) {
+    public PartitionSourceBounds<?> hour(int fieldId, String sourceName, int sourceId) {
       return timeBoundsFor(ChronoUnit.HOURS);
     }
 
-    private PartitionSourceBounds timeBoundsFor(ChronoUnit unit) {
+    private PartitionSourceBounds<?> timeBoundsFor(ChronoUnit unit) {
       long periods = (Integer) value;
       // the lower bound starts one unit earlier for 0 or less since older writers had a bug that
       // rounded pre-1970 values toward zero, except for day transforms on dates
@@ -485,16 +486,16 @@ class StatsUtil {
       return switch (sourceType.typeId()) {
         case DATE -> {
           long dateLowerPeriods = unit == ChronoUnit.DAYS ? periods : lowerPeriods;
-          yield new PartitionSourceBounds(
+          yield new PartitionSourceBounds<>(
               (int) Math.max(Integer.MIN_VALUE, daysFromEpoch(dateLowerPeriods, unit)),
               (int) Math.min(Integer.MAX_VALUE, daysFromEpoch(periods + 1, unit) - 1));
         }
         case TIMESTAMP ->
-            new PartitionSourceBounds(
+            new PartitionSourceBounds<>(
                 unitsFromEpoch(DateTimeUtil::microsFromTimestamptz, lowerPeriods, unit),
                 before(unitsFromEpoch(DateTimeUtil::microsFromTimestamptz, periods + 1, unit)));
         case TIMESTAMP_NANO ->
-            new PartitionSourceBounds(
+            new PartitionSourceBounds<>(
                 unitsFromEpoch(DateTimeUtil::nanosFromTimestamptz, lowerPeriods, unit),
                 before(unitsFromEpoch(DateTimeUtil::nanosFromTimestamptz, periods + 1, unit)));
         default ->
