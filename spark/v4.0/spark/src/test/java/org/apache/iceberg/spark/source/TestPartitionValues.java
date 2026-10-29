@@ -76,7 +76,9 @@ public class TestPartitionValues {
       {FileFormat.PARQUET, true},
       {FileFormat.AVRO, false},
       {FileFormat.ORC, false},
-      {FileFormat.ORC, true}
+      {FileFormat.ORC, true},
+      // Vortex reads are always vectorized, so the flag has no effect and is fixed at false.
+      {FileFormat.VORTEX, false}
     };
   }
 

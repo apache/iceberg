@@ -101,6 +101,23 @@ public class TestIdentityPartitionData extends TestBase {
             TableProperties.DATA_PLANNING_MODE, LOCAL.modeName(),
             TableProperties.DELETE_PLANNING_MODE, LOCAL.modeName())
       },
+      // Vortex reads are always vectorized, so the flag has no effect and is fixed at false.
+      {
+        FileFormat.VORTEX,
+        false,
+        ImmutableMap.of(
+            TableProperties.DEFAULT_FILE_FORMAT, "vortex",
+            TableProperties.DATA_PLANNING_MODE, LOCAL.modeName(),
+            TableProperties.DELETE_PLANNING_MODE, LOCAL.modeName())
+      },
+      {
+        FileFormat.VORTEX,
+        false,
+        ImmutableMap.of(
+            TableProperties.DEFAULT_FILE_FORMAT, "vortex",
+            TableProperties.DATA_PLANNING_MODE, DISTRIBUTED.modeName(),
+            TableProperties.DELETE_PLANNING_MODE, DISTRIBUTED.modeName())
+      },
     };
   }
 

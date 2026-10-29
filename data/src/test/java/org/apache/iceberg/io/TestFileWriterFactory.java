@@ -26,7 +26,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -47,6 +46,7 @@ import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
+import org.apache.iceberg.formats.FormatModelRegistry;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -63,13 +63,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
   @Parameters(name = "formatVersion = {0}, fileFormat = {1}, Partitioned = {2}")
   protected static List<Object> parameters() {
-    return Arrays.asList(
-        new Object[] {2, FileFormat.AVRO, false},
-        new Object[] {2, FileFormat.AVRO, true},
-        new Object[] {2, FileFormat.PARQUET, false},
-        new Object[] {2, FileFormat.PARQUET, true},
-        new Object[] {2, FileFormat.ORC, false},
-        new Object[] {2, FileFormat.ORC, true});
+    return partitionedFormatParameters(2);
   }
 
   private static final String PARTITION_VALUE = "aaa";
@@ -420,6 +414,16 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
             ORC.read(inputFile)
                 .project(schema)
                 .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+                .build()) {
+
+          return ImmutableList.copyOf(records);
+        }
+
+      case VORTEX:
+        try (CloseableIterable<Record> records =
+            FormatModelRegistry.<Record, Schema>readBuilder(
+                    FileFormat.VORTEX, Record.class, inputFile)
+                .project(schema)
                 .build()) {
 
           return ImmutableList.copyOf(records);
