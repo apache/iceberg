@@ -505,12 +505,10 @@ These keys are used in SQL (SET or table WITH options) or via `IcebergSink.Build
 | `flink-maintenance.rewrite.schedule.data-file-count` | Trigger after N data files | `1000` |
 | `flink-maintenance.rewrite.schedule.data-file-size` | Trigger after total data file size (bytes) | `107374182400` (100GB) |
 | `flink-maintenance.rewrite.schedule.interval-second` | Trigger after time interval (seconds) | `600` |
-| `flink-maintenance.rewrite.branch` | Branch to compact. Set it to compact a different branch than the one the sink writes to, e.g. `main` when the sink writes to a staging branch | Not set |
+| `flink-maintenance.rewrite.branch` | Branch to compact. Defaults to the sink's write branch, or to the convert equality deletes target branch when convert equality deletes is also enabled | Not set |
 | `flink-maintenance.rewrite.max-bytes` | Maximum bytes to rewrite per execution | `Long.MAX_VALUE` |
 | `flink-maintenance.rewrite.partial-progress.enabled` | Enable partial progress commits | `false` |
 | `flink-maintenance.rewrite.partial-progress.max-commits` | Maximum commits for partial progress | `10` |
-
-When rewrite data files and convert equality deletes are both enabled and `flink-maintenance.convert-equality-deletes.target-branch` is set to a branch other than the sink's write branch, set `flink-maintenance.rewrite.branch` explicitly to the branch to rewrite.
 
 #### Expire Snapshots Configuration
 

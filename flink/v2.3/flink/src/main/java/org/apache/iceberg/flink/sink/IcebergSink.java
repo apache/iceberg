@@ -803,14 +803,17 @@ public class IcebergSink
       if (flinkWriteConf.compactMode()) {
         RewriteDataFilesConfig rewriteDataFilesConfig =
             flinkMaintenanceConfig.createRewriteDataFilesConfig();
+
+        String defaultRewriteBranch = flinkWriteConf.branch();
         if (flinkWriteConf.convertEqualityDeletesMode()) {
-          validateCompactionBranch(flinkWriteConf, flinkMaintenanceConfig, rewriteDataFilesConfig);
+          defaultRewriteBranch =
+              convertTargetBranch(
+                  flinkWriteConf, flinkMaintenanceConfig.createConvertEqualityDeletesConfig());
+          validateRewriteBranch(defaultRewriteBranch, rewriteDataFilesConfig);
         }
 
         maintenanceTasks.add(
-            RewriteDataFiles.builder()
-                .branch(flinkWriteConf.branch())
-                .config(rewriteDataFilesConfig));
+            RewriteDataFiles.builder().branch(defaultRewriteBranch).config(rewriteDataFilesConfig));
       }
 
       if (flinkWriteConf.expireSnapshotsMode()) {
@@ -851,24 +854,6 @@ public class IcebergSink
           equalityFieldColumnsSet);
     }
 
-    private void validateCompactionBranch(
-        FlinkWriteConf flinkWriteConf,
-        FlinkMaintenanceConfig flinkMaintenanceConfig,
-        RewriteDataFilesConfig rewriteDataFilesConfig) {
-      String convertTargetBranch =
-          flinkMaintenanceConfig.createConvertEqualityDeletesConfig().targetBranch();
-      Preconditions.checkState(
-          convertTargetBranch == null
-              || convertTargetBranch.equals(flinkWriteConf.branch())
-              || rewriteDataFilesConfig.branch() != null,
-          "Missing config %s. Set config %s explicitly to the branch to compact: "
-              + "the sink writes to branch %s but equality deletes are converted to branch %s.",
-          RewriteDataFilesConfig.BRANCH,
-          RewriteDataFilesConfig.BRANCH,
-          flinkWriteConf.branch(),
-          convertTargetBranch);
-    }
-
     private void addConvertEqualityDeletesTask(
         FlinkWriteConf flinkWriteConf,
         FlinkMaintenanceConfig flinkMaintenanceConfig,
@@ -878,10 +863,8 @@ public class IcebergSink
           "Equality field columns must be set to convert equality deletes to deletion vectors.");
       ConvertEqualityDeletesConfig convertEqualityDeletesConfig =
           flinkMaintenanceConfig.createConvertEqualityDeletesConfig();
-      // The sink writes equality deletes to its write branch, so that becomes the staging branch.
-      // The target defaults to the same branch, i.e. an in-place conversion.
-      String targetBranch = convertEqualityDeletesConfig.targetBranch();
-      String convertTargetBranch = targetBranch != null ? targetBranch : flinkWriteConf.branch();
+      String convertTargetBranch =
+          convertTargetBranch(flinkWriteConf, convertEqualityDeletesConfig);
       List<String> convertEqualityFieldColumns = Lists.newArrayList();
       for (int fieldId : equalityFieldIds) {
         convertEqualityFieldColumns.add(table.schema().findColumnName(fieldId));
@@ -893,6 +876,26 @@ public class IcebergSink
               .targetBranch(convertTargetBranch)
               .equalityFieldColumns(convertEqualityFieldColumns)
               .config(convertEqualityDeletesConfig));
+    }
+
+    private String convertTargetBranch(
+        FlinkWriteConf flinkWriteConf, ConvertEqualityDeletesConfig convertEqualityDeletesConfig) {
+      // The sink writes equality deletes to its write branch, so that becomes the staging branch.
+      // The target defaults to the same branch, i.e. an in-place conversion.
+      String targetBranch = convertEqualityDeletesConfig.targetBranch();
+      return targetBranch != null ? targetBranch : flinkWriteConf.branch();
+    }
+
+    private void validateRewriteBranch(
+        String convertTargetBranch, RewriteDataFilesConfig rewriteDataFilesConfig) {
+      String rewriteBranch = rewriteDataFilesConfig.branch();
+      Preconditions.checkArgument(
+          rewriteBranch == null || rewriteBranch.equals(convertTargetBranch),
+          "Invalid rewrite branch %s. Expected rewrite branch %s, "
+              + "the convert equality deletes target branch. Unset config %s to default to it.",
+          rewriteBranch,
+          convertTargetBranch,
+          RewriteDataFilesConfig.BRANCH);
     }
 
     /**

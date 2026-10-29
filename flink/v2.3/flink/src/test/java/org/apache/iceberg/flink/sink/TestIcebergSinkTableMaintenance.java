@@ -439,13 +439,14 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
   }
 
   @Test
-  void testCompactionBranchRequiredWhenConvertTargetsOtherBranch() {
+  void testRewriteBranchMustMatchConvertTargetBranch() {
     setupLockConfig("");
     setupCompactionConfig();
     setupConvertEqualityDeletesConfig();
     upgradeToFormatV3();
     flinkConf.put(FlinkWriteOptions.BRANCH.key(), "staging");
     flinkConf.put(ConvertEqualityDeletesConfig.TARGET_BRANCH, "main");
+    flinkConf.put(RewriteDataFilesConfig.BRANCH, "staging");
 
     List<Row> rows = Lists.newArrayList(Row.of(1, "hello"));
     DataStream<RowData> dataStream =
@@ -461,8 +462,12 @@ class TestIcebergSinkTableMaintenance extends TestFlinkIcebergSinkBase {
                     .equalityFieldColumns(Lists.newArrayList("id"))
                     .setAll(flinkConf)
                     .append())
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Missing config " + RewriteDataFilesConfig.BRANCH);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Invalid rewrite branch staging. Expected rewrite branch main, "
+                + "the convert equality deletes target branch. Unset config "
+                + RewriteDataFilesConfig.BRANCH
+                + " to default to it.");
   }
 
   private static long dvCountOnMain(Table table) throws IOException {
