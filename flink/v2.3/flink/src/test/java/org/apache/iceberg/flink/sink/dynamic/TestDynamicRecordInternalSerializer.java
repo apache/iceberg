@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink.dynamic;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,6 +30,7 @@ import org.apache.flink.core.memory.DataInputDeserializer;
 import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -107,6 +109,28 @@ public class TestDynamicRecordInternalSerializer {
         .isTrue();
   }
 
+  @Test
+  void testSerializeWithSchemaIdForMissingTable() {
+    DynamicRecordInternalSerializer serializer =
+        new DynamicRecordInternalSerializer(
+            new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1, 10), false);
+    GenericRowData row = GenericRowData.of(123L, StringData.fromString("test"), 1.23f);
+    DynamicRecordInternal record =
+        new DynamicRecordInternal(
+            "missingTable",
+            DynamicRecordInternalSerializerTestBase.BRANCH,
+            DynamicRecordInternalSerializerTestBase.SCHEMA,
+            row,
+            DynamicRecordInternalSerializerTestBase.SPEC,
+            42,
+            false,
+            Collections.emptySet());
+    DataOutputSerializer output = new DataOutputSerializer(128);
+
+    assertThatCode(() -> serializer.serialize(record, output)).doesNotThrowAnyException();
+    assertThat(output.length()).isGreaterThan(0);
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void copyPreservesValues(boolean reuse) {
@@ -167,7 +191,7 @@ public class TestDynamicRecordInternalSerializer {
 
   private DynamicRecordInternalSerializer createSerializer() {
     return new DynamicRecordInternalSerializer(
-        new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1), true);
+        new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1, 10), true);
   }
 
   private static class OldTypeSerializerSnapshot

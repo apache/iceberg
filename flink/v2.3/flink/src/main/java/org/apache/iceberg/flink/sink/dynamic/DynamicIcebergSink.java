@@ -520,9 +520,17 @@ public class DynamicIcebergSink
       Configuration flinkConfig = fromReadableConfig();
 
       DynamicRecordInternalType type =
-          new DynamicRecordInternalType(catalogLoader, false, flinkDynamicSinkConf.cacheMaxSize());
+          new DynamicRecordInternalType(
+              catalogLoader,
+              false,
+              flinkDynamicSinkConf.cacheMaxSize(),
+              flinkDynamicSinkConf.inputSchemasPerTableCacheMaxSize());
       DynamicRecordInternalType sideOutputType =
-          new DynamicRecordInternalType(catalogLoader, true, flinkDynamicSinkConf.cacheMaxSize());
+          new DynamicRecordInternalType(
+              catalogLoader,
+              true,
+              flinkDynamicSinkConf.cacheMaxSize(),
+              flinkDynamicSinkConf.inputSchemasPerTableCacheMaxSize());
 
       SingleOutputStreamOperator<DynamicRecordInternal> converted =
           input

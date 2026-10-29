@@ -50,14 +50,17 @@ class TableSerializerCache implements Serializable {
 
   private final CatalogLoader catalogLoader;
   private final int maximumSize;
+  private final int inputSchemasPerTableCacheMaximumSize;
 
   // Intentionally not closed; the catalog is reused for the serializer's lifetime.
   private transient Catalog catalog;
   private transient Map<String, SerializerInfo> serializers;
 
-  TableSerializerCache(CatalogLoader catalogLoader, int maximumSize) {
+  TableSerializerCache(
+      CatalogLoader catalogLoader, int maximumSize, int inputSchemasPerTableCacheMaximumSize) {
     this.catalogLoader = catalogLoader;
     this.maximumSize = maximumSize;
+    this.inputSchemasPerTableCacheMaximumSize = inputSchemasPerTableCacheMaximumSize;
   }
 
   RowDataSerializer serializer(String tableName, Schema schema) {
@@ -121,6 +124,10 @@ class TableSerializerCache implements Serializable {
     return maximumSize;
   }
 
+  int inputSchemasPerTableCacheMaximumSize() {
+    return inputSchemasPerTableCacheMaximumSize;
+  }
+
   private class SerializerInfo {
     private final String tableName;
     private final Map<Schema, RowDataSerializer> serializersBySchema;
@@ -130,7 +137,7 @@ class TableSerializerCache implements Serializable {
 
     SerializerInfo(String tableName) {
       this.tableName = tableName;
-      this.serializersBySchema = new LRUCache<>(maximumSize);
+      this.serializersBySchema = new LRUCache<>(inputSchemasPerTableCacheMaximumSize);
       this.serializersBySchemaId = Maps.newHashMapWithExpectedSize(2);
       this.schemas = Maps.newHashMapWithExpectedSize(1);
       this.specs = Maps.newHashMapWithExpectedSize(0);

@@ -53,7 +53,7 @@ class TestTableSerializerCache {
           optional(2, "data", StringType.get()),
           optional(3, "double", DoubleType.get()));
 
-  TableSerializerCache cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 10);
+  TableSerializerCache cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 10, 10);
 
   @Test
   void testFullSchemaCaching() {
@@ -75,7 +75,7 @@ class TestTableSerializerCache {
   void testSerializerById() {
     LoadCountingCatalogLoader catalogLoader =
         new LoadCountingCatalogLoader(CATALOG_EXTENSION.catalogLoader());
-    cache = new TableSerializerCache(catalogLoader, 10);
+    cache = new TableSerializerCache(catalogLoader, 10, 10);
 
     Schema schema1Copy = new Schema(schema1.schemaId(), required(1, "id", LongType.get()));
     Supplier<RowDataSerializer> creator1a = () -> cache.serializerById("table", schema1);
@@ -96,7 +96,7 @@ class TestTableSerializerCache {
   @Test
   void testCachingWithSchemaLookup() {
     CatalogLoader catalogLoader = CATALOG_EXTENSION.catalogLoader();
-    cache = new TableSerializerCache(catalogLoader, 10);
+    cache = new TableSerializerCache(catalogLoader, 10, 10);
 
     Catalog catalog = catalogLoader.loadCatalog();
     Table table = catalog.createTable(TableIdentifier.of("table"), schema1);
@@ -121,7 +121,7 @@ class TestTableSerializerCache {
   @Test
   void testSchemaLookupWithSchemaEvolution() {
     Table table = CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table"), schema1);
-    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 10);
+    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 10, 10);
     int specId = table.spec().specId();
     int schemaId1 = table.schema().schemaId();
     Supplier<RowDataSerializer> creator1a =
@@ -141,7 +141,7 @@ class TestTableSerializerCache {
 
   @Test
   void testSchemaSerializerEviction() {
-    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1);
+    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 10, 1);
     Supplier<RowDataSerializer> creator1 = () -> cache.serializer("table", schema1);
     Supplier<RowDataSerializer> creator2 = () -> cache.serializer("table", schema2);
 
@@ -157,7 +157,7 @@ class TestTableSerializerCache {
   @Test
   void testSerializerByIdSharedWithSchemaLookup() {
     Table table = CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table"), schema1);
-    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 10);
+    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 10, 10);
     int schemaId = table.schema().schemaId();
     int specId = table.spec().specId();
     Supplier<RowDataSerializer> creator1 = () -> cache.serializerById("table", table.schema());
@@ -173,7 +173,7 @@ class TestTableSerializerCache {
   @Test
   void testSchemaLookupWithUnknownSchemaId() {
     Table table = CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table"), schema1);
-    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 10);
+    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 10, 10);
     int specId = table.spec().specId();
 
     assertThatThrownBy(() -> cache.serializerWithSchemaAndSpec("table", 999, specId))
@@ -184,7 +184,7 @@ class TestTableSerializerCache {
   @Test
   void testSchemaLookupWithUnknownSpecId() {
     Table table = CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("table"), schema1);
-    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 10);
+    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 10, 10);
     int schemaId = table.schema().schemaId();
 
     assertThatThrownBy(() -> cache.serializerWithSchemaAndSpec("table", schemaId, 999))
@@ -194,7 +194,7 @@ class TestTableSerializerCache {
 
   @Test
   void testCacheEviction() {
-    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 0);
+    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 0, 10);
     assertThat(cache.maximumSize()).isEqualTo(0);
 
     Supplier<RowDataSerializer> creator1 = () -> cache.serializer("table", schema1);
@@ -210,7 +210,7 @@ class TestTableSerializerCache {
 
   @Test
   void testCacheSize() {
-    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1000);
+    cache = new TableSerializerCache(CATALOG_EXTENSION.catalogLoader(), 1000, 10);
     assertThat(cache.maximumSize()).isEqualTo(1000);
   }
 
@@ -221,7 +221,7 @@ class TestTableSerializerCache {
 
     LoadCountingCatalogLoader catalogLoader =
         new LoadCountingCatalogLoader(CATALOG_EXTENSION.catalogLoader());
-    cache = new TableSerializerCache(catalogLoader, 10);
+    cache = new TableSerializerCache(catalogLoader, 10, 10);
 
     // schema/spec ids are unknown, so both lookups miss the cache and need the catalog
     cache.serializerWithSchemaAndSpec(

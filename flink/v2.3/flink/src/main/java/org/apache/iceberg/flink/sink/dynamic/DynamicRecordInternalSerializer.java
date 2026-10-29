@@ -65,7 +65,10 @@ class DynamicRecordInternalSerializer extends TypeSerializer<DynamicRecordIntern
   @Override
   public TypeSerializer<DynamicRecordInternal> duplicate() {
     return new DynamicRecordInternalSerializer(
-        new TableSerializerCache(serializerCache.catalogLoader(), serializerCache.maximumSize()),
+        new TableSerializerCache(
+            serializerCache.catalogLoader(),
+            serializerCache.maximumSize(),
+            serializerCache.inputSchemasPerTableCacheMaximumSize()),
         writeSchemaAndSpec,
         writeLongUTF);
   }
