@@ -104,8 +104,8 @@ class SnapshotValidator {
   }
 
   /**
-   * Binds the base metadata and parent snapshot the checks run against. Needs to be invoked
-   * before running validations.
+   * Binds the base metadata and parent snapshot the checks run against. Needs to be invoked before
+   * running validations.
    */
   SnapshotValidator forWindow(TableMetadata newBase, Snapshot newParent) {
     this.base = newBase;
