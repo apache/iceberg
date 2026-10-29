@@ -198,9 +198,7 @@ class StatsUtil {
     return statId >= baseId && statId < (baseId + NUM_RESERVED_FIELD_STATS_IDS);
   }
 
-  /**
-   * Lower and upper bounds are excluded for vector type.
-   */
+  /** Lower and upper bounds are excluded for vector type. */
   private static boolean hasBounds(Type type) {
     return type.typeId() != Type.TypeID.VECTOR;
   }
