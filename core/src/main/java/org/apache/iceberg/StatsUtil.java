@@ -337,7 +337,22 @@ class StatsUtil {
     return true;
   }
 
-  /** Inclusive source column bounds for a partition value. Upper is null when unbounded. */
+  /**
+   * Lower and upper bounds for source values in a partition from an order-preserving transform.
+   *
+   * <p>Every source value that transforms to the partition is >= lower and <= upper. Upper is
+   * null when unbounded. Both bounds are inclusive.
+   *
+   * <p>For most transforms, lower and upper are the values in the partition. Exceptions:
+   *
+   * <ul>
+   *   <li>For string and binary truncate, upper is the next prefix when it exists, so upper can
+   *       truncate to the next partition. That still covers every value that truncates to the
+   *       partition.
+   *   <li>For time transforms, lower starts one unit earlier when the partition value is <= 1970
+   *       to handle older writers that rounded pre-1970 values toward zero.
+   * </ul>
+   */
   record PartitionSourceBounds(Object lower, Object upper) {}
 
   /**
