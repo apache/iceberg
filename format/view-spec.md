@@ -527,109 +527,86 @@ The following is an example of the `refresh-state` JSON value stored in the snap
 }
 ```
 
-## Appendix B: Example strategies for selecting dependencies
+## Appendix B: Example freshness criteria and recorded dependencies
 
-A writer's choice of what to record varies along two independent dimensions:
+Each engine decides when it can read a materialized view's storage table instead of evaluating the view query. This appendix calls that decision the engine's _freshness criteria_. The spec does not define freshness criteria, but they determine what a writer records in the refresh state: the dependencies that a reader applying the same criteria needs to check. Each example below states its freshness criteria and the refresh state that follows from them. Other criteria lead to other recorded states in the same way.
 
-* Query evaluation — how the writer evaluates the materialized view’s query, in particular whether the result of nested materialized views is determined by expanding their own dependencies or consuming directly from the storage table. This determines the set of dependencies that could be recorded.
-* Coverage — which of those dependencies are actually recorded; a writer may record all, a subset, or none.
+Both examples refresh `event_agg_30_day_mv`, which reads the materialized view `event_agg_mv` from [Appendix A](#materialized-view-example). `event_agg_mv` in turn reads the Iceberg table `events`:
 
-The strategies below illustrate common combinations against the same shared query. Strategies 2 and 3 differ along structure; Strategies 1, 4, and 5 illustrate coverage choices.
+```sql
+USE prod.default
+```
 
-### Shared query
+```sql
+CREATE MATERIALIZED VIEW event_agg_mv (
+    event_count COMMENT 'Count of events',
+    event_date)
+COMMENT 'Precomputed daily event counts'
+AS
+SELECT
+    COUNT(1), CAST(event_ts AS DATE)
+FROM events
+GROUP BY 2
+```
 
-* `A` (the materialized view being refreshed): `SELECT B.customer_id, C.category, SUM(B.amount) AS total FROM B JOIN C ON B.product_id = C.product_id GROUP BY B.customer_id, C.category`
-* `B` (regular view): `SELECT E.customer_id, E.product_id, E.amount FROM E JOIN D ON E.customer_id = D.customer_id`
-* `C` (materialized view): `SELECT F.product_id, G.category FROM F JOIN G ON F.category_id = G.category_id`
-* `D` (materialized view): `SELECT customer_id FROM H WHERE status = 'active'`
-* `E` (orders), `F` (products), `G` (categories), `H` (customers): source Iceberg tables
+```sql
+CREATE MATERIALIZED VIEW event_agg_30_day_mv (
+    event_count_30_day COMMENT 'Count of events indate',
+    event_date)
+COMMENT 'Precomputed 30-day event counts'
+AS
+SELECT
+    SUM(event_count) OVER (
+        ORDER BY event_date
+        RANGE BETWEEN INTERVAL 29 DAYS PRECEDING AND CURRENT ROW),
+    event_date
+FROM event_agg_mv
+```
 
-### Strategy 1: Empty refresh state (recency only)
+### Example 1: Fresh if refreshed recently
 
-The producer leaves `source-states` empty and relies entirely on `refresh-start-timestamp-ms`. Readers reuse the storage table based on a recency policy alone.
+Freshness criteria: an MV is fresh if its last ref-defined staleness window, regardless of changes to
+its sources.
 
-`A`'s refresh state:
+Recorded state: the criteria never inspect sources.
 
 ```json
 {
   "view-version-id": 1,
-  "refresh-start-timestamp-ms": 1573518435000,
+  "refresh-start-timestamp-ms": 1736899200000,
   "source-states": []
 }
 ```
 
-### Strategy 2: Treat nested materialized views as tables
+### Example 2: Fresh if dependencies are unchanged
 
-Same as Strategy 1, but the query reads from materialized view storage tables. The producer stops at each MV boundary and records the MV's storage table snapshot ID and view version ID. No expansion beyond the MV.
+Freshness criteria: an MV is fresh if none of its dependencies changed since its last refresh. A reader serves a fresh MV from its storage table and evaluates a stale one, applying the same test to each nested MV.
 
-`C` and `D` are materialized views, treated as tables.
+Recorded state: `event_agg_30_day_mv` records `event_agg_mv` by its view `version-id`, and `events` by its `snapshot-id`. It does not record `event_agg_mv`'s storage table. That table advances only when `event_agg_mv` is refreshed, so relying on it would leave
+`event_agg_30_day_mv` looking fresh even after `ev
 
+```json
+{
+  "view-version-id": 1,
+  "refresh-start-timestamp-ms": 1736899200000,
+  "source-states": [
+    {
+      "type": "view",
+      "catalog": "prod",
+      "namespace": ["default"],
+      "name": "event_agg_mv",
+      "uuid": "b2a12651-3038-4a72-8a31-5027ab84da3
+      "version-id": 1
+    },
+    {
+      "type": "table",
+      "catalog": "prod",
+      "namespace": ["default"],
+      "name": "events",
+      "uuid": "d4a10b5c-1e8a-4b72-9d67-3f4a8c9e1b2
+      "snapshot-id": 6148331192489823102,
+      "ref": "main"
+    }
+  ]
+}
 ```
-A [MV — being refreshed]
-├── B [VIEW]                            <-- recorded in A: version-id: 5
-│   ├── E [TABLE]                       <-- recorded in A: snapshot-id: 101
-│   └── D [MV]                          <-- recorded in A: storage-table snapshot-id: 14, version-id: 9
-│       ┄┄┄┄┄┄ recursive boundary ┄┄┄┄┄┄
-│       └── H [TABLE]                   (D's dependency; verified via D's refresh-state)
-└── C [MV]                              <-- recorded in A: storage-table snapshot-id: 12, version-id: 7
-    ┄┄┄┄┄┄ recursive boundary ┄┄┄┄┄┄
-    ├── F [TABLE]                       (C's dependency; verified via C's refresh-state)
-    └── G [TABLE]                       (C's dependency; verified via C's refresh-state)
-```
-
-`F`, `G`, and `H` do not appear in `A`'s `source-states`; they belong to `C` and `D`'s dependency graphs.
-
-### Strategy 3: Treat nested materialized views as views
-
-Same as Strategy 1, but the query recursively expands the view definitions of the materialized views. The producer treats each materialized view as a regular view: expand through the MV's view definition and record the underlying tables and views. The MV's storage table snapshot ID is **not** recorded.
-
-`C` and `D` are materialized views, treated as views (expanded).
-
-```
-A [MV — being refreshed]
-├── B [VIEW]                            <-- recorded in A: version-id: 5
-│   ├── E [TABLE]                       <-- recorded in A: snapshot-id: 101
-│   └── D [MV — expanded as view]       <-- recorded in A: version-id: 9
-│       └── H [TABLE]                   <-- recorded in A: snapshot-id: 104
-└── C [MV — expanded as view]           <-- recorded in A: version-id: 7
-    ├── F [TABLE]                       <-- recorded in A: snapshot-id: 102
-    └── G [TABLE]                       <-- recorded in A: snapshot-id: 103
-```
-
-The recorded shape matches Strategy 1. The difference is semantic: `C` and `D` are materialized views whose view definitions were expanded; their storage tables are not part of the recorded state.
-
-### Strategy 4: Track only view versions
-
-The producer treats the storage table as reusable as long as the view definitions in the dependency chain are unchanged. Underlying table changes do not affect freshness. Only view version IDs are recorded.
-
-`C` and `D` are regular views.
-
-```
-A [MV — being refreshed]
-├── B [VIEW]                            <-- recorded in A: version-id: 5
-│   ├── E [TABLE]                       (not recorded)
-│   └── D [VIEW]                        <-- recorded in A: version-id: 9
-│       └── H [TABLE]                   (not recorded)
-└── C [VIEW]                            <-- recorded in A: version-id: 7
-    ├── F [TABLE]                       (not recorded)
-    └── G [TABLE]                       (not recorded)
-```
-
-Snapshots of `E`, `F`, `G`, `H` are not recorded. Reuse is sensitive to view-definition changes but insensitive to data changes in the underlying tables.
-
-### Strategy 5: Skip non-Iceberg dependencies
-
-The producer records only Iceberg sources and omits non-Iceberg dependencies entirely. Useful when the view query reads from a mix of Iceberg and non-Iceberg sources and the producer chooses to track only the Iceberg side.
-
-Assume the query reads from source Iceberg tables `E`, `F`, `G`, `H` and an additional non-Iceberg table `N`.
-
-```
-A [MV — being refreshed]
-├── E [TABLE]                           <-- recorded in A: snapshot-id: 101
-├── F [TABLE]                           <-- recorded in A: snapshot-id: 102
-├── G [TABLE]                           <-- recorded in A: snapshot-id: 103
-├── H [TABLE]                           <-- recorded in A: snapshot-id: 104
-└── N [NON-ICEBERG TABLE]               (omitted; not tracked)
-```
-
-`N` is omitted. Readers cannot verify `N`'s state from the refresh state alone, but know that the data queried from `N` cannot be older than `refresh-start-timestamp-ms`.
