@@ -84,6 +84,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.FieldReference;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.metric.CustomMetric;
+import org.apache.spark.sql.connector.metric.CustomSumMetric;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.Scan;
@@ -99,6 +100,7 @@ import org.slf4j.LoggerFactory;
 abstract class SparkScan implements Scan, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(SparkScan.class);
   private static final String NDV_KEY = "ndv";
+  private static final String EFFECTIVE_SPLIT_TARGET_SIZE = "effectiveSplitTargetSize";
 
   private final JavaSparkContext sparkContext;
   private final Table table;
@@ -113,6 +115,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   // lazy variables
   private StructType readSchema;
+  private Long effectiveSplitTargetSize;
 
   SparkScan(
       SparkSession spark,
@@ -300,12 +303,15 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public CustomTaskMetric[] reportDriverMetrics() {
     ScanReport scanReport = scanReportSupplier != null ? scanReportSupplier.get() : null;
+    List<CustomTaskMetric> driverMetrics = Lists.newArrayList();
 
-    if (scanReport == null) {
-      return new CustomTaskMetric[0];
+    if (effectiveSplitTargetSize != null) {
+      driverMetrics.add(new SplitTargetSizeMetricValue(effectiveSplitTargetSize));
     }
 
-    List<CustomTaskMetric> driverMetrics = Lists.newArrayList();
+    if (scanReport == null) {
+      return driverMetrics.toArray(new CustomTaskMetric[0]);
+    }
 
     // common
     driverMetrics.add(TaskTotalPlanningDuration.from(scanReport));
@@ -344,6 +350,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       new NumDeletes(),
 
       // common
+      new EffectiveSplitTargetSize(),
       new TotalPlanningDuration(),
 
       // data manifests
@@ -372,21 +379,56 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   }
 
   protected long adjustSplitSize(List<? extends ScanTask> tasks, long splitSize) {
+    long effectiveSplitSize = splitSize;
     if (readConf.splitSizeOption() == null && readConf.adaptiveSplitSizeEnabled()) {
       long scanSize = tasks.stream().mapToLong(ScanTask::sizeBytes).sum();
       int parallelism = readConf.splitParallelism();
-      long adjustedSplitSize = TableScanUtil.adjustSplitSize(scanSize, parallelism, splitSize);
-      if (adjustedSplitSize != splitSize) {
+      effectiveSplitSize = TableScanUtil.adjustSplitSize(scanSize, parallelism, splitSize);
+      if (effectiveSplitSize != splitSize) {
         LOG.debug(
             "Adjusted split size from {} to {} for table {} with parallelism {}",
             splitSize,
-            adjustedSplitSize,
+            effectiveSplitSize,
             table().name(),
             parallelism);
       }
-      return adjustedSplitSize;
-    } else {
-      return splitSize;
+    }
+
+    recordEffectiveSplitTargetSize(effectiveSplitSize);
+    return effectiveSplitSize;
+  }
+
+  protected void recordEffectiveSplitTargetSize(long splitSize) {
+    this.effectiveSplitTargetSize = splitSize;
+  }
+
+  private static class EffectiveSplitTargetSize extends CustomSumMetric {
+    @Override
+    public String name() {
+      return EFFECTIVE_SPLIT_TARGET_SIZE;
+    }
+
+    @Override
+    public String description() {
+      return "effective target size in bytes used to plan scan task groups";
+    }
+  }
+
+  private static class SplitTargetSizeMetricValue implements CustomTaskMetric {
+    private final long value;
+
+    private SplitTargetSizeMetricValue(long value) {
+      this.value = value;
+    }
+
+    @Override
+    public String name() {
+      return EFFECTIVE_SPLIT_TARGET_SIZE;
+    }
+
+    @Override
+    public long value() {
+      return value;
     }
   }
 }
