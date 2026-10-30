@@ -33,6 +33,7 @@ import org.apache.orc.storage.ql.exec.vector.BytesColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ColumnVector;
 import org.apache.orc.storage.ql.exec.vector.DecimalColumnVector;
 import org.apache.orc.storage.ql.exec.vector.ListColumnVector;
+import org.apache.orc.storage.ql.exec.vector.LongColumnVector;
 import org.apache.orc.storage.ql.exec.vector.MapColumnVector;
 import org.apache.orc.storage.ql.exec.vector.TimestampColumnVector;
 import org.apache.orc.storage.serde2.io.HiveDecimalWritable;
@@ -58,6 +59,10 @@ public class SparkOrcValueReaders {
 
   public static OrcValueReader<Long> timestampTzs() {
     return TimestampTzReader.INSTANCE;
+  }
+
+  public static OrcValueReader<Long> times() {
+    return TimeReader.INSTANCE;
   }
 
   public static OrcValueReader<Decimal> decimals(int precision, int scale) {
@@ -206,6 +211,18 @@ public class SparkOrcValueReaders {
     public Long nonNullRead(ColumnVector vector, int row) {
       TimestampColumnVector tcv = (TimestampColumnVector) vector;
       return Math.floorDiv(tcv.time[row], 1_000) * 1_000_000 + Math.floorDiv(tcv.nanos[row], 1000);
+    }
+  }
+
+  private static class TimeReader implements OrcValueReader<Long> {
+    private static final TimeReader INSTANCE = new TimeReader();
+
+    private TimeReader() {}
+
+    @Override
+    public Long nonNullRead(ColumnVector vector, int row) {
+      // ORC stores time as microseconds from midnight, but Spark stores it as nanoseconds
+      return 1000L * ((LongColumnVector) vector).vector[row];
     }
   }
 
