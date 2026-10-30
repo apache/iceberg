@@ -19,6 +19,8 @@
 package org.apache.iceberg.encryption;
 
 import java.io.Serializable;
+import java.nio.ByteBuffer;
+import org.apache.iceberg.FileWithEncryptedKey;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -49,6 +51,17 @@ public interface EncryptionManager extends Serializable {
    */
   default Iterable<InputFile> decrypt(Iterable<EncryptedInputFile> encrypted) {
     return Iterables.transform(encrypted, this::decrypt);
+  }
+
+  /**
+   * Decrypt the key metadata of a file that may be encrypted using an {@link EncryptedKey}.
+   *
+   * @param file the file to decrypt the key metadata for
+   * @return the decrypted key metadata buffer, or null if the file is not encrypted
+   */
+  default ByteBuffer decryptKeyMetadata(FileWithEncryptedKey file) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not support key metadata decryption");
   }
 
   /**
