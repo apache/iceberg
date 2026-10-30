@@ -33,6 +33,7 @@ import java.util.Comparator;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Comparators;
@@ -102,6 +103,10 @@ class Literals {
   @SuppressWarnings("unchecked")
   static <T> BelowMin<T> belowMin() {
     return BelowMin.INSTANCE;
+  }
+
+  static EmptyStructLiteral emptyStruct() {
+    return EmptyStructLiteral.INSTANCE;
   }
 
   private abstract static class BaseLiteral<T> implements Literal<T> {
@@ -222,6 +227,61 @@ class Literals {
     @Override
     public String toString() {
       return "belowMin";
+    }
+  }
+
+  static final class EmptyStructLiteral implements Literal<StructLike> {
+    private static final EmptyStructLiteral INSTANCE = new EmptyStructLiteral();
+    private static final StructLike EMPTY_STRUCT = new EmptyStruct();
+
+    private EmptyStructLiteral() {}
+
+    @Override
+    public StructLike value() {
+      return EMPTY_STRUCT;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <X> Literal<X> to(Type type) {
+      return type.isStructType() ? (Literal<X>) this : null;
+    }
+
+    @Override
+    public Comparator<StructLike> comparator() {
+      throw new UnsupportedOperationException("EmptyStructLiteral has no comparator");
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      return other instanceof EmptyStructLiteral;
+    }
+
+    @Override
+    public int hashCode() {
+      return EmptyStructLiteral.class.hashCode();
+    }
+
+    @Override
+    public String toString() {
+      return "{}";
+    }
+  }
+
+  private static class EmptyStruct implements StructLike {
+    @Override
+    public int size() {
+      return 0;
+    }
+
+    @Override
+    public <T> T get(int pos, Class<T> javaClass) {
+      throw new UnsupportedOperationException("Cannot get a value from an empty struct");
+    }
+
+    @Override
+    public <T> void set(int pos, T value) {
+      throw new UnsupportedOperationException("Cannot set a value in an empty struct");
     }
   }
 

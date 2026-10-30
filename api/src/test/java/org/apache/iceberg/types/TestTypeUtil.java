@@ -1167,4 +1167,24 @@ public class TestTypeUtil {
     Schema result = TypeUtil.replaceFieldTypes(schema, ImmutableMap.of(99, Types.LongType.get()));
     assertThat(result).isSameAs(schema);
   }
+
+  @Test
+  void selectKeepsStructDefault() {
+    Types.StructType point =
+        Types.StructType.of(
+            optional(2, "x", IntegerType.get()), optional(3, "y", IntegerType.get()));
+    Schema schema =
+        new Schema(
+            optional("point")
+                .withId(1)
+                .ofType(point)
+                .withInitialDefault(Literal.emptyStruct())
+                .withWriteDefault(Literal.emptyStruct())
+                .build());
+
+    Types.NestedField selected = TypeUtil.select(schema, Sets.newHashSet(2)).findField(1);
+
+    assertThat(selected.initialDefaultLiteral()).isEqualTo(Literal.emptyStruct());
+    assertThat(selected.writeDefaultLiteral()).isEqualTo(Literal.emptyStruct());
+  }
 }
