@@ -904,6 +904,10 @@ class TestV4ManifestReader {
     assertThat(readSchema.field(TrackedFile.CONTENT_STATS_ID))
         .as("Content stats are not automatically projected")
         .isNull();
+
+    assertThat(readSchema.field(TrackedFile.TIGHT_STATS.fieldId()))
+        .as("Tight stats are not projected without content stats")
+        .isNull();
   }
 
   @ParameterizedTest
@@ -937,6 +941,10 @@ class TestV4ManifestReader {
     assertThat(readSchema.field(TrackedFile.CONTENT_STATS_ID).type())
         .as("Content stats are projected for filtering")
         .isEqualTo(ID_ONLY_STATS_TYPE);
+
+    assertThat(readSchema.field(TrackedFile.TIGHT_STATS.fieldId()))
+        .as("Tight stats are projected with content stats")
+        .isEqualTo(TrackedFile.TIGHT_STATS);
   }
 
   @Test
