@@ -61,6 +61,12 @@ Commits are structured as assumptions and actions. After a conflict, a writer ch
 
 For example, a compaction might rewrite `file_a.avro` and `file_b.avro` as `merged.parquet`. This is safe to commit as long as the table still contains both `file_a.avro` and `file_b.avro`. If either file was deleted by a conflicting commit, then the operation must fail. Otherwise, it is safe to remove the source files and add the merged file.
 
+Appends assume nothing about the data already in the table, so a conflicting commit never
+invalidates them and they are always safe to re-apply. This is why appends have no isolation level:
+the `write.delete.isolation-level`, `write.update.isolation-level` and
+`write.merge.isolation-level` properties select the assumptions checked for row-level operations,
+and do not apply to append or INSERT.
+
 ## Compatibility
 
 By avoiding file listing and rename operations, Iceberg tables are compatible with any object store. No consistent listing is required.
