@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -35,6 +36,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -270,9 +272,39 @@ public class TestSnowflakeCatalog {
     assertThat(fakeClient.isClosed())
         .overridingErrorMessage("expected close() to propagate to snowflakeClient")
         .isTrue();
-    assertThat(fakeFileIO.isClosed())
-        .overridingErrorMessage("expected close() to propagate to fileIO")
-        .isTrue();
+    Awaitility.await("FileIO gets closed")
+        .atMost(5, TimeUnit.SECONDS)
+        .untilAsserted(
+            () ->
+                assertThat(fakeFileIO.isClosed())
+                    .overridingErrorMessage("expected close() to propagate to fileIO")
+                    .isTrue());
+  }
+
+  @Test
+  void closesFileIOOfUnreachableTableOperations() {
+    catalog = new SnowflakeCatalog();
+    catalog.initialize(
+        TEST_CATALOG_NAME,
+        fakeClient,
+        new SnowflakeCatalog.FileIOFactory() {
+          @Override
+          public FileIO newFileIO(String impl, Map<String, String> prop, Object hadoopConf) {
+            return new InMemoryFileIO();
+          }
+        },
+        properties);
+    TableIdentifier table = TableIdentifier.of("DB_1", "SCHEMA_1", "TAB_1");
+    InMemoryFileIO fileIO = (InMemoryFileIO) catalog.newTableOps(table).io();
+
+    Awaitility.await("FileIO of unreachable table operations gets closed")
+        .atMost(5, TimeUnit.SECONDS)
+        .untilAsserted(
+            () -> {
+              System.gc();
+              catalog.newTableOps(table);
+              assertThat(fileIO.isClosed()).isTrue();
+            });
   }
 
   @Test

@@ -1106,6 +1106,7 @@ project(':iceberg-snowflake') {
 
     runtimeOnly libs.snowflake.jdbc
 
+    testImplementation libs.awaitility
     testImplementation libs.mockito.junit.jupiter
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
   }
