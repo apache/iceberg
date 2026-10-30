@@ -54,6 +54,7 @@ public class SnapshotParser {
   private static final String FIRST_ROW_ID = "first-row-id";
   private static final String ADDED_ROWS = "added-rows";
   private static final String KEY_ID = "key-id";
+  private static final String CONSTRAINT_STATUSES = "constraint-statuses";
 
   static void toJson(Snapshot snapshot, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
@@ -108,6 +109,11 @@ public class SnapshotParser {
     }
 
     JsonUtil.writeStringFieldIfPresent(KEY_ID, snapshot.keyId(), generator);
+
+    if (!snapshot.constraintStatuses().isEmpty()) {
+      generator.writeFieldName(CONSTRAINT_STATUSES);
+      ConstraintStatusesParser.toJson(snapshot.constraintStatuses(), generator);
+    }
 
     generator.writeEndObject();
   }
@@ -176,6 +182,11 @@ public class SnapshotParser {
 
     String keyId = JsonUtil.getStringOrNull(KEY_ID, node);
 
+    Map<Integer, ConstraintStatus> constraintStatuses = null;
+    if (node.hasNonNull(CONSTRAINT_STATUSES)) {
+      constraintStatuses = ConstraintStatusesParser.fromJson(node.get(CONSTRAINT_STATUSES));
+    }
+
     if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
@@ -190,7 +201,8 @@ public class SnapshotParser {
           manifestList,
           firstRowId,
           addedRows,
-          keyId);
+          keyId,
+          constraintStatuses);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be

@@ -356,6 +356,11 @@ public interface Table {
     return ImmutableList.of();
   }
 
+  /** Returns the table's current constraint definitions. */
+  default List<Constraint> constraints() {
+    return ImmutableList.of();
+  }
+
   /**
    * Returns the current refs for the table
    *
