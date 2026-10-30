@@ -333,12 +333,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateAddedDataFiles(
       TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet, Snapshot parent) {
-    SnapshotValidator.newValidator()
+    CommitValidator.newValidator()
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
-        .forWindow(base, parent)
-        .validateAddedDataFiles(partitionSet);
+        .setParent(base, parent)
+        .validateNoConflictingAddedDataFiles(partitionSet);
   }
 
   /**
@@ -354,13 +354,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Long startingSnapshotId,
       Expression conflictDetectionFilter,
       Snapshot parent) {
-    SnapshotValidator.newValidator()
+    CommitValidator.newValidator()
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
         .conflictDetectionFilter(conflictDetectionFilter)
-        .forWindow(base, parent)
-        .validateAddedDataFiles();
+        .setParent(base, parent)
+        .validateNoConflictingAddedDataFiles();
   }
 
   /**
@@ -374,12 +374,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateNoNewDeletesForDataFiles(
       TableMetadata base, Long startingSnapshotId, Iterable<DataFile> dataFiles, Snapshot parent) {
-    SnapshotValidator.newValidator()
+    CommitValidator.newValidator()
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
-        .forWindow(base, parent)
-        .validateNoNewDeletesForDataFiles(dataFiles, newDataFilesDataSequenceNumber != null);
+        .setParent(base, parent)
+        .validateNoConflictingDeletesForDataFiles(
+            dataFiles, newDataFilesDataSequenceNumber != null);
   }
 
   /**
@@ -398,13 +399,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Expression dataFilter,
       Iterable<DataFile> dataFiles,
       Snapshot parent) {
-    SnapshotValidator.newValidator()
+    CommitValidator.newValidator()
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
         .conflictDetectionFilter(dataFilter)
-        .forWindow(base, parent)
-        .validateNoNewDeletesForDataFiles(dataFiles, false);
+        .setParent(base, parent)
+        .validateNoConflictingDeletesForDataFiles(dataFiles, false);
   }
 
   /**
@@ -418,13 +419,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateNoNewDeleteFiles(
       TableMetadata base, Long startingSnapshotId, Expression dataFilter, Snapshot parent) {
-    SnapshotValidator.newValidator()
+    CommitValidator.newValidator()
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
         .conflictDetectionFilter(dataFilter)
-        .forWindow(base, parent)
-        .validateNoNewDeleteFiles();
+        .setParent(base, parent)
+        .validateNoConflictingAddedDeleteFiles();
   }
 
   /**
@@ -438,12 +439,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateNoNewDeleteFiles(
       TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet, Snapshot parent) {
-    SnapshotValidator.newValidator()
+    CommitValidator.newValidator()
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
-        .forWindow(base, parent)
-        .validateNoNewDeleteFiles(partitionSet);
+        .setParent(base, parent)
+        .validateNoConflictingAddedDeleteFiles(partitionSet);
   }
 
   /**
@@ -457,13 +458,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateDeletedDataFiles(
       TableMetadata base, Long startingSnapshotId, Expression dataFilter, Snapshot parent) {
-    SnapshotValidator.newValidator()
+    CommitValidator.newValidator()
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
         .conflictDetectionFilter(dataFilter)
-        .forWindow(base, parent)
-        .validateDeletedDataFiles();
+        .setParent(base, parent)
+        .validateNoConflictingDeletedDataFiles();
   }
 
   /**
@@ -477,12 +478,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateDeletedDataFiles(
       TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet, Snapshot parent) {
-    SnapshotValidator.newValidator()
+    CommitValidator.newValidator()
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
-        .forWindow(base, parent)
-        .validateDeletedDataFiles(partitionSet);
+        .setParent(base, parent)
+        .validateNoConflictingDeletedDataFiles(partitionSet);
   }
 
   protected void setNewDataFilesDataSequenceNumber(long sequenceNumber) {
@@ -496,12 +497,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       boolean skipDeletes,
       Expression conflictDetectionFilter,
       Snapshot parent) {
-    SnapshotValidator.newValidator()
+    CommitValidator.newValidator()
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
         .conflictDetectionFilter(conflictDetectionFilter)
-        .forWindow(base, parent)
+        .setParent(base, parent)
         .validateDataFilesExist(requiredDataFiles, skipDeletes);
   }
 
@@ -511,14 +512,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       Long startingSnapshotId,
       Expression conflictDetectionFilter,
       Snapshot parent) {
-    SnapshotValidator.newValidator()
+    CommitValidator.newValidator()
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
         .scanWith(workerPool())
         .conflictDetectionFilter(conflictDetectionFilter)
-        .forWindow(base, parent)
-        .validateAddedDVs(dvsByReferencedFile.keySet());
+        .setParent(base, parent)
+        .validateNoConflictingAddedDVs(dvsByReferencedFile.keySet());
   }
 
   @Override

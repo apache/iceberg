@@ -23,8 +23,10 @@ import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -43,11 +45,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.ContentFileUtil;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 
-class SnapshotValidator {
+class CommitValidator {
   // data is only added in "append" and "overwrite" operations
   private static final Set<String> VALIDATE_ADDED_FILES_OPERATIONS =
       ImmutableSet.of(DataOperations.APPEND, DataOperations.OVERWRITE);
@@ -63,6 +65,10 @@ class SnapshotValidator {
   private static final Set<String> VALIDATE_ADDED_DVS_OPERATIONS =
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.DELETE, DataOperations.REPLACE);
 
+  static CommitValidator newValidator() {
+    return new CommitValidator();
+  }
+
   private FileIO io;
   private Long startingSnapshotId = null;
   private boolean caseSensitive = true;
@@ -72,33 +78,29 @@ class SnapshotValidator {
   private TableMetadata base = null;
   private Snapshot parent = null;
 
-  private SnapshotValidator() {}
+  private CommitValidator() {}
 
-  static SnapshotValidator newValidator() {
-    return new SnapshotValidator();
-  }
-
-  SnapshotValidator io(FileIO newIo) {
+  CommitValidator io(FileIO newIo) {
     this.io = newIo;
     return this;
   }
 
-  SnapshotValidator startingSnapshotId(Long newStartingSnapshotId) {
+  CommitValidator startingSnapshotId(Long newStartingSnapshotId) {
     this.startingSnapshotId = newStartingSnapshotId;
     return this;
   }
 
-  SnapshotValidator caseSensitive(boolean isCaseSensitive) {
+  CommitValidator caseSensitive(boolean isCaseSensitive) {
     this.caseSensitive = isCaseSensitive;
     return this;
   }
 
-  SnapshotValidator conflictDetectionFilter(Expression filter) {
+  CommitValidator conflictDetectionFilter(Expression filter) {
     this.conflictDetectionFilter = filter;
     return this;
   }
 
-  SnapshotValidator scanWith(ExecutorService newWorkerPool) {
+  CommitValidator scanWith(ExecutorService newWorkerPool) {
     this.workerPool = newWorkerPool;
     return this;
   }
@@ -107,7 +109,7 @@ class SnapshotValidator {
    * Binds the base metadata and parent snapshot the checks run against. Needs to be invoked before
    * running validations.
    */
-  SnapshotValidator forWindow(TableMetadata newBase, Snapshot newParent) {
+  CommitValidator setParent(TableMetadata newBase, Snapshot newParent) {
     this.base = newBase;
     this.parent = newParent;
     return this;
@@ -117,7 +119,7 @@ class SnapshotValidator {
    * Validates that no data files matching the conflict detection filter have been added to the
    * table since the starting snapshot.
    */
-  void validateAddedDataFiles() {
+  void validateNoConflictingAddedDataFiles() {
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
         addedDataFiles(conflictDetectionFilter, null);
 
@@ -136,7 +138,7 @@ class SnapshotValidator {
     }
   }
 
-  void validateAddedDataFiles(PartitionSet partitionSet) {
+  void validateNoConflictingAddedDataFiles(PartitionSet partitionSet) {
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries = addedDataFiles(null, partitionSet);
 
     try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator()) {
@@ -161,16 +163,11 @@ class SnapshotValidator {
       return CloseableIterable.empty();
     }
 
-    Pair<List<ManifestFile>, Set<Long>> history =
-        ValidationWindow.validationHistory(
-            io,
-            base,
-            startingSnapshotId,
+    List<ManifestFile> manifests = Lists.newArrayList();
+    Set<Long> newSnapshots =
+        validationHistory(
             VALIDATE_ADDED_FILES_OPERATIONS,
-            ManifestContent.DATA,
-            parent);
-    List<ManifestFile> manifests = history.first();
-    Set<Long> newSnapshots = history.second();
+            snapshot -> addNewManifests(snapshot, snapshot.dataManifests(io), manifests));
 
     ManifestGroup manifestGroup =
         new ManifestGroup(io, manifests, ImmutableList.of())
@@ -197,7 +194,7 @@ class SnapshotValidator {
    * Validates that no data files matching the conflict detection filter have been deleted from the
    * table since the starting snapshot.
    */
-  void validateDeletedDataFiles() {
+  void validateNoConflictingDeletedDataFiles() {
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
         deletedDataFiles(conflictDetectionFilter, null);
 
@@ -218,7 +215,7 @@ class SnapshotValidator {
     }
   }
 
-  void validateDeletedDataFiles(PartitionSet partitionSet) {
+  void validateNoConflictingDeletedDataFiles(PartitionSet partitionSet) {
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
         deletedDataFiles(null, partitionSet);
 
@@ -244,16 +241,11 @@ class SnapshotValidator {
       return CloseableIterable.empty();
     }
 
-    Pair<List<ManifestFile>, Set<Long>> history =
-        ValidationWindow.validationHistory(
-            io,
-            base,
-            startingSnapshotId,
+    List<ManifestFile> manifests = Lists.newArrayList();
+    Set<Long> newSnapshots =
+        validationHistory(
             VALIDATE_DATA_FILES_EXIST_OPERATIONS,
-            ManifestContent.DATA,
-            parent);
-    List<ManifestFile> manifests = history.first();
-    Set<Long> newSnapshots = history.second();
+            snapshot -> addNewManifests(snapshot, snapshot.dataManifests(io), manifests));
 
     ManifestGroup manifestGroup =
         new ManifestGroup(io, manifests, ImmutableList.of())
@@ -295,11 +287,11 @@ class SnapshotValidator {
             ? VALIDATE_DATA_FILES_EXIST_SKIP_DELETE_OPERATIONS
             : VALIDATE_DATA_FILES_EXIST_OPERATIONS;
 
-    Pair<List<ManifestFile>, Set<Long>> history =
-        ValidationWindow.validationHistory(
-            io, base, startingSnapshotId, matchingOperations, ManifestContent.DATA, parent);
-    List<ManifestFile> manifests = history.first();
-    Set<Long> newSnapshots = history.second();
+    List<ManifestFile> manifests = Lists.newArrayList();
+    Set<Long> newSnapshots =
+        validationHistory(
+            matchingOperations,
+            snapshot -> addNewManifests(snapshot, snapshot.dataManifests(io), manifests));
 
     ManifestGroup matchingDeletesGroup =
         new ManifestGroup(io, manifests, ImmutableList.of())
@@ -333,7 +325,7 @@ class SnapshotValidator {
    * Validates that no delete files matching the conflict detection filter have been added to the
    * table since the starting snapshot.
    */
-  void validateNoNewDeleteFiles() {
+  void validateNoConflictingAddedDeleteFiles() {
     Set<String> locations =
         referencedDeleteFileLocations(
             addedDeleteFilesIndexedPerSnapshot(conflictDetectionFilter, null));
@@ -344,7 +336,7 @@ class SnapshotValidator {
         locations);
   }
 
-  void validateNoNewDeleteFiles(PartitionSet partitionSet) {
+  void validateNoConflictingAddedDeleteFiles(PartitionSet partitionSet) {
     Set<String> locations =
         referencedDeleteFileLocations(addedDeleteFilesIndexedPerSnapshot(null, partitionSet));
     ValidationException.check(
@@ -366,7 +358,7 @@ class SnapshotValidator {
    * @param dataFiles data files to validate have no new row deletes
    * @param ignoreEqualityDeletes whether to ignore equality deletes during validation
    */
-  void validateNoNewDeletesForDataFiles(
+  void validateNoConflictingDeletesForDataFiles(
       Iterable<DataFile> dataFiles, boolean ignoreEqualityDeletes) {
     // if there is no current table state, no files have been added
     if (parent == null || base.formatVersion() < 2) {
@@ -376,7 +368,7 @@ class SnapshotValidator {
     List<DeleteFileIndex> deleteIndexes =
         addedDeleteFilesIndexedPerSnapshot(conflictDetectionFilter, null);
 
-    long startingSequenceNumber = ValidationWindow.startingSequenceNumber(base, startingSnapshotId);
+    long startingSequenceNumber = startingSequenceNumber();
     for (DataFile dataFile : dataFiles) {
       for (DeleteFileIndex deletes : deleteIndexes) {
         // if any delete is found that applies to files written in or before the starting snapshot,
@@ -415,25 +407,21 @@ class SnapshotValidator {
       return ImmutableList.of();
     }
 
-    Pair<List<ManifestFile>, Set<Long>> history =
-        ValidationWindow.validationHistory(
-            io,
-            base,
-            startingSnapshotId,
-            VALIDATE_ADDED_DELETE_FILES_OPERATIONS,
-            ManifestContent.DELETES,
-            parent);
+    List<ManifestFile> addedDeleteManifests = Lists.newArrayList();
+    validationHistory(
+        VALIDATE_ADDED_DELETE_FILES_OPERATIONS,
+        snapshot -> addNewManifests(snapshot, snapshot.deleteManifests(io), addedDeleteManifests));
 
     // the history collects a manifest only from the snapshot that added it, so grouping by
     // snapshot ID assigns each manifest to exactly one index and still reads it once.
     // LinkedHashMap keeps the history order, which keeps the failure message deterministic.
     Map<Long, List<ManifestFile>> deleteManifestsBySnapshot =
-        history.first().stream()
+        addedDeleteManifests.stream()
             .collect(
                 Collectors.groupingBy(
                     ManifestFile::snapshotId, LinkedHashMap::new, Collectors.toList()));
 
-    long startingSequenceNumber = ValidationWindow.startingSequenceNumber(base, startingSnapshotId);
+    long startingSequenceNumber = startingSequenceNumber();
     List<DeleteFileIndex> deleteIndexes = Lists.newArrayList();
     for (List<ManifestFile> deleteManifests : deleteManifestsBySnapshot.values()) {
       deleteIndexes.add(
@@ -492,22 +480,18 @@ class SnapshotValidator {
    *
    * @param referencedDataFiles data files referenced by this operation's deletion vectors
    */
-  void validateAddedDVs(Set<String> referencedDataFiles) {
+  void validateNoConflictingAddedDVs(Set<String> referencedDataFiles) {
     // skip if there is no current table state or this operation doesn't add new DVs
     if (parent == null || referencedDataFiles.isEmpty()) {
       return;
     }
 
-    Pair<List<ManifestFile>, Set<Long>> history =
-        ValidationWindow.validationHistory(
-            io,
-            base,
-            startingSnapshotId,
+    List<ManifestFile> newDeleteManifests = Lists.newArrayList();
+    Set<Long> newSnapshotIds =
+        validationHistory(
             VALIDATE_ADDED_DVS_OPERATIONS,
-            ManifestContent.DELETES,
-            parent);
-    List<ManifestFile> newDeleteManifests = history.first();
-    Set<Long> newSnapshotIds = history.second();
+            snapshot ->
+                addNewManifests(snapshot, snapshot.deleteManifests(io), newDeleteManifests));
 
     Iterable<ManifestFile> matchingManifests =
         Iterables.filter(
@@ -518,10 +502,12 @@ class SnapshotValidator {
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(workerPool)
-        .run(manifest -> validateAddedDVs(manifest, newSnapshotIds, referencedDataFiles));
+        .run(
+            manifest ->
+                validateNoConflictingAddedDVs(manifest, newSnapshotIds, referencedDataFiles));
   }
 
-  private void validateAddedDVs(
+  private void validateNoConflictingAddedDVs(
       ManifestFile manifest, Set<Long> newSnapshotIds, Set<String> referencedDataFiles) {
     try (CloseableIterable<ManifestEntry<DeleteFile>> entries =
         ManifestFiles.readDeleteManifest(manifest, io, base.specsById())
@@ -574,5 +560,46 @@ class SnapshotValidator {
                   });
           return evaluator.eval(manifest);
         });
+  }
+
+  private Set<Long> validationHistory(Set<String> matchingOperations, Consumer<Snapshot> consumer) {
+    Set<Long> newSnapshots = Sets.newHashSet();
+
+    Snapshot lastSnapshot = null;
+    Iterable<Snapshot> snapshots =
+        SnapshotUtil.ancestorsBetween(parent.snapshotId(), startingSnapshotId, base::snapshot);
+    for (Snapshot currentSnapshot : snapshots) {
+      lastSnapshot = currentSnapshot;
+
+      if (matchingOperations.contains(currentSnapshot.operation())) {
+        consumer.accept(currentSnapshot);
+        newSnapshots.add(currentSnapshot.snapshotId());
+      }
+    }
+
+    ValidationException.check(
+        lastSnapshot == null || Objects.equals(lastSnapshot.parentId(), startingSnapshotId),
+        "Cannot determine history between starting snapshot %s and the last known ancestor %s",
+        startingSnapshotId,
+        lastSnapshot != null ? lastSnapshot.snapshotId() : null);
+
+    return newSnapshots;
+  }
+
+  private static void addNewManifests(
+      Snapshot snapshot, Iterable<ManifestFile> manifests, List<ManifestFile> collector) {
+    for (ManifestFile manifest : manifests) {
+      if (manifest.snapshotId() == snapshot.snapshotId()) {
+        collector.add(manifest);
+      }
+    }
+  }
+
+  private long startingSequenceNumber() {
+    if (startingSnapshotId != null && base.snapshot(startingSnapshotId) != null) {
+      return base.snapshot(startingSnapshotId).sequenceNumber();
+    } else {
+      return TableMetadata.INITIAL_SEQUENCE_NUMBER;
+    }
   }
 }
