@@ -38,6 +38,7 @@ import org.apache.iceberg.flink.sink.PartitionKeySelector;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,7 +67,7 @@ class HashKeyGenerator {
     this.keySelectorCache = new LRUCache<>(maxCacheSize);
   }
 
-  int generateKey(DynamicRecord dynamicRecord) throws Exception {
+  int generateKey(DynamicRecord dynamicRecord) {
     return generateKey(dynamicRecord, null, null, null);
   }
 
@@ -317,14 +318,15 @@ class HashKeyGenerator {
 
   /**
    * Cache key for the {@link KeySelector}. Only contains the {@link Schema} and the {@link
-   * PartitionSpec} if their ids are not provided.
+   * PartitionSpec} if their ids are not provided. The schema is compared by its struct, because
+   * {@link Schema} has no value equality and callers may pass a new instance for every record.
    */
   static class SelectorKey {
     private final String tableName;
     private final String branch;
     private final Integer schemaId;
     private final Integer specId;
-    private final Schema schema;
+    private final Types.StructType schema;
     private final PartitionSpec spec;
     private final Set<String> equalityFields;
     private final DistributionMode distributionMode;
@@ -344,7 +346,7 @@ class HashKeyGenerator {
       this.branch = branch;
       this.schemaId = tableSchemaId;
       this.specId = tableSpecId;
-      this.schema = tableSchemaId == null ? schema : null;
+      this.schema = tableSchemaId == null ? schema.asStruct() : null;
       this.spec = tableSpecId == null ? spec : null;
       this.equalityFields = equalityFields;
       this.distributionMode = distributionMode;

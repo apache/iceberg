@@ -27,6 +27,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.InclusiveStatsEvaluator;
 import org.apache.iceberg.expressions.Projections;
+import org.apache.iceberg.geospatial.GeospatialBound;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -205,7 +206,6 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
   private void incrementSkipCount(TrackedFile file) {
     switch (file.contentType()) {
       case DATA -> scanMetrics.skippedDataFiles().increment();
-      case EQUALITY_DELETES -> scanMetrics.skippedDeleteFiles().increment();
       case DATA_MANIFEST -> scanMetrics.skippedDataManifests().increment();
       case DELETE_MANIFEST -> scanMetrics.skippedDeleteManifests().increment();
       default ->
@@ -240,12 +240,29 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       readBuilder.setCustomType(TrackedFile.CONTENT_STATS_ID, ContentStatsStruct.class);
       for (Types.NestedField fieldStats : statsField.type().asStructType().fields()) {
         readBuilder.setCustomType(fieldStats.fieldId(), FieldStatsStruct.class);
+        registerCustomBoundTypes(readBuilder, fieldStats);
       }
     }
 
     CloseableIterable<TrackedFile> reader = readBuilder.build();
     addCloseable(reader);
     return reader;
+  }
+
+  private static void registerCustomBoundTypes(
+      InternalData.ReadBuilder readBuilder, Types.NestedField fieldStats) {
+    Types.StructType struct = fieldStats.type().asStructType();
+    registerGeoBoundType(readBuilder, struct.field(StatsUtil.LOWER_BOUND_NAME));
+    registerGeoBoundType(readBuilder, struct.field(StatsUtil.UPPER_BOUND_NAME));
+  }
+
+  private static void registerGeoBoundType(
+      InternalData.ReadBuilder readBuilder, Types.NestedField boundField) {
+    // Geometry and geography are the only bound types represented as structs, so a struct bound
+    // is read as GeospatialBound.
+    if (boundField != null && boundField.type().isStructType()) {
+      readBuilder.setCustomType(boundField.fieldId(), GeospatialBound.class);
+    }
   }
 
   // resolves stored locations against the table location
@@ -494,7 +511,8 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         return RestoreColumns.restore(
             tableManifestSchema,
             requestedProjection,
-            idsToRestore(projectsPartition(includePartition, requestedProjection)));
+            idsToRestore(
+                projectsPartition(includePartition, requestedProjection), requestedProjection));
       }
 
       if (requestedColumns != null) {
@@ -506,7 +524,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         return RestoreColumns.restore(
             tableManifestSchema,
             projection,
-            idsToRestore(projectsPartition(includePartition, projection)));
+            idsToRestore(projectsPartition(includePartition, projection), projection));
       }
 
       return tableManifestSchema;
@@ -517,7 +535,7 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
     }
 
     /** Return a set of manifest field IDs that should be projected. */
-    private Set<Integer> idsToRestore(boolean includePartition) {
+    private Set<Integer> idsToRestore(boolean includePartition, Schema projection) {
       Set<Integer> ids = Sets.newHashSet(REQUIRED_COLUMN_IDS);
 
       // project the full stats struct that corresponds to each field for which stats are needed
@@ -528,7 +546,34 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
         ids.add(TrackedFile.PARTITION_ID);
       }
 
+      // A partial geo bound must be read whole: GeospatialBound positions are fixed and NaN means
+      // absent in the file.
+      addProjectedGeoBounds(projection, ids);
+
       return ids;
+    }
+
+    private static void addProjectedGeoBounds(Schema projection, Set<Integer> ids) {
+      Types.NestedField contentStatsField = projection.findField(TrackedFile.CONTENT_STATS_ID);
+      if (contentStatsField == null || !contentStatsField.type().isStructType()) {
+        return;
+      }
+
+      for (Types.NestedField fieldStats : contentStatsField.type().asStructType().fields()) {
+        if (!fieldStats.type().isStructType()) {
+          continue;
+        }
+
+        Types.StructType struct = fieldStats.type().asStructType();
+        addGeoBoundId(struct.field(StatsUtil.LOWER_BOUND_NAME), ids);
+        addGeoBoundId(struct.field(StatsUtil.UPPER_BOUND_NAME), ids);
+      }
+    }
+
+    private static void addGeoBoundId(Types.NestedField bound, Set<Integer> ids) {
+      if (bound != null && bound.type().isStructType()) {
+        ids.add(bound.fieldId());
+      }
     }
 
     /** Return a set of table field IDs for which stats are needed. */

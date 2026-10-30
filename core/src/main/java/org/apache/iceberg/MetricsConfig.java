@@ -25,6 +25,7 @@ import static org.apache.iceberg.TableProperties.METRICS_MAX_INFERRED_COLUMN_DEF
 import static org.apache.iceberg.TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX;
 
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -91,17 +92,6 @@ public final class MetricsConfig implements Serializable {
   }
 
   /**
-   * Creates a metrics config from table configuration.
-   *
-   * @param props table configuration
-   * @deprecated use {@link MetricsConfig#forTable(Table)}. Will be removed in 1.13.0
-   */
-  @Deprecated
-  public static MetricsConfig fromProperties(Map<String, String> props) {
-    return from(props, null, null);
-  }
-
-  /**
    * Validates metrics config properties with the given schema.
    *
    * @param props table properties
@@ -123,7 +113,7 @@ public final class MetricsConfig implements Serializable {
 
   public Iterable<Integer> metricsFieldIds() {
     Preconditions.checkState(idToName != null, "Cannot resolve column mode by ID: missing schema");
-    return idToName.keySet();
+    return Collections.unmodifiableSet(idToName.keySet());
   }
 
   public MetricsMode columnMode(int id) {

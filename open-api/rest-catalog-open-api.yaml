@@ -2157,6 +2157,10 @@ components:
         to supply access via any or none of the requested mechanisms.
 
 
+        The value `none` signals that the client is able to operate without any
+        access delegation mechanism.
+
+
         Specific properties and handling for `vended-credentials` and `remote-signing`
         are documented in the `LoadTableResult` schema section of this spec document.
 
@@ -2168,6 +2172,7 @@ components:
           enum:
             - vended-credentials
             - remote-signing
+            - none
       style: simple
       explode: false
       example: "vended-credentials,remote-signing"
@@ -3823,6 +3828,7 @@ components:
         - $ref: '#/components/schemas/AssertViewUUID'
 
     AssertViewUUID:
+      type: object
       description: The view UUID must match the requirement's `uuid`
       required:
         - type
@@ -5495,15 +5501,15 @@ components:
     FieldStatistics:
       type: object
       properties:
-        avg-value-size-in-bytes:
+        total-bytes:
           type: integer
-          format: int32
+          format: int64
           description:
-            Avg value size in memory (uncompressed) in bytes over non-null
-            values to estimate memory consumption
+            Estimated uncompressed bytes in memory of non-null values. The
+            estimate depends on the in-memory representation
       example:
         {
-          "avg-value-size-in-bytes": 8
+          "total-bytes": 8
         }
 
     ValueMap:

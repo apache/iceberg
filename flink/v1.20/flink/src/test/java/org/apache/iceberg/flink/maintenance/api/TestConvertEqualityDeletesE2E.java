@@ -19,13 +19,22 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import static org.apache.iceberg.flink.SimpleDataUtil.createRecord;
+import static org.apache.iceberg.flink.maintenance.api.TableMaintenance.LOCK_REMOVER_OPERATOR_NAME;
+import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.SUCCEEDED_TASK_COUNTER;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.List;
+import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 import org.apache.flink.core.execution.JobClient;
+import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -42,12 +51,16 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.flink.maintenance.operator.ManualSource;
+import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTests;
 import org.apache.iceberg.flink.maintenance.operator.OperatorTestBase;
+import org.apache.iceberg.flink.maintenance.operator.TableChange;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -60,6 +73,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  */
 class TestConvertEqualityDeletesE2E extends OperatorTestBase {
   private static final String STAGING_BRANCH = "staging";
+  private static final String PROBE_TASK_NAME = "SharedLockProbe";
 
   @TempDir private Path tempDir;
   private StreamExecutionEnvironment env;
@@ -136,6 +150,76 @@ class TestConvertEqualityDeletesE2E extends OperatorTestBase {
     }
   }
 
+  /**
+   * ConvertEqualityDeletes shares the Flink-maintained maintenance lock with another task. The lock
+   * is released only when the unioned watermark reaches the lock remover, so a watermark from the
+   * other task has to pass through an idle converter.
+   */
+  @Test
+  void releasesSharedLockAfterEachCycle() throws Exception {
+    Table table = createTable(3, FileFormat.PARQUET);
+    String tableName = table.name();
+
+    env.setParallelism(1);
+    ManualSource<TableChange> changes =
+        new ManualSource<>(env, TypeInformation.of(TableChange.class));
+
+    TableMaintenance.forChangeStream(changes.dataStream(), tableLoader())
+        .uidSuffix("ConvertEqualityDeletesSharedLock")
+        .rateLimit(Duration.ofMillis(50))
+        .lockCheckDelay(Duration.ofMillis(50))
+        .add(new CompletingTaskBuilder().scheduleOnCommitCount(1))
+        .add(
+            ConvertEqualityDeletes.builder()
+                .scheduleOnCommitCount(1)
+                .stagingBranch(SnapshotRef.MAIN_BRANCH)
+                .targetBranch(SnapshotRef.MAIN_BRANCH)
+                .equalityFieldColumns(ImmutableList.of("id"))
+                .parallelism(1))
+        .append();
+
+    List<String> probeSucceeded =
+        ImmutableList.of(
+            LOCK_REMOVER_OPERATOR_NAME,
+            tableName,
+            PROBE_TASK_NAME + " [0]",
+            "0",
+            SUCCEEDED_TASK_COUNTER);
+    List<String> converterSucceeded =
+        ImmutableList.of(
+            LOCK_REMOVER_OPERATOR_NAME,
+            tableName,
+            "ConvertEqualityDeletes [1]",
+            "1",
+            SUCCEEDED_TASK_COUNTER);
+
+    JobClient jobClient = null;
+    try {
+      jobClient = env.executeAsync();
+
+      // The probe runs first, while the converter has no plan. Its watermark must leave the
+      // converter or the shared lock stays held and the converter never starts.
+      changes.sendRecord(TableChange.builder().commitCount(1).build());
+      awaitSucceeded(probeSucceeded, 1L);
+      awaitSucceeded(converterSucceeded, 1L);
+
+      changes.sendRecord(TableChange.builder().commitCount(1).build());
+      awaitSucceeded(probeSucceeded, 2L);
+      awaitSucceeded(converterSucceeded, 2L);
+    } finally {
+      closeJobClient(jobClient);
+    }
+  }
+
+  private static void awaitSucceeded(List<String> counterKey, long expected) {
+    Awaitility.await()
+        .atMost(Duration.ofMinutes(3))
+        .pollInterval(Duration.ofMillis(200))
+        .untilAsserted(
+            () ->
+                assertThat(MetricsReporterFactoryForTests.counter(counterKey)).isEqualTo(expected));
+  }
+
   private DataFile writeDataFile(Table table, Integer id, String data) throws IOException {
     return new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
         .writeFile(Lists.newArrayList(SimpleDataUtil.createRecord(id, data)));
@@ -192,5 +276,37 @@ class TestConvertEqualityDeletesE2E extends OperatorTestBase {
     }
 
     return count;
+  }
+
+  private static class CompletingTaskBuilder extends MaintenanceTaskBuilder<CompletingTaskBuilder> {
+
+    @Override
+    String maintenanceTaskName() {
+      return PROBE_TASK_NAME;
+    }
+
+    @Override
+    DataStream<TaskResult> append(DataStream<Trigger> trigger) {
+      return setSlotSharingGroup(
+          trigger
+              .map(new CompletingTask())
+              .name(maintenanceTaskName())
+              .uid(uidSuffix() + "-shared-lock-probe")
+              .forceNonParallel());
+    }
+  }
+
+  private static class CompletingTask
+      implements MapFunction<Trigger, TaskResult>, ResultTypeQueryable<TaskResult>, Serializable {
+
+    @Override
+    public TaskResult map(Trigger trigger) {
+      return new TaskResult(trigger.taskId(), trigger.timestamp(), true, Collections.emptyList());
+    }
+
+    @Override
+    public TypeInformation<TaskResult> getProducedType() {
+      return TypeInformation.of(TaskResult.class);
+    }
   }
 }
