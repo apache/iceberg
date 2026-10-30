@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws.dynamodb;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -221,7 +223,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) throws NoSuchNamespaceException {
     validateNamespace(namespace);
-    List<Namespace> namespaces = Lists.newArrayList();
+    Set<Namespace> namespaces = Sets.newLinkedHashSet();
     Map<String, AttributeValue> lastEvaluatedKey = null;
     String condition = COL_IDENTIFIER + " = :identifier";
     Map<String, AttributeValue> conditionValues = Maps.newHashMap();
@@ -229,7 +231,7 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
         ":identifier", AttributeValue.builder().s(COL_IDENTIFIER_NAMESPACE).build());
     if (!namespace.isEmpty()) {
       condition += " AND " + "begins_with(" + COL_NAMESPACE + ",:ns)";
-      conditionValues.put(":ns", AttributeValue.builder().s(namespace.toString()).build());
+      conditionValues.put(":ns", AttributeValue.builder().s(namespace + ".").build());
     }
 
     do {
@@ -246,14 +248,19 @@ public class DynamoDbCatalog extends BaseMetastoreCatalog
       if (response.hasItems()) {
         for (Map<String, AttributeValue> item : response.items()) {
           String ns = item.get(COL_NAMESPACE).s();
-          namespaces.add(Namespace.of(ns.split("\\.")));
+          String[] levels = ns.split("\\.");
+          namespaces.add(Namespace.of(Arrays.copyOf(levels, namespace.length() + 1)));
         }
       }
 
       lastEvaluatedKey = response.lastEvaluatedKey();
     } while (!lastEvaluatedKey.isEmpty());
 
-    return namespaces;
+    if (namespaces.isEmpty() && !namespace.isEmpty() && !namespaceExists(namespace)) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
+
+    return Lists.newArrayList(namespaces);
   }
 
   @Override
