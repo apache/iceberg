@@ -23,6 +23,7 @@ import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.lit;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -145,10 +146,11 @@ abstract class BaseSparkAction<ThisT> {
   }
 
   protected Dataset<FileInfo> contentFileDS(Table table) {
-    return contentFileDS(table, null);
+    return contentFileDS(table, null, null);
   }
 
-  protected Dataset<FileInfo> contentFileDS(Table table, Set<Long> snapshotIds) {
+  protected Dataset<FileInfo> contentFileDS(
+      Table table, Set<Long> snapshotIds, SetAccumulator<String> missingManifests) {
     Table serializableTable = SerializableTableWithSize.copyOf(table);
     Broadcast<Table> tableBroadcast = sparkContext.broadcast(serializableTable);
     int numShufflePartitions = spark.sessionState().conf().numShufflePartitions();
@@ -167,7 +169,8 @@ abstract class BaseSparkAction<ThisT> {
             .repartition(numShufflePartitions) // avoid adaptive execution combining tasks
             .as(ManifestFileBean.ENCODER);
 
-    return manifestBeanDS.flatMap(new ReadManifest(tableBroadcast), FileInfo.ENCODER);
+    return manifestBeanDS.flatMap(
+        new ReadManifest(tableBroadcast, missingManifests), FileInfo.ENCODER);
   }
 
   protected Dataset<FileInfo> manifestDS(Table table) {
@@ -407,14 +410,29 @@ abstract class BaseSparkAction<ThisT> {
 
   private static class ReadManifest implements FlatMapFunction<ManifestFileBean, FileInfo> {
     private final Broadcast<Table> table;
+    private final SetAccumulator<String> missingManifests;
 
-    ReadManifest(Broadcast<Table> table) {
+    ReadManifest(Broadcast<Table> table, SetAccumulator<String> missingManifests) {
       this.table = table;
+      this.missingManifests = missingManifests;
     }
 
     @Override
     public Iterator<FileInfo> call(ManifestFileBean manifest) {
-      return new ClosingIterator<>(entries(manifest));
+      try {
+        return new ClosingIterator<>(entries(manifest));
+      } catch (NotFoundException e) {
+        // Only the scan of expired snapshots passes an accumulator. In all other scans, a missing
+        // manifest must fail. If a scan skips it, the files that it references look unreferenced
+        // and the action deletes them.
+        if (missingManifests == null) {
+          throw e;
+        }
+
+        LOG.warn("Skipping manifest missing from storage: {}", manifest.path(), e);
+        missingManifests.add(manifest.path());
+        return Collections.emptyIterator();
+      }
     }
 
     public CloseableIterator<FileInfo> entries(ManifestFileBean manifest) {
