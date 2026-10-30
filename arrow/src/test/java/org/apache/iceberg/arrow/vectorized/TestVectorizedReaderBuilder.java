@@ -18,14 +18,16 @@
  */
 package org.apache.iceberg.arrow.vectorized;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
+import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types.IntegerType;
+import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.VariantType;
 import org.apache.iceberg.variants.Variant;
@@ -53,11 +55,12 @@ public class TestVectorizedReaderBuilder {
 
     VectorizedReaderBuilder builder =
         new VectorizedReaderBuilder(
-            icebergSchema, parquetSchema, false, ImmutableMap.of(), readers -> null);
+            icebergSchema, parquetSchema, false, ImmutableMap.of(), readers -> readers.get(1));
 
-    assertThatNoException()
-        .isThrownBy(
-            () -> TypeWithSchemaVisitor.visit(icebergSchema.asStruct(), parquetSchema, builder));
+    VectorizedReader<?> reader =
+        TypeWithSchemaVisitor.visit(icebergSchema.asStruct(), parquetSchema, builder);
+
+    assertThat(reader).isInstanceOf(VectorizedArrowReader.VectorizedVariantReader.class);
   }
 
   @Test
@@ -156,7 +159,7 @@ public class TestVectorizedReaderBuilder {
   }
 
   @Test
-  void projectingShreddedVariantUnsupported() {
+  void projectedShreddedVariantUsesRowBasedReader() {
     Schema icebergSchema =
         new Schema(
             NestedField.required(1, "id", IntegerType.get()),
@@ -173,12 +176,45 @@ public class TestVectorizedReaderBuilder {
 
     VectorizedReaderBuilder builder =
         new VectorizedReaderBuilder(
+            icebergSchema, parquetSchema, false, ImmutableMap.of(), readers -> readers.get(1));
+
+    VectorizedReader<?> reader =
+        TypeWithSchemaVisitor.visit(icebergSchema.asStruct(), parquetSchema, builder);
+
+    assertThat(reader).isInstanceOf(VectorizedArrowReader.RowBasedVariantReader.class);
+  }
+
+  @Test
+  void projectedShreddedListElementWithoutFieldIdSkipped() {
+    Schema icebergSchema =
+        new Schema(
+            NestedField.required(1, "id", IntegerType.get()),
+            NestedField.optional(2, "list", ListType.ofOptional(3, VariantType.get())));
+
+    MessageType parquetSchema =
+        Types.buildMessage()
+            .addField(
+                Types.primitive(PrimitiveTypeName.INT32, Type.Repetition.REQUIRED)
+                    .id(1)
+                    .named("id"))
+            .addField(
+                Types.buildGroup(Type.Repetition.OPTIONAL)
+                    .as(LogicalTypeAnnotation.listType())
+                    .addField(
+                        Types.buildGroup(Type.Repetition.REPEATED)
+                            .addField(shreddedVariant(Type.Repetition.OPTIONAL, "element"))
+                            .named("list"))
+                    .id(2)
+                    .named("list"))
+            .named("table");
+
+    VectorizedReaderBuilder builder =
+        new VectorizedReaderBuilder(
             icebergSchema, parquetSchema, false, ImmutableMap.of(), readers -> null);
 
-    assertThatThrownBy(
-            () -> TypeWithSchemaVisitor.visit(icebergSchema.asStruct(), parquetSchema, builder))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Unsupported variant: shredded typed_value primitive");
+    assertThatNoException()
+        .isThrownBy(
+            () -> TypeWithSchemaVisitor.visit(icebergSchema.asStruct(), parquetSchema, builder));
   }
 
   private static MessageType parquetSchemaWithVariant() {
