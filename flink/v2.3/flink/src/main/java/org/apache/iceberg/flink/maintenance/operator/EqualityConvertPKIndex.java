@@ -52,6 +52,10 @@ import org.slf4j.LoggerFactory;
  * phase precedes the delete, so the delete's watermark only advances once every main row has
  * arrived.
  *
+ * <p>Between rebuilds, external commits on the target branch arrive as {@link
+ * IndexCommand.Type#ADD_DATA_ROW} and {@link IndexCommand.Type#REMOVE_DATA_ROW}, both applied on
+ * arrival in the phase before the delete. A removal matches an entry by file path and position.
+ *
  * <p>On a shared staging/target branch, resolution is sequence-number aware: an equality delete
  * deletes an indexed row only when the row's data sequence number is below the delete's. A
  * re-insert of the same key with a higher sequence survives and stays indexed for a later delete.
@@ -152,6 +156,12 @@ public class EqualityConvertPKIndex
     try {
       Long storedGeneration = indexGeneration.value();
       if (!Objects.equals(storedGeneration, cmd.indexGeneration())) {
+        if (cmd.type() == IndexCommand.Type.REMOVE_DATA_ROW) {
+          // No entry of this generation to remove. Adopting the generation would keep a key
+          // without entries in state.
+          return;
+        }
+
         LOG.info(
             "Index generation changed from {} to {} (snapshot {}), clearing state",
             storedGeneration,
@@ -172,6 +182,8 @@ public class EqualityConvertPKIndex
         // re-inserted key survives. Applied by the event-time timer at this phase.
         bufferedRows.add(cmd.rowPosition());
         ctx.timerService().registerEventTimeTimer(ts);
+      } else if (cmd.type() == IndexCommand.Type.REMOVE_DATA_ROW) {
+        removeFromIndex(cmd.rowPosition());
       } else if (cmd.type() == IndexCommand.Type.RESOLVE_DELETE) {
         Long resolveTs = resolveTimestamp.value();
         if (resolveTs == null || ts > resolveTs) {
@@ -254,6 +266,25 @@ public class EqualityConvertPKIndex
     }
 
     bufferedRows.clear();
+  }
+
+  private void removeFromIndex(DVPosition removed) throws Exception {
+    // Only dataRowPositions is scanned: the maintenance lock serializes cycles, so the staging rows
+    // a previous cycle buffered have joined the index before this cycle's commands arrive.
+    List<DVPosition> kept = Lists.newArrayList();
+    boolean found = false;
+    for (DVPosition position : dataRowPositions.get()) {
+      if (position.position() == removed.position()
+          && position.dataFilePath().equals(removed.dataFilePath())) {
+        found = true;
+      } else {
+        kept.add(position);
+      }
+    }
+
+    if (found) {
+      dataRowPositions.update(kept);
+    }
   }
 
   private void resolveDeletes(Collector<DVPosition> out) throws Exception {
