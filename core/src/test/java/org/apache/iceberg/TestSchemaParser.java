@@ -62,6 +62,11 @@ public class TestSchemaParser extends DataTestBase {
   }
 
   @Override
+  protected boolean supportsVector() {
+    return true;
+  }
+
+  @Override
   protected void writeAndValidate(Schema schema) throws IOException {
     Schema serialized = SchemaParser.fromJson(SchemaParser.toJson(schema));
     assertThat(serialized.asStruct()).isEqualTo(schema.asStruct());
