@@ -316,4 +316,66 @@ public class TestOAuth2RefreshCredentialsHandler {
 
     mockServer.verify(mockRequest, VerificationTimes.exactly(2));
   }
+
+  @Test
+  void multipleGcsCredentialsUseLongestPrefixOfStoragePrefix() {
+    respondWithCredentials(
+        gcsCredential("gs", "rootToken"),
+        gcsCredential("gs://bucket/warehouse", "warehouseToken"),
+        gcsCredential("gs://bucket/warehouse/table/data", "dataToken"));
+
+    OAuth2RefreshCredentialsHandler handler =
+        OAuth2RefreshCredentialsHandler.create(PROPERTIES, "gs://bucket/warehouse/table");
+
+    assertThat(handler.refreshAccessToken().getTokenValue()).isEqualTo("warehouseToken");
+  }
+
+  @Test
+  void multipleGcsCredentialsWithoutPrefixOfStoragePrefix() {
+    respondWithCredentials(
+        gcsCredential("gs://bucket/table1", "token1"),
+        gcsCredential("gs://bucket/table2", "token2"));
+
+    OAuth2RefreshCredentialsHandler handler =
+        OAuth2RefreshCredentialsHandler.create(PROPERTIES, "gs://other-bucket/table");
+
+    assertThatThrownBy(handler::refreshAccessToken)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Invalid GCS Credentials: no GCS credential for storage prefix gs://other-bucket/table");
+  }
+
+  @Test
+  void singleGcsCredentialIgnoresStoragePrefix() {
+    respondWithCredentials(gcsCredential("gs://bucket/table", "tableToken"));
+
+    OAuth2RefreshCredentialsHandler handler =
+        OAuth2RefreshCredentialsHandler.create(PROPERTIES, "gs");
+
+    assertThat(handler.refreshAccessToken().getTokenValue()).isEqualTo("tableToken");
+  }
+
+  private static void respondWithCredentials(Credential... credentials) {
+    mockServer
+        .when(HttpRequest.request("/v1/credentials").withMethod(HttpMethod.GET.name()))
+        .respond(
+            HttpResponse.response(
+                    LoadCredentialsResponseParser.toJson(
+                        ImmutableLoadCredentialsResponse.builder()
+                            .addCredentials(credentials)
+                            .build()))
+                .withStatusCode(200));
+  }
+
+  private static Credential gcsCredential(String prefix, String token) {
+    return ImmutableCredential.builder()
+        .prefix(prefix)
+        .config(
+            ImmutableMap.of(
+                GCPProperties.GCS_OAUTH2_TOKEN,
+                token,
+                GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT,
+                Long.toString(Instant.now().plus(5, ChronoUnit.MINUTES).toEpochMilli())))
+        .build();
+  }
 }
