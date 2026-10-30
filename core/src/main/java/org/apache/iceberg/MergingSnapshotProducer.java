@@ -337,8 +337,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
+        .partitionSet(partitionSet)
         .setParent(base, parent)
-        .validateNoConflictingAddedDataFiles(partitionSet);
+        .validateNoConflictingAddedDataFiles();
   }
 
   /**
@@ -443,8 +444,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
+        .partitionSet(partitionSet)
         .setParent(base, parent)
-        .validateNoConflictingAddedDeleteFiles(partitionSet);
+        .validateNoConflictingAddedDeleteFiles();
   }
 
   /**
@@ -482,8 +484,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .io(ops().io())
         .startingSnapshotId(startingSnapshotId)
         .caseSensitive(caseSensitive)
+        .partitionSet(partitionSet)
         .setParent(base, parent)
-        .validateNoConflictingDeletedDataFiles(partitionSet);
+        .validateNoConflictingDeletedDataFiles();
   }
 
   protected void setNewDataFilesDataSequenceNumber(long sequenceNumber) {

@@ -36,6 +36,7 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -73,6 +74,7 @@ class CommitValidator {
   private Long startingSnapshotId = null;
   private boolean caseSensitive = true;
   private Expression conflictDetectionFilter = null;
+  private PartitionSet partitionSet = null;
   private ExecutorService workerPool = null;
 
   private TableMetadata base = null;
@@ -96,7 +98,17 @@ class CommitValidator {
   }
 
   CommitValidator conflictDetectionFilter(Expression filter) {
+    Preconditions.checkState(
+        partitionSet == null, "Conflict detection filter and partition set are mutually exclusive");
     this.conflictDetectionFilter = filter;
+    return this;
+  }
+
+  CommitValidator partitionSet(PartitionSet newPartitionSet) {
+    Preconditions.checkState(
+        conflictDetectionFilter == null,
+        "Conflict detection filter and partition set are mutually exclusive");
+    this.partitionSet = newPartitionSet;
     return this;
   }
 
@@ -116,48 +128,30 @@ class CommitValidator {
   }
 
   /**
-   * Validates that no data files matching the conflict detection filter have been added to the
-   * table since the starting snapshot.
+   * Validates that no data files matching the conflict detection scope have been added to the table
+   * since the starting snapshot.
    */
   void validateNoConflictingAddedDataFiles() {
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
-        addedDataFiles(conflictDetectionFilter, null);
+        addedDataFiles(conflictDetectionFilter, partitionSet);
 
     try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator()) {
       if (conflicts.hasNext()) {
         throw new ValidationException(
             "Found conflicting files that can contain records matching %s: %s",
-            conflictDetectionFilter,
+            partitionSet != null ? "partitions " + partitionSet : conflictDetectionFilter,
             Iterators.toString(
                 Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
       throw new UncheckedIOException(
-          String.format("Failed to validate no appends matching %s", conflictDetectionFilter), e);
-    }
-  }
-
-  void validateNoConflictingAddedDataFiles(PartitionSet partitionSet) {
-    CloseableIterable<ManifestEntry<DataFile>> conflictEntries = addedDataFiles(null, partitionSet);
-
-    try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator()) {
-      if (conflicts.hasNext()) {
-        throw new ValidationException(
-            "Found conflicting files that can contain records matching partitions %s: %s",
-            partitionSet,
-            Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
-      }
-
-    } catch (IOException e) {
-      throw new UncheckedIOException(
-          String.format("Failed to validate no appends matching %s", partitionSet), e);
+          String.format("Failed to validate no appends matching %s", conflictScope()), e);
     }
   }
 
   private CloseableIterable<ManifestEntry<DataFile>> addedDataFiles(
-      Expression dataFilter, PartitionSet partitionSet) {
+      Expression dataFilter, PartitionSet partitions) {
     // if there is no current table state, no files have been added
     if (parent == null) {
       return CloseableIterable.empty();
@@ -181,61 +175,43 @@ class CommitValidator {
       manifestGroup = manifestGroup.filterData(dataFilter);
     }
 
-    if (partitionSet != null) {
+    if (partitions != null) {
       manifestGroup =
           manifestGroup.filterManifestEntries(
-              entry -> partitionSet.contains(entry.file().specId(), entry.file().partition()));
+              entry -> partitions.contains(entry.file().specId(), entry.file().partition()));
     }
 
     return manifestGroup.entries();
   }
 
   /**
-   * Validates that no data files matching the conflict detection filter have been deleted from the
+   * Validates that no data files matching the conflict detection scope have been deleted from the
    * table since the starting snapshot.
    */
   void validateNoConflictingDeletedDataFiles() {
     CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
-        deletedDataFiles(conflictDetectionFilter, null);
+        deletedDataFiles(conflictDetectionFilter, partitionSet);
 
     try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator()) {
       if (conflicts.hasNext()) {
         throw new ValidationException(
-            "Found conflicting deleted files that can contain records matching %s: %s",
-            conflictDetectionFilter,
+            "Found conflicting deleted files that can %s: %s",
+            partitionSet != null
+                ? "apply to records matching " + partitionSet
+                : "contain records matching " + conflictDetectionFilter,
             Iterators.toString(
                 Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
       throw new UncheckedIOException(
-          String.format(
-              "Failed to validate no deleted data files matching %s", conflictDetectionFilter),
+          String.format("Failed to validate no deleted data files matching %s", conflictScope()),
           e);
     }
   }
 
-  void validateNoConflictingDeletedDataFiles(PartitionSet partitionSet) {
-    CloseableIterable<ManifestEntry<DataFile>> conflictEntries =
-        deletedDataFiles(null, partitionSet);
-
-    try (CloseableIterator<ManifestEntry<DataFile>> conflicts = conflictEntries.iterator()) {
-      if (conflicts.hasNext()) {
-        throw new ValidationException(
-            "Found conflicting deleted files that can apply to records matching %s: %s",
-            partitionSet,
-            Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
-      }
-
-    } catch (IOException e) {
-      throw new UncheckedIOException(
-          String.format("Failed to validate no appends matching %s", partitionSet), e);
-    }
-  }
-
   private CloseableIterable<ManifestEntry<DataFile>> deletedDataFiles(
-      Expression dataFilter, PartitionSet partitionSet) {
+      Expression dataFilter, PartitionSet partitions) {
     // if there is no current table state, no files have been deleted
     if (parent == null) {
       return CloseableIterable.empty();
@@ -259,10 +235,10 @@ class CommitValidator {
       manifestGroup = manifestGroup.filterData(dataFilter);
     }
 
-    if (partitionSet != null) {
+    if (partitions != null) {
       manifestGroup =
           manifestGroup.filterManifestEntries(
-              entry -> partitionSet.contains(entry.file().specId(), entry.file().partition()));
+              entry -> partitions.contains(entry.file().specId(), entry.file().partition()));
     }
 
     return manifestGroup.entries();
@@ -322,27 +298,17 @@ class CommitValidator {
   }
 
   /**
-   * Validates that no delete files matching the conflict detection filter have been added to the
+   * Validates that no delete files matching the conflict detection scope have been added to the
    * table since the starting snapshot.
    */
   void validateNoConflictingAddedDeleteFiles() {
     Set<String> locations =
         referencedDeleteFileLocations(
-            addedDeleteFilesIndexedPerSnapshot(conflictDetectionFilter, null));
+            addedDeleteFilesIndexedPerSnapshot(conflictDetectionFilter, partitionSet));
     ValidationException.check(
         locations.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
-        conflictDetectionFilter,
-        locations);
-  }
-
-  void validateNoConflictingAddedDeleteFiles(PartitionSet partitionSet) {
-    Set<String> locations =
-        referencedDeleteFileLocations(addedDeleteFilesIndexedPerSnapshot(null, partitionSet));
-    ValidationException.check(
-        locations.isEmpty(),
-        "Found new conflicting delete files that can apply to records matching %s: %s",
-        partitionSet,
+        conflictScope(),
         locations);
   }
 
@@ -398,10 +364,10 @@ class CommitValidator {
    * data file can be referenced by a replacement deletion vector in each snapshot in the window.
    *
    * @param dataFilter an expression used to find delete files
-   * @param partitionSet a partition set used to find delete files
+   * @param partitions a partition set used to find delete files
    */
   private List<DeleteFileIndex> addedDeleteFilesIndexedPerSnapshot(
-      Expression dataFilter, PartitionSet partitionSet) {
+      Expression dataFilter, PartitionSet partitions) {
     // if there is no current table state, no delete files have been added
     if (parent == null || base.formatVersion() < 2) {
       return ImmutableList.of();
@@ -425,7 +391,7 @@ class CommitValidator {
     List<DeleteFileIndex> deleteIndexes = Lists.newArrayList();
     for (List<ManifestFile> deleteManifests : deleteManifestsBySnapshot.values()) {
       deleteIndexes.add(
-          buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter, partitionSet));
+          buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter, partitions));
     }
 
     return deleteIndexes;
@@ -435,7 +401,7 @@ class CommitValidator {
       List<ManifestFile> deleteManifests,
       long startingSequenceNumber,
       Expression dataFilter,
-      PartitionSet partitionSet) {
+      PartitionSet partitions) {
     DeleteFileIndex.Builder builder =
         DeleteFileIndex.builderFor(io, deleteManifests)
             .afterSequenceNumber(startingSequenceNumber)
@@ -446,8 +412,8 @@ class CommitValidator {
       builder.filterData(dataFilter);
     }
 
-    if (partitionSet != null) {
-      builder.filterPartitions(partitionSet);
+    if (partitions != null) {
+      builder.filterPartitions(partitions);
     }
 
     return builder.build();
@@ -560,6 +526,10 @@ class CommitValidator {
                   });
           return evaluator.eval(manifest);
         });
+  }
+
+  private Object conflictScope() {
+    return partitionSet != null ? partitionSet : conflictDetectionFilter;
   }
 
   private Set<Long> validationHistory(Set<String> matchingOperations, Consumer<Snapshot> consumer) {
