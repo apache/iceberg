@@ -18,8 +18,12 @@
  */
 package org.apache.iceberg;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.NoSuchElementException;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -88,6 +92,48 @@ public class DataTableScan extends BaseTableScan {
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
 
-    return manifestGroup.planFiles();
+    CloseableIterable<FileScanTask> tasks = manifestGroup.planFiles();
+    Long minRowsRequested = context().minRowsRequested();
+    if (minRowsRequested != null && !shouldIgnoreResiduals()) {
+      return stopAfterRows(tasks, minRowsRequested);
+    }
+
+    return tasks;
+  }
+
+  private static CloseableIterable<FileScanTask> stopAfterRows(
+      CloseableIterable<FileScanTask> tasks, long minRows) {
+    return CloseableIterable.combine(
+        () ->
+            new CloseableIterator<>() {
+              private final CloseableIterator<FileScanTask> inner = tasks.iterator();
+              private long remainingRows = minRows;
+
+              @Override
+              public boolean hasNext() {
+                return remainingRows > 0 && inner.hasNext();
+              }
+
+              @Override
+              public FileScanTask next() {
+                if (!hasNext()) {
+                  throw new NoSuchElementException();
+                }
+
+                FileScanTask task = inner.next();
+                // the record count is exact only when no rows are deleted or filtered out
+                if (task.deletes().isEmpty() && task.residual() == Expressions.alwaysTrue()) {
+                  remainingRows -= task.file().recordCount();
+                }
+
+                return task;
+              }
+
+              @Override
+              public void close() throws IOException {
+                inner.close();
+              }
+            },
+        tasks);
   }
 }
