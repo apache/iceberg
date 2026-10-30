@@ -32,13 +32,17 @@ import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkWriteConf;
+import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,6 +108,27 @@ public class SinkUtil {
     }
 
     return lastCommittedCheckpointId;
+  }
+
+  /**
+   * If the write results add DVs, refreshes the table and limits the validation of the row delta to
+   * snapshots committed after the current head of the branch.
+   */
+  public static void validateAddedDVsFromBranchHead(
+      RowDelta rowDelta, Table table, String branch, Iterable<WriteResult> writeResults) {
+    for (WriteResult writeResult : writeResults) {
+      for (DeleteFile deleteFile : writeResult.deleteFiles()) {
+        if (ContentFileUtil.isDV(deleteFile)) {
+          table.refresh();
+          Snapshot branchHead = table.snapshot(branch);
+          if (branchHead != null) {
+            rowDelta.validateFromSnapshot(branchHead.snapshotId());
+          }
+
+          return;
+        }
+      }
+    }
   }
 
   /**
