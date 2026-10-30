@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 import java.io.File;
 import java.io.IOException;
@@ -81,9 +82,13 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestBase;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.CatalogLoader;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
+import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -181,6 +186,28 @@ class TestIcebergCommitter extends TestBase {
             "1");
     table = SimpleDataUtil.createTable(tableLocation, props, false);
     tableLoader = TableLoader.fromHadoopTable(tableLocation);
+  }
+
+  @TestTemplate
+  void closesAggregatorCatalogOnShutdown() throws Exception {
+    try (HadoopCatalog catalog =
+        spy(new HadoopCatalog(new Configuration(), temporaryFolder.toURI().toString()))) {
+      TableIdentifier identifier = TableIdentifier.of("test_table");
+      catalog.createTable(identifier, TestFixtures.SCHEMA);
+      CatalogLoader catalogLoader = mock(CatalogLoader.class);
+      doReturn(catalog).when(catalogLoader).loadCatalog();
+      TableLoader catalogTableLoader = TableLoader.fromCatalog(catalogLoader, identifier);
+
+      try (OneInputStreamOperatorTestHarness<
+              CommittableMessage<WriteResult>, CommittableMessage<IcebergCommittable>>
+          harness =
+              new OneInputStreamOperatorTestHarness<>(
+                  new IcebergWriteAggregator(catalogTableLoader))) {
+        harness.open();
+      }
+
+      verify(catalog).close();
+    }
   }
 
   @TestTemplate

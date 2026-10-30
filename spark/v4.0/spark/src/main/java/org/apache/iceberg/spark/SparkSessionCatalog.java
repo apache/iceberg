@@ -67,7 +67,6 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 public class SparkSessionCatalog<
         T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
     extends BaseCatalog implements CatalogExtension, Closeable {
-  private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
   private String catalogName = null;
   private TableCatalog icebergCatalog = null;
@@ -96,7 +95,7 @@ public class SparkSessionCatalog<
 
   @Override
   public String[] defaultNamespace() {
-    return DEFAULT_NAMESPACE;
+    return getSessionCatalog().defaultNamespace();
   }
 
   @Override
