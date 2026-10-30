@@ -31,6 +31,8 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.compression.CompressionCodecFactory;
@@ -50,7 +52,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final long targetRowGroupSize;
   private final Map<String, String> metadata;
   private final ParquetProperties props;
-  private final CompressionCodecFactory.BytesInputCompressor compressor;
+  private final CompressionCodecFactory codecFactory;
+  private final CompressionCodecName codec;
   private final MessageType parquetSchema;
   private final ParquetValueWriter<T> model;
   private final MetricsConfig metricsConfig;
@@ -60,6 +63,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final ParquetConfiguration conf;
   private final InternalFileEncryptor fileEncryptor;
   private final boolean trackUncompressedSize;
+  private final Map<ColumnDescriptor, CompressionCodecFactory.BytesInputCompressor>
+      compressorsByColumn = Maps.newHashMap();
 
   private ColumnChunkPageWriteStore pageStore = null;
   private ColumnWriteStore writeStore;
@@ -93,8 +98,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.props = properties;
     this.trackUncompressedSize = trackUncompressedSize;
     this.metadata = ImmutableMap.copyOf(metadata);
-    this.compressor =
-        new ParquetCodecFactory(conf, props.getPageSizeThreshold()).getCompressor(codec);
+    this.codecFactory = new ParquetCodecFactory(conf, props.getPageSizeThreshold());
+    this.codec = codec;
     this.parquetSchema = parquetSchema;
     this.model = (ParquetValueWriter<T>) createWriterFunc.apply(schema, parquetSchema);
     this.metricsConfig = metricsConfig;
@@ -259,20 +264,37 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.recordCount = 0;
     this.rowGroupUncompressedSize = 0;
 
-    this.pageStore =
-        new ColumnChunkPageWriteStore(
-            compressor,
-            parquetSchema,
-            props.getAllocator(),
-            this.columnIndexTruncateLength,
-            ParquetProperties.DEFAULT_PAGE_WRITE_CHECKSUM_ENABLED,
-            fileEncryptor,
-            rowGroupOrdinal);
+    this.pageStore = newColumnChunkPageWriteStore();
     this.rowGroupOrdinal++;
 
     this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore, pageStore);
 
     model.setColumnStore(writeStore);
+  }
+
+  private ColumnChunkPageWriteStore newColumnChunkPageWriteStore() {
+    return ColumnChunkPageWriteStore.builder()
+        .withCompressorProvider(this::resolveCompressor)
+        .withSchema(parquetSchema)
+        .withAllocator(props.getAllocator())
+        .withColumnIndexTruncateLength(columnIndexTruncateLength)
+        .withPageWriteChecksumEnabled(ParquetProperties.DEFAULT_PAGE_WRITE_CHECKSUM_ENABLED)
+        .withFileEncryptor(fileEncryptor)
+        .withRowGroupOrdinal(rowGroupOrdinal)
+        .build();
+  }
+
+  private CompressionCodecFactory.BytesInputCompressor resolveCompressor(ColumnDescriptor column) {
+    return compressorsByColumn.computeIfAbsent(column, this::newCompressor);
+  }
+
+  private CompressionCodecFactory.BytesInputCompressor newCompressor(ColumnDescriptor column) {
+    CompressionCodecName columnCodec = props.getColumnCodec(column);
+    CompressionCodecName effectiveCodec = columnCodec != null ? columnCodec : codec;
+    Integer level = props.getColumnCompressionLevel(column);
+    return level != null
+        ? codecFactory.getCompressor(effectiveCodec, level)
+        : codecFactory.getCompressor(effectiveCodec);
   }
 
   @Override
@@ -284,8 +306,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       if (writer != null) {
         writer.end(metadata);
       }
-      if (compressor != null) {
-        compressor.release();
+      if (codecFactory != null) {
+        codecFactory.release();
       }
     }
   }
