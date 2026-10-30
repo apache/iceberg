@@ -20,10 +20,16 @@ package org.apache.iceberg.encryption;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.stream.Stream;
+import org.apache.iceberg.AddedRowsScanTask;
+import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.DeletedDataFileScanTask;
+import org.apache.iceberg.DeletedRowsScanTask;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -53,6 +59,17 @@ public class InputFilesDecryptor {
     return new InputFilesDecryptor(() -> referencedFiles(tasks).iterator(), encryptingIO);
   }
 
+  public static InputFilesDecryptor fromChangelogTasks(
+      Iterable<ChangelogScanTask> tasks, EncryptingFileIO encryptingIO) {
+    return new InputFilesDecryptor(() -> changelogReferencedFiles(tasks).iterator(), encryptingIO);
+  }
+
+  public static InputFilesDecryptor fromPositionDeletesTasks(
+      Iterable<PositionDeletesScanTask> tasks, EncryptingFileIO encryptingIO) {
+    return new InputFilesDecryptor(
+        () -> positionDeletesReferencedFiles(tasks).iterator(), encryptingIO);
+  }
+
   private InputFilesDecryptor(
       Iterable<? extends ContentFile<?>> files, EncryptingFileIO encryptingIO) {
     this.referencedFiles = files;
@@ -78,6 +95,39 @@ public class InputFilesDecryptor {
       for (DeleteFile delete : task.deletes()) {
         files.put(delete.location(), delete);
       }
+    }
+
+    return files.values();
+  }
+
+  private static Collection<ContentFile<?>> changelogReferencedFiles(
+      Iterable<ChangelogScanTask> tasks) {
+    Map<String, ContentFile<?>> files = Maps.newHashMap();
+    for (ChangelogScanTask task : tasks) {
+      if (task instanceof AddedRowsScanTask addedRowsTask) {
+        Stream.concat(Stream.of(addedRowsTask.file()), addedRowsTask.deletes().stream())
+            .forEach(file -> files.put(file.location(), file));
+      } else if (task instanceof DeletedDataFileScanTask deletedDataFileTask) {
+        Stream.concat(
+                Stream.of(deletedDataFileTask.file()),
+                deletedDataFileTask.existingDeletes().stream())
+            .forEach(file -> files.put(file.location(), file));
+      } else if (task instanceof DeletedRowsScanTask) {
+        throw new UnsupportedOperationException("Deleted rows scan task is not supported yet");
+      } else {
+        throw new IllegalArgumentException(
+            "Unsupported changelog scan task type: " + task.getClass().getName());
+      }
+    }
+
+    return files.values();
+  }
+
+  private static Collection<ContentFile<?>> positionDeletesReferencedFiles(
+      Iterable<PositionDeletesScanTask> tasks) {
+    Map<String, ContentFile<?>> files = Maps.newHashMap();
+    for (PositionDeletesScanTask task : tasks) {
+      files.put(task.file().location(), task.file());
     }
 
     return files.values();

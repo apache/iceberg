@@ -18,26 +18,22 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 import org.apache.iceberg.AddedRowsScanTask;
 import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.ChangelogUtil;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.DeletedDataFileScanTask;
 import org.apache.iceberg.DeletedRowsScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
@@ -134,7 +130,6 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     InputFileBlockHolder.set(filePath, task.start(), task.length());
 
     InputFile location = getInputFile(filePath);
-    Preconditions.checkNotNull(location, "Could not find InputFile");
     return newIterable(
         location,
         task.file().format(),
@@ -146,31 +141,7 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
   }
 
   @Override
-  protected Stream<ContentFile<?>> referencedFiles(ChangelogScanTask task) {
-    if (task instanceof AddedRowsScanTask) {
-      return addedRowsScanTaskFiles((AddedRowsScanTask) task);
-
-    } else if (task instanceof DeletedRowsScanTask) {
-      throw new UnsupportedOperationException("Deleted rows scan task is not supported yet");
-
-    } else if (task instanceof DeletedDataFileScanTask) {
-      return deletedDataFileScanTaskFiles((DeletedDataFileScanTask) task);
-
-    } else {
-      throw new IllegalArgumentException(
-          "Unsupported changelog scan task type: " + task.getClass().getName());
-    }
-  }
-
-  private static Stream<ContentFile<?>> deletedDataFileScanTaskFiles(DeletedDataFileScanTask task) {
-    DataFile file = task.file();
-    List<DeleteFile> existingDeletes = task.existingDeletes();
-    return Stream.concat(Stream.of(file), existingDeletes.stream());
-  }
-
-  private static Stream<ContentFile<?>> addedRowsScanTaskFiles(AddedRowsScanTask task) {
-    DataFile file = task.file();
-    List<DeleteFile> deletes = task.deletes();
-    return Stream.concat(Stream.of(file), deletes.stream());
+  protected InputFilesDecryptor newInputFilesDecryptor() {
+    return InputFilesDecryptor.fromChangelogTasks(taskGroup().tasks(), encryptingFileIO());
   }
 }
