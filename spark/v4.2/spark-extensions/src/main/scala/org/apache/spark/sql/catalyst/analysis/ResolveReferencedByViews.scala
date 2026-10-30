@@ -22,17 +22,12 @@ import org.apache.iceberg.catalog.LoadContext
 import org.apache.iceberg.spark.SparkSupportsLoadContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.ResolveReferencedByViews.CheckedForView
-import org.apache.spark.sql.catalyst.expressions.Alias
-import org.apache.spark.sql.catalyst.expressions.Cast
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
-import org.apache.spark.sql.catalyst.expressions.UpCast
 import org.apache.spark.sql.catalyst.plans.logical.{View => ViewNode}
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.plans.logical.Project
 import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
 import org.apache.spark.sql.catalyst.plans.logical.views.UnResolvedRelationFromView
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.catalyst.trees.CurrentOrigin
 import org.apache.spark.sql.catalyst.trees.TreeNodeTag
 import org.apache.spark.sql.connector.catalog.CatalogManager
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
@@ -79,12 +74,12 @@ case class ResolveReferencedByViews(spark: SparkSession)
       }
       markCheckedForView(u)
 
-    case u @ UnresolvedRelation(parts @ CatalogAndIdentifier(catalog, ident), options, _)
+    case u @ UnresolvedRelation(CatalogAndIdentifier(catalog, ident), options, _)
         if !options.containsKey(UnresolvedRelation.REQUIRED_WRITE_PRIVILEGES) &&
           u.getTagValue(CheckedForView).isEmpty =>
       ViewUtil
         .loadView(catalog, ident)
-        .map(createViewRelation(parts, catalog, ident, _))
+        .map(createViewRelation(catalog, ident, _))
         .getOrElse(markCheckedForView(u))
 
     case u @ UnResolvedRelationFromView(
@@ -138,39 +133,23 @@ case class ResolveReferencedByViews(spark: SparkSession)
                   conf.maxNestedViewDepth,
                   u)
               }
-              createViewRelation(tableParts, catalog, tableIdent, view, viewChain)
+              createViewRelation(catalog, tableIdent, view, viewChain)
             }
             .getOrElse(throw tableOrViewNotFound(u))
       }
   }
 
   private def createViewRelation(
-      nameParts: Seq[String],
       catalog: CatalogPlugin,
       ident: Identifier,
       view: View,
       existingChain: Seq[Seq[String]] = Seq.empty): LogicalPlan = {
     val desc = V1Table.toCatalogTable(catalog, ident, view)
-    val parsed = parseViewText(desc.qualifiedName, view.queryText())
     val viewQueryCatalogAndNamespace = queryCatalogAndNamespace(catalog, ident, view)
     val viewChain = existingChain :+ ident.toQualifiedNameParts(catalog)
-    val rewritten = rewriteIdentifiers(parsed, viewQueryCatalogAndNamespace, viewChain)
-    val aliases = view
-      .schema()
-      .fields
-      .zipWithIndex
-      .map { case (expected, pos) =>
-        val attr = GetColumnByOrdinal(pos, expected.dataType)
-        val cast = if (isSchemaCompensation(view.schemaMode())) {
-          Cast(attr, expected.dataType, ansiEnabled = true)
-        } else {
-          UpCast(attr, expected.dataType)
-        }
-        Alias(cast, expected.name)(explicitMetadata = Some(expected.metadata))
-      }
-      .toIndexedSeq
-
-    SubqueryAlias(nameParts, ViewNode(desc, isTempView = false, Project(aliases, rewritten)))
+    catalogManager.v1SessionCatalog.getRelation(desc) transformDown { case v: ViewNode =>
+      v.copy(child = rewriteIdentifiers(v.child, viewQueryCatalogAndNamespace, viewChain))
+    }
   }
 
   private def queryCatalogAndNamespace(
@@ -182,13 +161,6 @@ case class ResolveReferencedByViews(spark: SparkSession)
       ident.namespace().toIndexedSeq
     }
     currentCatalog +: currentNamespace
-  }
-
-  private def parseViewText(name: String, viewText: String): LogicalPlan = {
-    val origin = CurrentOrigin.get.copy(objectType = Some("VIEW"), objectName = Some(name))
-    CurrentOrigin.withOrigin(origin) {
-      spark.sessionState.sqlParser.parseQuery(viewText)
-    }
   }
 
   private def rewriteIdentifiers(
@@ -259,10 +231,6 @@ case class ResolveReferencedByViews(spark: SparkSession)
       relation.nameParts,
       searchPath,
       relation.origin)
-  }
-
-  private def isSchemaCompensation(mode: String): Boolean = {
-    mode != null && mode.equalsIgnoreCase(SchemaCompensation.toString)
   }
 
   private def markCheckedForView(relation: UnresolvedRelation): UnresolvedRelation = {
