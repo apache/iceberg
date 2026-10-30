@@ -117,6 +117,8 @@ import org.apache.parquet.avro.AvroReadSupport;
 import org.apache.parquet.avro.AvroWriteSupport;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
+import org.apache.parquet.conf.HadoopParquetConfiguration;
+import org.apache.parquet.conf.ParquetConfiguration;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.crypto.FileDecryptionProperties;
 import org.apache.parquet.crypto.FileEncryptionProperties;
@@ -169,7 +171,7 @@ public class Parquet {
 
   public static class WriteBuilder implements InternalData.WriteBuilder {
     private final OutputFile file;
-    private final Configuration conf;
+    private final ParquetConfiguration conf;
     private final Map<String, String> metadata = Maps.newLinkedHashMap();
     private final Map<String, String> config = Maps.newLinkedHashMap();
     private Schema schema = null;
@@ -186,9 +188,10 @@ public class Parquet {
     private WriteBuilder(OutputFile file) {
       this.file = file;
       if (file instanceof HadoopOutputFile) {
-        this.conf = new Configuration(((HadoopOutputFile) file).getConf());
+        this.conf =
+            new HadoopParquetConfiguration(new Configuration(((HadoopOutputFile) file).getConf()));
       } else {
-        this.conf = new Configuration();
+        this.conf = new PlainParquetConfiguration();
       }
     }
 
@@ -400,7 +403,7 @@ public class Parquet {
       // Map Iceberg properties to pass down to the Parquet writer
       Context context = createContextFunc.apply(config);
 
-      int rowGroupSize = context.rowGroupSize();
+      long rowGroupSize = context.rowGroupSize();
       int pageSize = context.pageSize();
       int pageRowLimit = context.pageRowLimit();
       int dictionaryPageSize = context.dictionaryPageSize();
@@ -517,7 +520,7 @@ public class Parquet {
                 .setWriteSupport(getWriteSupport(type))
                 .withCompressionCodec(codec)
                 .withWriteMode(writeMode)
-                .withRowGroupSize((long) rowGroupSize)
+                .withRowGroupSize(rowGroupSize)
                 .withPageSize(pageSize)
                 .withPageRowCountLimit(pageRowLimit)
                 .withDictionaryEncoding(dictionaryEnabled)
@@ -542,7 +545,7 @@ public class Parquet {
     }
 
     static class Context {
-      private final int rowGroupSize;
+      private final long rowGroupSize;
       private final int pageSize;
       private final int pageRowLimit;
       private final int dictionaryPageSize;
@@ -562,7 +565,7 @@ public class Parquet {
       private final boolean trackUncompressedRowGroupSize;
 
       private Context(
-          int rowGroupSize,
+          long rowGroupSize,
           int pageSize,
           int pageRowLimit,
           int dictionaryPageSize,
@@ -601,8 +604,8 @@ public class Parquet {
       }
 
       static Context dataContext(Map<String, String> config) {
-        int rowGroupSize =
-            PropertyUtil.propertyAsInt(
+        long rowGroupSize =
+            PropertyUtil.propertyAsLong(
                 config, PARQUET_ROW_GROUP_SIZE_BYTES, PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT);
         Preconditions.checkArgument(rowGroupSize > 0, "Row group size must be > 0");
 
@@ -711,8 +714,8 @@ public class Parquet {
         // default delete config using data config
         Context dataContext = dataContext(config);
 
-        int rowGroupSize =
-            PropertyUtil.propertyAsInt(
+        long rowGroupSize =
+            PropertyUtil.propertyAsLong(
                 config, DELETE_PARQUET_ROW_GROUP_SIZE_BYTES, dataContext.rowGroupSize());
         Preconditions.checkArgument(rowGroupSize > 0, "Row group size must be > 0");
 
@@ -804,7 +807,7 @@ public class Parquet {
         }
       }
 
-      int rowGroupSize() {
+      long rowGroupSize() {
         return rowGroupSize;
       }
 

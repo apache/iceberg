@@ -110,6 +110,7 @@ public class HMSTablePropertyHelper {
         maxHiveTablePropertySize);
     setStorageHandler(parameters, hiveEngineEnabled);
     setMetadataHash(metadata, parameters);
+    parameters.put(TableProperties.FORMAT_VERSION, String.valueOf(metadata.formatVersion()));
 
     // Set the basic statistics
     if (summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP) != null) {
@@ -296,8 +297,8 @@ public class HMSTablePropertyHelper {
   }
 
   private static byte[] hashOf(TableMetadata tableMetadata) {
-    try (HashWriter hashWriter = new HashWriter("SHA-256", StandardCharsets.UTF_8)) {
-      JsonGenerator generator = JsonUtil.factory().createGenerator(hashWriter);
+    try (HashWriter hashWriter = new HashWriter("SHA-256", StandardCharsets.UTF_8);
+        JsonGenerator generator = JsonUtil.factory().createGenerator(hashWriter)) {
       TableMetadataParser.toJson(tableMetadata, generator);
       generator.flush();
       return hashWriter.getHash();

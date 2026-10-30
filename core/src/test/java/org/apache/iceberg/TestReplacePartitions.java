@@ -399,7 +399,7 @@ public class TestReplacePartitions extends TestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Found conflicting files that can contain records matching partitions "
-                + "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]");
+                + "[{data_bucket=0}, {data_bucket=1}]: [/path/to/data-a.parquet]");
   }
 
   @TestTemplate
@@ -421,7 +421,7 @@ public class TestReplacePartitions extends TestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Found conflicting files that can contain records matching partitions "
-                + "[data_bucket=null, data_bucket=1]: [/path/to/data-null-partition.parquet]");
+                + "[{data_bucket=null}, {data_bucket=1}]: [/path/to/data-null-partition.parquet]");
   }
 
   @TestTemplate
@@ -444,7 +444,7 @@ public class TestReplacePartitions extends TestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Found conflicting files that can contain records matching partitions "
-                + "[id_null=null, data_bucket=1, id_null=null, data_bucket=0]: "
+                + "[{id_null=null, data_bucket=1}, {id_null=null, data_bucket=0}]: "
                 + "[/path/to/data-a-void-partition.parquet]");
   }
 
@@ -473,7 +473,7 @@ public class TestReplacePartitions extends TestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Found conflicting files that can contain records matching partitions "
-                + "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]");
+                + "[{data_bucket=0}, {data_bucket=1}]: [/path/to/data-a.parquet]");
   }
 
   @TestTemplate
@@ -566,7 +566,7 @@ public class TestReplacePartitions extends TestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Found conflicting files that can contain records matching partitions "
-                + "[data_bucket=0, data_bucket=1]: [/path/to/data-b.parquet]");
+                + "[{data_bucket=0}, {data_bucket=1}]: [/path/to/data-b.parquet]");
   }
 
   @TestTemplate
@@ -666,7 +666,47 @@ public class TestReplacePartitions extends TestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Found new conflicting delete files that can apply to records matching "
-                + "[data_bucket=0]: [/path/to/data-a-deletes.parquet]");
+                + "[{data_bucket=0}]: [/path/to/data-a-deletes.parquet]");
+  }
+
+  @TestTemplate
+  public void testConcurrentSuccessiveDVsReplaceConflict() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    commit(table, table.newFastAppend().appendFile(FILE_A), branch);
+
+    TableMetadata base = readMetadata();
+    long baseId = latestSnapshot(base, branch).snapshotId();
+
+    DeleteFile dv1 = newDV(FILE_A);
+    commit(table, table.newRowDelta().addDeletes(dv1).validateFromSnapshot(baseId), branch);
+
+    long dvSnapshotId = latestSnapshot(readMetadata(), branch).snapshotId();
+
+    DeleteFile dv2 = newDV(FILE_A);
+    commit(
+        table,
+        table.newRowDelta().removeDeletes(dv1).addDeletes(dv2).validateFromSnapshot(dvSnapshotId),
+        branch);
+
+    assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newReplacePartitions()
+                        .validateFromSnapshot(baseId)
+                        .validateNoConflictingDeletes()
+                        .addFile(FILE_A),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Found new conflicting delete files that can apply to records matching "
+                + "[{data_bucket=0}]: ["
+                + dv2.location()
+                + ", "
+                + dv1.location()
+                + "]");
   }
 
   @TestTemplate
@@ -778,7 +818,7 @@ public class TestReplacePartitions extends TestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Found conflicting deleted files that can apply to records matching "
-                + "[data_bucket=0]: [/path/to/data-a.parquet]");
+                + "[{data_bucket=0}]: [/path/to/data-a.parquet]");
   }
 
   @TestTemplate

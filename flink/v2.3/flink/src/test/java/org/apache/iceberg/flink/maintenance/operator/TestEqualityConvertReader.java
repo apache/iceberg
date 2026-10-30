@@ -25,6 +25,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
@@ -38,6 +43,7 @@ import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestReader;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericAppenderHelper;
@@ -45,6 +51,8 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -212,6 +220,62 @@ class TestEqualityConvertReader extends OperatorTestBase {
           0);
       harness.processElement(ReadCommand.eqDeleteFile(eqDelete, deleteSpec, 0L, 0L, 0L), 1);
 
+      List<IndexCommand> output = harness.extractOutputValues();
+      assertThat(output).hasSize(2);
+      assertThat(output.get(0).type()).isEqualTo(IndexCommand.Type.ADD_STAGING_DATA_ROW);
+      assertThat(output.get(1).type()).isEqualTo(IndexCommand.Type.RESOLVE_DELETE);
+      assertThat(output.get(0).key()).isEqualTo(output.get(1).key());
+    }
+  }
+
+  @Test
+  void serializesTemporalEqualityFieldsFromDataAndDeleteFiles() throws Exception {
+    Schema schema =
+        new Schema(
+            Lists.newArrayList(
+                Types.NestedField.required(1, "id", Types.IntegerType.get()),
+                Types.NestedField.required(2, "d", Types.DateType.get()),
+                Types.NestedField.required(3, "t", Types.TimeType.get()),
+                Types.NestedField.required(4, "ts", Types.TimestampType.withoutZone()),
+                Types.NestedField.required(5, "tstz", Types.TimestampType.withZone())),
+            Sets.newHashSet(1, 2, 3, 4, 5));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("d").build();
+    Table table = createTableWithDelete(3, schema, spec);
+
+    LocalDate date = LocalDate.of(2026, 10, 1);
+    GenericRecord record = GenericRecord.create(schema);
+    record.setField("id", 1);
+    record.setField("d", date);
+    record.setField("t", LocalTime.of(12, 30, 15));
+    record.setField("ts", LocalDateTime.of(2026, 10, 1, 12, 30, 15));
+    record.setField("tstz", OffsetDateTime.of(2026, 10, 1, 12, 30, 15, 0, ZoneOffset.UTC));
+
+    PartitionData partition = new PartitionData(spec.partitionType());
+    partition.set(0, DateTimeUtil.daysFromDate(date));
+
+    DataFile dataFile =
+        new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir)
+            .writeFile(partition, Lists.newArrayList(record));
+    table.newAppend().appendFile(dataFile).commit();
+
+    File file = File.createTempFile("junit", null, tempDir.toFile());
+    assertThat(file.delete()).isTrue();
+    DeleteFile eqDelete =
+        FileHelpers.writeDeleteFile(
+            table, Files.localOutput(file), partition, Lists.newArrayList(record), schema);
+    table.refresh();
+
+    List<Integer> fieldIds = Lists.newArrayList(1, 2, 3, 4, 5);
+
+    try (OneInputStreamOperatorTestHarness<ReadCommand, IndexCommand> harness =
+        createHarness(fieldIds)) {
+      harness.open();
+
+      harness.processElement(
+          ReadCommand.stagingDataFile(new FlinkAddedRowsScanTask(dataFile, spec), 0L, 0L, 0L), 0);
+      harness.processElement(ReadCommand.eqDeleteFile(eqDelete, spec, 0L, 0L, 0L), 1);
+
+      assertThat(harness.getSideOutput(TaskResultAggregator.ERROR_STREAM)).isNullOrEmpty();
       List<IndexCommand> output = harness.extractOutputValues();
       assertThat(output).hasSize(2);
       assertThat(output.get(0).type()).isEqualTo(IndexCommand.Type.ADD_STAGING_DATA_ROW);

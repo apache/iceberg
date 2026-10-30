@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.util;
 
+import java.io.InterruptedIOException;
+import java.net.SocketTimeoutException;
+import java.nio.channels.ClosedByInterruptException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -414,6 +417,13 @@ public class Tasks {
           break;
 
         } catch (Exception e) {
+          // a failure caused by cancellation is not transient: retrying would do real work for a
+          // caller that has already gone away
+          if (causedByInterruption(e)) {
+            Thread.currentThread().interrupt();
+            throw e;
+          }
+
           long durationMs = System.currentTimeMillis() - start;
           if (attempt >= maxAttempts || (durationMs > maxDurationMs && attempt > 1)) {
             if (durationMs > maxDurationMs) {
@@ -457,7 +467,12 @@ public class Tasks {
           int sleepTimeMs = delayMs + jitter;
 
           LOG.warn(
-              "Retrying task after failure: sleepTimeMs={} {}", sleepTimeMs, e.getMessage(), e);
+              "Retrying task after failure: attempt={} maxAttempts={} sleepTimeMs={} {}",
+              attempt,
+              maxAttempts,
+              sleepTimeMs,
+              e.getMessage(),
+              e);
 
           try {
             TimeUnit.MILLISECONDS.sleep(sleepTimeMs);
@@ -470,67 +485,69 @@ public class Tasks {
     }
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  private static Collection<Throwable> waitFor(Collection<Future<?>> futures) {
-    while (true) {
-      int numFinished = 0;
-      for (Future<?> future : futures) {
-        if (future.isDone()) {
-          numFinished += 1;
-        }
+  private static boolean causedByInterruption(Throwable throwable) {
+    Throwable current = throwable;
+    while (current != null) {
+      // SocketTimeoutException extends InterruptedIOException but signals a socket timeout rather
+      // than Thread.interrupt(), so it remains retryable
+      if (current instanceof InterruptedException
+          || current instanceof ClosedByInterruptException
+          || (current instanceof InterruptedIOException
+              && !(current instanceof SocketTimeoutException))) {
+        return true;
       }
 
-      if (numFinished == futures.size()) {
-        List<Throwable> uncaught = Lists.newArrayList();
-        // all of the futures are done, get any uncaught exceptions
-        for (Future<?> future : futures) {
-          try {
-            future.get();
-
-          } catch (InterruptedException e) {
-            LOG.warn("Interrupted while getting future results", e);
-            for (Throwable t : uncaught) {
-              e.addSuppressed(t);
-            }
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-
-          } catch (CancellationException e) {
-            // ignore cancellations
-
-          } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof Error) {
-              for (Throwable t : uncaught) {
-                cause.addSuppressed(t);
-              }
-              throw (Error) cause;
-            }
-
-            if (cause != null) {
-              uncaught.add(e);
-            }
-
-            LOG.warn("Task threw uncaught exception", cause);
-          }
-        }
-
-        return uncaught;
-
-      } else {
-        try {
-          Thread.sleep(10);
-        } catch (InterruptedException e) {
-          LOG.warn("Interrupted while waiting for tasks to finish", e);
-
-          for (Future<?> future : futures) {
-            future.cancel(true);
-          }
-          Thread.currentThread().interrupt();
-          throw new RuntimeException(e);
-        }
-      }
+      current = current.getCause();
     }
+
+    return false;
+  }
+
+  private static Collection<Throwable> waitFor(Collection<Future<?>> futures) {
+    List<Throwable> uncaught = Lists.newArrayList();
+    Error error = null;
+    try {
+      // block on each future in turn and collect any uncaught exceptions
+      for (Future<?> future : futures) {
+        try {
+          future.get();
+
+        } catch (CancellationException e) {
+          // ignore cancellations
+
+        } catch (ExecutionException e) {
+          Throwable cause = e.getCause();
+          if (cause instanceof Error && error == null) {
+            // thrown once all futures are done
+            error = (Error) cause;
+          } else if (cause != null) {
+            uncaught.add(e);
+          }
+
+          LOG.warn("Task threw uncaught exception", cause);
+        }
+      }
+    } catch (InterruptedException e) {
+      LOG.warn("Interrupted while waiting for tasks to finish", e);
+      for (Throwable t : uncaught) {
+        e.addSuppressed(t);
+      }
+
+      for (Future<?> future : futures) {
+        future.cancel(true);
+      }
+      Thread.currentThread().interrupt();
+      throw new RuntimeException(e);
+    }
+
+    if (error != null) {
+      for (Throwable t : uncaught) {
+        error.addSuppressed(t);
+      }
+      throw error;
+    }
+
+    return uncaught;
   }
 
   /** A range, [ 0, size ) */

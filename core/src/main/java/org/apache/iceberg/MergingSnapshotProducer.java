@@ -25,7 +25,7 @@ import static org.apache.iceberg.TableProperties.MANIFEST_TARGET_SIZE_BYTES_DEFA
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -528,26 +528,38 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       return;
     }
 
-    DeleteFileIndex deletes = addedDeleteFiles(base, startingSnapshotId, dataFilter, null, parent);
+    List<DeleteFileIndex> deleteIndexes =
+        addedDeleteFilesIndexedPerSnapshot(base, startingSnapshotId, dataFilter, null, parent);
 
     long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
     for (DataFile dataFile : dataFiles) {
-      // if any delete is found that applies to files written in or before the starting snapshot,
-      // fail
-      DeleteFile[] deleteFiles = deletes.forDataFile(startingSequenceNumber, dataFile);
-      if (ignoreEqualityDeletes) {
-        ValidationException.check(
-            Arrays.stream(deleteFiles)
-                .noneMatch(deleteFile -> deleteFile.content() == FileContent.POSITION_DELETES),
-            "Cannot commit, found new position delete for replaced data file: %s",
-            dataFile);
-      } else {
-        ValidationException.check(
-            deleteFiles.length == 0,
-            "Cannot commit, found new delete for replaced data file: %s",
-            dataFile);
+      for (DeleteFileIndex deletes : deleteIndexes) {
+        // if any delete is found that applies to files written in or before the starting snapshot,
+        // fail
+        DeleteFile[] deleteFiles = deletes.forDataFile(startingSequenceNumber, dataFile);
+        if (ignoreEqualityDeletes) {
+          ValidationException.check(
+              !containsPositionDeletes(deleteFiles),
+              "Cannot commit, found new position delete for replaced data file: %s",
+              dataFile);
+        } else {
+          ValidationException.check(
+              deleteFiles.length == 0,
+              "Cannot commit, found new delete for replaced data file: %s",
+              dataFile);
+        }
       }
     }
+  }
+
+  private static boolean containsPositionDeletes(DeleteFile[] deleteFiles) {
+    for (DeleteFile deleteFile : deleteFiles) {
+      if (deleteFile.content() == FileContent.POSITION_DELETES) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -561,12 +573,14 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateNoNewDeleteFiles(
       TableMetadata base, Long startingSnapshotId, Expression dataFilter, Snapshot parent) {
-    DeleteFileIndex deletes = addedDeleteFiles(base, startingSnapshotId, dataFilter, null, parent);
+    Set<String> locations =
+        referencedDeleteFileLocations(
+            addedDeleteFilesIndexedPerSnapshot(base, startingSnapshotId, dataFilter, null, parent));
     ValidationException.check(
-        deletes.isEmpty(),
+        locations.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
         dataFilter,
-        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::location));
+        locations);
   }
 
   /**
@@ -580,17 +594,35 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    */
   protected void validateNoNewDeleteFiles(
       TableMetadata base, Long startingSnapshotId, PartitionSet partitionSet, Snapshot parent) {
-    DeleteFileIndex deletes =
-        addedDeleteFiles(base, startingSnapshotId, null, partitionSet, parent);
+    Set<String> locations =
+        referencedDeleteFileLocations(
+            addedDeleteFilesIndexedPerSnapshot(
+                base, startingSnapshotId, null, partitionSet, parent));
     ValidationException.check(
-        deletes.isEmpty(),
+        locations.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
         partitionSet,
-        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::location));
+        locations);
+  }
+
+  private static Set<String> referencedDeleteFileLocations(List<DeleteFileIndex> deleteIndexes) {
+    Set<String> locations = Sets.newLinkedHashSet();
+    for (DeleteFileIndex deletes : deleteIndexes) {
+      for (DeleteFile deleteFile : deletes.referencedDeleteFiles()) {
+        locations.add(deleteFile.location());
+      }
+    }
+
+    return locations;
   }
 
   /**
-   * Returns matching delete files have been added to the table since a starting snapshot.
+   * Returns one index per snapshot in the validation window, covering the matching delete files
+   * added since a starting snapshot.
+   *
+   * <p>Callers must check every index. A single index cannot hold them all because it allows at
+   * most one deletion vector per data file. That holds within a snapshot but not across them: a
+   * data file can be referenced by a replacement deletion vector in each snapshot in the window.
    *
    * @param base table metadata to validate
    * @param startingSnapshotId id of the snapshot current at the start of the operation
@@ -598,17 +630,15 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
    * @param partitionSet a partition set used to find delete files
    * @param parent parent snapshot of the branch
    */
-  protected DeleteFileIndex addedDeleteFiles(
+  private List<DeleteFileIndex> addedDeleteFilesIndexedPerSnapshot(
       TableMetadata base,
       Long startingSnapshotId,
       Expression dataFilter,
       PartitionSet partitionSet,
       Snapshot parent) {
-    // if there is no current table state, return empty delete file index
+    // if there is no current table state, no delete files have been added
     if (parent == null || base.formatVersion() < 2) {
-      return DeleteFileIndex.builderFor(ops().io(), ImmutableList.of())
-          .specsById(base.specsById())
-          .build();
+      return ImmutableList.of();
     }
 
     Pair<List<ManifestFile>, Set<Long>> history =
@@ -618,10 +648,24 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             VALIDATE_ADDED_DELETE_FILES_OPERATIONS,
             ManifestContent.DELETES,
             parent);
-    List<ManifestFile> deleteManifests = history.first();
+
+    // the history collects a manifest only from the snapshot that added it, so grouping by
+    // snapshot ID assigns each manifest to exactly one index and still reads it once.
+    // LinkedHashMap keeps the history order, which keeps the failure message deterministic.
+    Map<Long, List<ManifestFile>> deleteManifestsBySnapshot =
+        history.first().stream()
+            .collect(
+                Collectors.groupingBy(
+                    ManifestFile::snapshotId, LinkedHashMap::new, Collectors.toList()));
 
     long startingSequenceNumber = startingSequenceNumber(base, startingSnapshotId);
-    return buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter, partitionSet);
+    List<DeleteFileIndex> deleteIndexes = Lists.newArrayList();
+    for (List<ManifestFile> deleteManifests : deleteManifestsBySnapshot.values()) {
+      deleteIndexes.add(
+          buildDeleteFileIndex(deleteManifests, startingSequenceNumber, dataFilter, partitionSet));
+    }
+
+    return deleteIndexes;
   }
 
   /**

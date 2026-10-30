@@ -31,6 +31,7 @@ import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
@@ -47,19 +48,26 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.data.GenericFileWriterFactory;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.DataWriter;
+import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mr.mapred.Container;
 import org.apache.iceberg.mr.mapred.MapredIcebergInputFormat;
 import org.apache.iceberg.mr.mapreduce.IcebergInputFormat;
@@ -296,6 +304,49 @@ public class TestIcebergInputFormats {
             .isEqualTo(inputRecord.getField(name));
       }
     }
+  }
+
+  @TestTemplate
+  void identityPartitionValuesMissingFromDataFile() throws Exception {
+    Table table = helper.createTable(LOG_SCHEMA, IDENTITY_PARTITION_SPEC);
+
+    // Tables imported with add_files/migrate have data files that do not physically store the
+    // identity partition columns; their values only exist in the manifest entry. See
+    // TableMigrationUtil#listPartition, which reads the partition values from Hive metadata.
+    Schema fileSchema = withColumns("id", "message");
+    Record record = GenericRecord.create(fileSchema);
+    record.setField("id", 1);
+    record.setField("message", "hello");
+
+    DataFile dataFile =
+        writeFileWithSchema(table, fileSchema, Row.of("2020-03-20", "info"), record);
+    table.newAppend().appendFile(dataFile).commit();
+
+    builder.project(LOG_SCHEMA);
+    List<Record> records = testInputFormat.create(builder.conf()).getRecords();
+
+    assertThat(records).hasSize(1);
+    assertThat(records.get(0).getField("date")).isEqualTo("2020-03-20");
+    assertThat(records.get(0).getField("level")).isEqualTo("info");
+    assertThat(records.get(0).getField("id")).isEqualTo(1);
+    assertThat(records.get(0).getField("message")).isEqualTo("hello");
+  }
+
+  private DataFile writeFileWithSchema(
+      Table table, Schema fileSchema, StructLike partition, Record record) throws IOException {
+    OutputFile outputFile =
+        Files.localOutput(temp.resolve("partial-schema-" + UUID.randomUUID()).toFile());
+    DataWriter<Record> writer =
+        new GenericFileWriterFactory.Builder(table)
+            .dataFileFormat(fileFormat)
+            .dataSchema(fileSchema)
+            .build()
+            .newDataWriter(FileHelpers.encrypt(outputFile), table.spec(), partition);
+    try (writer) {
+      writer.write(record);
+    }
+
+    return writer.toDataFile();
   }
 
   @TestTemplate

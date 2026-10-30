@@ -52,7 +52,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
@@ -98,7 +97,7 @@ public class RewriteDataFilesSparkAction
           CACHE_DELETE_FILES,
           BinPackRewriteFilePlanner.MAX_FILES_TO_REWRITE);
 
-  private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
+  private static final ImmutableRewriteDataFiles.Result EMPTY_RESULT =
       ImmutableRewriteDataFiles.Result.builder().rewriteResults(ImmutableList.of()).build();
 
   private final Table table;
@@ -194,6 +193,10 @@ public class RewriteDataFilesSparkAction
 
     if (plan.totalGroupCount() == 0) {
       LOG.info("Nothing found to rewrite in {}", table.name());
+      if (removeDanglingDeletes) {
+        return executeRemoveDanglingDeletes(EMPTY_RESULT);
+      }
+
       return EMPTY_RESULT;
     }
 
@@ -204,11 +207,7 @@ public class RewriteDataFilesSparkAction
     ImmutableRewriteDataFiles.Result result = resultBuilder.build();
 
     if (removeDanglingDeletes) {
-      RemoveDanglingDeletesSparkAction action =
-          new RemoveDanglingDeletesSparkAction(spark(), table);
-      int removedDeleteFiles = Iterables.size(action.execute().removedDeleteFiles());
-      return result.withRemovedDeleteFilesCount(
-          result.removedDeleteFilesCount() + removedDeleteFiles);
+      return executeRemoveDanglingDeletes(result);
     }
 
     return result;
@@ -262,7 +261,7 @@ public class RewriteDataFilesSparkAction
       RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
-    ConcurrentLinkedQueue<RewriteFileGroup> rewrittenGroups = Queues.newConcurrentLinkedQueue();
+    ConcurrentLinkedQueue<RewriteFileGroup> rewrittenGroups = new ConcurrentLinkedQueue<>();
 
     Tasks.Builder<RewriteFileGroup> rewriteTaskBuilder =
         Tasks.foreach(plan.groups())
@@ -476,5 +475,13 @@ public class RewriteDataFilesSparkAction
           plan.totalGroupCount(),
           table.name());
     }
+  }
+
+  private RewriteDataFiles.Result executeRemoveDanglingDeletes(
+      ImmutableRewriteDataFiles.Result rewriteResult) {
+    RemoveDanglingDeletesSparkAction.Result result =
+        new RemoveDanglingDeletesSparkAction(spark(), table).toBranch(branch).execute();
+    return rewriteResult.withRemovedDeleteFilesCount(
+        rewriteResult.removedDeleteFilesCount() + Iterables.size(result.removedDeleteFiles()));
   }
 }

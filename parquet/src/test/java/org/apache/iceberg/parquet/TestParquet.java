@@ -20,6 +20,7 @@ package org.apache.iceberg.parquet;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.iceberg.Files.localInput;
+import static org.apache.iceberg.TableProperties.DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_COLUMN_ENABLED_PREFIX;
 import static org.apache.iceberg.TableProperties.PARQUET_BLOOM_FILTER_MAX_BYTES;
@@ -28,8 +29,12 @@ import static org.apache.iceberg.TableProperties.PARQUET_DICT_ENCODING_ENABLED_C
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MAX_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
+import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
+import static org.apache.iceberg.expressions.Expressions.isNull;
+import static org.apache.iceberg.expressions.Expressions.notEqual;
+import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.createTempFile;
 import static org.apache.iceberg.parquet.ParquetWritingTestUtils.write;
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.getOnlyElement;
@@ -41,6 +46,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -54,10 +60,14 @@ import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
+import org.apache.iceberg.MetricsTestUtil;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
+import org.apache.iceberg.data.parquet.InternalReader;
+import org.apache.iceberg.deletes.EqualityDeleteWriter;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
@@ -73,6 +83,8 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.RandomUtil;
 import org.apache.iceberg.variants.Variant;
+import org.apache.iceberg.variants.VariantTestUtil;
+import org.apache.iceberg.variants.Variants;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.statistics.Statistics;
@@ -80,9 +92,14 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnPath;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.hadoop.metadata.FileMetaData;
+import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.LocalOutputFile;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -102,6 +119,53 @@ public class TestParquet {
     try (ParquetFileReader reader =
         ParquetFileReader.open(ParquetIO.file(localInput(parquetFile)))) {
       assertThat(reader.getRowGroups()).hasSize(2);
+    }
+  }
+
+  @Test
+  public void rowGroupSizeLargerThanIntegerMax() throws IOException {
+    Schema schema = new Schema(optional(1, "intCol", IntegerType.get()));
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+    GenericData.Record record = new GenericData.Record(avroSchema);
+    record.put("intCol", 1);
+
+    // Values above Integer.MAX_VALUE used to fail in PropertyUtil.propertyAsInt.
+    File file = createTempFile(temp);
+    write(
+        file,
+        schema,
+        ImmutableMap.of(PARQUET_ROW_GROUP_SIZE_BYTES, Long.toString(4L * 1024 * 1024 * 1024)),
+        ParquetAvroWriter::buildWriter,
+        record);
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(file)))) {
+      assertThat(reader.getRowGroups()).hasSize(1);
+    }
+  }
+
+  @Test
+  public void deleteRowGroupSizeLargerThanIntegerMax() throws IOException {
+    Schema schema = new Schema(required(1, "id", Types.LongType.get()));
+    Record record = org.apache.iceberg.data.GenericRecord.create(schema);
+    record.setField("id", 1L);
+
+    File file = createTempFile(temp);
+    EqualityDeleteWriter<Record> deleteWriter =
+        Parquet.writeDeletes(Files.localOutput(file))
+            .createWriterFunc(GenericParquetWriter::create)
+            .set(DELETE_PARQUET_ROW_GROUP_SIZE_BYTES, Long.toString(4L * 1024 * 1024 * 1024))
+            .overwrite()
+            .rowSchema(schema)
+            .withSpec(PartitionSpec.unpartitioned())
+            .equalityFieldIds(1)
+            .buildEqualityWriter();
+
+    try (EqualityDeleteWriter<Record> writer = deleteWriter) {
+      writer.write(record);
+    }
+
+    try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(file)))) {
+      assertThat(reader.getRowGroups()).hasSize(1);
     }
   }
 
@@ -603,6 +667,31 @@ public class TestParquet {
   }
 
   @Test
+  void writesVariantWithDefaultAvroWriter() throws IOException {
+    Schema schema = new Schema(required(1, "v", Types.VariantType.get()));
+    GenericData.Record record =
+        new GenericData.Record(AvroSchemaUtil.convert(schema.asStruct(), "table"));
+    Variant expected = Variant.of(Variants.emptyMetadata(), Variants.of(34));
+    record.put("v", expected);
+
+    File file = createTempFile(temp);
+    try (FileAppender<GenericData.Record> writer =
+        Parquet.write(Files.localOutput(file)).schema(schema).build()) {
+      writer.add(record);
+    }
+
+    try (CloseableIterable<Record> rows =
+        Parquet.read(Files.localInput(file))
+            .project(schema)
+            .createReaderFunc(fileSchema -> InternalReader.create(schema, fileSchema))
+            .build()) {
+      Variant actual = (Variant) getOnlyElement(rows).get(0);
+      VariantTestUtil.assertEqual(expected.metadata(), actual.metadata());
+      VariantTestUtil.assertEqual(expected.value(), actual.value());
+    }
+  }
+
+  @Test
   public void adaptiveBloomFilterSizingShrinksFile() throws IOException {
     // when PARQUET_BLOOM_FILTER_ADAPTIVE_ENABLED is not set (the default), the writer
     // allocates the full PARQUET_BLOOM_FILTER_MAX_BYTES buffer (4 MiB here) regardless
@@ -718,7 +807,7 @@ public class TestParquet {
                 ImmutableMap.of(
                     "id", 5L, "ts", LocalDateTime.parse("2024-01-01T00:00:00.000003000"))));
 
-    File file = writeNanoRecords(schema, records);
+    File file = writeRecords(schema, records);
 
     // Boundary at 500 ns: only ids 3 (750 ns), 4 (1500 ns), 5 (3000 ns) qualify.
     List<Long> ids =
@@ -756,7 +845,7 @@ public class TestParquet {
                 ImmutableMap.of(
                     "id", 5L, "ts", OffsetDateTime.parse("2024-01-01T00:00:00.000003000+00:00"))));
 
-    File file = writeNanoRecords(schema, records);
+    File file = writeRecords(schema, records);
 
     // Boundary == 2024-01-01T00:00:00.000000500Z, expressed in +04:00. id2 is that same instant
     // (written in +05:00); a strict greaterThan excludes it, leaving ids 3/4/5.
@@ -765,7 +854,57 @@ public class TestParquet {
     assertThat(ids).containsExactlyInAnyOrder(3L, 4L, 5L);
   }
 
-  private File writeNanoRecords(Schema schema, List<Record> records) throws IOException {
+  @Test
+  public void booleanEqualFilter() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "flag", Types.BooleanType.get()));
+    File file = writeBooleanRecords(schema, true, false, true);
+
+    assertThat(filterIds(schema, file, equal("flag", true))).containsExactlyInAnyOrder(1L, 3L);
+  }
+
+  @Test
+  public void booleanNotEqualFilter() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "flag", Types.BooleanType.get()));
+    File file = writeBooleanRecords(schema, true, false, true);
+
+    assertThat(filterIds(schema, file, notEqual("flag", true))).containsExactly(2L);
+  }
+
+  @Test
+  public void booleanIsNullFilter() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "flag", Types.BooleanType.get()));
+    File file = writeBooleanRecords(schema, true, null, false);
+
+    assertThat(filterIds(schema, file, isNull("flag"))).containsExactly(2L);
+  }
+
+  @Test
+  public void booleanNotNullFilter() throws IOException {
+    Schema schema =
+        new Schema(
+            required(1, "id", Types.LongType.get()), optional(2, "flag", Types.BooleanType.get()));
+    File file = writeBooleanRecords(schema, true, null, false);
+
+    assertThat(filterIds(schema, file, notNull("flag"))).containsExactlyInAnyOrder(1L, 3L);
+  }
+
+  private File writeBooleanRecords(Schema schema, Boolean... flags) throws IOException {
+    Record template = org.apache.iceberg.data.GenericRecord.create(schema);
+    List<Record> records = Lists.newArrayList();
+    for (int i = 0; i < flags.length; i += 1) {
+      records.add(template.copy("id", (long) (i + 1), "flag", flags[i]));
+    }
+
+    return writeRecords(schema, records);
+  }
+
+  private File writeRecords(Schema schema, List<Record> records) throws IOException {
     File file = createTempFile(temp);
     try (FileAppender<Record> appender =
         Parquet.write(Files.localOutput(file))
@@ -792,5 +931,121 @@ public class TestParquet {
     }
 
     return ids;
+  }
+
+  private static final MessageType MISSING_NULL_COUNT_SCHEMA =
+      org.apache.parquet.schema.Types.buildMessage()
+          .addField(
+              org.apache.parquet.schema.Types.primitive(
+                      PrimitiveTypeName.INT32, org.apache.parquet.schema.Type.Repetition.OPTIONAL)
+                  .id(1)
+                  .named("id"))
+          .named("table");
+
+  private static final PrimitiveType MISSING_NULL_COUNT_ID_TYPE =
+      MISSING_NULL_COUNT_SCHEMA.getType("id").asPrimitiveType();
+
+  @Test
+  public void missingNullCountInSingleRowGroup() {
+    // Parquet reports a missing null_count as -1 from Statistics.getNumNulls(), which must not be
+    // stored as a count. The metric is dropped instead, so the null count is left unknown.
+    Metrics metrics = missingNullCountMetrics(block(statsWithoutNullCount(1, 10), 10));
+
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(1);
+    assertThat(metrics.valueCounts()).containsEntry(1, 10L);
+    // a missing null count does not invalidate the bounds
+    assertThat(metrics.lowerBounds()).containsKey(1);
+    assertThat(metrics.upperBounds()).containsKey(1);
+  }
+
+  @Test
+  public void missingNullCountInOneOfTwoRowGroups() {
+    // without accounting for the -1 sentinel, this sums to an incorrect null count of 0
+    Metrics metrics =
+        missingNullCountMetrics(
+            block(statsWithoutNullCount(1, 10), 10), block(statsWithNullCount(20, 30, 1), 10));
+
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(1);
+    assertThat(metrics.valueCounts()).containsEntry(1, 20L);
+  }
+
+  @Test
+  public void missingNullCountAfterKnownNullCount() {
+    // the -1 sentinel must also be detected when it is not the first row group
+    Metrics metrics =
+        missingNullCountMetrics(
+            block(statsWithNullCount(20, 30, 5), 10), block(statsWithoutNullCount(1, 10), 10));
+
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(1);
+  }
+
+  @Test
+  public void missingNullCountWithCountsMode() {
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    Metrics metrics =
+        missingNullCountMetrics(
+            MetricsTestUtil.from(
+                Collections.singletonMap("write.metadata.metrics.default", "counts"), schema),
+            block(statsWithoutNullCount(1, 10), 10),
+            block(statsWithNullCount(20, 30, 1), 10));
+
+    assertThat(metrics.nullValueCounts()).doesNotContainKey(1);
+    assertThat(metrics.valueCounts()).containsEntry(1, 20L);
+  }
+
+  private static Statistics<?> statsWithoutNullCount(int min, int max) {
+    return Statistics.getBuilderForReading(MISSING_NULL_COUNT_ID_TYPE)
+        .withMin(intToLittleEndian(min))
+        .withMax(intToLittleEndian(max))
+        .build();
+  }
+
+  private static Statistics<?> statsWithNullCount(int min, int max, long numNulls) {
+    return Statistics.getBuilderForReading(MISSING_NULL_COUNT_ID_TYPE)
+        .withMin(intToLittleEndian(min))
+        .withMax(intToLittleEndian(max))
+        .withNumNulls(numNulls)
+        .build();
+  }
+
+  private static byte[] intToLittleEndian(int value) {
+    return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array();
+  }
+
+  private static BlockMetaData block(Statistics<?> stats, long valueCount) {
+    ColumnChunkMetaData column =
+        ColumnChunkMetaData.get(
+            ColumnPath.get("id"),
+            MISSING_NULL_COUNT_ID_TYPE,
+            CompressionCodecName.UNCOMPRESSED,
+            null /* encodingStats */,
+            Collections.singleton(Encoding.PLAIN),
+            stats,
+            4L /* firstDataPage */,
+            0L /* dictionaryPageOffset */,
+            valueCount,
+            100L /* totalSize */,
+            100L /* totalUncompressedSize */);
+
+    BlockMetaData block = new BlockMetaData();
+    block.setRowCount(valueCount);
+    block.setTotalByteSize(100L);
+    block.addColumn(column);
+    return block;
+  }
+
+  private static Metrics missingNullCountMetrics(BlockMetaData... blocks) {
+    return missingNullCountMetrics(MetricsConfig.getDefault(), blocks);
+  }
+
+  private static Metrics missingNullCountMetrics(MetricsConfig config, BlockMetaData... blocks) {
+    FileMetaData fileMetaData =
+        new FileMetaData(MISSING_NULL_COUNT_SCHEMA, Collections.emptyMap(), "test-writer");
+    return ParquetUtil.footerMetrics(
+        new ParquetMetadata(fileMetaData, Lists.newArrayList(blocks)), Stream.empty(), config);
   }
 }

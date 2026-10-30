@@ -541,7 +541,7 @@ CALL catalog_name.system.rewrite_manifests(table => 'db.sample', sort_by => arra
 Iceberg can rewrite position delete files, which serves two purposes:
 
 * Minor Compaction: Compact small position delete files into larger ones.  This reduces the size of metadata stored in manifest files and overhead of opening small delete files.
-* Remove Dangling Deletes: Filter out position delete records that refer to data files that are no longer live.  After rewrite_data_files, position delete records pointing to the rewritten data files are not always marked for removal, and can remain tracked by the table's live snapshot metadata.  This is known as the 'dangling delete' problem.
+* Filter Dangling Records: When a position delete file is selected for rewriting, discard records that reference data files that are no longer live.
 
 #### Usage
 
@@ -551,7 +551,7 @@ Iceberg can rewrite position delete files, which serves two purposes:
 | `options`     | ️   | map<string, string> | Options to be used for procedure |
 | `where`       | ️   | string | predicate as a string used for filtering the files. |
 
-Dangling deletes are always filtered out during rewriting.
+Dangling records are filtered from position delete files selected for rewriting.
 
 #### Options
 
@@ -971,7 +971,7 @@ as an `UPDATE_AFTER` image, resulting in the following pre/post update images:
 ### `compute_table_stats`
 
 This procedure calculates the [Number of Distinct Values (NDV) statistics](../../puffin-spec.md#apache-datasketches-theta-v1-blob-type) for a specific table.
-By default, statistics are computed for all columns using the table's current snapshot.
+By default, statistics are computed for all top-level primitive columns using the table's current snapshot.
 The procedure can be optionally configured to compute statistics for a specific snapshot and/or a subset of columns.
 
 | Argument Name | Required? | Type          | Description                         |
@@ -1045,7 +1045,7 @@ Stages a copy of the Iceberg table's metadata files where every absolute path so
 This can be the starting point to fully or incrementally copy an Iceberg table to a new location.
 
 !!! info
-    This procedure only stages rewritten metadata files and prepares a list of files to copy. The actual file copy is not included in this procedure.
+    This procedure writes metadata and position delete files with updated paths to a staging directory and prepares a list of files to copy. It does not copy files to the target location.
 
 | Argument Name      | Required? | default                                        | Type   | Description                                                            |
 |--------------------|-----------|------------------------------------------------|--------|------------------------------------------------------------------------|

@@ -23,7 +23,6 @@ import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -68,7 +67,7 @@ class HashKeyGenerator {
     this.keySelectorCache = new LRUCache<>(maxCacheSize);
   }
 
-  int generateKey(DynamicRecord dynamicRecord) throws Exception {
+  int generateKey(DynamicRecord dynamicRecord) {
     return generateKey(dynamicRecord, null, null, null);
   }
 
@@ -155,17 +154,20 @@ class HashKeyGenerator {
             return equalityFieldKeySelector(
                 tableName, schema, equalityFields, writeParallelism, maxWriteParallelism);
           } else {
+            // Compare by fully-qualified name: a partition source that is a nested field has a
+            // simple name (e.g. "name") that differs from the dotted equality-field name (e.g.
+            // "user.name"). Names are also stable across schema evolution, whereas field IDs are
+            // only meaningful within the schema that assigned them, and the spec's schema may not
+            // match the schema used here.
             for (PartitionField partitionField : spec.fields()) {
-              Types.NestedField sourceField = schema.findField(partitionField.sourceId());
+              String sourceName = spec.schema().findColumnName(partitionField.sourceId());
               Preconditions.checkState(
-                  sourceField != null && equalityFields.contains(sourceField.name()),
+                  sourceName != null && equalityFields.contains(sourceName),
                   "%s: In 'hash' distribution mode with equality fields set, partition field '%s' "
                       + "should be included in equality fields: '%s'",
                   tableName,
                   partitionField,
-                  schema.columns().stream()
-                      .filter(c -> equalityFields.contains(c.name()))
-                      .collect(Collectors.toList()));
+                  equalityFields);
             }
             return partitionKeySelector(
                 tableName, schema, spec, writeParallelism, maxWriteParallelism);
@@ -316,14 +318,15 @@ class HashKeyGenerator {
 
   /**
    * Cache key for the {@link KeySelector}. Only contains the {@link Schema} and the {@link
-   * PartitionSpec} if their ids are not provided.
+   * PartitionSpec} if their ids are not provided. The schema is compared by its struct, because
+   * {@link Schema} has no value equality and callers may pass a new instance for every record.
    */
   static class SelectorKey {
     private final String tableName;
     private final String branch;
     private final Integer schemaId;
     private final Integer specId;
-    private final Schema schema;
+    private final Types.StructType schema;
     private final PartitionSpec spec;
     private final Set<String> equalityFields;
     private final DistributionMode distributionMode;
@@ -343,7 +346,7 @@ class HashKeyGenerator {
       this.branch = branch;
       this.schemaId = tableSchemaId;
       this.specId = tableSpecId;
-      this.schema = tableSchemaId == null ? schema : null;
+      this.schema = tableSchemaId == null ? schema.asStruct() : null;
       this.spec = tableSpecId == null ? spec : null;
       this.equalityFields = equalityFields;
       this.distributionMode = distributionMode;
