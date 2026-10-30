@@ -3528,32 +3528,28 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
 
     TableIdentifier identifier = TableIdentifier.of(NS, "custom_metrics_reporter_table");
     // append file through createTransaction() and check and reset counter
-    catalogWithCustomReporter
-        .buildTable(identifier, SCHEMA)
-        .createTransaction()
-        .newFastAppend()
-        .appendFile(dataFile)
-        .commit();
+    Transaction create =
+        catalogWithCustomReporter.buildTable(identifier, SCHEMA).createTransaction();
+    create.newFastAppend().appendFile(dataFile).commit();
+    assertThat(CustomMetricsReporter.COMMIT_COUNTER.get()).isZero();
+    create.commitTransaction();
     assertThat(CustomMetricsReporter.COMMIT_COUNTER.get()).isEqualTo(1);
     CustomMetricsReporter.COMMIT_COUNTER.set(0);
 
     // append file through createOrReplaceTransaction() and check and reset counter
-    catalogWithCustomReporter
-        .buildTable(identifier, SCHEMA)
-        .createOrReplaceTransaction()
-        .newFastAppend()
-        .appendFile(dataFile)
-        .commit();
+    Transaction createOrReplace =
+        catalogWithCustomReporter.buildTable(identifier, SCHEMA).createOrReplaceTransaction();
+    createOrReplace.newFastAppend().appendFile(dataFile).commit();
+    assertThat(CustomMetricsReporter.COMMIT_COUNTER.get()).isZero();
+    createOrReplace.commitTransaction();
     assertThat(CustomMetricsReporter.COMMIT_COUNTER.get()).isEqualTo(1);
     CustomMetricsReporter.COMMIT_COUNTER.set(0);
 
     // append file through replaceTransaction() and check and reset counter
-    catalogWithCustomReporter
-        .buildTable(TABLE, SCHEMA)
-        .replaceTransaction()
-        .newFastAppend()
-        .appendFile(dataFile)
-        .commit();
+    Transaction replace = catalogWithCustomReporter.buildTable(TABLE, SCHEMA).replaceTransaction();
+    replace.newFastAppend().appendFile(dataFile).commit();
+    assertThat(CustomMetricsReporter.COMMIT_COUNTER.get()).isZero();
+    replace.commitTransaction();
     assertThat(CustomMetricsReporter.COMMIT_COUNTER.get()).isEqualTo(1);
     CustomMetricsReporter.COMMIT_COUNTER.set(0);
 
