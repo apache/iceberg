@@ -109,8 +109,9 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
     }.asJava
   }
 
-  override def parseRoutineParam(sqlText: String): StructType =
-    throw new UnsupportedOperationException()
+  override def parseRoutineParam(sqlText: String): StructType = {
+    delegate.parseRoutineParam(sqlText)
+  }
 
   /**
    * Parse a string to a LogicalPlan.
@@ -204,7 +205,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface)
   }
 
   override def parseQuery(sqlText: String): LogicalPlan = {
-    parsePlan(sqlText)
+    delegate.parseQuery(sqlText)
   }
 }
 
