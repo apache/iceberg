@@ -210,6 +210,7 @@ class TestTrackedFileAdapters {
             PARTITIONED_SPEC_ID,
             PARTITION,
             CONTENT_STATS,
+            true,
             3,
             dv,
             null,
@@ -234,6 +235,7 @@ class TestTrackedFileAdapters {
     assertThat(dataFile.splitOffsets()).containsExactly(50L, 100L);
     assertThat(dataFile.manifestLocation()).isEqualTo(MANIFEST_LOCATION);
     assertThat(dataFile.deletionVector()).isSameAs(dv);
+    assertThat(dataFile.hasTightStats()).isTrue();
     assertThat(dataFile.equalityFieldIds()).isNull();
     assertThat(dataFile.columnSizes()).isNull();
     assertThat(dataFile.valueCounts())
@@ -297,6 +299,7 @@ class TestTrackedFileAdapters {
             PARTITIONED_SPEC_ID,
             PARTITION,
             null,
+            true,
             null,
             dv,
             null,
@@ -337,6 +340,7 @@ class TestTrackedFileAdapters {
     assertThat(dvFile.nanValueCounts()).isNull();
     assertThat(dvFile.lowerBounds()).isNull();
     assertThat(dvFile.upperBounds()).isNull();
+    assertThat(dvFile.hasTightStats()).isFalse();
   }
 
   @Test
@@ -427,6 +431,7 @@ class TestTrackedFileAdapters {
         PARTITIONED_SPEC_ID,
         PARTITION,
         null, // contentStats
+        null, // tightStats
         3, // sortOrderId
         dv, // deletionVector
         null, // manifestInfo
@@ -469,6 +474,7 @@ class TestTrackedFileAdapters {
             null, // specId
             null, // partition
             null, // contentStats
+            null, // tightStats
             null, // sortOrderId
             null, // deletionVector
             MANIFEST_INFO,
@@ -576,6 +582,7 @@ class TestTrackedFileAdapters {
             null,
             null,
             null,
+            null,
             deletionVector(),
             null,
             null,
@@ -631,6 +638,7 @@ class TestTrackedFileAdapters {
             null,
             null,
             null,
+            null,
             null);
 
     assertThatThrownBy(() -> TrackedFileAdapters.asDataFile(file, ImmutableMap.of()))
@@ -667,10 +675,12 @@ class TestTrackedFileAdapters {
 
   @Test
   void dataTrackedFileAdapterReuse() {
+    DataFile file1 = Mockito.spy(DATA_FILE);
+    when(file1.hasTightStats()).thenReturn(true);
     TrackedFileAdapters.DataTrackedFile adapter = TrackedFileAdapters.forDataFile(TABLE_SCHEMA);
 
-    adapter.wrap(DATA_FILE);
-    assertWrappedDataFileMatchesFileFields(adapter, DATA_FILE);
+    adapter.wrap(new Delegates.DelegatingDataFile(file1));
+    assertWrappedDataFileMatchesFileFields(adapter, file1);
     assertThat(adapter.tracking()).isNull();
 
     DataFile file2 =
@@ -825,6 +835,7 @@ class TestTrackedFileAdapters {
     assertThat(result.recordCount()).isEqualTo(file.recordCount());
     assertThat(result.fileSizeInBytes()).isEqualTo(file.fileSizeInBytes());
     assertThat(result.specId()).isEqualTo(file.specId());
+    assertThat(result.tightStats()).isEqualTo(file.hasTightStats());
     assertThat(result.sortOrderId()).isEqualTo(file.sortOrderId());
     assertThat(result.keyMetadata()).isEqualTo(file.keyMetadata());
     assertThat(result.splitOffsets()).isEqualTo(file.splitOffsets());
@@ -927,6 +938,7 @@ class TestTrackedFileAdapters {
         FileFormat.PARQUET,
         1L,
         1L,
+        null,
         null,
         null,
         null,

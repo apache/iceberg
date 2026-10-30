@@ -539,7 +539,12 @@ class V4ManifestReader extends CloseableGroup implements CloseableIterable<Track
       Set<Integer> ids = Sets.newHashSet(REQUIRED_COLUMN_IDS);
 
       // project the full stats struct that corresponds to each field for which stats are needed
-      statsFieldIds().stream().map(StatsUtil::toBaseId).forEach(ids::add);
+      Set<Integer> statsIds = statsFieldIds();
+      statsIds.stream().map(StatsUtil::toBaseId).forEach(ids::add);
+
+      if (!statsIds.isEmpty()) {
+        ids.add(TrackedFile.TIGHT_STATS.fieldId());
+      }
 
       if (includePartition) {
         ids.add(TrackedFile.SPEC_ID.fieldId());

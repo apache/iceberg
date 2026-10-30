@@ -193,11 +193,6 @@ class MapBackedContentStats implements ContentStats {
     }
 
     @Override
-    public boolean tightBounds() {
-      return false;
-    }
-
-    @Override
     public boolean hasValueCount() {
       return count(valueCounts) != null;
     }

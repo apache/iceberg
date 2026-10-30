@@ -99,6 +99,11 @@ public interface ContentFile<F> {
   /** Returns if collected, map from column ID to value upper bounds, null otherwise. */
   Map<Integer, ByteBuffer> upperBounds();
 
+  /** Returns whether the file's stats are tight. */
+  default boolean hasTightStats() {
+    return false;
+  }
+
   /**
    * Returns map from column ID to the total uncompressed size in memory in bytes of non-null values
    * if collected, null otherwise.
