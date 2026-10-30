@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.FieldSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestStatsUtil {
   @Test
@@ -600,7 +601,7 @@ public class TestStatsUtil {
   @ParameterizedTest
   @MethodSource("truncatedNumbers")
   void truncateNumberBounds(Partition partition) {
-    assertThat(sourceBounds(partition)).isEqualTo(partition.expectedBounds());
+    assertThat(sourceBounds(partition)).isEqualTo(partition.expected());
   }
 
   @Test
@@ -679,6 +680,20 @@ public class TestStatsUtil {
         .isEqualTo(new StatsUtil.PartitionSourceBounds<>(value, value));
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"identity", "truncate[2]"})
+  void binaryBoundsDoNotSharePosition(String transform) {
+    StatsUtil.PartitionSourceBounds<?> bounds =
+        sourceBounds(
+            Types.BinaryType.get(),
+            Transforms.fromString(transform),
+            ByteBuffer.wrap(new byte[] {1}));
+
+    ((ByteBuffer) bounds.lower()).get();
+
+    assertThat((ByteBuffer) bounds.upper()).isEqualTo(ByteBuffer.wrap(new byte[] {1}));
+  }
+
   @Test
   void truncateBinaryAtMaxBytes() {
     ByteBuffer prefix = ByteBuffer.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF});
@@ -718,7 +733,7 @@ public class TestStatsUtil {
   @ParameterizedTest
   @MethodSource("timePartitionValues")
   void timeBounds(Partition partition) {
-    assertThat(sourceBounds(partition)).isEqualTo(partition.expectedBounds());
+    assertThat(sourceBounds(partition)).isEqualTo(partition.expected());
   }
 
   private static Stream<Partition> timePartitionValuesAtOrBefore1970() {
@@ -730,6 +745,9 @@ public class TestStatsUtil {
         partition(timestamp, Transforms.hour(), -1)
             .withExpectedBounds(
                 micros("1969-12-31T22:00:00Z"), micros("1969-12-31T23:59:59.999999Z")),
+        partition(timestamp, Transforms.day(), -1)
+            .withExpectedBounds(
+                micros("1969-12-30T00:00:00Z"), micros("1969-12-31T23:59:59.999999Z")),
         partition(Types.DateType.get(), Transforms.month(), -1)
             .withExpectedBounds(days("1969-11-01"), days("1969-12-31")),
         partition(Types.DateType.get(), Transforms.day(), -1)
@@ -739,7 +757,7 @@ public class TestStatsUtil {
   @ParameterizedTest
   @MethodSource("timePartitionValuesAtOrBefore1970")
   void timeBoundsAtOrBefore1970(Partition partition) {
-    assertThat(sourceBounds(partition)).isEqualTo(partition.expectedBounds());
+    assertThat(sourceBounds(partition)).isEqualTo(partition.expected());
   }
 
   @Test
@@ -758,6 +776,17 @@ public class TestStatsUtil {
                 Types.TimestampNanoType.withZone(), Transforms.year(), years("2262-01-01")))
         .isEqualTo(
             new StatsUtil.PartitionSourceBounds<>(nanos("2262-01-01T00:00:00Z"), Long.MAX_VALUE));
+  }
+
+  @Test
+  void timestampNanoBoundsNearMin() {
+    // the lower bound starts in 1676, which is before the smallest nanosecond timestamp
+    assertThat(
+            sourceBounds(
+                Types.TimestampNanoType.withZone(), Transforms.year(), years("1677-01-01")))
+        .isEqualTo(
+            new StatsUtil.PartitionSourceBounds<>(
+                Long.MIN_VALUE, nanos("1677-12-31T23:59:59.999999999Z")));
   }
 
   @Test
@@ -792,21 +821,17 @@ public class TestStatsUtil {
   }
 
   private static Partition partition(Type type, Transform<?, ?> transform, Object value) {
-    return new Partition(type, transform, value, null, null);
+    return new Partition(type, transform, value, null);
   }
 
   private record Partition(
       Type type,
       Transform<?, ?> transform,
       Object value,
-      Object expectedLower,
-      Object expectedUpper) {
+      StatsUtil.PartitionSourceBounds<?> expected) {
     Partition withExpectedBounds(Object lower, Object upper) {
-      return new Partition(type, transform, value, lower, upper);
-    }
-
-    StatsUtil.PartitionSourceBounds<?> expectedBounds() {
-      return new StatsUtil.PartitionSourceBounds<>(expectedLower, expectedUpper);
+      return new Partition(
+          type, transform, value, new StatsUtil.PartitionSourceBounds<>(lower, upper));
     }
   }
 
