@@ -39,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.StructLikeUtil;
@@ -175,15 +176,91 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
     }
   }
 
+  /**
+   * Tracks the file position of the latest row written for each equality key within one commit, so
+   * that a later write or delete of the same key is retired with a position delete. An equality
+   * delete cannot do that, because it only applies to data files with a strictly lower data
+   * sequence number than its own, and every file in one commit shares a sequence number.
+   *
+   * <p>A tracker may be shared by several {@code BaseEqualityDeltaWriter}s that write the same
+   * table within one commit, for example when a schema evolution makes a sink open a second writer
+   * mid-commit. A shared tracker lives as long as the commit it belongs to; the sink that created
+   * it drops it at commit time, and a writer only clears a tracker it created itself.
+   */
+  public static class InsertedRowTracker {
+    private final Types.StructType keyType;
+    private final Map<StructLike, PathOffset> offsetsByKey;
+
+    private InsertedRowTracker(Types.StructType keyType) {
+      this.keyType = keyType;
+      this.offsetsByKey = StructLikeMap.create(keyType);
+    }
+
+    /**
+     * Creates a tracker keyed by the given equality-delete key struct type.
+     *
+     * @param keyType the struct type of the equality fields, i.e. the equality-delete schema
+     */
+    public static InsertedRowTracker create(Types.StructType keyType) {
+      Preconditions.checkNotNull(keyType, "Inserted-row tracker key type cannot be null");
+      return new InsertedRowTracker(keyType);
+    }
+
+    /** Returns the struct type of the equality fields this tracker is keyed by. */
+    public Types.StructType keyType() {
+      return keyType;
+    }
+
+    /**
+     * Returns whether keys of the given struct type can be stored and looked up in this tracker.
+     *
+     * <p>Keys are compared by position, type and optionality, which is what {@link StructLikeMap}
+     * uses; field names, docs and defaults may differ. Field IDs must match so that the two key
+     * types describe the same equality fields.
+     */
+    public boolean acceptsKeyType(Types.StructType otherKeyType) {
+      List<Types.NestedField> fields = keyType.fields();
+      List<Types.NestedField> otherFields = otherKeyType.fields();
+      if (fields.size() != otherFields.size()) {
+        return false;
+      }
+
+      for (int pos = 0; pos < fields.size(); pos += 1) {
+        Types.NestedField field = fields.get(pos);
+        Types.NestedField otherField = otherFields.get(pos);
+        if (field.fieldId() != otherField.fieldId()
+            || field.isOptional() != otherField.isOptional()
+            || !field.type().equals(otherField.type())) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    private void clear() {
+      offsetsByKey.clear();
+    }
+
+    private PathOffset put(StructLike key, PathOffset offset) {
+      return offsetsByKey.put(key, offset);
+    }
+
+    private PathOffset remove(StructLike key) {
+      return offsetsByKey.remove(key);
+    }
+  }
+
   /** Base equality delta writer to write both insert records and equality-deletes. */
   protected abstract class BaseEqualityDeltaWriter implements Closeable {
     private final StructProjection structProjection;
     private final PositionDelete<T> positionDelete;
     private final StructLike partitionKey;
+    private final boolean ownsInsertedRows;
     private RollingFileWriter dataWriter;
     private RollingEqDeleteWriter eqDeleteWriter;
     private PartitioningWriter<PositionDelete<T>, DeleteWriteResult> posDeleteWriter;
-    private Map<StructLike, PathOffset> insertedRowMap;
+    private InsertedRowTracker insertedRows;
     private boolean closePosDeleteWriter;
 
     protected BaseEqualityDeltaWriter(StructLike partition, Schema schema, Schema deleteSchema) {
@@ -204,8 +281,30 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         Schema deleteSchema,
         DeleteGranularity deleteGranularity,
         PartitioningDVWriter<T> posDeleteWriter) {
+      this(partition, schema, deleteSchema, deleteGranularity, posDeleteWriter, null);
+    }
+
+    /**
+     * Creates an equality delta writer that records inserted rows in a shared tracker.
+     *
+     * @param sharedInsertedRows a tracker shared with other writers of the same table within the
+     *     current commit, or null to use a private tracker. It must accept the equality-delete
+     *     schema's struct type as key type, see {@link InsertedRowTracker#acceptsKeyType}.
+     */
+    protected BaseEqualityDeltaWriter(
+        StructLike partition,
+        Schema schema,
+        Schema deleteSchema,
+        DeleteGranularity deleteGranularity,
+        PartitioningDVWriter<T> posDeleteWriter,
+        InsertedRowTracker sharedInsertedRows) {
       Preconditions.checkNotNull(schema, "Iceberg table schema cannot be null.");
       Preconditions.checkNotNull(deleteSchema, "Equality-delete schema cannot be null.");
+      Preconditions.checkArgument(
+          sharedInsertedRows == null || sharedInsertedRows.acceptsKeyType(deleteSchema.asStruct()),
+          "Shared inserted-row tracker key type %s must match equality-delete schema %s",
+          sharedInsertedRows != null ? sharedInsertedRows.keyType() : null,
+          deleteSchema.asStruct());
       this.structProjection = StructProjection.create(schema, deleteSchema);
       this.positionDelete = PositionDelete.create();
 
@@ -215,7 +314,11 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
           posDeleteWriter != null
               ? posDeleteWriter
               : createPosDeleteWriter(partition, deleteGranularity);
-      this.insertedRowMap = StructLikeMap.create(deleteSchema.asStruct());
+      this.ownsInsertedRows = sharedInsertedRows == null;
+      this.insertedRows =
+          ownsInsertedRows
+              ? InsertedRowTracker.create(deleteSchema.asStruct())
+              : sharedInsertedRows;
       this.partitionKey = partition;
     }
 
@@ -232,7 +335,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       StructLike copiedKey = StructLikeUtil.copy(structProjection.wrap(asStructLike(row)));
 
       // Adding a pos-delete to replace the old path-offset.
-      PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);
+      PathOffset previous = insertedRows.put(copiedKey, pathOffset);
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
         writePosDelete(previous);
@@ -271,7 +374,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
      * @param key has the same columns with the equality fields.
      */
     private boolean internalPosDelete(StructLike key) {
-      PathOffset previous = insertedRowMap.remove(key);
+      PathOffset previous = insertedRows.remove(key);
 
       if (previous != null) {
         // TODO attach the previous row if has a positional-delete row schema in appender factory.
@@ -327,9 +430,12 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
           }
         }
 
-        if (insertedRowMap != null) {
-          insertedRowMap.clear();
-          insertedRowMap = null;
+        if (insertedRows != null) {
+          if (ownsInsertedRows) {
+            insertedRows.clear();
+          }
+
+          insertedRows = null;
         }
 
         // Add the completed pos-delete files.
