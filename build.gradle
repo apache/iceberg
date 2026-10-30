@@ -23,6 +23,11 @@ import java.util.regex.Pattern
 
 buildscript {
   repositories {
+    if (System.getenv("GITHUB_ACTIONS") != null) {
+      maven {
+        url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
+      }
+    }
     gradlePluginPortal()
   }
   dependencies {
@@ -115,6 +120,12 @@ allprojects {
   group = "org.apache.iceberg"
   version = projectVersion
   repositories {
+    if (System.getenv("GITHUB_ACTIONS") != null) {
+      // Google Mirror of Maven Central, placed first so that it's used instead of flaky Maven Central
+      maven {
+        url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
+      }
+    }
     mavenCentral()
     mavenLocal()
   }
