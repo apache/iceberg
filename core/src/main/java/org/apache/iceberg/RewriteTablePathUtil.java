@@ -569,14 +569,8 @@ public class RewriteTablePathUtil {
               + " but was "
               + path);
     }
-    int[] equalityFieldIds = file.equalityFieldIds().stream().mapToInt(Integer::intValue).toArray();
     String newPath = newPath(path, sourcePrefix, targetPrefix);
-    return FileMetadata.deleteFileBuilder(spec)
-        .ofEqualityDeletes(equalityFieldIds)
-        .copy(file)
-        .withPath(newPath)
-        .withSplitOffsets(file.splitOffsets())
-        .build();
+    return FileMetadata.deleteFileBuilder(spec).copy(file).withPath(newPath).build();
   }
 
   private static DeleteFile newPositionDeleteEntry(

@@ -2496,6 +2496,26 @@ public class TestRowDelta extends TestBase {
   }
 
   @TestTemplate
+  public void testCopiedEqualityDeletes() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    commit(table, table.newRowDelta().addRows(FILE_A), branch);
+
+    DeleteFile copy =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .copy(FILE_A2_DELETES)
+            .withPath("/path/to/data-a2-deletes-copy.parquet")
+            .build();
+    assertThat(copy.equalityFieldIds()).isEqualTo(FILE_A2_DELETES.equalityFieldIds());
+
+    commit(table, table.newRowDelta().addDeletes(copy), branch);
+
+    FileScanTask task = Iterables.getOnlyElement(planFiles()).asFileScanTask();
+    DeleteFile taskDelete = Iterables.getOnlyElement(task.deletes());
+    assertThat(taskDelete.location()).isEqualTo(copy.location());
+    assertThat(taskDelete.equalityFieldIds()).isEqualTo(FILE_A2_DELETES.equalityFieldIds());
+  }
+
+  @TestTemplate
   public void testV2StagedPositionDeleteCannotCommitToV3() {
     assumeThat(formatVersion).isEqualTo(2);
 

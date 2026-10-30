@@ -29,6 +29,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.util.ArrayUtil;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class FileMetadata {
@@ -91,6 +92,14 @@ public class FileMetadata {
       this.sortOrderId = null;
     }
 
+    /**
+     * Copies all fields from an existing delete file, including its content type and equality field
+     * IDs.
+     *
+     * <p>The content type and equality field IDs always come from {@code toCopy}, so anything set
+     * earlier with {@link #ofPositionDeletes()} or {@link #ofEqualityDeletes(int...)} is replaced.
+     * To change them on the copy, call those methods after this one.
+     */
     public Builder copy(DeleteFile toCopy) {
       if (isPartitioned) {
         Preconditions.checkState(
@@ -98,6 +107,10 @@ public class FileMetadata {
         this.partitionData = DataFiles.copyPartitionData(spec, toCopy.partition(), partitionData);
       }
       this.content = toCopy.content();
+      this.equalityFieldIds =
+          toCopy.equalityFieldIds() == null
+              ? null
+              : ArrayUtil.toIntArray(toCopy.equalityFieldIds());
       this.filePath = toCopy.location();
       this.format = toCopy.format();
       this.recordCount = toCopy.recordCount();
