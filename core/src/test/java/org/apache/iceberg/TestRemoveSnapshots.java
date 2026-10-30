@@ -434,6 +434,81 @@ public class TestRemoveSnapshots extends TestBase {
   }
 
   @TestTemplate
+  public void testExpireInTransactionDefersFileDeletesUntilCommit() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    waitUntilAfter(firstSnapshot.timestampMillis());
+
+    table.newDelete().deleteFile(FILE_A).commit();
+    Snapshot secondSnapshot = table.currentSnapshot();
+    waitUntilAfter(secondSnapshot.timestampMillis());
+
+    table.newAppend().appendFile(FILE_B).commit();
+    long t3 = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    Transaction tx = table.newTransaction();
+    removeSnapshots(tx.table()).expireOlderThan(t3).retainLast(1).commit();
+
+    // nothing is committed to the table yet, so the expired files must still exist
+    assertThat(((BaseTransaction) tx).deletedFiles())
+        .contains(
+            firstSnapshot.manifestListLocation(),
+            secondSnapshot.manifestListLocation(),
+            FILE_A.location());
+    assertThat(new File(firstSnapshot.manifestListLocation())).exists();
+    assertThat(new File(secondSnapshot.manifestListLocation())).exists();
+    assertThat(table.snapshot(firstSnapshot.snapshotId())).isNotNull();
+    assertThat(table.snapshot(secondSnapshot.snapshotId())).isNotNull();
+
+    tx.commitTransaction();
+
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(new File(firstSnapshot.manifestListLocation())).doesNotExist();
+    assertThat(new File(secondSnapshot.manifestListLocation())).doesNotExist();
+  }
+
+  @TestTemplate
+  public void testExpireInTransactionWithParallelDeletes() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.newFastAppend().appendFile(FILE_B).commit();
+    table.newRewrite().rewriteFiles(ImmutableSet.of(FILE_B), ImmutableSet.of(FILE_D)).commit();
+    table.newRewrite().rewriteFiles(ImmutableSet.of(FILE_A), ImmutableSet.of(FILE_C)).commit();
+    long t4 = waitUntilAfter(table.currentSnapshot().timestampMillis());
+
+    long currentId = table.currentSnapshot().snapshotId();
+    Set<String> expiredManifestLists = Sets.newHashSet();
+    for (Snapshot snapshot : table.snapshots()) {
+      if (snapshot.snapshotId() != currentId) {
+        expiredManifestLists.add(snapshot.manifestListLocation());
+      }
+    }
+    assertThat(expiredManifestLists).hasSize(3);
+
+    Transaction tx = table.newTransaction();
+    removeSnapshots(tx.table())
+        .executeDeleteWith(Executors.newFixedThreadPool(4))
+        .expireOlderThan(t4)
+        .commit();
+
+    // deletes ran on the caller-provided executor, all of them must be queued and none applied.
+    // FILE_B was replaced in an expired snapshot; FILE_A was replaced by the retained one, so
+    // incremental cleanup keeps it
+    assertThat(((BaseTransaction) tx).deletedFiles())
+        .containsAll(expiredManifestLists)
+        .contains(FILE_B.location());
+    for (String manifestList : expiredManifestLists) {
+      assertThat(new File(manifestList)).exists();
+    }
+
+    tx.commitTransaction();
+
+    assertThat(table.snapshots()).hasSize(1);
+    for (String manifestList : expiredManifestLists) {
+      assertThat(new File(manifestList)).doesNotExist();
+    }
+  }
+
+  @TestTemplate
   public void testRetainLastWithTooFewSnapshots() {
     table
         .newAppend()

@@ -67,8 +67,9 @@ public class BaseTransaction implements Transaction {
   private final TransactionTable transactionTable;
   private final TableOperations transactionOps;
   private final List<PendingUpdate> updates;
-  private final Set<String> deletedFiles =
-      Sets.newHashSet(); // keep track of files deleted in the most recent commit
+  // keep track of files deleted in the most recent commit; expire delete callbacks may run on a
+  // caller-provided executor, so the set must be safe for concurrent adds
+  private final Set<String> deletedFiles = Sets.newConcurrentHashSet();
   private final Consumer<String> enqueueDelete = deletedFiles::add;
   private final TransactionType type;
   private TableMetadata base;
@@ -125,6 +126,9 @@ public class BaseTransaction implements Transaction {
 
     if (update instanceof SnapshotUpdate) {
       ((SnapshotUpdate) update).deleteWith(enqueueDelete);
+    } else if (update instanceof ExpireSnapshots) {
+      // expired files must not be deleted before the transaction commits
+      ((ExpireSnapshots) update).deleteWith(enqueueDelete);
     }
 
     if (update instanceof SnapshotProducer) {
