@@ -56,6 +56,8 @@ public class TableMetadata implements Serializable {
   static final long INVALID_SEQUENCE_NUMBER = -1;
   static final int DEFAULT_TABLE_FORMAT_VERSION = 2;
   static final int SUPPORTED_TABLE_FORMAT_VERSION = 4;
+  static final int MIN_FORMAT_VERSION_SNAPSHOT_MANIFEST_LIST = 2;
+  static final int MAX_FORMAT_VERSION_SNAPSHOT_MANIFEST_LIST = 3;
   static final int MIN_FORMAT_VERSION_ROW_LINEAGE = 3;
   static final int MIN_FORMAT_VERSION_PARQUET_MANIFESTS = 4;
   static final int MIN_FORMAT_VERSION_OPTIONAL_LOCATION = 4;
@@ -1076,6 +1078,31 @@ public class TableMetadata implements Serializable {
         return this;
       }
 
+      if (formatVersion < MIN_FORMAT_VERSION_ROW_LINEAGE
+          && newFormatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE) {
+        long upgradedNextRowId = nextRowId;
+        for (Snapshot snapshot : snapshots) {
+          Long firstRowId = snapshot.firstRowId();
+          Long addedRows = snapshot.addedRows();
+          ValidationException.check(
+              (firstRowId == null) == (addedRows == null),
+              "Cannot upgrade to format version %s with incomplete row lineage for snapshot %s",
+              newFormatVersion,
+              snapshot.snapshotId());
+
+          if (firstRowId != null) {
+            ValidationException.check(
+                firstRowId >= 0 && addedRows >= 0 && firstRowId <= Long.MAX_VALUE - addedRows,
+                "Cannot upgrade to format version %s with invalid row lineage for snapshot %s",
+                newFormatVersion,
+                snapshot.snapshotId());
+            upgradedNextRowId = Math.max(upgradedNextRowId, firstRowId + addedRows);
+          }
+        }
+
+        this.nextRowId = upgradedNextRowId;
+      }
+
       this.formatVersion = newFormatVersion;
       changes.add(new MetadataUpdate.UpgradeFormatVersion(newFormatVersion));
 
@@ -1274,24 +1301,61 @@ public class TableMetadata implements Serializable {
         }
       }
 
+      validateSnapshotFormatVersion(snapshot);
+
       this.lastSequenceNumber = snapshot.sequenceNumber();
       snapshots.add(snapshot);
       snapshotsById.put(snapshot.snapshotId(), snapshot);
       changes.add(new MetadataUpdate.AddSnapshot(snapshot));
 
       if (formatVersion >= MIN_FORMAT_VERSION_ROW_LINEAGE) {
-        ValidationException.check(
-            snapshot.firstRowId() != null, "Cannot add a snapshot: first-row-id is null");
-        RetryableValidationException.check(
-            snapshot.firstRowId() != null && snapshot.firstRowId() >= nextRowId,
-            "Cannot add a snapshot, first-row-id is behind table next-row-id: %s < %s",
-            snapshot.firstRowId(),
-            nextRowId);
-
         this.nextRowId += snapshot.addedRows();
       }
 
       return this;
+    }
+
+    private void validateSnapshotFormatVersion(Snapshot snapshot) {
+      if (formatVersion < MIN_FORMAT_VERSION_ROW_LINEAGE) {
+        ValidationException.check(
+            snapshot.firstRowId() == null && snapshot.addedRows() == null,
+            "Cannot add a snapshot with first-row-id or added-rows before format version 3");
+        ValidationException.check(
+            snapshot.keyId() == null, "Cannot add a snapshot with key-id before format version 3");
+      } else {
+        ValidationException.check(
+            snapshot.firstRowId() != null, "Cannot add a snapshot: first-row-id is null");
+        ValidationException.check(
+            snapshot.addedRows() != null, "Cannot add a snapshot: added-rows is null");
+        long addedRows = snapshot.addedRows();
+        ValidationException.check(
+            addedRows >= 0, "Cannot add a snapshot with negative added-rows: %s", addedRows);
+        RetryableValidationException.check(
+            snapshot.firstRowId() >= nextRowId,
+            "Cannot add a snapshot, first-row-id is behind table next-row-id: %s < %s",
+            snapshot.firstRowId(),
+            nextRowId);
+        ValidationException.check(
+            snapshot.firstRowId() <= Long.MAX_VALUE - addedRows,
+            "Cannot add a snapshot: row ID range would overflow");
+        ValidationException.check(
+            snapshot.firstRowId() <= nextRowId,
+            "Cannot add a snapshot, first-row-id is ahead of table next-row-id: %s > %s",
+            snapshot.firstRowId(),
+            nextRowId);
+      }
+
+      if (formatVersion >= MIN_FORMAT_VERSION_SNAPSHOT_MANIFEST_LIST
+          && formatVersion <= MAX_FORMAT_VERSION_SNAPSHOT_MANIFEST_LIST) {
+        ValidationException.check(
+            snapshot.manifestListLocation() != null,
+            "Cannot add a snapshot: manifest-list is null");
+      }
+
+      if (formatVersion >= MIN_FORMAT_VERSION_SNAPSHOT_MANIFEST_LIST) {
+        ValidationException.check(
+            snapshot.operation() != null, "Cannot add a snapshot without a summary");
+      }
     }
 
     public Builder setSnapshotsSupplier(SerializableSupplier<List<Snapshot>> snapshotsSupplier) {
