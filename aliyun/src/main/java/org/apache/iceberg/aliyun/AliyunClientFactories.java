@@ -118,6 +118,13 @@ public class AliyunClientFactories {
       return OIDCRoleArnCredentialProvider.builder().build();
     }
 
+    private boolean useRrsaCredentials() {
+      boolean hasStaticAccessKey =
+          !Strings.isNullOrEmpty(aliyunProperties.accessKeyId())
+              && !Strings.isNullOrEmpty(aliyunProperties.accessKeySecret());
+      return !hasStaticAccessKey && isRrsaEnvironmentAvailable();
+    }
+
     @Override
     public OSS newOSSClient() {
       Preconditions.checkNotNull(
@@ -126,8 +133,7 @@ public class AliyunClientFactories {
 
       String endpoint = aliyunProperties.ossEndpoint();
 
-      // Check if RRSA environment is available
-      if (isRrsaEnvironmentAvailable()) {
+      if (useRrsaCredentials()) {
         try {
           LOG.info(
               "Detected RRSA environment variables, creating OSS client with RRSA credentials for endpoint: {}",
@@ -196,8 +202,8 @@ public class AliyunClientFactories {
      * #newOSSClient()}:
      *
      * <ol>
-     *   <li>RRSA/OIDC when its environment variables are present; this takes precedence over the
-     *       static access-key properties.
+     *   <li>RRSA/OIDC when its environment variables are present and the static access key and
+     *       secret are not both set.
      *   <li>otherwise the static access key / secret (+ optional security token).
      * </ol>
      */
@@ -219,8 +225,7 @@ public class AliyunClientFactories {
         config.setEndpoint(aliyunProperties.kmsEndpoint());
       }
 
-      // Check if RRSA environment is available (same credential resolution order as newOSSClient)
-      if (isRrsaEnvironmentAvailable()) {
+      if (useRrsaCredentials()) {
         try {
           LOG.info(
               "Detected RRSA environment variables, creating KMS client with RRSA credentials");
