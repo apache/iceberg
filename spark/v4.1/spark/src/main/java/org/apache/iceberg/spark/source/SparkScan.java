@@ -78,7 +78,6 @@ import org.apache.iceberg.spark.source.metrics.TotalDeleteManifests;
 import org.apache.iceberg.spark.source.metrics.TotalPlanningDuration;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
@@ -240,9 +239,12 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
                     Collectors.groupingBy(
                         metadata -> metadata.fields().get(0), Collectors.toList()));
 
-        Schema snapshotSchema = SnapshotUtil.schemaFor(table, snapshot.snapshotId());
+        Schema scanSchema = schema();
         for (Map.Entry<Integer, List<BlobMetadata>> entry : groupedByField.entrySet()) {
-          String colName = snapshotSchema.findColumnName(entry.getKey());
+          String colName = scanSchema.findColumnName(entry.getKey());
+          if (colName == null) {
+            continue;
+          }
           NamedReference ref = FieldReference.column(colName);
           Long ndv = null;
 
