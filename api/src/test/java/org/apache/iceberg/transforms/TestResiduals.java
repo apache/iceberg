@@ -50,6 +50,25 @@ import org.junit.jupiter.api.Test;
 
 public class TestResiduals {
   @Test
+  void lessThanKeepsNullDatePartition() {
+    Schema schema = new Schema(Types.NestedField.optional(1, "d", Types.DateType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("d").build();
+    ResidualEvaluator evaluator = ResidualEvaluator.of(spec, lessThan("d", "2026-10-27"), true);
+
+    assertThat(evaluator.residualFor(Row.of((Object) null))).isEqualTo(alwaysFalse());
+  }
+
+  @Test
+  void lessThanOrEqualKeepsNullDatePartition() {
+    Schema schema = new Schema(Types.NestedField.optional(1, "d", Types.DateType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("d").build();
+    ResidualEvaluator evaluator =
+        ResidualEvaluator.of(spec, Expressions.lessThanOrEqual("d", "2026-10-27"), true);
+
+    assertThat(evaluator.residualFor(Row.of((Object) null))).isEqualTo(alwaysFalse());
+  }
+
+  @Test
   public void testIdentityTransformResiduals() {
     Schema schema =
         new Schema(
