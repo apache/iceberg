@@ -23,7 +23,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.iceberg.aws.AwsProperties;
+import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -35,6 +39,8 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
+import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
+import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 
 public class TestDynamoDbCatalog {
 
@@ -158,5 +164,73 @@ public class TestDynamoDbCatalog {
       String defaultWarehouseLocation = catalog.defaultWarehouseLocation(TABLE_IDENTIFIER);
       assertThat(defaultWarehouseLocation).matches("s3://bucket2/db/table-[a-z0-9]{32}");
     }
+  }
+
+  @Test
+  void listNamespacesReturnsOnlyChildren() {
+    stubNamespaces("db", "db.a", "db.b", "db.a.c", "dbx", "dbx.z", "other");
+
+    assertThat(dynamoCatalog.listNamespaces(Namespace.of("db")))
+        .containsExactlyInAnyOrder(Namespace.of("db", "a"), Namespace.of("db", "b"));
+  }
+
+  @Test
+  void listNamespacesReturnsOnlyTopLevel() {
+    stubNamespaces("db", "db.a", "db.b", "db.a.c", "dbx", "dbx.z", "other");
+
+    assertThat(dynamoCatalog.listNamespaces())
+        .containsExactlyInAnyOrder(Namespace.of("db"), Namespace.of("dbx"), Namespace.of("other"));
+  }
+
+  @Test
+  void listNamespacesOfLeafNamespaceIsEmpty() {
+    stubNamespaces("db", "db.a");
+
+    assertThat(dynamoCatalog.listNamespaces(Namespace.of("db", "a"))).isEmpty();
+  }
+
+  @Test
+  void listNamespacesOfMissingNamespace() {
+    stubNamespaces("db", "db.a");
+
+    assertThatThrownBy(() -> dynamoCatalog.listNamespaces(Namespace.of("missing")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace does not exist: missing");
+  }
+
+  @Test
+  void listNamespacesWithoutParentEntry() {
+    stubNamespaces("db.a", "db.b");
+
+    assertThat(dynamoCatalog.listNamespaces(Namespace.of("db")))
+        .containsExactlyInAnyOrder(Namespace.of("db", "a"), Namespace.of("db", "b"));
+  }
+
+  // answers like DynamoDB: begins_with on the namespace column, and a key lookup per namespace
+  private void stubNamespaces(String... namespaces) {
+    List<String> stored = List.of(namespaces);
+    Mockito.doAnswer(
+            invocation -> {
+              QueryRequest request = invocation.getArgument(0);
+              AttributeValue prefix = request.expressionAttributeValues().get(":ns");
+              List<Map<String, AttributeValue>> items =
+                  stored.stream()
+                      .filter(ns -> prefix == null || ns.startsWith(prefix.s()))
+                      .map(ns -> Map.of("namespace", AttributeValue.builder().s(ns).build()))
+                      .collect(Collectors.toList());
+              return QueryResponse.builder().items(items).build();
+            })
+        .when(dynamo)
+        .query(any(QueryRequest.class));
+    Mockito.doAnswer(
+            invocation -> {
+              GetItemRequest request = invocation.getArgument(0);
+              String ns = request.key().get("namespace").s();
+              return stored.contains(ns)
+                  ? GetItemResponse.builder().item(request.key()).build()
+                  : GetItemResponse.builder().build();
+            })
+        .when(dynamo)
+        .getItem(any(GetItemRequest.class));
   }
 }
