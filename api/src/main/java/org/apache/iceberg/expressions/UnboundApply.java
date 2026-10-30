@@ -28,7 +28,7 @@ import org.apache.iceberg.types.Types.StructType;
  *
  * @param <T> return type
  */
-public class UnboundApply<T> implements Apply<T> {
+public class UnboundApply<T> implements Apply<T>, Unbound<T, BoundApply<T>> {
   private final FunctionReference functionReference;
   private final List<Expression> arguments;
 
@@ -43,6 +43,18 @@ public class UnboundApply<T> implements Apply<T> {
 
   public List<Expression> arguments() {
     return arguments;
+  }
+
+  /**
+   * Functions cannot be bound without a {@link FunctionBinder}; use {@link #bind(FunctionBinder,
+   * StructType, boolean)}.
+   *
+   * @throws UnsupportedOperationException always
+   */
+  @Override
+  public BoundApply<T> bind(StructType struct, boolean caseSensitive) {
+    throw new UnsupportedOperationException(
+        "Cannot bind function without a function binder: " + functionReference.name());
   }
 
   public BoundApply<T> bind(
