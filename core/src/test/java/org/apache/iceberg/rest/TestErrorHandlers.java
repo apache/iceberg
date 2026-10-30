@@ -20,11 +20,18 @@ package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.NoSuchWarehouseException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestErrorHandlers {
 
@@ -69,6 +76,48 @@ public class TestErrorHandlers {
     assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
         .isInstanceOf(RESTException.class)
         .hasMessage("Unable to process (code: 422, type: ValidationException): null");
+  }
+
+  private static Stream<Arguments> handlersRethrowingValidationException() {
+    return Stream.of(
+        Arguments.of("defaultErrorHandler", ErrorHandlers.defaultErrorHandler()),
+        Arguments.of("tableErrorHandler", ErrorHandlers.tableErrorHandler()),
+        Arguments.of("tableCommitHandler", ErrorHandlers.tableCommitHandler()),
+        Arguments.of("createTableErrorHandler", ErrorHandlers.createTableErrorHandler()),
+        Arguments.of("viewErrorHandler", ErrorHandlers.viewErrorHandler()),
+        Arguments.of("viewCommitHandler", ErrorHandlers.viewCommitHandler()),
+        Arguments.of("planErrorHandler", ErrorHandlers.planErrorHandler()),
+        Arguments.of("planTaskHandler", ErrorHandlers.planTaskHandler()),
+        Arguments.of("configErrorHandler", ErrorHandlers.configErrorHandler()));
+  }
+
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("handlersRethrowingValidationException")
+  void badRequestWithValidationExceptionType(String name, Consumer<ErrorResponse> handler) {
+    ErrorResponse error =
+        ErrorResponse.builder()
+            .responseCode(400)
+            .withType("ValidationException")
+            .withMessage("Table property commit.retry.num-retries must have integer value")
+            .build();
+
+    assertThatThrownBy(() -> handler.accept(error))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Table property commit.retry.num-retries must have integer value");
+  }
+
+  @Test
+  void badRequestWithOtherType() {
+    ErrorResponse error =
+        ErrorResponse.builder()
+            .responseCode(400)
+            .withType("BadRequestException")
+            .withMessage("Invalid input")
+            .build();
+
+    assertThatThrownBy(() -> ErrorHandlers.defaultErrorHandler().accept(error))
+        .isInstanceOf(BadRequestException.class)
+        .hasMessage("Malformed request: Invalid input");
   }
 
   @Test
