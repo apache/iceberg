@@ -26,6 +26,7 @@ import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.LowLevelHttpRequest;
 import com.google.api.client.http.LowLevelHttpResponse;
+import com.google.api.client.testing.http.MockLowLevelHttpResponse;
 import com.google.api.services.bigquery.model.Dataset;
 import com.google.api.services.bigquery.model.DatasetReference;
 import com.google.api.services.bigquery.model.ExternalCatalogTableOptions;
@@ -35,15 +36,13 @@ import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.bigquery.BigQueryOptions;
 import com.google.cloud.http.HttpTransportOptions;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class TestBigQueryMetastoreClientImpl {
@@ -62,6 +61,16 @@ class TestBigQueryMetastoreClientImpl {
           + "\"status\":\"ALREADY_EXISTS\","
           + "\"errors\":[{\"message\":\"Already Exists\",\"domain\":\"global\","
           + "\"reason\":\"duplicate\"}]}}";
+
+  private HttpRequest defaultRequest;
+
+  @BeforeEach
+  void createDefaultRequest() throws IOException {
+    this.defaultRequest =
+        new CapturingTransport(200, DATASET_OK_JSON)
+            .createRequestFactory()
+            .buildGetRequest(new GenericUrl("http://localhost"));
+  }
 
   private static GoogleCredentials credentials(String token) {
     return GoogleCredentials.create(
@@ -146,78 +155,23 @@ class TestBigQueryMetastoreClientImpl {
         }
 
         @Override
-        public LowLevelHttpResponse execute() throws IOException {
+        public LowLevelHttpResponse execute() {
           capturedConnectTimeout = connectMs;
           capturedReadTimeout = readMs;
           capturedAuthHeader = authHeader;
-          return new FakeHttpResponse(responseStatus, responseBody);
+          return new MockLowLevelHttpResponse()
+              .setStatusCode(responseStatus)
+              .setReasonPhrase(
+                  responseStatus == 200 ? "OK" : responseStatus == 409 ? "Conflict" : "Unknown")
+              .setContent(responseBody)
+              .setContentType("application/json");
         }
       };
     }
   }
 
-  private static class FakeHttpResponse extends LowLevelHttpResponse {
-    private final int statusCode;
-    private final byte[] body;
-
-    FakeHttpResponse(int statusCode, String body) {
-      this.statusCode = statusCode;
-      this.body = body.getBytes(StandardCharsets.UTF_8);
-    }
-
-    @Override
-    public InputStream getContent() throws IOException {
-      return new ByteArrayInputStream(body);
-    }
-
-    @Override
-    public String getContentEncoding() throws IOException {
-      return null;
-    }
-
-    @Override
-    public long getContentLength() throws IOException {
-      return body.length;
-    }
-
-    @Override
-    public String getContentType() throws IOException {
-      return "application/json";
-    }
-
-    @Override
-    public String getStatusLine() throws IOException {
-      return "HTTP/1.1 " + statusCode;
-    }
-
-    @Override
-    public int getStatusCode() throws IOException {
-      return statusCode;
-    }
-
-    @Override
-    public String getReasonPhrase() throws IOException {
-      return statusCode == 200 ? "OK" : statusCode == 409 ? "Conflict" : "Unknown";
-    }
-
-    @Override
-    public int getHeaderCount() throws IOException {
-      return 0;
-    }
-
-    @Override
-    public String getHeaderName(int index) throws IOException {
-      return null;
-    }
-
-    @Override
-    public String getHeaderValue(int index) throws IOException {
-      return null;
-    }
-  }
-
   @Test
-  void configuredTimeoutsReachTableRequest() throws Exception {
+  void configuredTimeoutsReachTableRequest() {
     CapturingTransport transport = new CapturingTransport(200, TABLE_OK_JSON);
     HttpTransportOptions transportOptions =
         HttpTransportOptions.newBuilder().setConnectTimeout(60_000).setReadTimeout(180_000).build();
@@ -231,7 +185,7 @@ class TestBigQueryMetastoreClientImpl {
   }
 
   @Test
-  void configuredTimeoutsReachDatasetRequest() throws Exception {
+  void configuredTimeoutsReachDatasetRequest() {
     CapturingTransport transport = new CapturingTransport(200, DATASET_OK_JSON);
     HttpTransportOptions transportOptions =
         HttpTransportOptions.newBuilder().setConnectTimeout(60_000).setReadTimeout(180_000).build();
@@ -245,7 +199,7 @@ class TestBigQueryMetastoreClientImpl {
   }
 
   @Test
-  void sdkDefaultReadTimeoutHonored() throws Exception {
+  void sdkDefaultReadTimeoutHonored() {
     CapturingTransport transport = new CapturingTransport(200, DATASET_OK_JSON);
 
     BigQueryMetastoreClientImpl client =
@@ -257,12 +211,10 @@ class TestBigQueryMetastoreClientImpl {
   }
 
   @Test
-  void explicitlyUnsetTransportOptionsPreserveHttpDefaults() throws Exception {
+  void explicitlyUnsetTransportOptionsPreserveHttpDefaults() {
     // HttpTransportOptions.newBuilder().build() leaves both timeouts at -1.
     HttpTransportOptions emptyOptions = HttpTransportOptions.newBuilder().build();
     CapturingTransport transport = new CapturingTransport(200, DATASET_OK_JSON);
-    HttpRequest defaultRequest =
-        transport.createRequestFactory().buildGetRequest(new GenericUrl("http://localhost"));
 
     BigQueryMetastoreClientImpl client =
         new BigQueryMetastoreClientImpl(optionsWithTransport(emptyOptions), transport);
@@ -273,12 +225,10 @@ class TestBigQueryMetastoreClientImpl {
   }
 
   @Test
-  void connectOnlyOverrideApplied() throws Exception {
+  void connectOnlyOverrideApplied() {
     HttpTransportOptions transportOptions =
         HttpTransportOptions.newBuilder().setConnectTimeout(45_000).build();
     CapturingTransport transport = new CapturingTransport(200, DATASET_OK_JSON);
-    HttpRequest defaultRequest =
-        transport.createRequestFactory().buildGetRequest(new GenericUrl("http://localhost"));
 
     BigQueryMetastoreClientImpl client =
         new BigQueryMetastoreClientImpl(optionsWithTransport(transportOptions), transport);
@@ -289,12 +239,10 @@ class TestBigQueryMetastoreClientImpl {
   }
 
   @Test
-  void readOnlyOverrideApplied() throws Exception {
+  void readOnlyOverrideApplied() {
     HttpTransportOptions transportOptions =
         HttpTransportOptions.newBuilder().setReadTimeout(120_000).build();
     CapturingTransport transport = new CapturingTransport(200, DATASET_OK_JSON);
-    HttpRequest defaultRequest =
-        transport.createRequestFactory().buildGetRequest(new GenericUrl("http://localhost"));
 
     BigQueryMetastoreClientImpl client =
         new BigQueryMetastoreClientImpl(optionsWithTransport(transportOptions), transport);
@@ -305,7 +253,7 @@ class TestBigQueryMetastoreClientImpl {
   }
 
   @Test
-  void zeroTimeoutsForwarded() throws Exception {
+  void zeroTimeoutsForwarded() {
     // Zero means "no timeout" per the SDK contract and must be forwarded, not filtered out.
     HttpTransportOptions transportOptions =
         HttpTransportOptions.newBuilder().setConnectTimeout(0).setReadTimeout(0).build();
@@ -320,7 +268,7 @@ class TestBigQueryMetastoreClientImpl {
   }
 
   @Test
-  void authorizationHeaderPreserved() throws Exception {
+  void authorizationHeaderPreserved() {
     BigQueryOptions options =
         BigQueryOptions.newBuilder()
             .setProjectId("test-project")
@@ -335,7 +283,7 @@ class TestBigQueryMetastoreClientImpl {
   }
 
   @Test
-  void conflictResponseMappedToAlreadyExistsException() throws Exception {
+  void conflictResponseMappedToAlreadyExistsException() {
     CapturingTransport transport = new CapturingTransport(409, CONFLICT_JSON);
 
     BigQueryMetastoreClientImpl client =
