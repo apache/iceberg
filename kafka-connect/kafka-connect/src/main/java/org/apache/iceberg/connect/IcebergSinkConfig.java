@@ -81,6 +81,8 @@ public class IcebergSinkConfig extends AbstractConfig {
       "iceberg.tables.schema-case-insensitive";
   private static final String TABLES_REPLACE_NULL_WITH_DEFAULT_PROP =
       "iceberg.tables.replace-null-with-default";
+  private static final String UNSUPPORTED_CDC_FIELD_PROP = "iceberg.tables.cdc-field";
+  private static final String UNSUPPORTED_UPSERT_MODE_PROP = "iceberg.tables.upsert-mode-enabled";
   private static final String CONTROL_TOPIC_PROP = "iceberg.control.topic";
   private static final String CONTROL_GROUP_ID_PREFIX_PROP = "iceberg.control.group-id-prefix";
   private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commit.interval-ms";
@@ -293,6 +295,16 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   private void validate() {
     checkState(!catalogProps().isEmpty(), "Must specify Iceberg catalog properties");
+    checkState(
+        originalProps.getOrDefault(UNSUPPORTED_CDC_FIELD_PROP, "").isEmpty(),
+        "Cannot set "
+            + UNSUPPORTED_CDC_FIELD_PROP
+            + ": CDC operations are not applied, all records are appended");
+    checkState(
+        !Boolean.parseBoolean(originalProps.get(UNSUPPORTED_UPSERT_MODE_PROP)),
+        "Cannot enable "
+            + UNSUPPORTED_UPSERT_MODE_PROP
+            + ": upsert is not supported, all records are appended");
     if (tables() != null) {
       checkState(!dynamicTablesEnabled(), "Cannot specify both static and dynamic table names");
     } else if (dynamicTablesEnabled()) {
