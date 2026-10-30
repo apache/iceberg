@@ -220,13 +220,11 @@ class MumblingBitmap implements ManifestBitmap {
 
     @Override
     public void merge(ManifestBitmap bitmap) {
-      if (bitmap instanceof Mutable) {
-        merge((Mutable) bitmap);
-      } else if (bitmap instanceof MumblingBitmap) {
-        merge((MumblingBitmap) bitmap);
-      } else {
+      switch (bitmap) {
+        case Mutable mutable -> merge(mutable);
+        case MumblingBitmap readOnly -> merge(readOnly);
         // use the buffer to get the bitmap as a supported class
-        merge(new MumblingBitmap(bitmap.buffer()));
+        default -> merge(new MumblingBitmap(bitmap.buffer()));
       }
     }
 
