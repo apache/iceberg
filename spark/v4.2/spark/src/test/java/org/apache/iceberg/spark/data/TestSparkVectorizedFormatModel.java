@@ -19,14 +19,18 @@
 package org.apache.iceberg.spark.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.DataGenerator;
 import org.apache.iceberg.data.DataGenerators;
 import org.apache.iceberg.data.ReadFormatModelTests;
 import org.apache.iceberg.data.Record;
@@ -36,35 +40,47 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.spark.data.vectorized.IcebergArrowColumnVector;
 import org.apache.iceberg.types.Type;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
+import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.FieldSource;
 
 class TestSparkVectorizedFormatModel extends ReadFormatModelTests<ColumnarBatch> {
 
   private static final FileFormat[] FILE_FORMATS = {FileFormat.ORC, FileFormat.PARQUET};
+
+  // Spark has no TIME or TIMESTAMP_NANO type. The Arrow-based Parquet reader also cannot read
+  // nested or geospatial columns, the vectorized ORC reader can.
+  private static final Map<FileFormat, Set<Type.TypeID>> UNSUPPORTED_TYPE_IDS =
+      Map.of(
+          FileFormat.ORC,
+          Set.of(Type.TypeID.TIME, Type.TypeID.TIMESTAMP_NANO),
+          FileFormat.PARQUET,
+          Set.of(
+              Type.TypeID.TIME,
+              Type.TypeID.TIMESTAMP_NANO,
+              Type.TypeID.STRUCT,
+              Type.TypeID.LIST,
+              Type.TypeID.MAP,
+              Type.TypeID.GEOMETRY,
+              Type.TypeID.GEOGRAPHY));
 
   private static final List<Arguments> FORMAT_AND_GENERATOR =
       Arrays.stream(FILE_FORMATS)
           .flatMap(
               format ->
                   Arrays.stream(DataGenerators.ALL)
-                      .filter(generator -> supportsGenerator(format, generator))
+                      .filter(generator -> supportsVectorized(format, generator))
                       .map(generator -> Arguments.of(format, generator)))
           .toList();
 
-  private static final Set<Type.TypeID> UNSUPPORTED_TYPE_IDS =
-      Set.of(
-          Type.TypeID.TIME,
-          Type.TypeID.TIMESTAMP_NANO,
-          Type.TypeID.STRUCT,
-          Type.TypeID.LIST,
-          Type.TypeID.MAP,
-          Type.TypeID.UUID,
-          Type.TypeID.GEOMETRY,
-          Type.TypeID.GEOGRAPHY);
+  private static boolean supportsVectorized(FileFormat format, DataGenerator generator) {
+    return supportsGenerator(format, generator)
+        && !containsType(generator.schema(), UNSUPPORTED_TYPE_IDS.get(format));
+  }
 
   @Override
-  protected Collection<Type.TypeID> unsupportedTypeIds() {
-    return UNSUPPORTED_TYPE_IDS;
+  protected Collection<Type.TypeID> unsupportedTypeIds(FileFormat fileFormat) {
+    return UNSUPPORTED_TYPE_IDS.get(fileFormat);
   }
 
   @Override
@@ -84,6 +100,40 @@ class TestSparkVectorizedFormatModel extends ReadFormatModelTests<ColumnarBatch>
     for (int i = 0; i < first.numCols(); i++) {
       assertThat(arrowVector(second, i)).isSameAs(arrowVector(first, i));
     }
+  }
+
+  @Override
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  protected void testReadMetadataColumnIsDeleted(FileFormat fileFormat) throws IOException {
+    assumeThat(fileFormat)
+        .as("Vectorized Parquet reader only populates _deleted when a delete filter is set")
+        .isNotEqualTo(FileFormat.PARQUET);
+    super.testReadMetadataColumnIsDeleted(fileFormat);
+  }
+
+  @Override
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  protected void testReadMetadataColumnRowLineage(FileFormat fileFormat) throws IOException {
+    assumeRowLineageSupported(fileFormat);
+    super.testReadMetadataColumnRowLineage(fileFormat);
+  }
+
+  @Override
+  @ParameterizedTest
+  @FieldSource("FILE_FORMATS")
+  protected void testReadMetadataColumnRowLineageExistingValues(FileFormat fileFormat)
+      throws IOException {
+    assumeRowLineageSupported(fileFormat);
+    super.testReadMetadataColumnRowLineageExistingValues(fileFormat);
+  }
+
+  // TODO: remove when https://github.com/apache/iceberg/issues/18543 is fixed
+  private static void assumeRowLineageSupported(FileFormat fileFormat) {
+    assumeThat(fileFormat)
+        .as("Vectorized ORC reader does not apply row lineage")
+        .isNotEqualTo(FileFormat.ORC);
   }
 
   private ValueVector arrowVector(ColumnarBatch batch, int col) {
