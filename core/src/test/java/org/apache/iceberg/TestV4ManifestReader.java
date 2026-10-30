@@ -1877,7 +1877,7 @@ class TestV4ManifestReader {
   private static FieldStatsStruct<GeospatialBound> geoFieldStats(
       Types.StructType statsType, String name, GeospatialBound lower, GeospatialBound upper) {
     return new FieldStatsStruct<>(
-        statsType.fieldType(name).asStructType(), lower, upper, false, RECORD_COUNT, 0, 0, 0L);
+        statsType.fieldType(name).asStructType(), lower, upper, RECORD_COUNT, 0, 0, 0L);
   }
 
   private static void assertGeospatialBounds(
