@@ -122,7 +122,7 @@ public class EqualityConvertPlanner extends AbstractStreamOperator<ReadCommand>
   private transient ListState<Long> indexSnapshotState;
   // Generation of the worker's current index build.
   private transient ListState<Long> indexGenerationState;
-  // Staging snapshot the last emitted plan covered.
+  // Staging snapshot the index changed for until its conversion commit shows up on the target.
   private transient ListState<Long> pendingStagingSnapshotState;
   // Equality field IDs the index was built with, allows to detect reconfiguration.
   private transient ListState<Integer> eqFieldIdsState;
